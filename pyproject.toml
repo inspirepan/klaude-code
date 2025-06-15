@@ -1,7 +1,23 @@
 [project]
-name = "klod-code"
+name = "claudepy"
 version = "0.1.0"
-description = "Add your description here"
+description = "Coding Agent CLI"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "openai>=1.86.0",
+    "prompt-toolkit>=3.0.51",
+    "pydantic>=2.11.7",
+    "questionary>=2.1.0",
+    "rich>=14.0.0",
+    "tiktoken>=0.9.0",
+    "typer>=0.9.0",
+]
+
+[project.scripts]
+claudepy = "claudepy.cli:app"
+
+[dependency-groups]
+dev = [
+    "isort>=6.0.1",
+]

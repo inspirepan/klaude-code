@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "WebFetch(domain:rich.readthedocs.io)",
+      "Bash(pip install:*)",
+      "Bash(uv add:*)"
+    ],
+    "deny": []
+  }
+}
