@@ -34,12 +34,12 @@ class InputMode(BaseModel):
         style_dict = {
             "completion-menu": "bg:default",
             "completion-menu.border": "bg:default",
-            "completion-menu.completion": "bg:default",
-            "completion-menu.completion.current": "bg:#444444 fg:#aaddff",
+            "completion-menu.completion": "bg:default fg:#9a9a9a",
+            "completion-menu.completion.current": "bg:#4a4a4a fg:#aaddff",
             "scrollbar.background": "bg:default",
             "scrollbar.button": "bg:default",
-            "completion-menu.meta.completion": "bg:default fg:#6a6a6a",   # 正常行，透明底+灰前景
-            "completion-menu.meta.completion.current": "bg:#aaddff fg:#444",
+            "completion-menu.meta.completion": "bg:default fg:#9a9a9a",   # 正常行，透明底+灰前景
+            "completion-menu.meta.completion.current": "bg:#aaddff fg:#4a4a4a",
         }
 
         if self.style:
