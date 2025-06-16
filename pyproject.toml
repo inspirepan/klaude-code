@@ -1,5 +1,5 @@
 [project]
-name = "claudepy"
+name = "klaude-code"
 version = "0.1.0"
 description = "Coding Agent CLI"
 readme = "README.md"
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-claudepy = "claudepy.cli:app"
+klaude-code = "klaudecode.cli:app"
 
 [dependency-groups]
 dev = [

@@ -2,6 +2,7 @@ import typer
 
 from .message import ToolMessage, AIMessage, UserMessage, SystemMessage, ToolCallMessage
 from .tui import console
+from .input import session
 
 app = typer.Typer(help="Coding Agent CLI", add_completion=False)
 
@@ -16,3 +17,5 @@ def main(
         console.print(AIMessage(content="Hello, world!"))
         console.print(ToolMessage(content="/user/bytedance/code", tool_call=ToolCallMessage(id="1", tool_name="Bash", tool_args="{'command': 'pwd'}", status="error"),
                                   subagent_tool_calls=[ToolCallMessage(id="1", tool_name="Grep", tool_args="{'command': 'pwd'}", status="error")]))
+        i = session.prompt()
+        console.print(i)

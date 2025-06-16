@@ -6,7 +6,11 @@
       "mcp__context7__get-library-docs",
       "WebFetch(domain:rich.readthedocs.io)",
       "Bash(pip install:*)",
-      "Bash(uv add:*)"
+      "Bash(uv add:*)",
+      "Bash(find:*)",
+      "Bash(rg:*)",
+      "Bash(uv sync:*)",
+      "Bash(uv run:*)"
     ],
     "deny": []
   }
