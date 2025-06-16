@@ -2,95 +2,152 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
+from prompt_toolkit.history import FileHistory
 from pydantic import BaseModel
+from pathlib import Path
+from enum import Enum
 
 
 class InputMode(BaseModel):
+    name: str
     prompt: str
     placeholder: str
     style: str
+    next_mode: str
 
-    def get_html_prompt(self):
-        return HTML(f'<{self.style}>{self.prompt} </{self.style}>')
+    def get_prompt(self):
+        if self.style:
+            return HTML(f'<style fg="{self.style}">{self.prompt} </style>')
+        return self.prompt + " "
+
+    def get_style(self):
+        if self.style:
+            return Style.from_dict({
+                'placeholder': self.style,
+                '': self.style,
+            })
+        return None
+
+
+class InputModeEnum(Enum):
+    NORMAL = "normal"
+    PLAN = "plan"
+    BASH = "bash"
+    MEMORY = "memory"
+    INTERRUPTED = "interrupted"
 
 
 input_mode_dict = {
-    "normal": InputMode(prompt=">", placeholder="", style=""),
-    "plan": InputMode(prompt="*", placeholder="type plan...", style="cyan"),
-    "bash_mode": InputMode(prompt="!", placeholder="type command...", style="magenta"),
-    # "memory_mode": InputMode(prompt="#", placeholder="type memory...", style="blue"),
+    InputModeEnum.NORMAL: InputMode(name=InputModeEnum.NORMAL, prompt=">", placeholder="", style="", next_mode=InputModeEnum.NORMAL),
+    InputModeEnum.PLAN: InputMode(name=InputModeEnum.PLAN, prompt="*", placeholder="type plan...", style="#2a6465", next_mode=InputModeEnum.PLAN),
+    InputModeEnum.BASH: InputMode(name=InputModeEnum.BASH, prompt="!", placeholder="type command...", style="#ea3386", next_mode=InputModeEnum.NORMAL),
+    InputModeEnum.MEMORY: InputMode(name=InputModeEnum.MEMORY, prompt="#", placeholder="type memory...", style="#0000f5", next_mode=InputModeEnum.NORMAL),
 }
 
-current_input_mode = input_mode_dict["normal"]
 
+class InputSession:
+    def __init__(self, workdir: str = None):
+        self.current_input_mode = input_mode_dict[InputModeEnum.NORMAL]
+        self.workdir = Path(workdir) if workdir else Path.cwd()
 
-def dyn_prompt():
-    return current_input_mode.get_html_prompt()
+        # Create history file path
+        history_file = self.workdir / ".klaude" / "input_history"
+        if not history_file.exists():
+            history_file.parent.mkdir(parents=True, exist_ok=True)
+            history_file.touch()
+        self.history = FileHistory(str(history_file))
 
+        # Create key bindings
+        self.kb = KeyBindings()
+        self._setup_key_bindings()
 
-def dyn_placeholder():
-    return current_input_mode.placeholder
+        # Create session
+        self.session = PromptSession(
+            self._dyn_prompt,
+            key_bindings=self.kb,
+            enable_history_search=True,
+            history=self.history,
+            placeholder=self._dyn_placeholder,
+        )
+        self.buf = self.session.default_buffer
 
+    def _dyn_prompt(self):
+        return self.current_input_mode.get_prompt()
 
-kb = KeyBindings()
-session = PromptSession(
-    dyn_prompt,
-    placeholder=dyn_placeholder,
-    style=current_input_mode.style,
-    key_bindings=kb,
-    enable_history_search=True,
-)
-buf = session.default_buffer
+    def _dyn_placeholder(self):
+        return self.current_input_mode.placeholder
 
-
-@kb.add("!")
-def _(event):
-    """
-    行首输入 '!'：切换到bash模式(一次性); 不把字符写进缓冲区。
-    若光标不在行首或缓冲区非空，则正常插入 '!'
-    """
-    if buf.text == "" and buf.cursor_position == 0:
-        current_input_mode = input_mode_dict["bash_mode"]
-        event.app.style = current_input_mode.style
+    def _switch_mode(self, event, mode_name: str):
+        self.current_input_mode = input_mode_dict[mode_name]
+        style = self.current_input_mode.get_style()
+        if style:
+            event.app.style = style
+        else:
+            event.app.style = None
         event.app.invalidate()
-        return
-    # 否则按普通字符插入
-    buf.insert_text("!")
 
+    def _switch_mode_or_insert(self, event, mode_name: str, char: str):
+        """Switch to mode if at line start, otherwise insert character"""
+        if self.buf.text == "" and self.buf.cursor_position == 0:
+            self._switch_mode(event, mode_name)
+            return
+        self.buf.insert_text(char)
 
-@kb.add("*")
-def _(event):
-    if buf.text == "" and buf.cursor_position == 0:
-        current_input_mode = input_mode_dict["plan"]
-        event.app.style = current_input_mode.style
-        event.app.invalidate()
-        return
-    buf.insert_text("*")
+    def _setup_key_bindings(self):
+        @self.kb.add("!")
+        def _(event):
+            """
+            Press '!' at line start: switch to bash mode; don't write to buffer.
+            If cursor is not at line start or buffer is not empty, insert '!' normally
+            """
+            self._switch_mode_or_insert(event, InputModeEnum.BASH, "!")
 
-@kb.add("backspace")
-def _(event):
-    if (current_input_mode.prompt in ["!", "*"]) and buf.text == "" and buf.cursor_position == 0:
-        current_input_mode = input_mode_dict["normal"]
-        event.app.style = current_input_mode.style
-        event.app.invalidate()
-        return
-    # 默认退格
-    buf.delete_before_cursor()
+        @self.kb.add("*")
+        def _(event):
+            self._switch_mode_or_insert(event, InputModeEnum.PLAN, "*")
 
+        @self.kb.add("#")
+        def _(event):
+            self._switch_mode_or_insert(event, InputModeEnum.MEMORY, "#")
 
-@kb.add("enter")
-def _(event):
-    """
-    检查是否以反斜杠结尾：
-    - 如果是，则删除反斜杠并插入换行符继续编辑
-    - 如果不是，则正常提交输入
-    """
-    text = buf.text
-    if text.endswith("\\"):
-        # 删除末尾的反斜杠
-        buf.delete_before_cursor()
-        # 插入换行符
-        buf.insert_text("\n")
-    else:
-        # 正常提交
-        event.app.exit(result=buf.text)
+        @self.kb.add("backspace")
+        def _(event):
+            if self.buf.text == "" and self.buf.cursor_position == 0:
+                self._switch_mode(event, InputModeEnum.NORMAL)
+                return
+            self.buf.delete_before_cursor()
+
+        @self.kb.add("enter")
+        def _(event):
+            """
+            Check if ends with backslash:
+            - If yes, remove backslash and insert newline to continue editing
+            - If no, submit input normally
+            """
+            text = self.buf.text
+            if text.endswith("\\"):
+                # Remove trailing backslash
+                self.buf.delete_before_cursor()
+                # Insert newline
+                self.buf.insert_text("\n")
+            else:
+                # Normal submit
+                event.app.exit(result=self.buf.text)
+
+    def _switch_to_next_mode(self):
+        self.current_input_mode = input_mode_dict[self.current_input_mode.next_mode]
+        # Update session style for next prompt
+        style = self.current_input_mode.get_style()
+        if hasattr(self.session, 'app') and self.session.app:
+            self.session.app.style = style or None
+
+    def prompt(self) -> str:
+        input_text = self.session.prompt()
+        self._switch_to_next_mode()
+        return input_text
+
+    async def prompt_async(self) -> str:
+        # TODO: return with mode name
+        input_text = await self.session.prompt_async()
+        self._switch_to_next_mode()
+        return input_text

@@ -9,6 +9,7 @@ from rich.abc import RichRenderable
 
 from .tui import console, render_message, render_suffix, render_markdown
 from .utils import truncate_text
+from .input import InputModeEnum
 
 # Initialize tiktoken encoder for GPT-4
 _encoder = tiktoken.encoding_for_model("gpt-4")
@@ -48,7 +49,7 @@ class SystemMessage(BasicMessage):
 
 class UserMessage(BasicMessage):
     role: Literal["user"] = "user"
-    mode: Literal["normal", "command", "bash_mode", "interrupted"] = "normal"
+    mode: Literal[InputModeEnum.NORMAL, InputModeEnum.PLAN, InputModeEnum.BASH, InputModeEnum.MEMORY, InputModeEnum.INTERRUPTED] = InputModeEnum.NORMAL
     suffix: Optional[str] = None
     system_reminder: Optional[str] = None
     suffix: Optional[str] = None
@@ -59,10 +60,11 @@ class UserMessage(BasicMessage):
     _style: Optional[str] = None
 
     _MODE_CONF = {
-        "normal": {"_mark_style": None, "_mark": ">", "_style": None},
-        "command": {"_mark_style": None, "_mark": ">", "_style": None},
-        "bash_mode": {"_mark_style": "magenta", "_mark": "!", "_style": "magenta"},
-        "interrupted": {"_mark_style": "yellow", "_mark": "⏺", "_style": "yellow"},
+        InputModeEnum.NORMAL: {"_mark_style": None, "_mark": ">", "_style": None},
+        InputModeEnum.PLAN: {"_mark_style": None, "_mark": ">", "_style": None},
+        InputModeEnum.BASH: {"_mark_style": "magenta", "_mark": "!", "_style": "magenta"},
+        InputModeEnum.MEMORY: {"_mark_style": "blue", "_mark": "#", "_style": "blue"},
+        InputModeEnum.INTERRUPTED: {"_mark_style": "yellow", "_mark": "⏺", "_style": "yellow"},
     }
 
     @model_validator(mode="after")
