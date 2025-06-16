@@ -8,12 +8,20 @@ from pathlib import Path
 from enum import Enum
 
 
+class InputModeEnum(Enum):
+    NORMAL = "normal"
+    PLAN = "plan"
+    BASH = "bash"
+    MEMORY = "memory"
+    INTERRUPTED = "interrupted"
+
+
 class InputMode(BaseModel):
-    name: str
+    name: InputModeEnum
     prompt: str
     placeholder: str
     style: str
-    next_mode: str
+    next_mode: InputModeEnum
 
     def get_prompt(self):
         if self.style:
@@ -29,12 +37,9 @@ class InputMode(BaseModel):
         return None
 
 
-class InputModeEnum(Enum):
-    NORMAL = "normal"
-    PLAN = "plan"
-    BASH = "bash"
-    MEMORY = "memory"
-    INTERRUPTED = "interrupted"
+class UserInput(BaseModel):
+    mode: InputModeEnum
+    input: str
 
 
 input_mode_dict = {
@@ -141,13 +146,21 @@ class InputSession:
         if hasattr(self.session, 'app') and self.session.app:
             self.session.app.style = style or None
 
-    def prompt(self) -> str:
+    def prompt(self) -> UserInput:
         input_text = self.session.prompt()
+        user_input = UserInput(
+            mode=self.current_input_mode.name,
+            input=input_text,
+        )
         self._switch_to_next_mode()
-        return input_text
+        return user_input
 
-    async def prompt_async(self) -> str:
+    async def prompt_async(self) -> UserInput:
         # TODO: return with mode name
         input_text = await self.session.prompt_async()
+        user_input = UserInput(
+            mode=self.current_input_mode.name,
+            input=input_text,
+        )
         self._switch_to_next_mode()
-        return input_text
+        return user_input
