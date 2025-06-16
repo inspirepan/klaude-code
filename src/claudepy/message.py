@@ -1,4 +1,4 @@
-from typing import Dict, Literal, Optional, Union
+from typing import Dict, Literal, Optional, Union, List
 
 import tiktoken
 from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageParam
@@ -117,8 +117,13 @@ class ToolCallMessage(BaseModel):
 
     def __rich__(self):
         args = "" if self.hide_args else self.nice_args or self.tool_args
-        msg = f"[bold]{self.tool_name}[/bold]({args})"
-        return render_message(msg, style=self.status, mark_style="green", status=self.status)
+        msg = Text.assemble((self.tool_name, "bold"), "(", args, ")")
+        return render_message(msg, mark_style="green", status=self.status)
+
+    def get_suffix_renderable(self) -> RichRenderable:
+        args = "" if self.hide_args else self.nice_args or self.tool_args
+        msg = Text.assemble((self.tool_name, "bold"), "(", args, ")")
+        return render_suffix(msg, error=self.status == "error")
 
 
 class AIMessage(BasicMessage):
@@ -179,7 +184,7 @@ class AIMessage(BasicMessage):
 class ToolMessage(BasicMessage):
     role: Literal["tool"] = "tool"
     tool_call: ToolCallMessage
-    tool_result_renderable: Optional[RichRenderable] = Field(default=None, exclude=True)
+    subagent_tool_calls: List[ToolCallMessage] = Field(default_factory=list)  # For sub-agent tool calls
 
     class Config:
         arbitrary_types_allowed = True
@@ -192,9 +197,9 @@ class ToolMessage(BasicMessage):
         }
 
     def __rich__(self):
-        if self.tool_result_renderable:
-            return Group(self.tool_call, render_suffix(self.tool_result_renderable, error=self.tool_call.status == "error"))
-        if not self.content:
-            return Group(self.tool_call, render_suffix("(No content)", error=self.tool_call.status == "error"))
-        content = truncate_text(self.content.strip())
-        return Group(self.tool_call, render_suffix(content, error=self.tool_call.status == "error"))
+        content = truncate_text(self.content.strip()) if self.content else "(No content)"
+        return Group(
+            self.tool_call,
+            *[c.get_suffix_renderable() for c in self.subagent_tool_calls],
+            render_suffix(content, error=self.tool_call.status == "error")
+        )

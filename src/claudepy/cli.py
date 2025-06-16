@@ -14,4 +14,5 @@ def main(
         typer.echo("Coding Agent CLI")
         console.print(UserMessage(content="Hello, world!"))
         console.print(AIMessage(content="Hello, world!"))
-        console.print(ToolMessage(content="/user/bytedance/code", tool_call=ToolCallMessage(id="1", tool_name="Bash", tool_args="{'command': 'pwd'}", status="error")))
+        console.print(ToolMessage(content="/user/bytedance/code", tool_call=ToolCallMessage(id="1", tool_name="Bash", tool_args="{'command': 'pwd'}", status="error"),
+                                  subagent_tool_calls=[ToolCallMessage(id="1", tool_name="Grep", tool_args="{'command': 'pwd'}", status="error")]))
