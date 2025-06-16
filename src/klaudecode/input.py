@@ -3,9 +3,11 @@ from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.completion import Completer, Completion
 from pydantic import BaseModel
 from pathlib import Path
 from enum import Enum
+from typing import Optional, Tuple
 
 
 class InputModeEnum(Enum):
@@ -40,6 +42,47 @@ class InputMode(BaseModel):
 class UserInput(BaseModel):
     mode: InputModeEnum
     input: str
+    command: Optional[str] = None
+
+
+AVAILABLE_COMMANDS = ["compact", "init", "cost", "clear"]
+
+# Detailed descriptions for each command
+COMMAND_DESCRIPTIONS = {
+    "compact": "Clear conversation history but keep a summary in context. Optional: /compact [instructions for summarization]",
+    "init": "Initialize a new CLAUDE.md file with codebase documentation",
+    "cost": "Show the total cost and duration of the current session",
+    "clear": "Clear conversation history and free up context"
+}
+
+
+class CommandCompleter(Completer):
+    """Custom command completer"""
+
+    def __init__(self, commands, input_session):
+        self.commands = commands  # Commands without / prefix
+        self.input_session = input_session
+
+    def get_completions(self, document, complete_event):
+        # Only provide completion in normal mode
+        if self.input_session.current_input_mode.name != InputModeEnum.NORMAL:
+            return
+        text = document.text
+        # Only provide completion when input starts with /
+        if not text.startswith('/'):
+            return
+        # Get command part (content after /)
+        command_part = text[1:]
+        # If no space, we are still completing command name
+        if " " not in command_part:
+            for command_name in self.commands:
+                if command_name.startswith(command_part):
+                    yield Completion(
+                        command_name,
+                        start_position=-len(command_part),
+                        display=f"/{command_name}",
+                        display_meta=COMMAND_DESCRIPTIONS.get(command_name, f"Execute {command_name} command"),
+                    )
 
 
 input_mode_dict = {
@@ -56,23 +99,26 @@ class InputSession:
         self.workdir = Path(workdir) if workdir else Path.cwd()
 
         # Create history file path
-        history_file = self.workdir / ".klaude" / "input_history"
+        history_file = self.workdir / ".klaude" / "input_history.txt"
         if not history_file.exists():
             history_file.parent.mkdir(parents=True, exist_ok=True)
             history_file.touch()
         self.history = FileHistory(str(history_file))
 
+        # Create command completer
+        self.command_completer = CommandCompleter(AVAILABLE_COMMANDS, self)
+
         # Create key bindings
         self.kb = KeyBindings()
         self._setup_key_bindings()
 
-        # Create session
+        # Create sessio
         self.session = PromptSession(
-            self._dyn_prompt,
+            message=self._dyn_prompt,
             key_bindings=self.kb,
-            enable_history_search=True,
             history=self.history,
             placeholder=self._dyn_placeholder,
+            completer=self.command_completer,
         )
         self.buf = self.session.default_buffer
 
@@ -81,6 +127,26 @@ class InputSession:
 
     def _dyn_placeholder(self):
         return self.current_input_mode.placeholder
+
+    def _parse_command(self, text: str) -> Tuple[Optional[str], str]:
+        """Parse command from input text. Returns tuple of (command_name, remaining_text)"""
+        if not text.strip():
+            return None, text
+
+        # Only parse commands in normal mode
+        if self.current_input_mode.name != InputModeEnum.NORMAL:
+            return None, text
+
+        stripped = text.strip()
+        if stripped.startswith('/'):
+            # Extract command and remaining text
+            parts = stripped[1:].split(None, 1)  # Split into at most 2 parts
+            if parts:
+                command_part = parts[0]
+                remaining_text = parts[1] if len(parts) > 1 else ""
+                if command_part in AVAILABLE_COMMANDS:
+                    return command_part, remaining_text
+        return None, text
 
     def _switch_mode(self, event, mode_name: str):
         self.current_input_mode = input_mode_dict[mode_name]
@@ -148,19 +214,22 @@ class InputSession:
 
     def prompt(self) -> UserInput:
         input_text = self.session.prompt()
+        command, cleaned_input = self._parse_command(input_text)
         user_input = UserInput(
             mode=self.current_input_mode.name,
-            input=input_text,
+            input=cleaned_input,
+            command=command,
         )
         self._switch_to_next_mode()
         return user_input
 
     async def prompt_async(self) -> UserInput:
-        # TODO: return with mode name
         input_text = await self.session.prompt_async()
+        command, cleaned_input = self._parse_command(input_text)
         user_input = UserInput(
             mode=self.current_input_mode.name,
-            input=input_text,
+            input=cleaned_input,
+            command=command,
         )
         self._switch_to_next_mode()
         return user_input
