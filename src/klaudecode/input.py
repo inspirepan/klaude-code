@@ -31,12 +31,24 @@ class InputMode(BaseModel):
         return self.prompt + " "
 
     def get_style(self):
+        style_dict = {
+            "completion-menu": "bg:default",
+            "completion-menu.border": "bg:default",
+            "completion-menu.completion": "bg:default",
+            "completion-menu.completion.current": "bg:#444444 fg:#aaddff",
+            "scrollbar.background": "bg:default",
+            "scrollbar.button": "bg:default",
+            "completion-menu.meta.completion": "bg:default fg:#6a6a6a",   # 正常行，透明底+灰前景
+            "completion-menu.meta.completion.current": "bg:#aaddff fg:#444",
+        }
+
         if self.style:
-            return Style.from_dict({
+            style_dict.update({
                 'placeholder': self.style,
                 '': self.style,
             })
-        return None
+
+        return Style.from_dict(style_dict)
 
 
 class UserInput(BaseModel):
@@ -63,7 +75,7 @@ class CommandCompleter(Completer):
         self.commands = commands  # Commands without / prefix
         self.input_session = input_session
 
-    def get_completions(self, document, complete_event):
+    def get_completions(self, document, _complete_event):
         # Only provide completion in normal mode
         if self.input_session.current_input_mode.name != InputModeEnum.NORMAL:
             return
@@ -119,6 +131,7 @@ class InputSession:
             history=self.history,
             placeholder=self._dyn_placeholder,
             completer=self.command_completer,
+            style=self.current_input_mode.get_style(),
         )
         self.buf = self.session.default_buffer
 
