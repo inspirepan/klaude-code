@@ -5,7 +5,7 @@ def truncate_text(text: str, max_lines: int = 15) -> str:
 
     if len(lines) <= max_lines + 5:
         return text
-    # If content has more than TRUNCATED_LINES lines, truncate and show summary
+    # If content has more than max_lines, truncate and show summary
     truncated_lines = lines[:max_lines]
     remaining_lines = len(lines) - max_lines
     # Add truncation indicator

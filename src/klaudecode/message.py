@@ -1,15 +1,15 @@
-from typing import Dict, Literal, Optional, Union, List
+from typing import Dict, List, Literal, Optional, Union
 
 import tiktoken
 from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageParam
-from pydantic import BaseModel, computed_field, model_validator, Field
+from pydantic import BaseModel, Field, computed_field, model_validator
+from rich.abc import RichRenderable
 from rich.console import Group
 from rich.text import Text
-from rich.abc import RichRenderable
 
-from .tui import console, render_message, render_suffix, render_markdown
-from .utils import truncate_text
 from .input import InputModeEnum
+from .tui import render_markdown, render_message, render_suffix
+from .utils import truncate_text
 
 # Initialize tiktoken encoder for GPT-4
 _encoder = tiktoken.encoding_for_model("gpt-4")
@@ -49,7 +49,13 @@ class SystemMessage(BasicMessage):
 
 class UserMessage(BasicMessage):
     role: Literal["user"] = "user"
-    mode: Literal[InputModeEnum.NORMAL, InputModeEnum.PLAN, InputModeEnum.BASH, InputModeEnum.MEMORY, InputModeEnum.INTERRUPTED] = InputModeEnum.NORMAL
+    mode: Literal[
+        InputModeEnum.NORMAL,
+        InputModeEnum.PLAN,
+        InputModeEnum.BASH,
+        InputModeEnum.MEMORY,
+        InputModeEnum.INTERRUPTED,
+    ] = InputModeEnum.NORMAL
     suffix: Optional[str] = None
     system_reminder: Optional[str] = None
     suffix: Optional[str] = None
@@ -62,9 +68,17 @@ class UserMessage(BasicMessage):
     _MODE_CONF = {
         InputModeEnum.NORMAL: {"_mark_style": None, "_mark": ">", "_style": None},
         InputModeEnum.PLAN: {"_mark_style": None, "_mark": ">", "_style": None},
-        InputModeEnum.BASH: {"_mark_style": "magenta", "_mark": "!", "_style": "magenta"},
+        InputModeEnum.BASH: {
+            "_mark_style": "magenta",
+            "_mark": "!",
+            "_style": "magenta",
+        },
         InputModeEnum.MEMORY: {"_mark_style": "blue", "_mark": "#", "_style": "blue"},
-        InputModeEnum.INTERRUPTED: {"_mark_style": "yellow", "_mark": "⏺", "_style": "yellow"},
+        InputModeEnum.INTERRUPTED: {
+            "_mark_style": "yellow",
+            "_mark": "⏺",
+            "_style": "yellow",
+        },
     }
 
     @model_validator(mode="after")
@@ -75,10 +89,19 @@ class UserMessage(BasicMessage):
         return self
 
     def to_openai(self) -> ChatCompletionMessageParam:
-        return {"role": self.role, "content": self.content or ""}  # TODO: add suffix and system_reminder
+        return {
+            "role": self.role,
+            "content": self.content or "",
+        }  # TODO: add suffix and system_reminder
 
     def __rich__(self):
-        user_msg = render_message(self.content, style=self._style, mark_style=self._mark_style, mark=self._mark, status="processing")
+        user_msg = render_message(
+            self.content,
+            style=self._style,
+            mark_style=self._mark_style,
+            mark=self._mark,
+            status="processing",
+        )
         if self.suffix:
             return Group(user_msg, render_suffix(self.suffix))
         return user_msg
@@ -186,7 +209,9 @@ class AIMessage(BasicMessage):
 class ToolMessage(BasicMessage):
     role: Literal["tool"] = "tool"
     tool_call: ToolCallMessage
-    subagent_tool_calls: List[ToolCallMessage] = Field(default_factory=list)  # For sub-agent tool calls
+    subagent_tool_calls: List[ToolCallMessage] = Field(
+        default_factory=list
+    )  # For sub-agent tool calls
 
     class Config:
         arbitrary_types_allowed = True
@@ -199,9 +224,11 @@ class ToolMessage(BasicMessage):
         }
 
     def __rich__(self):
-        content = truncate_text(self.content.strip()) if self.content else "(No content)"
+        content = (
+            truncate_text(self.content.strip()) if self.content else "(No content)"
+        )
         return Group(
             self.tool_call,
             *[c.get_suffix_renderable() for c in self.subagent_tool_calls],
-            render_suffix(content, error=self.tool_call.status == "error")
+            render_suffix(content, error=self.tool_call.status == "error"),
         )

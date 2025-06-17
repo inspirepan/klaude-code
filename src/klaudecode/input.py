@@ -1,13 +1,14 @@
+from enum import Enum
+from pathlib import Path
+from typing import Optional, Tuple
+
 from prompt_toolkit import PromptSession
+from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
-from prompt_toolkit.history import FileHistory
-from prompt_toolkit.completion import Completer, Completion
 from pydantic import BaseModel
-from pathlib import Path
-from enum import Enum
-from typing import Optional, Tuple
 
 
 class InputModeEnum(Enum):
@@ -38,15 +39,17 @@ class InputMode(BaseModel):
             "completion-menu.completion.current": "bg:#4a4a4a fg:#aaddff",
             "scrollbar.background": "bg:default",
             "scrollbar.button": "bg:default",
-            "completion-menu.meta.completion": "bg:default fg:#9a9a9a",   # 正常行，透明底+灰前景
+            "completion-menu.meta.completion": "bg:default fg:#9a9a9a",  # Normal line with transparent background and gray foreground
             "completion-menu.meta.completion.current": "bg:#aaddff fg:#4a4a4a",
         }
 
         if self.style:
-            style_dict.update({
-                'placeholder': self.style,
-                '': self.style,
-            })
+            style_dict.update(
+                {
+                    "placeholder": self.style,
+                    "": self.style,
+                }
+            )
 
         return Style.from_dict(style_dict)
 
@@ -57,6 +60,38 @@ class UserInput(BaseModel):
     command: Optional[str] = None
 
 
+input_mode_dict = {
+    InputModeEnum.NORMAL: InputMode(
+        name=InputModeEnum.NORMAL,
+        prompt=">",
+        placeholder="type you query... type exit to quit.",
+        style="",
+        next_mode=InputModeEnum.NORMAL,
+    ),
+    InputModeEnum.PLAN: InputMode(
+        name=InputModeEnum.PLAN,
+        prompt="*",
+        placeholder="type plan...",
+        style="#6aa4a5",
+        next_mode=InputModeEnum.PLAN,
+    ),
+    InputModeEnum.BASH: InputMode(
+        name=InputModeEnum.BASH,
+        prompt="!",
+        placeholder="type command...",
+        style="#ea3386",
+        next_mode=InputModeEnum.NORMAL,
+    ),
+    InputModeEnum.MEMORY: InputMode(
+        name=InputModeEnum.MEMORY,
+        prompt="#",
+        placeholder="type memory...",
+        style="#b3b9f4",
+        next_mode=InputModeEnum.NORMAL,
+    ),
+}
+
+
 AVAILABLE_COMMANDS = ["compact", "init", "cost", "clear"]
 
 # Detailed descriptions for each command
@@ -64,7 +99,7 @@ COMMAND_DESCRIPTIONS = {
     "compact": "Clear conversation history but keep a summary in context. Optional: /compact [instructions for summarization]",
     "init": "Initialize a new CLAUDE.md file with codebase documentation",
     "cost": "Show the total cost and duration of the current session",
-    "clear": "Clear conversation history and free up context"
+    "clear": "Clear conversation history and free up context",
 }
 
 
@@ -81,7 +116,7 @@ class CommandCompleter(Completer):
             return
         text = document.text
         # Only provide completion when input starts with /
-        if not text.startswith('/'):
+        if not text.startswith("/"):
             return
         # Get command part (content after /)
         command_part = text[1:]
@@ -93,16 +128,10 @@ class CommandCompleter(Completer):
                         command_name,
                         start_position=-len(command_part),
                         display=f"/{command_name}",
-                        display_meta=COMMAND_DESCRIPTIONS.get(command_name, f"Execute {command_name} command"),
+                        display_meta=COMMAND_DESCRIPTIONS.get(
+                            command_name, f"Execute {command_name} command"
+                        ),
                     )
-
-
-input_mode_dict = {
-    InputModeEnum.NORMAL: InputMode(name=InputModeEnum.NORMAL, prompt=">", placeholder="", style="", next_mode=InputModeEnum.NORMAL),
-    InputModeEnum.PLAN: InputMode(name=InputModeEnum.PLAN, prompt="*", placeholder="type plan...", style="#2a6465", next_mode=InputModeEnum.PLAN),
-    InputModeEnum.BASH: InputMode(name=InputModeEnum.BASH, prompt="!", placeholder="type command...", style="#ea3386", next_mode=InputModeEnum.NORMAL),
-    InputModeEnum.MEMORY: InputMode(name=InputModeEnum.MEMORY, prompt="#", placeholder="type memory...", style="#0000f5", next_mode=InputModeEnum.NORMAL),
-}
 
 
 class InputSession:
@@ -151,7 +180,7 @@ class InputSession:
             return None, text
 
         stripped = text.strip()
-        if stripped.startswith('/'):
+        if stripped.startswith("/"):
             # Extract command and remaining text
             parts = stripped[1:].split(None, 1)  # Split into at most 2 parts
             if parts:
@@ -222,7 +251,7 @@ class InputSession:
         self.current_input_mode = input_mode_dict[self.current_input_mode.next_mode]
         # Update session style for next prompt
         style = self.current_input_mode.get_style()
-        if hasattr(self.session, 'app') and self.session.app:
+        if hasattr(self.session, "app") and self.session.app:
             self.session.app.style = style or None
 
     def prompt(self) -> UserInput:

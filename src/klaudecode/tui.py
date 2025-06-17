@@ -1,18 +1,18 @@
 import re
+import os
 from typing import Literal, Optional
 
 from rich import box
+from rich.abc import RichRenderable
 from rich.columns import Columns
-from rich.console import Console, ConsoleOptions, RenderResult
+from rich.console import Console, ConsoleOptions, RenderResult, Group
 from rich.layout import Layout
 from rich.live import Live
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
-from rich.markup import escape
-from rich.abc import RichRenderable
-
 
 light_theme = Theme(
     {
@@ -30,10 +30,26 @@ light_theme = Theme(
     }
 )
 
+dark_theme = Theme(
+    {
+        "orange": "rgb(201,125,92)",
+        "blue": "rgb(62,99,153)",
+        "gray": "rgb(137,136,131)",
+        "red": "rgb(237,116,130)",
+        "black": "black",
+        "green": "rgb(65,120,64)",
+        "purple": "rgb(139,134,248)",
+        "diff_removed": "black on rgb(242,172,180)",
+        "diff_added": "black on rgb(133,216,133)",
+        "diff_removed_char": "black on rgb(193,81,78)",
+        "diff_added_char": "black on rgb(80,155,78)",
+    }
+)
+
 
 class ConsoleProxy:
     def __init__(self):
-        self.console = Console(theme=light_theme)
+        self.console = Console(theme=dark_theme)  # TODO: theme detect or config
         self.silent = False
 
     def print(self, *args, **kwargs):
@@ -55,8 +71,14 @@ def format_style(content: str | Text, style: Optional[str] = None):
     return content
 
 
-def render_message(message: str | Text, *, style: Optional[str] = None, mark_style: Optional[str] = None, mark: Optional[str]
-                   = None, status: Literal["processing", "success", "error"] = "success") -> RichRenderable:
+def render_message(
+    message: str | Text,
+    *,
+    style: Optional[str] = None,
+    mark_style: Optional[str] = None,
+    mark: Optional[str] = None,
+    status: Literal["processing", "success", "error"] = "success",
+) -> RichRenderable:
     table = Table.grid(padding=(0, 1))
     table.add_column(width=0, no_wrap=True)
     table.add_column(overflow="fold")
@@ -116,3 +138,25 @@ def render_markdown(text: str) -> str:
         formatted_lines.append(line)
 
     return "\n".join(formatted_lines)
+
+
+def render_hello() -> RenderResult:
+    table = Table.grid(padding=(0, 1))
+    table.add_column(width=0, no_wrap=True)
+    table.add_column(overflow="fold")
+    table.add_row(
+        "[orange]✻[/orange]",
+        Group(
+            "Welcome to [bold]Klaude Code[/bold]!",
+            "",
+            "[gray][italic]/status for your current setup[/italic][/gray]",
+            "",
+            format_style("cwd: {}".format(os.getcwd()), "gray"),
+        ),
+    )
+    return Group(
+        Panel.fit(table, border_style="orange"),
+        "",
+        format_style("※ Tip: type \ followed by [bold]Enter[/bold] to insert newlines", "gray"),
+        "",
+    )
