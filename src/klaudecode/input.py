@@ -244,19 +244,22 @@ class InputSession:
         @self.kb.add("enter")
         def _(event):
             """
-            Check if ends with backslash:
-            - If yes, remove backslash and insert newline to continue editing
-            - If no, submit input normally
+            Check if the current line ends with a backslash.
+            - If yes, remove the backslash and insert a newline to continue editing.
+            - If no, accept the line via `validate_and_handle()`, which triggers
+              PromptToolkit's default accept‑line logic and persists the input
+              into `FileHistory`.
             """
-            text = self.buf.text
-            if text.endswith("\\"):
-                # Remove trailing backslash
-                self.buf.delete_before_cursor()
-                # Insert newline
-                self.buf.insert_text("\n")
+            buffer = event.current_buffer
+            if buffer.text.endswith("\\"):
+                # Remove trailing backslash (do **not** include it in history)
+                buffer.delete_before_cursor()
+                # Insert a real newline so the user can keep typing
+                buffer.insert_text("\n")
             else:
-                # Normal submit
-                event.app.exit(result=self.buf.text)
+                # Accept the line normally – this calls the buffer's
+                # accept_action, which records the entry in FileHistory.
+                buffer.validate_and_handle()
 
     def _switch_to_next_mode(self):
         self.current_input_mode = input_mode_dict[self.current_input_mode.next_mode]
