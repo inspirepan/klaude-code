@@ -1,11 +1,25 @@
-from typing import Dict, List, Literal, Optional, Tuple
 import asyncio
+from typing import Dict, List, Literal, Optional
+
 import openai
-from openai.types.chat import ChatCompletionMessageParam, ChatCompletionMessageToolCall
+from openai.types.chat import (ChatCompletionMessageParam,
+                               ChatCompletionMessageToolCall)
 from openai.types.completion_usage import CompletionUsage
+from pydantic import BaseModel
+from rich.status import Status
 
 from .tui import console, render_message
-from rich.status import Status
+
+
+class LLMResponse(BaseModel):
+    content: str
+    reasoning_content: str = ""
+    tool_calls: Optional[List[ChatCompletionMessageToolCall]] = None
+    usage: CompletionUsage
+    finish_reason: Literal["stop", "length", "tool_calls", "content_filter", "function_call"]
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class LLMProxy:
@@ -17,6 +31,7 @@ class LLMProxy:
         model_azure: bool,
         max_tokens: int,
         extra_header: dict,
+        enable_thinking: bool,
         max_retries=5,
         backoff_base=1.0,
     ):
@@ -28,6 +43,7 @@ class LLMProxy:
         self.extra_header = extra_header
         self.max_retries = max_retries
         self.backoff_base = backoff_base
+        self.enable_thinking = enable_thinking
         if model_azure:
             self.client = openai.AsyncAzureOpenAI(
                 azure_endpoint=self.base_url,
@@ -44,7 +60,7 @@ class LLMProxy:
         self,
         msgs: List[ChatCompletionMessageParam],
         tools: Optional[List[Dict]] = None
-    ) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
+    ) -> LLMResponse:
         current_msgs = msgs.copy()
         completion = await self.client.chat.completions.create(
             model=self.model_name,
@@ -52,18 +68,20 @@ class LLMProxy:
             tools=tools,
             extra_headers=self.extra_header,
             max_tokens=self.max_tokens,
+            extra_body={
+                "thinking": {"type": "enabled", "budget_tokens": 2000}
+            } if self.enable_thinking else None
         )
-
         message = completion.choices[0].message
         finish_reason = completion.choices[0].finish_reason
-        tokens_used = 0
-        if hasattr(completion, "usage") and completion.usage:
-            tokens_used = completion.usage
-        return (
-            message.content or "<empty>",
-            message.tool_calls,
-            tokens_used,
-            finish_reason,
+        tokens_used = completion.usage or CompletionUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+        reasoning_content = message.reasoning_content if hasattr(message, "reasoning_content") else ""
+        return LLMResponse(
+            content=message.content or "<empty>",
+            tool_calls=message.tool_calls,
+            reasoning_content=reasoning_content,
+            usage=tokens_used,
+            finish_reason=finish_reason,
         )
 
     async def _call_with_retry(
@@ -71,12 +89,12 @@ class LLMProxy:
         msgs: List[ChatCompletionMessageParam],
         tools: Optional[List[Dict]] = None,
         show_status: bool = True
-    ) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
+    ) -> LLMResponse:
         last_exception = None
         for attempt in range(self.max_retries):
             try:
                 if show_status:
-                    with Status(render_message("Thinking... [gray]Press Ctrl+C to interrupt.[/gray]"), console=console.console):
+                    with Status("Thinking... [gray]Press Ctrl+C to interrupt.[/gray]", console=console.console, spinner_style="gray"):
                         return await self._raw_call(msgs, tools)
                 else:
                     return await self._raw_call(msgs, tools)
@@ -87,7 +105,7 @@ class LLMProxy:
                 if attempt < self.max_retries - 1:
                     delay = self.backoff_base * (2**attempt)
                     if show_status:
-                        console.print(render_message(f"Retry {attempt + 1}/{self.max_retries}: call failed - {str(e)}, waiting {delay:.1f}s"), style="red", status="error")
+                        console.print(render_message(f"Retry {attempt + 1}/{self.max_retries}: call failed - {str(e)}, waiting {delay:.1f}s", status="error"), style="red")
                         with Status(render_message(f"Waiting {delay:.1f}s...", style="red", status="error")):
                             await asyncio.sleep(delay)
                     else:
@@ -100,44 +118,52 @@ class LLMProxy:
         msgs: List[ChatCompletionMessageParam],
         tools: Optional[List[Dict]] = None,
         show_status: bool = True
-    ) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
+    ) -> LLMResponse:
         attempt = 0
         max_continuations = 3
         current_msgs = msgs.copy()
         full_content = ""
+        full_reasoning_content = ""
         total_usage = CompletionUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
         final_tool_calls = None
         final_finish_reason = "stop"
         while attempt <= max_continuations:
-            content, tool_calls, usage, finish_reason = await self._call_with_retry(current_msgs, tools, show_status)
-            if usage:
-                total_usage.prompt_tokens += usage.prompt_tokens
-                total_usage.completion_tokens += usage.completion_tokens
-                total_usage.total_tokens += usage.total_tokens
-            full_content += content
-            final_tool_calls = tool_calls
-            final_finish_reason = finish_reason
-            if finish_reason != "length":
+            response = await self._call_with_retry(current_msgs, tools, show_status)
+            total_usage.prompt_tokens += response.usage.prompt_tokens
+            total_usage.completion_tokens += response.usage.completion_tokens
+            total_usage.total_tokens += response.usage.total_tokens
+            full_content += response.content
+            full_reasoning_content += response.reasoning_content
+            final_tool_calls = response.tool_calls
+            final_finish_reason = response.finish_reason
+            if response.finish_reason != "length":
                 break
             attempt += 1
             if attempt > max_continuations:
                 break
             if show_status:
                 console.print(render_message("Continuing...", style="yellow"))
-            current_msgs.append({"role": "assistant", "content": content})
-        return full_content, final_tool_calls, total_usage, final_finish_reason
+            current_msgs.append({"role": "assistant", "content": response.content})
+
+        return LLMResponse(
+            content=full_content,
+            reasoning_content=full_reasoning_content,
+            tool_calls=final_tool_calls,
+            usage=total_usage,
+            finish_reason=final_finish_reason,
+        )
 
 
 class LLM:
-    """Singleton"""
+    """Singleton for every subclass"""
 
-    _instance = None
-    _client = None
+    _instances = {}
+    _clients = {}
 
     def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+        if cls not in cls._instances:
+            cls._instances[cls] = super().__new__(cls)
+        return cls._instances[cls]
 
     @classmethod
     def initialize(
@@ -148,33 +174,45 @@ class LLM:
         model_azure: bool,
         max_tokens: int,
         extra_header: dict,
+        enable_thinking: bool
     ):
         instance = cls()
-        instance._client = LLMProxy(
+        cls._clients[cls] = LLMProxy(
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
             model_azure=model_azure,
             max_tokens=max_tokens,
             extra_header=extra_header,
+            enable_thinking=enable_thinking,
         )
         return instance
 
     @classmethod
     def get_instance(cls) -> Optional["LLM"]:
-        return cls._instance
+        return cls._instances.get(cls)
 
     @property
     def client(self) -> Optional[LLMProxy]:
-        return self._client
+        return self._clients.get(self.__class__)
 
     @classmethod
-    async def call(cls, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None, show_spinner: bool = True):
-        if cls._instance._client is None:
+    async def call(cls, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None, show_spinner: bool = True) -> LLMResponse:
+        if cls not in cls._clients or cls._clients[cls] is None:
             raise RuntimeError("LLM client not initialized. Call initialize() first.")
-        return await cls._instance._client._call_with_continuation(msgs, tools, show_spinner)
+        return await cls._clients[cls]._call_with_continuation(msgs, tools, show_spinner)
 
     @classmethod
     def reset(cls):
-        cls._instance = None
-        cls._client = None
+        if cls in cls._instances:
+            del cls._instances[cls]
+        if cls in cls._clients:
+            del cls._clients[cls]
+
+
+class AgentLLM(LLM):
+    pass
+
+
+class FastLLM(LLM):
+    pass

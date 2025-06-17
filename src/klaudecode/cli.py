@@ -5,38 +5,18 @@ from typing import Optional
 import typer
 
 from .config import create_config_manager
-from .input import InputSession
-from .llm import LLM
-from .message import AIMessage, ToolCallMessage, ToolMessage, UserMessage
+from .llm import AgentLLM
 from .tui import console, render_hello
+from .agent import Agent
+from .session import Session
 
 app = typer.Typer(help="Coding Agent CLI", add_completion=False)
 
 
 async def main_async(ctx: typer.Context):
-    typer.echo("Coding Agent CLI")
-    console.print(UserMessage(content=ctx.obj["config_manager"].get_api_key()))
-    console.print(AIMessage(content=ctx.obj["config_manager"].get_model_name()))
-    console.print(
-        ToolMessage(
-            content="/user/bytedance/code",
-            tool_call=ToolCallMessage(id="1", tool_name="Bash", tool_args="{'command': 'pwd'}", status="error"),
-            subagent_tool_calls=[
-                ToolCallMessage(
-                    id="1",
-                    tool_name="Grep",
-                    tool_args="{'command': 'pwd'}",
-                    status="error",
-                )
-            ],
-        )
-    )
-    input_session = InputSession(os.getcwd())
-    while True:
-        user_input = await input_session.prompt_async()
-        console.print(user_input)
-        result, _, _, _ = await LLM.call([UserMessage(content=user_input.input).to_openai()])
-        console.print(result)
+    session = Session(os.getcwd())
+    agent = Agent(session, config=ctx.obj["config_manager"])
+    await agent.chat_interactive()
 
 
 @app.callback(invoke_without_command=True)
@@ -63,6 +43,7 @@ def main(
     extra_header: Optional[str] = typer.Option(None, "--extra-header", help="Override extra header from config"),
     no_mcp: bool = typer.Option(False, "--no-mcp", help="Disable MCP (Model Context Protocol) loading"),
     verbose: bool = typer.Option(False, "--verbose", help="Enable verbose output"),
+    thinking: Optional[bool] = typer.Option(None, "--thinking", help="Enable Claude Extended Thinking capability"),
 ):
     ctx.ensure_object(dict)
     if ctx.invoked_subcommand is None:
@@ -74,15 +55,18 @@ def main(
             model_azure=model_azure,
             max_tokens=max_tokens,
             extra_header=extra_header,
+            enable_thinking=thinking,
         )
         ctx.obj["config_manager"] = config_manager
-        LLM.initialize(
+        AgentLLM.initialize(
             model_name=config_manager.get_model_name(),
             base_url=config_manager.get_base_url(),
             api_key=config_manager.get_api_key(),
             model_azure=config_manager.get_model_azure(),
             max_tokens=config_manager.get_max_tokens(),
             extra_header=config_manager.get_extra_header(),
+            enable_thinking=config_manager.get_enable_thinking(),
+
         )
         asyncio.run(main_async(ctx))
 
@@ -100,5 +84,4 @@ def config_show(ctx: typer.Context):
 @config_app.command("edit")
 def config_edit():
     from .config import edit_config_file
-
     edit_config_file()

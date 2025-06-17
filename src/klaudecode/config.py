@@ -19,6 +19,7 @@ DEFAULT_BASE_URL = "https://api.anthropic.com/v1/"
 DEFAULT_MODEL_AZURE = False
 DEFAULT_MAX_TOKENS = 8196
 DEFAULT_EXTRA_HEADER = {}
+DEFAULT_ENABLE_THINKING = False
 
 
 class Config(ABC):
@@ -47,6 +48,7 @@ class ArgConfig(Config):
         max_tokens: Optional[int] = None,
         context_window_threshold: Optional[int] = None,
         extra_header: Optional[str] = None,
+        enable_thinking: Optional[bool] = None,
     ):
         self._args = {
             "api_key": api_key,
@@ -56,6 +58,7 @@ class ArgConfig(Config):
             "max_tokens": max_tokens,
             "context_window_threshold": context_window_threshold,
             "extra_header": extra_header,
+            "enable_thinking": enable_thinking,
         }
 
     def get(self, key: str) -> Optional[Union[str, bool, int]]:
@@ -77,6 +80,7 @@ class EnvConfig(Config):
             "max_tokens": "MAX_TOKENS",
             "context_window_threshold": "CONTEXT_WINDOW_THRESHOLD",
             "extra_header": "EXTRA_HEADER",
+            "enable_thinking": "ENABLE_THINKING",
         }
 
     def get(self, key: str) -> Optional[Union[str, bool, int]]:
@@ -89,7 +93,7 @@ class EnvConfig(Config):
             return None
 
         # Type conversion
-        if key == "model_azure":
+        if key in ["model_azure", "enable_thinking"]:
             return env_value.lower() in ["true", "1", "yes", "on"]
         elif key in ["context_window_threshold", "max_tokens"]:
             try:
@@ -149,6 +153,7 @@ class DefaultConfig(Config):
             "max_tokens": DEFAULT_MAX_TOKENS,
             "context_window_threshold": DEFAULT_CONTEXT_WINDOW_THRESHOLD,
             "extra_header": DEFAULT_EXTRA_HEADER,
+            "enable_thinking": DEFAULT_ENABLE_THINKING,
         }
 
     def get(self, key: str) -> Optional[Union[str, bool, int]]:
@@ -233,6 +238,11 @@ class ConfigManager:
 
         return DEFAULT_EXTRA_HEADER
 
+    def get_enable_thinking(self) -> bool:
+        """Get whether Extended Thinking is enabled"""
+        result = self.get_config_value("enable_thinking")
+        return result.value if result.value is not None else DEFAULT_ENABLE_THINKING
+
     def get_all_config_with_sources(self) -> Dict[str, ConfigValue]:
         """Get all configurations and their sources"""
         keys = [
@@ -243,6 +253,7 @@ class ConfigManager:
             "max_tokens",
             "context_window_threshold",
             "extra_header",
+            "enable_thinking",
         ]
         result = {}
         for key in keys:
@@ -305,6 +316,7 @@ class ConfigManager:
             ("max_tokens", "Max Tokens", str(config_data["max_tokens"].value)),
             ("context_window_threshold", "Context Threshold", str(config_data["context_window_threshold"].value)),
             ("extra_header", "Extra Header", str(config_data["extra_header"].value) if config_data["extra_header"].value else "{}"),
+            ("enable_thinking", "Extended Thinking", str(config_data["enable_thinking"].value)),
         ]
 
         # Create table
@@ -341,6 +353,7 @@ def create_config_manager(
     max_tokens: Optional[int] = None,
     context_window_threshold: Optional[int] = None,
     extra_header: Optional[str] = None,
+    enable_thinking: Optional[bool] = None,
 ) -> ConfigManager:
     """Create configuration manager (create new instance each call to avoid state sharing)"""
     # Create configuration list in priority order
@@ -353,6 +366,7 @@ def create_config_manager(
             max_tokens,
             context_window_threshold,
             extra_header,
+            enable_thinking,
         ),
         EnvConfig(),
         GlobalConfig(),
@@ -382,6 +396,7 @@ def create_example_config(config_path: Path):
         "max_tokens": DEFAULT_MAX_TOKENS,
         "context_window_threshold": DEFAULT_CONTEXT_WINDOW_THRESHOLD,
         "extra_header": DEFAULT_EXTRA_HEADER,
+        "enable_thinking": DEFAULT_ENABLE_THINKING,
     }
     try:
         config_path.parent.mkdir(parents=True, exist_ok=True)

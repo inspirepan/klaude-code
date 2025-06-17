@@ -49,7 +49,7 @@ dark_theme = Theme(
 
 class ConsoleProxy:
     def __init__(self):
-        self.console = Console(theme=dark_theme)  # TODO: theme detect or config
+        self.console = Console(theme=light_theme)  # TODO: theme detect or config
         self.silent = False
 
     def print(self, *args, **kwargs):
@@ -76,18 +76,18 @@ def render_message(
     *,
     style: Optional[str] = None,
     mark_style: Optional[str] = None,
-    mark: Optional[str] = None,
+    mark: Optional[str] = "⏺",
     status: Literal["processing", "success", "error"] = "success",
 ) -> RichRenderable:
     table = Table.grid(padding=(0, 1))
     table.add_column(width=0, no_wrap=True)
     table.add_column(overflow="fold")
     if status == "error":
-        mark = format_style(mark or "⏺", "red")
+        mark = format_style(mark, "red")
     elif status == "processing":
-        mark = format_style(mark or "○", mark_style)
+        mark = format_style("○", mark_style)
     else:
-        mark = format_style(mark or "⏺", mark_style)
+        mark = format_style(mark, mark_style)
     table.add_row(mark, format_style(message or "<empty>", style))
     return table
 

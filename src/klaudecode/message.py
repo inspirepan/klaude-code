@@ -1,15 +1,18 @@
 from typing import Dict, List, Literal, Optional, Union
 
 import tiktoken
-from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageParam
+from openai.types.chat import (ChatCompletionMessageParam,
+                               ChatCompletionMessageToolCall)
 from pydantic import BaseModel, Field, computed_field, model_validator
 from rich.abc import RichRenderable
 from rich.console import Group
 from rich.text import Text
 
 from .input import InputModeEnum
-from .tui import render_markdown, render_message, render_suffix
+from .tui import format_style, render_markdown, render_message, render_suffix
 from .utils import truncate_text
+from .llm import LLMResponse
+
 
 # Initialize tiktoken encoder for GPT-4
 _encoder = tiktoken.encoding_for_model("gpt-4")
@@ -39,9 +42,21 @@ class BasicMessage(BaseModel):
 
 class SystemMessage(BasicMessage):
     role: Literal["system"] = "system"
+    cached: bool = False
 
     def to_openai(self) -> ChatCompletionMessageParam:
-        return {"role": self.role, "content": self.content or ""}
+        return {
+            "role": self.role,
+            "content": [
+                {
+                    "type": "text",
+                    "text": self.content,
+                    "cache_control": {
+                        "type": "ephemeral"
+                    } if self.cached else None,
+                }
+            ]
+        }
 
     def __rich__(self):
         return ""  # System message is not displayed.
@@ -56,8 +71,6 @@ class UserMessage(BasicMessage):
         InputModeEnum.MEMORY,
         InputModeEnum.INTERRUPTED,
     ] = InputModeEnum.NORMAL
-    suffix: Optional[str] = None
-    system_reminder: Optional[str] = None
     suffix: Optional[str] = None
     system_reminder: Optional[str] = None
 
@@ -100,7 +113,6 @@ class UserMessage(BasicMessage):
             style=self._style,
             mark_style=self._mark_style,
             mark=self._mark,
-            status="processing",
         )
         if self.suffix:
             return Group(user_msg, render_suffix(self.suffix))
@@ -132,7 +144,7 @@ class ToolCallMessage(BaseModel):
         return func_tokens + args_tokens
 
     @classmethod
-    def from_openai_tool_call(cls, tool_call) -> "ToolCallMessage":
+    def from_openai_tool_call(cls, tool_call: ChatCompletionMessageToolCall) -> "ToolCallMessage":
         return cls(
             id=tool_call.id,
             function_name=tool_call.function.name,
@@ -153,7 +165,7 @@ class ToolCallMessage(BaseModel):
 
 class AIMessage(BasicMessage):
     role: Literal["assistant"] = "assistant"
-    # TODO: add thinking part
+    reasoning_content: Optional[str] = ""
     tool_calls: dict[str, ToolCallMessage] = {}  # id -> ToolCall
     nice_content: Optional[str] = None
 
@@ -166,12 +178,12 @@ class AIMessage(BasicMessage):
     @property
     def tokens(self) -> int:
         """Calculate token count for AI message including tool calls"""
-        content_tokens = count_tokens(self.content) if self.content else 0
+        content_tokens = count_tokens(self.content + self.reasoning_content)
         tool_call_tokens = sum(tc.tokens for tc in self.tool_calls.values())
         return content_tokens + tool_call_tokens
 
     def to_openai(self) -> ChatCompletionMessageParam:
-        result = {"role": self.role, "content": self.content or ""}
+        result = {"role": self.role, "content": self.content or "<empty>"}
         if self.tool_calls:
             result["tool_calls"] = [
                 {
@@ -187,20 +199,26 @@ class AIMessage(BasicMessage):
         return result
 
     @classmethod
-    def from_openai(cls, message: ChatCompletionMessage) -> "AIMessage":
+    def from_llm_response(cls, llm_response: LLMResponse) -> "AIMessage":
         tool_calls = {}
-        if message.tool_calls:
-            tool_calls = {tc.id: ToolCallMessage.from_openai_tool_call(tc) for tc in message.tool_calls}
-
-        content = message.content or ""
+        if llm_response.tool_calls:
+            tool_calls = {tc.id: ToolCallMessage.from_openai_tool_call(tc) for tc in llm_response.tool_calls}
         return cls(
-            content=content,
+            content=llm_response.content,
+            reasoning_content=llm_response.reasoning_content,
             tool_calls=tool_calls,
-            nice_content=render_markdown(content) if content else "",
+            nice_content=render_markdown(llm_response.content) if llm_response.content else "",
         )
 
     def __rich__(self):
-        return render_message(self.nice_content or self.content, mark_style="white")
+        if self.reasoning_content:
+            return Group(
+                render_message(format_style("Thinking...", "gray"), mark="✻", mark_style="white", style="italic"),
+                render_message(format_style(self.reasoning_content, "gray"), mark="", mark_style="white", style="italic"),
+                "",
+                render_message(self.nice_content or self.content, mark_style="white", style="orange")
+            )
+        return render_message(self.nice_content or self.content, mark_style="white", style="orange")
 
 
 class ToolMessage(BasicMessage):

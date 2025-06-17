@@ -54,10 +54,30 @@ class InputMode(BaseModel):
         return Style.from_dict(style_dict)
 
 
+class Commands(Enum):
+    COMPACT = "compact"
+    INIT = "init"
+    COST = "cost"
+    CLEAR = "clear"
+    STATUS = "status"
+
+
+AVAILABLE_COMMANDS = [cmd.value for cmd in Commands]
+
+# Detailed descriptions for each command
+COMMAND_DESCRIPTIONS = {
+    Commands.COMPACT.value: "Clear conversation history but keep a summary in context. Optional: /compact [instructions for summarization]",
+    Commands.INIT.value: "Initialize a new CLAUDE.md file with codebase documentation",
+    Commands.COST.value: "Show the total cost and duration of the current session",
+    Commands.CLEAR.value: "Clear conversation history and free up context",
+    Commands.STATUS.value: "Show the current setup"
+}
+
+
 class UserInput(BaseModel):
     mode: InputModeEnum
-    input: str
-    command: Optional[str] = None
+    content: str
+    command: Optional[Commands] = None
 
 
 input_mode_dict = {
@@ -89,17 +109,6 @@ input_mode_dict = {
         style="#b3b9f4",
         next_mode=InputModeEnum.NORMAL,
     ),
-}
-
-
-AVAILABLE_COMMANDS = ["compact", "init", "cost", "clear"]
-
-# Detailed descriptions for each command
-COMMAND_DESCRIPTIONS = {
-    "compact": "Clear conversation history but keep a summary in context. Optional: /compact [instructions for summarization]",
-    "init": "Initialize a new CLAUDE.md file with codebase documentation",
-    "cost": "Show the total cost and duration of the current session",
-    "clear": "Clear conversation history and free up context",
 }
 
 
@@ -170,8 +179,8 @@ class InputSession:
     def _dyn_placeholder(self):
         return self.current_input_mode.placeholder
 
-    def _parse_command(self, text: str) -> Tuple[Optional[str], str]:
-        """Parse command from input text. Returns tuple of (command_name, remaining_text)"""
+    def _parse_command(self, text: str) -> Tuple[Optional[Commands], str]:
+        """Parse command from input text. Returns tuple of (command_enum, remaining_text)"""
         if not text.strip():
             return None, text
 
@@ -186,8 +195,10 @@ class InputSession:
             if parts:
                 command_part = parts[0]
                 remaining_text = parts[1] if len(parts) > 1 else ""
-                if command_part in AVAILABLE_COMMANDS:
-                    return command_part, remaining_text
+                # Find matching enum
+                for cmd in Commands:
+                    if cmd.value == command_part:
+                        return cmd, remaining_text
         return None, text
 
     def _switch_mode(self, event, mode_name: str):
@@ -259,7 +270,7 @@ class InputSession:
         command, cleaned_input = self._parse_command(input_text)
         user_input = UserInput(
             mode=self.current_input_mode.name,
-            input=cleaned_input,
+            content=cleaned_input,
             command=command,
         )
         self._switch_to_next_mode()
@@ -270,7 +281,7 @@ class InputSession:
         command, cleaned_input = self._parse_command(input_text)
         user_input = UserInput(
             mode=self.current_input_mode.name,
-            input=cleaned_input,
+            content=cleaned_input,
             command=command,
         )
         self._switch_to_next_mode()
