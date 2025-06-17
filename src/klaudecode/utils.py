@@ -1,9 +1,11 @@
 import asyncio
 import functools
-from typing import Any, Callable, Type, Union, Tuple
+from typing import Any, Callable, Tuple, Type, Union
+
 from rich.console import Console
-from .tui import render_message, format_style
 from rich.status import Status
+
+from .tui import format_style, render_message
 
 console = Console()
 

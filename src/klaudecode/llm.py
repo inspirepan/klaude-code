@@ -1,8 +1,10 @@
 from typing import Dict, List, Literal, Optional, Tuple
 
 import openai
-from openai.types.chat import ChatCompletionMessageParam, ChatCompletionMessageToolCall, CompletionUsage
+from openai.types.chat import ChatCompletionMessageParam, ChatCompletionMessageToolCall
+from openai.types.completion_usage import CompletionUsage
 
+from .tui import console, render_message
 from .utils import retry
 
 
@@ -34,9 +36,7 @@ class LLMProxy:
                 api_key=self.api_key,
             )
 
-    async def _raw_call(
-        self, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None
-    ) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
+    async def _raw_call(self, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
         current_msgs = msgs.copy()
         completion = await self.client.chat.completions.create(
             model=self.model_name,
@@ -59,15 +59,34 @@ class LLMProxy:
         )
 
     @retry(max_retries=5, backoff_base=1.0)
-    async def _call_with_retry(
-        self, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None
-    ) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
+    async def _call_with_retry(self, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
         return await self._raw_call(msgs, tools)
 
-    async def _call_with_continuation(
-        self, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None
-    ) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
-        pass
+    async def _call_with_continuation(self, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
+        attempt = 0
+        max_continuations = 3
+        current_msgs = msgs.copy()
+        full_content = ""
+        total_usage = CompletionUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+        final_tool_calls = None
+        final_finish_reason = "stop"
+        while attempt <= max_continuations:
+            content, tool_calls, usage, finish_reason = await self._call_with_retry(current_msgs, tools)
+            if usage:
+                total_usage.prompt_tokens += usage.prompt_tokens
+                total_usage.completion_tokens += usage.completion_tokens
+                total_usage.total_tokens += usage.total_tokens
+            full_content += content
+            final_tool_calls = tool_calls
+            final_finish_reason = finish_reason
+            if finish_reason != "length":
+                break
+            attempt += 1
+            if attempt > max_continuations:
+                break
+            console.print(render_message("Continuing...", style="yellow"))
+            current_msgs.append({"role": "assistant", "content": content})
+        return full_content, final_tool_calls, total_usage, final_finish_reason
 
 
 class LLM:
@@ -114,7 +133,7 @@ class LLM:
     async def call(cls, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None):
         if cls._instance._client is None:
             raise RuntimeError("LLM client not initialized. Call initialize() first.")
-        return await cls._instance._client._call_with_retry(msgs, tools)
+        return await cls._instance._client._call_with_continuation(msgs, tools)
 
     @classmethod
     def reset(cls):
