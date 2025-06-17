@@ -8,11 +8,11 @@ from rich.abc import RichRenderable
 from rich.console import Group
 from rich.text import Text
 
+from .config import ConfigModel
 from .input import InputModeEnum
+from .llm import LLMResponse
 from .tui import format_style, render_markdown, render_message, render_suffix
 from .utils import truncate_text
-from .llm import LLMResponse
-
 
 # Initialize tiktoken encoder for GPT-4
 _encoder = tiktoken.encoding_for_model("gpt-4")
@@ -71,7 +71,7 @@ class UserMessage(BasicMessage):
         InputModeEnum.MEMORY,
         InputModeEnum.INTERRUPTED,
     ] = InputModeEnum.NORMAL
-    suffix: Optional[str] = None
+    suffix: Optional[Union[str, ConfigModel]] = None
     system_reminder: Optional[str] = None
 
     _mark_style: Optional[str] = None
@@ -104,7 +104,7 @@ class UserMessage(BasicMessage):
     def to_openai(self) -> ChatCompletionMessageParam:
         return {
             "role": self.role,
-            "content": self.content or "",
+            "content": self.content or "<empty>",
         }  # TODO: add suffix and system_reminder
 
     def __rich__(self):

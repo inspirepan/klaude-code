@@ -4,18 +4,18 @@ from typing import Optional
 
 import typer
 
-from .config import create_config_manager
-from .llm import AgentLLM
-from .tui import console, render_hello
 from .agent import Agent
+from .config import ConfigManager
+from .llm import AgentLLM
 from .session import Session
+from .tui import console, render_hello
 
 app = typer.Typer(help="Coding Agent CLI", add_completion=False)
 
 
 async def main_async(ctx: typer.Context):
     session = Session(os.getcwd())
-    agent = Agent(session, config=ctx.obj["config_manager"])
+    agent = Agent(session, config=ctx.obj["config"])
     await agent.chat_interactive()
 
 
@@ -48,7 +48,7 @@ def main(
     ctx.ensure_object(dict)
     if ctx.invoked_subcommand is None:
         console.print(render_hello())
-        config_manager = create_config_manager(
+        config_manager = ConfigManager.setup(
             api_key=api_key,
             model_name=model,
             base_url=base_url,
@@ -57,16 +57,15 @@ def main(
             extra_header=extra_header,
             enable_thinking=thinking,
         )
-        ctx.obj["config_manager"] = config_manager
+        ctx.obj["config"] = config_manager.get_config_model()
         AgentLLM.initialize(
-            model_name=config_manager.get_model_name(),
-            base_url=config_manager.get_base_url(),
-            api_key=config_manager.get_api_key(),
-            model_azure=config_manager.get_model_azure(),
-            max_tokens=config_manager.get_max_tokens(),
-            extra_header=config_manager.get_extra_header(),
-            enable_thinking=config_manager.get_enable_thinking(),
-
+            model_name=config_manager.get("model_name"),
+            base_url=config_manager.get("base_url"),
+            api_key=config_manager.get("api_key"),
+            model_azure=config_manager.get("model_azure"),
+            max_tokens=config_manager.get("max_tokens"),
+            extra_header=config_manager.get("extra_header"),
+            enable_thinking=config_manager.get("enable_thinking"),
         )
         asyncio.run(main_async(ctx))
 
@@ -77,11 +76,11 @@ app.add_typer(config_app, name="config")
 
 @config_app.command("show")
 def config_show(ctx: typer.Context):
-    config_manager = create_config_manager()
+    config_manager = ConfigManager.setup()
     console.print(config_manager)
 
 
 @config_app.command("edit")
 def config_edit():
-    from .config import edit_config_file
-    edit_config_file()
+    from .config import GlobalConfigSource
+    GlobalConfigSource.edit_config_file()

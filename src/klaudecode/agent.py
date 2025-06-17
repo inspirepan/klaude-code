@@ -1,11 +1,12 @@
-from typing import Optional, Tuple, List
+from typing import Any, List, Optional, Tuple
 
-from .session import Session
-from .input import InputSession, UserInput, Commands
-from .message import BasicMessage, SystemMessage, UserMessage, AIMessage, ToolMessage
-from .tui import console, render_message
+from .config import ConfigModel
+from .input import Commands, InputSession, UserInput
 from .llm import AgentLLM
-from .config import ConfigManager
+from .message import (AIMessage, BasicMessage, SystemMessage, ToolMessage,
+                      UserMessage)
+from .session import Session
+from .tui import console, render_message, render_suffix
 
 DEFAULT_MAX_STEPS = 80
 INTERACTIVE_MAX_STEPS = 100
@@ -17,7 +18,7 @@ class Agent:
     def __init__(
         self,
         session: Session,
-        config: ConfigManager,
+        config: ConfigModel,
         name: Optional[str] = None,
         with_agent_tool: bool = False,
         with_todo_tool: bool = False,
@@ -26,14 +27,17 @@ class Agent:
         self.name = name
         self.input_session = InputSession(session.work_dir)
         self.print_trace = True
+        self.config: ConfigModel = config
 
     async def chat_interactive(self):
         while True:
             user_input: UserInput = await self.input_session.prompt_async()
             user_raw, command_output, need_agent_run = self.handle_user_command(user_input)
-            self.append_message(UserMessage(content=command_output, mode=user_input.mode), print_msg=False)
+            if command_output:
+                console.print(render_suffix(command_output))
+            self.append_message(UserMessage(content=user_raw, mode=user_input.mode, suffix=command_output), print_msg=False)
             if need_agent_run:
-                if not command_output:
+                if not user_raw:
                     continue
                 await self.run(max_steps=INTERACTIVE_MAX_STEPS)
 
@@ -58,11 +62,11 @@ class Agent:
                 console.print(msg)
             console.print()
 
-    def handle_user_command(self, user_input: UserInput) -> Tuple[str, str, bool]:
+    def handle_user_command(self, user_input: UserInput) -> Tuple[str, Any, bool]:
         if not user_input.command:
-            return user_input.content, user_input.content, True
-        return user_input.content, user_input.content, True
-        # if user_input.command == Commands.STATUS:
+            return user_input.content, "", True
+        if user_input.command == Commands.STATUS:
+            return user_input.content, self.config, False
 
     def handle_tool_calls(self, ai_message: AIMessage):
         pass
