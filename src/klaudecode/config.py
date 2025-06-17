@@ -117,17 +117,13 @@ class GlobalConfig(Config):
     def _load_config(self) -> Dict:
         """Load configuration file"""
         config_path = self.get_config_path()
-
         if not config_path.exists():
             return {}
-
         try:
             with open(config_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError) as e:
-            console.print(
-                format_style(f"Warning: Failed to load config: {e}", "yellow")
-            )
+            console.print(format_style(f"Warning: Failed to load config: {e}", "yellow"))
             return {}
 
     def get(self, key: str) -> Optional[Union[str, bool, int]]:
@@ -232,12 +228,7 @@ class ConfigManager:
             try:
                 return json.loads(result.value)
             except json.JSONDecodeError:
-                console.print(
-                    format_style(
-                        f"Warning: Invalid JSON in extra_header: {result.value}",
-                        "yellow",
-                    )
-                )
+                console.print(format_style(f"Warning: Invalid JSON in extra_header: {result.value}", "yellow"))
                 return DEFAULT_EXTRA_HEADER
 
         return DEFAULT_EXTRA_HEADER
@@ -299,11 +290,7 @@ class ConfigManager:
         # Status display function
         def get_status(key, source):
             if key == "api_key":
-                return (
-                    format_style("✓", "green bold")
-                    if config_data[key].value
-                    else format_style("✗", "red bold")
-                )
+                return (format_style("✓", "green bold") if config_data[key].value else format_style("✗", "red bold"))
             elif source == "default":
                 return format_style("✓", "blue bold")
             else:
@@ -311,33 +298,17 @@ class ConfigManager:
 
         # Configuration items with display names
         config_items_display = [
-            (
-                "api_key",
-                "API Key",
-                config_data["api_key"].value or format_style("Not Set", "red"),
-            ),
+            ("api_key", "API Key", config_data["api_key"].value or format_style("Not Set", "red")),
             ("model_name", "Model", config_data["model_name"].value),
             ("base_url", "Base URL", config_data["base_url"].value),
             ("model_azure", "Azure Mode", str(config_data["model_azure"].value)),
             ("max_tokens", "Max Tokens", str(config_data["max_tokens"].value)),
-            (
-                "context_window_threshold",
-                "Context Threshold",
-                str(config_data["context_window_threshold"].value),
-            ),
-            (
-                "extra_header",
-                "Extra Header",
-                str(config_data["extra_header"].value)
-                if config_data["extra_header"].value
-                else "{}",
-            ),
+            ("context_window_threshold", "Context Threshold", str(config_data["context_window_threshold"].value)),
+            ("extra_header", "Extra Header", str(config_data["extra_header"].value) if config_data["extra_header"].value else "{}"),
         ]
 
         # Create table
-        table = Table(
-            padding=(0, 1), box=box.HORIZONTALS, show_header=False, show_edge=True
-        )
+        table = Table(padding=(0, 1), box=box.HORIZONTALS, show_header=False, show_edge=True)
         table.add_column(width=1, no_wrap=True)  # Status
         table.add_column(min_width=10, no_wrap=True)  # Setting name
         table.add_column(min_width=14)  # Value
@@ -354,9 +325,11 @@ class ConfigManager:
                 f"from {source}",
             )
 
-        # return Group(table, f" ⏺ [bold]Config path[/bold]: {GlobalConfig.get_config_path()}")
         return Group(
-            "", Text(f"config path: {str(GlobalConfig.get_config_path())}"), table, ""
+            "",
+            Text(f"config path: {str(GlobalConfig.get_config_path())}"),
+            table,
+            ""
         )
 
 
@@ -392,14 +365,8 @@ def create_config_manager(
 def open_config_file():
     config_path = GlobalConfig.get_config_path()
     if config_path.exists():
-        console.print(
-            format_style(
-                f"Opening config file: {format_style(str(config_path), 'green')}",
-                "green",
-            )
-        )
+        console.print(format_style(f"Opening config file: {format_style(str(config_path), 'green')}", "green"))
         import sys
-
         editor = os.getenv("EDITOR", "vi" if sys.platform != "darwin" else "open")
         os.system(f"{editor} {config_path}")
     else:

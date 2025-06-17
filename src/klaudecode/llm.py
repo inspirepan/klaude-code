@@ -1,11 +1,11 @@
 from typing import Dict, List, Literal, Optional, Tuple
-
+import asyncio
 import openai
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionMessageToolCall
 from openai.types.completion_usage import CompletionUsage
 
 from .tui import console, render_message
-from .utils import retry
+from rich.status import Status
 
 
 class LLMProxy:
@@ -17,6 +17,8 @@ class LLMProxy:
         model_azure: bool,
         max_tokens: int,
         extra_header: dict,
+        max_retries=5,
+        backoff_base=1.0,
     ):
         self.model_name = model_name
         self.base_url = base_url
@@ -24,6 +26,8 @@ class LLMProxy:
         self.model_azure = model_azure
         self.max_tokens = max_tokens
         self.extra_header = extra_header
+        self.max_retries = max_retries
+        self.backoff_base = backoff_base
         if model_azure:
             self.client = openai.AsyncAzureOpenAI(
                 azure_endpoint=self.base_url,
@@ -36,7 +40,11 @@ class LLMProxy:
                 api_key=self.api_key,
             )
 
-    async def _raw_call(self, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
+    async def _raw_call(
+        self,
+        msgs: List[ChatCompletionMessageParam],
+        tools: Optional[List[Dict]] = None
+    ) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
         current_msgs = msgs.copy()
         completion = await self.client.chat.completions.create(
             model=self.model_name,
@@ -58,11 +66,41 @@ class LLMProxy:
             finish_reason,
         )
 
-    @retry(max_retries=5, backoff_base=1.0)
-    async def _call_with_retry(self, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
-        return await self._raw_call(msgs, tools)
+    async def _call_with_retry(
+        self,
+        msgs: List[ChatCompletionMessageParam],
+        tools: Optional[List[Dict]] = None,
+        show_status: bool = True
+    ) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
+        last_exception = None
+        for attempt in range(self.max_retries):
+            try:
+                if show_status:
+                    with Status(render_message("Thinking... [gray]Press Ctrl+C to interrupt.[/gray]"), console=console.console):
+                        return await self._raw_call(msgs, tools)
+                else:
+                    return await self._raw_call(msgs, tools)
+            except (KeyboardInterrupt, asyncio.CancelledError):
+                raise
+            except Exception as e:
+                last_exception = e
+                if attempt < self.max_retries - 1:
+                    delay = self.backoff_base * (2**attempt)
+                    if show_status:
+                        console.print(render_message(f"Retry {attempt + 1}/{self.max_retries}: call failed - {str(e)}, waiting {delay:.1f}s"), style="red", status="error")
+                        with Status(render_message(f"Waiting {delay:.1f}s...", style="red", status="error")):
+                            await asyncio.sleep(delay)
+                    else:
+                        await asyncio.sleep(delay)
+        console.print(render_message(f"Final failure: call failed after {self.max_retries} retries - {last_exception}", style="red", status="error"))
+        raise last_exception
 
-    async def _call_with_continuation(self, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
+    async def _call_with_continuation(
+        self,
+        msgs: List[ChatCompletionMessageParam],
+        tools: Optional[List[Dict]] = None,
+        show_status: bool = True
+    ) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
         attempt = 0
         max_continuations = 3
         current_msgs = msgs.copy()
@@ -71,7 +109,7 @@ class LLMProxy:
         final_tool_calls = None
         final_finish_reason = "stop"
         while attempt <= max_continuations:
-            content, tool_calls, usage, finish_reason = await self._call_with_retry(current_msgs, tools)
+            content, tool_calls, usage, finish_reason = await self._call_with_retry(current_msgs, tools, show_status)
             if usage:
                 total_usage.prompt_tokens += usage.prompt_tokens
                 total_usage.completion_tokens += usage.completion_tokens
@@ -84,7 +122,8 @@ class LLMProxy:
             attempt += 1
             if attempt > max_continuations:
                 break
-            console.print(render_message("Continuing...", style="yellow"))
+            if show_status:
+                console.print(render_message("Continuing...", style="yellow"))
             current_msgs.append({"role": "assistant", "content": content})
         return full_content, final_tool_calls, total_usage, final_finish_reason
 
@@ -130,10 +169,10 @@ class LLM:
         return self._client
 
     @classmethod
-    async def call(cls, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None):
+    async def call(cls, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None, show_spinner: bool = True):
         if cls._instance._client is None:
             raise RuntimeError("LLM client not initialized. Call initialize() first.")
-        return await cls._instance._client._call_with_continuation(msgs, tools)
+        return await cls._instance._client._call_with_continuation(msgs, tools, show_spinner)
 
     @classmethod
     def reset(cls):

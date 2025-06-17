@@ -157,6 +157,6 @@ def render_hello() -> RenderResult:
     return Group(
         Panel.fit(table, border_style="orange"),
         "",
-        format_style("※ Tip: type \ followed by [bold]Enter[/bold] to insert newlines", "gray"),
+        format_style("※ Tip: type \\ followed by [bold]Enter[/bold] to insert newlines", "gray"),
         "",
     )
