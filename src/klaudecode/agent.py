@@ -35,7 +35,7 @@ class Agent:
             user_raw, command_output, need_agent_run = self.handle_user_command(user_input)
             if command_output:
                 console.print(render_suffix(command_output))
-            self.append_message(UserMessage(content=user_raw, mode=user_input.mode, suffix=command_output), print_msg=False)
+            self.append_message(UserMessage(content=user_raw, mode=user_input.mode.value, suffix=command_output), print_msg=False)
             if need_agent_run:
                 if not user_raw:
                     continue
@@ -67,6 +67,7 @@ class Agent:
             return user_input.content, "", True
         if user_input.command == Commands.STATUS:
             return user_input.content, self.config, False
+        return user_input.content, "", False
 
     def handle_tool_calls(self, ai_message: AIMessage):
         pass

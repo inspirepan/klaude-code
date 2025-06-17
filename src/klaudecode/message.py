@@ -9,7 +9,6 @@ from rich.console import Group
 from rich.text import Text
 
 from .config import ConfigModel
-from .input import InputModeEnum
 from .llm import LLMResponse
 from .tui import format_style, render_markdown, render_message, render_suffix
 from .utils import truncate_text
@@ -65,12 +64,12 @@ class SystemMessage(BasicMessage):
 class UserMessage(BasicMessage):
     role: Literal["user"] = "user"
     mode: Literal[
-        InputModeEnum.NORMAL,
-        InputModeEnum.PLAN,
-        InputModeEnum.BASH,
-        InputModeEnum.MEMORY,
-        InputModeEnum.INTERRUPTED,
-    ] = InputModeEnum.NORMAL
+        "normal",
+        "plan", 
+        "bash",
+        "memory",
+        "interrupted",
+    ] = "normal"
     suffix: Optional[Union[str, ConfigModel]] = None
     system_reminder: Optional[str] = None
 
@@ -79,15 +78,15 @@ class UserMessage(BasicMessage):
     _style: Optional[str] = None
 
     _MODE_CONF = {
-        InputModeEnum.NORMAL: {"_mark_style": None, "_mark": ">", "_style": None},
-        InputModeEnum.PLAN: {"_mark_style": None, "_mark": ">", "_style": None},
-        InputModeEnum.BASH: {
+        "normal": {"_mark_style": None, "_mark": ">", "_style": None},
+        "plan": {"_mark_style": None, "_mark": ">", "_style": None},
+        "bash": {
             "_mark_style": "magenta",
             "_mark": "!",
             "_style": "magenta",
         },
-        InputModeEnum.MEMORY: {"_mark_style": "blue", "_mark": "#", "_style": "blue"},
-        InputModeEnum.INTERRUPTED: {
+        "memory": {"_mark_style": "blue", "_mark": "#", "_style": "blue"},
+        "interrupted": {
             "_mark_style": "yellow",
             "_mark": "⏺",
             "_style": "yellow",
