@@ -44,7 +44,10 @@ class Agent:
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS):
         for _ in range(max_steps):
-            llm_response = await AgentLLM.call([m.to_openai() for m in self.session.messages], tools=[BashTool.openai_schema()])
+            llm_response = await AgentLLM.call(
+                msgs=[m.to_openai() for m in self.session.messages],
+                # tools=[BashTool.openai_schema()]
+            )
             ai_message: AIMessage = AIMessage.from_llm_response(llm_response)
             self.append_message(ai_message)
             if llm_response.finish_reason == "stop":
@@ -70,5 +73,5 @@ class Agent:
             return user_input.content, self.config, False
         return user_input.content, "", False
 
-    def handle_tool_calls(self, ai_message: AIMessage):
+    async def handle_tool_calls(self, ai_message: AIMessage):
         pass

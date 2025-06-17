@@ -5,10 +5,11 @@ import openai
 import tiktoken
 from openai.types.chat import (ChatCompletionMessageParam,
                                ChatCompletionMessageToolCall)
-from openai.types.chat.chat_completion_chunk import Choice
+from openai.types.chat.chat_completion_chunk import Choice, ChoiceDeltaToolCall
 from openai.types.completion_usage import CompletionUsage
 from pydantic import BaseModel
 from rich.status import Status
+from openai.lib.streaming.chat._completions import ChatCompletionStreamState
 
 from .tui import console, render_message
 
@@ -44,7 +45,7 @@ class LLMProxy:
         max_tokens: int,
         extra_header: dict,
         enable_thinking: bool,
-        max_retries=5,
+        max_retries=1,
         backoff_base=1.0,
     ):
         self.model_name = model_name
@@ -117,7 +118,7 @@ class LLMProxy:
 
         content = ""
         reasoning_content = ""
-        tool_calls = []
+        delta_tool_calls_list = []
         finish_reason = "stop"
         completion_tokens = 0
         prompt_tokens = 0
@@ -130,7 +131,7 @@ class LLMProxy:
                 if hasattr(choice.delta, "reasoning_content") and choice.delta.reasoning_content:
                     reasoning_content += choice.delta.reasoning_content
                 if choice.delta.tool_calls:
-                    tool_calls.extend(choice.delta.tool_calls)
+                    delta_tool_calls_list.append(choice.delta.tool_calls)
                 if choice.finish_reason:
                     finish_reason = choice.finish_reason
             if chunk.usage:
@@ -151,9 +152,11 @@ class LLMProxy:
             total_tokens=total_tokens
         )
 
+        final_tool_calls = merge_delta_tool_calls(delta_tool_calls_list)
+
         return LLMResponse(
             content=content or "<empty>",
-            tool_calls=tool_calls if tool_calls else None,
+            tool_calls=final_tool_calls,
             reasoning_content=reasoning_content,
             usage=tokens_used,
             finish_reason=finish_reason,
@@ -300,3 +303,41 @@ class AgentLLM(LLM):
 
 class FastLLM(LLM):
     pass
+
+
+def merge_delta_tool_calls(delta_tool_calls_list: List[List[ChoiceDeltaToolCall]]) -> Optional[List[ChatCompletionMessageToolCall]]:
+    """将多个 ChoiceDeltaToolCall 列表合并成 ChatCompletionMessageToolCall 列表"""
+    if not delta_tool_calls_list:
+        return None
+    tool_calls = {}
+    for delta_tool_calls in delta_tool_calls_list:
+        for delta_tool_call in delta_tool_calls:
+            index = delta_tool_call.index
+            if index not in tool_calls:
+                tool_calls[index] = {
+                    "id": delta_tool_call.id or "",
+                    "type": delta_tool_call.type or "function",
+                    "function": {
+                        "name": delta_tool_call.function.name if delta_tool_call.function and delta_tool_call.function.name else "",
+                        "arguments": delta_tool_call.function.arguments if delta_tool_call.function and delta_tool_call.function.arguments else ""
+                    }
+                }
+            else:
+                if delta_tool_call.id:
+                    tool_calls[index]["id"] += delta_tool_call.id
+                if delta_tool_call.function:
+                    if delta_tool_call.function.name:
+                        tool_calls[index]["function"]["name"] += delta_tool_call.function.name
+                    if delta_tool_call.function.arguments:
+                        tool_calls[index]["function"]["arguments"] += delta_tool_call.function.arguments
+    if not tool_calls:
+        return None
+    final_tool_calls = []
+    for index in sorted(tool_calls.keys()):
+        tool_call_dict = tool_calls[index]
+        final_tool_calls.append(ChatCompletionMessageToolCall(
+            id=tool_call_dict["id"],
+            type=tool_call_dict["type"],
+            function=tool_call_dict["function"]
+        ))
+    return final_tool_calls

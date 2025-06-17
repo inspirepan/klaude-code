@@ -135,8 +135,8 @@ class ToolCallMessage(BaseModel):
     def from_openai_tool_call(cls, tool_call: ChatCompletionMessageToolCall) -> "ToolCallMessage":
         return cls(
             id=tool_call.id,
-            function_name=tool_call.function.name,
-            function_arguments=tool_call.function.arguments,
+            tool_name=tool_call.function.name,
+            tool_args=tool_call.function.arguments,
             nice_content="",
         )
 
