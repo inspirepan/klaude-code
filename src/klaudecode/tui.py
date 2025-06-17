@@ -1,11 +1,11 @@
-import re
 import os
+import re
 from typing import Literal, Optional
 
 from rich import box
 from rich.abc import RichRenderable
 from rich.columns import Columns
-from rich.console import Console, ConsoleOptions, RenderResult, Group
+from rich.console import Console, ConsoleOptions, Group, RenderResult
 from rich.layout import Layout
 from rich.live import Live
 from rich.markup import escape

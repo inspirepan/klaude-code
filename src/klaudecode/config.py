@@ -18,6 +18,7 @@ DEFAULT_MODEL_NAME = "claude-sonnet-4-20250514"
 DEFAULT_BASE_URL = "https://api.anthropic.com/v1/"
 DEFAULT_MODEL_AZURE = False
 DEFAULT_MAX_TOKENS = 8196
+DEFAULT_EXTRA_HEADER = {}
 
 
 class Config(ABC):
@@ -45,6 +46,7 @@ class ArgConfig(Config):
         model_azure: Optional[bool] = None,
         max_tokens: Optional[int] = None,
         context_window_threshold: Optional[int] = None,
+        extra_header: Optional[str] = None,
     ):
         self._args = {
             "api_key": api_key,
@@ -53,6 +55,7 @@ class ArgConfig(Config):
             "model_azure": model_azure,
             "max_tokens": max_tokens,
             "context_window_threshold": context_window_threshold,
+            "extra_header": extra_header,
         }
 
     def get(self, key: str) -> Optional[Union[str, bool, int]]:
@@ -73,6 +76,7 @@ class EnvConfig(Config):
             "model_azure": "model_azure",
             "max_tokens": "MAX_TOKENS",
             "context_window_threshold": "CONTEXT_WINDOW_THRESHOLD",
+            "extra_header": "EXTRA_HEADER",
         }
 
     def get(self, key: str) -> Optional[Union[str, bool, int]]:
@@ -148,6 +152,7 @@ class DefaultConfig(Config):
             "model_azure": DEFAULT_MODEL_AZURE,
             "max_tokens": DEFAULT_MAX_TOKENS,
             "context_window_threshold": DEFAULT_CONTEXT_WINDOW_THRESHOLD,
+            "extra_header": DEFAULT_EXTRA_HEADER,
         }
 
     def get(self, key: str) -> Optional[Union[str, bool, int]]:
@@ -212,6 +217,31 @@ class ConfigManager:
         result = self.get_config_value("context_window_threshold")
         return result.value or DEFAULT_CONTEXT_WINDOW_THRESHOLD
 
+    def get_extra_header(self) -> Dict:
+        """Get extra header as dictionary"""
+        result = self.get_config_value("extra_header")
+        if result.value is None:
+            return DEFAULT_EXTRA_HEADER
+
+        # If it's already a dictionary (from config file), return as is
+        if isinstance(result.value, dict):
+            return result.value
+
+        # If it's a string (from CLI or env), parse as JSON
+        if isinstance(result.value, str):
+            try:
+                return json.loads(result.value)
+            except json.JSONDecodeError:
+                console.print(
+                    format_style(
+                        f"Warning: Invalid JSON in extra_header: {result.value}",
+                        "yellow",
+                    )
+                )
+                return DEFAULT_EXTRA_HEADER
+
+        return DEFAULT_EXTRA_HEADER
+
     def get_all_config_with_sources(self) -> Dict[str, ConfigValue]:
         """Get all configurations and their sources"""
         keys = [
@@ -221,6 +251,7 @@ class ConfigManager:
             "model_azure",
             "max_tokens",
             "context_window_threshold",
+            "extra_header",
         ]
         result = {}
         for key in keys:
@@ -248,10 +279,10 @@ class ConfigManager:
 
     def __rich__(self):
         """Return rich renderable object for configuration display"""
-        from rich.table import Table
-        from rich.console import Group
-        from rich.text import Text
         from rich import box
+        from rich.console import Group
+        from rich.table import Table
+        from rich.text import Text
 
         # Get all config values with sources
         config_data = self.get_all_config_with_sources()
@@ -294,6 +325,13 @@ class ConfigManager:
                 "Context Threshold",
                 str(config_data["context_window_threshold"].value),
             ),
+            (
+                "extra_header",
+                "Extra Header",
+                str(config_data["extra_header"].value)
+                if config_data["extra_header"].value
+                else "{}",
+            ),
         ]
 
         # Create table
@@ -329,6 +367,7 @@ def create_config_manager(
     model_azure: Optional[bool] = None,
     max_tokens: Optional[int] = None,
     context_window_threshold: Optional[int] = None,
+    extra_header: Optional[str] = None,
 ) -> ConfigManager:
     """Create configuration manager (create new instance each call to avoid state sharing)"""
     # Create configuration list in priority order
@@ -340,6 +379,7 @@ def create_config_manager(
             model_azure,
             max_tokens,
             context_window_threshold,
+            extra_header,
         ),
         EnvConfig(),
         GlobalConfig(),
@@ -374,6 +414,7 @@ def create_example_config(config_path: Path):
         "model_azure": DEFAULT_MODEL_AZURE,
         "max_tokens": DEFAULT_MAX_TOKENS,
         "context_window_threshold": DEFAULT_CONTEXT_WINDOW_THRESHOLD,
+        "extra_header": DEFAULT_EXTRA_HEADER,
     }
     try:
         config_path.parent.mkdir(parents=True, exist_ok=True)

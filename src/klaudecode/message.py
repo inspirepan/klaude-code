@@ -190,10 +190,7 @@ class AIMessage(BasicMessage):
     def from_openai(cls, message: ChatCompletionMessage) -> "AIMessage":
         tool_calls = {}
         if message.tool_calls:
-            tool_calls = {
-                tc.id: ToolCallMessage.from_openai_tool_call(tc)
-                for tc in message.tool_calls
-            }
+            tool_calls = {tc.id: ToolCallMessage.from_openai_tool_call(tc) for tc in message.tool_calls}
 
         content = message.content or ""
         return cls(
@@ -209,9 +206,7 @@ class AIMessage(BasicMessage):
 class ToolMessage(BasicMessage):
     role: Literal["tool"] = "tool"
     tool_call: ToolCallMessage
-    subagent_tool_calls: List[ToolCallMessage] = Field(
-        default_factory=list
-    )  # For sub-agent tool calls
+    subagent_tool_calls: List[ToolCallMessage] = Field(default_factory=list)  # For sub-agent tool calls
 
     class Config:
         arbitrary_types_allowed = True
@@ -224,9 +219,7 @@ class ToolMessage(BasicMessage):
         }
 
     def __rich__(self):
-        content = (
-            truncate_text(self.content.strip()) if self.content else "(No content)"
-        )
+        content = truncate_text(self.content.strip()) if self.content else "(No content)"
         return Group(
             self.tool_call,
             *[c.get_suffix_renderable() for c in self.subagent_tool_calls],
