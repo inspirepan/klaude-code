@@ -4,6 +4,7 @@ from typing import Dict, List, Literal, Optional
 import openai
 from openai.types.chat import (ChatCompletionMessageParam,
                                ChatCompletionMessageToolCall)
+from openai.types.chat.chat_completion_chunk import Choice
 from openai.types.completion_usage import CompletionUsage
 from pydantic import BaseModel
 from rich.status import Status
@@ -84,20 +85,99 @@ class LLMProxy:
             finish_reason=finish_reason,
         )
 
+    async def _raw_stream_call(
+        self,
+        msgs: List[ChatCompletionMessageParam],
+        tools: Optional[List[Dict]] = None,
+        status: Optional[Status] = None
+    ) -> LLMResponse:
+        current_msgs = msgs.copy()
+        stream = await self.client.chat.completions.create(
+            model=self.model_name,
+            messages=current_msgs,
+            tools=tools,
+            extra_headers=self.extra_header,
+            max_tokens=self.max_tokens,
+            stream=True,
+            extra_body={
+                "thinking": {"type": "enabled", "budget_tokens": 2000}
+            } if self.enable_thinking else None
+        )
+
+        content = ""
+        reasoning_content = ""
+        tool_calls = []
+        finish_reason = "stop"
+        completion_tokens = 0
+        prompt_tokens = 0
+        total_tokens = 0
+
+        async for chunk in stream:
+            if chunk.choices:
+                choice: Choice = chunk.choices[0]
+                if choice.delta.content:
+                    content += choice.delta.content
+                    completion_tokens += len(choice.delta.content)  # Simple calc token
+                    if status:
+                        status.update(f"Thinking... [green]↓ {completion_tokens}[/green] [gray]Press Ctrl+C to interrupt[/gray]")
+
+                if hasattr(choice.delta, "reasoning_content") and choice.delta.reasoning_content:
+                    reasoning_content += choice.delta.reasoning_content
+                    completion_tokens += len(choice.delta.reasoning_content)  # Simple calc token
+                    if status:
+                        status.update(f"Thinking... [green]↓ {completion_tokens}[/green] [gray]Press Ctrl+C to interrupt[/gray]")
+
+                if choice.delta.tool_calls:
+                    tool_calls.extend(choice.delta.tool_calls)
+
+                if choice.finish_reason:
+                    finish_reason = choice.finish_reason
+
+            if chunk.usage:
+                usage: CompletionUsage = chunk.usage
+
+                prompt_tokens = usage.prompt_tokens
+                completion_tokens = usage.completion_tokens
+                total_tokens = usage.total_tokens
+                if status:
+                    status.update(f"Thinking... [green]↓ {completion_tokens}[/green] [gray]Press Ctrl+C to interrupt[/gray]")
+
+        tokens_used = CompletionUsage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens
+        )
+
+        return LLMResponse(
+            content=content or "<empty>",
+            tool_calls=tool_calls if tool_calls else None,
+            reasoning_content=reasoning_content,
+            usage=tokens_used,
+            finish_reason=finish_reason,
+        )
+
     async def _call_with_retry(
         self,
         msgs: List[ChatCompletionMessageParam],
         tools: Optional[List[Dict]] = None,
-        show_status: bool = True
+        show_status: bool = True,
+        use_streaming: bool = True
     ) -> LLMResponse:
         last_exception = None
         for attempt in range(self.max_retries):
             try:
                 if show_status:
-                    with Status("Thinking... [gray]Press Ctrl+C to interrupt.[/gray]", console=console.console, spinner_style="gray"):
-                        return await self._raw_call(msgs, tools)
+                    if use_streaming:
+                        with Status("Thinking... [gray]Press Ctrl+C to interrupt[/gray]", console=console.console, spinner_style="gray") as status:
+                            return await self._raw_stream_call(msgs, tools, status)
+                    else:
+                        with Status("Thinking... [gray]Press Ctrl+C to interrupt[/gray]", console=console.console, spinner_style="gray"):
+                            return await self._raw_call(msgs, tools)
                 else:
-                    return await self._raw_call(msgs, tools)
+                    if use_streaming:
+                        return await self._raw_stream_call(msgs, tools, None)
+                    else:
+                        return await self._raw_call(msgs, tools)
             except (KeyboardInterrupt, asyncio.CancelledError):
                 raise
             except Exception as e:
@@ -117,7 +197,8 @@ class LLMProxy:
         self,
         msgs: List[ChatCompletionMessageParam],
         tools: Optional[List[Dict]] = None,
-        show_status: bool = True
+        show_status: bool = True,
+        use_streaming: bool = True
     ) -> LLMResponse:
         attempt = 0
         max_continuations = 3
@@ -128,7 +209,7 @@ class LLMProxy:
         final_tool_calls = None
         final_finish_reason = "stop"
         while attempt <= max_continuations:
-            response = await self._call_with_retry(current_msgs, tools, show_status)
+            response = await self._call_with_retry(current_msgs, tools, show_status, use_streaming)
             total_usage.prompt_tokens += response.usage.prompt_tokens
             total_usage.completion_tokens += response.usage.completion_tokens
             total_usage.total_tokens += response.usage.total_tokens
@@ -197,10 +278,10 @@ class LLM:
         return self._clients.get(self.__class__)
 
     @classmethod
-    async def call(cls, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None, show_spinner: bool = True) -> LLMResponse:
+    async def call(cls, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None, show_status: bool = True, use_streaming: bool = True) -> LLMResponse:
         if cls not in cls._clients or cls._clients[cls] is None:
             raise RuntimeError("LLM client not initialized. Call initialize() first.")
-        return await cls._clients[cls]._call_with_continuation(msgs, tools, show_spinner)
+        return await cls._clients[cls]._call_with_continuation(msgs, tools, show_status, use_streaming)
 
     @classmethod
     def reset(cls):
