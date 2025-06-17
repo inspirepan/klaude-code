@@ -12,6 +12,7 @@ from .tui import console
 
 
 class Session(BaseModel):
+    """Session model for managing conversation history and metadata."""
     messages: List[BasicMessage] = Field(default_factory=list)
     # todo_list: List[Todo] = Field(default_factory=list)
     work_dir: str
@@ -20,8 +21,7 @@ class Session(BaseModel):
 
     def __init__(
         self, work_dir: str, messages: Optional[List[BasicMessage]] = None
-    ) -> "Session":
-        # Initialize with proper Pydantic model initialization
+    ) -> None:
         super().__init__(
             work_dir=work_dir,
             messages=messages or [],
@@ -29,32 +29,43 @@ class Session(BaseModel):
             title="",
         )
 
-    def append_message(self, msg: BasicMessage):
+    def append_message(self, msg: BasicMessage) -> None:
+        """Add a message to the session and save it."""
         self.messages.append(msg)
         self.save()
 
     def get_last_message(
         self, role: Literal["user", "assistant", "tool"] | None = None
-    ) -> BasicMessage:
+    ) -> Optional[BasicMessage]:
+        """Get the last message with the specified role."""
         if role:
             return next((msg for msg in reversed(self.messages) if msg.role == role), None)
         return self.messages[-1] if self.messages else None
 
     def get_first_message(
         self, role: Literal["user", "assistant", "tool"] | None = None
-    ) -> BasicMessage:
+    ) -> Optional[BasicMessage]:
         """Get the first message with the specified role"""
         if role:
             return next((msg for msg in self.messages if msg.role == role), None)
         return self.messages[0] if self.messages else None
 
+    def print_all(self):
+        """Print all messages in the session"""
+        for msg in self.messages:
+            console.print(msg)
+            console.print()
+
     def _get_session_dir(self) -> Path:
+        """Get the directory path for storing session files."""
         return Path(self.work_dir) / ".klaude" / "sessions"
 
     def _get_metadata_file_path(self) -> Path:
+        """Get the file path for session metadata."""
         return self._get_session_dir() / f"{self.session_id}_metadata.json"
 
     def _get_messages_file_path(self) -> Path:
+        """Get the file path for session messages."""
         return self._get_session_dir() / f"{self.session_id}_messages.json"
 
     def save(self) -> None:
@@ -73,7 +84,7 @@ class Session(BaseModel):
             metadata = {
                 "id": self.session_id,
                 "work_dir": self.work_dir,
-                "title": self.title or self.get_last_message(role="user").content[:20],
+                "title": self.title or (self.get_last_message(role="user").content[:20] if self.get_last_message(role="user") else "Untitled"),
                 "created_at": getattr(self, "_created_at", current_time),
                 "updated_at": current_time,
                 "message_count": len(self.messages),
@@ -129,7 +140,7 @@ class Session(BaseModel):
             session = cls(
                 work_dir=metadata["work_dir"], messages=messages
             )
-            session.id = metadata["id"]
+            session.session_id = metadata["id"]
             session.title = metadata.get("title", "")
             session._created_at = metadata.get("created_at")
             return session
@@ -138,14 +149,23 @@ class Session(BaseModel):
             console.print(f"[red]Failed to load session {session_id}: {e}[/red]")
             return None
 
+    def fork(self) -> "Session":
+        forked_session = Session(
+            work_dir=self.work_dir,
+            messages=self.messages.copy(),  # Copy the messages list
+            # todo_list=self.todo_list.copy(),
+        )
+        return forked_session
+
     @classmethod
-    def load_session_list(cls, work_dir: str = os.getcwd()) -> list[dict]:
+    def load_session_list(cls, work_dir: str = os.getcwd()) -> List[dict]:
+        """Load a list of session metadata from the specified directory."""
         try:
             session_dir = cls(work_dir=work_dir)._get_session_dir()
             if not session_dir.exists():
                 return []
             sessions = []
-            for metadata_file in session_dir.glob("*_meta.json"):
+            for metadata_file in session_dir.glob("*_metadata.json"):
                 try:
                     with open(metadata_file, "r", encoding="utf-8") as f:
                         metadata = json.load(f)
@@ -173,10 +193,9 @@ class Session(BaseModel):
 
     @classmethod
     def get_latest_session(cls, work_dir: str = os.getcwd()) -> Optional["Session"]:
-        """Get the most recent session for the current working directory"""
-        sessions = cls.list_sessions(work_dir)
+        """Get the most recent session for the current working directory."""
+        sessions = cls.load_session_list(work_dir)
         if not sessions:
             return None
-        # Return the most recent session (first in the list)
         latest_session = sessions[0]
         return cls.load(latest_session["id"], work_dir)

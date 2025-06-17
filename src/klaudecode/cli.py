@@ -14,6 +14,14 @@ app = typer.Typer(help="Coding Agent CLI", add_completion=False)
 
 
 async def main_async(ctx: typer.Context):
+    if ctx.obj["continue_latest"]:
+        session = Session.get_latest_session(os.getcwd()).fork()
+        if not session:
+            console.print("[red]No session found[/red]")
+            return
+        session.print_all()
+    elif ctx.obj["resume"]:
+        pass  # TODO
     session = Session(os.getcwd())
     agent = Agent(session, config=ctx.obj["config"])
     await agent.chat_interactive()
@@ -57,6 +65,10 @@ def main(
             extra_header=extra_header,
             enable_thinking=thinking,
         )
+        ctx.obj["resume"] = resume
+        ctx.obj["continue_latest"] = continue_latest
+        ctx.obj["no_mcp"] = no_mcp
+        ctx.obj["verbose"] = verbose
         ctx.obj["config"] = config_manager.get_config_model()
         AgentLLM.initialize(
             model_name=config_manager.get("model_name"),
