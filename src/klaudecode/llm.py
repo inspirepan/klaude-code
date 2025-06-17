@@ -1,13 +1,9 @@
-import asyncio
 from typing import Dict, List, Literal, Optional, Tuple
 
 import openai
-from openai.types.chat import (ChatCompletionMessage,
-                               ChatCompletionMessageParam,
-                               ChatCompletionMessageToolCall, CompletionUsage)
-from rich.status import Status
+from openai.types.chat import ChatCompletionMessageParam, ChatCompletionMessageToolCall, CompletionUsage
 
-from .tui import console, format_style, render_message
+from .utils import retry
 
 
 class LLMProxy:
@@ -62,36 +58,16 @@ class LLMProxy:
             finish_reason,
         )
 
-    async def _call_with_retry(self, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None):
-        retry_count = 4
-        backoff = 1.0
-        last_exception = None
-        for attempt in range(retry_count):
-            try:
-                return await self._raw_call(msgs, tools)
-            except (KeyboardInterrupt, asyncio.CancelledError):
-                raise
-            except Exception as e:
-                last_exception = e
-                if attempt < retry_count - 1:
-                    delay = backoff * (2**attempt)
-                    with Status(
-                        render_message(
-                            format_style(
-                                f"Retry {attempt + 1}/{retry_count}: call failed - {str(e)}, waiting {delay:.1f}s",
-                                "red",
-                            ),
-                            status="error",
-                        )
-                    ):
-                        await asyncio.sleep(delay)
-        console.print(
-            render_message(
-                f"Final failure: call failed after {retry_count} retries - {last_exception}",
-                status="error",
-            ),
-        )
-        raise last_exception
+    @retry(max_retries=5, backoff_base=1.0)
+    async def _call_with_retry(
+        self, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None
+    ) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
+        return await self._raw_call(msgs, tools)
+
+    async def _call_with_continuation(
+        self, msgs: List[ChatCompletionMessageParam], tools: Optional[List[Dict]] = None
+    ) -> Tuple[str, Optional[List[ChatCompletionMessageToolCall]], CompletionUsage, Literal["stop", "length", "tool_calls", "content_filter", "function_call"]]:
+        pass
 
 
 class LLM:
