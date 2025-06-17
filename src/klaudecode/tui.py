@@ -78,9 +78,10 @@ def render_message(
     mark_style: Optional[str] = None,
     mark: Optional[str] = "⏺",
     status: Literal["processing", "success", "error"] = "success",
+    mark_width: int = 0,
 ) -> RichRenderable:
     table = Table.grid(padding=(0, 1))
-    table.add_column(width=0, no_wrap=True)
+    table.add_column(width=mark_width, no_wrap=True)
     table.add_column(overflow="fold")
     if status == "error":
         mark = format_style(mark, "red")
@@ -157,6 +158,11 @@ def render_hello() -> RenderResult:
     return Group(
         Panel.fit(table, border_style="orange"),
         "",
-        format_style("※ Tip: type \\ followed by [bold]Enter[/bold] to insert newlines", "gray"),
+        render_message("type \\ followed by [bold]Enter[/bold] to insert newlines\n"
+                       "type / to choose slash command\n"
+                       "type ! to run bash command\n"
+                       "type # to write memory\n"
+                       "type * to plan mode\n",
+                       mark="※ Tip:", style="gray", mark_style="gray", mark_width=5),
         "",
     )

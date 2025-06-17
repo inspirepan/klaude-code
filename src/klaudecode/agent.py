@@ -6,6 +6,7 @@ from .llm import AgentLLM
 from .message import (AIMessage, BasicMessage, SystemMessage, ToolMessage,
                       UserMessage)
 from .session import Session
+from .tools.bash import BashTool
 from .tui import console, render_message, render_suffix
 
 DEFAULT_MAX_STEPS = 80
@@ -43,7 +44,7 @@ class Agent:
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS):
         for _ in range(max_steps):
-            llm_response = await AgentLLM.call([m.to_openai() for m in self.session.messages])
+            llm_response = await AgentLLM.call([m.to_openai() for m in self.session.messages], tools=[BashTool.openai_schema()])
             ai_message: AIMessage = AIMessage.from_llm_response(llm_response)
             self.append_message(ai_message)
             if llm_response.finish_reason == "stop":

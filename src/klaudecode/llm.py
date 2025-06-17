@@ -2,6 +2,7 @@ import asyncio
 from typing import Dict, List, Literal, Optional
 
 import openai
+import tiktoken
 from openai.types.chat import (ChatCompletionMessageParam,
                                ChatCompletionMessageToolCall)
 from openai.types.chat.chat_completion_chunk import Choice
@@ -10,6 +11,16 @@ from pydantic import BaseModel
 from rich.status import Status
 
 from .tui import console, render_message
+
+# Initialize tiktoken encoder for GPT-4
+_encoder = tiktoken.encoding_for_model("gpt-4")
+
+
+def count_tokens(text: str) -> int:
+    """Count tokens in text using tiktoken"""
+    if not text:
+        return 0
+    return len(_encoder.encode(text))
 
 
 class LLMResponse(BaseModel):
@@ -111,36 +122,28 @@ class LLMProxy:
         completion_tokens = 0
         prompt_tokens = 0
         total_tokens = 0
-
         async for chunk in stream:
             if chunk.choices:
                 choice: Choice = chunk.choices[0]
                 if choice.delta.content:
                     content += choice.delta.content
-                    completion_tokens += len(choice.delta.content)  # Simple calc token
-                    if status:
-                        status.update(f"Thinking... [green]↓ {completion_tokens}[/green] [gray]Press Ctrl+C to interrupt[/gray]")
-
                 if hasattr(choice.delta, "reasoning_content") and choice.delta.reasoning_content:
                     reasoning_content += choice.delta.reasoning_content
-                    completion_tokens += len(choice.delta.reasoning_content)  # Simple calc token
-                    if status:
-                        status.update(f"Thinking... [green]↓ {completion_tokens}[/green] [gray]Press Ctrl+C to interrupt[/gray]")
-
                 if choice.delta.tool_calls:
                     tool_calls.extend(choice.delta.tool_calls)
-                # TODO: tool call token
                 if choice.finish_reason:
                     finish_reason = choice.finish_reason
-
             if chunk.usage:
                 usage: CompletionUsage = chunk.usage
-
                 prompt_tokens = usage.prompt_tokens
                 completion_tokens = usage.completion_tokens
                 total_tokens = usage.total_tokens
                 if status:
-                    status.update(f"Thinking... [green]↓ {completion_tokens}[/green] [gray]Press Ctrl+C to interrupt[/gray]")
+                    status.update(f"Thinking... [green]↓ {completion_tokens} tokens[/green] [gray]Press Ctrl+C to interrupt[/gray]")
+            else:
+                completion_tokens = count_tokens(content) + count_tokens(reasoning_content)
+                if status:
+                    status.update(f"Thinking... [green]↓ {completion_tokens} tokens[/green] [gray]Press Ctrl+C to interrupt[/gray]")
 
         tokens_used = CompletionUsage(
             prompt_tokens=prompt_tokens,

@@ -87,14 +87,12 @@ class ConfigModel(BaseModel):
                 status = format_style("✗", "red bold")
                 value = format_style("Not Set", "red")
                 source = ""
-
             table.add_row(
                 status,
                 format_style(display_name, "bold gray"),
                 value,
                 source,
             )
-
         return table
 
 

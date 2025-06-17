@@ -1,6 +1,5 @@
 from typing import Dict, List, Literal, Optional, Union
 
-import tiktoken
 from openai.types.chat import (ChatCompletionMessageParam,
                                ChatCompletionMessageToolCall)
 from pydantic import BaseModel, Field, computed_field, model_validator
@@ -9,19 +8,9 @@ from rich.console import Group
 from rich.text import Text
 
 from .config import ConfigModel
-from .llm import LLMResponse
+from .llm import LLMResponse, count_tokens
 from .tui import format_style, render_markdown, render_message, render_suffix
 from .utils import truncate_text
-
-# Initialize tiktoken encoder for GPT-4
-_encoder = tiktoken.encoding_for_model("gpt-4")
-
-
-def count_tokens(text: str) -> int:
-    """Count tokens in text using tiktoken"""
-    if not text:
-        return 0
-    return len(_encoder.encode(text))
 
 
 class BasicMessage(BaseModel):
@@ -65,7 +54,7 @@ class UserMessage(BasicMessage):
     role: Literal["user"] = "user"
     mode: Literal[
         "normal",
-        "plan", 
+        "plan",
         "bash",
         "memory",
         "interrupted",

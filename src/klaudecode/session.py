@@ -7,7 +7,8 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from .message import BasicMessage, SystemMessage, UserMessage, AIMessage, ToolMessage
+from .message import (AIMessage, BasicMessage, SystemMessage, ToolMessage,
+                      UserMessage)
 from .tui import console
 
 
