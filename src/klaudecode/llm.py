@@ -129,7 +129,7 @@ class LLMProxy:
 
                 if choice.delta.tool_calls:
                     tool_calls.extend(choice.delta.tool_calls)
-
+                # TODO: tool call token
                 if choice.finish_reason:
                     finish_reason = choice.finish_reason
 
