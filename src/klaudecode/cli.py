@@ -22,7 +22,8 @@ async def main_async(ctx: typer.Context):
         session.print_all()
     elif ctx.obj["resume"]:
         pass  # TODO
-    session = Session(os.getcwd())
+    else:
+        session = Session(os.getcwd())
     agent = get_main_agent(session, config=ctx.obj["config"])
     await agent.chat_interactive()
 

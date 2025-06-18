@@ -56,7 +56,6 @@ class Session(BaseModel):
         """Print all messages in the session"""
         for msg in self.messages:
             console.print(msg)
-            console.print()
 
     def _get_session_dir(self) -> Path:
         """Get the directory path for storing session files."""
