@@ -192,7 +192,7 @@ class AIMessage(BasicMessage):
     def __rich_console__(self, console, options):
         if self.reasoning_content:
             yield render_message(format_style("Thinking...", "gray"), mark="✻", mark_style="white", style="italic"),
-        if self.nice_content:
+        if self.nice_content and self.nice_content != "<empty>" :
             yield render_message(self.nice_content, mark_style="white", style="orange")
             yield ""
         elif self.content and self.content != "<empty>":

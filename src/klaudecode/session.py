@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from .message import (AIMessage, BasicMessage, SystemMessage, ToolMessage,
                       UserMessage)
 from .tui import console
+from .utils import sanitize_filename
 
 
 class Session(BaseModel):
@@ -63,11 +64,16 @@ class Session(BaseModel):
 
     def _get_metadata_file_path(self) -> Path:
         """Get the file path for session metadata."""
-        return self._get_session_dir() / f"{self.session_id}_metadata.json"
+        return self._get_session_dir() / f"{self.session_id}.metadata.json"
 
     def _get_messages_file_path(self) -> Path:
         """Get the file path for session messages."""
-        return self._get_session_dir() / f"{self.session_id}_messages.json"
+        first_user_msg = self.get_first_message(role="user")
+        if first_user_msg:
+            sanitized_title = sanitize_filename(first_user_msg.content, max_length=20)
+            return self._get_session_dir() / f"{self.session_id}.messages_{sanitized_title}.json"
+        else:
+            return self._get_session_dir() / f"{self.session_id}.messages_untitled.json"
 
     def save(self) -> None:
         """Save session to local files (metadata and messages separately)"""
@@ -120,7 +126,11 @@ class Session(BaseModel):
             temp_session = cls(work_dir=work_dir)
             temp_session.session_id = session_id
             metadata_file = temp_session._get_metadata_file_path()
-            messages_file = temp_session._get_messages_file_path()
+            session_dir = temp_session._get_session_dir()
+            messages_files = list(session_dir.glob(f"{session_id}.messages_*.json"))
+            if not messages_files:
+                return None
+            messages_file = messages_files[0]
             if not metadata_file.exists() or not messages_file.exists():
                 return None
             with open(metadata_file, "r", encoding="utf-8") as f:
@@ -166,7 +176,7 @@ class Session(BaseModel):
             if not session_dir.exists():
                 return []
             sessions = []
-            for metadata_file in session_dir.glob("*_metadata.json"):
+            for metadata_file in session_dir.glob("*.metadata.json"):
                 try:
                     with open(metadata_file, "r", encoding="utf-8") as f:
                         metadata = json.load(f)
