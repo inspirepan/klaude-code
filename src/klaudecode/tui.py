@@ -165,3 +165,24 @@ def render_hello() -> RenderResult:
 
 
 INTERRUPT_TIP = "[gray]Press Ctrl+C to interrupt[/gray]"
+
+
+def truncate_middle_text(text: str, max_lines: int = 15) -> RichRenderable:
+    lines = text.splitlines()
+
+    if len(lines) <= max_lines + 5:
+        return text
+
+    head_lines = max_lines // 2
+    tail_lines = max_lines - head_lines
+    middle_lines = len(lines) - head_lines - tail_lines
+
+    head_content = "\n".join(lines[:head_lines])
+    tail_content = "\n".join(lines[-tail_lines:])
+    return Group(
+        head_content,
+        Text("···", style="gray"),
+        Text.assemble("+ ", Text(str(middle_lines), style="bold"), " lines", style="gray"),
+        Text("···", style="gray"),
+        tail_content,
+    )
