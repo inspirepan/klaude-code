@@ -4,12 +4,12 @@ from typing import Dict, List, Literal, Optional
 import openai
 import tiktoken
 from openai.types.chat import (ChatCompletionMessageParam,
-                               ChatCompletionMessageToolCall)
+                               ChatCompletionMessageToolCall, )
 from openai.types.chat.chat_completion_chunk import Choice, ChoiceDeltaToolCall
+from openai.types.chat.chat_completion_message_tool_call import Function
 from openai.types.completion_usage import CompletionUsage
 from pydantic import BaseModel
 from rich.status import Status
-from openai.lib.streaming.chat._completions import ChatCompletionStreamState
 
 from .tui import console, render_message
 
@@ -118,7 +118,7 @@ class LLMProxy:
 
         content = ""
         reasoning_content = ""
-        delta_tool_calls_list = []
+        tool_call_chunk_accumulator = ToolCallChunkAccumulator()
         finish_reason = "stop"
         completion_tokens = 0
         prompt_tokens = 0
@@ -131,7 +131,7 @@ class LLMProxy:
                 if hasattr(choice.delta, "reasoning_content") and choice.delta.reasoning_content:
                     reasoning_content += choice.delta.reasoning_content
                 if choice.delta.tool_calls:
-                    delta_tool_calls_list.append(choice.delta.tool_calls)
+                    tool_call_chunk_accumulator.add_chunks(choice.delta.tool_calls)
                 if choice.finish_reason:
                     finish_reason = choice.finish_reason
             if chunk.usage:
@@ -142,7 +142,7 @@ class LLMProxy:
                 if status:
                     status.update(f"Thinking... [green]↓ {completion_tokens} tokens[/green] [gray]Press Ctrl+C to interrupt[/gray]")
             else:
-                completion_tokens = count_tokens(content) + count_tokens(reasoning_content)
+                completion_tokens = count_tokens(content) + count_tokens(reasoning_content) + tool_call_chunk_accumulator.count_tokens()  # TODO: Optimize token count calc
                 if status:
                     status.update(f"Thinking... [green]↓ {completion_tokens} tokens[/green] [gray]Press Ctrl+C to interrupt[/gray]")
 
@@ -152,11 +152,9 @@ class LLMProxy:
             total_tokens=total_tokens
         )
 
-        final_tool_calls = merge_delta_tool_calls(delta_tool_calls_list)
-
         return LLMResponse(
             content=content or "<empty>",
-            tool_calls=final_tool_calls,
+            tool_calls=tool_call_chunk_accumulator.get_all_tool_calls(),
             reasoning_content=reasoning_content,
             usage=tokens_used,
             finish_reason=finish_reason,
@@ -305,39 +303,35 @@ class FastLLM(LLM):
     pass
 
 
-def merge_delta_tool_calls(delta_tool_calls_list: List[List[ChoiceDeltaToolCall]]) -> Optional[List[ChatCompletionMessageToolCall]]:
-    """将多个 ChoiceDeltaToolCall 列表合并成 ChatCompletionMessageToolCall 列表"""
-    if not delta_tool_calls_list:
-        return None
-    tool_calls = {}
-    for delta_tool_calls in delta_tool_calls_list:
-        for delta_tool_call in delta_tool_calls:
-            index = delta_tool_call.index
-            if index not in tool_calls:
-                tool_calls[index] = {
-                    "id": delta_tool_call.id or "",
-                    "type": delta_tool_call.type or "function",
-                    "function": {
-                        "name": delta_tool_call.function.name if delta_tool_call.function and delta_tool_call.function.name else "",
-                        "arguments": delta_tool_call.function.arguments if delta_tool_call.function and delta_tool_call.function.arguments else ""
-                    }
-                }
-            else:
-                if delta_tool_call.id:
-                    tool_calls[index]["id"] += delta_tool_call.id
-                if delta_tool_call.function:
-                    if delta_tool_call.function.name:
-                        tool_calls[index]["function"]["name"] += delta_tool_call.function.name
-                    if delta_tool_call.function.arguments:
-                        tool_calls[index]["function"]["arguments"] += delta_tool_call.function.arguments
-    if not tool_calls:
-        return None
-    final_tool_calls = []
-    for index in sorted(tool_calls.keys()):
-        tool_call_dict = tool_calls[index]
-        final_tool_calls.append(ChatCompletionMessageToolCall(
-            id=tool_call_dict["id"],
-            type=tool_call_dict["type"],
-            function=tool_call_dict["function"]
-        ))
-    return final_tool_calls
+class ToolCallChunkAccumulator:
+    """
+    WARNING: streaming is only tested for Claude, which returns tool calls in the specific sequence: tool_call_id, tool_call_name, followed by chunks of tool_call_args
+    """
+
+    def __init__(self):
+        self.tool_call_list: List[ChatCompletionMessageToolCall] = []
+
+    def add_chunks(self, chunks: Optional[List[ChoiceDeltaToolCall]]):
+        if not chunks:
+            return
+        for chunk in chunks:
+            self.add_chunk(chunk)
+
+    def add_chunk(self, chunk: ChoiceDeltaToolCall):
+        if not chunk:
+            return
+        if chunk.id:
+            self.tool_call_list.append(ChatCompletionMessageToolCall(id=chunk.id, function=Function(arguments="", name="", type="function"), type="function"))
+        if chunk.function.name and self.tool_call_list:
+            self.tool_call_list[-1].function.name = chunk.function.name
+        if chunk.function.arguments and self.tool_call_list:
+            self.tool_call_list[-1].function.arguments += chunk.function.arguments
+
+    def get_all_tool_calls(self) -> List[ChatCompletionMessageToolCall]:
+        return self.tool_call_list
+
+    def count_tokens(self):
+        tokens = 0
+        for tc in self.tool_call_list:
+            tokens += count_tokens(tc.function.name) + count_tokens(tc.function.arguments)
+        return tokens

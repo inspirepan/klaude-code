@@ -4,7 +4,7 @@ from typing import Optional
 
 import typer
 
-from .agent import Agent
+from .agent import get_main_agent
 from .config import ConfigManager
 from .llm import AgentLLM
 from .session import Session
@@ -23,7 +23,7 @@ async def main_async(ctx: typer.Context):
     elif ctx.obj["resume"]:
         pass  # TODO
     session = Session(os.getcwd())
-    agent = Agent(session, config=ctx.obj["config"])
+    agent = get_main_agent(session, config=ctx.obj["config"])
     await agent.chat_interactive()
 
 

@@ -110,7 +110,7 @@ class UserMessage(BasicMessage):
 class ToolCallMessage(BaseModel):
     id: str
     tool_name: str
-    tool_args: Union[Dict, str]
+    tool_args: str
 
     nice_args: str = ""
     status: Literal["processing", "success", "error"] = "processing"
@@ -119,16 +119,8 @@ class ToolCallMessage(BaseModel):
     @computed_field
     @property
     def tokens(self) -> int:
-        """Calculate token count for the tool call"""
-        # Count tokens for function name and arguments
         func_tokens = count_tokens(self.tool_name)
-
-        # Handle arguments as string or dict
-        if isinstance(self.tool_args, str):
-            args_tokens = count_tokens(self.tool_args)
-        else:
-            args_tokens = count_tokens(str(self.tool_args))
-
+        args_tokens = count_tokens(self.tool_args)
         return func_tokens + args_tokens
 
     @classmethod
