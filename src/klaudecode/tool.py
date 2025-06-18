@@ -78,7 +78,9 @@ class Tool(ABC):
     def parse_input_args(cls, tool_call: ToolCallMessage) -> Optional[BaseModel]:
         if hasattr(cls, 'Input') and issubclass(cls.Input, BaseModel):
             args_dict = json.loads(tool_call.tool_args)
-            return cls.Input(**args_dict)
+            input_inst = cls.Input(**args_dict)
+            tool_call.nice_args = str(input_inst)
+            return input_inst
         return None
 
     @classmethod

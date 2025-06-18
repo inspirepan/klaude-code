@@ -44,6 +44,9 @@ class BashTool(Tool):
         description: Annotated[Optional[str], Field(description="Description of what this command does")] = None
         timeout: Annotated[Optional[int], Field(description="Optional timeout in milliseconds (max 600000)")] = None
 
+        def __str__(self):
+            return f"{self.description} → {self.command}"
+
     @classmethod
     def _validate_command_safety(cls, command: str) -> tuple[bool, str]:
         """Validate command safety and return (is_safe, error_message)"""
@@ -115,7 +118,7 @@ class BashTool(Tool):
             """Update the tool result content with current output"""
             content = '\n'.join(output_lines)
             if total_output_size >= cls.MAX_OUTPUT_SIZE:
-                content += f"\n\n[Output truncated at {cls.MAX_OUTPUT_SIZE} characters to prevent memory overflow]"
+                content += f"\n[Output truncated at {cls.MAX_OUTPUT_SIZE} characters]"
             instance.tool_result().content = content
 
         try:
@@ -131,10 +134,6 @@ class BashTool(Tool):
             )
 
             # Initial content update
-            output_lines.append(f"Executing: {args.command}")
-            if args.description:
-                output_lines.append(f"Description: {args.description}")
-            output_lines.append("")
             update_content()
 
             start_time = time.time()
@@ -143,7 +142,7 @@ class BashTool(Tool):
             while True:
                 # Check timeout
                 if time.time() - start_time > timeout_seconds:
-                    output_lines.append(f"\nCommand timed out after {timeout_seconds:.1f} seconds")
+                    output_lines.append(f"Command timed out after {timeout_seconds:.1f} seconds")
                     update_content()
                     cls._kill_process_tree(process.pid)
                     break
@@ -186,7 +185,7 @@ class BashTool(Tool):
             if process.poll() is not None:
                 exit_code = process.returncode
                 if exit_code != 0:
-                    output_lines.append(f"\nCommand failed with exit code: {exit_code}")
+                    output_lines.append(f"Exit code: {exit_code}")
 
             # Final content update
             update_content()
