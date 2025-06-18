@@ -1,5 +1,6 @@
 from typing import List, Literal, Optional, Union
 
+from anthropic.types import ContentBlock, MessageParam, ToolUseBlockParam
 from openai.types.chat import (ChatCompletionMessageParam,
                                ChatCompletionMessageToolCall)
 from pydantic import BaseModel, Field, computed_field, model_validator
@@ -7,15 +8,39 @@ from rich.abc import RichRenderable
 from rich.text import Text
 
 from .config import ConfigModel
-from .llm import LLMResponse, count_tokens
-from .tui import format_style, render_markdown, render_message, render_suffix
-from .utils import truncate_text
+from .tui import (format_style, render_markdown, render_message, render_suffix,
+                  truncate_middle_text)
+
+# Lazy initialize tiktoken encoder for GPT-4
+_encoder = None
+
+
+def _get_encoder():
+    global _encoder
+    if _encoder is None:
+        import tiktoken
+        _encoder = tiktoken.encoding_for_model("gpt-4")
+    return _encoder
+
+
+def count_tokens(text: str) -> int:
+    """Count tokens in text using tiktoken"""
+    if not text:
+        return 0
+    return len(_get_encoder().encode(text))
+
+
+class CompletionUsage(BaseModel):
+    completion_tokens: int
+    prompt_tokens: int
+    total_tokens: int
 
 
 class BasicMessage(BaseModel):
     role: str
     content: Optional[str] = None
     removed: bool = False  # A message is removed when /compact called.
+    usage: Optional[CompletionUsage] = None
 
     @computed_field
     @property
@@ -24,6 +49,9 @@ class BasicMessage(BaseModel):
         return count_tokens(self.content)
 
     def to_openai(self) -> ChatCompletionMessageParam:
+        raise NotImplementedError
+
+    def to_anthropic(self):
         raise NotImplementedError
 
 
@@ -43,6 +71,20 @@ class SystemMessage(BasicMessage):
                     } if self.cached else None,
                 }
             ]
+        }
+
+    def to_anthropic(self):
+        if self.cached:
+            return {
+                "type": "text",
+                "text": self.content,
+                "cache_control": {
+                    "type": "ephemeral"
+                }
+            }
+        return {
+            "type": "text",
+            "text": self.content,
         }
 
     def __rich__(self):
@@ -94,6 +136,17 @@ class UserMessage(BasicMessage):
             "content": self.content,
         }  # TODO: add suffix and system_reminder
 
+    def to_anthropic(self) -> MessageParam:
+        return MessageParam(
+            role="user",
+            content=[
+                {
+                    "type": "text",
+                    "text": self.content
+                }
+            ]
+        )
+
     def __rich_console__(self, console, options):
         yield render_message(
             self.content,
@@ -111,6 +164,15 @@ class ToolCallMessage(BaseModel):
     tool_name: str
     tool_args: str
 
+    @computed_field
+    @property
+    def tool_args_dict(self) -> dict:
+        import json
+        try:
+            return json.loads(self.tool_args) if self.tool_args else {}
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
     nice_args: str = ""
     status: Literal["processing", "success", "error"] = "processing"
     hide_args: bool = False
@@ -122,14 +184,13 @@ class ToolCallMessage(BaseModel):
         args_tokens = count_tokens(self.tool_args)
         return func_tokens + args_tokens
 
-    @classmethod
-    def from_openai_tool_call(cls, tool_call: ChatCompletionMessageToolCall) -> "ToolCallMessage":
-        return cls(
-            id=tool_call.id,
-            tool_name=tool_call.function.name,
-            tool_args=tool_call.function.arguments,
-            nice_content="",
-        )
+    def to_anthropic(self) -> ToolUseBlockParam:
+        return {
+            "id": self.id,
+            "type": "tool_use",
+            "name": self.tool_name,
+            "input": self.tool_args_dict,
+        }
 
     def __rich__(self):
         args = "" if self.hide_args else self.nice_args or self.tool_args
@@ -144,9 +205,11 @@ class ToolCallMessage(BaseModel):
 
 class AIMessage(BasicMessage):
     role: Literal["assistant"] = "assistant"
-    reasoning_content: Optional[str] = ""
+    thinking_content: Optional[str] = ""
     tool_calls: dict[str, ToolCallMessage] = {}  # id -> ToolCall
     nice_content: Optional[str] = None
+    thinking_signature: Optional[str] = ""  # Used for Anthropic extended thinking
+    finish_reason: Literal["stop", "length", "tool_calls", "content_filter", "function_call"] = "stop"
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -157,7 +220,7 @@ class AIMessage(BasicMessage):
     @property
     def tokens(self) -> int:
         """Calculate token count for AI message including tool calls"""
-        content_tokens = count_tokens(self.content + self.reasoning_content)
+        content_tokens = count_tokens(self.content + self.thinking_content)
         tool_call_tokens = sum(tc.tokens for tc in self.tool_calls.values())
         return content_tokens + tool_call_tokens
 
@@ -177,20 +240,28 @@ class AIMessage(BasicMessage):
             ]
         return result
 
-    @classmethod
-    def from_llm_response(cls, llm_response: LLMResponse) -> "AIMessage":
-        tool_calls = {}
-        if llm_response.tool_calls:
-            tool_calls = {tc.id: ToolCallMessage.from_openai_tool_call(tc) for tc in llm_response.tool_calls}
-        return cls(
-            content=llm_response.content,
-            reasoning_content=llm_response.reasoning_content,
-            tool_calls=tool_calls,
-            nice_content=render_markdown(llm_response.content) if llm_response.content else "",
+    def to_anthropic(self) -> MessageParam:
+        content: List[ContentBlock] = []
+        if self.thinking_content:
+            content.append({
+                "type": "thinking",
+                "text": self.thinking_content,
+                "signature": self.thinking_signature,
+            })
+        content.append({
+            "type": "text",
+            "text": self.content,
+        })
+        if self.tool_calls:
+            for tc in self.tool_calls.values():
+                content.append(tc.to_anthropic())
+        return MessageParam(
+            role="assistant",
+            content=content,
         )
 
     def __rich_console__(self, console, options):
-        if self.reasoning_content:
+        if self.thinking_content:
             yield render_message(format_style("Thinking...", "gray"), mark="✻", mark_style="white", style="italic"),
         if self.nice_content:
             yield render_message(self.nice_content, mark_style="white", style="orange")
@@ -215,10 +286,21 @@ class ToolMessage(BasicMessage):
             "tool_call_id": self.tool_call.id,
         }
 
+    def to_anthropic(self):
+        return MessageParam(
+            role="user",
+            content=[{
+                "type": "tool_result",
+                "text": self.content,
+                "tool_use_id": self.tool_call.id,
+                "is_error": self.tool_call.status == "error",
+            }],
+        )
+
     def __rich_console__(self, console, options):
         yield self.tool_call
         for c in self.subagent_tool_calls:
             yield c.get_suffix_renderable()
         if self.content or self.tool_call.status == "success":
-            yield render_suffix(truncate_text(self.content.strip()) if self.content else "(No content)", error=self.tool_call.status == "error")
+            yield render_suffix(truncate_middle_text(self.content.strip()) if self.content else "(No content)", error=self.tool_call.status == "error")
         yield ""

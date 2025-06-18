@@ -62,17 +62,16 @@ class Agent(Tool):
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS):
         for _ in range(max_steps):
-            llm_response = await AgentLLM.call(
-                msgs=[m.to_openai() for m in self.session.messages],
-                tools=[tool.openai_schema() for tool in self.tools],
+            ai_msg = await AgentLLM.call(
+                msgs=self.session.messages,
+                tools=self.tools,
                 show_status=self.print_switch
             )
-            ai_message: AIMessage = AIMessage.from_llm_response(llm_response)
-            self.append_message(ai_message)
-            if llm_response.finish_reason == "stop":
-                return llm_response.content
-            if llm_response.finish_reason == "tool_calls" or len(llm_response.tool_calls) > 0:
-                await self.tool_handler.handle(ai_message)
+            self.append_message(ai_msg)
+            if ai_msg.finish_reason == "stop":
+                return ai_msg.content
+            if ai_msg.finish_reason == "tool_calls" or len(ai_msg.tool_calls) > 0:
+                await self.tool_handler.handle(ai_msg)
 
         max_step_msg = f"Max steps {max_steps} reached"
         console.print(render_message(max_step_msg, mark_style="blue"))

@@ -5,6 +5,7 @@ description = "Coding Agent CLI"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "anthropic>=0.54.0",
     "openai>=1.86.0",
     "prompt-toolkit>=3.0.51",
     "pydantic>=2.11.7",
