@@ -86,7 +86,7 @@ class Agent(Tool):
                     console.print(msg)
 
     # Implement SubAgent
-    # -------
+    # ------------------
     name = "Agent"
     desc = AGENT_TOOL_DESC
 
@@ -100,6 +100,13 @@ class Agent(Tool):
     @classmethod
     def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
         args: "Agent.Input" = cls.parse_input_args(tool_call)
+        from rich.panel import Panel
+        from rich.text import Text
+        from rich.padding import Padding
+        from rich.box import HORIZONTALS
+        tool_call.rich_args = Padding.indent(
+            Panel.fit(args.prompt, title=Text(args.description, style="bold"), box=HORIZONTALS),
+            level=2)
 
         def subagent_append_message_hook(*msgs: BasicMessage) -> None:
             if not msgs:

@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 from rich.console import Group
+from rich.columns import Columns
 from rich.live import Live
 from rich.status import Status
 
@@ -17,7 +18,7 @@ class Tool(ABC):
     name: str = ""
     desc: str = ""
     parallelable: bool = True
-    timeout = 60
+    timeout = 300
 
     @classmethod
     def get_name(cls) -> str:
@@ -188,9 +189,9 @@ class ToolHandler:
             with Live(refresh_per_second=10, console=console.console) as live:
                 while any(ti.is_running() for ti in tool_instances):
                     tool_results = [ti.tool_result() for ti in tool_instances]
-                    live.update(Group(*tool_results, status))
+                    live.update(Columns([*tool_results, status], equal=True, expand=False))
                     await asyncio.sleep(0.1)
-                live.update(Group(*[ti.tool_result() for ti in tool_instances]))
+                live.update(Columns([ti.tool_result() for ti in tool_instances], equal=True, expand=False))
 
         await asyncio.gather(*tasks, return_exceptions=True)
         self.agent.append_message(*[ti.tool_result() for ti in tool_instances], print_msg=False)

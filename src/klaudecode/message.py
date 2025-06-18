@@ -1,11 +1,11 @@
-from typing import List, Literal, Optional, Union
+from typing import List, Literal, Optional, Union, Any
 
 from anthropic.types import ContentBlock, MessageParam, ToolUseBlockParam
-from openai.types.chat import (ChatCompletionMessageParam,
-                               ChatCompletionMessageToolCall)
+from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field, computed_field, model_validator
 from rich.abc import RichRenderable
 from rich.text import Text
+from rich.console import Group
 
 from .config import ConfigModel
 from .tui import (format_style, render_markdown, render_message, render_suffix,
@@ -173,9 +173,10 @@ class ToolCallMessage(BaseModel):
         except (json.JSONDecodeError, TypeError):
             return {}
 
-    nice_args: str = ""
     status: Literal["processing", "success", "error"] = "processing"
     hide_args: bool = False
+    nice_args: str = ""
+    rich_args: Optional[Any] = Field(default=None, exclude=True)
 
     @computed_field
     @property
@@ -193,8 +194,14 @@ class ToolCallMessage(BaseModel):
         }
 
     def __rich__(self):
-        args = "" if self.hide_args else self.nice_args or self.tool_args
-        msg = Text.assemble((self.tool_name, "bold"), "(", args, ")")
+        if self.rich_args:
+            return Group(
+                render_message(format_style(self.tool_name, "bold"), mark_style="green", status=self.status),
+                self.rich_args
+            )
+        if self.hide_args:
+            return render_message(format_style(self.tool_name, "bold"), mark_style="green", status=self.status)
+        msg = Text.assemble((self.tool_name, "bold"), "(", self.nice_args or self.tool_args, ")")
         return render_message(msg, mark_style="green", status=self.status)
 
     def get_suffix_renderable(self) -> RichRenderable:
