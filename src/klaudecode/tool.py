@@ -1,12 +1,12 @@
 import asyncio
 import json
 from abc import ABC
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 from rich.console import Group
 from rich.live import Live
+from rich.status import Status
 
 from .message import AIMessage, ToolCallMessage, ToolMessage
 from .tui import console
@@ -71,8 +71,8 @@ class Tool(ABC):
         return json.dumps(cls.openai_schema())
 
     @classmethod
-    def create_instance(cls, tool_call: ToolCallMessage) -> 'ToolInstance':
-        return ToolInstance(tool=cls, tool_call=tool_call)
+    def create_instance(cls, tool_call: ToolCallMessage, parent_agent) -> 'ToolInstance':
+        return ToolInstance(tool=cls, tool_call=tool_call, parent_agent=parent_agent)
 
     @classmethod
     def parse_input_args(cls, tool_call: ToolCallMessage) -> Optional[BaseModel]:
@@ -84,26 +84,16 @@ class Tool(ABC):
         return None
 
     @classmethod
-    def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
+    async def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
         raise NotImplementedError
-
-    @classmethod
-    async def invoke_async(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
-        loop = asyncio.get_event_loop()
-        with ThreadPoolExecutor() as executor:
-            future = loop.run_in_executor(executor, cls.invoke, tool_call, instance)
-            try:
-                await asyncio.wait_for(future, timeout=cls.get_timeout())
-            except asyncio.TimeoutError:
-                instance.tool_msg.tool_call.status = "error"
-                instance.tool_msg.content = f"Tool '{cls.get_name()}' timed out after {cls.get_timeout()}s"
 
 
 class ToolInstance:
-    def __init__(self, tool: type[Tool], tool_call: ToolCallMessage):
+    def __init__(self, tool: type[Tool], tool_call: ToolCallMessage, parent_agent):
         self.tool = tool
         self.tool_call = tool_call
         self.tool_msg: ToolMessage = ToolMessage(tool_call=tool_call)
+        self.parent_agent = parent_agent
 
         self._task: Optional[asyncio.Task] = None
         self._is_running = False
@@ -120,7 +110,7 @@ class ToolInstance:
 
     async def _run_async(self):
         try:
-            await self.tool.invoke_async(self.tool_call, self)
+            await self.tool.invoke(self.tool_call, self)
             self._is_completed = True
             self.tool_msg.tool_call.status = "success"
         except Exception as e:
@@ -146,9 +136,10 @@ class ToolInstance:
 
 
 class ToolHandler:
-    def __init__(self, agent, tools: List[Tool]):
+    def __init__(self, agent, tools: List[Tool], show_live: bool = True):
         self.agent = agent
         self.tool_dict = {tool.name: tool for tool in tools} if tools else {}
+        self.show_live = show_live
 
     async def handle(self, ai_message: AIMessage):
         if not ai_message.tool_calls or not len(ai_message.tool_calls):
@@ -173,27 +164,37 @@ class ToolHandler:
         if not tool_calls:
             return
 
-        tool_instances = [self.tool_dict[tc.tool_name].create_instance(tc) for tc in tool_calls]
-        tasks = [await ti.start_async() for ti in tool_instances]
+        tool_instances = [self.tool_dict[tc.tool_name].create_instance(tc, self.agent) for tc in tool_calls]
+        tasks = [ti.start_async() for ti in tool_instances]
 
-        with Live(refresh_per_second=3, console=console.console) as live:
-            while any(ti.is_running() for ti in tool_instances):
+        if self.show_live:
+            tool_counts = {}
+            for tc in tool_calls:
+                tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
+            status_text = "Executing " + " ".join([f"[bold]{name}[/bold]*{count}" for name, count in tool_counts.items()]) + "..."
+            status = Status(status_text, spinner="dots", spinner_style="gray")
+            with Live(refresh_per_second=10, console=console.console) as live:
+                while any(ti.is_running() for ti in tool_instances):
+                    tool_results = [ti.tool_result() for ti in tool_instances]
+                    live.update(Group(*tool_results, status))
+                    await asyncio.sleep(0.1)
                 live.update(Group(*[ti.tool_result() for ti in tool_instances]))
-                await asyncio.sleep(0.3)
-            live.update(Group(*[ti.tool_result() for ti in tool_instances]))
 
         await asyncio.gather(*tasks, return_exceptions=True)
         self.agent.append_message(*[ti.tool_result() for ti in tool_instances], print_msg=False)
 
     async def handle_single_tool_call(self, tool_call: ToolCallMessage):
-        tool_instance = self.tool_dict[tool_call.tool_name].create_instance(tool_call)
+        tool_instance = self.tool_dict[tool_call.tool_name].create_instance(tool_call, self.agent)
         task = await tool_instance.start_async()
 
-        with Live(refresh_per_second=3, console=console.console) as live:
-            while tool_instance.is_running():
+        if self.show_live:
+            status_text = f"Executing [bold]{tool_call.tool_name}[/bold]..."
+            status = Status(status_text, spinner="dots", spinner_style="gray")
+            with Live(refresh_per_second=10, console=console.console) as live:
+                while tool_instance.is_running():
+                    live.update(Group(tool_instance.tool_result(), status))
+                    await asyncio.sleep(0.1)
                 live.update(tool_instance.tool_result())
-                await asyncio.sleep(0.3)
-            live.update(tool_instance.tool_result())
 
         await task
         self.agent.append_message(tool_instance.tool_result(), print_msg=False)

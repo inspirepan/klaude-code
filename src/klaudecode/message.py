@@ -14,7 +14,7 @@ from .utils import truncate_text
 
 class BasicMessage(BaseModel):
     role: str
-    content: Optional[str] = "<empty>"
+    content: Optional[str] = None
     removed: bool = False  # A message is removed when /compact called.
 
     @computed_field
@@ -91,7 +91,7 @@ class UserMessage(BasicMessage):
     def to_openai(self) -> ChatCompletionMessageParam:
         return {
             "role": self.role,
-            "content": self.content or "<empty>",
+            "content": self.content,
         }  # TODO: add suffix and system_reminder
 
     def __rich_console__(self, console, options):
@@ -162,7 +162,7 @@ class AIMessage(BasicMessage):
         return content_tokens + tool_call_tokens
 
     def to_openai(self) -> ChatCompletionMessageParam:
-        result = {"role": self.role, "content": self.content or "<empty>"}
+        result = {"role": self.role, "content": self.content}
         if self.tool_calls:
             result["tool_calls"] = [
                 {
@@ -192,10 +192,10 @@ class AIMessage(BasicMessage):
     def __rich_console__(self, console, options):
         if self.reasoning_content:
             yield render_message(format_style("Thinking...", "gray"), mark="✻", mark_style="white", style="italic"),
-        if self.nice_content and self.nice_content != "<empty>" :
+        if self.nice_content:
             yield render_message(self.nice_content, mark_style="white", style="orange")
             yield ""
-        elif self.content and self.content != "<empty>":
+        elif self.content:
             yield render_message(self.content, mark_style="white", style="orange")
             yield ""
 
@@ -219,5 +219,6 @@ class ToolMessage(BasicMessage):
         yield self.tool_call
         for c in self.subagent_tool_calls:
             yield c.get_suffix_renderable()
-        yield render_suffix(truncate_text(self.content.strip()) if self.content else "(No content)", error=self.tool_call.status == "error")
+        if self.content or self.tool_call.status == "success":
+            yield render_suffix(truncate_text(self.content.strip()) if self.content else "(No content)", error=self.tool_call.status == "error")
         yield ""

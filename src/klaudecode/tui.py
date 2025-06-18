@@ -85,7 +85,7 @@ def render_message(
         mark = format_style("○", mark_style)
     else:
         mark = format_style(mark, mark_style)
-    table.add_row(mark, format_style(message or "<empty>", style))
+    table.add_row(mark, format_style(message, style))
     return table
 
 

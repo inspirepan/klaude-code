@@ -3,7 +3,7 @@ import os
 import time
 import uuid
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Callable
 
 from pydantic import BaseModel, Field
 
@@ -20,21 +20,25 @@ class Session(BaseModel):
     work_dir: str
     title: str = ""
     session_id: str = ""
+    append_message_hook: Optional[Callable] = None
 
     def __init__(
-        self, work_dir: str, messages: Optional[List[BasicMessage]] = None
+        self, work_dir: str, messages: Optional[List[BasicMessage]] = None, append_message_hook: Optional[Callable] = None
     ) -> None:
         super().__init__(
             work_dir=work_dir,
             messages=messages or [],
             session_id=str(uuid.uuid4()),
             title="",
+            append_message_hook=append_message_hook,
         )
 
     def append_message(self, *msgs: BasicMessage) -> None:
         """Add messages to the session and save it."""
         self.messages.extend(msgs)
         self.save()
+        if self.append_message_hook:
+            self.append_message_hook(*msgs)
 
     def get_last_message(
         self, role: Literal["user", "assistant", "tool"] | None = None

@@ -241,6 +241,12 @@ class InputSession:
                 return
             self.buf.delete_before_cursor()
 
+        @self.kb.add("c-u")
+        def _(event):
+            """Clear the entire buffer with ctrl+u (Unix standard)"""
+            self.buf.text = ""
+            self.buf.cursor_position = 0
+
         @self.kb.add("enter")
         def _(event):
             """

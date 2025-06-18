@@ -97,7 +97,7 @@ class LLMProxy:
         tokens_used = completion.usage or CompletionUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
         reasoning_content = message.reasoning_content if hasattr(message, "reasoning_content") else ""
         return LLMResponse(
-            content=message.content or "<empty>",
+            content=message.content,
             tool_calls=message.tool_calls,
             reasoning_content=reasoning_content,
             usage=tokens_used,
@@ -160,7 +160,7 @@ class LLMProxy:
         )
 
         return LLMResponse(
-            content=content or "<empty>",
+            content=content,
             tool_calls=tool_call_chunk_accumulator.get_all_tool_calls(),
             reasoning_content=reasoning_content,
             usage=tokens_used,

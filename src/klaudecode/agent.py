@@ -1,13 +1,15 @@
-from typing import Any, List, Optional
-
-from pydantic import BaseModel
+from typing import Any, List, Optional, Annotated
+import os
+from pydantic import BaseModel, Field
 
 from .config import ConfigModel
 from .input import Commands, InputSession, UserInput
 from .llm import AgentLLM
-from .message import AIMessage, BasicMessage, UserMessage
+from .message import SystemMessage, AIMessage, BasicMessage, UserMessage, ToolCallMessage
 from .session import Session
-from .tool import Tool, ToolHandler
+
+from .prompt import AGENT_TOOL_DESC, SUB_AGENT_TASK_USER_PROMPT
+from .tool import Tool, ToolHandler, ToolInstance
 from .tools.bash import BashTool
 from .tui import console, render_message, render_suffix
 
@@ -16,27 +18,29 @@ INTERACTIVE_MAX_STEPS = 100
 TOKEN_WARNING_THRESHOLD = 0.8
 TODO_SUGGESTION_LENGTH_THRESHOLD = 40
 
-BASIC_TOOL_SET = [BashTool]
+BASIC_TOOLS = [BashTool]
 
 
-class Agent:
+class Agent(Tool):
+
     def __init__(
         self,
         session: Session,
-        config: ConfigModel,
+        config: Optional[ConfigModel] = None,
         label: Optional[str] = None,
         tools: Optional[List[Tool]] = None,
         with_agent_tool: bool = False,
         with_todo_tool: bool = False,
+        print_switch: bool = True
     ):
         self.session: Session = session
         self.label = label
         self.input_session = InputSession(session.work_dir)
-        self.print_switch = True
-        self.config: ConfigModel = config
+        self.print_switch = print_switch
+        self.config: Optional[ConfigModel] = config
         self.tools = tools
         self.comand_handler = CommandHandler(self)
-        self.tool_handler = ToolHandler(self, self.tools)
+        self.tool_handler = ToolHandler(self, self.tools, show_live=print_switch)
 
     async def chat_interactive(self):
         while True:
@@ -58,7 +62,8 @@ class Agent:
         for _ in range(max_steps):
             llm_response = await AgentLLM.call(
                 msgs=[m.to_openai() for m in self.session.messages],
-                tools=[tool.openai_schema() for tool in self.tools]
+                tools=[tool.openai_schema() for tool in self.tools],
+                show_status=self.print_switch
             )
             ai_message: AIMessage = AIMessage.from_llm_response(llm_response)
             self.append_message(ai_message)
@@ -79,9 +84,44 @@ class Agent:
                 for msg in msgs:
                     console.print(msg)
 
+    # Implement SubAgent
+    # -------
+    name = "Agent"
+    desc = AGENT_TOOL_DESC
+
+    class Input(BaseModel):
+        description: Annotated[str, Field(description="A short (3-5 word) description of the task")] = None
+        prompt: Annotated[str, Field(description="The task for the agent to perform")]
+
+        def __str__(self):
+            return f"{self.description.strip()}: {self.prompt.strip()}"
+
+    @classmethod
+    async def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
+        args: "Agent.Input" = cls.parse_input_args(tool_call)
+
+        def subagent_append_message_hook(*msgs: BasicMessage) -> None:
+            if not msgs:
+                return
+            for msg in msgs:
+                if not isinstance(msg, AIMessage):
+                    continue
+                if msg.tool_calls:
+                    instance.tool_result().subagent_tool_calls.extend(msg.tool_calls.values())
+
+        session = Session(
+            work_dir=os.getcwd(),
+            messages=[SystemMessage(content="You are a helpful assistant run in user's terminal")],
+            append_message_hook=subagent_append_message_hook
+        )
+        agent = cls(session, tools=BASIC_TOOLS, print_switch=False)
+        agent.append_message(UserMessage(content=SUB_AGENT_TASK_USER_PROMPT.format(description=args.description, prompt=args.prompt)), print_msg=False)
+        result = await agent.run(max_steps=DEFAULT_MAX_STEPS)  # TODO await
+        instance.tool_result().content = result.strip()
+
 
 def get_main_agent(session: Session, config: ConfigModel) -> Agent:
-    return Agent(session, config, tools=BASIC_TOOL_SET)
+    return Agent(session, config, tools=BASIC_TOOLS + [Agent])
 
 
 class CommandHandler:

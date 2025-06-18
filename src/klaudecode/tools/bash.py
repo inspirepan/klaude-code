@@ -58,9 +58,10 @@ class BashTool(Tool):
                 return False, f"Dangerous command detected: {dangerous_cmd}. This command is blocked for security reasons."
 
         # Check for specialized tools
-        for cmd, suggestion in cls.SPECIALIZED_TOOLS.items():
-            if command_lower.startswith(cmd + ' ') or command_lower == cmd:
-                return False, f"Command '{cmd}' detected. {suggestion}"
+        # TODO: Implement those tools
+        # for cmd, suggestion in cls.SPECIALIZED_TOOLS.items():
+        #     if command_lower.startswith(cmd + ' ') or command_lower == cmd:
+        #         return False, f"Command '{cmd}' detected. {suggestion}"
 
         return True, ""
 
@@ -94,7 +95,7 @@ class BashTool(Tool):
             pass
 
     @classmethod
-    def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
+    async def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
         args: "BashTool.Input" = cls.parse_input_args(tool_call)
 
         # Validate command safety
@@ -119,7 +120,7 @@ class BashTool(Tool):
             content = '\n'.join(output_lines)
             if total_output_size >= cls.MAX_OUTPUT_SIZE:
                 content += f"\n[Output truncated at {cls.MAX_OUTPUT_SIZE} characters]"
-            instance.tool_result().content = content
+            instance.tool_result().content = content.strip()
 
         try:
             # Start the process
