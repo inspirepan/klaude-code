@@ -10,7 +10,7 @@ from openai.types.completion_usage import CompletionUsage
 from pydantic import BaseModel
 from rich.status import Status
 
-from .tui import console, render_message, INTERRUPT_TIP
+from .tui import INTERRUPT_TIP, console, render_message
 
 # Lazy initialize tiktoken encoder for GPT-4
 _encoder = None

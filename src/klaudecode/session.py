@@ -3,7 +3,7 @@ import os
 import time
 import uuid
 from pathlib import Path
-from typing import List, Literal, Optional, Callable
+from typing import Callable, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 

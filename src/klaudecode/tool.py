@@ -1,8 +1,8 @@
 import asyncio
 import json
 from abc import ABC
-from typing import Any, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 from rich.console import Group
@@ -10,7 +10,7 @@ from rich.live import Live
 from rich.status import Status
 
 from .message import AIMessage, ToolCallMessage, ToolMessage
-from .tui import console, INTERRUPT_TIP
+from .tui import INTERRUPT_TIP, console
 
 
 class Tool(ABC):
