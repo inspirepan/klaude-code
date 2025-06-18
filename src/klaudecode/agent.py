@@ -1,5 +1,6 @@
 from typing import Any, List, Optional, Annotated
 import os
+import asyncio
 from pydantic import BaseModel, Field
 
 from .config import ConfigModel
@@ -97,7 +98,7 @@ class Agent(Tool):
             return f"{self.description.strip()}: {self.prompt.strip()}"
 
     @classmethod
-    async def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
+    def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
         args: "Agent.Input" = cls.parse_input_args(tool_call)
 
         def subagent_append_message_hook(*msgs: BasicMessage) -> None:
@@ -116,7 +117,7 @@ class Agent(Tool):
         )
         agent = cls(session, tools=BASIC_TOOLS, print_switch=False)
         agent.append_message(UserMessage(content=SUB_AGENT_TASK_USER_PROMPT.format(description=args.description, prompt=args.prompt)), print_msg=False)
-        result = await agent.run(max_steps=DEFAULT_MAX_STEPS)  # TODO await
+        result = asyncio.run(agent.run(max_steps=DEFAULT_MAX_STEPS))
         instance.tool_result().content = result.strip()
 
 

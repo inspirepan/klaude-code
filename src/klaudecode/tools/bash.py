@@ -95,7 +95,7 @@ class BashTool(Tool):
             pass
 
     @classmethod
-    async def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
+    def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
         args: "BashTool.Input" = cls.parse_input_args(tool_call)
 
         # Validate command safety

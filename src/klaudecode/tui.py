@@ -162,3 +162,6 @@ def render_hello() -> RenderResult:
                        mark="※ Tip:", style="gray", mark_style="gray", mark_width=5),
         "",
     )
+
+
+INTERRUPT_TIP = "[gray]Press Ctrl+C to interrupt[/gray]"

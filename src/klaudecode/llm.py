@@ -10,7 +10,7 @@ from openai.types.completion_usage import CompletionUsage
 from pydantic import BaseModel
 from rich.status import Status
 
-from .tui import console, render_message
+from .tui import console, render_message, INTERRUPT_TIP
 
 # Lazy initialize tiktoken encoder for GPT-4
 _encoder = None
@@ -147,11 +147,11 @@ class LLMProxy:
                 completion_tokens = usage.completion_tokens
                 total_tokens = usage.total_tokens
                 if status:
-                    status.update(f"Thinking... [green]↓ {completion_tokens} tokens[/green] [gray]Press Ctrl+C to interrupt[/gray]")
+                    status.update(f"Thinking... [green]↓ {completion_tokens} tokens[/green] {INTERRUPT_TIP}")
             else:
                 completion_tokens = count_tokens(content) + count_tokens(reasoning_content) + tool_call_chunk_accumulator.count_tokens()  # TODO: Optimize token count calc
                 if status:
-                    status.update(f"Thinking... [green]↓ {completion_tokens} tokens[/green] [gray]Press Ctrl+C to interrupt[/gray]")
+                    status.update(f"Thinking... [green]↓ {completion_tokens} tokens[/green] {INTERRUPT_TIP}")
 
         tokens_used = CompletionUsage(
             prompt_tokens=prompt_tokens,

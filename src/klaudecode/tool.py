@@ -2,6 +2,7 @@ import asyncio
 import json
 from abc import ABC
 from typing import Any, Dict, List, Optional
+from concurrent.futures import ThreadPoolExecutor
 
 from pydantic import BaseModel
 from rich.console import Group
@@ -9,7 +10,7 @@ from rich.live import Live
 from rich.status import Status
 
 from .message import AIMessage, ToolCallMessage, ToolMessage
-from .tui import console
+from .tui import console, INTERRUPT_TIP
 
 
 class Tool(ABC):
@@ -84,8 +85,19 @@ class Tool(ABC):
         return None
 
     @classmethod
-    async def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
+    def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
         raise NotImplementedError
+
+    @classmethod
+    async def invoke_async(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as executor:
+            future = loop.run_in_executor(executor, cls.invoke, tool_call, instance)
+            try:
+                await asyncio.wait_for(future, timeout=cls.get_timeout())
+            except asyncio.TimeoutError:
+                instance.tool_msg.tool_call.status = "error"
+                instance.tool_msg.content = f"Tool '{cls.get_name()}' timed out after {cls.get_timeout()}s"
 
 
 class ToolInstance:
@@ -110,7 +122,7 @@ class ToolInstance:
 
     async def _run_async(self):
         try:
-            await self.tool.invoke(self.tool_call, self)
+            await self.tool.invoke_async(self.tool_call, self)
             self._is_completed = True
             self.tool_msg.tool_call.status = "success"
         except Exception as e:
@@ -165,13 +177,13 @@ class ToolHandler:
             return
 
         tool_instances = [self.tool_dict[tc.tool_name].create_instance(tc, self.agent) for tc in tool_calls]
-        tasks = [ti.start_async() for ti in tool_instances]
+        tasks = [await ti.start_async() for ti in tool_instances]
 
         if self.show_live:
             tool_counts = {}
             for tc in tool_calls:
                 tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
-            status_text = "Executing " + " ".join([f"[bold]{name}[/bold]*{count}" for name, count in tool_counts.items()]) + "..."
+            status_text = "Executing " + " ".join([f"[bold]{name}[/bold]*{count}" for name, count in tool_counts.items()]) + "... " + INTERRUPT_TIP
             status = Status(status_text, spinner="dots", spinner_style="gray")
             with Live(refresh_per_second=10, console=console.console) as live:
                 while any(ti.is_running() for ti in tool_instances):
@@ -188,7 +200,7 @@ class ToolHandler:
         task = await tool_instance.start_async()
 
         if self.show_live:
-            status_text = f"Executing [bold]{tool_call.tool_name}[/bold]..."
+            status_text = f"Executing [bold]{tool_call.tool_name}[/bold]...  {INTERRUPT_TIP}"
             status = Status(status_text, spinner="dots", spinner_style="gray")
             with Live(refresh_per_second=10, console=console.console) as live:
                 while tool_instance.is_running():
