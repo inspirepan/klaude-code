@@ -1,9 +1,15 @@
+import asyncio
 import json
-from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Callable
+from abc import ABC
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel
-from .message import ToolCallMessage, ToolMessage
-import threading
+from rich.console import Group
+from rich.live import Live
+
+from .message import AIMessage, ToolCallMessage, ToolMessage
+from .tui import console
 
 
 class Tool(ABC):
@@ -75,42 +81,117 @@ class Tool(ABC):
             return cls.Input(**args_dict)
         return None
 
-    @abstractmethod
-    def invoke(self, tool_call: ToolCallMessage, instance: 'ToolInstance') -> ToolMessage:
+    @classmethod
+    def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
         raise NotImplementedError
+
+    @classmethod
+    async def invoke_async(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as executor:
+            future = loop.run_in_executor(executor, cls.invoke, tool_call, instance)
+            try:
+                await asyncio.wait_for(future, timeout=cls.get_timeout())
+            except asyncio.TimeoutError:
+                instance.tool_msg.tool_call.status = "error"
+                instance.tool_msg.content = f"Tool '{cls.get_name()}' timed out after {cls.get_timeout()}s"
 
 
 class ToolInstance:
     def __init__(self, tool: type[Tool], tool_call: ToolCallMessage):
         self.tool = tool
         self.tool_call = tool_call
-        self.tool_msg = ToolMessage(tool_call=tool_call)
-        self.input = self.get_input()
-        self.thread = None
+        self.tool_msg: ToolMessage = ToolMessage(tool_call=tool_call)
 
-    def get_input(self) -> Optional[BaseModel]:
-        if hasattr(self.tool, 'Input'):
-            args_dict = json.loads(self.tool_call.tool_args)
-            return self.tool.Input(**args_dict)
-        return None
+        self._task: Optional[asyncio.Task] = None
+        self._is_running = False
+        self._is_completed = False
 
-    def get_tool_message(self) -> ToolMessage:
+    def tool_result(self) -> ToolMessage:
         return self.tool_msg
 
-    def start_thread(self) -> threading.Thread:
-        # TODO 完善 Timeout，包括 Timeout 后更新 tool_msg
-        if not self.thread:
-            self.thread = threading.Thread(target=self.tool.invoke, args=(self.tool_call, self), daemon=True)
-            self.thread.start()
-        return self.thread
+    async def start_async(self) -> asyncio.Task:
+        if not self._task:
+            self._is_running = True
+            self._task = asyncio.create_task(self._run_async())
+        return self._task
+
+    async def _run_async(self):
+        try:
+            await self.tool.invoke_async(self.tool_call, self)
+            self._is_completed = True
+            self.tool_msg.tool_call.status = "success"
+        except Exception as e:
+            self.tool_msg.tool_call.status = "error"
+            self.tool_msg.content += f"error: {str(e)}"
+            self._is_completed = True
+        finally:
+            self._is_running = False
 
     def is_running(self):
-        return self.thread and self.thread.is_alive()
+        return self._is_running and not self._is_completed
 
-    def join(self):
-        if self.thread:
-            self.thread.join()
+    def is_completed(self):
+        return self._is_completed
 
-    def stop_thread(self):
-        # TODO
-        pass
+    async def wait(self):
+        if self._task:
+            await self._task
+
+    def cancel(self):
+        if self._task and not self._task.done():
+            self._task.cancel()
+
+
+class ToolHandler:
+    def __init__(self, agent, tools: List[Tool]):
+        self.agent = agent
+        self.tool_dict = {tool.name: tool for tool in tools} if tools else {}
+
+    async def handle(self, ai_message: AIMessage):
+        if not ai_message.tool_calls or not len(ai_message.tool_calls):
+            return
+
+        parallelable_tool_calls = []
+        non_parallelable_tool_calls = []
+        for tool_call in ai_message.tool_calls.values():
+            if tool_call.tool_name not in self.tool_dict:
+                pass
+            if self.tool_dict[tool_call.tool_name].is_parallelable():
+                parallelable_tool_calls.append(tool_call)
+            else:
+                non_parallelable_tool_calls.append(tool_call)
+
+        await self.handle_parallel_tool_call(parallelable_tool_calls)
+
+        for tc in non_parallelable_tool_calls:
+            await self.handle_single_tool_call(tc)
+
+    async def handle_parallel_tool_call(self, tool_calls: List[ToolCallMessage]):
+        if not tool_calls:
+            return
+
+        tool_instances = [self.tool_dict[tc.tool_name].create_instance(tc) for tc in tool_calls]
+        tasks = [await ti.start_async() for ti in tool_instances]
+
+        with Live(refresh_per_second=3, console=console.console) as live:
+            while any(ti.is_running() for ti in tool_instances):
+                live.update(Group(*[ti.tool_result() for ti in tool_instances]))
+                await asyncio.sleep(0.3)
+            live.update(Group(*[ti.tool_result() for ti in tool_instances]))
+
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self.agent.append_message(*[ti.tool_result() for ti in tool_instances], print_msg=False)
+
+    async def handle_single_tool_call(self, tool_call: ToolCallMessage):
+        tool_instance = self.tool_dict[tool_call.tool_name].create_instance(tool_call)
+        task = await tool_instance.start_async()
+
+        with Live(refresh_per_second=3, console=console.console) as live:
+            while tool_instance.is_running():
+                live.update(tool_instance.tool_result())
+                await asyncio.sleep(0.3)
+            live.update(tool_instance.tool_result())
+
+        await task
+        self.agent.append_message(tool_instance.tool_result(), print_msg=False)

@@ -1,20 +1,15 @@
 from typing import Any, List, Optional
-import time
-import asyncio
-from pydantic import BaseModel
-from rich.live import Live
-from rich.columns import Columns
 
+from pydantic import BaseModel
 
 from .config import ConfigModel
 from .input import Commands, InputSession, UserInput
 from .llm import AgentLLM
-from .message import (AIMessage, BasicMessage, UserMessage, ToolCallMessage)
+from .message import AIMessage, BasicMessage, UserMessage
 from .session import Session
+from .tool import Tool, ToolHandler
 from .tools.bash import BashTool
-from .tool import Tool
 from .tui import console, render_message, render_suffix
-
 
 DEFAULT_MAX_STEPS = 80
 INTERACTIVE_MAX_STEPS = 100
@@ -37,7 +32,7 @@ class Agent:
         self.session: Session = session
         self.label = label
         self.input_session = InputSession(session.work_dir)
-        self.print_trace = True
+        self.print_switch = True
         self.config: ConfigModel = config
         self.tools = tools
         self.comand_handler = CommandHandler(self)
@@ -53,6 +48,7 @@ class Agent:
                 UserMessage(content=cmd_res.user_input, mode=user_input.mode.value, suffix=cmd_res.command_result),
                 print_msg=False
             )
+            console.print()
             if cmd_res.need_agent_run:
                 if not cmd_res.user_input:
                     continue
@@ -70,18 +66,18 @@ class Agent:
                 return llm_response.content
             if llm_response.finish_reason == "tool_calls" or len(llm_response.tool_calls) > 0:
                 await self.tool_handler.handle(ai_message)
-                break
 
         max_step_msg = f"Max steps {max_steps} reached"
         console.print(render_message(max_step_msg, mark_style="blue"))
+        console.print()
         return max_step_msg
 
-    def append_message(self, msg: BasicMessage, print_msg=True):
-        self.session.append_message(msg)
-        if self.print_trace:
+    def append_message(self, *msgs: BasicMessage, print_msg=True):
+        self.session.append_message(*msgs)
+        if self.print_switch:
             if print_msg:
-                console.print(msg)
-            console.print()
+                for msg in msgs:
+                    console.print(msg)
 
 
 def get_main_agent(session: Session, config: ConfigModel) -> Agent:
@@ -103,46 +99,3 @@ class CommandHandler:
         if user_input.command == Commands.STATUS:
             return self.CommandResult(user_input=user_input.content, command_result=self.agent.config, need_agent_run=False)
         return self.CommandResult(user_input=user_input.content, command_result="", need_agent_run=False)
-
-
-class ToolHandler:
-    def __init__(self, agent, tools: List[Tool]):
-        self.agent: Agent = agent
-        self.tool_dict = {tool.name: tool for tool in tools} if tools else {}
-
-    async def handle(self, ai_message: AIMessage):
-        if not ai_message.tool_calls or not len(ai_message.tool_calls):
-            return
-
-        parallelable_tool_calls = []
-        non_parallelable_tool_calls = []
-        for tool_call in ai_message.tool_calls.values():
-            if tool_call.tool_name not in self.tool_dict:
-                pass
-            if self.tool_dict[tool_call.tool_name].is_parallelable():
-                parallelable_tool_calls.append(tool_call)
-            else:
-                non_parallelable_tool_calls.append(tool_call)
-
-        await self.handle_parallel_tool_call(parallelable_tool_calls)
-
-        for tc in non_parallelable_tool_calls:
-            await self.handle_single_tool_call(tc)
-
-    async def handle_parallel_tool_call(self, tool_calls: List[ToolCallMessage]):
-        tool_instances = [self.tool_dict[tc.tool_name].create_instance(tc) for tc in tool_calls]
-
-        with Live(refresh_per_second=3, console=console.console) as live:
-            show_once = False
-            for ti in tool_instances:
-                ti.start_thread()
-            while all(ti.is_running() for ti in tool_instances) or not show_once:
-                columns = Columns([ti.get_tool_message() for ti in tool_instances], expand=False, equal=False)
-                live.update(columns)
-                show_once = True
-                await asyncio.sleep(0.3)
-        for ti in tool_instances:
-            ti.join()
-
-    async def handle_single_tool_call(self, tool_call: ToolCallMessage):
-        pass

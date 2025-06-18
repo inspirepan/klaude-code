@@ -95,16 +95,16 @@ class UserMessage(BasicMessage):
             "content": self.content or "<empty>",
         }  # TODO: add suffix and system_reminder
 
-    def __rich__(self):
-        user_msg = render_message(
+    def __rich_console__(self, console, options):
+        yield render_message(
             self.content,
             style=self._style,
             mark_style=self._mark_style,
             mark=self._mark,
         )
         if self.suffix:
-            return Group(user_msg, render_suffix(self.suffix))
-        return user_msg
+            yield render_suffix(self.suffix)
+        yield ""
 
 
 class ToolCallMessage(BaseModel):
@@ -190,15 +190,15 @@ class AIMessage(BasicMessage):
             nice_content=render_markdown(llm_response.content) if llm_response.content else "",
         )
 
-    def __rich__(self):
+    def __rich_console__(self, console, options):
         if self.reasoning_content:
-            return Group(
-                render_message(format_style("Thinking...", "gray"), mark="✻", mark_style="white", style="italic"),
-                render_message(format_style(self.reasoning_content, "gray"), mark="", mark_style="white", style="italic"),
-                "",
-                render_message(self.nice_content or self.content, mark_style="white", style="orange")
-            )
-        return render_message(self.nice_content or self.content, mark_style="white", style="orange")
+            yield render_message(format_style("Thinking...", "gray"), mark="✻", mark_style="white", style="italic"),
+        if self.nice_content:
+            yield render_message(self.nice_content, mark_style="white", style="orange")
+            yield ""
+        elif self.content and self.content != "<empty>":
+            yield render_message(self.content, mark_style="white", style="orange")
+            yield ""
 
 
 class ToolMessage(BasicMessage):
@@ -216,10 +216,9 @@ class ToolMessage(BasicMessage):
             "tool_call_id": self.tool_call.id,
         }
 
-    def __rich__(self):
-        content = truncate_text(self.content.strip()) if self.content else "(No content)"
-        return Group(
-            self.tool_call,
-            *[c.get_suffix_renderable() for c in self.subagent_tool_calls],
-            render_suffix(content, error=self.tool_call.status == "error"),
-        )
+    def __rich_console__(self, console, options):
+        yield self.tool_call
+        for c in self.subagent_tool_calls:
+            yield c.get_suffix_renderable()
+        yield render_suffix(truncate_text(self.content.strip()) if self.content else "(No content)", error=self.tool_call.status == "error")
+        yield ""

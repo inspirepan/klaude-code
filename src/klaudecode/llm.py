@@ -4,7 +4,7 @@ from typing import Dict, List, Literal, Optional
 import openai
 import tiktoken
 from openai.types.chat import (ChatCompletionMessageParam,
-                               ChatCompletionMessageToolCall, )
+                               ChatCompletionMessageToolCall)
 from openai.types.chat.chat_completion_chunk import Choice, ChoiceDeltaToolCall
 from openai.types.chat.chat_completion_message_tool_call import Function
 from openai.types.completion_usage import CompletionUsage

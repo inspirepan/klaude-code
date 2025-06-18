@@ -18,5 +18,5 @@ class BashTool(Tool):
     @classmethod
     def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance') -> ToolMessage:
         args: "BashTool.Input" = cls.parse_input_args(tool_call)
-        instance.get_tool_message().content = "EXE: " + args.command
+        instance.tool_result().content = "EXE: " + args.command
         return

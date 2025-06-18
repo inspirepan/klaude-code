@@ -30,9 +30,9 @@ class Session(BaseModel):
             title="",
         )
 
-    def append_message(self, msg: BasicMessage) -> None:
-        """Add a message to the session and save it."""
-        self.messages.append(msg)
+    def append_message(self, *msgs: BasicMessage) -> None:
+        """Add messages to the session and save it."""
+        self.messages.extend(msgs)
         self.save()
 
     def get_last_message(
