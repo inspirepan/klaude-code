@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-klaude-code = "klaudecode.cli:app"
+klaude = "klaudecode.cli:app"
 
 [dependency-groups]
 dev = [

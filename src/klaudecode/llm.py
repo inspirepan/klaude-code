@@ -2,7 +2,6 @@ import asyncio
 from typing import Dict, List, Literal, Optional
 
 import openai
-import tiktoken
 from openai.types.chat import (ChatCompletionMessageParam,
                                ChatCompletionMessageToolCall)
 from openai.types.chat.chat_completion_chunk import Choice, ChoiceDeltaToolCall
@@ -13,15 +12,23 @@ from rich.status import Status
 
 from .tui import console, render_message
 
-# Initialize tiktoken encoder for GPT-4
-_encoder = tiktoken.encoding_for_model("gpt-4")
+# Lazy initialize tiktoken encoder for GPT-4
+_encoder = None
+
+
+def _get_encoder():
+    global _encoder
+    if _encoder is None:
+        import tiktoken
+        _encoder = tiktoken.encoding_for_model("gpt-4")
+    return _encoder
 
 
 def count_tokens(text: str) -> int:
     """Count tokens in text using tiktoken"""
     if not text:
         return 0
-    return len(_encoder.encode(text))
+    return len(_get_encoder().encode(text))
 
 
 class LLMResponse(BaseModel):
