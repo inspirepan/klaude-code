@@ -1,10 +1,9 @@
-from typing import Dict, List, Literal, Optional, Union
+from typing import List, Literal, Optional, Union
 
 from openai.types.chat import (ChatCompletionMessageParam,
                                ChatCompletionMessageToolCall)
 from pydantic import BaseModel, Field, computed_field, model_validator
 from rich.abc import RichRenderable
-from rich.console import Group
 from rich.text import Text
 
 from .config import ConfigModel
