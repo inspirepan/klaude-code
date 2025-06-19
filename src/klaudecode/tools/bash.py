@@ -164,6 +164,13 @@ class BashTool(Tool):
 
             # Read output in real-time
             while True:
+                # Check if task was canceled
+                if instance.tool_result().tool_call.status == 'canceled':
+                    output_lines.append('Command interrupted by user')
+                    update_content()
+                    cls._kill_process_tree(process.pid)
+                    break
+
                 # Check timeout
                 if time.time() - start_time > timeout_seconds:
                     output_lines.append(f'Command timed out after {timeout_seconds:.1f} seconds')

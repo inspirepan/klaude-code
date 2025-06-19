@@ -6,11 +6,11 @@ import typer
 
 from .agent import get_main_agent
 from .config import ConfigManager
-from .prompt import SYSTEM_PROMPT
 from .llm import AgentLLM
+from .message import SystemMessage
+from .prompt import SYSTEM_PROMPT
 from .session import Session
 from .tui import console, render_hello
-from .message import SystemMessage
 
 app = typer.Typer(help='Coding Agent CLI', add_completion=False)
 

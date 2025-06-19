@@ -14,6 +14,7 @@ from rich.status import Status
 from .message import AIMessage, ToolCallMessage, ToolMessage
 from .tui import INTERRUPT_TIP, console
 
+
 class Tool(ABC):
     name: str = ''
     desc: str = ''
@@ -105,10 +106,10 @@ class Tool(ABC):
             try:
                 await asyncio.wait_for(future, timeout=cls.get_timeout())
             except asyncio.CancelledError:
-                future.cancel()  # 尝试取消 executor 中的任务
+                future.cancel()
                 raise
             except asyncio.TimeoutError:
-                future.cancel()  # 取消超时的任务
+                future.cancel()
                 instance.tool_msg.tool_call.status = 'canceled'
                 instance.tool_msg.content = f"Tool '{cls.get_name()}' timed out after {cls.get_timeout()}s"
 
@@ -198,6 +199,7 @@ class ToolHandler:
         tasks = [await ti.start_async() for ti in tool_instances]
 
         interrupted = False
+        signal_handler_added = False
 
         def signal_handler():
             nonlocal interrupted
@@ -206,8 +208,13 @@ class ToolHandler:
                 ti.cancel()
 
         try:
-            loop = asyncio.get_event_loop()
-            loop.add_signal_handler(signal.SIGINT, signal_handler)
+            try:
+                loop = asyncio.get_event_loop()
+                loop.add_signal_handler(signal.SIGINT, signal_handler)
+                signal_handler_added = True
+            except (ValueError, NotImplementedError, OSError, RuntimeError):
+                # Signal handling not available in this context (e.g., subthread)
+                pass
 
             if self.show_live:
                 tool_counts = {}
@@ -230,22 +237,22 @@ class ToolHandler:
 
             await asyncio.gather(*tasks, return_exceptions=True)
 
+        finally:
+            if signal_handler_added:
+                try:
+                    loop.remove_signal_handler(signal.SIGINT)
+                except (ValueError, NotImplementedError, OSError):
+                    pass
+            self.agent.append_message(*[ti.tool_result() for ti in tool_instances], print_msg=False)
             if interrupted:
                 raise asyncio.CancelledError
-
-        finally:
-            try:
-                loop.remove_signal_handler(signal.SIGINT)
-            except (ValueError, NotImplementedError):
-                pass
-
-        self.agent.append_message(*[ti.tool_result() for ti in tool_instances], print_msg=False)
 
     async def handle_single_tool_call(self, tool_call: ToolCallMessage):
         tool_instance = self.tool_dict[tool_call.tool_name].create_instance(tool_call, self.agent)
         task = await tool_instance.start_async()
 
         interrupted = False
+        signal_handler_added = False
 
         def signal_handler():
             nonlocal interrupted
@@ -253,8 +260,13 @@ class ToolHandler:
             tool_instance.cancel()
 
         try:
-            loop = asyncio.get_event_loop()
-            loop.add_signal_handler(signal.SIGINT, signal_handler)
+            try:
+                loop = asyncio.get_event_loop()
+                loop.add_signal_handler(signal.SIGINT, signal_handler)
+                signal_handler_added = True
+            except (ValueError, NotImplementedError, OSError, RuntimeError):
+                # Signal handling not available in this context (e.g., subthread)
+                pass
 
             if self.show_live:
                 status_text = f'Executing [bold]{tool_call.tool_name}[/bold]...  {INTERRUPT_TIP}'
@@ -267,12 +279,13 @@ class ToolHandler:
 
             await task
 
+        finally:
+            if signal_handler_added:
+                try:
+                    loop.remove_signal_handler(signal.SIGINT)
+                except (ValueError, NotImplementedError, OSError):
+                    pass
+
+            self.agent.append_message(tool_instance.tool_result(), print_msg=False)
             if interrupted:
                 raise asyncio.CancelledError
-        finally:
-            try:
-                loop.remove_signal_handler(signal.SIGINT)
-            except (ValueError, NotImplementedError):
-                pass
-
-        self.agent.append_message(tool_instance.tool_result(), print_msg=False)

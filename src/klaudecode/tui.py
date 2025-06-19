@@ -18,7 +18,7 @@ light_theme = Theme(
         'red': 'rgb(158,57,66)',
         'black': 'white',
         'green': 'rgb(65,120,64)',
-        'yellow': 'rgb(155,104,39)',
+        'yellow': 'rgb(143,110,44)',
         'purple': 'rgb(139,134,248)',
         'diff_removed': 'black on rgb(242,172,180)',
         'diff_added': 'black on rgb(133,216,133)',

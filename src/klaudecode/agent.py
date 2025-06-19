@@ -5,10 +5,10 @@ from typing import Annotated, Any, List, Optional
 from pydantic import BaseModel, Field
 
 from .config import ConfigModel
-from .input import Commands, InputSession, UserInput, InputModeEnum
+from .input import Commands, InputModeEnum, InputSession, UserInput
 from .llm import AgentLLM
-from .message import AIMessage, BasicMessage, SystemMessage, ToolCallMessage, UserMessage
-from .prompt import AGENT_TOOL_DESC, SUB_AGENT_TASK_USER_PROMPT, SUB_AGENT_SYSTEM_PROMPT
+from .message import AIMessage, BasicMessage, SystemMessage, ToolCallMessage, UserMessage, INTERRUPTED_MSG
+from .prompt import AGENT_TOOL_DESC, SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools.bash import BashTool
@@ -61,9 +61,12 @@ class Agent(Tool):
                     continue
                 await self.run(max_steps=INTERACTIVE_MAX_STEPS)
 
-    async def run(self, max_steps: int = DEFAULT_MAX_STEPS):
+    async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None):
         try:
             for _ in range(max_steps):
+                # Check if task was canceled (for subagent execution)
+                if parent_tool_instance and parent_tool_instance.tool_result().tool_call.status == 'canceled':
+                    return INTERRUPTED_MSG
                 ai_msg = await AgentLLM.call(
                     msgs=self.session.messages,
                     tools=self.tools,
@@ -77,8 +80,9 @@ class Agent(Tool):
         except (KeyboardInterrupt, asyncio.CancelledError):
             return self._handle_interruption()
         max_step_msg = f'Max steps {max_steps} reached'
-        console.print(render_message(max_step_msg, mark_style='blue'))
-        console.print()
+        if self.print_switch:
+            console.print(render_message(max_step_msg, mark_style='blue'))
+            console.print()
         return max_step_msg
 
     def append_message(self, *msgs: BasicMessage, print_msg=True):
@@ -89,7 +93,6 @@ class Agent(Tool):
                     console.print(msg)
 
     def _handle_interruption(self):
-        INTERRUPTED_MSG = 'Task interrupted by user'
         asyncio.create_task(asyncio.sleep(0.1))
         if hasattr(console.console, '_live'):
             try:
@@ -144,7 +147,8 @@ class Agent(Tool):
             UserMessage(content=SUB_AGENT_TASK_USER_PROMPT.format(description=args.description, prompt=args.prompt)),
             print_msg=False,
         )
-        result = asyncio.run(agent.run(max_steps=DEFAULT_MAX_STEPS))
+
+        result = asyncio.run(agent.run(max_steps=DEFAULT_MAX_STEPS, parent_tool_instance=instance))
         instance.tool_result().set_content((result or '').strip())
 
 

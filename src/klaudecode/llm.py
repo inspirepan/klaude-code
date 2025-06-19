@@ -9,7 +9,8 @@ from openai.types.chat.chat_completion_chunk import Choice, ChoiceDeltaToolCall
 from openai.types.chat.chat_completion_message_tool_call import Function
 from rich.status import Status
 
-from .message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCallMessage, count_tokens
+from .message import (AIMessage, BasicMessage, CompletionUsage, SystemMessage,
+                      ToolCallMessage, count_tokens)
 from .tool import Tool
 from .tui import INTERRUPT_TIP, console, render_message
 
