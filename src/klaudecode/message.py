@@ -1,25 +1,17 @@
-from typing import List, Literal, Optional, Union, Any
 import json
-from anthropic.types import (
-    ContentBlock,
-    MessageParam,
-    ToolUseBlockParam,
-    TextBlockParam,
-)
+from typing import Any, List, Literal, Optional, Union
+
+from anthropic.types import (ContentBlock, MessageParam, TextBlockParam,
+                             ToolUseBlockParam)
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field, computed_field, model_validator
 from rich.abc import RichRenderable
-from rich.text import Text
 from rich.console import Group
+from rich.text import Text
 
 from .config import ConfigModel
-from .tui import (
-    format_style,
-    render_markdown,
-    render_message,
-    render_suffix,
-    truncate_middle_text,
-)
+from .tui import (format_style, render_markdown, render_message, render_suffix,
+                  truncate_middle_text)
 
 # Lazy initialize tiktoken encoder for GPT-4
 _encoder = None

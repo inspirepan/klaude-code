@@ -1,22 +1,16 @@
 import asyncio
-from typing import Dict, List, Optional, Tuple, Literal
+from typing import Dict, List, Literal, Optional, Tuple
 
 import anthropic
-from anthropic.types import MessageParam, TextBlockParam, StopReason
 import openai
+from anthropic.types import MessageParam, StopReason, TextBlockParam
 from openai.types.chat import ChatCompletionMessageToolCall
 from openai.types.chat.chat_completion_chunk import Choice, ChoiceDeltaToolCall
 from openai.types.chat.chat_completion_message_tool_call import Function
 from rich.status import Status
 
-from .message import (
-    AIMessage,
-    BasicMessage,
-    CompletionUsage,
-    ToolCallMessage,
-    count_tokens,
-    SystemMessage,
-)
+from .message import (AIMessage, BasicMessage, CompletionUsage, SystemMessage,
+                      ToolCallMessage, count_tokens)
 from .tool import Tool
 from .tui import INTERRUPT_TIP, console, render_message
 

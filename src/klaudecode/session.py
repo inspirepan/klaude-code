@@ -7,7 +7,8 @@ from typing import Callable, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from .message import AIMessage, BasicMessage, SystemMessage, ToolMessage, UserMessage
+from .message import (AIMessage, BasicMessage, SystemMessage, ToolMessage,
+                      UserMessage)
 from .tui import console
 from .utils import sanitize_filename
 

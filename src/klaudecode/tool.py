@@ -5,8 +5,8 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
-from rich.console import Group
 from rich.columns import Columns
+from rich.console import Group
 from rich.live import Live
 from rich.status import Status
 

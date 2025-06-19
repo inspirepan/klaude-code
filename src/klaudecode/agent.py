@@ -7,13 +7,8 @@ from pydantic import BaseModel, Field
 from .config import ConfigModel
 from .input import Commands, InputSession, UserInput
 from .llm import AgentLLM
-from .message import (
-    AIMessage,
-    BasicMessage,
-    SystemMessage,
-    ToolCallMessage,
-    UserMessage,
-)
+from .message import (AIMessage, BasicMessage, SystemMessage, ToolCallMessage,
+                      UserMessage)
 from .prompt import AGENT_TOOL_DESC, SUB_AGENT_TASK_USER_PROMPT
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
@@ -108,10 +103,10 @@ class Agent(Tool):
     @classmethod
     def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
         args: 'Agent.Input' = cls.parse_input_args(tool_call)
+        from rich.box import HORIZONTALS
+        from rich.padding import Padding
         from rich.panel import Panel
         from rich.text import Text
-        from rich.padding import Padding
-        from rich.box import HORIZONTALS
 
         tool_call.rich_args = Padding.indent(
             Panel.fit(args.prompt, title=Text(args.description, style='bold'), box=HORIZONTALS),
