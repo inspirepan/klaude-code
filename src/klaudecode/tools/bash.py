@@ -1,6 +1,8 @@
 import os
+import select
 import signal
 import subprocess
+import sys
 import time
 from typing import Annotated, Optional, Set
 
@@ -118,6 +120,52 @@ class BashTool(Tool):
             pass
 
     @classmethod
+    def _process_output_line(cls, line: str, output_lines: list, total_output_size: int, update_content_func) -> tuple[int, bool]:
+        """Process a single output line and return (new_total_size, should_break)"""
+        line = line.rstrip('\n\r')
+        if total_output_size < cls.MAX_OUTPUT_SIZE:
+            output_lines.append(line)
+            total_output_size += len(line) + 1  # +1 for newline
+            update_content_func()
+            return total_output_size, False
+        else:
+            output_lines.append(f'[Output truncated at {cls.MAX_OUTPUT_SIZE} characters]')
+            update_content_func()
+            return total_output_size, True
+
+    @classmethod
+    def _read_process_output(cls, process, output_lines: list, total_output_size: int, update_content_func) -> tuple[int, bool, str]:
+        """Read output from process. Returns (new_total_size, should_break, error_msg)"""
+        if sys.platform != 'win32':
+            # Unix-like systems: use select
+            ready, _, _ = select.select([process.stdout], [], [], 0.1)
+            if ready:
+                try:
+                    line = process.stdout.readline()
+                    if line:
+                        new_size, should_break = cls._process_output_line(line, output_lines, total_output_size, update_content_func)
+                        return new_size, should_break, ''
+                except Exception as e:
+                    return total_output_size, True, f'Error reading output: {str(e)}'
+            else:
+                # No data available, small delay
+                time.sleep(0.01)
+                return total_output_size, False, ''
+        else:
+            # Windows: use simple readline approach
+            try:
+                line = process.stdout.readline()
+                if line:
+                    new_size, should_break = cls._process_output_line(line, output_lines, total_output_size, update_content_func)
+                    return new_size, should_break, ''
+                else:
+                    # No more output, small delay to prevent busy waiting
+                    time.sleep(0.01)
+                    return total_output_size, False, ''
+            except Exception as e:
+                return total_output_size, True, f'Error reading output: {str(e)}'
+
+    @classmethod
     def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
         args: 'BashTool.Input' = cls.parse_input_args(tool_call)
 
@@ -162,7 +210,7 @@ class BashTool(Tool):
 
             start_time = time.time()
 
-            # Read output in real-time
+            # Read output in real-time with non-blocking approach
             while True:
                 # Check if task was canceled
                 if instance.tool_result().tool_call.status == 'canceled':
@@ -192,26 +240,15 @@ class BashTool(Tool):
                                 break
                     break
 
-                # Read a line with timeout
-                try:
-                    line = process.stdout.readline()
-                    if line:
-                        line = line.rstrip('\n\r')
-                        if total_output_size < cls.MAX_OUTPUT_SIZE:
-                            output_lines.append(line)
-                            # +1 for newline
-                            total_output_size += len(line) + 1
-                            update_content()
-                        else:
-                            output_lines.append(f'[Output truncated at {cls.MAX_OUTPUT_SIZE} characters]')
-                            update_content()
-                            break
-                    else:
-                        # No more output, small delay to prevent busy waiting
-                        time.sleep(0.01)
-                except Exception as e:
-                    output_lines.append(f'Error reading output: {str(e)}')
+                # Read process output
+                total_output_size, should_break, error_msg = cls._read_process_output(process, output_lines, total_output_size, update_content)
+
+                if error_msg:
+                    output_lines.append(error_msg)
                     update_content()
+                    break
+
+                if should_break:
                     break
 
             # Get exit code
