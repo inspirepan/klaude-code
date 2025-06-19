@@ -8,7 +8,7 @@ from .config import ConfigModel
 from .input import Commands, InputModeEnum, InputSession, UserInput
 from .llm import AgentLLM
 from .message import AIMessage, BasicMessage, SystemMessage, ToolCallMessage, UserMessage, INTERRUPTED_MSG
-from .prompt import AGENT_TOOL_DESC, SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT
+from .prompt import AGENT_TOOL_DESC, SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT, CODE_SEARCH_AGENT_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools.bash import BashTool
@@ -30,7 +30,6 @@ class Agent(Tool):
         config: Optional[ConfigModel] = None,
         label: Optional[str] = None,
         tools: Optional[List[Tool]] = None,
-        with_todo_tool: bool = False,
         print_switch: bool = True,
     ):
         self.session: Session = session
@@ -118,6 +117,10 @@ class Agent(Tool):
             return f'{self.description.strip()}: {self.prompt.strip()}'
 
     @classmethod
+    def get_subagent_tools(cls):
+        return BASIC_TOOLS
+
+    @classmethod
     def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
         args: 'Agent.Input' = cls.parse_input_args(tool_call)
         from rich.box import HORIZONTALS
@@ -144,7 +147,7 @@ class Agent(Tool):
             messages=[SystemMessage(content=SUB_AGENT_SYSTEM_PROMPT, cached=True)],
             append_message_hook=subagent_append_message_hook,
         )
-        agent = cls(session, tools=BASIC_TOOLS, print_switch=False)
+        agent = cls(session, tools=cls.get_subagent_tools(), print_switch=False)
         agent.append_message(
             UserMessage(content=SUB_AGENT_TASK_USER_PROMPT.format(description=args.description, prompt=args.prompt)),
             print_msg=False,
@@ -154,8 +157,17 @@ class Agent(Tool):
         instance.tool_result().set_content((result or '').strip())
 
 
+class CodeSearchAgentTool(Agent):
+    name = 'CodeSearchAgent'
+    desc = CODE_SEARCH_AGENT_TOOL_DESC
+
+    @classmethod
+    def get_subagent_tools(cls):
+        return BASIC_TOOLS
+
+
 def get_main_agent(session: Session, config: ConfigModel) -> Agent:
-    return Agent(session, config, tools=BASIC_TOOLS + [Agent, TodoWriteTool, TodoReadTool])
+    return Agent(session, config, tools=BASIC_TOOLS + [Agent, TodoWriteTool, TodoReadTool, CodeSearchAgentTool])
 
 
 class CommandHandler:
