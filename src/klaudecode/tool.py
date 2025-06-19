@@ -1,5 +1,6 @@
 import asyncio
 import json
+import signal
 from abc import ABC
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
@@ -12,7 +13,6 @@ from rich.status import Status
 
 from .message import AIMessage, ToolCallMessage, ToolMessage
 from .tui import INTERRUPT_TIP, console
-
 
 class Tool(ABC):
     name: str = ''
@@ -104,8 +104,12 @@ class Tool(ABC):
             future = loop.run_in_executor(executor, cls.invoke, tool_call, instance)
             try:
                 await asyncio.wait_for(future, timeout=cls.get_timeout())
+            except asyncio.CancelledError:
+                future.cancel()  # 尝试取消 executor 中的任务
+                raise
             except asyncio.TimeoutError:
-                instance.tool_msg.tool_call.status = 'error'
+                future.cancel()  # 取消超时的任务
+                instance.tool_msg.tool_call.status = 'canceled'
                 instance.tool_msg.content = f"Tool '{cls.get_name()}' timed out after {cls.get_timeout()}s"
 
 
@@ -134,6 +138,9 @@ class ToolInstance:
             await self.tool.invoke_async(self.tool_call, self)
             self._is_completed = True
             self.tool_msg.tool_call.status = 'success'
+        except asyncio.CancelledError:
+            self._is_completed = True
+            raise
         except Exception as e:
             self.tool_msg.tool_call.status = 'error'
             self.tool_msg.content += f'error: {str(e)}'
@@ -154,6 +161,8 @@ class ToolInstance:
     def cancel(self):
         if self._task and not self._task.done():
             self._task.cancel()
+            self._is_completed = True
+            self.tool_msg.tool_call.status = 'canceled'
 
 
 class ToolHandler:
@@ -188,40 +197,82 @@ class ToolHandler:
         tool_instances = [self.tool_dict[tc.tool_name].create_instance(tc, self.agent) for tc in tool_calls]
         tasks = [await ti.start_async() for ti in tool_instances]
 
-        if self.show_live:
-            tool_counts = {}
-            for tc in tool_calls:
-                tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
-            status_text = 'Executing ' + ' '.join([f'[bold]{name}[/bold]*{count}' for name, count in tool_counts.items()]) + '... ' + INTERRUPT_TIP
-            status = Status(status_text, spinner='dots', spinner_style='gray')
-            with Live(refresh_per_second=10, console=console.console) as live:
-                while any(ti.is_running() for ti in tool_instances):
-                    tool_results = [ti.tool_result() for ti in tool_instances]
-                    live.update(Columns([*tool_results, status], equal=True, expand=False))
-                    await asyncio.sleep(0.1)
-                live.update(
-                    Columns(
-                        [ti.tool_result() for ti in tool_instances],
-                        equal=True,
-                        expand=False,
-                    )
-                )
+        interrupted = False
 
-        await asyncio.gather(*tasks, return_exceptions=True)
+        def signal_handler():
+            nonlocal interrupted
+            interrupted = True
+            for ti in tool_instances:
+                ti.cancel()
+
+        try:
+            loop = asyncio.get_event_loop()
+            loop.add_signal_handler(signal.SIGINT, signal_handler)
+
+            if self.show_live:
+                tool_counts = {}
+                for tc in tool_calls:
+                    tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
+                status_text = 'Executing ' + ' '.join([f'[bold]{name}[/bold]*{count}' for name, count in tool_counts.items()]) + '... ' + INTERRUPT_TIP
+                status = Status(status_text, spinner='dots', spinner_style='gray')
+                with Live(refresh_per_second=10, console=console.console) as live:
+                    while any(ti.is_running() for ti in tool_instances) and not interrupted:
+                        tool_results = [ti.tool_result() for ti in tool_instances]
+                        live.update(Columns([*tool_results, status], equal=True, expand=False))
+                        await asyncio.sleep(0.1)
+                    live.update(
+                        Columns(
+                            [ti.tool_result() for ti in tool_instances],
+                            equal=True,
+                            expand=False,
+                        )
+                    )
+
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+            if interrupted:
+                raise asyncio.CancelledError
+
+        finally:
+            try:
+                loop.remove_signal_handler(signal.SIGINT)
+            except (ValueError, NotImplementedError):
+                pass
+
         self.agent.append_message(*[ti.tool_result() for ti in tool_instances], print_msg=False)
 
     async def handle_single_tool_call(self, tool_call: ToolCallMessage):
         tool_instance = self.tool_dict[tool_call.tool_name].create_instance(tool_call, self.agent)
         task = await tool_instance.start_async()
 
-        if self.show_live:
-            status_text = f'Executing [bold]{tool_call.tool_name}[/bold]...  {INTERRUPT_TIP}'
-            status = Status(status_text, spinner='dots', spinner_style='gray')
-            with Live(refresh_per_second=10, console=console.console) as live:
-                while tool_instance.is_running():
-                    live.update(Group(tool_instance.tool_result(), status))
-                    await asyncio.sleep(0.1)
-                live.update(tool_instance.tool_result())
+        interrupted = False
 
-        await task
+        def signal_handler():
+            nonlocal interrupted
+            interrupted = True
+            tool_instance.cancel()
+
+        try:
+            loop = asyncio.get_event_loop()
+            loop.add_signal_handler(signal.SIGINT, signal_handler)
+
+            if self.show_live:
+                status_text = f'Executing [bold]{tool_call.tool_name}[/bold]...  {INTERRUPT_TIP}'
+                status = Status(status_text, spinner='dots', spinner_style='gray')
+                with Live(refresh_per_second=10, console=console.console) as live:
+                    while tool_instance.is_running() and not interrupted:
+                        live.update(Group(tool_instance.tool_result(), status))
+                        await asyncio.sleep(0.1)
+                    live.update(tool_instance.tool_result())
+
+            await task
+
+            if interrupted:
+                raise asyncio.CancelledError
+        finally:
+            try:
+                loop.remove_signal_handler(signal.SIGINT)
+            except (ValueError, NotImplementedError):
+                pass
+
         self.agent.append_message(tool_instance.tool_result(), print_msg=False)

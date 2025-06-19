@@ -18,6 +18,7 @@ light_theme = Theme(
         'red': 'rgb(158,57,66)',
         'black': 'white',
         'green': 'rgb(65,120,64)',
+        'yellow': 'rgb(155,104,39)',
         'purple': 'rgb(139,134,248)',
         'diff_removed': 'black on rgb(242,172,180)',
         'diff_added': 'black on rgb(133,216,133)',
@@ -34,6 +35,7 @@ dark_theme = Theme(
         'red': 'rgb(237,116,130)',
         'black': 'black',
         'green': 'rgb(65,120,64)',
+        'yellow': 'rgb(155,104,39)',
         'purple': 'rgb(139,134,248)',
         'diff_removed': 'black on rgb(242,172,180)',
         'diff_added': 'black on rgb(133,216,133)',
@@ -74,7 +76,7 @@ def render_message(
     style: Optional[str] = None,
     mark_style: Optional[str] = None,
     mark: Optional[str] = '⏺',
-    status: Literal['processing', 'success', 'error'] = 'success',
+    status: Literal['processing', 'success', 'error', 'canceled'] = 'success',
     mark_width: int = 0,
 ) -> RichRenderable:
     table = Table.grid(padding=(0, 1))
@@ -82,6 +84,8 @@ def render_message(
     table.add_column(overflow='fold')
     if status == 'error':
         mark = format_style(mark, 'red')
+    elif status == 'canceled':
+        mark = format_style(mark, 'yellow')
     elif status == 'processing':
         mark = format_style('○', mark_style)
     else:
@@ -90,12 +94,12 @@ def render_message(
     return table
 
 
-def render_suffix(content: str | RichRenderable, error: bool = False) -> RichRenderable:
+def render_suffix(content: str | RichRenderable, style: Optional[str] = None) -> RichRenderable:
     if not content:
         return ''
     table = Table.grid(padding=(0, 1))
-    table.add_column(width=2, no_wrap=True, style='red' if error else None)
-    table.add_column(overflow='fold', style='red' if error else None)
+    table.add_column(width=2, no_wrap=True, style=style)
+    table.add_column(overflow='fold', style=style)
     table.add_row('  ⎿', Text(escape(content)) if isinstance(content, str) else content)
     return table
 

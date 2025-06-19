@@ -6,9 +6,11 @@ import typer
 
 from .agent import get_main_agent
 from .config import ConfigManager
+from .prompt import SYSTEM_PROMPT
 from .llm import AgentLLM
 from .session import Session
 from .tui import console, render_hello
+from .message import SystemMessage
 
 app = typer.Typer(help='Coding Agent CLI', add_completion=False)
 
@@ -23,7 +25,7 @@ async def main_async(ctx: typer.Context):
     elif ctx.obj['resume']:
         pass  # TODO
     else:
-        session = Session(os.getcwd())
+        session = Session(os.getcwd(), messages=[SystemMessage(content=SYSTEM_PROMPT, cached=True)])  # TODO: repomap
     agent = get_main_agent(session, config=ctx.obj['config'])
     await agent.chat_interactive()
 

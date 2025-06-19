@@ -1,8 +1,7 @@
 import json
 from typing import Any, List, Literal, Optional, Union
 
-from anthropic.types import (ContentBlock, MessageParam, TextBlockParam,
-                             ToolUseBlockParam)
+from anthropic.types import ContentBlock, MessageParam, TextBlockParam, ToolUseBlockParam
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field, computed_field, model_validator
 from rich.abc import RichRenderable
@@ -10,8 +9,9 @@ from rich.console import Group
 from rich.text import Text
 
 from .config import ConfigModel
-from .tui import (format_style, render_markdown, render_message, render_suffix,
-                  truncate_middle_text)
+from .tui import format_style, render_markdown, render_message, render_suffix, truncate_middle_text
+
+INTERRUPTED_MSG = 'Task interrupted by user'
 
 # Lazy initialize tiktoken encoder for GPT-4
 _encoder = None
@@ -161,7 +161,7 @@ class ToolCallMessage(BaseModel):
     tool_name: str
     tool_args: str = ''
     tool_args_dict: dict = {}
-    status: Literal['processing', 'success', 'error'] = 'processing'
+    status: Literal['processing', 'success', 'error', 'canceled'] = 'processing'
     hide_args: bool = False
     nice_args: str = ''
     rich_args: Optional[Any] = Field(default=None, exclude=True)
@@ -223,7 +223,7 @@ class ToolCallMessage(BaseModel):
     def get_suffix_renderable(self) -> RichRenderable:
         args = '' if self.hide_args else self.nice_args or self.tool_args
         msg = Text.assemble((self.tool_name, 'bold'), '(', args, ')')
-        return render_suffix(msg, error=self.status == 'error')
+        return render_suffix(msg, style='red' if self.status == 'error' else 'yellow' if self.status == 'canceled' else None)
 
 
 class AIMessage(BasicMessage):
@@ -334,13 +334,18 @@ class ToolMessage(BasicMessage):
             'tool_call_id': self.tool_call.id,
         }
 
+    def get_content(self):
+        if self.tool_call.status == 'canceled':
+            return self.content + '\n' + INTERRUPTED_MSG
+        return self.content
+
     def to_anthropic(self) -> MessageParam:
         return MessageParam(
             role='user',
             content=[
                 {
                     'type': 'tool_result',
-                    'content': self.content,
+                    'content': self.get_content(),
                     'tool_use_id': self.tool_call.id,
                     'is_error': self.tool_call.status == 'error',
                 }
@@ -351,12 +356,25 @@ class ToolMessage(BasicMessage):
         yield self.tool_call
         for c in self.subagent_tool_calls:
             yield c.get_suffix_renderable()
+
         if self.content or self.tool_call.status == 'success':
             yield render_suffix(
                 truncate_middle_text(self.content.strip()) if self.content else '(No content)',
-                error=self.tool_call.status == 'error',
+                style='red' if self.tool_call.status == 'error' else None,
             )
+        if self.tool_call.status == 'canceled':
+            yield render_suffix(INTERRUPTED_MSG, style='yellow')
         yield ''
 
     def __bool__(self):
         return bool(self.content)
+
+    def set_content(self, content: str):
+        if self.tool_call.status == 'canceled':
+            return
+        self.content = content
+
+    def add_subagent_tool_call(self, tool_calls: List[ToolCallMessage]):
+        if self.tool_call.status == 'canceled':
+            return
+        self.subagent_tool_calls.extend(tool_calls)

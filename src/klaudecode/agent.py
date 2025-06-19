@@ -5,11 +5,10 @@ from typing import Annotated, Any, List, Optional
 from pydantic import BaseModel, Field
 
 from .config import ConfigModel
-from .input import Commands, InputSession, UserInput
+from .input import Commands, InputSession, UserInput, InputModeEnum
 from .llm import AgentLLM
-from .message import (AIMessage, BasicMessage, SystemMessage, ToolCallMessage,
-                      UserMessage)
-from .prompt import AGENT_TOOL_DESC, SUB_AGENT_TASK_USER_PROMPT
+from .message import AIMessage, BasicMessage, SystemMessage, ToolCallMessage, UserMessage
+from .prompt import AGENT_TOOL_DESC, SUB_AGENT_TASK_USER_PROMPT, SUB_AGENT_SYSTEM_PROMPT
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools.bash import BashTool
@@ -30,7 +29,6 @@ class Agent(Tool):
         config: Optional[ConfigModel] = None,
         label: Optional[str] = None,
         tools: Optional[List[Tool]] = None,
-        with_agent_tool: bool = False,
         with_todo_tool: bool = False,
         print_switch: bool = True,
     ):
@@ -64,18 +62,20 @@ class Agent(Tool):
                 await self.run(max_steps=INTERACTIVE_MAX_STEPS)
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS):
-        for _ in range(max_steps):
-            ai_msg = await AgentLLM.call(
-                msgs=self.session.messages,
-                tools=self.tools,
-                show_status=self.print_switch,
-            )
-            self.append_message(ai_msg)
-            if ai_msg.finish_reason == 'stop':
-                return ai_msg.content
-            if ai_msg.finish_reason == 'tool_calls' or len(ai_msg.tool_calls) > 0:
-                await self.tool_handler.handle(ai_msg)
-
+        try:
+            for _ in range(max_steps):
+                ai_msg = await AgentLLM.call(
+                    msgs=self.session.messages,
+                    tools=self.tools,
+                    show_status=self.print_switch,
+                )
+                self.append_message(ai_msg)
+                if ai_msg.finish_reason == 'stop':
+                    return ai_msg.content or ''
+                if ai_msg.finish_reason == 'tool_calls' or len(ai_msg.tool_calls) > 0:
+                    await self.tool_handler.handle(ai_msg)
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            return self._handle_interruption()
         max_step_msg = f'Max steps {max_steps} reached'
         console.print(render_message(max_step_msg, mark_style='blue'))
         console.print()
@@ -87,6 +87,18 @@ class Agent(Tool):
             if print_msg:
                 for msg in msgs:
                     console.print(msg)
+
+    def _handle_interruption(self):
+        INTERRUPTED_MSG = 'Task interrupted by user'
+        asyncio.create_task(asyncio.sleep(0.1))
+        if hasattr(console.console, '_live'):
+            try:
+                console.console._live.stop()
+            except BaseException:
+                pass
+        console.console.print('', end='\r')
+        self.append_message(UserMessage(content=INTERRUPTED_MSG, mode=InputModeEnum.INTERRUPTED.value))
+        return INTERRUPTED_MSG
 
     # Implement SubAgent
     # ------------------
@@ -120,11 +132,11 @@ class Agent(Tool):
                 if not isinstance(msg, AIMessage):
                     continue
                 if msg.tool_calls:
-                    instance.tool_result().subagent_tool_calls.extend(msg.tool_calls.values())
+                    instance.tool_result().add_subagent_tool_call(msg.tool_calls.values())
 
         session = Session(
             work_dir=os.getcwd(),
-            messages=[SystemMessage(content="You are a helpful assistant run in user's terminal")],
+            messages=[SystemMessage(content=SUB_AGENT_SYSTEM_PROMPT, cached=True)],
             append_message_hook=subagent_append_message_hook,
         )
         agent = cls(session, tools=BASIC_TOOLS, print_switch=False)
@@ -133,7 +145,7 @@ class Agent(Tool):
             print_msg=False,
         )
         result = asyncio.run(agent.run(max_steps=DEFAULT_MAX_STEPS))
-        instance.tool_result().content = result.strip()
+        instance.tool_result().set_content((result or '').strip())
 
 
 def get_main_agent(session: Session, config: ConfigModel) -> Agent:

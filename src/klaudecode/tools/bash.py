@@ -124,7 +124,7 @@ class BashTool(Tool):
         # Validate command safety
         is_safe, error_msg = cls._validate_command_safety(args.command)
         if not is_safe:
-            instance.tool_result().content = f'Error: {error_msg}'
+            instance.tool_result().set_content(f'Error: {error_msg}')
             return
 
         # Set timeout
@@ -143,7 +143,7 @@ class BashTool(Tool):
             content = '\n'.join(output_lines)
             if total_output_size >= cls.MAX_OUTPUT_SIZE:
                 content += f'\n[Output truncated at {cls.MAX_OUTPUT_SIZE} characters]'
-            instance.tool_result().content = content.strip()
+            instance.tool_result().set_content(content.strip())
 
         try:
             # Start the process
