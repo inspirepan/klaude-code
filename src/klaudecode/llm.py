@@ -9,8 +9,7 @@ from openai.types.chat.chat_completion_chunk import Choice, ChoiceDeltaToolCall
 from openai.types.chat.chat_completion_message_tool_call import Function
 from rich.status import Status
 
-from .message import (AIMessage, BasicMessage, CompletionUsage, SystemMessage,
-                      ToolCallMessage, count_tokens)
+from .message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCallMessage, count_tokens
 from .tool import Tool
 from .tui import INTERRUPT_TIP, console, render_message
 
@@ -383,19 +382,14 @@ class LLMProxy:
         for attempt in range(self.max_retries):
             try:
                 if show_status:
-                    if use_streaming:
-                        with Status(
-                            'Thinking... [gray]Press Ctrl+C to interrupt[/gray]',
-                            console=console.console,
-                            spinner_style='gray',
-                        ) as status:
+                    with Status(
+                        'Thinking... [gray]Press Ctrl+C to interrupt[/gray]',
+                        console=console.console,
+                        spinner_style='gray',
+                    ) as status:
+                        if use_streaming:
                             return await self.client.stream_call(msgs, tools, status)
-                    else:
-                        with Status(
-                            'Thinking... [gray]Press Ctrl+C to interrupt[/gray]',
-                            console=console.console,
-                            spinner_style='gray',
-                        ):
+                        else:
                             return await self.client.call(msgs, tools)
                 else:
                     if use_streaming:
