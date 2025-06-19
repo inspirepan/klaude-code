@@ -249,7 +249,90 @@ class AnthropicProxy:
         tools: Optional[List[Tool]] = None,
         status: Optional[Status] = None,
     ) -> AIMessage:
-        return await self.call(msgs, tools)
+        system_msgs, other_msgs = self.convert_to_anthropic(msgs)
+        stream = await self.client.messages.create(
+            model=self.model_name,
+            max_tokens=self.max_tokens,
+            thinking={
+                'type': 'enabled' if self.enable_thinking else 'disabled',
+                'budget_tokens': 2000,
+            },
+            tools=[tool.anthropic_schema() for tool in tools] if tools else None,
+            messages=other_msgs,
+            system=system_msgs,
+            extra_headers=self.extra_header,
+            stream=True,
+        )
+
+        content = ''
+        thinking_content = ''
+        thinking_signature = ''
+        tool_calls = {}
+        finish_reason = 'stop'
+        input_tokens = 0
+        output_tokens = 0
+        content_blocks = {}
+        tool_json_fragments = {}
+
+        async for event in stream:
+            if event.type == 'message_start':
+                input_tokens = event.message.usage.input_tokens
+                output_tokens = event.message.usage.output_tokens
+            elif event.type == 'content_block_start':
+                content_blocks[event.index] = event.content_block
+                if event.content_block.type == 'thinking':
+                    thinking_signature = getattr(event.content_block, 'signature', '')
+                elif event.content_block.type == 'tool_use':
+                    # Initialize JSON fragment accumulator for tool use blocks
+                    tool_json_fragments[event.index] = ''
+            elif event.type == 'content_block_delta':
+                if event.delta.type == 'text_delta':
+                    content += event.delta.text
+                elif event.delta.type == 'thinking_delta':
+                    thinking_content += event.delta.thinking
+                elif event.delta.type == 'signature_delta':
+                    thinking_signature += event.delta.signature
+                elif event.delta.type == 'input_json_delta':
+                    # Accumulate JSON fragments for tool inputs
+                    if event.index in tool_json_fragments:
+                        tool_json_fragments[event.index] += event.delta.partial_json
+            elif event.type == 'content_block_stop':
+                # Use the tracked content block
+                block = content_blocks.get(event.index)
+                if block and block.type == 'tool_use':
+                    # Get accumulated JSON fragments
+                    json_str = tool_json_fragments.get(event.index, '{}')
+                    tool_calls[block.id] = ToolCallMessage(
+                        id=block.id,
+                        tool_name=block.name,
+                        tool_args=json_str,
+                    )
+            elif event.type == 'message_delta':
+                if hasattr(event.delta, 'stop_reason') and event.delta.stop_reason:
+                    finish_reason = self.convert_stop_reason(event.delta.stop_reason)
+                if hasattr(event, 'usage') and event.usage:
+                    output_tokens = event.usage.output_tokens
+                    if status:
+                        status.update(f'Thinking... [green]↓ {output_tokens} tokens[/green] {INTERRUPT_TIP}')
+            elif event.type == 'message_stop':
+                pass
+            estimated_tokens = count_tokens(content) + count_tokens(thinking_content)
+            for json_str in tool_json_fragments.values():
+                estimated_tokens += count_tokens(json_str)
+            if status and estimated_tokens:
+                status.update(f'Thinking... [green]↓ {estimated_tokens} tokens[/green] {INTERRUPT_TIP}')
+        return AIMessage(
+            content=content,
+            thinking_content=thinking_content,
+            thinking_signature=thinking_signature,
+            tool_calls=tool_calls,
+            finish_reason=finish_reason,
+            usage=CompletionUsage(
+                completion_tokens=output_tokens,
+                prompt_tokens=input_tokens,
+                total_tokens=input_tokens + output_tokens,
+            ),
+        )
 
     @staticmethod
     def convert_to_anthropic(
