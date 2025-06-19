@@ -11,18 +11,35 @@ from ..tool import Tool, ToolInstance
 
 
 class BashTool(Tool):
-    name = "Bash"
-    desc = "Execute a bash command"
+    name = 'Bash'
+    desc = 'Execute a bash command'
 
     # Dangerous commands that should be blocked
     DANGEROUS_COMMANDS: Set[str] = {
-        'rm -rf /', 'rm -rf *', 'rm -rf ~', 'rm -rf .',
-        'dd if=', 'mkfs', 'fdisk', 'parted',
-        'shutdown', 'reboot', 'halt', 'poweroff',
-        'sudo rm', 'sudo dd', 'sudo mkfs',
-        'chmod 777', 'chown -R',
-        'curl | sh', 'wget | sh', 'curl | bash', 'wget | bash',
-        'eval', 'exec', 'source /dev/stdin'
+        'rm -rf /',
+        'rm -rf *',
+        'rm -rf ~',
+        'rm -rf .',
+        'dd if=',
+        'mkfs',
+        'fdisk',
+        'parted',
+        'shutdown',
+        'reboot',
+        'halt',
+        'poweroff',
+        'sudo rm',
+        'sudo dd',
+        'sudo mkfs',
+        'chmod 777',
+        'chown -R',
+        'curl | sh',
+        'wget | sh',
+        'curl | bash',
+        'wget | bash',
+        'eval',
+        'exec',
+        'source /dev/stdin',
     }
 
     # Commands that should use specialized tools
@@ -32,7 +49,7 @@ class BashTool(Tool):
         'cat': 'Use Read tool instead of cat command',
         'head': 'Use Read tool instead of head command',
         'tail': 'Use Read tool instead of tail command',
-        'ls': 'Use LS tool instead of ls command'
+        'ls': 'Use LS tool instead of ls command',
     }
 
     MAX_OUTPUT_SIZE = 30000  # Maximum output size to prevent memory overflow
@@ -40,12 +57,15 @@ class BashTool(Tool):
     MAX_TIMEOUT = 600000  # 10 minutes in milliseconds
 
     class Input(BaseModel):
-        command: Annotated[str, Field(description="The bash command to execute")]
-        description: Annotated[Optional[str], Field(description="Description of what this command does")] = None
-        timeout: Annotated[Optional[int], Field(description="Optional timeout in milliseconds (max 600000)")] = None
+        command: Annotated[str, Field(description='The bash command to execute')]
+        description: Annotated[Optional[str], Field(description='Description of what this command does')] = None
+        timeout: Annotated[
+            Optional[int],
+            Field(description='Optional timeout in milliseconds (max 600000)'),
+        ] = None
 
         def __str__(self):
-            return f"{self.description} → {self.command}"
+            return f'{self.description} → {self.command}'
 
     @classmethod
     def _validate_command_safety(cls, command: str) -> tuple[bool, str]:
@@ -55,7 +75,10 @@ class BashTool(Tool):
         # Check for dangerous commands
         for dangerous_cmd in cls.DANGEROUS_COMMANDS:
             if dangerous_cmd in command_lower:
-                return False, f"Dangerous command detected: {dangerous_cmd}. This command is blocked for security reasons."
+                return (
+                    False,
+                    f'Dangerous command detected: {dangerous_cmd}. This command is blocked for security reasons.',
+                )
 
         # Check for specialized tools
         # TODO: Implement those tools
@@ -63,7 +86,7 @@ class BashTool(Tool):
         #     if command_lower.startswith(cmd + ' ') or command_lower == cmd:
         #         return False, f"Command '{cmd}' detected. {suggestion}"
 
-        return True, ""
+        return True, ''
 
     @classmethod
     def _kill_process_tree(cls, pid: int):
@@ -96,12 +119,12 @@ class BashTool(Tool):
 
     @classmethod
     def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
-        args: "BashTool.Input" = cls.parse_input_args(tool_call)
+        args: 'BashTool.Input' = cls.parse_input_args(tool_call)
 
         # Validate command safety
         is_safe, error_msg = cls._validate_command_safety(args.command)
         if not is_safe:
-            instance.tool_result().content = f"Error: {error_msg}"
+            instance.tool_result().content = f'Error: {error_msg}'
             return
 
         # Set timeout
@@ -119,7 +142,7 @@ class BashTool(Tool):
             """Update the tool result content with current output"""
             content = '\n'.join(output_lines)
             if total_output_size >= cls.MAX_OUTPUT_SIZE:
-                content += f"\n[Output truncated at {cls.MAX_OUTPUT_SIZE} characters]"
+                content += f'\n[Output truncated at {cls.MAX_OUTPUT_SIZE} characters]'
             instance.tool_result().content = content.strip()
 
         try:
@@ -131,7 +154,7 @@ class BashTool(Tool):
                 stderr=subprocess.STDOUT,
                 universal_newlines=True,
                 bufsize=1,
-                preexec_fn=os.setsid  # Create new process group
+                preexec_fn=os.setsid,  # Create new process group
             )
 
             # Initial content update
@@ -143,7 +166,7 @@ class BashTool(Tool):
             while True:
                 # Check timeout
                 if time.time() - start_time > timeout_seconds:
-                    output_lines.append(f"Command timed out after {timeout_seconds:.1f} seconds")
+                    output_lines.append(f'Command timed out after {timeout_seconds:.1f} seconds')
                     update_content()
                     cls._kill_process_tree(process.pid)
                     break
@@ -156,7 +179,8 @@ class BashTool(Tool):
                         for line in remaining_output.splitlines():
                             if total_output_size < cls.MAX_OUTPUT_SIZE:
                                 output_lines.append(line)
-                                total_output_size += len(line) + 1  # +1 for newline
+                                # +1 for newline
+                                total_output_size += len(line) + 1
                             else:
                                 break
                     break
@@ -168,17 +192,18 @@ class BashTool(Tool):
                         line = line.rstrip('\n\r')
                         if total_output_size < cls.MAX_OUTPUT_SIZE:
                             output_lines.append(line)
-                            total_output_size += len(line) + 1  # +1 for newline
+                            # +1 for newline
+                            total_output_size += len(line) + 1
                             update_content()
                         else:
-                            output_lines.append(f"[Output truncated at {cls.MAX_OUTPUT_SIZE} characters]")
+                            output_lines.append(f'[Output truncated at {cls.MAX_OUTPUT_SIZE} characters]')
                             update_content()
                             break
                     else:
                         # No more output, small delay to prevent busy waiting
                         time.sleep(0.01)
                 except Exception as e:
-                    output_lines.append(f"Error reading output: {str(e)}")
+                    output_lines.append(f'Error reading output: {str(e)}')
                     update_content()
                     break
 
@@ -186,13 +211,13 @@ class BashTool(Tool):
             if process.poll() is not None:
                 exit_code = process.returncode
                 if exit_code != 0:
-                    output_lines.append(f"Exit code: {exit_code}")
+                    output_lines.append(f'Exit code: {exit_code}')
 
             # Final content update
             update_content()
 
         except Exception as e:
-            error_msg = f"Error executing command: {str(e)}"
+            error_msg = f'Error executing command: {str(e)}'
             output_lines.append(error_msg)
             update_content()
 

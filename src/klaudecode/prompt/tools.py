@@ -183,7 +183,7 @@ Returns a list of todo items with their status, priority, and content
 Use this information to track progress and plan next steps
 If no todos exist yet, an empty list will be returne"""
 
-TODO_READ_AI_RESULT_TEMPLATE = "Remember to continue to use update and read from the todo list as you make progress. Here is the current list:\n{todo_list_json}"
+TODO_READ_AI_RESULT_TEMPLATE = 'Remember to continue to use update and read from the todo list as you make progress. Here is the current list:\n{todo_list_json}'
 
 TODO_WRITE_AI_RESULT_TEMPLATE = """Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
 

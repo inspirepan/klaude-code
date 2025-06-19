@@ -7,8 +7,13 @@ from pydantic import BaseModel, Field
 from .config import ConfigModel
 from .input import Commands, InputSession, UserInput
 from .llm import AgentLLM
-from .message import (AIMessage, BasicMessage, SystemMessage, ToolCallMessage,
-                      UserMessage)
+from .message import (
+    AIMessage,
+    BasicMessage,
+    SystemMessage,
+    ToolCallMessage,
+    UserMessage,
+)
 from .prompt import AGENT_TOOL_DESC, SUB_AGENT_TASK_USER_PROMPT
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
@@ -24,7 +29,6 @@ BASIC_TOOLS = [BashTool]
 
 
 class Agent(Tool):
-
     def __init__(
         self,
         session: Session,
@@ -33,7 +37,7 @@ class Agent(Tool):
         tools: Optional[List[Tool]] = None,
         with_agent_tool: bool = False,
         with_todo_tool: bool = False,
-        print_switch: bool = True
+        print_switch: bool = True,
     ):
         self.session: Session = session
         self.label = label
@@ -51,8 +55,12 @@ class Agent(Tool):
             if cmd_res.command_result:
                 console.print(render_suffix(cmd_res.command_result))
             self.append_message(
-                UserMessage(content=cmd_res.user_input, mode=user_input.mode.value, suffix=cmd_res.command_result),
-                print_msg=False
+                UserMessage(
+                    content=cmd_res.user_input,
+                    mode=user_input.mode.value,
+                    suffix=cmd_res.command_result,
+                ),
+                print_msg=False,
             )
             console.print()
             if cmd_res.need_agent_run:
@@ -65,16 +73,16 @@ class Agent(Tool):
             ai_msg = await AgentLLM.call(
                 msgs=self.session.messages,
                 tools=self.tools,
-                show_status=self.print_switch
+                show_status=self.print_switch,
             )
             self.append_message(ai_msg)
-            if ai_msg.finish_reason == "stop":
+            if ai_msg.finish_reason == 'stop':
                 return ai_msg.content
-            if ai_msg.finish_reason == "tool_calls" or len(ai_msg.tool_calls) > 0:
+            if ai_msg.finish_reason == 'tool_calls' or len(ai_msg.tool_calls) > 0:
                 await self.tool_handler.handle(ai_msg)
 
-        max_step_msg = f"Max steps {max_steps} reached"
-        console.print(render_message(max_step_msg, mark_style="blue"))
+        max_step_msg = f'Max steps {max_steps} reached'
+        console.print(render_message(max_step_msg, mark_style='blue'))
         console.print()
         return max_step_msg
 
@@ -87,26 +95,28 @@ class Agent(Tool):
 
     # Implement SubAgent
     # ------------------
-    name = "Agent"
+    name = 'Agent'
     desc = AGENT_TOOL_DESC
 
     class Input(BaseModel):
-        description: Annotated[str, Field(description="A short (3-5 word) description of the task")] = None
-        prompt: Annotated[str, Field(description="The task for the agent to perform")]
+        description: Annotated[str, Field(description='A short (3-5 word) description of the task')] = None
+        prompt: Annotated[str, Field(description='The task for the agent to perform')]
 
         def __str__(self):
-            return f"{self.description.strip()}: {self.prompt.strip()}"
+            return f'{self.description.strip()}: {self.prompt.strip()}'
 
     @classmethod
     def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
-        args: "Agent.Input" = cls.parse_input_args(tool_call)
+        args: 'Agent.Input' = cls.parse_input_args(tool_call)
         from rich.panel import Panel
         from rich.text import Text
         from rich.padding import Padding
         from rich.box import HORIZONTALS
+
         tool_call.rich_args = Padding.indent(
-            Panel.fit(args.prompt, title=Text(args.description, style="bold"), box=HORIZONTALS),
-            level=2)
+            Panel.fit(args.prompt, title=Text(args.description, style='bold'), box=HORIZONTALS),
+            level=2,
+        )
 
         def subagent_append_message_hook(*msgs: BasicMessage) -> None:
             if not msgs:
@@ -120,10 +130,13 @@ class Agent(Tool):
         session = Session(
             work_dir=os.getcwd(),
             messages=[SystemMessage(content="You are a helpful assistant run in user's terminal")],
-            append_message_hook=subagent_append_message_hook
+            append_message_hook=subagent_append_message_hook,
         )
         agent = cls(session, tools=BASIC_TOOLS, print_switch=False)
-        agent.append_message(UserMessage(content=SUB_AGENT_TASK_USER_PROMPT.format(description=args.description, prompt=args.prompt)), print_msg=False)
+        agent.append_message(
+            UserMessage(content=SUB_AGENT_TASK_USER_PROMPT.format(description=args.description, prompt=args.prompt)),
+            print_msg=False,
+        )
         result = asyncio.run(agent.run(max_steps=DEFAULT_MAX_STEPS))
         instance.tool_result().content = result.strip()
 
@@ -143,7 +156,11 @@ class CommandHandler:
 
     def handle(self, user_input: UserInput) -> 'CommandHandler.CommandResult':
         if not user_input.command:
-            return self.CommandResult(user_input=user_input.content, command_result="", need_agent_run=True)
+            return self.CommandResult(user_input=user_input.content, command_result='', need_agent_run=True)
         if user_input.command == Commands.STATUS:
-            return self.CommandResult(user_input=user_input.content, command_result=self.agent.config, need_agent_run=False)
-        return self.CommandResult(user_input=user_input.content, command_result="", need_agent_run=False)
+            return self.CommandResult(
+                user_input=user_input.content,
+                command_result=self.agent.config,
+                need_agent_run=False,
+            )
+        return self.CommandResult(user_input=user_input.content, command_result='', need_agent_run=False)

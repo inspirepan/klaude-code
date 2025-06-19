@@ -1,19 +1,36 @@
 import asyncio
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple, Literal
 
+import anthropic
+from anthropic.types import MessageParam, TextBlockParam, StopReason
 import openai
 from openai.types.chat import ChatCompletionMessageToolCall
 from openai.types.chat.chat_completion_chunk import Choice, ChoiceDeltaToolCall
 from openai.types.chat.chat_completion_message_tool_call import Function
 from rich.status import Status
 
-from .message import AIMessage, BasicMessage, CompletionUsage, ToolCallMessage, count_tokens
+from .message import (
+    AIMessage,
+    BasicMessage,
+    CompletionUsage,
+    ToolCallMessage,
+    count_tokens,
+    SystemMessage,
+)
 from .tool import Tool
 from .tui import INTERRUPT_TIP, console, render_message
 
 
 class OpenAIProxy:
-    def __init__(self, model_name: str, base_url: str, api_key: str, model_azure: bool, max_tokens: int, extra_header: dict):
+    def __init__(
+        self,
+        model_name: str,
+        base_url: str,
+        api_key: str,
+        model_azure: bool,
+        max_tokens: int,
+        extra_header: dict,
+    ):
         self.model_name = model_name
         self.base_url = base_url
         self.api_key = api_key
@@ -23,7 +40,7 @@ class OpenAIProxy:
         if model_azure:
             self.client = openai.AsyncAzureOpenAI(
                 azure_endpoint=self.base_url,
-                api_version="2024-03-01-preview",
+                api_version='2024-03-01-preview',
                 api_key=self.api_key,
             )
         else:
@@ -59,12 +76,17 @@ class OpenAIProxy:
         return AIMessage(
             content=message.content,
             tool_calls=tool_calls,
-            thinking_content=message.reasoning_content if hasattr(message, "reasoning_content") else "",
+            thinking_content=message.reasoning_content if hasattr(message, 'reasoning_content') else '',
             usage=tokens_used,
             finish_reason=completion.choices[0].finish_reason,
         )
 
-    async def stream_call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None, status: Optional[Status] = None) -> AIMessage:
+    async def stream_call(
+        self,
+        msgs: List[BasicMessage],
+        tools: Optional[List[Tool]] = None,
+        status: Optional[Status] = None,
+    ) -> AIMessage:
         stream = await self.client.chat.completions.create(
             model=self.model_name,
             messages=[msg.to_openai() for msg in msgs],
@@ -74,10 +96,10 @@ class OpenAIProxy:
             stream=True,
         )
 
-        content = ""
-        thinking_content = ""
+        content = ''
+        thinking_content = ''
         tool_call_chunk_accumulator = self.OpenAIToolCallChunkAccumulator()
-        finish_reason = "stop"
+        finish_reason = 'stop'
         completion_tokens = 0
         prompt_tokens = 0
         total_tokens = 0
@@ -86,7 +108,7 @@ class OpenAIProxy:
                 choice: Choice = chunk.choices[0]
                 if choice.delta.content:
                     content += choice.delta.content
-                if hasattr(choice.delta, "reasoning_content") and choice.delta.reasoning_content:
+                if hasattr(choice.delta, 'reasoning_content') and choice.delta.reasoning_content:
                     thinking_content += choice.delta.reasoning_content
                 if choice.delta.tool_calls:
                     tool_call_chunk_accumulator.add_chunks(choice.delta.tool_calls)
@@ -98,13 +120,17 @@ class OpenAIProxy:
                 completion_tokens = usage.completion_tokens
                 total_tokens = usage.total_tokens
                 if status:
-                    status.update(f"Thinking... [green]↓ {completion_tokens} tokens[/green] {INTERRUPT_TIP}")
+                    status.update(f'Thinking... [green]↓ {completion_tokens} tokens[/green] {INTERRUPT_TIP}')
             else:
                 completion_tokens = count_tokens(content) + count_tokens(thinking_content) + tool_call_chunk_accumulator.count_tokens()
                 if status:
-                    status.update(f"Thinking... [green]↓ {completion_tokens} tokens[/green] {INTERRUPT_TIP}")
+                    status.update(f'Thinking... [green]↓ {completion_tokens} tokens[/green] {INTERRUPT_TIP}')
 
-        tokens_used = CompletionUsage(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, total_tokens=total_tokens)
+        tokens_used = CompletionUsage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+        )
 
         return AIMessage(
             content=content,
@@ -132,7 +158,13 @@ class OpenAIProxy:
             if not chunk:
                 return
             if chunk.id:
-                self.tool_call_list.append(ChatCompletionMessageToolCall(id=chunk.id, function=Function(arguments="", name="", type="function"), type="function"))
+                self.tool_call_list.append(
+                    ChatCompletionMessageToolCall(
+                        id=chunk.id,
+                        function=Function(arguments='', name='', type='function'),
+                        type='function',
+                    )
+                )
             if chunk.function.name and self.tool_call_list:
                 self.tool_call_list[-1].function.name = chunk.function.name
             if chunk.function.arguments and self.tool_call_list:
@@ -162,17 +194,85 @@ class AnthropicProxy:
         api_key: str,
         max_tokens: int,
         enable_thinking: bool,
+        extra_header: dict,
     ):
         self.model_name = model_name
         self.api_key = api_key
         self.max_tokens = max_tokens
         self.enable_thinking = enable_thinking
+        self.extra_header = extra_header
+        self.client = anthropic.AsyncAnthropic(api_key=self.api_key)
 
     async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
-        pass
+        system_msgs, other_msgs = self.convert_to_anthropic(msgs)
+        resp = await self.client.messages.create(
+            model=self.model_name,
+            max_tokens=self.max_tokens,
+            thinking={
+                'type': 'enabled' if self.enable_thinking else 'disabled',
+                'budget_tokens': 2000,
+            },
+            tools=[tool.anthropic_schema() for tool in tools],
+            messages=other_msgs,
+            system=system_msgs,
+            extra_headers=self.extra_header,
+        )
+        thinking_block = next((block for block in resp.content if block.type == 'thinking'), None)
+        tool_use_blocks = [block for block in resp.content if block.type == 'tool_use']
+        text_blocks = [block for block in resp.content if block.type != 'tool_use' and block.type != 'thinking']
+        tool_calls = {
+            tool_use.id: ToolCallMessage(
+                id=tool_use.id,
+                tool_name=tool_use.name,
+                tool_args_dict=tool_use.input,
+            )
+            for tool_use in tool_use_blocks
+        }
+        result = AIMessage(
+            content='\n'.join([block.text for block in text_blocks]),
+            thinking_content=thinking_block.thinking if thinking_block else '',
+            thinking_signature=thinking_block.signature if thinking_block else '',
+            tool_calls=tool_calls,
+            finish_reason=self.convert_stop_reason(resp.stop_reason),
+            usage=CompletionUsage(
+                # TODO: cached prompt
+                completion_tokens=resp.usage.output_tokens,
+                prompt_tokens=resp.usage.input_tokens,
+                total_tokens=resp.usage.input_tokens + resp.usage.output_tokens,
+            ),
+        )
+        return result
 
-    async def stream_call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None, status: Optional[Status] = None) -> AIMessage:
-        pass
+    async def stream_call(
+        self,
+        msgs: List[BasicMessage],
+        tools: Optional[List[Tool]] = None,
+        status: Optional[Status] = None,
+    ) -> AIMessage:
+        return await self.call(msgs, tools)
+
+    @staticmethod
+    def convert_to_anthropic(
+        msgs: List[BasicMessage],
+    ) -> Tuple[List[TextBlockParam], List[MessageParam]]:
+        system_msgs = [msg.to_anthropic() for msg in msgs if isinstance(msg, SystemMessage) if msg]
+        other_msgs = [msg.to_anthropic() for msg in msgs if not isinstance(msg, SystemMessage) if msg]
+        return system_msgs, other_msgs
+
+    anthropic_stop_reason_openai_mapping = {
+        'end_turn': 'stop',
+        'max_tokens': 'length',
+        'tool_use': 'tool_calls',
+        'stop_sequence': 'stop',
+    }
+
+    @staticmethod
+    def convert_stop_reason(
+        stop_reason: Optional[StopReason],
+    ) -> Literal['stop', 'length', 'tool_calls', 'content_filter', 'function_call']:
+        if not stop_reason:
+            return 'stop'
+        return AnthropicProxy.anthropic_stop_reason_openai_mapping[stop_reason]
 
 
 class LLMProxy:
@@ -190,21 +290,35 @@ class LLMProxy:
     ):
         self.max_retries = max_retries
         self.backoff_base = backoff_base
-        if base_url == "https://api.anthropic.com/v1/":
-            self.client = AnthropicProxy(model_name, api_key, max_tokens, enable_thinking)
+        if base_url == 'https://api.anthropic.com/v1/':
+            self.client = AnthropicProxy(model_name, api_key, max_tokens, enable_thinking, extra_header)
         else:
             self.client = OpenAIProxy(model_name, base_url, api_key, model_azure, max_tokens, extra_header)
 
-    async def _call_with_retry(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None, show_status: bool = True, use_streaming: bool = True) -> AIMessage:
+    async def _call_with_retry(
+        self,
+        msgs: List[BasicMessage],
+        tools: Optional[List[Tool]] = None,
+        show_status: bool = True,
+        use_streaming: bool = True,
+    ) -> AIMessage:
         last_exception = None
         for attempt in range(self.max_retries):
             try:
                 if show_status:
                     if use_streaming:
-                        with Status("Thinking... [gray]Press Ctrl+C to interrupt[/gray]", console=console.console, spinner_style="gray") as status:
+                        with Status(
+                            'Thinking... [gray]Press Ctrl+C to interrupt[/gray]',
+                            console=console.console,
+                            spinner_style='gray',
+                        ) as status:
                             return await self.client.stream_call(msgs, tools, status)
                     else:
-                        with Status("Thinking... [gray]Press Ctrl+C to interrupt[/gray]", console=console.console, spinner_style="gray"):
+                        with Status(
+                            'Thinking... [gray]Press Ctrl+C to interrupt[/gray]',
+                            console=console.console,
+                            spinner_style='gray',
+                        ):
                             return await self.client.call(msgs, tools)
                 else:
                     if use_streaming:
@@ -218,48 +332,53 @@ class LLMProxy:
                 if attempt < self.max_retries - 1:
                     delay = self.backoff_base * (2**attempt)
                     if show_status:
-                        console.print(render_message(f"Retry {attempt + 1}/{self.max_retries}: call failed - {str(e)}, waiting {delay:.1f}s", status="error"), style="red")
-                        with Status(render_message(f"Waiting {delay:.1f}s...", style="red", status="error")):
+                        console.print(
+                            render_message(
+                                f'Retry {attempt + 1}/{self.max_retries}: call failed - {str(e)}, waiting {delay:.1f}s',
+                                status='error',
+                            ),
+                            style='red',
+                        )
+                        with Status(render_message(f'Waiting {delay:.1f}s...', style='red', status='error')):
                             await asyncio.sleep(delay)
                     else:
                         await asyncio.sleep(delay)
-        console.print(render_message(f"Final failure: call failed after {self.max_retries} retries - {last_exception}", style="red", status="error"))
+        console.print(
+            render_message(
+                f'Final failure: call failed after {self.max_retries} retries - {last_exception}',
+                style='red',
+                status='error',
+            )
+        )
         raise last_exception
 
-    async def _call_with_continuation(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None, show_status: bool = True, use_streaming: bool = True) -> AIMessage:
+    async def _call_with_continuation(
+        self,
+        msgs: List[BasicMessage],
+        tools: Optional[List[Tool]] = None,
+        show_status: bool = True,
+        use_streaming: bool = True,
+    ) -> AIMessage:
         attempt = 0
         max_continuations = 3
         current_msgs = msgs.copy()
-        full_content = ""
-        full_thinking_content = ""
-        total_usage = CompletionUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
-        final_tool_calls = None
-        final_finish_reason = "stop"
+        merged_response = None
         while attempt <= max_continuations:
             response = await self._call_with_retry(current_msgs, tools, show_status, use_streaming)
-            total_usage.prompt_tokens += response.usage.prompt_tokens
-            total_usage.completion_tokens += response.usage.completion_tokens
-            total_usage.total_tokens += response.usage.total_tokens
-            full_content += response.content
-            full_thinking_content += response.thinking_content
-            final_tool_calls = response.tool_calls
-            final_finish_reason = response.finish_reason
-            if response.finish_reason != "length":
+            if merged_response is None:
+                merged_response = response
+            else:
+                merged_response.merge(response)
+            if response.finish_reason != 'length':
                 break
             attempt += 1
             if attempt > max_continuations:
                 break
             if show_status:
-                console.print(render_message("Continuing...", style="yellow"))
-            current_msgs.append({"role": "assistant", "content": response.content})
+                console.print(render_message('Continuing...', style='yellow'))
+            current_msgs.append({'role': 'assistant', 'content': response.content})
 
-        return AIMessage(
-            content=full_content,
-            thinking_content=full_thinking_content,
-            tool_calls=final_tool_calls,
-            usage=total_usage,
-            finish_reason=final_finish_reason,
-        )
+        return merged_response
 
 
 class LLM:
@@ -274,7 +393,16 @@ class LLM:
         return cls._instances[cls]
 
     @classmethod
-    def initialize(cls, model_name: str, base_url: str, api_key: str, model_azure: bool, max_tokens: int, extra_header: dict, enable_thinking: bool):
+    def initialize(
+        cls,
+        model_name: str,
+        base_url: str,
+        api_key: str,
+        model_azure: bool,
+        max_tokens: int,
+        extra_header: dict,
+        enable_thinking: bool,
+    ):
         instance = cls()
         cls._clients[cls] = LLMProxy(
             model_name=model_name,
@@ -288,7 +416,7 @@ class LLM:
         return instance
 
     @classmethod
-    def get_instance(cls) -> Optional["LLM"]:
+    def get_instance(cls) -> Optional['LLM']:
         return cls._instances.get(cls)
 
     @property
@@ -296,9 +424,15 @@ class LLM:
         return self._clients.get(self.__class__)
 
     @classmethod
-    async def call(cls, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None, show_status: bool = True, use_streaming: bool = True) -> AIMessage:
+    async def call(
+        cls,
+        msgs: List[BasicMessage],
+        tools: Optional[List[Tool]] = None,
+        show_status: bool = True,
+        use_streaming: bool = True,
+    ) -> AIMessage:
         if cls not in cls._clients or cls._clients[cls] is None:
-            raise RuntimeError("LLM client not initialized. Call initialize() first.")
+            raise RuntimeError('LLM client not initialized. Call initialize() first.')
         return await cls._clients[cls]._call_with_continuation(msgs, tools, show_status, use_streaming)
 
     @classmethod

@@ -19,8 +19,8 @@ Priority: CLI args > Environment variables > Config file > Default values
 
 # Default value constants
 DEFAULT_CONTEXT_WINDOW_THRESHOLD = 200000
-DEFAULT_MODEL_NAME = "claude-sonnet-4-20250514"
-DEFAULT_BASE_URL = "https://api.anthropic.com/v1/"
+DEFAULT_MODEL_NAME = 'claude-sonnet-4-20250514'
+DEFAULT_BASE_URL = 'https://api.anthropic.com/v1/'
 DEFAULT_MODEL_AZURE = False
 DEFAULT_MAX_TOKENS = 8196
 DEFAULT_EXTRA_HEADER = {}
@@ -32,6 +32,7 @@ T = TypeVar('T')
 @dataclass
 class ConfigValue(Generic[T]):
     """Configuration value with source information"""
+
     value: Optional[T]
     source: str
 
@@ -41,6 +42,7 @@ class ConfigValue(Generic[T]):
 
 class ConfigModel(BaseModel):
     """Pydantic model for configuration with sources"""
+
     api_key: Optional[ConfigValue[str]] = None
     model_name: Optional[ConfigValue[str]] = None
     base_url: Optional[ConfigValue[str]] = None
@@ -50,7 +52,7 @@ class ConfigModel(BaseModel):
     extra_header: Optional[ConfigValue[Union[Dict, str]]] = None
     enable_thinking: Optional[ConfigValue[bool]] = None
 
-    def __init__(self, source: str = "unknown", **data):
+    def __init__(self, source: str = 'unknown', **data):
         # Convert plain values to ConfigValue objects with source
         config_values = {}
         for key, value in data.items():
@@ -67,29 +69,29 @@ class ConfigModel(BaseModel):
         table.add_column()  # Source
 
         config_items = [
-            ("api_key", "API Key"),
-            ("model_name", "Model"),
-            ("base_url", "Base URL"),
-            ("model_azure", "Azure Mode"),
-            ("max_tokens", "Max Tokens"),
-            ("context_window_threshold", "Context Threshold"),
-            ("extra_header", "Extra Header"),
-            ("enable_thinking", "Extended Thinking"),
+            ('api_key', 'API Key'),
+            ('model_name', 'Model'),
+            ('base_url', 'Base URL'),
+            ('model_azure', 'Azure Mode'),
+            ('max_tokens', 'Max Tokens'),
+            ('context_window_threshold', 'Context Threshold'),
+            ('extra_header', 'Extra Header'),
+            ('enable_thinking', 'Extended Thinking'),
         ]
 
         for key, display_name in config_items:
             config_value = getattr(self, key, None)
             if config_value and config_value.value is not None:
-                status = format_style("✓", "green bold")
+                status = format_style('✓', 'green bold')
                 value = str(config_value.value)
-                source = f"from {config_value.source}"
+                source = f'from {config_value.source}'
             else:
-                status = format_style("✗", "red bold")
-                value = format_style("Not Set", "red")
-                source = ""
+                status = format_style('✗', 'red bold')
+                value = format_style('Not Set', 'red')
+                source = ''
             table.add_row(
                 status,
-                format_style(display_name, "bold gray"),
+                format_style(display_name, 'bold gray'),
                 value,
                 source,
             )
@@ -129,9 +131,9 @@ class ArgConfigSource(ConfigSource):
         extra_header: Optional[str] = None,
         enable_thinking: Optional[bool] = None,
     ):
-        super().__init__("cli")
+        super().__init__('cli')
         self.config_model = ConfigModel(
-            source="cli",
+            source='cli',
             api_key=api_key,
             model_name=model_name,
             base_url=base_url,
@@ -147,16 +149,16 @@ class EnvConfigSource(ConfigSource):
     """Environment variable configuration"""
 
     def __init__(self):
-        super().__init__("env")
+        super().__init__('env')
         self._env_map = {
-            "api_key": "API_KEY",
-            "model_name": "MODEL_NAME",
-            "base_url": "BASE_URL",
-            "model_azure": "model_azure",
-            "max_tokens": "MAX_TOKENS",
-            "context_window_threshold": "CONTEXT_WINDOW_THRESHOLD",
-            "extra_header": "EXTRA_HEADER",
-            "enable_thinking": "ENABLE_THINKING",
+            'api_key': 'API_KEY',
+            'model_name': 'MODEL_NAME',
+            'base_url': 'BASE_URL',
+            'model_azure': 'model_azure',
+            'max_tokens': 'MAX_TOKENS',
+            'context_window_threshold': 'CONTEXT_WINDOW_THRESHOLD',
+            'extra_header': 'EXTRA_HEADER',
+            'enable_thinking': 'ENABLE_THINKING',
         }
         self._load_env_config()
 
@@ -167,9 +169,9 @@ class EnvConfigSource(ConfigSource):
             env_value = os.getenv(env_key)
             if env_value is not None:
                 # Type conversion
-                if key in ["model_azure", "enable_thinking"]:
-                    config_data[key] = env_value.lower() in ["true", "1", "yes", "on"]
-                elif key in ["context_window_threshold", "max_tokens"]:
+                if key in ['model_azure', 'enable_thinking']:
+                    config_data[key] = env_value.lower() in ['true', '1', 'yes', 'on']
+                elif key in ['context_window_threshold', 'max_tokens']:
                     try:
                         config_data[key] = int(env_value)
                     except ValueError:
@@ -177,50 +179,56 @@ class EnvConfigSource(ConfigSource):
                 else:
                     config_data[key] = env_value
 
-        self.config_model = ConfigModel(source="env", **config_data)
+        self.config_model = ConfigModel(source='env', **config_data)
 
 
 class GlobalConfigSource(ConfigSource):
     """Global configuration file"""
 
     def __init__(self):
-        super().__init__("config")
+        super().__init__('config')
         self._load_config()
 
     @staticmethod
     def get_config_path() -> Path:
         """Get configuration file path"""
-        return Path.home() / ".klaude" / "config.json"
+        return Path.home() / '.klaude' / 'config.json'
 
     def _load_config(self):
         """Load configuration file into config model"""
         config_path = self.get_config_path()
         if not config_path.exists():
-            self.config_model = ConfigModel(source="config")
+            self.config_model = ConfigModel(source='config')
             return
 
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, 'r', encoding='utf-8') as f:
                 config_data = json.load(f)
                 # Filter only valid ConfigModel fields
                 valid_fields = {k for k in ConfigModel.model_fields.keys()}
                 filtered_data = {k: v for k, v in config_data.items() if k in valid_fields}
-                self.config_model = ConfigModel(source="config", **filtered_data)
+                self.config_model = ConfigModel(source='config', **filtered_data)
         except (json.JSONDecodeError, IOError) as e:
-            console.print(format_style(f"Warning: Failed to load config: {e}", "yellow"))
-            self.config_model = ConfigModel(source="config")
+            console.print(format_style(f'Warning: Failed to load config: {e}', 'yellow'))
+            self.config_model = ConfigModel(source='config')
 
     @classmethod
     def open_config_file(cls):
         """Open the configuration file in the default editor"""
         config_path = cls.get_config_path()
         if config_path.exists():
-            console.print(format_style(f"Opening config file: {format_style(str(config_path), 'green')}", "green"))
+            console.print(
+                format_style(
+                    f'Opening config file: {format_style(str(config_path), "green")}',
+                    'green',
+                )
+            )
             import sys
-            editor = os.getenv("EDITOR", "vi" if sys.platform != "darwin" else "open")
-            os.system(f"{editor} {config_path}")
+
+            editor = os.getenv('EDITOR', 'vi' if sys.platform != 'darwin' else 'open')
+            os.system(f'{editor} {config_path}')
         else:
-            console.print(format_style("Config file not found", "red"))
+            console.print(format_style('Config file not found', 'red'))
 
     @classmethod
     def create_example_config(cls, config_path: Path = None):
@@ -229,26 +237,24 @@ class GlobalConfigSource(ConfigSource):
             config_path = cls.get_config_path()
 
         example_config = {
-            "api_key": "your_api_key_here",
-            "model_name": DEFAULT_MODEL_NAME,
-            "base_url": DEFAULT_BASE_URL,
-            "model_azure": DEFAULT_MODEL_AZURE,
-            "max_tokens": DEFAULT_MAX_TOKENS,
-            "context_window_threshold": DEFAULT_CONTEXT_WINDOW_THRESHOLD,
-            "extra_header": DEFAULT_EXTRA_HEADER,
-            "enable_thinking": DEFAULT_ENABLE_THINKING,
+            'api_key': 'your_api_key_here',
+            'model_name': DEFAULT_MODEL_NAME,
+            'base_url': DEFAULT_BASE_URL,
+            'model_azure': DEFAULT_MODEL_AZURE,
+            'max_tokens': DEFAULT_MAX_TOKENS,
+            'context_window_threshold': DEFAULT_CONTEXT_WINDOW_THRESHOLD,
+            'extra_header': DEFAULT_EXTRA_HEADER,
+            'enable_thinking': DEFAULT_ENABLE_THINKING,
         }
         try:
             config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(config_path, "w", encoding="utf-8") as f:
+            with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(example_config, f, indent=2, ensure_ascii=False)
-            console.print(
-                format_style(f"Example config file created at: {config_path}", "green")
-            )
-            console.print("Please edit the file and set your actual API key.")
+            console.print(format_style(f'Example config file created at: {config_path}', 'green'))
+            console.print('Please edit the file and set your actual API key.')
             return True
         except (IOError, OSError) as e:
-            console.print(format_style(f"Error: Failed to create config file: {e}", "red"))
+            console.print(format_style(f'Error: Failed to create config file: {e}', 'red'))
             return False
 
     @classmethod
@@ -264,9 +270,9 @@ class DefaultConfigSource(ConfigSource):
     """Default configuration"""
 
     def __init__(self):
-        super().__init__("default")
+        super().__init__('default')
         self.config_model = ConfigModel(
-            source="default",
+            source='default',
             api_key=None,
             model_name=DEFAULT_MODEL_NAME,
             base_url=DEFAULT_BASE_URL,
@@ -282,7 +288,8 @@ class ConfigManager:
     """Configuration manager that merges multiple config sources with priority"""
 
     def __init__(self, sources: List[ConfigSource]):
-        self.sources = sources  # Sources in priority order (higher index = higher priority)
+        # Sources in priority order (higher index = higher priority)
+        self.sources = sources
         self._merged_config_model = self._merge_config_models()
         self._validate_api_key()
 
@@ -309,11 +316,11 @@ class ConfigManager:
         """Validate that API key is provided and not from default source"""
         api_key_config = self._merged_config_model.api_key
 
-        if not api_key_config or not api_key_config.value or api_key_config.source == "default":
-            console.print(format_style("Warning: API key not set", "red"))
-            console.print("Please set your API key using one of the following methods:")
-            console.print("  1. Command line: --api-key YOUR_API_KEY")
-            console.print("  2. Environment: export API_KEY=YOUR_API_KEY")
+        if not api_key_config or not api_key_config.value or api_key_config.source == 'default':
+            console.print(format_style('Warning: API key not set', 'red'))
+            console.print('Please set your API key using one of the following methods:')
+            console.print('  1. Command line: --api-key YOUR_API_KEY')
+            console.print('  2. Environment: export API_KEY=YOUR_API_KEY')
             console.print("  3. Config file: Run 'klaude config edit' to set it")
             return
 
@@ -323,8 +330,8 @@ class ConfigManager:
 
     def __rich__(self):
         return Group(
-            f" config path: {os.getcwd()}",
-            Panel(self.get_config_model(), box=box.HORIZONTALS)
+            f' config path: {os.getcwd()}',
+            Panel(self.get_config_model(), box=box.HORIZONTALS),
         )
 
     def get(self, key: str) -> Optional[Union[str, bool, int]]:
@@ -369,7 +376,7 @@ class ConfigManager:
                 context_window_threshold=context_window_threshold,
                 extra_header=extra_header,
                 enable_thinking=enable_thinking,
-            )
+            ),
         ]
 
         return cls(sources)

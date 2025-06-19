@@ -7,29 +7,32 @@ from typing import Callable, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from .message import (AIMessage, BasicMessage, SystemMessage, ToolMessage,
-                      UserMessage)
+from .message import AIMessage, BasicMessage, SystemMessage, ToolMessage, UserMessage
 from .tui import console
 from .utils import sanitize_filename
 
 
 class Session(BaseModel):
     """Session model for managing conversation history and metadata."""
+
     messages: List[BasicMessage] = Field(default_factory=list)
     # todo_list: List[Todo] = Field(default_factory=list)
     work_dir: str
-    title: str = ""
-    session_id: str = ""
+    title: str = ''
+    session_id: str = ''
     append_message_hook: Optional[Callable] = None
 
     def __init__(
-        self, work_dir: str, messages: Optional[List[BasicMessage]] = None, append_message_hook: Optional[Callable] = None
+        self,
+        work_dir: str,
+        messages: Optional[List[BasicMessage]] = None,
+        append_message_hook: Optional[Callable] = None,
     ) -> None:
         super().__init__(
             work_dir=work_dir,
             messages=messages or [],
             session_id=str(uuid.uuid4()),
-            title="",
+            title='',
             append_message_hook=append_message_hook,
         )
 
@@ -40,17 +43,13 @@ class Session(BaseModel):
         if self.append_message_hook:
             self.append_message_hook(*msgs)
 
-    def get_last_message(
-        self, role: Literal["user", "assistant", "tool"] | None = None
-    ) -> Optional[BasicMessage]:
+    def get_last_message(self, role: Literal['user', 'assistant', 'tool'] | None = None) -> Optional[BasicMessage]:
         """Get the last message with the specified role."""
         if role:
             return next((msg for msg in reversed(self.messages) if msg.role == role), None)
         return self.messages[-1] if self.messages else None
 
-    def get_first_message(
-        self, role: Literal["user", "assistant", "tool"] | None = None
-    ) -> Optional[BasicMessage]:
+    def get_first_message(self, role: Literal['user', 'assistant', 'tool'] | None = None) -> Optional[BasicMessage]:
         """Get the first message with the specified role"""
         if role:
             return next((msg for msg in self.messages if msg.role == role), None)
@@ -63,25 +62,25 @@ class Session(BaseModel):
 
     def _get_session_dir(self) -> Path:
         """Get the directory path for storing session files."""
-        return Path(self.work_dir) / ".klaude" / "sessions"
+        return Path(self.work_dir) / '.klaude' / 'sessions'
 
     def _get_metadata_file_path(self) -> Path:
         """Get the file path for session metadata."""
-        return self._get_session_dir() / f"{self.session_id}.metadata.json"
+        return self._get_session_dir() / f'{self.session_id}.metadata.json'
 
     def _get_messages_file_path(self) -> Path:
         """Get the file path for session messages."""
-        first_user_msg = self.get_first_message(role="user")
+        first_user_msg = self.get_first_message(role='user')
         if first_user_msg:
             sanitized_title = sanitize_filename(first_user_msg.content, max_length=20)
-            return self._get_session_dir() / f"{self.session_id}.messages_{sanitized_title}.json"
+            return self._get_session_dir() / f'{self.session_id}.messages_{sanitized_title}.json'
         else:
-            return self._get_session_dir() / f"{self.session_id}.messages_untitled.json"
+            return self._get_session_dir() / f'{self.session_id}.messages_untitled.json'
 
     def save(self) -> None:
         """Save session to local files (metadata and messages separately)"""
         # Only save sessions that have user messages (meaningful conversations)
-        if not any(msg.role == "user" for msg in self.messages):
+        if not any(msg.role == 'user' for msg in self.messages):
             return
 
         try:
@@ -92,36 +91,36 @@ class Session(BaseModel):
             current_time = time.time()
             # Save metadata (lightweight for fast listing)
             metadata = {
-                "id": self.session_id,
-                "work_dir": self.work_dir,
-                "title": self.title or (self.get_last_message(role="user").content[:20] if self.get_last_message(role="user") else "Untitled"),
-                "created_at": getattr(self, "_created_at", current_time),
-                "updated_at": current_time,
-                "message_count": len(self.messages),
+                'id': self.session_id,
+                'work_dir': self.work_dir,
+                'title': self.title or (self.get_last_message(role='user').content[:20] if self.get_last_message(role='user') else 'Untitled'),
+                'created_at': getattr(self, '_created_at', current_time),
+                'updated_at': current_time,
+                'message_count': len(self.messages),
                 # "todo_list": [todo.model_dump() for todo in self.todo_list],
             }
 
             # Set created_at if not exists
-            if not hasattr(self, "_created_at"):
+            if not hasattr(self, '_created_at'):
                 self._created_at = current_time
 
-            with open(metadata_file, "w", encoding="utf-8") as f:
+            with open(metadata_file, 'w', encoding='utf-8') as f:
                 json.dump(metadata, f, indent=2, ensure_ascii=False)
 
             # Save messages (heavy data)
             messages_data = {
-                "session_id": self.session_id,
-                "messages": [msg.model_dump() for msg in self.messages],
+                'session_id': self.session_id,
+                'messages': [msg.model_dump() for msg in self.messages],
             }
 
-            with open(messages_file, "w", encoding="utf-8") as f:
+            with open(messages_file, 'w', encoding='utf-8') as f:
                 json.dump(messages_data, f, indent=2, ensure_ascii=False)
 
         except Exception as e:
-            console.print(f"[red]Failed to save session - error: {e}[/red]")
+            console.print(f'[red]Failed to save session - error: {e}[/red]')
 
     @classmethod
-    def load(cls, session_id: str, work_dir: str = os.getcwd()) -> Optional["Session"]:
+    def load(cls, session_id: str, work_dir: str = os.getcwd()) -> Optional['Session']:
         """Load session from local files"""
 
         try:
@@ -130,40 +129,38 @@ class Session(BaseModel):
             temp_session.session_id = session_id
             metadata_file = temp_session._get_metadata_file_path()
             session_dir = temp_session._get_session_dir()
-            messages_files = list(session_dir.glob(f"{session_id}.messages_*.json"))
+            messages_files = list(session_dir.glob(f'{session_id}.messages_*.json'))
             if not messages_files:
                 return None
             messages_file = messages_files[0]
             if not metadata_file.exists() or not messages_file.exists():
                 return None
-            with open(metadata_file, "r", encoding="utf-8") as f:
+            with open(metadata_file, 'r', encoding='utf-8') as f:
                 metadata = json.load(f)
-            with open(messages_file, "r", encoding="utf-8") as f:
+            with open(messages_file, 'r', encoding='utf-8') as f:
                 messages_data = json.load(f)
             messages = []
-            for msg_data in messages_data.get("messages", []):
-                role = msg_data.get("role")
-                if role == "system":
+            for msg_data in messages_data.get('messages', []):
+                role = msg_data.get('role')
+                if role == 'system':
                     messages.append(SystemMessage(**msg_data))
-                elif role == "user":
+                elif role == 'user':
                     messages.append(UserMessage(**msg_data))
-                elif role == "assistant":
+                elif role == 'assistant':
                     messages.append(AIMessage(**msg_data))
-                elif role == "tool":
+                elif role == 'tool':
                     messages.append(ToolMessage(**msg_data))
-            session = cls(
-                work_dir=metadata["work_dir"], messages=messages
-            )
-            session.session_id = metadata["id"]
-            session.title = metadata.get("title", "")
-            session._created_at = metadata.get("created_at")
+            session = cls(work_dir=metadata['work_dir'], messages=messages)
+            session.session_id = metadata['id']
+            session.title = metadata.get('title', '')
+            session._created_at = metadata.get('created_at')
             return session
 
         except Exception as e:
-            console.print(f"[red]Failed to load session {session_id}: {e}[/red]")
+            console.print(f'[red]Failed to load session {session_id}: {e}[/red]')
             return None
 
-    def fork(self) -> "Session":
+    def fork(self) -> 'Session':
         forked_session = Session(
             work_dir=self.work_dir,
             messages=self.messages.copy(),  # Copy the messages list
@@ -179,37 +176,35 @@ class Session(BaseModel):
             if not session_dir.exists():
                 return []
             sessions = []
-            for metadata_file in session_dir.glob("*.metadata.json"):
+            for metadata_file in session_dir.glob('*.metadata.json'):
                 try:
-                    with open(metadata_file, "r", encoding="utf-8") as f:
+                    with open(metadata_file, 'r', encoding='utf-8') as f:
                         metadata = json.load(f)
                     sessions.append(
                         {
-                            "id": metadata["id"],
-                            "title": metadata.get("title", "Untitled"),
-                            "work_dir": metadata["work_dir"],
-                            "created_at": metadata.get("created_at"),
-                            "updated_at": metadata.get("updated_at"),
-                            "message_count": metadata.get("message_count", 0),
+                            'id': metadata['id'],
+                            'title': metadata.get('title', 'Untitled'),
+                            'work_dir': metadata['work_dir'],
+                            'created_at': metadata.get('created_at'),
+                            'updated_at': metadata.get('updated_at'),
+                            'message_count': metadata.get('message_count', 0),
                         }
                     )
                 except Exception as e:
-                    console.print(
-                        f"[yellow]Warning: Failed to read metadata file {metadata_file}: {e}[/yellow]"
-                    )
+                    console.print(f'[yellow]Warning: Failed to read metadata file {metadata_file}: {e}[/yellow]')
                     continue
-            sessions.sort(key=lambda x: x.get("updated_at", 0), reverse=True)
+            sessions.sort(key=lambda x: x.get('updated_at', 0), reverse=True)
             return sessions
 
         except Exception as e:
-            console.print(f"[red]Failed to list sessions: {e}[/red]")
+            console.print(f'[red]Failed to list sessions: {e}[/red]')
             return []
 
     @classmethod
-    def get_latest_session(cls, work_dir: str = os.getcwd()) -> Optional["Session"]:
+    def get_latest_session(cls, work_dir: str = os.getcwd()) -> Optional['Session']:
         """Get the most recent session for the current working directory."""
         sessions = cls.load_session_list(work_dir)
         if not sessions:
             return None
         latest_session = sessions[0]
-        return cls.load(latest_session["id"], work_dir)
+        return cls.load(latest_session['id'], work_dir)

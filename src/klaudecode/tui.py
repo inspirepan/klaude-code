@@ -12,40 +12,41 @@ from rich.theme import Theme
 
 light_theme = Theme(
     {
-        "orange": "rgb(201,125,92)",
-        "blue": "rgb(62,99,153)",
-        "gray": "rgb(137,136,131)",
-        "red": "rgb(158,57,66)",
-        "black": "white",
-        "green": "rgb(65,120,64)",
-        "purple": "rgb(139,134,248)",
-        "diff_removed": "black on rgb(242,172,180)",
-        "diff_added": "black on rgb(133,216,133)",
-        "diff_removed_char": "black on rgb(193,81,78)",
-        "diff_added_char": "black on rgb(80,155,78)",
+        'orange': 'rgb(201,125,92)',
+        'blue': 'rgb(62,99,153)',
+        'gray': 'rgb(137,136,131)',
+        'red': 'rgb(158,57,66)',
+        'black': 'white',
+        'green': 'rgb(65,120,64)',
+        'purple': 'rgb(139,134,248)',
+        'diff_removed': 'black on rgb(242,172,180)',
+        'diff_added': 'black on rgb(133,216,133)',
+        'diff_removed_char': 'black on rgb(193,81,78)',
+        'diff_added_char': 'black on rgb(80,155,78)',
     }
 )
 
 dark_theme = Theme(
     {
-        "orange": "rgb(201,125,92)",
-        "blue": "rgb(62,99,153)",
-        "gray": "rgb(137,136,131)",
-        "red": "rgb(237,116,130)",
-        "black": "black",
-        "green": "rgb(65,120,64)",
-        "purple": "rgb(139,134,248)",
-        "diff_removed": "black on rgb(242,172,180)",
-        "diff_added": "black on rgb(133,216,133)",
-        "diff_removed_char": "black on rgb(193,81,78)",
-        "diff_added_char": "black on rgb(80,155,78)",
+        'orange': 'rgb(201,125,92)',
+        'blue': 'rgb(62,99,153)',
+        'gray': 'rgb(137,136,131)',
+        'red': 'rgb(237,116,130)',
+        'black': 'black',
+        'green': 'rgb(65,120,64)',
+        'purple': 'rgb(139,134,248)',
+        'diff_removed': 'black on rgb(242,172,180)',
+        'diff_added': 'black on rgb(133,216,133)',
+        'diff_removed_char': 'black on rgb(193,81,78)',
+        'diff_added_char': 'black on rgb(80,155,78)',
     }
 )
 
 
 class ConsoleProxy:
     def __init__(self):
-        self.console = Console(theme=light_theme)  # TODO: theme detect or config
+        # TODO: theme detect or config
+        self.console = Console(theme=light_theme)
         self.silent = False
 
     def print(self, *args, **kwargs):
@@ -63,7 +64,7 @@ def format_style(content: str | Text, style: Optional[str] = None):
     if style:
         if isinstance(content, Text):
             return content.stylize(style)
-        return f"[{style}]{content}[/{style}]"
+        return f'[{style}]{content}[/{style}]'
     return content
 
 
@@ -72,17 +73,17 @@ def render_message(
     *,
     style: Optional[str] = None,
     mark_style: Optional[str] = None,
-    mark: Optional[str] = "⏺",
-    status: Literal["processing", "success", "error"] = "success",
+    mark: Optional[str] = '⏺',
+    status: Literal['processing', 'success', 'error'] = 'success',
     mark_width: int = 0,
 ) -> RichRenderable:
     table = Table.grid(padding=(0, 1))
     table.add_column(width=mark_width, no_wrap=True)
-    table.add_column(overflow="fold")
-    if status == "error":
-        mark = format_style(mark, "red")
-    elif status == "processing":
-        mark = format_style("○", mark_style)
+    table.add_column(overflow='fold')
+    if status == 'error':
+        mark = format_style(mark, 'red')
+    elif status == 'processing':
+        mark = format_style('○', mark_style)
     else:
         mark = format_style(mark, mark_style)
     table.add_row(mark, format_style(message, style))
@@ -91,80 +92,81 @@ def render_message(
 
 def render_suffix(content: str | RichRenderable, error: bool = False) -> RichRenderable:
     if not content:
-        return ""
+        return ''
     table = Table.grid(padding=(0, 1))
-    table.add_column(width=2, no_wrap=True, style="red" if error else None)
-    table.add_column(overflow="fold", style="red" if error else None)
-    table.add_row("  ⎿", Text(escape(content)) if isinstance(content, str) else content)
+    table.add_column(width=2, no_wrap=True, style='red' if error else None)
+    table.add_column(overflow='fold', style='red' if error else None)
+    table.add_row('  ⎿', Text(escape(content)) if isinstance(content, str) else content)
     return table
 
 
 def render_markdown(text: str) -> str:
     """Convert Markdown syntax to Rich format string"""
     if not text:
-        return ""
+        return ''
     text = escape(text)
     # Handle bold: **text** -> [bold]text[/bold]
-    text = re.sub(r"\*\*(.*?)\*\*", r"[bold]\1[/bold]", text)
+    text = re.sub(r'\*\*(.*?)\*\*', r'[bold]\1[/bold]', text)
 
     # Handle italic: *text* -> [italic]text[/italic]
-    text = re.sub(r"\*([^*\n]+?)\*", r"[italic]\1[/italic]", text)
+    text = re.sub(r'\*([^*\n]+?)\*', r'[italic]\1[/italic]', text)
 
     # Handle inline code: `text` -> [purple]text[/purple]
-    text = re.sub(r"`([^`\n]+?)`", r"[purple]\1[/purple]", text)
+    text = re.sub(r'`([^`\n]+?)`', r'[purple]\1[/purple]', text)
 
     # Handle inline lists, replace number symbols
-    lines = text.split("\n")
+    lines = text.split('\n')
     formatted_lines = []
 
     for line in lines:
         # Handle headers: # text -> [bold]# text[/bold]
-        if line.strip().startswith("#"):
+        if line.strip().startswith('#'):
             # Keep all # symbols and bold the entire line
-            line = f"[bold]{line}[/bold]"
+            line = f'[bold]{line}[/bold]'
         # Handle blockquotes: > text -> [gray]▌ text[/gray]
-        elif line.strip().startswith(">"):
+        elif line.strip().startswith('>'):
             # Remove > symbol and maintain indentation
-            quote_content = re.sub(r"^(\s*)>\s?", r"\1", line)
-            line = f"[gray]▌ {quote_content}[/gray]"
+            quote_content = re.sub(r'^(\s*)>\s?', r'\1', line)
+            line = f'[gray]▌ {quote_content}[/gray]'
         else:
             # Match numbered lists: 1. -> •
-            line = re.sub(r"^(\s*)(\d+)\.\s+", r"\1• ", line)
+            line = re.sub(r'^(\s*)(\d+)\.\s+', r'\1• ', line)
             # Match dash lists: - -> •
-            line = re.sub(r"^(\s*)[-*]\s+", r"\1• ", line)
+            line = re.sub(r'^(\s*)[-*]\s+', r'\1• ', line)
         formatted_lines.append(line)
 
-    return "\n".join(formatted_lines)
+    return '\n'.join(formatted_lines)
 
 
 def render_hello() -> RenderResult:
     table = Table.grid(padding=(0, 1))
     table.add_column(width=0, no_wrap=True)
-    table.add_column(overflow="fold")
+    table.add_column(overflow='fold')
     table.add_row(
-        "[orange]✻[/orange]",
+        '[orange]✻[/orange]',
         Group(
-            "Welcome to [bold]Klaude Code[/bold]!",
-            "",
-            "[gray][italic]/status for your current setup[/italic][/gray]",
-            "",
-            format_style("cwd: {}".format(os.getcwd()), "gray"),
+            'Welcome to [bold]Klaude Code[/bold]!',
+            '',
+            '[gray][italic]/status for your current setup[/italic][/gray]',
+            '',
+            format_style('cwd: {}'.format(os.getcwd()), 'gray'),
         ),
     )
     return Group(
-        Panel.fit(table, border_style="orange"),
-        "",
-        render_message("type \\ followed by [bold]Enter[/bold] to insert newlines\n"
-                       "type / to choose slash command\n"
-                       "type ! to run bash command\n"
-                       "type # to write memory\n"
-                       "type * to plan mode\n",
-                       mark="※ Tip:", style="gray", mark_style="gray", mark_width=5),
-        "",
+        Panel.fit(table, border_style='orange'),
+        '',
+        render_message(
+            'type \\ followed by [bold]Enter[/bold] to insert newlines\ntype / to choose slash command\ntype ! to run bash command\ntype # to write memory\ntype * to plan mode\n',
+            mark='※ Tip:',
+            style='gray',
+            mark_style='gray',
+            mark_width=5,
+        ),
+        '',
     )
 
 
-INTERRUPT_TIP = "[gray]Press Ctrl+C to interrupt[/gray]"
+INTERRUPT_TIP = '[gray]Press Ctrl+C to interrupt[/gray]'
 
 
 def truncate_middle_text(text: str, max_lines: int = 15) -> RichRenderable:
@@ -177,12 +179,12 @@ def truncate_middle_text(text: str, max_lines: int = 15) -> RichRenderable:
     tail_lines = max_lines - head_lines
     middle_lines = len(lines) - head_lines - tail_lines
 
-    head_content = "\n".join(lines[:head_lines])
-    tail_content = "\n".join(lines[-tail_lines:])
+    head_content = '\n'.join(lines[:head_lines])
+    tail_content = '\n'.join(lines[-tail_lines:])
     return Group(
         head_content,
-        Text("···", style="gray"),
-        Text.assemble("+ ", Text(str(middle_lines), style="bold"), " lines", style="gray"),
-        Text("···", style="gray"),
+        Text('···', style='gray'),
+        Text.assemble('+ ', Text(str(middle_lines), style='bold'), ' lines', style='gray'),
+        Text('···', style='gray'),
         tail_content,
     )

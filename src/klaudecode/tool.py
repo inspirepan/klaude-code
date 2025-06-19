@@ -15,8 +15,8 @@ from .tui import INTERRUPT_TIP, console
 
 
 class Tool(ABC):
-    name: str = ""
-    desc: str = ""
+    name: str = ''
+    desc: str = ''
     parallelable: bool = True
     timeout = 300
 
@@ -44,22 +44,30 @@ class Tool(ABC):
         if hasattr(cls, 'Input') and issubclass(cls.Input, BaseModel):
             schema = cls.Input.model_json_schema()
             return {
-                "type": "object",
-                "properties": schema.get("properties", {}),
-                "required": schema.get("required", [])
+                'type': 'object',
+                'properties': schema.get('properties', {}),
+                'required': schema.get('required', []),
             }
 
-        return {"type": "object", "properties": {}, "required": []}
+        return {'type': 'object', 'properties': {}, 'required': []}
 
     @classmethod
     def openai_schema(cls) -> Dict[str, Any]:
         return {
-            "type": "function",
-            "function": {
-                "name": cls.get_name(),
-                "description": cls.get_desc(),
-                "parameters": cls.get_parameters(),
+            'type': 'function',
+            'function': {
+                'name': cls.get_name(),
+                'description': cls.get_desc(),
+                'parameters': cls.get_parameters(),
             },
+        }
+
+    @classmethod
+    def anthropic_schema(cls) -> Dict[str, Any]:
+        return {
+            'name': cls.get_name(),
+            'description': cls.get_desc(),
+            'input_schema': cls.get_parameters(),
         }
 
     def __str__(self) -> str:
@@ -97,7 +105,7 @@ class Tool(ABC):
             try:
                 await asyncio.wait_for(future, timeout=cls.get_timeout())
             except asyncio.TimeoutError:
-                instance.tool_msg.tool_call.status = "error"
+                instance.tool_msg.tool_call.status = 'error'
                 instance.tool_msg.content = f"Tool '{cls.get_name()}' timed out after {cls.get_timeout()}s"
 
 
@@ -125,10 +133,10 @@ class ToolInstance:
         try:
             await self.tool.invoke_async(self.tool_call, self)
             self._is_completed = True
-            self.tool_msg.tool_call.status = "success"
+            self.tool_msg.tool_call.status = 'success'
         except Exception as e:
-            self.tool_msg.tool_call.status = "error"
-            self.tool_msg.content += f"error: {str(e)}"
+            self.tool_msg.tool_call.status = 'error'
+            self.tool_msg.content += f'error: {str(e)}'
             self._is_completed = True
         finally:
             self._is_running = False
@@ -184,14 +192,20 @@ class ToolHandler:
             tool_counts = {}
             for tc in tool_calls:
                 tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
-            status_text = "Executing " + " ".join([f"[bold]{name}[/bold]*{count}" for name, count in tool_counts.items()]) + "... " + INTERRUPT_TIP
-            status = Status(status_text, spinner="dots", spinner_style="gray")
+            status_text = 'Executing ' + ' '.join([f'[bold]{name}[/bold]*{count}' for name, count in tool_counts.items()]) + '... ' + INTERRUPT_TIP
+            status = Status(status_text, spinner='dots', spinner_style='gray')
             with Live(refresh_per_second=10, console=console.console) as live:
                 while any(ti.is_running() for ti in tool_instances):
                     tool_results = [ti.tool_result() for ti in tool_instances]
                     live.update(Columns([*tool_results, status], equal=True, expand=False))
                     await asyncio.sleep(0.1)
-                live.update(Columns([ti.tool_result() for ti in tool_instances], equal=True, expand=False))
+                live.update(
+                    Columns(
+                        [ti.tool_result() for ti in tool_instances],
+                        equal=True,
+                        expand=False,
+                    )
+                )
 
         await asyncio.gather(*tasks, return_exceptions=True)
         self.agent.append_message(*[ti.tool_result() for ti in tool_instances], print_msg=False)
@@ -201,8 +215,8 @@ class ToolHandler:
         task = await tool_instance.start_async()
 
         if self.show_live:
-            status_text = f"Executing [bold]{tool_call.tool_name}[/bold]...  {INTERRUPT_TIP}"
-            status = Status(status_text, spinner="dots", spinner_style="gray")
+            status_text = f'Executing [bold]{tool_call.tool_name}[/bold]...  {INTERRUPT_TIP}'
+            status = Status(status_text, spinner='dots', spinner_style='gray')
             with Live(refresh_per_second=10, console=console.console) as live:
                 while tool_instance.is_running():
                     live.update(Group(tool_instance.tool_result(), status))
