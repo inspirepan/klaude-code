@@ -12,6 +12,7 @@ from .prompt import AGENT_TOOL_DESC, SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USE
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools.bash import BashTool
+from .tools.todo import TodoReadTool, TodoWriteTool
 from .tui import console, render_message, render_suffix
 
 DEFAULT_MAX_STEPS = 80
@@ -47,14 +48,15 @@ class Agent(Tool):
             cmd_res = self.comand_handler.handle(user_input)
             if cmd_res.command_result:
                 console.print(render_suffix(cmd_res.command_result))
-            self.append_message(
-                UserMessage(
-                    content=cmd_res.user_input,
-                    mode=user_input.mode.value,
-                    suffix=cmd_res.command_result,
-                ),
-                print_msg=False,
-            )
+            if cmd_res.user_input:
+                self.append_message(
+                    UserMessage(
+                        content=cmd_res.user_input,
+                        mode=user_input.mode.value,
+                        suffix=cmd_res.command_result,
+                    ),
+                    print_msg=False,
+                )
             console.print()
             if cmd_res.need_agent_run:
                 if not cmd_res.user_input:
@@ -135,7 +137,7 @@ class Agent(Tool):
                 if not isinstance(msg, AIMessage):
                     continue
                 if msg.tool_calls:
-                    instance.tool_result().add_subagent_tool_call(msg.tool_calls.values())
+                    instance.tool_result().add_suffixes(msg.tool_calls.values())
 
         session = Session(
             work_dir=os.getcwd(),
@@ -153,7 +155,7 @@ class Agent(Tool):
 
 
 def get_main_agent(session: Session, config: ConfigModel) -> Agent:
-    return Agent(session, config, tools=BASIC_TOOLS + [Agent])
+    return Agent(session, config, tools=BASIC_TOOLS + [Agent, TodoWriteTool, TodoReadTool])
 
 
 class CommandHandler:

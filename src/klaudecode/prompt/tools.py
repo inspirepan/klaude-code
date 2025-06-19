@@ -185,13 +185,7 @@ If no todos exist yet, an empty list will be returne"""
 
 TODO_READ_AI_RESULT_TEMPLATE = 'Remember to continue to use update and read from the todo list as you make progress. Here is the current list:\n{todo_list_json}'
 
-TODO_WRITE_AI_RESULT_TEMPLATE = """Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
-
-<system-reminder>
-Your todo list has changed. DO NOT mention this explicitly to the user. Here are the latest contents of your todo list:
-
-{todo_list_json}. You DO NOT need to use the TodoRead tool again, since this is the most up to date list for now. Continue on with the tasks at hand if applicable.
-</system-reminder>"""
+TODO_WRITE_AI_RESULT = """Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable"""
 
 READ_TOOL_DESC = """Read file contents with line numbers, supporting text only
 Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
@@ -374,7 +368,7 @@ View comments on a Github PR: gh api repos/foo/bar/pulls/123/comments"""
 
 GREP_TOOL_DESC = """Fast content search tool that works with any codebase size
 Searches file contents using regular expressions
-Supports full regex syntax (eg. "log.*Error", "function\s+\w+", etc.)
+Supports full regex syntax (eg. "log.*Error", "function\\s+\\w+", etc.)
 Filter files by pattern with the include parameter (eg. ".js", ".{ts,tsx}")
 Returns file paths with at least one match sorted by modification time
 Use this tool when you need to find files containing specific patterns

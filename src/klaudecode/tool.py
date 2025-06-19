@@ -44,13 +44,38 @@ class Tool(ABC):
 
         if hasattr(cls, 'Input') and issubclass(cls.Input, BaseModel):
             schema = cls.Input.model_json_schema()
-            return {
-                'type': 'object',
-                'properties': schema.get('properties', {}),
-                'required': schema.get('required', []),
-            }
+            return cls._resolve_schema_refs(schema)
 
         return {'type': 'object', 'properties': {}, 'required': []}
+
+    @classmethod
+    def _resolve_schema_refs(cls, schema: Dict[str, Any]) -> Dict[str, Any]:
+        def resolve_refs(obj, defs_map):
+            if isinstance(obj, dict):
+                if '$ref' in obj:
+                    ref_path = obj['$ref']
+                    if ref_path.startswith('#/$defs/'):
+                        def_name = ref_path.split('/')[-1]
+                        if def_name in defs_map:
+                            resolved = defs_map[def_name].copy()
+                            return resolve_refs(resolved, defs_map)
+                    return obj
+                else:
+                    return {k: resolve_refs(v, defs_map) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [resolve_refs(item, defs_map) for item in obj]
+            else:
+                return obj
+
+        defs = schema.get('$defs', {})
+
+        result = {
+            'type': 'object',
+            'properties': resolve_refs(schema.get('properties', {}), defs),
+            'required': schema.get('required', []),
+        }
+
+        return result
 
     @classmethod
     def openai_schema(cls) -> Dict[str, Any]:

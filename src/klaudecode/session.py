@@ -11,13 +11,14 @@ from .message import (AIMessage, BasicMessage, SystemMessage, ToolMessage,
                       UserMessage)
 from .tui import console
 from .utils import sanitize_filename
+from .tools.todo import TodoList
 
 
 class Session(BaseModel):
     """Session model for managing conversation history and metadata."""
 
     messages: List[BasicMessage] = Field(default_factory=list)
-    # todo_list: List[Todo] = Field(default_factory=list)
+    todo_list: TodoList = Field(default_factory=TodoList)
     work_dir: str
     title: str = ''
     session_id: str = ''
@@ -98,7 +99,7 @@ class Session(BaseModel):
                 'created_at': getattr(self, '_created_at', current_time),
                 'updated_at': current_time,
                 'message_count': len(self.messages),
-                # "todo_list": [todo.model_dump() for todo in self.todo_list],
+                "todo_list": self.todo_list.model_dump(),
             }
 
             # Set created_at if not exists
@@ -155,6 +156,7 @@ class Session(BaseModel):
             session.session_id = metadata['id']
             session.title = metadata.get('title', '')
             session._created_at = metadata.get('created_at')
+            session.todo_list = TodoList(**metadata.get('todo_list', {}))
             return session
 
         except Exception as e:
@@ -165,7 +167,7 @@ class Session(BaseModel):
         forked_session = Session(
             work_dir=self.work_dir,
             messages=self.messages.copy(),  # Copy the messages list
-            # todo_list=self.todo_list.copy(),
+            todo_list=self.todo_list.model_copy(),
         )
         return forked_session
 

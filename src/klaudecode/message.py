@@ -213,7 +213,7 @@ class ToolCallMessage(BaseModel):
                 ),
                 self.rich_args,
             )
-        if self.hide_args:
+        if self.hide_args or (not self.nice_args and not self.tool_args):
             return render_message(
                 format_style(self.tool_name, 'bold'),
                 mark_style='green',
@@ -324,7 +324,8 @@ class AIMessage(BasicMessage):
 class ToolMessage(BasicMessage):
     role: Literal['tool'] = 'tool'
     tool_call: ToolCallMessage
-    subagent_tool_calls: List[ToolCallMessage] = Field(default_factory=list)  # For sub-agent tool calls
+    suffixes: List[Union[ToolCallMessage, str]] = Field(default_factory=list)  # For sub-agent tool calls
+    nice_content: Optional[Any] = Field(default=None)
 
     class Config:
         arbitrary_types_allowed = True
@@ -356,14 +357,19 @@ class ToolMessage(BasicMessage):
 
     def __rich_console__(self, console, options):
         yield self.tool_call
-        for c in self.subagent_tool_calls:
-            yield c.get_suffix_renderable()
+        for c in self.suffixes:
+            yield c.get_suffix_renderable() if isinstance(c, ToolCallMessage) else c
 
-        if self.content or self.tool_call.status == 'success':
+        if self.nice_content:
+            yield render_suffix(self.nice_content, style='red' if self.tool_call.status == 'error' else None)
+        elif self.content:
             yield render_suffix(
-                truncate_middle_text(self.content.strip()) if self.content else '(No content)',
+                truncate_middle_text(self.content.strip()) if isinstance(self.content, str) else self.content,
                 style='red' if self.tool_call.status == 'error' else None,
             )
+        elif self.tool_call.status == 'success':
+            yield render_suffix('(No content)')
+
         if self.tool_call.status == 'canceled':
             yield render_suffix(INTERRUPTED_MSG, style='yellow')
         yield ''
@@ -376,7 +382,7 @@ class ToolMessage(BasicMessage):
             return
         self.content = content
 
-    def add_subagent_tool_call(self, tool_calls: List[ToolCallMessage]):
+    def add_suffixes(self, suffixes: List[Union[ToolCallMessage, str]]):
         if self.tool_call.status == 'canceled':
             return
-        self.subagent_tool_calls.extend(tool_calls)
+        self.suffixes.extend(suffixes)

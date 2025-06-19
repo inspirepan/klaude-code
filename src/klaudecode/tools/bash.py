@@ -16,6 +16,17 @@ class BashTool(Tool):
     name = 'Bash'
     desc = 'Execute a bash command'
 
+    class Input(BaseModel):
+        command: Annotated[str, Field(description='The bash command to execute')]
+        description: Annotated[Optional[str], Field(description='Description of what this command does')] = None
+        timeout: Annotated[
+            Optional[int],
+            Field(description='Optional timeout in milliseconds (max 600000)'),
+        ] = None
+
+        def __str__(self):
+            return f'{self.description} → {self.command}'
+
     # Dangerous commands that should be blocked
     DANGEROUS_COMMANDS: Set[str] = {
         'rm -rf /',
@@ -57,113 +68,6 @@ class BashTool(Tool):
     MAX_OUTPUT_SIZE = 30000  # Maximum output size to prevent memory overflow
     DEFAULT_TIMEOUT = 120000  # 2 minutes in milliseconds
     MAX_TIMEOUT = 600000  # 10 minutes in milliseconds
-
-    class Input(BaseModel):
-        command: Annotated[str, Field(description='The bash command to execute')]
-        description: Annotated[Optional[str], Field(description='Description of what this command does')] = None
-        timeout: Annotated[
-            Optional[int],
-            Field(description='Optional timeout in milliseconds (max 600000)'),
-        ] = None
-
-        def __str__(self):
-            return f'{self.description} → {self.command}'
-
-    @classmethod
-    def _validate_command_safety(cls, command: str) -> tuple[bool, str]:
-        """Validate command safety and return (is_safe, error_message)"""
-        command_lower = command.lower().strip()
-
-        # Check for dangerous commands
-        for dangerous_cmd in cls.DANGEROUS_COMMANDS:
-            if dangerous_cmd in command_lower:
-                return (
-                    False,
-                    f'Dangerous command detected: {dangerous_cmd}. This command is blocked for security reasons.',
-                )
-
-        # Check for specialized tools
-        # TODO: Implement those tools
-        # for cmd, suggestion in cls.SPECIALIZED_TOOLS.items():
-        #     if command_lower.startswith(cmd + ' ') or command_lower == cmd:
-        #         return False, f"Command '{cmd}' detected. {suggestion}"
-
-        return True, ''
-
-    @classmethod
-    def _kill_process_tree(cls, pid: int):
-        """Kill a process and all its children"""
-        try:
-            # Get all child processes
-            children = []
-            try:
-                output = subprocess.check_output(['pgrep', '-P', str(pid)], stderr=subprocess.DEVNULL)
-                children = [int(child_pid) for child_pid in output.decode().strip().split('\n') if child_pid]
-            except subprocess.CalledProcessError:
-                # No children found
-                pass
-
-            # Kill children first
-            for child_pid in children:
-                cls._kill_process_tree(child_pid)
-
-            # Kill the main process
-            try:
-                os.kill(pid, signal.SIGTERM)
-                time.sleep(0.1)
-                os.kill(pid, signal.SIGKILL)
-            except ProcessLookupError:
-                # Process already dead
-                pass
-        except Exception:
-            # Ignore errors in cleanup
-            pass
-
-    @classmethod
-    def _process_output_line(cls, line: str, output_lines: list, total_output_size: int, update_content_func) -> tuple[int, bool]:
-        """Process a single output line and return (new_total_size, should_break)"""
-        line = line.rstrip('\n\r')
-        if total_output_size < cls.MAX_OUTPUT_SIZE:
-            output_lines.append(line)
-            total_output_size += len(line) + 1  # +1 for newline
-            update_content_func()
-            return total_output_size, False
-        else:
-            output_lines.append(f'[Output truncated at {cls.MAX_OUTPUT_SIZE} characters]')
-            update_content_func()
-            return total_output_size, True
-
-    @classmethod
-    def _read_process_output(cls, process, output_lines: list, total_output_size: int, update_content_func) -> tuple[int, bool, str]:
-        """Read output from process. Returns (new_total_size, should_break, error_msg)"""
-        if sys.platform != 'win32':
-            # Unix-like systems: use select
-            ready, _, _ = select.select([process.stdout], [], [], 0.1)
-            if ready:
-                try:
-                    line = process.stdout.readline()
-                    if line:
-                        new_size, should_break = cls._process_output_line(line, output_lines, total_output_size, update_content_func)
-                        return new_size, should_break, ''
-                except Exception as e:
-                    return total_output_size, True, f'Error reading output: {str(e)}'
-            else:
-                # No data available, small delay
-                time.sleep(0.01)
-                return total_output_size, False, ''
-        else:
-            # Windows: use simple readline approach
-            try:
-                line = process.stdout.readline()
-                if line:
-                    new_size, should_break = cls._process_output_line(line, output_lines, total_output_size, update_content_func)
-                    return new_size, should_break, ''
-                else:
-                    # No more output, small delay to prevent busy waiting
-                    time.sleep(0.01)
-                    return total_output_size, False, ''
-            except Exception as e:
-                return total_output_size, True, f'Error reading output: {str(e)}'
 
     @classmethod
     def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
@@ -261,7 +165,8 @@ class BashTool(Tool):
             update_content()
 
         except Exception as e:
-            error_msg = f'Error executing command: {str(e)}'
+            import traceback
+            error_msg = f'Error executing command: {str(e)} {traceback.format_exc()}'
             output_lines.append(error_msg)
             update_content()
 
@@ -279,3 +184,102 @@ class BashTool(Tool):
                     cls._kill_process_tree(process.pid)
                 except Exception:
                     pass
+
+    @classmethod
+    def _validate_command_safety(cls, command: str) -> tuple[bool, str]:
+        """Validate command safety and return (is_safe, error_message)"""
+        command_lower = command.lower().strip()
+
+        # Check for dangerous commands
+        for dangerous_cmd in cls.DANGEROUS_COMMANDS:
+            if dangerous_cmd in command_lower:
+                return (
+                    False,
+                    f'Dangerous command detected: {dangerous_cmd}. This command is blocked for security reasons.',
+                )
+
+        # Check for specialized tools
+        # TODO: Implement those tools
+        # for cmd, suggestion in cls.SPECIALIZED_TOOLS.items():
+        #     if command_lower.startswith(cmd + ' ') or command_lower == cmd:
+        #         return False, f"Command '{cmd}' detected. {suggestion}"
+
+        return True, ''
+
+    @classmethod
+    def _kill_process_tree(cls, pid: int):
+        """Kill a process and all its children"""
+        try:
+            # Get all child processes
+            children = []
+            try:
+                output = subprocess.check_output(['pgrep', '-P', str(pid)], stderr=subprocess.DEVNULL)
+                children = [int(child_pid) for child_pid in output.decode().strip().split('\n') if child_pid]
+            except subprocess.CalledProcessError:
+                # No children found
+                pass
+
+            # Kill children first
+            for child_pid in children:
+                cls._kill_process_tree(child_pid)
+
+            # Kill the main process
+            try:
+                os.kill(pid, signal.SIGTERM)
+                time.sleep(0.1)
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                # Process already dead
+                pass
+        except Exception:
+            # Ignore errors in cleanup
+            pass
+
+    @classmethod
+    def _process_output_line(cls, line: str, output_lines: list, total_output_size: int, update_content_func) -> tuple[int, bool]:
+        """Process a single output line and return (new_total_size, should_break)"""
+        line = line.rstrip('\n\r')
+        if total_output_size < cls.MAX_OUTPUT_SIZE:
+            output_lines.append(line)
+            total_output_size += len(line) + 1  # +1 for newline
+            update_content_func()
+            return total_output_size, False
+        else:
+            output_lines.append(f'[Output truncated at {cls.MAX_OUTPUT_SIZE} characters]')
+            update_content_func()
+            return total_output_size, True
+
+    @classmethod
+    def _read_process_output(cls, process, output_lines: list, total_output_size: int, update_content_func) -> tuple[int, bool, str]:
+        """Read output from process. Returns (new_total_size, should_break, error_msg)"""
+        if sys.platform != 'win32':
+            # Unix-like systems: use select
+            ready, _, _ = select.select([process.stdout], [], [], 0.1)
+            if ready:
+                try:
+                    line = process.stdout.readline()
+                    if line:
+                        new_size, should_break = cls._process_output_line(line, output_lines, total_output_size, update_content_func)
+                        return new_size, should_break, ''
+                    else:
+                        # Empty line, no more output
+                        return total_output_size, False, ''
+                except Exception as e:
+                    return total_output_size, True, f'Error reading output: {str(e)}'
+            else:
+                # No data available, small delay
+                time.sleep(0.01)
+                return total_output_size, False, ''
+        else:
+            # Windows: use simple readline approach
+            try:
+                line = process.stdout.readline()
+                if line:
+                    new_size, should_break = cls._process_output_line(line, output_lines, total_output_size, update_content_func)
+                    return new_size, should_break, ''
+                else:
+                    # No more output, small delay to prevent busy waiting
+                    time.sleep(0.01)
+                    return total_output_size, False, ''
+            except Exception as e:
+                return total_output_size, True, f'Error reading output: {str(e)}'

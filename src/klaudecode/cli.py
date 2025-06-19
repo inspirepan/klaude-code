@@ -17,10 +17,11 @@ app = typer.Typer(help='Coding Agent CLI', add_completion=False)
 
 async def main_async(ctx: typer.Context):
     if ctx.obj['continue_latest']:
-        session = Session.get_latest_session(os.getcwd()).fork()
+        session = Session.get_latest_session(os.getcwd())
         if not session:
             console.print('[red]No session found[/red]')
             return
+        session = session.fork()
         session.print_all()
     elif ctx.obj['resume']:
         pass  # TODO
