@@ -317,6 +317,7 @@ class ToolMessage(BasicMessage):
     tool_call_id: str
     tool_call_cache: ToolCall = Field(exclude=True)
     data: List[Union[dict, str]] = Field(default_factory=list)  # For structured data, strings, and sub-agent tool calls
+    error_msg: Optional[str] = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -335,6 +336,8 @@ class ToolMessage(BasicMessage):
     def get_content(self):
         if self.tool_call.status == 'canceled':
             return self.content + '\n' + INTERRUPTED_MSG
+        elif self.tool_call.status == 'error':
+            return self.content + '\n' + self.error_msg
         return self.content
 
     def to_anthropic(self) -> MessageParam:
@@ -367,6 +370,8 @@ class ToolMessage(BasicMessage):
 
         if self.tool_call.status == 'canceled':
             yield render_suffix(INTERRUPTED_MSG, style='yellow')
+        elif self.tool_call.status == 'error':
+            yield render_suffix(self.error_msg, style='red')
         yield ''
 
     def __bool__(self):

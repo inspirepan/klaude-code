@@ -168,7 +168,7 @@ class ToolInstance:
             raise
         except Exception as e:
             self.tool_msg.tool_call.status = 'error'
-            self.tool_msg.content += f'error: {str(e)}'
+            self.tool_msg.error_msg = f'error: {str(e)}'
             self._is_completed = True
         finally:
             self._is_running = False

@@ -93,11 +93,7 @@ def render_todo_dict(todo: dict):
 
 
 def render_todo_result(tool_msg: ToolMessage):
-    yield render_suffix(Group(
-        *[
-            render_todo_dict(todo) for todo in tool_msg.data
-        ]
-    ))
+    yield render_suffix(Group(*[render_todo_dict(todo) for todo in tool_msg.data]))
 
 
 def render_name(tool_call: ToolCall):

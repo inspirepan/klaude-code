@@ -164,7 +164,9 @@ def render_agent_args(tool_call: ToolCall):
     from rich.text import Text
 
     yield Padding.indent(
-        Panel.fit(tool_call.tool_args_dict['prompt'], title=Text(tool_call.tool_args_dict['description'], style='bold'), box=HORIZONTALS),
+        Panel.fit(tool_call.tool_args_dict['prompt'], title=Text(tool_call.tool_args_dict['description'], style='bold'),
+                  box=HORIZONTALS,
+                  ),
         level=2,
     )
 
@@ -178,7 +180,7 @@ def render_agent_result(tool_msg: ToolMessage):
         tool_call = ToolCall(**subagent_tool_call_dcit)
         for item in tool_call.get_suffix_renderable():
             yield render_suffix(item)
-    yield render_suffix(Group("", Panel.fit(render_markdown(tool_msg.content), border_style="dim")))
+    yield render_suffix(Group("", Panel.fit(render_markdown(tool_msg.content), border_style="agent_result")))
 
 
 register_tool_call_renderer('Agent', render_agent_args)

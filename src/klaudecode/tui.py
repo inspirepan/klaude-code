@@ -19,6 +19,7 @@ light_theme = Theme(
         'red': 'rgb(158,57,66)',
         'black': 'white',
         'green': 'rgb(65,120,64)',
+        'agent_result': 'rgb(210,231,227)',
         'yellow': 'rgb(143,110,44)',
         'purple': 'rgb(139,134,248)',
         'diff_removed': 'black on rgb(242,172,180)',
@@ -37,6 +38,7 @@ dark_theme = Theme(
         'red': 'rgb(237,116,130)',
         'black': 'black',
         'green': 'rgb(65,120,64)',
+        'agent_result': 'rgb(10,31,27)',
         'yellow': 'rgb(155,104,39)',
         'purple': 'rgb(139,134,248)',
         'diff_removed': 'black on rgb(242,172,180)',
@@ -139,7 +141,8 @@ def render_markdown(text: str) -> str:
             line = re.sub(r'^(\s*)(\d+)\.\s+', r'\1• ', line)
             # Match dash lists: - -> •
             line = re.sub(r'^(\s*)[-*]\s+', r'\1• ', line)
-        formatted_lines.append(line)
+        if line.strip():
+            formatted_lines.append(line)
 
     return '\n'.join(formatted_lines)
 
