@@ -11,7 +11,7 @@ from .message import INTERRUPTED_MSG, AIMessage, BasicMessage, SystemMessage, To
 from .prompt import AGENT_TOOL_DESC, CODE_SEARCH_AGENT_TOOL_DESC, SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
-from .tools import BashTool, EditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
+from .tools import BashTool, EditTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
 from .tui import console, format_style, render_markdown, render_message, render_suffix
 
 DEFAULT_MAX_STEPS = 80
@@ -19,7 +19,8 @@ INTERACTIVE_MAX_STEPS = 100
 TOKEN_WARNING_THRESHOLD = 0.8
 TODO_SUGGESTION_LENGTH_THRESHOLD = 40
 
-BASIC_TOOLS = [BashTool, EditTool, ReadTool, WriteTool]
+BASIC_TOOLS = [BashTool, EditTool, MultiEditTool, ReadTool, WriteTool]
+READ_ONLY_TOOLS = [ReadTool, BashTool]
 
 
 class Agent(Tool):
@@ -28,7 +29,7 @@ class Agent(Tool):
         session: Session,
         config: Optional[ConfigModel] = None,
         label: Optional[str] = None,
-        tools: Optional[List[Tool]] = None,
+        availiable_tools: Optional[List[Tool]] = None,
         print_switch: bool = True,
     ):
         self.session: Session = session
@@ -36,9 +37,9 @@ class Agent(Tool):
         self.input_session = InputSession(session.work_dir)
         self.print_switch = print_switch
         self.config: Optional[ConfigModel] = config
-        self.tools = tools
+        self.availiable_tools = availiable_tools
         self.comand_handler = CommandHandler(self)
-        self.tool_handler = ToolHandler(self, self.tools, show_live=print_switch)
+        self.tool_handler = ToolHandler(self, self.availiable_tools, show_live=print_switch)
 
     async def chat_interactive(self):
         while True:
@@ -59,9 +60,9 @@ class Agent(Tool):
             if cmd_res.need_agent_run:
                 if not cmd_res.user_input:
                     continue
-                await self.run(max_steps=INTERACTIVE_MAX_STEPS)
+                await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
 
-    async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None):
+    async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
         try:
             for _ in range(max_steps):
                 # Check if task was canceled (for subagent execution)
@@ -69,7 +70,7 @@ class Agent(Tool):
                     return INTERRUPTED_MSG
                 ai_msg = await AgentLLM.call(
                     msgs=self.session.messages,
-                    tools=self.tools,
+                    tools=tools,
                     show_status=self.print_switch,
                 )
                 self.append_message(ai_msg)
@@ -144,7 +145,7 @@ class Agent(Tool):
             print_msg=False,
         )
 
-        result = asyncio.run(agent.run(max_steps=DEFAULT_MAX_STEPS, parent_tool_instance=instance))
+        result = asyncio.run(agent.run(max_steps=DEFAULT_MAX_STEPS, parent_tool_instance=instance, tools=cls.get_subagent_tools()))
         instance.tool_result().set_content((result or '').strip())
 
 
@@ -154,7 +155,7 @@ class CodeSearchAgentTool(Agent):
 
     @classmethod
     def get_subagent_tools(cls):
-        return BASIC_TOOLS
+        return READ_ONLY_TOOLS
 
 
 def render_agent_args(tool_call: ToolCall):
@@ -195,7 +196,7 @@ register_tool_result_renderer('CodeSearchAgent', render_agent_result)
 
 
 def get_main_agent(session: Session, config: ConfigModel) -> Agent:
-    return Agent(session, config, tools=BASIC_TOOLS + [Agent, TodoWriteTool, TodoReadTool])
+    return Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent, TodoWriteTool, TodoReadTool])
 
 
 class CommandHandler:

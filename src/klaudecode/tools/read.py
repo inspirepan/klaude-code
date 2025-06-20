@@ -3,8 +3,10 @@ from typing import Annotated, Optional
 from pydantic import BaseModel, Field
 from rich.text import Text
 
-from ..message import ToolCall, register_tool_call_renderer
+from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
+from ..prompt import READ_TOOL_DESC
 from ..tool import Tool, ToolInstance
+from ..tui import render_suffix
 from .file_utils import cache_file_content, format_with_line_numbers, read_file_content, truncate_content, validate_file_exists
 
 """
@@ -18,7 +20,7 @@ from .file_utils import cache_file_content, format_with_line_numbers, read_file_
 
 class ReadTool(Tool):
     name = 'Read'
-    desc = 'Read file content with line numbers and optional offset/limit'
+    desc = READ_TOOL_DESC
 
     class Input(BaseModel):
         file_path: Annotated[str, Field(description='The absolute path to the file to read')]
@@ -54,7 +56,7 @@ class ReadTool(Tool):
 
         # Handle empty file
         if not content:
-            instance.tool_result().set_content('Empty File')
+            instance.tool_result().set_content('<empty>\n\nFull 0 lines')
             return
 
         # Split content into lines for offset/limit processing
@@ -86,23 +88,13 @@ class ReadTool(Tool):
         formatted_content = format_with_line_numbers(selected_content, start_line)
 
         # Truncate if necessary
-        final_content, was_truncated = truncate_content(formatted_content)
+        final_content = truncate_content(formatted_content)
 
-        # Add metadata information
-        metadata_parts = []
-        metadata_parts.append(f'Total {total_lines} lines')
-
-        if was_truncated:
-            metadata_parts.append('Content was truncated')
+        # Add metadata information in the reference format
+        result = final_content + f'\n\nFull {total_lines} Lines'
 
         if warning:
-            metadata_parts.append(warning)
-
-        # Set the result
-        if metadata_parts:
-            result = final_content + '\n' + '\n'.join(metadata_parts)
-        else:
-            result = final_content
+            result += f'\n{warning}'
 
         instance.tool_result().set_content(result)
 
@@ -123,4 +115,17 @@ def render_read_args(tool_call: ToolCall):
     yield tool_call_msg
 
 
+def render_read_content(tool_msg: ToolMessage):
+    if tool_msg.content:
+        lines = tool_msg.content.split('\n')
+        filtered_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped and (stripped[0].isdigit() or stripped.startswith('...')):
+                filtered_lines.append(line)
+        tool_msg.content = '\n'.join(filtered_lines)
+        yield render_suffix(tool_msg.content)
+
+
 register_tool_call_renderer('Read', render_read_args)
+register_tool_result_renderer('Read', render_read_content)

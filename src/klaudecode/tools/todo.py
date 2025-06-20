@@ -1,5 +1,5 @@
 import json
-from typing import Annotated, List, Literal, Optional, Tuple
+from typing import Annotated, List, Literal
 
 from pydantic import BaseModel, Field
 from rich.console import Group
@@ -97,11 +97,15 @@ def render_todo_result(tool_msg: ToolMessage):
     yield render_suffix(Group(*[render_todo_dict(todo) for todo in tool_msg.extra_data]))
 
 
-def render_name(tool_call: ToolCall):
-    yield format_style(tool_call.tool_name, 'bold')
+def render_todo_write_name(tool_call: ToolCall):
+    yield format_style('Update Todos', 'bold')
+
+
+def render_todo_read_name(tool_call: ToolCall):
+    yield format_style('Read Todos', 'bold')
 
 
 register_tool_result_renderer('TodoRead', render_todo_result)
 register_tool_result_renderer('TodoWrite', render_todo_result)
-register_tool_call_renderer('TodoRead', render_name)
-register_tool_call_renderer('TodoWrite', render_name)
+register_tool_call_renderer('TodoRead', render_todo_read_name)
+register_tool_call_renderer('TodoWrite', render_todo_write_name)

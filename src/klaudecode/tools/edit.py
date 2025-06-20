@@ -5,6 +5,7 @@ from rich.console import Group
 from rich.text import Text
 
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
+from ..prompt import EDIT_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import render_suffix
 from .file_utils import (
@@ -33,7 +34,7 @@ from .file_utils import (
 
 class EditTool(Tool):
     name = 'Edit'
-    desc = 'Edit a file by replacing old_string with new_string'
+    desc = EDIT_TOOL_DESC
 
     class Input(BaseModel):
         file_path: Annotated[str, Field(description='The absolute path to the file to edit')]
@@ -141,7 +142,7 @@ def render_edit_args(tool_call: ToolCall):
     file_path = tool_call.tool_args_dict.get('file_path', '')
 
     tool_call_msg = Text.assemble(
-        (tool_call.tool_name, 'bold'),
+        ('Update', 'bold'),
         '(',
         file_path,
         ')',

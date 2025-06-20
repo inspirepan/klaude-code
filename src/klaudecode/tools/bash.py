@@ -9,13 +9,14 @@ from typing import Annotated, Optional, Set
 from pydantic import BaseModel, Field
 from rich.text import Text
 
-from ..message import ToolCall, ToolMessage, register_tool_call_renderer
+from ..message import ToolCall, register_tool_call_renderer
+from ..prompt import BASH_TOOL_DESC
 from ..tool import Tool, ToolInstance
 
 
 class BashTool(Tool):
     name = 'Bash'
-    desc = 'Execute a bash command'
+    desc = BASH_TOOL_DESC
 
     class Input(BaseModel):
         command: Annotated[str, Field(description='The bash command to execute')]

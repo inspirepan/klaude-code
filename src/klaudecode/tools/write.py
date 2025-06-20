@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from rich.text import Text
 
 from ..message import ToolCall, register_tool_call_renderer
+from ..prompt import WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from .file_utils import cache_file_content, cleanup_backup, create_backup, ensure_directory_exists, restore_backup, validate_file_cache, write_file_content
 
@@ -17,7 +18,7 @@ from .file_utils import cache_file_content, cleanup_backup, create_backup, ensur
 
 class WriteTool(Tool):
     name = 'Write'
-    desc = 'Write content to a file (overwrites existing files)'
+    desc = WRITE_TOOL_DESC
 
     class Input(BaseModel):
         file_path: Annotated[str, Field(description='The absolute path to the file to write')]

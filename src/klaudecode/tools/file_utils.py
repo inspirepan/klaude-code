@@ -5,8 +5,6 @@ import re
 import shutil
 from typing import Dict, List, Tuple
 
-from ..message import ToolMessage
-
 FILE_CACHE: Dict[str, str] = {}
 
 TRUNCATE_CHAR_LIMIT = 5000
@@ -44,7 +42,7 @@ def validate_file_cache(file_path: str) -> Tuple[bool, str]:
         cached_hash = FILE_CACHE[file_path]
         if current_hash != cached_hash:
             return False, FILE_MODIFIED_ERROR
-    except Exception as e:
+    except Exception:
         return False, FILE_NOT_READ_ERROR
 
     return True, ''
@@ -140,28 +138,33 @@ def format_with_line_numbers(content: str, start_line: int = 1) -> str:
     return '\n'.join(formatted_lines)
 
 
-def truncate_content(content: str, char_limit: int = TRUNCATE_CHAR_LIMIT, line_limit: int = TRUNCATE_LINE_LIMIT) -> Tuple[str, bool]:
+def truncate_content(content: str, char_limit: int = TRUNCATE_CHAR_LIMIT, line_limit: int = TRUNCATE_LINE_LIMIT) -> Tuple[str, bool, int]:
     lines = content.splitlines()
 
     if len(content) <= char_limit and len(lines) <= line_limit:
-        return content, False
+        return content, False, 0
 
     truncated_lines = []
     char_count = 0
+    remaining_lines = 0
 
     for i, line in enumerate(lines):
         if i >= line_limit:
-            truncated_lines.append(f'[Truncated at {line_limit} lines]')
+            remaining_lines = len(lines) - i
             break
 
         if char_count + len(line) + 1 > char_limit:
-            truncated_lines.append(f'[Truncated at {char_limit} characters]')
+            remaining_lines = len(lines) - i
             break
 
         truncated_lines.append(line)
         char_count += len(line) + 1
 
-    return '\n'.join(truncated_lines), True
+    result = '\n'.join(truncated_lines)
+    if remaining_lines > 0:
+        result += f'\n... (more {remaining_lines} lines are truncated)'
+
+    return result
 
 
 def ensure_directory_exists(file_path: str):
