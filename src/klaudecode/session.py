@@ -7,11 +7,10 @@ from typing import Callable, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from .message import (AIMessage, BasicMessage, SystemMessage, ToolMessage,
-                      UserMessage)
+from .message import AIMessage, BasicMessage, SystemMessage, ToolMessage, UserMessage
+from .tools.todo import TodoList
 from .tui import console
 from .utils import sanitize_filename
-from .tools.todo import TodoList
 
 
 class Session(BaseModel):
@@ -101,7 +100,7 @@ class Session(BaseModel):
                 'created_at': getattr(self, '_created_at', current_time),
                 'updated_at': current_time,
                 'message_count': len(self.messages),
-                "todo_list": self.todo_list.model_dump(),
+                'todo_list': self.todo_list.model_dump(),
             }
 
             # Set created_at if not exists

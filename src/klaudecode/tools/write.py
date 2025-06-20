@@ -6,15 +6,7 @@ from rich.text import Text
 
 from ..message import ToolCall, register_tool_call_renderer
 from ..tool import Tool, ToolInstance
-from .file_utils import (
-    validate_file_cache,
-    cache_file_content,
-    create_backup,
-    restore_backup,
-    cleanup_backup,
-    write_file_content,
-    ensure_directory_exists
-)
+from .file_utils import cache_file_content, cleanup_backup, create_backup, ensure_directory_exists, restore_backup, validate_file_cache, write_file_content
 
 """
 - Safety mechanism requiring existing files to be read first
@@ -73,9 +65,9 @@ class WriteTool(Tool):
             cache_file_content(args.file_path, args.content)
 
             if file_exists:
-                result = f"File updated successfully at: {args.file_path}\n"
+                result = f'File updated successfully at: {args.file_path}\n'
             else:
-                result = f"File created successfully at: {args.file_path}\n"
+                result = f'File created successfully at: {args.file_path}\n'
 
             instance.tool_result().set_content(result)
 
@@ -91,7 +83,7 @@ class WriteTool(Tool):
                 except Exception:
                     pass
 
-            instance.tool_result().set_error_msg(f"Failed to write file: {str(e)}")
+            instance.tool_result().set_error_msg(f'Failed to write file: {str(e)}')
 
 
 def render_write_args(tool_call: ToolCall):

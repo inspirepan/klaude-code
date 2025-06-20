@@ -9,10 +9,12 @@ from openai.types.chat.chat_completion_chunk import Choice, ChoiceDeltaToolCall
 from openai.types.chat.chat_completion_message_tool_call import Function
 from rich.status import Status
 
-from .message import (AIMessage, BasicMessage, CompletionUsage, SystemMessage,
-                      ToolCall, count_tokens)
+from .message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, count_tokens
 from .tool import Tool
-from .tui import INTERRUPT_TIP, console, render_message
+from .tui import INTERRUPT_TIP, SPINNER, console, render_message
+
+DEFAULT_RETRIES = 3
+DEFAULT_RETRY_BACKOFF_BASE = 1
 
 
 class OpenAIProxy:
@@ -80,6 +82,7 @@ class OpenAIProxy:
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
         status: Optional[Status] = None,
+        status_text: str = 'Thinking...',
     ) -> AIMessage:
         stream = await self.client.chat.completions.create(
             model=self.model_name,
@@ -114,11 +117,11 @@ class OpenAIProxy:
                 completion_tokens = usage.completion_tokens
                 total_tokens = usage.total_tokens
                 if status:
-                    status.update(f'Thinking... [green]↓ {completion_tokens} tokens[/green] {INTERRUPT_TIP}')
+                    status.update(f'{status_text} [green]↓ {completion_tokens} tokens[/green] {INTERRUPT_TIP}')
             else:
                 completion_tokens = count_tokens(content) + count_tokens(thinking_content) + tool_call_chunk_accumulator.count_tokens()
                 if status:
-                    status.update(f'Thinking... [green]↓ {completion_tokens} tokens[/green] {INTERRUPT_TIP}')
+                    status.update(f'{status_text} [green]↓ {completion_tokens} tokens[/green] {INTERRUPT_TIP}')
 
         tokens_used = CompletionUsage(
             prompt_tokens=prompt_tokens,
@@ -242,6 +245,7 @@ class AnthropicProxy:
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
         status: Optional[Status] = None,
+        status_text: str = 'Thinking...',
     ) -> AIMessage:
         system_msgs, other_msgs = self.convert_to_anthropic(msgs)
         stream = await self.client.messages.create(
@@ -307,14 +311,14 @@ class AnthropicProxy:
                 if hasattr(event, 'usage') and event.usage:
                     output_tokens = event.usage.output_tokens
                     if status:
-                        status.update(f'Thinking... [green]↓ {output_tokens} tokens[/green] {INTERRUPT_TIP}')
+                        status.update(f'{status_text} [green]↓ {output_tokens} tokens[/green] {INTERRUPT_TIP}')
             elif event.type == 'message_stop':
                 pass
             estimated_tokens = count_tokens(content) + count_tokens(thinking_content)
             for json_str in tool_json_fragments.values():
                 estimated_tokens += count_tokens(json_str)
             if status and estimated_tokens:
-                status.update(f'Thinking... [green]↓ {estimated_tokens} tokens[/green] {INTERRUPT_TIP}')
+                status.update(f'{status_text} [green]↓ {estimated_tokens} tokens[/green] {INTERRUPT_TIP}')
         return AIMessage(
             content=content,
             thinking_content=thinking_content,
@@ -362,8 +366,8 @@ class LLMProxy:
         max_tokens: int,
         extra_header: dict,
         enable_thinking: bool,
-        max_retries=1,
-        backoff_base=1.0,
+        max_retries=DEFAULT_RETRIES,
+        backoff_base=DEFAULT_RETRY_BACKOFF_BASE,
     ):
         self.max_retries = max_retries
         self.backoff_base = backoff_base
@@ -378,18 +382,15 @@ class LLMProxy:
         tools: Optional[List[Tool]] = None,
         show_status: bool = True,
         use_streaming: bool = True,
+        status_text: str = 'Thinking...',
     ) -> AIMessage:
         last_exception = None
         for attempt in range(self.max_retries):
             try:
                 if show_status:
-                    with Status(
-                        'Thinking... [gray]Press Ctrl+C to interrupt[/gray]',
-                        console=console.console,
-                        spinner_style='gray',
-                    ) as status:
+                    with Status(status_text + ' ' + INTERRUPT_TIP, console=console.console, spinner_style='gray', spinner=SPINNER) as status:
                         if use_streaming:
-                            return await self.client.stream_call(msgs, tools, status)
+                            return await self.client.stream_call(msgs, tools, status, status_text)
                         else:
                             return await self.client.call(msgs, tools)
                 else:
@@ -430,13 +431,14 @@ class LLMProxy:
         tools: Optional[List[Tool]] = None,
         show_status: bool = True,
         use_streaming: bool = True,
+        status_text: str = 'Thinking...',
     ) -> AIMessage:
         attempt = 0
         max_continuations = 3
         current_msgs = msgs.copy()
         merged_response = None
         while attempt <= max_continuations:
-            response = await self._call_with_retry(current_msgs, tools, show_status, use_streaming)
+            response = await self._call_with_retry(current_msgs, tools, show_status, use_streaming, status_text)
             if merged_response is None:
                 merged_response = response
             else:
@@ -501,11 +503,12 @@ class LLM:
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
         show_status: bool = True,
+        status_text: str = 'Thinking...',
         use_streaming: bool = True,
     ) -> AIMessage:
         if cls not in cls._clients or cls._clients[cls] is None:
             raise RuntimeError('LLM client not initialized. Call initialize() first.')
-        return await cls._clients[cls]._call_with_continuation(msgs, tools, show_status, use_streaming)
+        return await cls._clients[cls]._call_with_continuation(msgs, tools, show_status, use_streaming, status_text)
 
     @classmethod
     def reset(cls):

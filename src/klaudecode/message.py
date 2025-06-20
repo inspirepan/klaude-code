@@ -1,9 +1,8 @@
 import json
 from functools import cached_property
-from typing import Any, List, Literal, Optional, Union, Callable
+from typing import Any, Callable, List, Literal, Optional, Union
 
-from anthropic.types import (ContentBlock, MessageParam, TextBlockParam,
-                             ToolUseBlockParam)
+from anthropic.types import ContentBlock, MessageParam, TextBlockParam, ToolUseBlockParam
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field, computed_field, model_validator
 from rich.abc import RichRenderable
@@ -11,8 +10,7 @@ from rich.console import Group
 from rich.text import Text
 
 from .config import ConfigModel
-from .tui import (format_style, render_markdown, render_message, render_suffix,
-                  truncate_middle_text)
+from .tui import format_style, render_markdown, render_message, render_suffix, truncate_middle_text
 
 INTERRUPTED_MSG = 'Task interrupted by user'
 

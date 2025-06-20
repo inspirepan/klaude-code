@@ -5,13 +5,7 @@ from rich.text import Text
 
 from ..message import ToolCall, register_tool_call_renderer
 from ..tool import Tool, ToolInstance
-from .file_utils import (
-    validate_file_exists,
-    cache_file_content,
-    read_file_content,
-    format_with_line_numbers,
-    truncate_content,
-)
+from .file_utils import cache_file_content, format_with_line_numbers, read_file_content, truncate_content, validate_file_exists
 
 """
 - Flexible reading with offset and line limit support
@@ -60,7 +54,7 @@ class ReadTool(Tool):
 
         # Handle empty file
         if not content:
-            instance.tool_result().set_content("Empty File")
+            instance.tool_result().set_content('Empty File')
             return
 
         # Split content into lines for offset/limit processing
@@ -71,19 +65,19 @@ class ReadTool(Tool):
         start_line = 1
         if args.offset is not None:
             if args.offset < 1:
-                instance.tool_result().set_error_msg("Offset must be >= 1")
+                instance.tool_result().set_error_msg('Offset must be >= 1')
                 return
             if args.offset > total_lines:
-                instance.tool_result().set_error_msg(f"Offset {args.offset} exceeds file length ({total_lines} lines)")
+                instance.tool_result().set_error_msg(f'Offset {args.offset} exceeds file length ({total_lines} lines)')
                 return
             start_line = args.offset
-            lines = lines[args.offset - 1:]
+            lines = lines[args.offset - 1 :]
 
         if args.limit is not None:
             if args.limit < 1:
-                instance.tool_result().set_error_msg("Limit must be >= 1")
+                instance.tool_result().set_error_msg('Limit must be >= 1')
                 return
-            lines = lines[:args.limit]
+            lines = lines[: args.limit]
 
         # Reconstruct content from selected lines
         selected_content = '\n'.join(lines)
@@ -96,17 +90,17 @@ class ReadTool(Tool):
 
         # Add metadata information
         metadata_parts = []
-        metadata_parts.append(f"Total {total_lines} lines")
+        metadata_parts.append(f'Total {total_lines} lines')
 
         if was_truncated:
-            metadata_parts.append("Content was truncated")
+            metadata_parts.append('Content was truncated')
 
         if warning:
             metadata_parts.append(warning)
 
         # Set the result
         if metadata_parts:
-            result = final_content + "\n" + "\n".join(metadata_parts)
+            result = final_content + '\n' + '\n'.join(metadata_parts)
         else:
             result = final_content
 
@@ -116,9 +110,9 @@ class ReadTool(Tool):
 def render_read_args(tool_call: ToolCall):
     offset = tool_call.tool_args_dict.get('offset', 0)
     limit = tool_call.tool_args_dict.get('limit', 0)
-    line_range = ""
+    line_range = ''
     if offset or limit:
-        line_range = f" [{offset}-{offset+limit-1}]"
+        line_range = f' [{offset}-{offset + limit - 1}]'
     tool_call_msg = Text.assemble(
         (tool_call.tool_name, 'bold'),
         '(',

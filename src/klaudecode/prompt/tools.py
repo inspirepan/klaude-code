@@ -291,7 +291,7 @@ The command argument is required.
 It is very helpful if you write a clear, concise description of what this command does in 5-10 words.
 If the output exceeds 30000 characters, output will be truncated before being returned to you.
 VERY IMPORTANT: You MUST avoid using search commands like find and grep. Instead use Grep, Glob, or Task to search. You MUST avoid read tools like cat, head, tail, and ls, and use Read and LS to read files.
-If you still need to run grep, STOP. ALWAYS USE ripgrep at rg (or /opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/arm64-darwin/rg) first, which all Claude Code users have pre-installed.
+If you still need to run grep, STOP. ALWAYS USE ripgrep at rg (or /opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/arm64-darwin/rg) first, which all Klaude Code users have pre-installed.
 When issuing multiple commands, use the ';' or '&&' operator to separate them. DO NOT use newlines (newlines are ok in quoted strings).
 Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of cd. You may use cd if the User explicitly requests it.
 <good-example>
@@ -322,7 +322,7 @@ Review the draft message to ensure it accurately reflects the changes and their 
 You have the capability to call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together for optimal performance. ALWAYS run the following commands in parallel:
 Add relevant untracked files to the staging area.
 Create the commit with a message ending with:
-ð¤ Generated with Claude Code
+Generated with Klaude Code
 Co-Authored-By: Claude <noreply@anthropic.com>
 Run git status to make sure the commit succeeded.
 If the commit fails due to pre-commit hook changes, retry the commit ONCE to include these automated changes. If it fails again, it usually means a pre-commit hook is preventing the commit. If the commit succeeds but you notice that files were modified by the pre-commit hook, you MUST amend your commit to include them.
@@ -339,7 +339,7 @@ In order to ensure good formatting, ALWAYS pass the commit message via a HEREDOC
 <example>
 git commit -m "$(cat <<'EOF'
 Commit message here.
-Generated with Claude Code
+Generated with Klaude Code
 Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )"
@@ -377,7 +377,7 @@ Summary
 <1-3 bullet points>
 Test plan
 [Checklist of TODOs for testing the pull request...]
-Generated with Claude Code
+Generated with Klaude Code
 EOF
 )"
 </example>

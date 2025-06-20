@@ -12,7 +12,7 @@ from rich.live import Live
 from rich.status import Status
 
 from .message import AIMessage, ToolCall, ToolMessage
-from .tui import INTERRUPT_TIP, console
+from .tui import INTERRUPT_TIP, SPINNER, console
 
 
 class Tool(ABC):
@@ -256,8 +256,8 @@ class ToolHandler:
                 tool_counts = {}
                 for tc in tool_calls:
                     tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
-                status_text = 'Executing ' + ' '.join([f'[bold]{name}[/bold]*{count}' for name, count in tool_counts.items()]) + '... ' + INTERRUPT_TIP
-                status = Status(status_text, spinner='dots', spinner_style='gray')
+                status_text = 'Executing ' + ' '.join([f'[bold]{name}[/bold]{"*" + str(count) if count > 1 else ""}' for name, count in tool_counts.items()]) + '... ' + INTERRUPT_TIP
+                status = Status(status_text, spinner=SPINNER, spinner_style='gray')
                 with Live(refresh_per_second=10, console=console.console) as live:
                     while any(ti.is_running() for ti in tool_instances) and not interrupted:
                         tool_results = [ti.tool_result() for ti in tool_instances]
@@ -306,7 +306,7 @@ class ToolHandler:
 
             if self.show_live:
                 status_text = f'Executing [bold]{tool_call.tool_name}[/bold]...  {INTERRUPT_TIP}'
-                status = Status(status_text, spinner='dots', spinner_style='gray')
+                status = Status(status_text, spinner=SPINNER, spinner_style='gray')
                 with Live(refresh_per_second=10, console=console.console) as live:
                     while tool_instance.is_running() and not interrupted:
                         live.update(Group(tool_instance.tool_result(), status))

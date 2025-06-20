@@ -1,27 +1,27 @@
 from typing import Annotated
 
 from pydantic import BaseModel, Field
-from rich.text import Text
 from rich.console import Group
+from rich.text import Text
 
-from ..message import ToolCall, register_tool_call_renderer, register_tool_result_renderer, ToolMessage
+from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..tool import Tool, ToolInstance
+from ..tui import render_suffix
 from .file_utils import (
-    validate_file_exists,
-    validate_file_cache,
     cache_file_content,
-    create_backup,
-    restore_backup,
     cleanup_backup,
-    read_file_content,
-    write_file_content,
     count_occurrences,
-    replace_string_in_content,
+    create_backup,
     generate_diff_lines,
     get_edit_context_snippet,
-    render_diff_lines
+    read_file_content,
+    render_diff_lines,
+    replace_string_in_content,
+    restore_backup,
+    validate_file_cache,
+    validate_file_exists,
+    write_file_content,
 )
-from ..tui import render_suffix
 
 """
 - Precise string matching and replacement
@@ -42,7 +42,7 @@ class EditTool(Tool):
         replace_all: Annotated[bool, Field(description='Replace all occurrences (default: false)')] = False
 
         def __str__(self):
-            action = "Replace all" if self.replace_all else "Replace first"
+            action = 'Replace all' if self.replace_all else 'Replace first'
             return f'{action} "{self.old_string[:50]}..." in {self.file_path}'
 
     @classmethod
@@ -63,11 +63,11 @@ class EditTool(Tool):
 
         # Validate input
         if args.old_string == args.new_string:
-            instance.tool_result().set_error_msg("old_string and new_string cannot be the same")
+            instance.tool_result().set_error_msg('old_string and new_string cannot be the same')
             return
 
         if not args.old_string:
-            instance.tool_result().set_error_msg("old_string cannot be empty")
+            instance.tool_result().set_error_msg('old_string cannot be empty')
             return
 
         backup_path = None
@@ -100,9 +100,7 @@ class EditTool(Tool):
             backup_path = create_backup(args.file_path)
 
             # Perform replacement
-            new_content, _ = replace_string_in_content(
-                content, args.old_string, args.new_string, args.replace_all
-            )
+            new_content, _ = replace_string_in_content(content, args.old_string, args.new_string, args.replace_all)
 
             # Write new content
             error_msg = write_file_content(args.file_path, new_content)
@@ -136,7 +134,7 @@ class EditTool(Tool):
                 except Exception:
                     pass
 
-            instance.tool_result().set_error_msg(f"Failed to edit file: {str(e)}")
+            instance.tool_result().set_error_msg(f'Failed to edit file: {str(e)}')
 
 
 def render_edit_args(tool_call: ToolCall):

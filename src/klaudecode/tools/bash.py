@@ -7,10 +7,10 @@ import time
 from typing import Annotated, Optional, Set
 
 from pydantic import BaseModel, Field
-
-from ..message import ToolCall, register_tool_call_renderer, ToolMessage
-from ..tool import Tool, ToolInstance
 from rich.text import Text
+
+from ..message import ToolCall, ToolMessage, register_tool_call_renderer
+from ..tool import Tool, ToolInstance
 
 
 class BashTool(Tool):
@@ -167,6 +167,7 @@ class BashTool(Tool):
 
         except Exception as e:
             import traceback
+
             error_msg = f'Error executing command: {str(e)} {traceback.format_exc()}'
             instance.tool_result().set_error_msg(error_msg)
             update_content()
@@ -291,7 +292,7 @@ def render_bash_args(tool_call: ToolCall):
     tool_call_msg = Text.assemble(
         (tool_call.tool_name, 'bold'),
         '(',
-        f"{description} → " if description else "",
+        f'{description} → ' if description else '',
         tool_call.tool_args_dict.get('command', ''),
         ')',
     )

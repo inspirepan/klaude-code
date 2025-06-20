@@ -66,6 +66,9 @@ class ConsoleProxy:
 console = ConsoleProxy()
 
 
+SPINNER = 'bouncingBall'
+
+
 def format_style(content: str | Text, style: Optional[str] = None):
     if style:
         if isinstance(content, Text):

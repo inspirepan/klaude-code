@@ -3,15 +3,16 @@ import os
 from typing import Annotated, Any, List, Optional
 
 from pydantic import BaseModel, Field
+
 from .config import ConfigModel
 from .input import Commands, InputModeEnum, InputSession, UserInput
 from .llm import AgentLLM
-from .message import AIMessage, BasicMessage, SystemMessage, ToolCall, UserMessage, INTERRUPTED_MSG, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
-from .prompt import AGENT_TOOL_DESC, SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT, CODE_SEARCH_AGENT_TOOL_DESC
+from .message import INTERRUPTED_MSG, AIMessage, BasicMessage, SystemMessage, ToolCall, ToolMessage, UserMessage, register_tool_call_renderer, register_tool_result_renderer
+from .prompt import AGENT_TOOL_DESC, CODE_SEARCH_AGENT_TOOL_DESC, SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
-from .tools import BashTool, TodoReadTool, TodoWriteTool, EditTool, ReadTool, WriteTool
-from .tui import console, render_message, render_suffix, format_style, render_markdown
+from .tools import BashTool, EditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
+from .tui import console, format_style, render_markdown, render_message, render_suffix
 
 DEFAULT_MAX_STEPS = 80
 INTERACTIVE_MAX_STEPS = 100
@@ -164,16 +165,19 @@ def render_agent_args(tool_call: ToolCall):
     from rich.text import Text
 
     yield Padding.indent(
-        Panel.fit(tool_call.tool_args_dict['prompt'], title=Text(tool_call.tool_args_dict['description'], style='bold'),
-                  box=HORIZONTALS,
-                  ),
+        Panel.fit(
+            tool_call.tool_args_dict['prompt'],
+            title=Text(tool_call.tool_args_dict['description'], style='bold'),
+            box=HORIZONTALS,
+        ),
         level=2,
     )
 
 
 def render_agent_result(tool_msg: ToolMessage):
-    from rich.panel import Panel
     from rich.console import Group
+    from rich.panel import Panel
+
     for subagent_tool_call_dcit in tool_msg.extra_data:
         if not isinstance(subagent_tool_call_dcit, dict):
             continue
@@ -181,7 +185,7 @@ def render_agent_result(tool_msg: ToolMessage):
         for item in tool_call.get_suffix_renderable():
             yield render_suffix(item)
     if tool_msg.content:
-        yield render_suffix(Group("", Panel.fit(render_markdown(tool_msg.content), border_style="agent_result")))
+        yield render_suffix(Group('', Panel.fit(render_markdown(tool_msg.content), border_style='agent_result')))
 
 
 register_tool_call_renderer('Agent', render_agent_args)

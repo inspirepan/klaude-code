@@ -3,10 +3,11 @@ from typing import Annotated, List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, Field
 from rich.console import Group
+
+from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import TODO_READ_AI_RESULT_TEMPLATE, TODO_READ_TOOL_DESC, TODO_WRITE_AI_RESULT, TODO_WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
-from ..message import ToolCall, register_tool_call_renderer, register_tool_result_renderer, ToolMessage
-from ..tui import render_suffix, format_style
+from ..tui import format_style, render_suffix
 
 """
 Session-level To-Do
@@ -32,7 +33,7 @@ class TodoList(BaseModel):
 
 
 class TodoWriteTool(Tool):
-    name = "TodoWrite"
+    name = 'TodoWrite'
     description = TODO_WRITE_TOOL_DESC
 
     class Input(BaseModel):
@@ -62,7 +63,7 @@ class TodoWriteTool(Tool):
 
 
 class TodoReadTool(Tool):
-    name = "TodoRead"
+    name = 'TodoRead'
     description = TODO_READ_TOOL_DESC
 
     class Input(BaseModel):
