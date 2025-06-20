@@ -324,19 +324,19 @@ class ToolMessage(BasicMessage):
     def tool_call(self) -> ToolCall:
         return self.tool_call_cache
 
-    def to_openai(self) -> ChatCompletionMessageParam:
-        return {
-            'role': 'tool',
-            'content': self.content,
-            'tool_call_id': self.tool_call.id,
-        }
-
     def get_content(self):
         if self.tool_call.status == 'canceled':
             return self.content + '\n' + INTERRUPTED_MSG
         elif self.tool_call.status == 'error':
             return self.content + '\nError: ' + self.error_msg
         return self.content
+
+    def to_openai(self) -> ChatCompletionMessageParam:
+        return {
+            'role': 'tool',
+            'content': self.get_content(),
+            'tool_call_id': self.tool_call.id,
+        }
 
     def to_anthropic(self) -> MessageParam:
         return MessageParam(

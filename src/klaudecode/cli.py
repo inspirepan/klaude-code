@@ -28,7 +28,11 @@ async def main_async(ctx: typer.Context):
     else:
         session = Session(os.getcwd(), messages=[SystemMessage(content=SYSTEM_PROMPT, cached=True)])  # TODO: repomap
     agent = get_main_agent(session, config=ctx.obj['config'])
-    await agent.chat_interactive()
+    try:
+        await agent.chat_interactive()
+    except KeyboardInterrupt:
+        console.print('\n[orange]Bye![/orange]')
+        return
 
 
 @app.callback(invoke_without_command=True)

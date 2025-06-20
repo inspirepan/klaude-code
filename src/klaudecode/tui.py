@@ -22,10 +22,10 @@ light_theme = Theme(
         'agent_result': 'rgb(210,231,227)',
         'yellow': 'rgb(143,110,44)',
         'purple': 'rgb(139,134,248)',
-        'diff_removed': 'black on rgb(242,172,180)',
-        'diff_added': 'black on rgb(133,216,133)',
-        'diff_removed_char': 'black on rgb(193,81,78)',
-        'diff_added_char': 'black on rgb(80,155,78)',
+        'diff_removed': 'white on rgb(242,172,180)',
+        'diff_added': 'white on rgb(133,216,133)',
+        'diff_removed_char': 'white on rgb(193,81,78)',
+        'diff_added_char': 'white on rgb(80,155,78)',
     }
 )
 
@@ -181,7 +181,7 @@ def render_hello() -> RenderResult:
 INTERRUPT_TIP = '[gray]Press Ctrl+C to interrupt[/gray]'
 
 
-def truncate_middle_text(text: str, max_lines: int = 15) -> RichRenderable:
+def truncate_middle_text(text: str, max_lines: int = 30) -> RichRenderable:
     lines = text.splitlines()
 
     if len(lines) <= max_lines + 5:
