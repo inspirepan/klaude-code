@@ -172,14 +172,12 @@ def truncate_end_text(text: str, max_lines: int = 15) -> str:
 def sanitize_filename(text: str, max_length: int = 20) -> str:
     if not text:
         return 'untitled'
-    text = text.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
-    text = re.sub(r'[<>:"/\\|?*]', '', text)
-    text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text)
-    text = re.sub(r'\s+', ' ', text)
-    text = text.strip()
+    text = re.sub(r'[^\w\u4e00-\u9fff\u3400-\u4dbf\u3040-\u309f\u30a0-\u30ff\s.-]', '_', text)
+    text = re.sub(r'\s+', '_', text)
+    text = text.strip('_')
     if not text:
         return 'untitled'
     if len(text) > max_length:
-        text = text[:max_length].rstrip()
+        text = text[:max_length].rstrip('_')
 
     return text

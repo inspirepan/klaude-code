@@ -2,6 +2,7 @@ import json
 import os
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, List, Literal, Optional
 
@@ -67,18 +68,29 @@ class Session(BaseModel):
         """Get the directory path for storing session files."""
         return Path(self.work_dir) / '.klaude' / 'sessions'
 
+    def _get_formatted_filename_prefix(self) -> str:
+        """Generate formatted filename prefix with datetime and title."""
+        created_at = getattr(self, '_created_at', time.time())
+        dt = datetime.fromtimestamp(created_at)
+        datetime_str = dt.strftime('%Y_%m%d_%H%M')
+
+        first_user_msg = self.get_first_message(role='user')
+        if first_user_msg:
+            title = sanitize_filename(first_user_msg.content, max_length=20)
+        else:
+            title = 'untitled'
+
+        return f'{datetime_str}.{title}'
+
     def _get_metadata_file_path(self) -> Path:
         """Get the file path for session metadata."""
-        return self._get_session_dir() / f'{self.session_id}.metadata.json'
+        prefix = self._get_formatted_filename_prefix()
+        return self._get_session_dir() / f'{prefix}.metadata.{self.session_id}.json'
 
     def _get_messages_file_path(self) -> Path:
         """Get the file path for session messages."""
-        first_user_msg = self.get_first_message(role='user')
-        if first_user_msg:
-            sanitized_title = sanitize_filename(first_user_msg.content, max_length=20)
-            return self._get_session_dir() / f'{self.session_id}.messages_{sanitized_title}.json'
-        else:
-            return self._get_session_dir() / f'{self.session_id}.messages_untitled.json'
+        prefix = self._get_formatted_filename_prefix()
+        return self._get_session_dir() / f'{prefix}.messages.{self.session_id}.json'
 
     def save(self) -> None:
         """Save session to local files (metadata and messages separately)"""
@@ -89,9 +101,15 @@ class Session(BaseModel):
         try:
             if not self._get_session_dir().exists():
                 self._get_session_dir().mkdir(parents=True)
+
             metadata_file = self._get_metadata_file_path()
             messages_file = self._get_messages_file_path()
             current_time = time.time()
+
+            # Set created_at if not exists
+            if not hasattr(self, '_created_at'):
+                self._created_at = current_time
+
             # Save metadata (lightweight for fast listing)
             metadata = {
                 'id': self.session_id,
@@ -102,10 +120,6 @@ class Session(BaseModel):
                 'message_count': len(self.messages),
                 'todo_list': self.todo_list.model_dump(),
             }
-
-            # Set created_at if not exists
-            if not hasattr(self, '_created_at'):
-                self._created_at = current_time
 
             with open(metadata_file, 'w', encoding='utf-8') as f:
                 json.dump(metadata, f, indent=2, ensure_ascii=False)
@@ -127,21 +141,24 @@ class Session(BaseModel):
         """Load session from local files"""
 
         try:
-            # Create a temporary session to get the correct directory
-            temp_session = cls(work_dir=work_dir)
-            temp_session.session_id = session_id
-            metadata_file = temp_session._get_metadata_file_path()
-            session_dir = temp_session._get_session_dir()
-            messages_files = list(session_dir.glob(f'{session_id}.messages_*.json'))
-            if not messages_files:
+            session_dir = cls(work_dir=work_dir)._get_session_dir()
+            metadata_files = list(session_dir.glob(f'*.metadata.{session_id}.json'))
+            messages_files = list(session_dir.glob(f'*.messages.{session_id}.json'))
+
+            if not metadata_files or not messages_files:
                 return None
+
+            metadata_file = metadata_files[0]
             messages_file = messages_files[0]
+
             if not metadata_file.exists() or not messages_file.exists():
                 return None
+
             with open(metadata_file, 'r', encoding='utf-8') as f:
                 metadata = json.load(f)
             with open(messages_file, 'r', encoding='utf-8') as f:
                 messages_data = json.load(f)
+
             messages = []
             tool_calls_dict = {}
             for msg_data in messages_data.get('messages', []):
@@ -163,11 +180,13 @@ class Session(BaseModel):
                     else:
                         raise ValueError(f'Tool call {tool_call_id} not found')
                     messages.append(ToolMessage(**msg_data))
+
             todo_list_data = metadata.get('todo_list', {})
             if isinstance(todo_list_data, dict):
                 todo_list = TodoList(**todo_list_data)
             else:
                 todo_list = TodoList()
+
             session = cls(work_dir=metadata['work_dir'], messages=messages, todo_list=todo_list)
             session.session_id = metadata['id']
             session.title = metadata.get('title', '')
@@ -194,7 +213,7 @@ class Session(BaseModel):
             if not session_dir.exists():
                 return []
             sessions = []
-            for metadata_file in session_dir.glob('*.metadata.json'):
+            for metadata_file in session_dir.glob('*.metadata.*.json'):
                 try:
                     with open(metadata_file, 'r', encoding='utf-8') as f:
                         metadata = json.load(f)
