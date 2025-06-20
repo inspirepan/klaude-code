@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field
 
 from ..message import ToolCall, register_tool_call_renderer, ToolMessage
 from ..tool import Tool, ToolInstance
-from ..tui import render_message
 from rich.text import Text
 
 
@@ -78,7 +77,7 @@ class BashTool(Tool):
         # Validate command safety
         is_safe, error_msg = cls._validate_command_safety(args.command)
         if not is_safe:
-            instance.tool_result().set_content(f'Error: {error_msg}')
+            instance.tool_result().set_error_msg(error_msg)
             return
 
         # Set timeout
@@ -150,7 +149,7 @@ class BashTool(Tool):
                 total_output_size, should_break, error_msg = cls._read_process_output(process, output_lines, total_output_size, update_content)
 
                 if error_msg:
-                    output_lines.append(error_msg)
+                    instance.tool_result().set_error_msg(error_msg)
                     update_content()
                     break
 
@@ -169,7 +168,7 @@ class BashTool(Tool):
         except Exception as e:
             import traceback
             error_msg = f'Error executing command: {str(e)} {traceback.format_exc()}'
-            output_lines.append(error_msg)
+            instance.tool_result().set_error_msg(error_msg)
             update_content()
 
             # Clean up process if it exists
@@ -288,11 +287,11 @@ class BashTool(Tool):
 
 
 def render_bash_args(tool_call: ToolCall):
+    description = tool_call.tool_args_dict.get('description', '')
     tool_call_msg = Text.assemble(
         (tool_call.tool_name, 'bold'),
         '(',
-        tool_call.tool_args_dict.get('description', ''),
-        " → ",
+        f"{description} → " if description else "",
         tool_call.tool_args_dict.get('command', ''),
         ')',
     )

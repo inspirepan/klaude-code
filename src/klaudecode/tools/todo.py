@@ -58,7 +58,7 @@ class TodoWriteTool(Tool):
                 if old_todo.status != 'completed' and todo.status == 'completed':
                     todo_data['new_completed'] = True
 
-            instance.tool_result().add_data(todo_data)
+            instance.tool_result().add_extra_data(todo_data)
 
 
 class TodoReadTool(Tool):
@@ -74,7 +74,7 @@ class TodoReadTool(Tool):
         json_todo_list = json.dumps(todo_list.model_dump())
 
         for todo in todo_list.todos:
-            instance.tool_result().add_data(todo.model_dump())
+            instance.tool_result().add_extra_data(todo.model_dump())
 
         instance.tool_result().set_content(TODO_READ_AI_RESULT_TEMPLATE.format(todo_list_json=json_todo_list))
 
@@ -93,7 +93,7 @@ def render_todo_dict(todo: dict):
 
 
 def render_todo_result(tool_msg: ToolMessage):
-    yield render_suffix(Group(*[render_todo_dict(todo) for todo in tool_msg.data]))
+    yield render_suffix(Group(*[render_todo_dict(todo) for todo in tool_msg.extra_data]))
 
 
 def render_name(tool_call: ToolCall):

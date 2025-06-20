@@ -10,7 +10,7 @@ from .message import AIMessage, BasicMessage, SystemMessage, ToolCall, UserMessa
 from .prompt import AGENT_TOOL_DESC, SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT, CODE_SEARCH_AGENT_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
-from .tools import BashTool, TodoReadTool, TodoWriteTool
+from .tools import BashTool, TodoReadTool, TodoWriteTool, EditTool, ReadTool, WriteTool
 from .tui import console, render_message, render_suffix, format_style, render_markdown
 
 DEFAULT_MAX_STEPS = 80
@@ -18,7 +18,7 @@ INTERACTIVE_MAX_STEPS = 100
 TOKEN_WARNING_THRESHOLD = 0.8
 TODO_SUGGESTION_LENGTH_THRESHOLD = 40
 
-BASIC_TOOLS = [BashTool]
+BASIC_TOOLS = [BashTool, EditTool, ReadTool, WriteTool]
 
 
 class Agent(Tool):
@@ -130,7 +130,7 @@ class Agent(Tool):
                     continue
                 if msg.tool_calls:
                     for tool_call in msg.tool_calls.values():
-                        instance.tool_result().add_data(tool_call.model_dump())
+                        instance.tool_result().add_extra_data(tool_call.model_dump())
 
         session = Session(
             work_dir=os.getcwd(),
@@ -174,13 +174,14 @@ def render_agent_args(tool_call: ToolCall):
 def render_agent_result(tool_msg: ToolMessage):
     from rich.panel import Panel
     from rich.console import Group
-    for subagent_tool_call_dcit in tool_msg.data:
+    for subagent_tool_call_dcit in tool_msg.extra_data:
         if not isinstance(subagent_tool_call_dcit, dict):
             continue
         tool_call = ToolCall(**subagent_tool_call_dcit)
         for item in tool_call.get_suffix_renderable():
             yield render_suffix(item)
-    yield render_suffix(Group("", Panel.fit(render_markdown(tool_msg.content), border_style="agent_result")))
+    if tool_msg.content:
+        yield render_suffix(Group("", Panel.fit(render_markdown(tool_msg.content), border_style="agent_result")))
 
 
 register_tool_call_renderer('Agent', render_agent_args)

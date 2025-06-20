@@ -16,6 +16,10 @@ from .tui import INTERRUPT_TIP, console
 
 
 class Tool(ABC):
+    """
+    Tool is the base class for all tools.
+    """
+
     name: str = ''
     desc: str = ''
     parallelable: bool = True
@@ -139,6 +143,10 @@ class Tool(ABC):
 
 
 class ToolInstance:
+    """
+    ToolInstance is the instance of a runtime tool call.
+    """
+
     def __init__(self, tool: type[Tool], tool_call: ToolCall, parent_agent):
         self.tool = tool
         self.tool_call = tool_call
@@ -162,13 +170,13 @@ class ToolInstance:
         try:
             await self.tool.invoke_async(self.tool_call, self)
             self._is_completed = True
-            self.tool_msg.tool_call.status = 'success'
+            if self.tool_msg.tool_call.status == 'processing':
+                self.tool_msg.tool_call.status = 'success'
         except asyncio.CancelledError:
             self._is_completed = True
             raise
         except Exception as e:
-            self.tool_msg.tool_call.status = 'error'
-            self.tool_msg.error_msg = f'error: {str(e)}'
+            self.tool_msg.set_error_msg(str(e))
             self._is_completed = True
         finally:
             self._is_running = False
@@ -191,6 +199,10 @@ class ToolInstance:
 
 
 class ToolHandler:
+    """
+    ToolHandler accepts a list of tool calls.
+    """
+
     def __init__(self, agent, tools: List[Tool], show_live: bool = True):
         self.agent = agent
         self.tool_dict = {tool.name: tool for tool in tools} if tools else {}

@@ -12,3 +12,4 @@ wheels/
 demos/
 notes/
 .klaude
+.ruff_cache/

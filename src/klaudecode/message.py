@@ -45,7 +45,7 @@ class CompletionUsage(BaseModel):
 
 class BasicMessage(BaseModel):
     role: str
-    content: Optional[str] = None
+    content: str = ''
     removed: bool = False  # A message is removed when /compact called.
     usage: Optional[CompletionUsage] = None
 
@@ -316,7 +316,7 @@ class ToolMessage(BasicMessage):
     role: Literal['tool'] = 'tool'
     tool_call_id: str
     tool_call_cache: ToolCall = Field(exclude=True)
-    data: List[Union[dict, str]] = Field(default_factory=list)  # For structured data, strings, and sub-agent tool calls
+    extra_data: List[Union[dict, str]] = Field(default_factory=list)
     error_msg: Optional[str] = None
 
     class Config:
@@ -337,7 +337,7 @@ class ToolMessage(BasicMessage):
         if self.tool_call.status == 'canceled':
             return self.content + '\n' + INTERRUPTED_MSG
         elif self.tool_call.status == 'error':
-            return self.content + '\n' + self.error_msg
+            return self.content + '\nError: ' + self.error_msg
         return self.content
 
     def to_anthropic(self) -> MessageParam:
@@ -362,7 +362,7 @@ class ToolMessage(BasicMessage):
         else:
             if self.content:
                 yield render_suffix(
-                    truncate_middle_text(self.content.strip()) if isinstance(self.content, str) else self.content,
+                    truncate_middle_text(self.content) if isinstance(self.content, str) else self.content,
                     style='red' if self.tool_call.status == 'error' else None,
                 )
             elif self.tool_call.status == 'success':
@@ -382,11 +382,21 @@ class ToolMessage(BasicMessage):
             return
         self.content = content
 
-    def add_data(self, data: Union[dict, str, ToolCall]):
+    def set_error_msg(self, error_msg: str):
+        self.error_msg = error_msg
+        self.tool_call.status = 'error'
+
+    def add_extra_data(self, extra_data: Union[dict, str]):
         """Convenience method to add structured data for custom rendering"""
         if self.tool_call.status == 'canceled':
             return
-        self.data.append(data)
+        self.extra_data.append(extra_data)
+
+    def set_extra_data(self, extra_data: List[Union[dict, str]]):
+        """Convenience method to add structured data for custom rendering"""
+        if self.tool_call.status == 'canceled':
+            return
+        self.extra_data = extra_data
 
 
 # Tool renderer registry for custom rendering
