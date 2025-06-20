@@ -29,6 +29,7 @@ class Session(BaseModel):
         work_dir: str,
         messages: Optional[List[BasicMessage]] = None,
         append_message_hook: Optional[Callable] = None,
+        todo_list: Optional[TodoList] = None,
     ) -> None:
         super().__init__(
             work_dir=work_dir,
@@ -36,6 +37,7 @@ class Session(BaseModel):
             session_id=str(uuid.uuid4()),
             title='',
             append_message_hook=append_message_hook,
+            todo_list=todo_list or TodoList(),
         )
 
     def append_message(self, *msgs: BasicMessage) -> None:
@@ -142,6 +144,7 @@ class Session(BaseModel):
             with open(messages_file, 'r', encoding='utf-8') as f:
                 messages_data = json.load(f)
             messages = []
+            tool_calls_dict = {}
             for msg_data in messages_data.get('messages', []):
                 role = msg_data.get('role')
                 if role == 'system':
@@ -149,14 +152,27 @@ class Session(BaseModel):
                 elif role == 'user':
                     messages.append(UserMessage(**msg_data))
                 elif role == 'assistant':
-                    messages.append(AIMessage(**msg_data))
+                    ai_msg = AIMessage(**msg_data)
+                    if ai_msg.tool_calls:
+                        for tool_call_id, tool_call in ai_msg.tool_calls.items():
+                            tool_calls_dict[tool_call_id] = tool_call
+                    messages.append(ai_msg)
                 elif role == 'tool':
+                    tool_call_id = msg_data.get('tool_call_id')
+                    if tool_call_id and tool_call_id in tool_calls_dict:
+                        msg_data['tool_call_cache'] = tool_calls_dict[tool_call_id]
+                    else:
+                        raise ValueError(f'Tool call {tool_call_id} not found')
                     messages.append(ToolMessage(**msg_data))
-            session = cls(work_dir=metadata['work_dir'], messages=messages)
+            todo_list_data = metadata.get('todo_list', {})
+            if isinstance(todo_list_data, dict):
+                todo_list = TodoList(**todo_list_data)
+            else:
+                todo_list = TodoList()
+            session = cls(work_dir=metadata['work_dir'], messages=messages, todo_list=todo_list)
             session.session_id = metadata['id']
             session.title = metadata.get('title', '')
             session._created_at = metadata.get('created_at')
-            session.todo_list = TodoList(**metadata.get('todo_list', {}))
             return session
 
         except Exception as e:

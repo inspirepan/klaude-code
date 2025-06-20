@@ -94,13 +94,13 @@ def render_message(
     return table
 
 
-def render_suffix(content: str | RichRenderable, style: Optional[str] = None) -> RichRenderable:
+def render_suffix(content: str | RichRenderable, style: Optional[str] = None, render_text: bool = False) -> RichRenderable:
     if not content:
         return ''
     table = Table.grid(padding=(0, 1))
     table.add_column(width=2, no_wrap=True, style=style)
     table.add_column(overflow='fold', style=style)
-    table.add_row('  ⎿', Text(escape(content)) if isinstance(content, str) else content)
+    table.add_row('  ⎿', Text(escape(content)) if isinstance(content, str) and not render_text else content)
     return table
 
 

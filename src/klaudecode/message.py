@@ -1,5 +1,6 @@
 import json
-from typing import Any, List, Literal, Optional, Union
+from functools import cached_property
+from typing import Any, List, Literal, Optional, Union, Callable
 
 from anthropic.types import (ContentBlock, MessageParam, TextBlockParam,
                              ToolUseBlockParam)
@@ -14,6 +15,7 @@ from .tui import (format_style, render_markdown, render_message, render_suffix,
                   truncate_middle_text)
 
 INTERRUPTED_MSG = 'Task interrupted by user'
+
 
 # Lazy initialize tiktoken encoder for GPT-4
 _encoder = None
@@ -161,22 +163,27 @@ class UserMessage(BasicMessage):
 class ToolCall(BaseModel):
     id: str
     tool_name: str
-    tool_args: str = ''
-    tool_args_dict: dict = {}
+    tool_args_dict: dict = {}  # NOTE: This should only be set once during initialization
     status: Literal['processing', 'success', 'error', 'canceled'] = 'processing'
-    hide_args: bool = False
-    nice_args: str = ''
-    rich_args: Optional[Any] = Field(default=None, exclude=True)
+
+    @cached_property
+    def tool_args(self) -> str:
+        """
+        Cached property that generates JSON string from dict only once.
+        WARNING: Do not modify tool_args_dict after initialization as it will not update this cache.
+        """
+        return json.dumps(self.tool_args_dict) if self.tool_args_dict else ''
 
     def __init__(self, **data):
+        # Handle legacy data with tool_args string field
+        if 'tool_args' in data and not data.get('tool_args_dict'):
+            tool_args_str = data.pop('tool_args')
+            if tool_args_str:
+                try:
+                    data['tool_args_dict'] = json.loads(tool_args_str)
+                except (json.JSONDecodeError, TypeError):
+                    data['tool_args_dict'] = {}
         super().__init__(**data)
-        if self.tool_args and not self.tool_args_dict:
-            try:
-                self.tool_args_dict = json.loads(self.tool_args)
-            except (json.JSONDecodeError, TypeError):
-                self.tool_args_dict = {}
-        elif self.tool_args_dict and not self.tool_args:
-            self.tool_args = json.dumps(self.tool_args_dict)
 
     @computed_field
     @property
@@ -203,44 +210,24 @@ class ToolCall(BaseModel):
             'input': self.tool_args_dict,
         }
 
-    def __rich__(self):
-        if self.rich_args:
-            return Group(
-                render_message(
-                    format_style(self.tool_name, 'bold'),
-                    mark_style='green',
-                    status=self.status,
-                ),
-                self.rich_args,
-            )
-        if self.hide_args or (not self.nice_args and not self.tool_args):
-            return render_message(
-                format_style(self.tool_name, 'bold'),
-                mark_style='green',
-                status=self.status,
-            )
-        msg = Text.assemble((self.tool_name, 'bold'), '(', self.nice_args or self.tool_args, ')')
-        return render_message(msg, mark_style='green', status=self.status)
-
-    def get_suffix_renderable(self) -> RichRenderable:
-        args = '' if self.hide_args else self.nice_args or self.tool_args
-        msg = Text.assemble((self.tool_name, 'bold'), '(', args, ')')
-        return render_suffix(msg, style='red' if self.status == 'error' else 'yellow' if self.status == 'canceled' else None)
+    def __rich_console__(self, console, options):
+        if self.tool_name in _TOOL_CALL_RENDERERS:
+            for i, item in enumerate(_TOOL_CALL_RENDERERS[self.tool_name](self)):
+                if i == 0:
+                    yield render_message(item, mark_style='green', status=self.status)
+                else:
+                    yield item
+        else:
+            msg = Text.assemble((self.tool_name, 'bold'), '(', self.tool_args, ')')
+            yield render_message(msg, mark_style='green', status=self.status)
 
 
 class AIMessage(BasicMessage):
     role: Literal['assistant'] = 'assistant'
-    thinking_content: Optional[str] = ''
     tool_calls: dict[str, ToolCall] = {}  # id -> ToolCall
-    nice_content: Optional[str] = None
-    # Used for Anthropic extended thinking
+    thinking_content: Optional[str] = ''
     thinking_signature: Optional[str] = ''
     finish_reason: Literal['stop', 'length', 'tool_calls', 'content_filter', 'function_call'] = 'stop'
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        if self.content and not self.nice_content:
-            self.nice_content = render_markdown(self.content)
 
     @computed_field
     @property
@@ -296,11 +283,8 @@ class AIMessage(BasicMessage):
                 style='italic',
             )
             yield ''
-        if self.nice_content:
-            yield render_message(self.nice_content, mark_style='white', style='orange')
-            yield ''
         elif self.content:
-            yield render_message(self.content, mark_style='white', style='orange')
+            yield render_message(render_markdown(self.content), mark_style='white', style='orange')
             yield ''
 
     def __bool__(self):
@@ -323,12 +307,16 @@ class AIMessage(BasicMessage):
 
 class ToolMessage(BasicMessage):
     role: Literal['tool'] = 'tool'
-    tool_call: ToolCall
-    suffixes: List[Union[ToolCall, str]] = Field(default_factory=list)  # For sub-agent tool calls
-    nice_content: Optional[Any] = Field(default=None)
+    tool_call_id: str
+    tool_call_cache: ToolCall = Field(exclude=True)
+    data: List[Union[dict, str]] = Field(default_factory=list)  # For structured data, strings, and sub-agent tool calls
 
     class Config:
         arbitrary_types_allowed = True
+
+    @property
+    def tool_call(self) -> ToolCall:
+        return self.tool_call_cache
 
     def to_openai(self) -> ChatCompletionMessageParam:
         return {
@@ -357,18 +345,18 @@ class ToolMessage(BasicMessage):
 
     def __rich_console__(self, console, options):
         yield self.tool_call
-        for c in self.suffixes:
-            yield c.get_suffix_renderable() if isinstance(c, ToolCall) else c
 
-        if self.nice_content:
-            yield render_suffix(self.nice_content, style='red' if self.tool_call.status == 'error' else None)
-        elif self.content:
-            yield render_suffix(
-                truncate_middle_text(self.content.strip()) if isinstance(self.content, str) else self.content,
-                style='red' if self.tool_call.status == 'error' else None,
-            )
-        elif self.tool_call.status == 'success':
-            yield render_suffix('(No content)')
+        if self.tool_call.tool_name in _TOOL_RESULT_RENDERERS:
+            for item in _TOOL_RESULT_RENDERERS[self.tool_call.tool_name](self):
+                yield item
+        else:
+            if self.content:
+                yield render_suffix(
+                    truncate_middle_text(self.content.strip()) if isinstance(self.content, str) else self.content,
+                    style='red' if self.tool_call.status == 'error' else None,
+                )
+            elif self.tool_call.status == 'success':
+                yield render_suffix('(No content)')
 
         if self.tool_call.status == 'canceled':
             yield render_suffix(INTERRUPTED_MSG, style='yellow')
@@ -382,7 +370,21 @@ class ToolMessage(BasicMessage):
             return
         self.content = content
 
-    def add_suffixes(self, suffixes: List[Union[ToolCall, str]]):
+    def add_data(self, data: Union[dict, str, ToolCall]):
+        """Convenience method to add structured data for custom rendering"""
         if self.tool_call.status == 'canceled':
             return
-        self.suffixes.extend(suffixes)
+        self.data.append(data)
+
+
+# Tool renderer registry for custom rendering
+_TOOL_CALL_RENDERERS = {}
+_TOOL_RESULT_RENDERERS = {}
+
+
+def register_tool_call_renderer(tool_name: str, renderer_func: Callable[[ToolCall], RichRenderable]):
+    _TOOL_CALL_RENDERERS[tool_name] = renderer_func
+
+
+def register_tool_result_renderer(tool_name: str, renderer_func: Callable[[ToolMessage], RichRenderable]):
+    _TOOL_RESULT_RENDERERS[tool_name] = renderer_func

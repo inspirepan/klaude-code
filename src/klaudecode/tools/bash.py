@@ -8,8 +8,10 @@ from typing import Annotated, Optional, Set
 
 from pydantic import BaseModel, Field
 
-from ..message import ToolCall
+from ..message import ToolCall, register_tool_call_renderer, ToolMessage
 from ..tool import Tool, ToolInstance
+from ..tui import render_message
+from rich.text import Text
 
 
 class BashTool(Tool):
@@ -283,3 +285,18 @@ class BashTool(Tool):
                     return total_output_size, False, ''
             except Exception as e:
                 return total_output_size, True, f'Error reading output: {str(e)}'
+
+
+def render_bash_args(tool_call: ToolCall):
+    tool_call_msg = Text.assemble(
+        (tool_call.tool_name, 'bold'),
+        '(',
+        tool_call.tool_args_dict.get('description', ''),
+        " → ",
+        tool_call.tool_args_dict.get('command', ''),
+        ')',
+    )
+    yield tool_call_msg
+
+
+register_tool_call_renderer('Bash', render_bash_args)

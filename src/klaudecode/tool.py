@@ -115,7 +115,6 @@ class Tool(ABC):
         if hasattr(cls, 'Input') and issubclass(cls.Input, BaseModel):
             args_dict = json.loads(tool_call.tool_args)
             input_inst = cls.Input(**args_dict)
-            tool_call.nice_args = str(input_inst)
             return input_inst
         return None
 
@@ -143,7 +142,7 @@ class ToolInstance:
     def __init__(self, tool: type[Tool], tool_call: ToolCall, parent_agent):
         self.tool = tool
         self.tool_call = tool_call
-        self.tool_msg: ToolMessage = ToolMessage(tool_call=tool_call)
+        self.tool_msg: ToolMessage = ToolMessage(tool_call_id=tool_call.id, tool_call_cache=tool_call)
         self.parent_agent = parent_agent
 
         self._task: Optional[asyncio.Task] = None

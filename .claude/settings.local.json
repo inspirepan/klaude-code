@@ -10,7 +10,8 @@
       "Bash(find:*)",
       "Bash(rg:*)",
       "Bash(uv sync:*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }

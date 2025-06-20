@@ -3,16 +3,16 @@ import os
 from typing import Annotated, Any, List, Optional
 
 from pydantic import BaseModel, Field
-
+from rich.text import Text
 from .config import ConfigModel
 from .input import Commands, InputModeEnum, InputSession, UserInput
 from .llm import AgentLLM
-from .message import AIMessage, BasicMessage, SystemMessage, ToolCall, UserMessage, INTERRUPTED_MSG
+from .message import AIMessage, BasicMessage, SystemMessage, ToolCall, UserMessage, INTERRUPTED_MSG, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from .prompt import AGENT_TOOL_DESC, SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT, CODE_SEARCH_AGENT_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, TodoReadTool, TodoWriteTool
-from .tui import console, render_message, render_suffix
+from .tui import console, render_message, render_suffix, format_style, render_markdown
 
 DEFAULT_MAX_STEPS = 80
 INTERACTIVE_MAX_STEPS = 100
@@ -122,15 +122,6 @@ class Agent(Tool):
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         args: 'Agent.Input' = cls.parse_input_args(tool_call)
-        from rich.box import HORIZONTALS
-        from rich.padding import Padding
-        from rich.panel import Panel
-        from rich.text import Text
-
-        tool_call.rich_args = Padding.indent(
-            Panel.fit(args.prompt, title=Text(args.description, style='bold'), box=HORIZONTALS),
-            level=2,
-        )
 
         def subagent_append_message_hook(*msgs: BasicMessage) -> None:
             if not msgs:
@@ -139,7 +130,8 @@ class Agent(Tool):
                 if not isinstance(msg, AIMessage):
                     continue
                 if msg.tool_calls:
-                    instance.tool_result().add_suffixes(msg.tool_calls.values())
+                    for tool_call in msg.tool_calls.values():
+                        instance.tool_result().add_data(tool_call.model_dump())
 
         session = Session(
             work_dir=os.getcwd(),
@@ -165,8 +157,35 @@ class CodeSearchAgentTool(Agent):
         return BASIC_TOOLS
 
 
+def render_agent_args(tool_call: ToolCall):
+    yield format_style(tool_call.tool_name, 'bold')
+    from rich.box import HORIZONTALS
+    from rich.padding import Padding
+    from rich.panel import Panel
+    from rich.text import Text
+    yield Padding.indent(
+        Panel.fit(tool_call.tool_args_dict['prompt'], title=Text(tool_call.tool_args_dict['description'], style='bold'), box=HORIZONTALS),
+        level=2,
+    )
+
+
+def render_agent_result(tool_msg: ToolMessage):
+    for subagent_tool_call_dcit in tool_msg.data:
+        if not isinstance(subagent_tool_call_dcit, dict):
+            continue
+        tool_call = ToolCall(**subagent_tool_call_dcit)
+        yield render_suffix(tool_call, render_text=True)
+    yield render_suffix(render_markdown(tool_msg.content), style='orange', render_text=True)
+
+
+register_tool_call_renderer('Agent', render_agent_args)
+register_tool_result_renderer('Agent', render_agent_result)
+register_tool_call_renderer('CodeSearchAgent', render_agent_args)
+register_tool_result_renderer('CodeSearchAgent', render_agent_result)
+
+
 def get_main_agent(session: Session, config: ConfigModel) -> Agent:
-    return Agent(session, config, tools=BASIC_TOOLS + [Agent, TodoWriteTool, TodoReadTool, CodeSearchAgentTool])
+    return Agent(session, config, tools=BASIC_TOOLS + [Agent, TodoWriteTool, TodoReadTool])
 
 
 class CommandHandler:
