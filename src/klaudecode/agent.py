@@ -3,7 +3,6 @@ import os
 from typing import Annotated, Any, List, Optional
 
 from pydantic import BaseModel, Field
-from rich.text import Text
 from .config import ConfigModel
 from .input import Commands, InputModeEnum, InputSession, UserInput
 from .llm import AgentLLM
@@ -163,6 +162,7 @@ def render_agent_args(tool_call: ToolCall):
     from rich.padding import Padding
     from rich.panel import Panel
     from rich.text import Text
+
     yield Padding.indent(
         Panel.fit(tool_call.tool_args_dict['prompt'], title=Text(tool_call.tool_args_dict['description'], style='bold'), box=HORIZONTALS),
         level=2,
@@ -170,13 +170,15 @@ def render_agent_args(tool_call: ToolCall):
 
 
 def render_agent_result(tool_msg: ToolMessage):
+    from rich.panel import Panel
+    from rich.console import Group
     for subagent_tool_call_dcit in tool_msg.data:
         if not isinstance(subagent_tool_call_dcit, dict):
             continue
         tool_call = ToolCall(**subagent_tool_call_dcit)
         for item in tool_call.get_suffix_renderable():
             yield render_suffix(item)
-    yield render_suffix(render_markdown(tool_msg.content), render_text=True)
+    yield render_suffix(Group("", Panel.fit(render_markdown(tool_msg.content), border_style="dim")))
 
 
 register_tool_call_renderer('Agent', render_agent_args)
