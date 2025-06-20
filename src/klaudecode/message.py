@@ -1,16 +1,17 @@
 import json
 from functools import cached_property
-from typing import Any, Callable, List, Literal, Optional, Union
+from typing import Callable, List, Literal, Optional, Union
 
-from anthropic.types import ContentBlock, MessageParam, TextBlockParam, ToolUseBlockParam
+from anthropic.types import (ContentBlock, MessageParam, TextBlockParam,
+                             ToolUseBlockParam)
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field, computed_field, model_validator
 from rich.abc import RichRenderable
-from rich.console import Group
 from rich.text import Text
 
 from .config import ConfigModel
-from .tui import format_style, render_markdown, render_message, render_suffix, truncate_middle_text
+from .tui import (format_style, render_markdown, render_message, render_suffix,
+                  truncate_middle_text)
 
 INTERRUPTED_MSG = 'Task interrupted by user'
 
@@ -276,20 +277,18 @@ class AIMessage(BasicMessage):
     def __rich_console__(self, console, options):
         if self.thinking_content:
             yield render_message(
-                format_style('Thinking...', 'gray'),
+                format_style('Thinking...', 'bright_black'),
                 mark='✻',
-                mark_style='white',
                 style='italic',
             )
             yield render_message(
-                format_style(self.thinking_content, 'gray'),
+                format_style(self.thinking_content, 'bright_black'),
                 mark='',
-                mark_style='white',
                 style='italic',
             )
             yield ''
         elif self.content:
-            yield render_message(render_markdown(self.content), mark_style='white', style='orange')
+            yield render_message(render_markdown(self.content), mark_style='orange', style='orange')
             yield ''
 
     def __bool__(self):
@@ -314,7 +313,7 @@ class ToolMessage(BasicMessage):
     role: Literal['tool'] = 'tool'
     tool_call_id: str
     tool_call_cache: ToolCall = Field(exclude=True)
-    extra_data: List[Union[dict, str]] = Field(default_factory=list)
+    extra_data: List[object] = Field(default_factory=list)
     error_msg: Optional[str] = None
 
     class Config:
@@ -384,17 +383,11 @@ class ToolMessage(BasicMessage):
         self.error_msg = error_msg
         self.tool_call.status = 'error'
 
-    def add_extra_data(self, extra_data: Union[dict, str]):
+    def add_extra_data(self, extra_data: object):
         """Convenience method to add structured data for custom rendering"""
         if self.tool_call.status == 'canceled':
             return
         self.extra_data.append(extra_data)
-
-    def set_extra_data(self, extra_data: List[Union[dict, str]]):
-        """Convenience method to add structured data for custom rendering"""
-        if self.tool_call.status == 'canceled':
-            return
-        self.extra_data = extra_data
 
 
 # Tool renderer registry for custom rendering

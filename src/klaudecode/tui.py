@@ -14,10 +14,7 @@ light_theme = Theme(
     {
         'orange': 'rgb(201,125,92)',
         'blue': 'rgb(62,99,153)',
-        'gray': 'rgb(137,136,131)',
-        'dim': 'rgb(200,200,200)',
         'red': 'rgb(158,57,66)',
-        'black': 'white',
         'green': 'rgb(65,120,64)',
         'agent_result': 'rgb(210,231,227)',
         'yellow': 'rgb(143,110,44)',
@@ -33,18 +30,15 @@ dark_theme = Theme(
     {
         'orange': 'rgb(201,125,92)',
         'blue': 'rgb(62,99,153)',
-        'gray': 'rgb(137,136,131)',
-        'dim': 'rgb(50,50,50)',
         'red': 'rgb(237,116,130)',
-        'black': 'black',
         'green': 'rgb(65,120,64)',
         'agent_result': 'rgb(10,31,27)',
-        'yellow': 'rgb(155,104,39)',
+        'yellow': 'rgb(143,110,44)',
         'purple': 'rgb(139,134,248)',
-        'diff_removed': 'black on rgb(242,172,180)',
-        'diff_added': 'black on rgb(133,216,133)',
-        'diff_removed_char': 'black on rgb(193,81,78)',
-        'diff_added_char': 'black on rgb(80,155,78)',
+        'diff_removed': 'white on rgb(242,172,180)',
+        'diff_added': 'white on rgb(133,216,133)',
+        'diff_removed_char': 'white on rgb(193,81,78)',
+        'diff_added_char': 'white on rgb(80,155,78)',
     }
 )
 
@@ -52,7 +46,7 @@ dark_theme = Theme(
 class ConsoleProxy:
     def __init__(self):
         # TODO: theme detect or config
-        self.console = Console(theme=light_theme)
+        self.console = Console(theme=light_theme, style='bright_black')
         self.silent = False
 
     def print(self, *args, **kwargs):
@@ -161,7 +155,7 @@ def render_hello() -> RenderResult:
             '',
             '[gray][italic]/status for your current setup[/italic][/gray]',
             '',
-            format_style('cwd: {}'.format(os.getcwd()), 'gray'),
+            format_style('cwd: {}'.format(os.getcwd()), 'bright_black'),
         ),
     )
     return Group(
@@ -170,8 +164,8 @@ def render_hello() -> RenderResult:
         render_message(
             'type \\ followed by [bold]Enter[/bold] to insert newlines\ntype / to choose slash command\ntype ! to run bash command\ntype # to write memory\ntype * to plan mode\n',
             mark='※ Tip:',
-            style='gray',
-            mark_style='gray',
+            style='bright_black',
+            mark_style='bright_black',
             mark_width=5,
         ),
         '',
@@ -195,8 +189,8 @@ def truncate_middle_text(text: str, max_lines: int = 30) -> RichRenderable:
     tail_content = '\n'.join(lines[-tail_lines:])
     return Group(
         head_content,
-        Text('···', style='gray'),
-        Text.assemble('+ ', Text(str(middle_lines), style='bold'), ' lines', style='gray'),
-        Text('···', style='gray'),
+        Text('···', style='bright_black'),
+        Text.assemble('+ ', Text(str(middle_lines), style='bold'), ' lines', style='bright_black'),
+        Text('···', style='bright_black'),
         tail_content,
     )

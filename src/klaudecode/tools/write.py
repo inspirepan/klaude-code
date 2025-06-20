@@ -7,7 +7,9 @@ from rich.text import Text
 from ..message import ToolCall, register_tool_call_renderer
 from ..prompt import WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
-from .file_utils import cache_file_content, cleanup_backup, create_backup, ensure_directory_exists, restore_backup, validate_file_cache, write_file_content
+from .file_utils import (cache_file_content, cleanup_backup, create_backup,
+                         ensure_directory_exists, restore_backup,
+                         validate_file_cache, write_file_content)
 
 """
 - Safety mechanism requiring existing files to be read first

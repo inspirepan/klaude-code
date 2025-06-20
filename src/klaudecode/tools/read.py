@@ -1,13 +1,16 @@
 from typing import Annotated, Optional
 
 from pydantic import BaseModel, Field
+from rich.table import Table
 from rich.text import Text
 
-from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
+from ..message import (ToolCall, ToolMessage, register_tool_call_renderer,
+                       register_tool_result_renderer)
 from ..prompt import READ_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import render_suffix
-from .file_utils import cache_file_content, format_with_line_numbers, read_file_content, truncate_content, validate_file_exists
+from .file_utils import (cache_file_content, read_file_content,
+                         truncate_content, validate_file_exists)
 
 """
 - Flexible reading with offset and line limit support
@@ -17,10 +20,13 @@ from .file_utils import cache_file_content, format_with_line_numbers, read_file_
 - UTF-8 encoding support and empty file handling
 """
 
+TRUNCATE_CHAR_LIMIT = 5000
+TRUNCATE_LINE_LIMIT = 1000
+
 
 class ReadTool(Tool):
     name = 'Read'
-    desc = READ_TOOL_DESC
+    desc = READ_TOOL_DESC.format(TRUNCATE_CHAR_LIMIT=TRUNCATE_CHAR_LIMIT, TRUNCATE_LINE_LIMIT=TRUNCATE_LINE_LIMIT)
 
     class Input(BaseModel):
         file_path: Annotated[str, Field(description='The absolute path to the file to read')]
@@ -56,15 +62,16 @@ class ReadTool(Tool):
 
         # Handle empty file
         if not content:
-            instance.tool_result().set_content('<empty>\n\nFull 0 lines')
+            instance.tool_result().set_content('(No content)\n\nFull 0 lines')
             return
 
         # Split content into lines for offset/limit processing
         lines = content.splitlines()
         total_lines = len(lines)
 
-        # Apply offset and limit
-        start_line = 1
+        # Build list of (line_number, content) tuples
+        numbered_lines = [(i + 1, line) for i, line in enumerate(lines)]
+
         if args.offset is not None:
             if args.offset < 1:
                 instance.tool_result().set_error_msg('Offset must be >= 1')
@@ -72,39 +79,40 @@ class ReadTool(Tool):
             if args.offset > total_lines:
                 instance.tool_result().set_error_msg(f'Offset {args.offset} exceeds file length ({total_lines} lines)')
                 return
-            start_line = args.offset
-            lines = lines[args.offset - 1 :]
+            numbered_lines = numbered_lines[args.offset - 1 :]
 
         if args.limit is not None:
             if args.limit < 1:
                 instance.tool_result().set_error_msg('Limit must be >= 1')
                 return
-            lines = lines[: args.limit]
-
-        # Reconstruct content from selected lines
-        selected_content = '\n'.join(lines)
-
-        # Format with line numbers
-        formatted_content = format_with_line_numbers(selected_content, start_line)
+            numbered_lines = numbered_lines[: args.limit]
 
         # Truncate if necessary
-        final_content = truncate_content(formatted_content)
-
-        # Add metadata information in the reference format
-        result = final_content + f'\n\nFull {total_lines} Lines'
-
+        truncated_numbered_lines, remaining_line_count = truncate_content(numbered_lines, TRUNCATE_CHAR_LIMIT)
+        result = ''
+        if len(truncated_numbered_lines) > 0:
+            width = len(str(truncated_numbered_lines[-1][0]))
+            result = '\n'.join([f'{line_num:>{width}}: {line_content}' for line_num, line_content in truncated_numbered_lines])
+        else:
+            # Handle case where single line content exceeds character limit
+            result = numbered_lines[0][1][:TRUNCATE_CHAR_LIMIT] + '... (more content is truncated)'
+        if remaining_line_count > 0:
+            result += f'\n... (more {remaining_line_count} lines are truncated)'
         if warning:
             result += f'\n{warning}'
-
+        result += f'\n\nFull {total_lines} lines'
         instance.tool_result().set_content(result)
+        instance.tool_result().add_extra_data({'read_line_count': len(numbered_lines), 'brief': truncated_numbered_lines[:5]})
 
 
 def render_read_args(tool_call: ToolCall):
     offset = tool_call.tool_args_dict.get('offset', 0)
     limit = tool_call.tool_args_dict.get('limit', 0)
     line_range = ''
-    if offset or limit:
-        line_range = f' [{offset}-{offset + limit - 1}]'
+    if offset and limit:
+        line_range = f' [{offset}:{offset + limit - 1}]'
+    elif offset:
+        line_range = f' [{offset}:]'
     tool_call_msg = Text.assemble(
         (tool_call.tool_name, 'bold'),
         '(',
@@ -116,15 +124,20 @@ def render_read_args(tool_call: ToolCall):
 
 
 def render_read_content(tool_msg: ToolMessage):
-    if tool_msg.content:
-        lines = tool_msg.content.split('\n')
-        filtered_lines = []
-        for line in lines:
-            stripped = line.strip()
-            if stripped and (stripped[0].isdigit() or stripped.startswith('...')):
-                filtered_lines.append(line)
-        tool_msg.content = '\n'.join(filtered_lines)
-        yield render_suffix(tool_msg.content)
+    if tool_msg.extra_data:
+        read_line_count = tool_msg.extra_data[0].get('read_line_count', 0)
+        brief_list = tool_msg.extra_data[0].get('brief', [])
+        if brief_list:
+            table = Table.grid(padding=(0, 1))
+            width = len(str(brief_list[-1][0]))
+            table.add_column(width=width, justify='right')
+            table.add_column(overflow='fold')
+            for line_num, line_content in brief_list:
+                table.add_row(f'{line_num:>{width}}:', line_content)
+            table.add_row('…', f'Read [bold]{read_line_count}[/bold] lines')
+            yield render_suffix(table)
+            return
+        yield render_suffix(f'Read [bold]{read_line_count}[/bold] lines')
 
 
 register_tool_call_renderer('Read', render_read_args)

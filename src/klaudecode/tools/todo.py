@@ -4,8 +4,10 @@ from typing import Annotated, List, Literal
 from pydantic import BaseModel, Field
 from rich.console import Group
 
-from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
-from ..prompt.tools import TODO_READ_AI_RESULT_TEMPLATE, TODO_READ_TOOL_DESC, TODO_WRITE_AI_RESULT, TODO_WRITE_TOOL_DESC
+from ..message import (ToolCall, ToolMessage, register_tool_call_renderer,
+                       register_tool_result_renderer)
+from ..prompt.tools import (TODO_READ_AI_RESULT_TEMPLATE, TODO_READ_TOOL_DESC,
+                            TODO_WRITE_AI_RESULT, TODO_WRITE_TOOL_DESC)
 from ..tool import Tool, ToolInstance
 from ..tui import format_style, render_suffix
 

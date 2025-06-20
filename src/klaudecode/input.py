@@ -39,7 +39,6 @@ class InputMode(BaseModel):
             'completion-menu.completion.current': 'bg:#4a4a4a fg:#aaddff',
             'scrollbar.background': 'bg:default',
             'scrollbar.button': 'bg:default',
-            # Normal line with transparent background and gray foreground
             'completion-menu.meta.completion': 'bg:default fg:#9a9a9a',
             'completion-menu.meta.completion.current': 'bg:#aaddff fg:#4a4a4a',
         }
@@ -86,7 +85,7 @@ input_mode_dict = {
         name=InputModeEnum.NORMAL,
         prompt='>',
         placeholder='type you query... type exit to quit.',
-        style='',
+        style='ansibrightblack',
         next_mode=InputModeEnum.NORMAL,
     ),
     InputModeEnum.PLAN: InputMode(

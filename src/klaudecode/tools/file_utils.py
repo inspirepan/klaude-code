@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 from typing import Dict, List, Tuple
+from rich.console import Group
 
 FILE_CACHE: Dict[str, str] = {}
 
@@ -19,8 +20,8 @@ TRUNCATE_LINE_LIMIT = 1000
 - File system operations (directory creation, text file identification)
 """
 
-FILE_NOT_READ_ERROR = "File has not been read yet. Use 'Read' tool to read it first before writing to it."
-FILE_MODIFIED_ERROR = "File has been modified externally. Either by user or a linter. Use 'Read' tool to read it first before writing to it."
+FILE_NOT_READ_ERROR = 'File has not been read yet. Read it first before writing to it.'
+FILE_MODIFIED_ERROR = 'File has been modified externally. Either by user or a linter. Read it first before writing to it.'
 
 
 def validate_file_exists(file_path: str) -> Tuple[bool, str]:
@@ -106,65 +107,23 @@ def generate_diff_lines(old_content: str, new_content: str) -> List[str]:
     return diff_lines
 
 
-def calculate_line_number_width(total_lines: int) -> int:
-    """Calculate the width needed for line numbers based on total lines"""
-    if total_lines <= 0:
-        return 1
-    return len(str(total_lines))
-
-
-def format_line_with_number(line_num: int, line_content: str, width: int, marker: str = '') -> str:
-    """Format a line with line number and optional marker"""
-    if marker:
-        return f'{marker}{line_num:{width}d}: {line_content}'
-    else:
-        return f'{line_num:{width}d}: {line_content}'
-
-
-def format_with_line_numbers(content: str, start_line: int = 1) -> str:
-    lines = content.splitlines()
-    if not lines:
-        return ''
-
-    # Calculate total lines to determine width
-    total_lines = start_line + len(lines) - 1
-    width = calculate_line_number_width(total_lines)
-
-    formatted_lines = []
-    for i, line in enumerate(lines):
-        line_num = start_line + i
-        formatted_lines.append(format_line_with_number(line_num, line, width))
-
-    return '\n'.join(formatted_lines)
-
-
-def truncate_content(content: str, char_limit: int = TRUNCATE_CHAR_LIMIT, line_limit: int = TRUNCATE_LINE_LIMIT) -> Tuple[str, bool, int]:
-    lines = content.splitlines()
-
-    if len(content) <= char_limit and len(lines) <= line_limit:
-        return content, False, 0
-
+def truncate_content(numbered_lines: List[Tuple[int, str]], char_limit: int = TRUNCATE_CHAR_LIMIT, line_limit: int = TRUNCATE_LINE_LIMIT) -> Tuple[List[Tuple[int, str]], int]:
+    total_char_count = sum(len(line_content) for _, line_content in numbered_lines)
+    if total_char_count <= char_limit and len(numbered_lines) <= line_limit:
+        return numbered_lines, 0
     truncated_lines = []
     char_count = 0
-    remaining_lines = 0
-
-    for i, line in enumerate(lines):
+    remaining_line_count = 0
+    for i, (line_num, line_content) in enumerate(numbered_lines):
         if i >= line_limit:
-            remaining_lines = len(lines) - i
+            remaining_line_count = len(numbered_lines) - i
             break
-
-        if char_count + len(line) + 1 > char_limit:
-            remaining_lines = len(lines) - i
+        if char_count + len(line_content) + 1 > char_limit:
+            remaining_line_count = len(numbered_lines) - i
             break
-
-        truncated_lines.append(line)
-        char_count += len(line) + 1
-
-    result = '\n'.join(truncated_lines)
-    if remaining_lines > 0:
-        result += f'\n... (more {remaining_lines} lines are truncated)'
-
-    return result
+        truncated_lines.append((line_num, line_content))
+        char_count += len(line_content) + 1
+    return truncated_lines, remaining_line_count
 
 
 def ensure_directory_exists(file_path: str):
@@ -255,13 +214,13 @@ def get_edit_context_snippet(new_content: str, new_string: str, old_content: str
 
 def render_diff_lines(diff_lines: List[str]):
     if not diff_lines:
-        yield ''
-        return
+        return ''
 
     old_line_num = 1
     new_line_num = 1
     width = 3
 
+    lines = []
     for line in diff_lines:
         if line.startswith('---') or line.startswith('+++'):
             continue
@@ -272,16 +231,17 @@ def render_diff_lines(diff_lines: List[str]):
                 new_line_num = int(match.group(2))
         elif line.startswith('-'):
             removed_line = line[1:].strip()
-            yield f'[diff_removed]{old_line_num:{width}d}:- {removed_line}[/diff_removed]'
+            lines.append(f'[diff_removed]{old_line_num:{width}d}:-  {removed_line}[/diff_removed]')
             old_line_num += 1
         elif line.startswith('+'):
             added_line = line[1:].strip()
-            yield f'[diff_added]{new_line_num:{width}d}:+ {added_line}[/diff_added]'
+            lines.append(f'[diff_added]{new_line_num:{width}d}:+  {added_line}[/diff_added]')
             new_line_num += 1
         elif line.startswith(' '):
             context_line = line[1:].strip()
-            yield f'{old_line_num:{width}d}:  {context_line}'
+            lines.append(f'{old_line_num:{width}d}:   {context_line}')
             old_line_num += 1
             new_line_num += 1
         else:
-            yield line
+            lines.append(line)
+    return Group(*lines)
