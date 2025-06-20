@@ -221,6 +221,13 @@ class ToolCall(BaseModel):
             msg = Text.assemble((self.tool_name, 'bold'), '(', self.tool_args, ')')
             yield render_message(msg, mark_style='green', status=self.status)
 
+    def get_suffix_renderable(self):
+        if self.tool_name in _TOOL_CALL_RENDERERS:
+            for item in _TOOL_CALL_RENDERERS[self.tool_name](self):
+                yield item
+        else:
+            yield Text.assemble((self.tool_name, 'bold'), '(', self.tool_args, ')')
+
 
 class AIMessage(BasicMessage):
     role: Literal['assistant'] = 'assistant'

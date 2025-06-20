@@ -174,8 +174,9 @@ def render_agent_result(tool_msg: ToolMessage):
         if not isinstance(subagent_tool_call_dcit, dict):
             continue
         tool_call = ToolCall(**subagent_tool_call_dcit)
-        yield render_suffix(tool_call, render_text=True)
-    yield render_suffix(render_markdown(tool_msg.content), style='orange', render_text=True)
+        for item in tool_call.get_suffix_renderable():
+            yield render_suffix(item)
+    yield render_suffix(render_markdown(tool_msg.content), render_text=True)
 
 
 register_tool_call_renderer('Agent', render_agent_args)
