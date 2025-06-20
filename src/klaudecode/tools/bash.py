@@ -8,7 +8,7 @@ from typing import Annotated, Optional, Set
 
 from pydantic import BaseModel, Field
 
-from ..message import ToolCallMessage
+from ..message import ToolCall
 from ..tool import Tool, ToolInstance
 
 
@@ -70,7 +70,7 @@ class BashTool(Tool):
     MAX_TIMEOUT = 600000  # 10 minutes in milliseconds
 
     @classmethod
-    def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
+    def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         args: 'BashTool.Input' = cls.parse_input_args(tool_call)
 
         # Validate command safety

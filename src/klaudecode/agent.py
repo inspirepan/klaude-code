@@ -7,12 +7,11 @@ from pydantic import BaseModel, Field
 from .config import ConfigModel
 from .input import Commands, InputModeEnum, InputSession, UserInput
 from .llm import AgentLLM
-from .message import AIMessage, BasicMessage, SystemMessage, ToolCallMessage, UserMessage, INTERRUPTED_MSG
+from .message import AIMessage, BasicMessage, SystemMessage, ToolCall, UserMessage, INTERRUPTED_MSG
 from .prompt import AGENT_TOOL_DESC, SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT, CODE_SEARCH_AGENT_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
-from .tools.bash import BashTool
-from .tools.todo import TodoReadTool, TodoWriteTool
+from .tools import BashTool, TodoReadTool, TodoWriteTool
 from .tui import console, render_message, render_suffix
 
 DEFAULT_MAX_STEPS = 80
@@ -121,7 +120,7 @@ class Agent(Tool):
         return BASIC_TOOLS
 
     @classmethod
-    def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
+    def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         args: 'Agent.Input' = cls.parse_input_args(tool_call)
         from rich.box import HORIZONTALS
         from rich.padding import Padding

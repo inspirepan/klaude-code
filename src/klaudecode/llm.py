@@ -10,7 +10,7 @@ from openai.types.chat.chat_completion_message_tool_call import Function
 from rich.status import Status
 
 from .message import (AIMessage, BasicMessage, CompletionUsage, SystemMessage,
-                      ToolCallMessage, count_tokens)
+                      ToolCall, count_tokens)
 from .tool import Tool
 from .tui import INTERRUPT_TIP, console, render_message
 
@@ -60,7 +60,7 @@ class OpenAIProxy:
                 total_tokens=completion.usage.total_tokens,
             )
         tool_calls = {
-            raw_tc.id: ToolCallMessage(
+            raw_tc.id: ToolCall(
                 id=raw_tc.id,
                 tool_name=raw_tc.function.name,
                 tool_args=raw_tc.function.arguments,
@@ -164,9 +164,9 @@ class OpenAIProxy:
             if chunk.function.arguments and self.tool_call_list:
                 self.tool_call_list[-1].function.arguments += chunk.function.arguments
 
-        def get_tool_call_msg_dict(self) -> Dict[str, ToolCallMessage]:
+        def get_tool_call_msg_dict(self) -> Dict[str, ToolCall]:
             return {
-                raw_tc.id: ToolCallMessage(
+                raw_tc.id: ToolCall(
                     id=raw_tc.id,
                     tool_name=raw_tc.function.name,
                     tool_args=raw_tc.function.arguments,
@@ -215,7 +215,7 @@ class AnthropicProxy:
         tool_use_blocks = [block for block in resp.content if block.type == 'tool_use']
         text_blocks = [block for block in resp.content if block.type != 'tool_use' and block.type != 'thinking']
         tool_calls = {
-            tool_use.id: ToolCallMessage(
+            tool_use.id: ToolCall(
                 id=tool_use.id,
                 tool_name=tool_use.name,
                 tool_args_dict=tool_use.input,
@@ -296,7 +296,7 @@ class AnthropicProxy:
                 if block and block.type == 'tool_use':
                     # Get accumulated JSON fragments
                     json_str = tool_json_fragments.get(event.index, '{}')
-                    tool_calls[block.id] = ToolCallMessage(
+                    tool_calls[block.id] = ToolCall(
                         id=block.id,
                         tool_name=block.name,
                         tool_args=json_str,

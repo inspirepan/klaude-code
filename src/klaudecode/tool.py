@@ -11,7 +11,7 @@ from rich.console import Group
 from rich.live import Live
 from rich.status import Status
 
-from .message import AIMessage, ToolCallMessage, ToolMessage
+from .message import AIMessage, ToolCall, ToolMessage
 from .tui import INTERRUPT_TIP, console
 
 
@@ -107,11 +107,11 @@ class Tool(ABC):
         return json.dumps(cls.openai_schema())
 
     @classmethod
-    def create_instance(cls, tool_call: ToolCallMessage, parent_agent) -> 'ToolInstance':
+    def create_instance(cls, tool_call: ToolCall, parent_agent) -> 'ToolInstance':
         return ToolInstance(tool=cls, tool_call=tool_call, parent_agent=parent_agent)
 
     @classmethod
-    def parse_input_args(cls, tool_call: ToolCallMessage) -> Optional[BaseModel]:
+    def parse_input_args(cls, tool_call: ToolCall) -> Optional[BaseModel]:
         if hasattr(cls, 'Input') and issubclass(cls.Input, BaseModel):
             args_dict = json.loads(tool_call.tool_args)
             input_inst = cls.Input(**args_dict)
@@ -120,11 +120,11 @@ class Tool(ABC):
         return None
 
     @classmethod
-    def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
+    def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         raise NotImplementedError
 
     @classmethod
-    async def invoke_async(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
+    async def invoke_async(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         loop = asyncio.get_event_loop()
         with ThreadPoolExecutor() as executor:
             future = loop.run_in_executor(executor, cls.invoke, tool_call, instance)
@@ -140,7 +140,7 @@ class Tool(ABC):
 
 
 class ToolInstance:
-    def __init__(self, tool: type[Tool], tool_call: ToolCallMessage, parent_agent):
+    def __init__(self, tool: type[Tool], tool_call: ToolCall, parent_agent):
         self.tool = tool
         self.tool_call = tool_call
         self.tool_msg: ToolMessage = ToolMessage(tool_call=tool_call)
@@ -216,7 +216,7 @@ class ToolHandler:
         for tc in non_parallelable_tool_calls:
             await self.handle_single_tool_call(tc)
 
-    async def handle_parallel_tool_call(self, tool_calls: List[ToolCallMessage]):
+    async def handle_parallel_tool_call(self, tool_calls: List[ToolCall]):
         if not tool_calls:
             return
 
@@ -272,7 +272,7 @@ class ToolHandler:
             if interrupted:
                 raise asyncio.CancelledError
 
-    async def handle_single_tool_call(self, tool_call: ToolCallMessage):
+    async def handle_single_tool_call(self, tool_call: ToolCall):
         tool_instance = self.tool_dict[tool_call.tool_name].create_instance(tool_call, self.agent)
         task = await tool_instance.start_async()
 

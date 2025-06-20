@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 from ..prompt.tools import TODO_READ_AI_RESULT_TEMPLATE, TODO_READ_TOOL_DESC, TODO_WRITE_AI_RESULT, TODO_WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
-from ..message import ToolCallMessage
+from ..message import ToolCall
 
 """
 Session-level To-Do
@@ -46,7 +46,7 @@ class TodoWriteTool(Tool):
         todo_list: TodoList
 
     @classmethod
-    def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
+    def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         args: 'TodoWriteTool.Input' = cls.parse_input_args(tool_call)
 
         instance.tool_result().tool_call.hide_args = True
@@ -63,7 +63,7 @@ class TodoReadTool(Tool):
         pass
 
     @classmethod
-    def invoke(cls, tool_call: ToolCallMessage, instance: 'ToolInstance'):
+    def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         todo_list = instance.parent_agent.session.todo_list
         json_todo_list = json.dumps(todo_list.model_dump())
         instance.tool_result().tool_call.hide_args = True

@@ -158,7 +158,7 @@ class UserMessage(BasicMessage):
         return bool(self.content)
 
 
-class ToolCallMessage(BaseModel):
+class ToolCall(BaseModel):
     id: str
     tool_name: str
     tool_args: str = ''
@@ -231,7 +231,7 @@ class ToolCallMessage(BaseModel):
 class AIMessage(BasicMessage):
     role: Literal['assistant'] = 'assistant'
     thinking_content: Optional[str] = ''
-    tool_calls: dict[str, ToolCallMessage] = {}  # id -> ToolCall
+    tool_calls: dict[str, ToolCall] = {}  # id -> ToolCall
     nice_content: Optional[str] = None
     # Used for Anthropic extended thinking
     thinking_signature: Optional[str] = ''
@@ -323,8 +323,8 @@ class AIMessage(BasicMessage):
 
 class ToolMessage(BasicMessage):
     role: Literal['tool'] = 'tool'
-    tool_call: ToolCallMessage
-    suffixes: List[Union[ToolCallMessage, str]] = Field(default_factory=list)  # For sub-agent tool calls
+    tool_call: ToolCall
+    suffixes: List[Union[ToolCall, str]] = Field(default_factory=list)  # For sub-agent tool calls
     nice_content: Optional[Any] = Field(default=None)
 
     class Config:
@@ -358,7 +358,7 @@ class ToolMessage(BasicMessage):
     def __rich_console__(self, console, options):
         yield self.tool_call
         for c in self.suffixes:
-            yield c.get_suffix_renderable() if isinstance(c, ToolCallMessage) else c
+            yield c.get_suffix_renderable() if isinstance(c, ToolCall) else c
 
         if self.nice_content:
             yield render_suffix(self.nice_content, style='red' if self.tool_call.status == 'error' else None)
@@ -382,7 +382,7 @@ class ToolMessage(BasicMessage):
             return
         self.content = content
 
-    def add_suffixes(self, suffixes: List[Union[ToolCallMessage, str]]):
+    def add_suffixes(self, suffixes: List[Union[ToolCall, str]]):
         if self.tool_call.status == 'canceled':
             return
         self.suffixes.extend(suffixes)

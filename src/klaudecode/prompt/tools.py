@@ -25,9 +25,7 @@ SUB_AGENT_TASK_USER_PROMPT = """
 
 
 CODE_SEARCH_AGENT_TOOL_DESC = """Intelligently search your codebase with an agent that has access to: LS, Grep, Glob, Read.
-
 The agent acts like your personal search assistant.
-
 It's ideal for complex, multi-step search tasks where you need to find code based on functionality or concepts rather than exact matches.
 
 WHEN TO USE THIS TOOL:
