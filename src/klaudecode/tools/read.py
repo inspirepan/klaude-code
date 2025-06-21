@@ -5,7 +5,7 @@ from rich.table import Table
 from rich.text import Text
 
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
-from ..prompt import READ_TOOL_DESC
+from ..prompt.tools import READ_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import render_suffix
 from .file_utils import cache_file_content, read_file_content, truncate_content, validate_file_exists

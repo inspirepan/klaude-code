@@ -11,7 +11,7 @@ from rich.text import Text
 from .config import ConfigModel
 from .tui import format_style, render_markdown, render_message, render_suffix, truncate_middle_text
 
-INTERRUPTED_MSG = 'Task interrupted by user'
+INTERRUPTED_MSG = 'Interrupted by user'
 
 
 # Lazy initialize tiktoken encoder for GPT-4
@@ -120,9 +120,9 @@ class UserMessage(BasicMessage):
         },
         'memory': {'_mark_style': 'blue', '_mark': '#', '_style': 'blue'},
         'interrupted': {
-            '_mark_style': 'yellow',
+            '_mark_style': 'red',
             '_mark': '⏺',
-            '_style': 'yellow',
+            '_style': 'red',
         },
     }
 
@@ -211,7 +211,7 @@ class ToolCall(BaseModel):
         if self.tool_name in _TOOL_CALL_RENDERERS:
             for i, item in enumerate(_TOOL_CALL_RENDERERS[self.tool_name](self)):
                 if i == 0:
-                    yield render_message(item, mark_style='green', status=self.status, style='blue')
+                    yield render_message(item, mark_style='green', status=self.status)
                 else:
                     yield item
         else:
@@ -273,19 +273,21 @@ class AIMessage(BasicMessage):
         )
 
     def __rich_console__(self, console, options):
+        THINKING_STYLE = 'blue'
         if self.thinking_content:
             yield render_message(
-                format_style('Thinking...', 'bright_black'),
+                format_style('Thinking...', THINKING_STYLE),
                 mark='✻',
+                mark_style=THINKING_STYLE,
                 style='italic',
             )
             yield render_message(
-                format_style(self.thinking_content, 'bright_black'),
+                format_style(self.thinking_content, THINKING_STYLE),
                 mark='',
                 style='italic',
             )
             yield ''
-        elif self.content:
+        if self.content:
             yield render_message(render_markdown(self.content), mark_style='orange', style='orange')
             yield ''
 
@@ -364,7 +366,7 @@ class ToolMessage(BasicMessage):
                 yield render_suffix('(No content)')
 
         if self.tool_call.status == 'canceled':
-            yield render_suffix(INTERRUPTED_MSG, style='yellow')
+            yield render_suffix(INTERRUPTED_MSG, style='red')
         elif self.tool_call.status == 'error':
             yield render_suffix(self.error_msg, style='red')
         yield ''

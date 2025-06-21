@@ -7,11 +7,6 @@ from typing import Dict, List, Tuple
 
 from rich.console import Group
 
-FILE_CACHE: Dict[str, str] = {}
-
-TRUNCATE_CHAR_LIMIT = 5000
-TRUNCATE_LINE_LIMIT = 1000
-
 """
 - File validation functions (existence, cache status)
 - Content processing functions (string replacement, occurrence counting)
@@ -21,6 +16,10 @@ TRUNCATE_LINE_LIMIT = 1000
 - File system operations (directory creation, text file identification)
 """
 
+FILE_CACHE: Dict[str, str] = {}
+
+TRUNCATE_CHAR_LIMIT = 5000
+TRUNCATE_LINE_LIMIT = 1000
 FILE_NOT_READ_ERROR = 'File has not been read yet. Read it first before writing to it.'
 FILE_MODIFIED_ERROR = 'File has been modified externally. Either by user or a linter. Read it first before writing to it.'
 

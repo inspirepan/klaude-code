@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from rich.text import Text
 
 from ..message import ToolCall, register_tool_call_renderer
-from ..prompt import BASH_TOOL_DESC
+from ..prompt.tools import BASH_TOOL_DESC
 from ..tool import Tool, ToolInstance
 
 

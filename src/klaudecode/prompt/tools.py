@@ -1,6 +1,3 @@
-# TOOL DESC
-# ------------------------------------------------------------------------------------------------
-
 AGENT_TOOL_DESC = """
 Launch a new agent that has access to the following tools: Bash, Glob, Grep, LS, Read, Edit, MultiEdit, Write,. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use the Agent tool to perform the search for you.
 When to use the Agent tool:
@@ -16,13 +13,6 @@ Each agent invocation is stateless. You will not be able to send additional mess
 The agent's outputs should generally be trusted
 Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent
 """
-
-SUB_AGENT_TASK_USER_PROMPT = """
-{description}
-
-{prompt}
-"""
-
 
 CODE_SEARCH_AGENT_TOOL_DESC = """Intelligently search your codebase with an agent that has access to: LS, Grep, Glob, Read.
 The agent acts like your personal search assistant.

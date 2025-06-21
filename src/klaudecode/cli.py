@@ -8,7 +8,7 @@ from .agent import get_main_agent
 from .config import ConfigManager
 from .llm import AgentLLM
 from .message import SystemMessage
-from .prompt import SYSTEM_PROMPT
+from .prompt.system import STATIC_SYSTEM_PROMPT, get_system_prompt_dynamic_part
 from .session import Session
 from .tui import console, render_hello
 
@@ -26,13 +26,20 @@ async def main_async(ctx: typer.Context):
     elif ctx.obj['resume']:
         pass  # TODO
     else:
-        session = Session(os.getcwd(), messages=[SystemMessage(content=SYSTEM_PROMPT, cached=True)])  # TODO: repomap
+        session = Session(
+            os.getcwd(),
+            messages=[
+                SystemMessage(content=STATIC_SYSTEM_PROMPT, cached=True),
+                SystemMessage(content=get_system_prompt_dynamic_part(os.getcwd(), ctx.obj['config'].model_name)),
+            ],
+        )
     agent = get_main_agent(session, config=ctx.obj['config'])
     try:
         await agent.chat_interactive()
     except KeyboardInterrupt:
+        pass
+    finally:
         console.print('\n[orange]Bye![/orange]')
-        return
 
 
 @app.callback(invoke_without_command=True)

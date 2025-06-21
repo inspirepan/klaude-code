@@ -13,7 +13,8 @@ from .config import ConfigModel
 from .input import CommandHandler, InputModeEnum, InputSession, UserInput
 from .llm import AgentLLM
 from .message import INTERRUPTED_MSG, AIMessage, BasicMessage, SystemMessage, ToolCall, ToolMessage, UserMessage, register_tool_call_renderer, register_tool_result_renderer
-from .prompt import AGENT_TOOL_DESC, CODE_SEARCH_AGENT_TOOL_DESC, SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT
+from .prompt.system import SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT
+from .prompt.tools import AGENT_TOOL_DESC, CODE_SEARCH_AGENT_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
@@ -26,6 +27,8 @@ TODO_SUGGESTION_LENGTH_THRESHOLD = 40
 
 BASIC_TOOLS = [BashTool, EditTool, MultiEditTool, ReadTool, WriteTool]
 READ_ONLY_TOOLS = [ReadTool, BashTool]
+
+QUIT = ['quit', 'exit', 'q']
 
 
 class Agent(Tool):
@@ -49,6 +52,8 @@ class Agent(Tool):
     async def chat_interactive(self):
         while True:
             user_input: UserInput = await self.input_session.prompt_async()
+            if user_input.content.strip().lower() in QUIT:
+                break
             cmd_res = self.comand_handler.handle(user_input)
             if cmd_res.command_result:
                 console.print(render_suffix(cmd_res.command_result))

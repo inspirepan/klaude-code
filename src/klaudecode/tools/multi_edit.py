@@ -5,7 +5,7 @@ from rich.console import Group
 from rich.text import Text
 
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
-from ..prompt import MULTI_EDIT_TOOL_DESC
+from ..prompt.tools import MULTI_EDIT_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import render_suffix
 from .file_utils import (

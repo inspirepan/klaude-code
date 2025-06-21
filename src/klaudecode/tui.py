@@ -68,10 +68,8 @@ def render_status(status: str, spinner: str = 'dots', spinner_style: str = ''):
     return Status(status + INTERRUPT_TIP, console=console.console, spinner=spinner, spinner_style=spinner_style)
 
 
-def format_style(content: str | Text, style: Optional[str] = None):
-    if style:
-        if isinstance(content, Text):
-            return content
+def format_style(content: str, style: Optional[str] = None):
+    if style and isinstance(content, str):
         return f'[{style}]{content}[/{style}]'
     return content
 
@@ -143,8 +141,7 @@ def render_markdown(text: str) -> str:
             line = re.sub(r'^(\s*)(\d+)\.\s+', r'\1• ', line)
             # Match dash lists: - -> •
             line = re.sub(r'^(\s*)[-*]\s+', r'\1• ', line)
-        if line.strip():
-            formatted_lines.append(line)
+        formatted_lines.append(line)
 
     return '\n'.join(formatted_lines)
 

@@ -330,7 +330,7 @@ class ConfigManager:
 
     def __rich__(self):
         return Group(
-            f' config path: {os.getcwd()}',
+            f' config path: {Path.home() / ".klaude" / "config.json"}',
             Panel(self.get_config_model(), box=box.HORIZONTALS),
         )
 
