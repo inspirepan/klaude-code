@@ -24,9 +24,6 @@ class WriteTool(Tool):
         file_path: Annotated[str, Field(description='The absolute path to the file to write')]
         content: Annotated[str, Field(description='The content to write to the file')]
 
-        def __str__(self):
-            return f'Writing to {self.file_path} ({len(self.content)} characters)'
-
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         args: 'WriteTool.Input' = cls.parse_input_args(tool_call)

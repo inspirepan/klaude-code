@@ -4,6 +4,7 @@ __version__ = '0.1.0'
 
 from .bash import BashTool
 from .edit import EditTool
+from .ls import LsTool
 from .multi_edit import MultiEditTool
 from .read import ReadTool
 from .todo import TodoReadTool, TodoWriteTool
@@ -17,4 +18,5 @@ __all__ = [
     'MultiEditTool',
     'ReadTool',
     'WriteTool',
+    'LsTool',
 ]

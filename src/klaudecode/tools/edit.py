@@ -41,10 +41,6 @@ class EditTool(Tool):
         new_string: Annotated[str, Field(description='The text to replace it with')]
         replace_all: Annotated[bool, Field(description='Replace all occurrences (default: false)')] = False
 
-        def __str__(self):
-            action = 'Replace all' if self.replace_all else 'Replace first'
-            return f'{action} "{self.old_string[:50]}..." in {self.file_path}'
-
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         args: 'EditTool.Input' = cls.parse_input_args(tool_call)

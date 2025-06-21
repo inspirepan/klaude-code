@@ -11,5 +11,6 @@ wheels/
 
 demos/
 notes/
-.klaude
+.klaude/
 .ruff_cache/
+.claude-trace/

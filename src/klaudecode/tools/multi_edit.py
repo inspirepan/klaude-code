@@ -57,9 +57,6 @@ class MultiEditTool(Tool):
         file_path: Annotated[str, Field(description='The absolute path to the file to edit')]
         edits: Annotated[List[EditOperation], Field(description='List of edit operations, each containing old_string, new_string, and optional replace_all')]
 
-        def __str__(self):
-            return f'Apply {len(self.edits)} edits to {self.file_path}'
-
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         args: 'MultiEditTool.Input' = cls.parse_input_args(tool_call)

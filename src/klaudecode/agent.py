@@ -17,7 +17,7 @@ from .prompt.system import SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT
 from .prompt.tools import AGENT_TOOL_DESC, CODE_SEARCH_AGENT_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
-from .tools import BashTool, EditTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
+from .tools import BashTool, EditTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
 from .tui import console, format_style, render_markdown, render_message, render_suffix
 
 DEFAULT_MAX_STEPS = 80
@@ -25,7 +25,7 @@ INTERACTIVE_MAX_STEPS = 100
 TOKEN_WARNING_THRESHOLD = 0.8
 TODO_SUGGESTION_LENGTH_THRESHOLD = 40
 
-BASIC_TOOLS = [BashTool, EditTool, MultiEditTool, ReadTool, WriteTool]
+BASIC_TOOLS = [LsTool, ReadTool, EditTool, MultiEditTool, WriteTool, BashTool]
 READ_ONLY_TOOLS = [ReadTool, BashTool]
 
 QUIT = ['quit', 'exit', 'q']
@@ -122,9 +122,6 @@ class Agent(Tool):
     class Input(BaseModel):
         description: Annotated[str, Field(description='A short (3-5 word) description of the task')] = None
         prompt: Annotated[str, Field(description='The task for the agent to perform')]
-
-        def __str__(self):
-            return f'{self.description.strip()}: {self.prompt.strip()}'
 
     @classmethod
     def get_subagent_tools(cls):

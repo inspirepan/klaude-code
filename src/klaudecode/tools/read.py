@@ -31,14 +31,6 @@ class ReadTool(Tool):
         offset: Annotated[Optional[int], Field(description='The line number to start reading from (1-based)')] = None
         limit: Annotated[Optional[int], Field(description='The number of lines to read')] = None
 
-        def __str__(self):
-            parts = [f'Reading {self.file_path}']
-            if self.offset is not None:
-                parts.append(f'from line {self.offset}')
-            if self.limit is not None:
-                parts.append(f'({self.limit} lines)')
-            return ' '.join(parts)
-
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         args: 'ReadTool.Input' = cls.parse_input_args(tool_call)

@@ -26,9 +26,6 @@ class BashTool(Tool):
             Field(description='Optional timeout in milliseconds (max 600000)'),
         ] = None
 
-        def __str__(self):
-            return f'{self.description} → {self.command}'
-
     # Dangerous commands that should be blocked
     DANGEROUS_COMMANDS: Set[str] = {
         'rm -rf /',
