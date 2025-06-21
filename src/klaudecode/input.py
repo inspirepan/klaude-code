@@ -60,6 +60,7 @@ class Commands(Enum):
     COST = 'cost'
     CLEAR = 'clear'
     STATUS = 'status'
+    CONTINUE = 'continue'
 
 
 AVAILABLE_COMMANDS = [cmd.value for cmd in Commands]
@@ -71,6 +72,7 @@ COMMAND_DESCRIPTIONS = {
     Commands.COST.value: 'Show the total cost and duration of the current session',
     Commands.CLEAR.value: 'Clear conversation history and free up context',
     Commands.STATUS.value: 'Show the current setup',
+    Commands.CONTINUE.value: 'Request LLM without a new user message. WARNING: This may cause an error for a new conversation',
 }
 
 
@@ -287,8 +289,8 @@ class InputSession:
         input_text = await self.session.prompt_async()
         command, cleaned_input = self._parse_command(input_text)
         user_input = UserInput(
-            mode=self.current_input_mode.name,
             content=cleaned_input,
+            mode=self.current_input_mode.name,
             command=command,
         )
         self._switch_to_next_mode()
@@ -312,5 +314,11 @@ class CommandHandler:
                 user_input=user_input.content,
                 command_result=self.agent.config if self.agent.config else '',
                 need_agent_run=False,
+            )
+        elif user_input.command == Commands.CONTINUE:
+            return self.CommandResult(
+                user_input='',
+                command_result='Continuing the current conversation...',
+                need_agent_run=True,
             )
         return self.CommandResult(user_input=user_input.content, command_result='', need_agent_run=False)

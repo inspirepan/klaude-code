@@ -68,7 +68,7 @@ class Agent(Tool):
                 )
             console.print()
             if cmd_res.need_agent_run:
-                if not cmd_res.user_input:
+                if not cmd_res.user_input and 'Continuing' not in cmd_res.command_result:
                     continue
                 await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
 
@@ -145,6 +145,7 @@ class Agent(Tool):
             work_dir=os.getcwd(),
             messages=[SystemMessage(content=SUB_AGENT_SYSTEM_PROMPT, cached=True)],
             append_message_hook=subagent_append_message_hook,
+            source='subagent',
         )
         agent = cls(session, availiable_tools=cls.get_subagent_tools(), print_switch=False)
         agent.append_message(

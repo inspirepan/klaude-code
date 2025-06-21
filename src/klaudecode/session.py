@@ -20,7 +20,7 @@ class Session(BaseModel):
     messages: List[BasicMessage] = Field(default_factory=list)
     todo_list: TodoList = Field(default_factory=TodoList)
     work_dir: str
-    title: str = ''
+    source: Literal['user', 'subagent'] = 'user'
     session_id: str = ''
     append_message_hook: Optional[Callable] = None
 
@@ -30,14 +30,15 @@ class Session(BaseModel):
         messages: Optional[List[BasicMessage]] = None,
         append_message_hook: Optional[Callable] = None,
         todo_list: Optional[TodoList] = None,
+        source: Literal['user', 'subagent'] = 'user',
     ) -> None:
         super().__init__(
             work_dir=work_dir,
             messages=messages or [],
             session_id=str(uuid.uuid4()),
-            title='',
             append_message_hook=append_message_hook,
             todo_list=todo_list or TodoList(),
+            source=source,
         )
 
     def append_message(self, *msgs: BasicMessage) -> None:
@@ -80,7 +81,7 @@ class Session(BaseModel):
         else:
             title = 'untitled'
 
-        return f'{datetime_str}.{title}'
+        return f'{datetime_str}{".SUBAGENT" if self.source == "subagent" else ""}.{title}'
 
     def _get_metadata_file_path(self) -> Path:
         """Get the file path for session metadata."""
@@ -114,11 +115,11 @@ class Session(BaseModel):
             metadata = {
                 'id': self.session_id,
                 'work_dir': self.work_dir,
-                'title': self.title or (self.get_last_message(role='user').content[:20] if self.get_last_message(role='user') else 'Untitled'),
                 'created_at': getattr(self, '_created_at', current_time),
                 'updated_at': current_time,
                 'message_count': len(self.messages),
                 'todo_list': self.todo_list.model_dump(),
+                'source': self.source,
             }
 
             with open(metadata_file, 'w', encoding='utf-8') as f:
@@ -127,7 +128,7 @@ class Session(BaseModel):
             # Save messages (heavy data)
             messages_data = {
                 'session_id': self.session_id,
-                'messages': [msg.model_dump() for msg in self.messages],
+                'messages': [msg.model_dump(exclude_none=True) for msg in self.messages],
             }
 
             with open(messages_file, 'w', encoding='utf-8') as f:
@@ -189,7 +190,6 @@ class Session(BaseModel):
 
             session = cls(work_dir=metadata['work_dir'], messages=messages, todo_list=todo_list)
             session.session_id = metadata['id']
-            session.title = metadata.get('title', '')
             session._created_at = metadata.get('created_at')
             return session
 
@@ -217,14 +217,16 @@ class Session(BaseModel):
                 try:
                     with open(metadata_file, 'r', encoding='utf-8') as f:
                         metadata = json.load(f)
+                    if metadata.get('source', 'user') == 'subagent':
+                        continue
                     sessions.append(
                         {
                             'id': metadata['id'],
-                            'title': metadata.get('title', 'Untitled'),
                             'work_dir': metadata['work_dir'],
                             'created_at': metadata.get('created_at'),
                             'updated_at': metadata.get('updated_at'),
                             'message_count': metadata.get('message_count', 0),
+                            'source': metadata.get('source', 'user'),
                         }
                     )
                 except Exception as e:

@@ -1,6 +1,6 @@
 import json
 from functools import cached_property
-from typing import Callable, List, Literal, Optional, Union
+from typing import Callable, Dict, List, Literal, Optional, Union
 
 from anthropic.types import ContentBlock, MessageParam, TextBlockParam, ToolUseBlockParam
 from openai.types.chat import ChatCompletionMessageParam
@@ -228,9 +228,9 @@ class ToolCall(BaseModel):
 
 class AIMessage(BasicMessage):
     role: Literal['assistant'] = 'assistant'
-    tool_calls: dict[str, ToolCall] = {}  # id -> ToolCall
-    thinking_content: Optional[str] = ''
-    thinking_signature: Optional[str] = ''
+    tool_calls: Dict[str, ToolCall] = {}  # id -> ToolCall
+    thinking_content: Optional[str] = None
+    thinking_signature: Optional[str] = None
     finish_reason: Literal['stop', 'length', 'tool_calls', 'content_filter', 'function_call'] = 'stop'
 
     @computed_field
@@ -328,7 +328,7 @@ class ToolMessage(BasicMessage):
             return self.content + '\n' + INTERRUPTED_MSG
         elif self.tool_call.status == 'error':
             return self.content + '\nError: ' + self.error_msg
-        return self.content
+        return self.content or "(No content)"
 
     def to_openai(self) -> ChatCompletionMessageParam:
         return {
