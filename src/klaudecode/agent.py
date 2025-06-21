@@ -2,9 +2,10 @@ import asyncio
 import os
 from typing import Annotated, List, Optional
 
+from openai import OpenAIError
+from anthropic import AnthropicError
 from pydantic import BaseModel, Field
 from rich.box import HORIZONTALS
-from rich.console import Group
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
@@ -69,6 +70,8 @@ class Agent(Tool):
                 )
             if cmd_res.need_agent_run:
                 await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
+            else:
+                console.print()
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
         try:
@@ -82,13 +85,18 @@ class Agent(Tool):
                     show_status=self.print_switch,
                 )
                 if i == 0:
-                    console.print()
+                    console.print()  # Insert empty line after user msg. attach LLM error to user msg.
                 self.append_message(ai_msg)
                 if ai_msg.finish_reason == 'stop':
                     return ai_msg.content or ''
                 if ai_msg.finish_reason == 'tool_calls' or len(ai_msg.tool_calls) > 0:
                     await self.tool_handler.handle(ai_msg)
+
+        except (OpenAIError, AnthropicError) as e:
+            console.print()
+            return f'LLM error: {str(e)}'
         except (KeyboardInterrupt, asyncio.CancelledError):
+            console.print()
             return self._handle_interruption()
         max_step_msg = f'Max steps {max_steps} reached'
         if self.print_switch:
@@ -111,6 +119,7 @@ class Agent(Tool):
             except BaseException:
                 pass
         console.console.print('', end='\r')
+        console.print()
         self.append_message(UserMessage(content=INTERRUPTED_MSG, mode=InputModeEnum.INTERRUPTED.value))
         return INTERRUPTED_MSG
 

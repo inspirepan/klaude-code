@@ -16,6 +16,20 @@ from .tui import INTERRUPT_TIP, console, render_message, render_status, render_s
 DEFAULT_RETRIES = 3
 DEFAULT_RETRY_BACKOFF_BASE = 1
 
+NON_RETRY_EXCEPTIONS = (
+    KeyboardInterrupt,
+    asyncio.CancelledError,
+    openai.APIStatusError,
+    anthropic.APIStatusError,
+    openai.AuthenticationError,
+    anthropic.AuthenticationError,
+    openai.NotFoundError,
+    anthropic.NotFoundError,
+    openai.UnprocessableEntityError,
+    anthropic.UnprocessableEntityError,
+
+)
+
 
 class OpenAIProxy:
     def __init__(
@@ -398,7 +412,7 @@ class LLMProxy:
                         return await self.client.stream_call(msgs, tools, None)
                     else:
                         return await self.client.call(msgs, tools)
-            except (KeyboardInterrupt, asyncio.CancelledError):
+            except NON_RETRY_EXCEPTIONS:
                 raise
             except Exception as e:
                 last_exception = e
@@ -411,10 +425,9 @@ class LLMProxy:
                     else:
                         await asyncio.sleep(delay)
         console.print(
-            render_message(
+            render_suffix(
                 f'Final failure: call failed after {self.max_retries} retries - {last_exception}',
                 style='red',
-                status='error',
             )
         )
         raise last_exception
