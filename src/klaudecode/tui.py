@@ -6,6 +6,7 @@ from rich.abc import RichRenderable
 from rich.console import Console, Group, RenderResult
 from rich.markup import escape
 from rich.panel import Panel
+from rich.status import Status
 from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
@@ -46,7 +47,7 @@ dark_theme = Theme(
 class ConsoleProxy:
     def __init__(self):
         # TODO: theme detect or config
-        self.console = Console(theme=light_theme, style='bright_black')
+        self.console = Console(theme=light_theme)
         self.silent = False
 
     def print(self, *args, **kwargs):
@@ -60,13 +61,14 @@ class ConsoleProxy:
 console = ConsoleProxy()
 
 
-SPINNER = 'bouncingBall'
+def render_status(status: str, spinner: str = 'bouncingBall', spinner_style: str = 'white'):
+    return Status(status, console=console.console, spinner=spinner, spinner_style=spinner_style)
 
 
 def format_style(content: str | Text, style: Optional[str] = None):
     if style:
         if isinstance(content, Text):
-            return content.stylize(style)
+            return content
         return f'[{style}]{content}[/{style}]'
     return content
 
@@ -153,7 +155,7 @@ def render_hello() -> RenderResult:
         Group(
             'Welcome to [bold]Klaude Code[/bold]!',
             '',
-            '[gray][italic]/status for your current setup[/italic][/gray]',
+            '[italic]/status for your current setup[/italic]',
             '',
             format_style('cwd: {}'.format(os.getcwd()), 'bright_black'),
         ),

@@ -2,16 +2,14 @@ import json
 from functools import cached_property
 from typing import Callable, List, Literal, Optional, Union
 
-from anthropic.types import (ContentBlock, MessageParam, TextBlockParam,
-                             ToolUseBlockParam)
+from anthropic.types import ContentBlock, MessageParam, TextBlockParam, ToolUseBlockParam
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field, computed_field, model_validator
 from rich.abc import RichRenderable
 from rich.text import Text
 
 from .config import ConfigModel
-from .tui import (format_style, render_markdown, render_message, render_suffix,
-                  truncate_middle_text)
+from .tui import format_style, render_markdown, render_message, render_suffix, truncate_middle_text
 
 INTERRUPTED_MSG = 'Task interrupted by user'
 
@@ -213,7 +211,7 @@ class ToolCall(BaseModel):
         if self.tool_name in _TOOL_CALL_RENDERERS:
             for i, item in enumerate(_TOOL_CALL_RENDERERS[self.tool_name](self)):
                 if i == 0:
-                    yield render_message(item, mark_style='green', status=self.status)
+                    yield render_message(item, mark_style='green', status=self.status, style='blue')
                 else:
                     yield item
         else:

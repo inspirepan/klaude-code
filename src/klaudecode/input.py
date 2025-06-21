@@ -85,7 +85,7 @@ input_mode_dict = {
         name=InputModeEnum.NORMAL,
         prompt='>',
         placeholder='type you query... type exit to quit.',
-        style='ansibrightblack',
+        style='',
         next_mode=InputModeEnum.NORMAL,
     ),
     InputModeEnum.PLAN: InputMode(

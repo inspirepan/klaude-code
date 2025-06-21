@@ -4,17 +4,25 @@ from pydantic import BaseModel, Field
 from rich.console import Group
 from rich.text import Text
 
-from ..message import (ToolCall, ToolMessage, register_tool_call_renderer,
-                       register_tool_result_renderer)
+from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt import EDIT_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import render_suffix
-from .file_utils import (cache_file_content, cleanup_backup, count_occurrences,
-                         create_backup, generate_diff_lines,
-                         get_edit_context_snippet, read_file_content,
-                         render_diff_lines, replace_string_in_content,
-                         restore_backup, validate_file_cache,
-                         validate_file_exists, write_file_content)
+from .file_utils import (
+    cache_file_content,
+    cleanup_backup,
+    count_occurrences,
+    create_backup,
+    generate_diff_lines,
+    get_edit_context_snippet,
+    read_file_content,
+    render_diff_lines,
+    replace_string_in_content,
+    restore_backup,
+    validate_file_cache,
+    validate_file_exists,
+    write_file_content,
+)
 
 """
 - Precise string matching and replacement

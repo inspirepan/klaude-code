@@ -9,10 +9,9 @@ from openai.types.chat.chat_completion_chunk import Choice, ChoiceDeltaToolCall
 from openai.types.chat.chat_completion_message_tool_call import Function
 from rich.status import Status
 
-from .message import (AIMessage, BasicMessage, CompletionUsage, SystemMessage,
-                      ToolCall, count_tokens)
+from .message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, count_tokens
 from .tool import Tool
-from .tui import INTERRUPT_TIP, SPINNER, console, render_message, render_suffix
+from .tui import INTERRUPT_TIP, console, render_message, render_status, render_suffix
 
 DEFAULT_RETRIES = 3
 DEFAULT_RETRY_BACKOFF_BASE = 1
@@ -312,14 +311,14 @@ class AnthropicProxy:
                 if hasattr(event, 'usage') and event.usage:
                     output_tokens = event.usage.output_tokens
                     if status:
-                        status.update(f'[bright_black]{status_text} [green]↓ {output_tokens} tokens[/green] {INTERRUPT_TIP}[/bright_black]')
+                        status.update(f'{status_text} [green]↓ {output_tokens} tokens[/green] {INTERRUPT_TIP}')
             elif event.type == 'message_stop':
                 pass
             estimated_tokens = count_tokens(content) + count_tokens(thinking_content)
             for json_str in tool_json_fragments.values():
                 estimated_tokens += count_tokens(json_str)
             if status and estimated_tokens:
-                status.update(f'[bright_black]{status_text} [green]↓ {estimated_tokens} tokens[/green] {INTERRUPT_TIP}[/bright_black]')
+                status.update(f'{status_text} [green]↓ {estimated_tokens} tokens[/green] {INTERRUPT_TIP}')
         return AIMessage(
             content=content,
             thinking_content=thinking_content,
@@ -389,7 +388,7 @@ class LLMProxy:
         for attempt in range(self.max_retries):
             try:
                 if show_status:
-                    with Status(f'[bright_black]{status_text} {INTERRUPT_TIP}[/bright_black]', console=console.console, spinner_style='bright_black', spinner=SPINNER) as status:
+                    with render_status(f'{status_text} {INTERRUPT_TIP}') as status:
                         if use_streaming:
                             return await self.client.stream_call(msgs, tools, status, status_text)
                         else:
@@ -407,7 +406,7 @@ class LLMProxy:
                     delay = self.backoff_base * (2**attempt)
                     if show_status:
                         console.print(render_suffix(f'Retry {attempt + 1}/{self.max_retries}: call failed - {str(e)}, waiting {delay:.1f}s', style='red'))
-                        with Status(f'[bright_black]Waiting {delay:.1f}s...[/bright_black]'):
+                        with render_status(f'Waiting {delay:.1f}s... {INTERRUPT_TIP}'):
                             await asyncio.sleep(delay)
                     else:
                         await asyncio.sleep(delay)
