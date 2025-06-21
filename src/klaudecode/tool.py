@@ -281,7 +281,7 @@ class ToolHandler:
                     loop.remove_signal_handler(signal.SIGINT)
                 except (ValueError, NotImplementedError, OSError):
                     pass
-            self.agent.append_message(*[ti.tool_result() for ti in tool_instances], print_msg=False)
+            self.agent.append_message(*(ti.tool_result() for ti in tool_instances), print_msg=False)
             if interrupted:
                 raise asyncio.CancelledError
 

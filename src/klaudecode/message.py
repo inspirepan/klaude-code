@@ -313,7 +313,7 @@ class ToolMessage(BasicMessage):
     role: Literal['tool'] = 'tool'
     tool_call_id: str
     tool_call_cache: ToolCall = Field(exclude=True)
-    extra_data: List[object] = Field(default_factory=list)
+    extra_data: dict = Field(default_factory=dict)
     error_msg: Optional[str] = None
 
     class Config:
@@ -372,7 +372,7 @@ class ToolMessage(BasicMessage):
         yield ''
 
     def __bool__(self):
-        return bool(self.content)
+        return bool(self.get_content())
 
     def set_content(self, content: str):
         if self.tool_call.status == 'canceled':
@@ -383,11 +383,22 @@ class ToolMessage(BasicMessage):
         self.error_msg = error_msg
         self.tool_call.status = 'error'
 
-    def add_extra_data(self, extra_data: object):
-        """Convenience method to add structured data for custom rendering"""
+    def set_extra_data(self, key: str, value: object):
         if self.tool_call.status == 'canceled':
             return
-        self.extra_data.append(extra_data)
+        self.extra_data[key] = value
+
+    def append_extra_data(self, key: str, value: object):
+        if self.tool_call.status == 'canceled':
+            return
+        if key not in self.extra_data:
+            self.extra_data[key] = []
+        self.extra_data[key].append(value)
+
+    def get_extra_data(self, key: str, default: object = None) -> object:
+        if key not in self.extra_data:
+            return default
+        return self.extra_data[key]
 
 
 # Tool renderer registry for custom rendering

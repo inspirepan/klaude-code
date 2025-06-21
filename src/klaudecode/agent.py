@@ -139,14 +139,14 @@ class Agent(Tool):
                     continue
                 if msg.tool_calls:
                     for tool_call in msg.tool_calls.values():
-                        instance.tool_result().add_extra_data(tool_call.model_dump())
+                        instance.tool_result().append_extra_data('tool_calls', tool_call.model_dump())
 
         session = Session(
             work_dir=os.getcwd(),
             messages=[SystemMessage(content=SUB_AGENT_SYSTEM_PROMPT, cached=True)],
             append_message_hook=subagent_append_message_hook,
         )
-        agent = cls(session, tools=cls.get_subagent_tools(), print_switch=False)
+        agent = cls(session, availiable_tools=cls.get_subagent_tools(), print_switch=False)
         agent.append_message(
             UserMessage(content=SUB_AGENT_TASK_USER_PROMPT.format(description=args.description, prompt=args.prompt)),
             print_msg=False,
@@ -167,7 +167,6 @@ class CodeSearchAgentTool(Agent):
 
 def render_agent_args(tool_call: ToolCall):
     yield format_style(tool_call.tool_name, 'bold')
-
     yield Padding.indent(
         Panel.fit(
             tool_call.tool_args_dict['prompt'],
@@ -179,14 +178,14 @@ def render_agent_args(tool_call: ToolCall):
 
 
 def render_agent_result(tool_msg: ToolMessage):
-    for subagent_tool_call_dcit in tool_msg.extra_data:
-        if not isinstance(subagent_tool_call_dcit, dict):
-            continue
-        tool_call = ToolCall(**subagent_tool_call_dcit)
-        for item in tool_call.get_suffix_renderable():
-            yield render_suffix(item)
+    tool_calls = tool_msg.get_extra_data('tool_calls')
+    if tool_calls:
+        for subagent_tool_call_dcit in tool_calls:
+            tool_call = ToolCall(**subagent_tool_call_dcit)
+            for item in tool_call.get_suffix_renderable():
+                yield render_suffix(item)
     if tool_msg.content:
-        yield render_suffix(Group('', Panel.fit(render_markdown(tool_msg.content), border_style='agent_result')))
+        yield render_suffix(Panel.fit(render_markdown(tool_msg.content), border_style='agent_result'))
 
 
 register_tool_call_renderer('Agent', render_agent_args)

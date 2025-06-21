@@ -116,7 +116,7 @@ class EditTool(Tool):
             result = f"The file {args.file_path} has been updated. Here's the result of running `cat -n` on a snippet of the edited file:\n{snippet}"
 
             instance.tool_result().set_content(result)
-            instance.tool_result().add_extra_data(diff_lines)
+            instance.tool_result().set_extra_data('diff_lines', diff_lines)
 
             # Clean up backup on success
             if backup_path:
@@ -146,8 +146,9 @@ def render_edit_args(tool_call: ToolCall):
 
 
 def render_edit_result(tool_msg: ToolMessage):
-    if tool_msg.extra_data:
-        yield render_suffix(render_diff_lines(tool_msg.extra_data[0]))
+    diff_lines = tool_msg.get_extra_data('diff_lines')
+    if diff_lines:
+        yield render_suffix(render_diff_lines(diff_lines))
 
 
 register_tool_call_renderer('Edit', render_edit_args)

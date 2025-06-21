@@ -1,7 +1,7 @@
 import json
 from typing import Annotated, List, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, RootModel
 from rich.console import Group
 
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
@@ -24,12 +24,18 @@ class Todo(BaseModel):
     priority: Annotated[Literal['low', 'medium', 'high'], 'The priority of the todo'] = 'medium'
 
 
-class TodoList(BaseModel):
-    todos: Annotated[List[Todo], Field(description='The list of todos')] = Field(default_factory=list)
+class TodoList(RootModel[List[Todo]]):
+    root: Annotated[List[Todo], Field(description='The list of todos')] = Field(default_factory=list)
 
-    def __rich_console__(self, console, options):
-        for todo in self.todos:
-            yield todo
+    @property
+    def todos(self):
+        return self.root
+
+    def __iter__(self):
+        return iter(self.root)
+
+    def __len__(self):
+        return len(self.root)
 
 
 class TodoWriteTool(Tool):
@@ -48,18 +54,17 @@ class TodoWriteTool(Tool):
         old_todo_list = instance.parent_agent.session.todo_list
         old_todo_dict = {}
         if old_todo_list is not None:
-            old_todo_dict = {todo.id: todo for todo in old_todo_list.todos}
+            old_todo_dict = {todo.id: todo for todo in old_todo_list.root}
 
         instance.parent_agent.session.todo_list = args.todo_list
-        for todo in args.todo_list.todos:
-            todo_data = todo.model_dump()
-
+        new_completed_todos = []
+        for todo in args.todo_list.root:
             if old_todo_list is not None and todo.id in old_todo_dict:
                 old_todo = old_todo_dict[todo.id]
                 if old_todo.status != 'completed' and todo.status == 'completed':
-                    todo_data['new_completed'] = True
+                    new_completed_todos.append(todo.id)
 
-            instance.tool_result().add_extra_data(todo_data)
+        instance.tool_result().set_extra_data('new_completed_todos', new_completed_todos)
 
 
 class TodoReadTool(Tool):
@@ -74,27 +79,33 @@ class TodoReadTool(Tool):
         todo_list = instance.parent_agent.session.todo_list
         json_todo_list = json.dumps(todo_list.model_dump())
 
-        for todo in todo_list.todos:
-            instance.tool_result().add_extra_data(todo.model_dump())
+        for todo in todo_list.root:
+            instance.tool_result().append_extra_data('todo_list', todo.model_dump())
 
         instance.tool_result().set_content(TODO_READ_AI_RESULT_TEMPLATE.format(todo_list_json=json_todo_list))
 
 
-def render_todo_dict(todo: dict):
+def render_todo_dict(todo: dict, new_completed: bool = False):
     content = todo['content']
     status = todo['status']
-    if status == 'completed' and todo.get('new_completed', False):
-        return f'[green] ☒ [s]{content}[/s][/green]'
+    if status == 'completed' and new_completed:
+        return f'[green]☒ [s]{content}[/s][/green]'
     elif status == 'completed':
-        return f' ☒ [s]{content}[/s]'
+        return f'[bright_black]☒ [s]{content}[/s][/bright_black]'
     elif status == 'in_progress':
-        return f'[blue] ☐ [bold]{content}[/bold][/blue]'
+        return f'[blue]☐ [bold]{content}[/bold][/blue]'
     else:
-        return f' ☐ {content}'
+        return f'☐ {content}'
 
 
-def render_todo_result(tool_msg: ToolMessage):
-    yield render_suffix(Group(*[render_todo_dict(todo) for todo in tool_msg.extra_data]))
+def render_todo_read_result(tool_msg: ToolMessage):
+    yield render_suffix(Group(*(render_todo_dict(todo) for todo in tool_msg.get_extra_data('todo_list'))))
+
+
+def render_todo_write_result(tool_msg: ToolMessage):
+    todo_list = tool_msg.tool_call.tool_args_dict.get('todo_list', {})
+    new_completed_todos = tool_msg.get_extra_data('new_completed_todos', [])
+    yield render_suffix(Group(*(render_todo_dict(todo, todo.get('id') in new_completed_todos) for todo in todo_list)))
 
 
 def render_todo_write_name(tool_call: ToolCall):
@@ -105,7 +116,7 @@ def render_todo_read_name(tool_call: ToolCall):
     yield format_style('Read Todos', 'bold')
 
 
-register_tool_result_renderer('TodoRead', render_todo_result)
-register_tool_result_renderer('TodoWrite', render_todo_result)
+register_tool_result_renderer('TodoRead', render_todo_read_result)
+register_tool_result_renderer('TodoWrite', render_todo_write_result)
 register_tool_call_renderer('TodoRead', render_todo_read_name)
 register_tool_call_renderer('TodoWrite', render_todo_write_name)

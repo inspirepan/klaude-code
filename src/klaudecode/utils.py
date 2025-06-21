@@ -120,7 +120,7 @@ def _build_tree(path: Path, ignore_patterns: List[str], base_path: Path, char_bu
     return result, char_budget, truncated
 
 
-def get_directory_structure(path: str, ignore_pattern: Optional[List[str]] = None, max_chars: int = 40000) -> Tuple[str, bool]:
+def get_directory_structure(path: str, ignore_pattern: Optional[List[str]] = None, max_chars: int = 40000) -> Tuple[str, bool, int]:
     """
     Get directory structure with character limit, returns full result
 
@@ -185,11 +185,12 @@ def get_directory_structure(path: str, ignore_pattern: Optional[List[str]] = Non
             overall_truncated = True
 
     content = '\n'.join(result)
+    path_count = len(result)
 
     if overall_truncated:
         content += f'\n... (truncated at {max_chars} characters, use LS tool with specific paths to explore more)'
 
-    return content, overall_truncated
+    return content, overall_truncated, path_count
 
 
 def truncate_end_text(text: str, max_lines: int = 15) -> str:

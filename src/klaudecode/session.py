@@ -181,9 +181,9 @@ class Session(BaseModel):
                         raise ValueError(f'Tool call {tool_call_id} not found')
                     messages.append(ToolMessage(**msg_data))
 
-            todo_list_data = metadata.get('todo_list', {})
-            if isinstance(todo_list_data, dict):
-                todo_list = TodoList(**todo_list_data)
+            todo_list_data = metadata.get('todo_list', [])
+            if isinstance(todo_list_data, list):
+                todo_list = TodoList(root=todo_list_data)
             else:
                 todo_list = TodoList()
 

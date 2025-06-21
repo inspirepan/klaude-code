@@ -155,7 +155,7 @@ IMPORTANT: Always use the TodoWrite tool to plan and track tasks throughout the 
 def get_directory_structure_context(workdir: str):
     try:
         MAX_CHARS = 40000
-        repo_map, truncated = get_directory_structure(workdir, max_chars=MAX_CHARS)
+        repo_map, truncated, _ = get_directory_structure(workdir, max_chars=MAX_CHARS)
         if truncated:
             return f"""directoryStructure: There are more than {MAX_CHARS} characters in the repository (ie. either there are lots of files, or there are many long filenames). Use the LS tool (passing a specific path), Bash tool, and other tools to explore nested directories. The first {MAX_CHARS} characters are included below:
 {repo_map}"""

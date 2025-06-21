@@ -30,8 +30,9 @@ class LsTool(Tool):
                 else:
                     ignore_patterns = [str(args.ignore)]
 
-            full_result, _ = get_directory_structure(args.path, ignore_patterns, max_chars=40000)
+            full_result, _, path_count = get_directory_structure(args.path, ignore_patterns, max_chars=40000)
             instance.tool_result().set_content(full_result)
+            instance.tool_result().set_extra_data('path_count', path_count)
 
         except Exception as e:
             error_msg = f'Error listing directory: {str(e)}'
@@ -52,8 +53,14 @@ def render_ls_args(tool_call: ToolCall):
 
 
 def render_ls_content(tool_msg: ToolMessage):
-    yield render_suffix('Directory listing completed')
+    yield render_suffix(
+        Text.assemble(
+            'Listed ',
+            (str(tool_msg.get_extra_data('path_count', 0)), 'bold'),
+            ' paths',
+        )
+    )
 
 
 register_tool_call_renderer('LS', render_ls_args)
-# register_tool_result_renderer('LS', render_ls_content)
+register_tool_result_renderer('LS', render_ls_content)

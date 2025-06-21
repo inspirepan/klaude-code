@@ -92,7 +92,8 @@ class ReadTool(Tool):
             result += f'\n{warning}'
         result += f'\n\nFull {total_lines} lines'
         instance.tool_result().set_content(result)
-        instance.tool_result().add_extra_data({'read_line_count': len(numbered_lines), 'brief': truncated_numbered_lines[:5]})
+        instance.tool_result().set_extra_data('read_line_count', len(numbered_lines))
+        instance.tool_result().set_extra_data('brief', truncated_numbered_lines[:5])
 
 
 def render_read_args(tool_call: ToolCall):
@@ -114,20 +115,19 @@ def render_read_args(tool_call: ToolCall):
 
 
 def render_read_content(tool_msg: ToolMessage):
-    if tool_msg.extra_data:
-        read_line_count = tool_msg.extra_data[0].get('read_line_count', 0)
-        brief_list = tool_msg.extra_data[0].get('brief', [])
-        if brief_list:
-            table = Table.grid(padding=(0, 1))
-            width = len(str(brief_list[-1][0]))
-            table.add_column(width=width, justify='right')
-            table.add_column(overflow='fold')
-            for line_num, line_content in brief_list:
-                table.add_row(f'{line_num:>{width}}:', line_content)
-            table.add_row('…', f'Read [bold]{read_line_count}[/bold] lines')
-            yield render_suffix(table)
-            return
-        yield render_suffix(f'Read [bold]{read_line_count}[/bold] lines')
+    read_line_count = tool_msg.get_extra_data('read_line_count', 0)
+    brief_list = tool_msg.get_extra_data('brief', [])
+    if brief_list:
+        table = Table.grid(padding=(0, 1))
+        width = len(str(brief_list[-1][0]))
+        table.add_column(width=width, justify='right')
+        table.add_column(overflow='fold')
+        for line_num, line_content in brief_list:
+            table.add_row(f'{line_num:>{width}}:', line_content)
+        table.add_row('…', f'Read [bold]{read_line_count}[/bold] lines')
+        yield render_suffix(table)
+        return
+    yield render_suffix(f'Read [bold]{read_line_count}[/bold] lines')
 
 
 register_tool_call_renderer('Read', render_read_args)
