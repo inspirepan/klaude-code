@@ -1,6 +1,6 @@
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
@@ -293,3 +293,24 @@ class InputSession:
         )
         self._switch_to_next_mode()
         return user_input
+
+
+class CommandHandler:
+    def __init__(self, agent):
+        self.agent = agent
+
+    class CommandResult(BaseModel):
+        user_input: str
+        command_result: Any
+        need_agent_run: bool = False
+
+    def handle(self, user_input: UserInput) -> 'CommandHandler.CommandResult':
+        if not user_input.command:
+            return self.CommandResult(user_input=user_input.content, command_result='', need_agent_run=True)
+        if user_input.command == Commands.STATUS:
+            return self.CommandResult(
+                user_input=user_input.content,
+                command_result=self.agent.config if self.agent.config else '',
+                need_agent_run=False,
+            )
+        return self.CommandResult(user_input=user_input.content, command_result='', need_agent_run=False)

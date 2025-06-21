@@ -11,7 +11,7 @@ from rich.status import Status
 
 from .message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, count_tokens
 from .tool import Tool
-from .tui import console, render_message, render_status, render_suffix, INTERRUPT_TIP
+from .tui import INTERRUPT_TIP, console, render_message, render_status, render_suffix
 
 DEFAULT_RETRIES = 3
 DEFAULT_RETRY_BACKOFF_BASE = 1

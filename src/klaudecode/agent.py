@@ -1,11 +1,16 @@
 import asyncio
 import os
-from typing import Annotated, Any, List, Optional
+from typing import Annotated, List, Optional
 
 from pydantic import BaseModel, Field
+from rich.box import HORIZONTALS
+from rich.console import Group
+from rich.padding import Padding
+from rich.panel import Panel
+from rich.text import Text
 
 from .config import ConfigModel
-from .input import Commands, InputModeEnum, InputSession, UserInput
+from .input import CommandHandler, InputModeEnum, InputSession, UserInput
 from .llm import AgentLLM
 from .message import INTERRUPTED_MSG, AIMessage, BasicMessage, SystemMessage, ToolCall, ToolMessage, UserMessage, register_tool_call_renderer, register_tool_result_renderer
 from .prompt import AGENT_TOOL_DESC, CODE_SEARCH_AGENT_TOOL_DESC, SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT
@@ -160,10 +165,6 @@ class CodeSearchAgentTool(Agent):
 
 def render_agent_args(tool_call: ToolCall):
     yield format_style(tool_call.tool_name, 'bold')
-    from rich.box import HORIZONTALS
-    from rich.padding import Padding
-    from rich.panel import Panel
-    from rich.text import Text
 
     yield Padding.indent(
         Panel.fit(
@@ -176,9 +177,6 @@ def render_agent_args(tool_call: ToolCall):
 
 
 def render_agent_result(tool_msg: ToolMessage):
-    from rich.console import Group
-    from rich.panel import Panel
-
     for subagent_tool_call_dcit in tool_msg.extra_data:
         if not isinstance(subagent_tool_call_dcit, dict):
             continue
@@ -197,24 +195,3 @@ register_tool_result_renderer('CodeSearchAgent', render_agent_result)
 
 def get_main_agent(session: Session, config: ConfigModel) -> Agent:
     return Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent, TodoWriteTool, TodoReadTool])
-
-
-class CommandHandler:
-    def __init__(self, agent):
-        self.agent: Agent = agent
-
-    class CommandResult(BaseModel):
-        user_input: str
-        command_result: Any
-        need_agent_run: bool = False
-
-    def handle(self, user_input: UserInput) -> 'CommandHandler.CommandResult':
-        if not user_input.command:
-            return self.CommandResult(user_input=user_input.content, command_result='', need_agent_run=True)
-        if user_input.command == Commands.STATUS:
-            return self.CommandResult(
-                user_input=user_input.content,
-                command_result=self.agent.config,
-                need_agent_run=False,
-            )
-        return self.CommandResult(user_input=user_input.content, command_result='', need_agent_run=False)
