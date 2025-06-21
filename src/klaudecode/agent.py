@@ -10,7 +10,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from .config import ConfigModel
-from .input import CommandHandler, InputModeEnum, InputSession, UserInput
+from .user_input import CommandHandler, InputModeEnum, InputSession, UserInput
 from .llm import AgentLLM
 from .message import INTERRUPTED_MSG, AIMessage, BasicMessage, SystemMessage, ToolCall, ToolMessage, UserMessage, register_tool_call_renderer, register_tool_result_renderer
 from .prompt.system import SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT
