@@ -22,6 +22,30 @@ def _parse_gitignore(gitignore_path: Path) -> List[str]:
     return patterns
 
 
+def _matches_recursive_pattern(path_str: str, pattern: str) -> bool:
+    """Check if path matches pattern with recursive directory support"""
+    if '/' not in pattern:
+        return False
+
+    # Split pattern into directory part and file part
+    pattern_parts = pattern.split('/')
+    if len(pattern_parts) != 2:
+        return False
+
+    dir_pattern, file_pattern = pattern_parts
+    path_parts = path_str.split('/')
+
+    # Look for the directory pattern at any level
+    for i in range(len(path_parts) - 1):
+        if fnmatch.fnmatch(path_parts[i], dir_pattern):
+            # Check if the remaining path matches the file pattern
+            remaining_path = '/'.join(path_parts[i + 1 :])
+            if fnmatch.fnmatch(remaining_path, file_pattern):
+                return True
+
+    return False
+
+
 def _should_ignore(path: Path, ignore_patterns: List[str], base_path: Path) -> bool:
     """Check if path should be ignored"""
     if not ignore_patterns:
@@ -38,8 +62,8 @@ def _should_ignore(path: Path, ignore_patterns: List[str], base_path: Path) -> b
             if path.is_dir() and (path_str == pattern_name or path_str.startswith(pattern) or path.name == pattern_name):
                 return True
         elif '*' in pattern:
-            # Wildcard matching
-            if fnmatch.fnmatch(path_str, pattern) or fnmatch.fnmatch(path.name, pattern):
+            # Wildcard matching - try both existing and recursive matching
+            if fnmatch.fnmatch(path_str, pattern) or fnmatch.fnmatch(path.name, pattern) or _matches_recursive_pattern(path_str, pattern):
                 return True
         else:
             # Exact matching
@@ -118,7 +142,7 @@ def get_directory_structure(path: str, ignore_pattern: Optional[List[str]] = Non
     ignore_patterns = _parse_gitignore(gitignore_path)
 
     # Add default ignore patterns
-    default_ignores = ['.git/', '.gitignore', '.venv/', '.env', '.DS_Store']
+    default_ignores = ['.git/', '.gitignore', '.venv/', '.env', '.DS_Store', '__pycache__/']
     ignore_patterns.extend(default_ignores)
 
     # Add additional ignore patterns

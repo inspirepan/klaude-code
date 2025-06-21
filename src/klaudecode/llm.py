@@ -48,7 +48,7 @@ class OpenAIProxy:
     async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
         completion = await self.client.chat.completions.create(
             model=self.model_name,
-            messages=[msg.to_openai() for msg in msgs],
+            messages=[msg.to_openai() for msg in msgs if msg],
             tools=[tool.openai_schema() for tool in tools],
             extra_headers=self.extra_header,
             max_tokens=self.max_tokens,
@@ -86,7 +86,7 @@ class OpenAIProxy:
     ) -> AIMessage:
         stream = await self.client.chat.completions.create(
             model=self.model_name,
-            messages=[msg.to_openai() for msg in msgs],
+            messages=[msg.to_openai() for msg in msgs if msg],
             tools=[tool.openai_schema() for tool in tools],
             extra_headers=self.extra_header,
             max_tokens=self.max_tokens,
