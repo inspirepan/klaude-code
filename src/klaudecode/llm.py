@@ -11,7 +11,7 @@ from rich.status import Status
 
 from .message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, count_tokens
 from .tool import Tool
-from .tui import INTERRUPT_TIP, console, render_message, render_status, render_suffix
+from .tui import console, render_message, render_status, render_suffix, INTERRUPT_TIP
 
 DEFAULT_RETRIES = 3
 DEFAULT_RETRY_BACKOFF_BASE = 1
@@ -388,7 +388,7 @@ class LLMProxy:
         for attempt in range(self.max_retries):
             try:
                 if show_status:
-                    with render_status(f'{status_text} {INTERRUPT_TIP}') as status:
+                    with render_status(status_text) as status:
                         if use_streaming:
                             return await self.client.stream_call(msgs, tools, status, status_text)
                         else:
@@ -406,7 +406,7 @@ class LLMProxy:
                     delay = self.backoff_base * (2**attempt)
                     if show_status:
                         console.print(render_suffix(f'Retry {attempt + 1}/{self.max_retries}: call failed - {str(e)}, waiting {delay:.1f}s', style='red'))
-                        with render_status(f'Waiting {delay:.1f}s... {INTERRUPT_TIP}'):
+                        with render_status(f'Waiting {delay:.1f}s...'):
                             await asyncio.sleep(delay)
                     else:
                         await asyncio.sleep(delay)

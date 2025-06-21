@@ -9,10 +9,9 @@ from pydantic import BaseModel
 from rich.columns import Columns
 from rich.console import Group
 from rich.live import Live
-from rich.status import Status
 
 from .message import AIMessage, ToolCall, ToolMessage
-from .tui import INTERRUPT_TIP, SPINNER, console, render_status
+from .tui import console, render_status
 
 
 class Tool(ABC):
@@ -259,7 +258,7 @@ class ToolHandler:
                 for tc in tool_calls:
                     tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
                 tool_names = [f'[bold]{name}[/bold]{"*" + str(count) if count > 1 else ""}' for name, count in tool_counts.items()]
-                status_text = 'Executing ' + ' '.join(tool_names) + '... ' + INTERRUPT_TIP
+                status_text = 'Executing ' + ' '.join(tool_names) + '... '
                 status = render_status(status_text)
                 with Live(refresh_per_second=10, console=console.console) as live:
                     while any(ti.is_running() for ti in tool_instances) and not interrupted:
@@ -308,7 +307,7 @@ class ToolHandler:
                 pass
 
             if self.show_live:
-                status = render_status(f'Executing [bold]{tool_call.tool_name}[/bold]...  {INTERRUPT_TIP}')
+                status = render_status(f'Executing [bold]{tool_call.tool_name}[/bold]...')
                 with Live(refresh_per_second=10, console=console.console) as live:
                     while tool_instance.is_running() and not interrupted:
                         live.update(Group(tool_instance.tool_result(), status))

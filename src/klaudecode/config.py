@@ -91,7 +91,7 @@ class ConfigModel(BaseModel):
                 source = ''
             table.add_row(
                 status,
-                format_style(display_name, 'bold gray'),
+                format_style(display_name, 'bold bright_black'),
                 value,
                 source,
             )

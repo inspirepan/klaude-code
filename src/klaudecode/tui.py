@@ -61,8 +61,11 @@ class ConsoleProxy:
 console = ConsoleProxy()
 
 
-def render_status(status: str, spinner: str = 'bouncingBall', spinner_style: str = 'white'):
-    return Status(status, console=console.console, spinner=spinner, spinner_style=spinner_style)
+INTERRUPT_TIP = ' [bright_black]Press ctrl+c to interrupt[/bright_black]'
+
+
+def render_status(status: str, spinner: str = 'dots', spinner_style: str = ''):
+    return Status(status + INTERRUPT_TIP, console=console.console, spinner=spinner, spinner_style=spinner_style)
 
 
 def format_style(content: str | Text, style: Optional[str] = None):
@@ -130,11 +133,11 @@ def render_markdown(text: str) -> str:
         if line.strip().startswith('#'):
             # Keep all # symbols and bold the entire line
             line = f'[bold]{line}[/bold]'
-        # Handle blockquotes: > text -> [gray]▌ text[/gray]
+        # Handle blockquotes: > text -> [bright_black]▌ text[/bright_black]
         elif line.strip().startswith('>'):
             # Remove > symbol and maintain indentation
             quote_content = re.sub(r'^(\s*)>\s?', r'\1', line)
-            line = f'[gray]▌ {quote_content}[/gray]'
+            line = f'[bright_black]▌ {quote_content}[/bright_black]'
         else:
             # Match numbered lists: 1. -> •
             line = re.sub(r'^(\s*)(\d+)\.\s+', r'\1• ', line)
@@ -172,9 +175,6 @@ def render_hello() -> RenderResult:
         ),
         '',
     )
-
-
-INTERRUPT_TIP = '[gray]Press Ctrl+C to interrupt[/gray]'
 
 
 def truncate_middle_text(text: str, max_lines: int = 30) -> RichRenderable:
