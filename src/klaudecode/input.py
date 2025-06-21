@@ -19,6 +19,28 @@ class InputModeEnum(Enum):
     INTERRUPTED = 'interrupted'
 
 
+class Commands(Enum):
+    COMPACT = 'compact'
+    INIT = 'init'
+    COST = 'cost'
+    CLEAR = 'clear'
+    STATUS = 'status'
+    CONTINUE = 'continue'
+
+
+AVAILABLE_COMMANDS = [cmd.value for cmd in Commands]
+
+# Detailed descriptions for each command
+COMMAND_DESCRIPTIONS = {
+    Commands.COMPACT.value: 'Clear conversation history but keep a summary in context. Optional: /compact [instructions for summarization]',
+    Commands.INIT.value: 'Initialize a new CLAUDE.md file with codebase documentation',
+    Commands.COST.value: 'Show the total cost and duration of the current session',
+    Commands.CLEAR.value: 'Clear conversation history and free up context',
+    Commands.STATUS.value: 'Show the current setup',
+    Commands.CONTINUE.value: 'Request LLM without a new user message. WARNING: This may cause an error for a new conversation',
+}
+
+
 class InputMode(BaseModel):
     name: InputModeEnum
     prompt: str
@@ -52,34 +74,6 @@ class InputMode(BaseModel):
             )
 
         return Style.from_dict(style_dict)
-
-
-class Commands(Enum):
-    COMPACT = 'compact'
-    INIT = 'init'
-    COST = 'cost'
-    CLEAR = 'clear'
-    STATUS = 'status'
-    CONTINUE = 'continue'
-
-
-AVAILABLE_COMMANDS = [cmd.value for cmd in Commands]
-
-# Detailed descriptions for each command
-COMMAND_DESCRIPTIONS = {
-    Commands.COMPACT.value: 'Clear conversation history but keep a summary in context. Optional: /compact [instructions for summarization]',
-    Commands.INIT.value: 'Initialize a new CLAUDE.md file with codebase documentation',
-    Commands.COST.value: 'Show the total cost and duration of the current session',
-    Commands.CLEAR.value: 'Clear conversation history and free up context',
-    Commands.STATUS.value: 'Show the current setup',
-    Commands.CONTINUE.value: 'Request LLM without a new user message. WARNING: This may cause an error for a new conversation',
-}
-
-
-class UserInput(BaseModel):
-    mode: InputModeEnum
-    content: str
-    command: Optional[Commands] = None
 
 
 input_mode_dict = {
@@ -141,6 +135,12 @@ class CommandCompleter(Completer):
                         display=f'/{command_name}',
                         display_meta=COMMAND_DESCRIPTIONS.get(command_name, f'Execute {command_name} command'),
                     )
+
+
+class UserInput(BaseModel):
+    mode: InputModeEnum
+    raw_input: str
+    command: Optional[Commands] = None
 
 
 class InputSession:
@@ -279,7 +279,7 @@ class InputSession:
         command, cleaned_input = self._parse_command(input_text)
         user_input = UserInput(
             mode=self.current_input_mode.name,
-            content=cleaned_input,
+            raw_input=cleaned_input,
             command=command,
         )
         self._switch_to_next_mode()
@@ -289,7 +289,7 @@ class InputSession:
         input_text = await self.session.prompt_async()
         command, cleaned_input = self._parse_command(input_text)
         user_input = UserInput(
-            content=cleaned_input,
+            raw_input=cleaned_input,
             mode=self.current_input_mode.name,
             command=command,
         )
@@ -302,23 +302,24 @@ class CommandHandler:
         self.agent = agent
 
     class CommandResult(BaseModel):
-        user_input: str
+        raw_input: str
         command_result: Any
+        command_rewrite_query: str = ''
         need_agent_run: bool = False
 
     def handle(self, user_input: UserInput) -> 'CommandHandler.CommandResult':
         if not user_input.command:
-            return self.CommandResult(user_input=user_input.content, command_result='', need_agent_run=True)
+            return self.CommandResult(raw_input=user_input.raw_input, command_result='', need_agent_run=True)
         if user_input.command == Commands.STATUS:
             return self.CommandResult(
-                user_input=user_input.content,
+                raw_input=user_input.raw_input,
                 command_result=self.agent.config if self.agent.config else '',
                 need_agent_run=False,
             )
         elif user_input.command == Commands.CONTINUE:
             return self.CommandResult(
-                user_input='',
+                raw_input='',
                 command_result='Continuing the current conversation...',
                 need_agent_run=True,
             )
-        return self.CommandResult(user_input=user_input.content, command_result='', need_agent_run=False)
+        return self.CommandResult(raw_input=user_input.raw_input, command_result='', need_agent_run=len(user_input.raw_input) > 0)

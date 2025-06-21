@@ -52,29 +52,27 @@ class Agent(Tool):
     async def chat_interactive(self):
         while True:
             user_input: UserInput = await self.input_session.prompt_async()
-            if user_input.content.strip().lower() in QUIT:
+            if user_input.raw_input.strip().lower() in QUIT:
                 break
             cmd_res = self.comand_handler.handle(user_input)
             if cmd_res.command_result:
                 console.print(render_suffix(cmd_res.command_result))
-            if cmd_res.user_input:
+            query = cmd_res.command_rewrite_query or cmd_res.raw_input
+            if query:
                 self.append_message(
                     UserMessage(
-                        content=cmd_res.user_input,
+                        content=query,
                         mode=user_input.mode.value,
                         suffix=cmd_res.command_result,
                     ),
                     print_msg=False,
                 )
-            console.print()
             if cmd_res.need_agent_run:
-                if not cmd_res.user_input and 'Continuing' not in cmd_res.command_result:
-                    continue
                 await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
         try:
-            for _ in range(max_steps):
+            for i in range(max_steps):
                 # Check if task was canceled (for subagent execution)
                 if parent_tool_instance and parent_tool_instance.tool_result().tool_call.status == 'canceled':
                     return INTERRUPTED_MSG
@@ -83,6 +81,8 @@ class Agent(Tool):
                     tools=tools,
                     show_status=self.print_switch,
                 )
+                if i == 0:
+                    console.print()
                 self.append_message(ai_msg)
                 if ai_msg.finish_reason == 'stop':
                     return ai_msg.content or ''
