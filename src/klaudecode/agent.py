@@ -19,7 +19,7 @@ from .prompt.tools import AGENT_TOOL_DESC, CODE_SEARCH_AGENT_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, GrepTool, GlobTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
-from .tui import clean_last_line, console, format_style, render_markdown, render_message, render_suffix
+from .tui import clean_last_line, console, format_style, render_hello, render_markdown, render_message, render_suffix, render_status
 from .user_input import InputSession, UserInputHandler
 
 DEFAULT_MAX_STEPS = 80
@@ -52,6 +52,7 @@ class Agent(Tool):
         self.tool_handler = ToolHandler(self, self.availiable_tools, show_live=print_switch)
 
     async def chat_interactive(self):
+        console.print(render_hello())
         while True:
             user_input_text = await self.input_session.prompt_async()
             if user_input_text.strip().lower() in QUIT_COMMAND:
@@ -60,6 +61,17 @@ class Agent(Tool):
             console.print()
             if need_agent_run:
                 await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
+
+    async def headless_run(self, user_input_text: str, print_trace: bool = False):
+        need_agent_run = self.user_input_handler.handle(user_input_text)
+        if need_agent_run:
+            self.print_switch = print_trace
+            if not print_trace:
+                with render_status('Running...'):
+                    result = await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
+            else:  # verbose mode
+                result = await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
+            console.print(result)
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
         try:

@@ -10,12 +10,28 @@ from .llm import AgentLLM
 from .message import SystemMessage
 from .prompt.system import STATIC_SYSTEM_PROMPT, get_system_prompt_dynamic_part
 from .session import Session
-from .tui import console, render_hello
+from .tui import console
 
 app = typer.Typer(help='Coding Agent CLI', add_completion=False)
 
 
 async def main_async(ctx: typer.Context):
+    if ctx.obj['prompt']:
+        # Headless mode
+        session = Session(
+            os.getcwd(),
+            messages=[
+                SystemMessage(content=STATIC_SYSTEM_PROMPT, cached=True),
+                SystemMessage(content=get_system_prompt_dynamic_part(os.getcwd(), ctx.obj['config'].model_name)),
+            ],
+        )
+        agent = get_main_agent(session, config=ctx.obj['config'])
+        try:
+            await agent.headless_run(ctx.obj['prompt'], print_trace=ctx.obj['verbose'])
+        except KeyboardInterrupt:
+            pass
+        return
+
     if ctx.obj['continue_latest']:
         session = Session.get_latest_session(os.getcwd())
         if not session:
@@ -74,7 +90,6 @@ def main(
 ):
     ctx.ensure_object(dict)
     if ctx.invoked_subcommand is None:
-        console.print(render_hello())
         config_manager = ConfigManager.setup(
             api_key=api_key,
             model_name=model,
@@ -84,6 +99,7 @@ def main(
             extra_header=extra_header,
             enable_thinking=thinking,
         )
+        ctx.obj['prompt'] = prompt
         ctx.obj['resume'] = resume
         ctx.obj['continue_latest'] = continue_latest
         ctx.obj['no_mcp'] = no_mcp
