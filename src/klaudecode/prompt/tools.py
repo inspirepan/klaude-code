@@ -313,7 +313,7 @@ You have the capability to call multiple tools in a single response. When multip
 Add relevant untracked files to the staging area.
 Create the commit with a message ending with:
 Generated with Klaude Code
-Co-Authored-By: Claude <noreply@anthropic.com>
+Co-Authored-By: Claude
 Run git status to make sure the commit succeeded.
 If the commit fails due to pre-commit hook changes, retry the commit ONCE to include these automated changes. If it fails again, it usually means a pre-commit hook is preventing the commit. If the commit succeeds but you notice that files were modified by the pre-commit hook, you MUST amend your commit to include them.
 Important notes:
@@ -330,7 +330,7 @@ In order to ensure good formatting, ALWAYS pass the commit message via a HEREDOC
 git commit -m "$(cat <<'EOF'
 Commit message here.
 Generated with Klaude Code
-Co-Authored-By: Claude <noreply@anthropic.com>
+Co-Authored-By: Claude
 EOF
 )"
 </example>

@@ -56,7 +56,7 @@ def render_ls_content(tool_msg: ToolMessage):
     yield render_suffix(
         Text.assemble(
             'Listed ',
-            (str(tool_msg.get_extra_data('path_count', 0)), 'bold'),
+            (str(tool_msg.extra_data.get('path_count', 0)), 'bold'),
             ' paths',
         )
     )

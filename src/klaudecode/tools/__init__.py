@@ -4,6 +4,8 @@ __version__ = '0.1.0'
 
 from .bash import BashTool
 from .edit import EditTool
+from .glob import GlobTool
+from .grep import GrepTool
 from .ls import LsTool
 from .multi_edit import MultiEditTool
 from .read import ReadTool
@@ -19,4 +21,6 @@ __all__ = [
     'ReadTool',
     'WriteTool',
     'LsTool',
+    'GrepTool',
+    'GlobTool',
 ]

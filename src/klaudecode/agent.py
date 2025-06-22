@@ -18,7 +18,7 @@ from .prompt.system import SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT
 from .prompt.tools import AGENT_TOOL_DESC, CODE_SEARCH_AGENT_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
-from .tools import BashTool, EditTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
+from .tools import BashTool, EditTool, GrepTool, GlobTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
 from .tui import clean_last_line, console, format_style, render_markdown, render_message, render_suffix
 from .user_input import InputSession, UserInput, UserInputHandler
 
@@ -27,8 +27,8 @@ INTERACTIVE_MAX_STEPS = 100
 TOKEN_WARNING_THRESHOLD = 0.8
 TODO_SUGGESTION_LENGTH_THRESHOLD = 40
 
-BASIC_TOOLS = [LsTool, ReadTool, EditTool, MultiEditTool, WriteTool, BashTool, TodoWriteTool, TodoReadTool]
-READ_ONLY_TOOLS = [LsTool, ReadTool, BashTool, TodoWriteTool, TodoReadTool]
+BASIC_TOOLS = [LsTool, GrepTool, GlobTool, ReadTool, EditTool, MultiEditTool, WriteTool, BashTool, TodoWriteTool, TodoReadTool]
+READ_ONLY_TOOLS = [LsTool, GrepTool, GlobTool, ReadTool, BashTool, TodoWriteTool, TodoReadTool]
 
 QUIT_COMMAND = ['quit', 'exit']
 
@@ -195,4 +195,4 @@ register_tool_result_renderer('CodeSearchAgent', render_agent_result)
 
 
 def get_main_agent(session: Session, config: ConfigModel) -> Agent:
-    return Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent])
+    return Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent, CodeSearchAgentTool])

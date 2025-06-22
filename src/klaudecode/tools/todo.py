@@ -87,7 +87,7 @@ class TodoReadTool(Tool):
 
 def render_todo_dict(todo: dict, new_completed: bool = False):
     content = todo['content']
-    status = todo['status']
+    status = todo.get('status', 'pending')
     if status == 'completed' and new_completed:
         return f'[green]☒ [s]{content}[/s][/green]'
     elif status == 'completed':

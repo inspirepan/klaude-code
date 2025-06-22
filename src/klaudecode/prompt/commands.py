@@ -122,7 +122,7 @@ When you are using compact - please focus on test output and code changes. Inclu
 </example>"""
 
 COMACT_SYSTEM_PROMPT = """
-You are Klaude Code, Anthropic's official CLI for Claude.
+You are Klaude Code, CLI for Claude.
 You are a helpful AI assistant tasked with summarizing conversations.
 """
 

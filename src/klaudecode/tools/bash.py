@@ -1,4 +1,5 @@
 import os
+import re
 import select
 import signal
 import subprocess
@@ -190,13 +191,24 @@ class BashTool(Tool):
         """Validate command safety and return (is_safe, error_message)"""
         command_lower = command.lower().strip()
 
-        # Check for dangerous commands
+        # Check for dangerous commands with more precise matching
         for dangerous_cmd in cls.DANGEROUS_COMMANDS:
-            if dangerous_cmd in command_lower:
-                return (
-                    False,
-                    f'Dangerous command detected: {dangerous_cmd}. This command is blocked for security reasons.',
-                )
+            # For single words, check word boundaries
+            if dangerous_cmd in ['eval', 'exec']:
+                # Use word boundary check for single dangerous commands
+                pattern = r'\b' + re.escape(dangerous_cmd) + r'\b'
+                if re.search(pattern, command_lower):
+                    return (
+                        False,
+                        f'Dangerous command detected: {dangerous_cmd}. This command is blocked for security reasons.',
+                    )
+            else:
+                # For multi-word patterns, use substring matching
+                if dangerous_cmd in command_lower:
+                    return (
+                        False,
+                        f'Dangerous command detected: {dangerous_cmd}. This command is blocked for security reasons.',
+                    )
 
         # Check for specialized tools
         # TODO: Implement those tools
@@ -290,7 +302,7 @@ def render_bash_args(tool_call: ToolCall):
     tool_call_msg = Text.assemble(
         (tool_call.tool_name, 'bold'),
         '(',
-        f'{description} → ' if description else '',
+        (f'{description} → ' if description else '', 'orange'),
         tool_call.tool_args_dict.get('command', ''),
         ')',
     )
