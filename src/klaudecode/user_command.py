@@ -108,7 +108,7 @@ class RewriteQueryCommand(Command, ABC):
         user_msg, _ = super().handle(agent, user_input)
         user_msg.content = self.get_query_content()
         if user_input.cleaned_input:
-            user_msg.content += f'\n<requirement>\n{user_input.cleaned_input}\n</requirement>'
+            user_msg.content += f'\n<user>\n{user_input.cleaned_input}\n</user>'
         return user_msg, True
 
 

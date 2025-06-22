@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Klaude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Development Commands
 
@@ -23,18 +23,30 @@ klaude --print "your prompt here"
 
 # Continue latest session
 klaude --continue
+
+# Edit configuration
+klaude config edit
 ```
 
 ### Code Quality
 ```bash
-# Format code
-ruff format src/
+# Format code (order matters - isort first, then ruff format)
+isort src/ && ruff format src/
 
 # Lint code
 ruff check src/
 
-# Sort imports
-isort src/
+# Run all quality checks
+isort src/ && ruff format src/ && ruff check src/
+```
+
+### Debugging & Development
+```bash
+# Run with verbose output
+klaude --print "your prompt" --verbose
+
+# Check configuration
+klaude config show
 ```
 
 ## Architecture Overview
@@ -115,4 +127,51 @@ The system prompt consists of:
 - Session management includes interruption handling
 
 ### Testing
-Tests should be organized by component and use the existing tool patterns for file operations.
+Tests should be organized by component and use the existing tool patterns for file operations. Currently no test framework is configured - tests would need to be added as needed.
+
+## Development Patterns
+
+### Code Style Guidelines
+- Use single quotes for strings (configured in ruff)
+- Line length limit: 180 characters
+- Target Python 3.11+
+- Import sorting with isort before formatting with ruff
+
+### Configuration System
+Configuration follows priority: CLI args > Environment variables > Config file (~/.klaude/config.json) > Default values
+
+Key configuration files:
+- Global config: `~/.klaude/config.json`
+- Project instructions: `CLAUDE.md` (this file)
+
+Default model: `claude-sonnet-4-20250514`
+
+### Tool Development Pattern
+Each tool in `src/klaudecode/tools/` follows this structure:
+```python
+class YourTool(Tool):
+    name = "tool_name"
+    desc = "Tool description"
+    
+    class Input(BaseModel):
+        param: str = Field(description="Parameter description")
+    
+    async def call(self, input: Input, agent: Agent) -> str:
+        # Implementation
+        return "Result"
+```
+
+### Session and Message System
+- Sessions persist automatically in the working directory
+- Message types: SystemMessage, UserMessage, AIMessage, ToolMessage
+- SystemMessage can be cached for performance
+- Sessions support forking for branching conversations
+
+### Prompt System Architecture
+Prompts are modular and located in `src/klaudecode/prompt/`:
+- `system.py`: Core system prompts (static + dynamic)
+- `tools.py`: Tool-specific prompt components  
+- `reminder.py`: Context-aware reminders (todo, language, etc.)
+- `commands.py`: User command handling prompts
+
+Dynamic system prompts include environment context (working directory, git status, date/time, platform info).
