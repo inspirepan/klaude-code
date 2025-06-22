@@ -6,6 +6,7 @@ from .config import ConfigModel
 from .message import UserMessage
 from .tui import render_suffix
 from .user_input import NORMAL_MODE_NAME, Command, InputModeCommand, UserInput, register_input_mode, register_slash_command
+from .prompt.commands import TODAY_COMMAND, RECENT_COMMAND
 
 if TYPE_CHECKING:
     from .agent import Agent
@@ -94,12 +95,44 @@ class ClearCommand(Command):
     # TODO: Implement
 
 
+class TodayCommand(Command):
+    def get_name(self) -> str:
+        return 'today'
+
+    def get_command_desc(self) -> str:
+        return 'Analyze today\'s development activities in this codebase through git commit history'
+
+    def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[UserMessage, bool]:
+        user_msg, _ = super().handle(agent, user_input)
+        user_msg.content = TODAY_COMMAND
+        if user_input.cleaned_input:
+            user_msg.content += f'\n<requirement>\n{user_input.cleaned_input}\n</requirement>'
+        return user_msg, True
+
+
+class RecentCommand(Command):
+    def get_name(self) -> str:
+        return 'recent'
+
+    def get_command_desc(self) -> str:
+        return 'Analyze recent development activities in this codebase through current branch commit history'
+
+    def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[UserMessage, bool]:
+        user_msg, _ = super().handle(agent, user_input)
+        user_msg.content = RECENT_COMMAND
+        if user_input.cleaned_input:
+            user_msg.content += f'\n<requirement>\n{user_input.cleaned_input}\n</requirement>'
+        return user_msg, True
+
+
 register_slash_command(StatusCommand())
 register_slash_command(ContinueCommand())
 register_slash_command(CompactCommand())
 register_slash_command(InitCommand())
 register_slash_command(CostCommand())
 register_slash_command(ClearCommand())
+register_slash_command(TodayCommand())
+register_slash_command(RecentCommand())
 
 # Input Modes
 # ---------------------

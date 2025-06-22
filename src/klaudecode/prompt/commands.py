@@ -121,7 +121,104 @@ When summarizing the conversation focus on typescript code changes and also reme
 When you are using compact - please focus on test output and code changes. Include file reads verbatim.
 </example>"""
 
-SUMMARY_SYSTEM_PROMPT = """
+COMACT_SYSTEM_PROMPT = """
 You are Klaude Code, Anthropic's official CLI for Claude.
 You are a helpful AI assistant tasked with summarizing conversations.
+"""
+
+
+TODAY_COMMAND = """Please analyze what this codebase has been done today by git commit history and git diff.
+
+# Detailed Step-by-Step Analysis Process
+## 1. Determine Current Time and Date Range
+    • Execute date to confirm current system time and timezone
+    • Construct git log command with proper timezone offset (e.g., +0800 for CST)
+    • Use --since and --until parameters to filter commits for the target date
+
+## 2. Retrieve Commit Overview
+    • Run git log --oneline with date filters to get list of all commits
+    • Identify commit hashes and brief descriptions
+    • Count total number of commits for the day
+
+## 3. Gather Commit Statistics in Parallel
+    • Execute multiple git show <commit-hash> --stat commands simultaneously
+    • Collect file change statistics (insertions, deletions, modified files)
+    • Get high-level overview of which files were affected
+
+## 4. Extract Detailed Diffs in Parallel
+    • Run multiple git show <commit-hash> commands concurrently
+    • Retrieve complete diff content for each commit
+    • Capture all code changes, additions, and deletions
+
+## 5. Generate Comprehensive Analysis
+
+### Part 1. Analyze Each Commit Chronologically
+    • Start with earliest commit and work forward in time
+    • Examine code changes to understand the purpose and impact
+    • Identify patterns: bug fixes, new features, refactoring, etc.
+
+### Part 2. Categorize and Summarize Changes
+    • Group related changes together (e.g., architecture improvements, bug fixes)
+    • Identify major vs minor changes
+    • Note any breaking changes or significant refactoring
+
+### Part 3. Extract Technical Highlights
+    • Identify architectural improvements
+    • Note new features or capabilities added
+    • Highlight code quality improvements
+    • Document any performance or UX enhancements
+"""
+
+RECENT_COMMAND = """Please analyze the recent development activities in this codebase by examining the current branch's commit history and code changes.
+
+# Detailed Step-by-Step Analysis Process
+## 1. Determine Current Branch and Recent Development Window
+    • Execute git branch --show-current to identify the current branch
+    • Run git log --oneline -10 to get the last 10 commits on current branch
+    • Use git log --since="1 week ago" --oneline to get commits from the past week
+    • Identify appropriate time range based on commit frequency and activity
+
+## 2. Retrieve Comprehensive Commit Overview
+    • Run git log --oneline --graph --decorate to visualize branch structure
+    • Identify commit hashes, brief descriptions, and branch relationships
+    • Count total number of recent commits and determine analysis scope
+
+## 3. Gather Detailed Commit Statistics in Parallel
+    • Execute multiple git show <commit-hash> --stat commands simultaneously
+    • Collect file change statistics (insertions, deletions, modified files)
+    • Analyze which areas of codebase have been most active
+    • Identify patterns in file modifications
+
+## 4. Extract Complete Code Changes in Parallel
+    • Run multiple git show <commit-hash> commands concurrently
+    • Retrieve complete diff content for each recent commit
+    • Capture all code changes, additions, deletions, and modifications
+    • Focus on understanding the evolution of the codebase
+
+## 5. Generate Comprehensive Development Analysis
+
+### Part 1. Chronological Development Timeline
+    • Analyze commits from oldest to newest in the recent period
+    • Examine code changes to understand development progression
+    • Identify development themes and feature development paths
+    • Track how features or fixes evolved over time
+
+### Part 2. Categorize and Summarize Development Activities
+    • Group related changes: new features, bug fixes, refactoring, tests, docs
+    • Identify major development initiatives vs minor improvements
+    • Note architectural changes or significant design decisions
+    • Highlight any breaking changes or API modifications
+
+### Part 3. Technical Development Highlights
+    • Identify new features or capabilities introduced
+    • Document architectural improvements or design pattern changes
+    • Note code quality enhancements, testing improvements
+    • Highlight performance optimizations or UX improvements
+    • Analyze development velocity and focus areas
+
+### Part 4. Current Development Status
+    • Assess the current state of development based on recent commits
+    • Identify any incomplete features or ongoing development threads
+    • Note recent bug fixes and their implications
+    • Provide insights into the development momentum and direction
 """

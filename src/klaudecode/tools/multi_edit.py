@@ -1,7 +1,6 @@
 from typing import Annotated, List, NamedTuple, Tuple
 
 from pydantic import BaseModel, Field
-from rich.console import Group
 from rich.text import Text
 
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer

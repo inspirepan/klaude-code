@@ -27,10 +27,10 @@ INTERACTIVE_MAX_STEPS = 100
 TOKEN_WARNING_THRESHOLD = 0.8
 TODO_SUGGESTION_LENGTH_THRESHOLD = 40
 
-BASIC_TOOLS = [LsTool, ReadTool, EditTool, MultiEditTool, WriteTool, BashTool]
-READ_ONLY_TOOLS = [ReadTool, BashTool]
+BASIC_TOOLS = [LsTool, ReadTool, EditTool, MultiEditTool, WriteTool, BashTool, TodoWriteTool, TodoReadTool]
+READ_ONLY_TOOLS = [LsTool, ReadTool, BashTool, TodoWriteTool, TodoReadTool]
 
-QUIT = ['quit', 'exit', 'q']
+QUIT_COMMAND = ['quit', 'exit']
 
 
 class Agent(Tool):
@@ -54,7 +54,7 @@ class Agent(Tool):
     async def chat_interactive(self):
         while True:
             user_input: UserInput = await self.input_session.prompt_async()
-            if user_input.raw_input.strip().lower() in QUIT:
+            if user_input.raw_input.strip().lower() in QUIT_COMMAND:
                 break
             need_agent_run = self.user_input_handler.handle(user_input)
             console.print()
@@ -195,4 +195,4 @@ register_tool_result_renderer('CodeSearchAgent', render_agent_result)
 
 
 def get_main_agent(session: Session, config: ConfigModel) -> Agent:
-    return Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent, TodoWriteTool, TodoReadTool])
+    return Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent])
