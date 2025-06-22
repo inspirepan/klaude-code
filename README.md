@@ -63,8 +63,7 @@ klaude --continue
 
 - `-p, --print <prompt>`: Run in headless mode with the given prompt
 - `-c, --continue`: Continue the latest session
-- `-v, --verbose`: Enable verbose output (shows tool execution traces)
-- `--config <path>`: Use custom configuration file
+
 
 ## Configuration
 
