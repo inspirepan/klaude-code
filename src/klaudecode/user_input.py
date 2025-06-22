@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Generator, Tuple
+from typing import TYPE_CHECKING, Dict, Generator, Tuple
+
+if TYPE_CHECKING:
+    from .agent import Agent
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
@@ -13,7 +16,6 @@ from rich.abc import RichRenderable
 
 from .message import UserMessage, register_user_msg_renderer, register_user_msg_suffix_renderer
 from .tui import console, render_message
-
 
 """
 When users press special characters like #, !, etc., they enter special input modes (memory mode, bash mode, etc.) which execute special UserInput
@@ -41,7 +43,7 @@ class Command(ABC):
     def get_command_desc(self) -> str:
         raise NotImplementedError
 
-    def handle(self, agent, user_input: UserInput) -> Tuple[UserMessage, bool]:
+    def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[UserMessage, bool]:
         """
         Handle slash command.
         By default, return a user message with the command name and the user input.
@@ -58,7 +60,7 @@ class Command(ABC):
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         return
-        yield
+        yield  # Make sure to return a generator
 
     @classmethod
     def is_slash_command(cls) -> bool:
@@ -86,7 +88,7 @@ class InputModeCommand(Command, ABC):
     def get_next_mode_name(self) -> str:
         raise NotImplementedError
 
-    def handle(self, agent, user_input: UserInput) -> Tuple[UserMessage, bool]:
+    def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[UserMessage, bool]:
         return super().handle(agent, user_input)
 
     def get_command_desc(self) -> str:
@@ -169,7 +171,7 @@ def register_slash_command(command: Command):
 
 
 class UserInputHandler:
-    def __init__(self, agent):
+    def __init__(self, agent: 'Agent'):
         self.agent = agent
 
     def handle(self, user_input: UserInput) -> bool:

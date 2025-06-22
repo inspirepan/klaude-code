@@ -10,17 +10,17 @@ from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
 
+from . import user_command  # noqa: F401 # import user_command to trigger command registration
 from .config import ConfigModel
 from .llm import AgentLLM
-from .message import INTERRUPTED_MSG, AIMessage, BasicMessage, SystemMessage, ToolCall, ToolMessage, UserMessage, InterruptedMessage, register_tool_call_renderer, register_tool_result_renderer
+from .message import INTERRUPTED_MSG, AIMessage, BasicMessage, InterruptedMessage, SystemMessage, ToolCall, ToolMessage, UserMessage, register_tool_call_renderer, register_tool_result_renderer
 from .prompt.system import SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT
 from .prompt.tools import AGENT_TOOL_DESC, CODE_SEARCH_AGENT_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
 from .tui import clean_last_line, console, format_style, render_markdown, render_message, render_suffix
-from .user_input import UserInputHandler, InputSession, UserInput
-from . import user_command  # noqa: F401 # import user_command to trigger command registration
+from .user_input import InputSession, UserInput, UserInputHandler
 
 DEFAULT_MAX_STEPS = 80
 INTERACTIVE_MAX_STEPS = 100

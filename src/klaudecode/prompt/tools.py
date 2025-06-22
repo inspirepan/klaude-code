@@ -281,7 +281,7 @@ The command argument is required.
 It is very helpful if you write a clear, concise description of what this command does in 5-10 words.
 If the output exceeds 30000 characters, output will be truncated before being returned to you.
 VERY IMPORTANT: You MUST avoid using search commands like find and grep. Instead use Grep, Glob, or Task to search. You MUST avoid read tools like cat, head, tail, and ls, and use Read and LS to read files.
-If you still need to run grep, STOP. ALWAYS USE ripgrep at rg (or /opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/arm64-darwin/rg) first, which all Klaude Code users have pre-installed.
+If you still need to run grep, STOP. ALWAYS USE ripgrep at rg.
 When issuing multiple commands, use the ';' or '&&' operator to separate them. DO NOT use newlines (newlines are ok in quoted strings).
 Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of cd. You may use cd if the User explicitly requests it.
 <good-example>

@@ -1,11 +1,14 @@
-from .user_input import UserInput, Command, InputModeCommand, register_slash_command, register_input_mode, NORMAL_MODE_NAME
-from .message import UserMessage
-from .config import ConfigModel
-from .tui import render_suffix
-from typing import Generator, Tuple
+from typing import TYPE_CHECKING, Generator, Tuple
+
 from rich.abc import RichRenderable
 
+from .config import ConfigModel
+from .message import UserMessage
+from .tui import render_suffix
+from .user_input import NORMAL_MODE_NAME, Command, InputModeCommand, UserInput, register_input_mode, register_slash_command
 
+if TYPE_CHECKING:
+    from .agent import Agent
 """
 This file is the concrete implementation of `Command` and `InputModeCommand` ABC in `user_input.py`
 """
@@ -22,7 +25,7 @@ class StatusCommand(Command):
     def get_command_desc(self) -> str:
         return 'Show the current setup'
 
-    def handle(self, agent, user_input: UserInput) -> Tuple[UserMessage, bool]:
+    def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[UserMessage, bool]:
         user_msg, _ = super().handle(agent, user_input)
         user_msg.set_extra_data('status', agent.config)
         return user_msg, False
@@ -46,7 +49,7 @@ class ContinueCommand(Command):
     def get_command_desc(self) -> str:
         return 'Request LLM without new user message. NOTE: May cause error when no user message exists'
 
-    def handle(self, agent, user_input: UserInput) -> Tuple[UserMessage, bool]:
+    def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[UserMessage, bool]:
         user_msg, _ = super().handle(agent, user_input)
         return user_msg, True
 
