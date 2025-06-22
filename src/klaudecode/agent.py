@@ -27,7 +27,7 @@ from .message import (
     register_tool_call_renderer,
     register_tool_result_renderer,
 )
-from .prompt.reminder import EMPTY_TODO_REMINDER, TODO_REMINDER
+from .prompt.reminder import EMPTY_TODO_REMINDER, TODO_REMINDER, LANGUAGE_REMINDER
 from .prompt.system import get_subagent_system_prompt
 from .prompt.tools import TASK_TOOL_DESC, CODE_SEARCH_TASK_TOOL_DESC
 from .session import Session
@@ -88,6 +88,10 @@ class Agent(Tool):
                 # Check if task was canceled (for subagent execution)
                 if parent_tool_instance and parent_tool_instance.tool_result().tool_call.status == 'canceled':
                     return INTERRUPTED_MSG
+
+                last_user_msg = self.session.get_last_message(role='user', filter_empty=True)
+                if last_user_msg:
+                    last_user_msg.append_system_reminder(LANGUAGE_REMINDER)
 
                 if self.enable_todo_reminder:
                     self._handle_todo_reminder()

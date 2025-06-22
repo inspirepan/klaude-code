@@ -34,6 +34,9 @@ TODO_REMINDER = """<system-reminder>Your todo list has changed. DO NOT mention t
 
 You DO NOT need to use the TodoRead tool again, since this is the most up to date list for now. Continue on with the tasks at hand if applicable.</system-reminder>"""
 
+
+LANGUAGE_REMINDER = """<system-reminder>Respond in the same language as the user input entirely</system-reminder>"""
+
 FILE_MODIFIED_EXTERNAL_REMINDER = """<system-reminder>
 Note: {file_path} was modified, either by the user or by a linter. Don't tell the user this, since they are already aware. This change was intentional, so make sure to take it into account as you proceed (ie. don't revert it unless the user asks you to). So that you don't need to re-read the file, here's the result of running `cat -n` on a snippet of the edited file:
 {file_content}

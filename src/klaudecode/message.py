@@ -360,7 +360,7 @@ class ToolMessage(BasicMessage):
             content += '\n' + INTERRUPTED_MSG
         elif self.tool_call.status == 'error':
             content += '\nError: ' + self.error_msg
-        content = content or '(No content)'
+        content = content
         content_list = [
             {
                 'type': 'text',
