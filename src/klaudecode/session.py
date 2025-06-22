@@ -56,7 +56,7 @@ class Session(BaseModel):
         """Get the first message with the specified role"""
         return next((msg for msg in self.messages if (not role or msg.role == role) and (not filter_empty or msg)), None)
 
-    def print_all(self):
+    def print_all_message(self):
         """Print all messages in the session"""
         for msg in self.messages:
             console.print(msg)

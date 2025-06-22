@@ -1,4 +1,4 @@
-AGENT_TOOL_DESC = """Launch a new agent that has access to the following tools: Bash, Glob, Grep, LS, Read, Edit, MultiEdit, Write, NotebookRead, NotebookEdit, WebFetch, TodoRead, TodoWrite, WebSearch. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use the Agent tool to perform the search for you.
+TASK_TOOL_DESC = """Launch a new agent that has access to the following tools: Bash, Glob, Grep, LS, Read, Edit, MultiEdit, Write, TodoRead, TodoWrite. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use the Agent tool to perform the search for you.
 
 When to use the Agent tool:
 
@@ -21,7 +21,7 @@ Usage notes:
 5. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent
 """
 
-CODE_SEARCH_AGENT_TOOL_DESC = """Intelligently search your codebase with an agent that has access to: LS, Grep, Glob, Read.
+CODE_SEARCH_TASK_TOOL_DESC = """Intelligently search your codebase with an agent that has access to: LS, Grep, Glob, Read.
 The agent acts like your personal search assistant.
 It's ideal for complex, multi-step search tasks where you need to find code based on functionality or concepts rather than exact matches.
 

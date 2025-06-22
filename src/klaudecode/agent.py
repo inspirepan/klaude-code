@@ -29,7 +29,7 @@ from .message import (
 )
 from .prompt.reminder import EMPTY_TODO_REMINDER, TODO_REMINDER
 from .prompt.system import get_subagent_system_prompt
-from .prompt.tools import AGENT_TOOL_DESC, CODE_SEARCH_AGENT_TOOL_DESC
+from .prompt.tools import TASK_TOOL_DESC, CODE_SEARCH_TASK_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
@@ -42,7 +42,7 @@ TOKEN_WARNING_THRESHOLD = 0.8
 TODO_SUGGESTION_LENGTH_THRESHOLD = 40
 
 BASIC_TOOLS = [LsTool, GrepTool, GlobTool, ReadTool, EditTool, MultiEditTool, WriteTool, BashTool, TodoWriteTool, TodoReadTool]
-READ_ONLY_TOOLS = [LsTool, GrepTool, GlobTool, ReadTool, BashTool, TodoWriteTool, TodoReadTool]
+READ_ONLY_TOOLS = [LsTool, GrepTool, GlobTool, ReadTool, TodoWriteTool, TodoReadTool]
 
 QUIT_COMMAND = ['quit', 'exit']
 
@@ -56,7 +56,7 @@ class Agent(Tool):
         availiable_tools: Optional[List[Tool]] = None,
         print_switch: bool = True,
         enable_claudemd_reminder: bool = True,
-        enable_todo_reminder: bool = False,
+        enable_todo_reminder: bool = True,
     ):
         self.session: Session = session
         self.label = label
@@ -71,6 +71,8 @@ class Agent(Tool):
 
     async def chat_interactive(self):
         console.print(render_hello())
+        self.session.print_all_message()  # For continue and resume scene.
+
         while True:
             user_input_text = await self.input_session.prompt_async()
             if user_input_text.strip().lower() in QUIT_COMMAND:
@@ -186,8 +188,8 @@ class Agent(Tool):
 
     # Implement SubAgent
     # ------------------
-    name = 'Agent'
-    desc = AGENT_TOOL_DESC
+    name = 'Task'
+    desc = TASK_TOOL_DESC
 
     class Input(BaseModel):
         description: Annotated[str, Field(description='A short (3-5 word) description of the task')] = None
@@ -227,9 +229,9 @@ class Agent(Tool):
         instance.tool_result().set_content((result or '').strip())
 
 
-class CodeSearchAgentTool(Agent):
-    name = 'CodeSearchAgent'
-    desc = CODE_SEARCH_AGENT_TOOL_DESC
+class CodeSearchTaskTool(Agent):
+    name = 'CodeSearchTask'
+    desc = CODE_SEARCH_TASK_TOOL_DESC
 
     @classmethod
     def get_subagent_tools(cls):
@@ -259,11 +261,11 @@ def render_agent_result(tool_msg: ToolMessage):
         yield render_suffix(Panel.fit(render_markdown(tool_msg.content), border_style='agent_result'))
 
 
-register_tool_call_renderer('Agent', render_agent_args)
-register_tool_result_renderer('Agent', render_agent_result)
-register_tool_call_renderer('CodeSearchAgent', render_agent_args)
-register_tool_result_renderer('CodeSearchAgent', render_agent_result)
+register_tool_call_renderer('Task', render_agent_args)
+register_tool_result_renderer('Task', render_agent_result)
+register_tool_call_renderer('CodeSearchTask', render_agent_args)
+register_tool_result_renderer('CodeSearchTask', render_agent_result)
 
 
 def get_main_agent(session: Session, config: ConfigModel) -> Agent:
-    return Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent, CodeSearchAgentTool], enable_claudemd_reminder=True, enable_todo_reminder=True)
+    return Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent, CodeSearchTaskTool], enable_claudemd_reminder=True, enable_todo_reminder=True)

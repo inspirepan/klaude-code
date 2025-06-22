@@ -3,6 +3,8 @@ import re
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+DEFAULT_IGNORE_PATTERNS = ['.git/', '.gitignore', '.venv/', '.env', '.DS_Store', '__pycache__/', 'node_modules/']
+
 
 def _parse_gitignore(gitignore_path: Path) -> List[str]:
     """Parse .gitignore file and return list of ignore patterns"""
@@ -142,7 +144,7 @@ def get_directory_structure(path: str, ignore_pattern: Optional[List[str]] = Non
     ignore_patterns = _parse_gitignore(gitignore_path)
 
     # Add default ignore patterns
-    default_ignores = ['.git/', '.gitignore', '.venv/', '.env', '.DS_Store', '__pycache__/']
+    default_ignores = DEFAULT_IGNORE_PATTERNS
     ignore_patterns.extend(default_ignores)
 
     # Add additional ignore patterns

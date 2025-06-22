@@ -271,16 +271,15 @@ def render_grep_content(tool_msg: ToolMessage):
     match_count = tool_msg.get_extra_data('match_count', 0)
     truncated = tool_msg.get_extra_data('truncated', False)
 
-    if match_count > 0:
-        count_text = Text()
-        count_text.append('Found ')
-        count_text.append(str(match_count), style='bold')
-        count_text.append(' matches')
+    count_text = Text()
+    count_text.append('Found ')
+    count_text.append(str(match_count), style='bold')
+    count_text.append(' matches')
 
-        if truncated:
-            count_text.append(f' (truncated to {DEFAULT_MAX_RESULTS} matches)', style='yellow')
+    if truncated:
+        count_text.append(f' (truncated to {DEFAULT_MAX_RESULTS} matches)', style='yellow')
 
-        yield render_suffix(count_text)
+    yield render_suffix(count_text)
 
 
 register_tool_call_renderer('Grep', render_grep_args)

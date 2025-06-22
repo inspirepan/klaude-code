@@ -38,7 +38,6 @@ async def main_async(ctx: typer.Context):
             console.print('[red]No session found[/red]')
             return
         session = session.fork()
-        session.print_all()
     elif ctx.obj['resume']:
         pass  # TODO
     else:

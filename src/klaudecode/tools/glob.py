@@ -298,16 +298,15 @@ def render_glob_content(tool_msg: ToolMessage):
     file_count = tool_msg.get_extra_data('file_count', 0)
     truncated = tool_msg.get_extra_data('truncated', False)
 
-    if file_count > 0:
-        count_text = Text()
-        count_text.append('Found ')
-        count_text.append(str(file_count), style='bold')
-        count_text.append(' files')
+    count_text = Text()
+    count_text.append('Found ')
+    count_text.append(str(file_count), style='bold')
+    count_text.append(' files')
 
-        if truncated:
-            count_text.append(f' (truncated to {DEFAULT_MAX_FILES} files)', style='yellow')
+    if truncated:
+        count_text.append(f' (truncated to {DEFAULT_MAX_FILES} files)', style='yellow')
 
-        yield render_suffix(count_text)
+    yield render_suffix(count_text)
 
 
 register_tool_call_renderer('Glob', render_glob_args)

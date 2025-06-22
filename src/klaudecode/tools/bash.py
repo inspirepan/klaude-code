@@ -83,6 +83,8 @@ class BashTool(Tool):
         if not is_safe:
             instance.tool_result().set_error_msg(error_msg)
             return
+        if '<system-reminder>' in error_msg:
+            instance.tool_result().append_system_reminder(error_msg)
 
         # Set timeout
         timeout_ms = args.timeout or cls.DEFAULT_TIMEOUT
@@ -216,10 +218,9 @@ class BashTool(Tool):
                     )
 
         # Check for specialized tools
-        # TODO: Implement those tools
-        # for cmd, suggestion in cls.SPECIALIZED_TOOLS.items():
-        #     if command_lower.startswith(cmd + ' ') or command_lower == cmd:
-        #         return False, f"Command '{cmd}' detected. {suggestion}"
+        for cmd, suggestion in cls.SPECIALIZED_TOOLS.items():
+            if command_lower.startswith(cmd + ' ') or command_lower == cmd:
+                return True, f"<system-reminder>Command '{cmd}' detected. {suggestion}</system-reminder>"
 
         return True, ''
 
