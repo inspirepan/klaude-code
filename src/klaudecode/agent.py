@@ -20,6 +20,7 @@ from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
 from .tui import clean_last_line, console, format_style, render_markdown, render_message, render_suffix
 from .user_input import UserInputHandler, InputSession, UserInput
+from . import user_command  # noqa: F401 # import user_command to trigger command registration
 
 DEFAULT_MAX_STEPS = 80
 INTERACTIVE_MAX_STEPS = 100

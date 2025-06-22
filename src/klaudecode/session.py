@@ -75,8 +75,8 @@ class Session(BaseModel):
         dt = datetime.fromtimestamp(created_at)
         datetime_str = dt.strftime('%Y_%m%d_%H%M')
 
-        first_user_msg: UserMessage = self.get_first_message(role='user')
-        if first_user_msg:
+        first_user_msg: Optional[UserMessage] = self.get_first_message(role='user')
+        if first_user_msg is not None:
             title = sanitize_filename(first_user_msg.user_raw_input or first_user_msg.content, max_length=20)
         else:
             title = 'untitled'

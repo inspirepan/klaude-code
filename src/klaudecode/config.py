@@ -60,6 +60,23 @@ class ConfigModel(BaseModel):
                 config_values[key] = ConfigValue(value=value, source=source)
         super().__init__(**config_values)
 
+    @classmethod
+    def model_validate(cls, obj, *, strict=None, from_attributes=None, context=None):
+        """Override model_validate to handle ConfigValue dict format"""
+        if isinstance(obj, dict):
+            # Handle the case where obj contains ConfigValue dicts
+            config_values = {}
+            for key, value in obj.items():
+                if isinstance(value, dict) and 'value' in value and 'source' in value:
+                    config_values[key] = ConfigValue(value=value['value'], source=value['source'])
+                else:
+                    config_values[key] = value
+            # Create instance directly without going through __init__
+            instance = cls.__new__(cls)
+            BaseModel.__init__(instance, **config_values)
+            return instance
+        return super().model_validate(obj, strict=strict, from_attributes=from_attributes, context=context)
+
     def __rich__(self):
         """Rich display for configuration model"""
         table = Table.grid(padding=(0, 1))

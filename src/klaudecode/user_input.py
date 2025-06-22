@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
-from enum import Enum
 from pathlib import Path
-from typing import Dict, Generator, Optional, Tuple, Type
+from typing import Dict, Generator, Tuple
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
@@ -13,117 +12,94 @@ from pydantic import BaseModel
 from rich.abc import RichRenderable
 
 from .message import UserMessage, register_user_msg_renderer, register_user_msg_suffix_renderer
-from .tui import console, render_suffix, render_message
-from .config import ConfigModel
+from .tui import console, render_message
 
 
-class InputModeEnum(Enum):
-    NORMAL = 'normal'
-    PLAN = 'plan'
-    BASH = 'bash'
-    MEMORY = 'memory'
-
-
-# class CommandEnum(Enum):
-# COMPACT = 'compact'
-# INIT = 'init'
-# COST = 'cost'
-# CLEAR = 'clear'
-# STATUS = 'status'
-# CONTINUE = 'continue'
+"""
+When users press special characters like #, !, etc., they enter special input modes (memory mode, bash mode, etc.) which execute special UserInput
+When users press /, it prompts slash command completion
+The Command ABC class is an abstraction for these two types of modes/commands
+"""
 
 
 class UserInput(BaseModel):
-    user_msg_type: str = 'normal'
-    cleaned_input: str  # User input without slash and command
-    raw_input: str  # User input with mode and command
+    command_name: str = 'normal'  # Input mode or slash command
+    cleaned_input: str  # User input without slash command
+    raw_input: str
 
 
-# AVAILABLE_COMMANDS = [cmd.value for cmd in CommandEnum]
+# Command ABC
+# ---------------------
 
 
 class Command(ABC):
     @abstractmethod
-    def get_command_name(self) -> str:
+    def get_name(self) -> str:
         raise NotImplementedError
 
     @abstractmethod
     def get_command_desc(self) -> str:
         raise NotImplementedError
 
-    @abstractmethod
     def handle(self, agent, user_input: UserInput) -> Tuple[UserMessage, bool]:
-        raise NotImplementedError
+        """
+        Handle slash command.
+        By default, return a user message with the command name and the user input.
+        Return True to indicate that the agent should run.
+        """
+        return UserMessage(
+            content=user_input.cleaned_input,
+            user_msg_type=user_input.command_name,
+            user_raw_input=user_input.raw_input,
+        ), True
 
     def render_user_msg(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         yield render_message(user_msg.user_raw_input)
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
-        yield ''
+        return
+        yield
+
+    @classmethod
+    def is_slash_command(cls) -> bool:
+        return True
 
 
-# Detailed descriptions for each command
-# COMMAND_DESCRIPTIONS = {
-#     CommandEnum.COMPACT.value: 'Clear conversation history but keep a summary in context. Optional: /compact [instructions for summarization]',
-#     CommandEnum.INIT.value: 'Initialize a new CLAUDE.md file with codebase documentation',
-#     CommandEnum.COST.value: 'Show the total cost and duration of the current session',
-#     CommandEnum.CLEAR.value: 'Clear conversation history and free up context',
-#     CommandEnum.STATUS.value: 'Show the current setup',
-#     CommandEnum.CONTINUE.value: 'Request LLM without a new user message. WARNING: This may cause an error for a new conversation',
-# }
+class InputModeCommand(Command, ABC):
+    @classmethod
+    def is_slash_command(cls) -> bool:
+        return False
 
+    @abstractmethod
+    def _get_prompt(self) -> str:
+        raise NotImplementedError
 
-# Commands
-# --------------------------------------
+    @abstractmethod
+    def _get_color(self) -> str:
+        raise NotImplementedError
 
+    @abstractmethod
+    def get_placeholder(self) -> str:
+        raise NotImplementedError
 
-class StatusCommand(Command):
-    def get_command_name(self) -> str:
-        return 'status'
-
-    def get_command_desc(self) -> str:
-        return 'Show the current setup'
+    @abstractmethod
+    def get_next_mode_name(self) -> str:
+        raise NotImplementedError
 
     def handle(self, agent, user_input: UserInput) -> Tuple[UserMessage, bool]:
-        user_msg = UserMessage(
-            content=user_input.cleaned_input,
-            user_msg_type=user_input.user_msg_type,
-            user_raw_input=user_input.raw_input,
-        )
-        user_msg.set_extra_data('status', agent.config.model_dump_json())
-        return user_msg, False
+        return super().handle(agent, user_input)
 
-    def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
-        config = user_msg.get_extra_data('status')
-        if config:
-            config_model = ConfigModel.model_validate_json(config)
-            print(config_model)
-            yield render_suffix(config_model)
-
-
-ALL_COMMANDS = [StatusCommand()]
-ALL_COMMANDS_DICT = {cmd.get_command_name(): cmd for cmd in ALL_COMMANDS}
-
-for cmd in ALL_COMMANDS:
-    register_user_msg_renderer(cmd.get_command_name(), cmd.render_user_msg)
-    register_user_msg_suffix_renderer(cmd.get_command_name(), cmd.render_user_msg_suffix)
-
-
-# INPUT_PROMPT
-# -------
-
-
-class InputMode(BaseModel):
-    name: InputModeEnum
-    prompt: str
-    placeholder: str
-    style: str
-    next_mode: InputModeEnum
+    def get_command_desc(self) -> str:
+        return f'Input mode: {self.get_name()}'
 
     def get_prompt(self):
-        if self.style:
-            return HTML(f'<style fg="{self.style}">{self.prompt} </style>')
-        return self.prompt + ' '
+        if self._get_color():
+            return HTML(f'<style fg="{self._get_color()}">{self._get_prompt()} </style>')
+        return self._get_prompt() + ' '
+
+    def binding_key(self) -> str:
+        # ! DO NOT BIND `/` `enter` `backspace`
+        raise NotImplementedError
 
     def get_style(self):
         style_dict = {
@@ -136,60 +112,103 @@ class InputMode(BaseModel):
             'completion-menu.meta.completion': 'bg:default fg:#9a9a9a',
             'completion-menu.meta.completion.current': 'bg:#aaddff fg:#4a4a4a',
         }
-
-        if self.style:
+        if self._get_color():
             style_dict.update(
                 {
-                    'placeholder': self.style,
-                    '': self.style,
+                    'placeholder': self._get_color(),
+                    '': self._get_color(),
                 }
             )
-
         return Style.from_dict(style_dict)
 
 
-input_mode_dict = {
-    InputModeEnum.NORMAL: InputMode(
-        name=InputModeEnum.NORMAL,
-        prompt='>',
-        placeholder='type you query... type exit to quit.',
-        style='',
-        next_mode=InputModeEnum.NORMAL,
-    ),
-    InputModeEnum.PLAN: InputMode(
-        name=InputModeEnum.PLAN,
-        prompt='*',
-        placeholder='type plan...',
-        style='#6aa4a5',
-        next_mode=InputModeEnum.PLAN,
-    ),
-    InputModeEnum.BASH: InputMode(
-        name=InputModeEnum.BASH,
-        prompt='!',
-        placeholder='type command...',
-        style='#ea3386',
-        next_mode=InputModeEnum.NORMAL,
-    ),
-    InputModeEnum.MEMORY: InputMode(
-        name=InputModeEnum.MEMORY,
-        prompt='#',
-        placeholder='type memory...',
-        style='#b3b9f4',
-        next_mode=InputModeEnum.NORMAL,
-    ),
+class NormalMode(InputModeCommand):
+    def get_name(self) -> str:
+        return NORMAL_MODE_NAME
+
+    def _get_prompt(self) -> str:
+        return '>'
+
+    def _get_color(self) -> str:
+        return ''
+
+    def get_placeholder(self) -> str:
+        return 'type you query... type exit to quit.'
+
+    def get_next_mode_name(self) -> str:
+        return NORMAL_MODE_NAME
+
+    def binding_key(self) -> str:
+        return ''
+
+
+# All Command Registry
+# ---------------------
+
+NORMAL_MODE_NAME = 'normal'
+_INPUT_MODES = {
+    NORMAL_MODE_NAME: NormalMode(),
 }
+_SLASH_COMMANDS = {}
+
+
+def register_input_mode(input_mode: InputModeCommand):
+    _INPUT_MODES[input_mode.get_name()] = input_mode
+    register_user_msg_renderer(input_mode.get_name(), input_mode.render_user_msg)
+    register_user_msg_suffix_renderer(input_mode.get_name(), input_mode.render_user_msg_suffix)
+
+
+def register_slash_command(command: Command):
+    _SLASH_COMMANDS[command.get_name()] = command
+    register_user_msg_renderer(command.get_name(), command.render_user_msg)
+    register_user_msg_suffix_renderer(command.get_name(), command.render_user_msg_suffix)
+
+
+# User Input Handler
+# ---------------------
+
+
+class UserInputHandler:
+    def __init__(self, agent):
+        self.agent = agent
+
+    def handle(self, user_input: UserInput) -> bool:
+        """
+        Handle special mode and command input.
+        """
+        command = _INPUT_MODES.get(user_input.command_name, _SLASH_COMMANDS.get(user_input.command_name, None))
+        if command:
+            user_msg, need_agent_run = command.handle(self.agent, user_input)
+        else:
+            user_msg = UserMessage(
+                content=user_input.cleaned_input,
+                user_msg_type=user_input.command_name,
+                user_raw_input=user_input.raw_input,
+            )
+            need_agent_run = True
+        self.agent.append_message(user_msg, print_msg=False)
+
+        # Render command result
+        for item in user_msg.get_suffix_renderable():
+            console.print(item)
+
+        return need_agent_run
+
+
+# Prompt toolkit completer & key bindings
+# ----------------------------------------
 
 
 class CommandCompleter(Completer):
     """Custom command completer"""
 
     def __init__(self, input_session):
-        self.commands = ALL_COMMANDS_DICT
+        self.commands: Dict[str, Command] = _SLASH_COMMANDS
         self.input_session = input_session
 
     def get_completions(self, document, _complete_event):
         # Only provide completion in normal mode
-        if self.input_session.current_input_mode.name != InputModeEnum.NORMAL:
+        if self.input_session.current_input_mode.get_name() != NORMAL_MODE_NAME:
             return
         text = document.text
         # Only provide completion when input starts with /
@@ -211,7 +230,7 @@ class CommandCompleter(Completer):
 
 class InputSession:
     def __init__(self, workdir: str = None):
-        self.current_input_mode = input_mode_dict[InputModeEnum.NORMAL]
+        self.current_input_mode: InputModeCommand = _INPUT_MODES[NORMAL_MODE_NAME]
         self.workdir = Path(workdir) if workdir else Path.cwd()
 
         # Create history file path
@@ -228,7 +247,7 @@ class InputSession:
         self.kb = KeyBindings()
         self._setup_key_bindings()
 
-        # Create sessio
+        # Create session
         self.session = PromptSession(
             message=self._dyn_prompt,
             key_bindings=self.kb,
@@ -243,15 +262,14 @@ class InputSession:
         return self.current_input_mode.get_prompt()
 
     def _dyn_placeholder(self):
-        return self.current_input_mode.placeholder
+        return self.current_input_mode.get_placeholder()
 
     def _parse_command(self, text: str) -> Tuple[str, str]:
         """Parse command from input text. Returns tuple of (command_enum, remaining_text)"""
         if not text.strip():
             return '', text
-
         # Only parse commands in normal mode
-        if self.current_input_mode.name != InputModeEnum.NORMAL:
+        if self.current_input_mode.get_name() != NORMAL_MODE_NAME:
             return '', text
 
         stripped = text.strip()
@@ -262,12 +280,12 @@ class InputSession:
                 command_part = parts[0]
                 remaining_text = parts[1] if len(parts) > 1 else ''
                 # Find matching enum
-                if command_part in ALL_COMMANDS_DICT:
-                    return ALL_COMMANDS_DICT[command_part].get_command_name(), remaining_text
+                if command_part in _SLASH_COMMANDS:
+                    return _SLASH_COMMANDS[command_part].get_name(), remaining_text
         return '', text
 
     def _switch_mode(self, event, mode_name: str):
-        self.current_input_mode = input_mode_dict[mode_name]
+        self.current_input_mode = _INPUT_MODES[mode_name]
         style = self.current_input_mode.get_style()
         if style:
             event.app.style = style
@@ -283,26 +301,23 @@ class InputSession:
         self.buf.insert_text(char)
 
     def _setup_key_bindings(self):
-        @self.kb.add('!')
-        def _(event):
-            """
-            Press '!' at line start: switch to bash mode; don't write to buffer.
-            If cursor is not at line start or buffer is not empty, insert '!' normally
-            """
-            self._switch_mode_or_insert(event, InputModeEnum.BASH, '!')
+        # 动态注册输入模式的键绑定
+        for mode in _INPUT_MODES.values():
+            if mode.binding_key():
 
-        @self.kb.add('*')
-        def _(event):
-            self._switch_mode_or_insert(event, InputModeEnum.PLAN, '*')
+                def make_binding(current_mode):
+                    @self.kb.add(current_mode.binding_key())
+                    def _(event):
+                        self._switch_mode_or_insert(event, current_mode.get_name(), current_mode.binding_key())
 
-        @self.kb.add('#')
-        def _(event):
-            self._switch_mode_or_insert(event, InputModeEnum.MEMORY, '#')
+                    return _
+
+                make_binding(mode)
 
         @self.kb.add('backspace')
         def _(event):
             if self.buf.text == '' and self.buf.cursor_position == 0:
-                self._switch_mode(event, InputModeEnum.NORMAL)
+                self._switch_mode(event, NORMAL_MODE_NAME)
                 return
             self.buf.delete_before_cursor()
 
@@ -333,7 +348,10 @@ class InputSession:
                 buffer.validate_and_handle()
 
     def _switch_to_next_mode(self):
-        self.current_input_mode = input_mode_dict[self.current_input_mode.next_mode]
+        next_mode_name = self.current_input_mode.get_next_mode_name()
+        if next_mode_name not in _INPUT_MODES:
+            return
+        self.current_input_mode = _INPUT_MODES[next_mode_name]
         # Update session style for next prompt
         style = self.current_input_mode.get_style()
         if hasattr(self.session, 'app') and self.session.app:
@@ -343,7 +361,7 @@ class InputSession:
         input_text = self.session.prompt()
         command_name, cleaned_input = self._parse_command(input_text)
         user_input = UserInput(
-            user_msg_type=command_name or self.current_input_mode.name.value,
+            command_name=command_name or self.current_input_mode.get_name(),
             cleaned_input=cleaned_input,
             raw_input=input_text,
         )
@@ -354,33 +372,9 @@ class InputSession:
         input_text = await self.session.prompt_async()
         command_name, cleaned_input = self._parse_command(input_text)
         user_input = UserInput(
-            user_msg_type=command_name or self.current_input_mode.name.value,
+            command_name=command_name or self.current_input_mode.get_name(),
             cleaned_input=cleaned_input,
             raw_input=input_text,
         )
         self._switch_to_next_mode()
         return user_input
-
-
-class UserInputHandler:
-    def __init__(self, agent):
-        self.agent = agent
-
-    def handle(self, user_input: UserInput) -> bool:
-        """
-        Handle special mode and command input.
-        """
-        if user_input.user_msg_type in ALL_COMMANDS_DICT:
-            command = ALL_COMMANDS_DICT[user_input.user_msg_type]
-            user_msg, need_agent_run = command.handle(self.agent, user_input)
-        else:
-            user_msg = UserMessage(
-                content=user_input.cleaned_input,
-                user_msg_type=user_input.user_msg_type,
-                user_raw_input=user_input.raw_input,
-            )
-            need_agent_run = True
-        self.agent.append_message(user_msg, print_msg=False)
-        for item in user_msg.get_suffix_renderable():
-            console.print(item)
-        return need_agent_run

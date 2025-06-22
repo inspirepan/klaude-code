@@ -1,0 +1,167 @@
+from .user_input import UserInput, Command, InputModeCommand, register_slash_command, register_input_mode, NORMAL_MODE_NAME
+from .message import UserMessage
+from .config import ConfigModel
+from .tui import render_suffix
+from typing import Generator, Tuple
+from rich.abc import RichRenderable
+
+
+"""
+This file is the concrete implementation of `Command` and `InputModeCommand` ABC in `user_input.py`
+"""
+
+
+# Commands
+# ---------------------
+
+
+class StatusCommand(Command):
+    def get_name(self) -> str:
+        return 'status'
+
+    def get_command_desc(self) -> str:
+        return 'Show the current setup'
+
+    def handle(self, agent, user_input: UserInput) -> Tuple[UserMessage, bool]:
+        user_msg, _ = super().handle(agent, user_input)
+        user_msg.set_extra_data('status', agent.config)
+        return user_msg, False
+
+    def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
+        config_data = user_msg.get_extra_data('status')
+        if config_data:
+            if isinstance(config_data, ConfigModel):
+                config_model = config_data
+            elif isinstance(config_data, dict):
+                config_model = ConfigModel.model_validate(config_data)
+            else:
+                return
+            yield render_suffix(config_model)
+
+
+class ContinueCommand(Command):
+    def get_name(self) -> str:
+        return 'continue'
+
+    def get_command_desc(self) -> str:
+        return 'Request LLM without new user message. NOTE: May cause error when no user message exists'
+
+    def handle(self, agent, user_input: UserInput) -> Tuple[UserMessage, bool]:
+        user_msg, _ = super().handle(agent, user_input)
+        return user_msg, True
+
+
+class CompactCommand(Command):
+    def get_name(self) -> str:
+        return 'compact'
+
+    def get_command_desc(self) -> str:
+        return 'Clear conversation history but keep a summary in context. Optional: /compact [instructions for summarization]'
+
+    # TODO: Implement
+
+
+class InitCommand(Command):
+    def get_name(self) -> str:
+        return 'init'
+
+    def get_command_desc(self) -> str:
+        return 'Initialize a new CLAUDE.md file with codebase documentation'
+
+    # TODO: Implement
+
+
+class CostCommand(Command):
+    def get_name(self) -> str:
+        return 'cost'
+
+    def get_command_desc(self) -> str:
+        return 'Show the total cost and duration of the current session'
+
+    # TODO: Implement
+
+
+class ClearCommand(Command):
+    def get_name(self) -> str:
+        return 'clear'
+
+    def get_command_desc(self) -> str:
+        return 'Clear conversation history and free up context'
+
+    # TODO: Implement
+
+
+register_slash_command(StatusCommand())
+register_slash_command(ContinueCommand())
+register_slash_command(CompactCommand())
+register_slash_command(InitCommand())
+register_slash_command(CostCommand())
+register_slash_command(ClearCommand())
+
+# Input Modes
+# ---------------------
+
+
+class PlanMode(InputModeCommand):
+    def get_name(self) -> str:
+        return 'plan'
+
+    def _get_prompt(self) -> str:
+        return '*'
+
+    def _get_color(self) -> str:
+        return '#6aa4a5'
+
+    def get_placeholder(self) -> str:
+        return 'type plan...'
+
+    def get_next_mode_name(self) -> str:
+        return 'plan'
+
+    def binding_key(self) -> str:
+        return '*'
+
+
+class BashMode(InputModeCommand):
+    def get_name(self) -> str:
+        return 'bash'
+
+    def _get_prompt(self) -> str:
+        return '!'
+
+    def _get_color(self) -> str:
+        return '#ea3386'
+
+    def get_placeholder(self) -> str:
+        return 'type command...'
+
+    def get_next_mode_name(self) -> str:
+        return NORMAL_MODE_NAME
+
+    def binding_key(self) -> str:
+        return '!'
+
+
+class MemoryMode(InputModeCommand):
+    def get_name(self) -> str:
+        return 'memory'
+
+    def _get_prompt(self) -> str:
+        return '#'
+
+    def _get_color(self) -> str:
+        return '#b3b9f4'
+
+    def get_placeholder(self) -> str:
+        return 'type memory...'
+
+    def get_next_mode_name(self) -> str:
+        return NORMAL_MODE_NAME
+
+    def binding_key(self) -> str:
+        return '#'
+
+
+register_input_mode(PlanMode())
+register_input_mode(BashMode())
+register_input_mode(MemoryMode())

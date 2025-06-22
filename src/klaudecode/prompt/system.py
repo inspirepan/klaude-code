@@ -137,7 +137,7 @@ IMPORTANT: You must NEVER generate or guess URLs for the user unless you are con
 # ------------------------------------------------------------------------------------------------
 
 TOOL_INSTRUCTION = """
-Tool usage policy
+## Tool usage policy
 When doing file search, prefer to use the Task tool in order to reduce context usage.
 You have the capability to call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together for optimal performance. When making multiple bash tool calls, you MUST send a single message with multiple tools calls to run the calls in parallel. For example, if you need to run "git status" and "git diff", send a single message with two tool calls to run the calls in parallel.
 You MUST answer concisely with fewer than 4 lines of text (not including tool use or code generation), unless user asks for detail.
@@ -167,7 +167,7 @@ def get_directory_structure_context(workdir: str):
 
 
 CODEBASE_INSTRUCTION = """
-Code References
+## Code References
 When referencing specific functions or pieces of code include the pattern file_path:line_number to allow the user to easily navigate to the source code location.
 <example>
 user: Where are errors from the client handled?

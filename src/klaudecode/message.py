@@ -144,7 +144,7 @@ class UserMessage(BasicMessage):
 
     def __rich_console__(self, console, options):
         if not self.user_msg_type or self.user_msg_type not in _USER_MSG_RENDERERS:
-            yield render_message(self.content)
+            yield render_message(self.content, mark='>')
         else:
             for item in _USER_MSG_RENDERERS[self.user_msg_type](self):
                 yield item
@@ -175,7 +175,7 @@ class InterruptedMessage(UserMessage):
         return MessageParam(role='user', content=INTERRUPTED_MSG)
 
     def __rich_console__(self, console, options):
-        yield render_message(INTERRUPTED_MSG, style='red')
+        yield render_message(INTERRUPTED_MSG, style='red', mark='>', mark_style='red')
         yield ''
 
     def __bool__(self):
@@ -418,7 +418,9 @@ class ToolMessage(BasicMessage):
         super().append_extra_data(key, value)
 
 
-# Tool renderer registry for custom rendering
+# Renderer Registry
+# ---------------------
+
 _TOOL_CALL_RENDERERS = {}
 _TOOL_RESULT_RENDERERS = {}
 _USER_MSG_RENDERERS = {}
