@@ -67,7 +67,7 @@ klaude --continue
 
 ## Configuration
 
-Klaude Code uses configuration files to manage settings like API keys and model preferences. Configuration is automatically loaded from global user settings: `~/.config/klaude/config.json`.
+Klaude Code uses configuration files to manage settings like API keys and model preferences. Configuration is automatically loaded from global user settings: `~/.klaude/config.json`.
 
 Init and edit your configuration via:
 
@@ -103,13 +103,10 @@ uv pip install -e .
 
 ```bash
 # Format code
-ruff format src/
+isort src/ && ruff format src/
 
 # Lint code
 ruff check src/
-
-# Sort imports
-isort src/
 ```
 
 ## Architecture
