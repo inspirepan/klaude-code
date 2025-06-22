@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from typing import Annotated, List, Optional
 
@@ -26,6 +27,7 @@ from .message import (
     register_tool_call_renderer,
     register_tool_result_renderer,
 )
+from .prompt.reminder import EMPTY_TODO_REMINDER, TODO_REMINDER
 from .prompt.system import get_subagent_system_prompt
 from .prompt.tools import AGENT_TOOL_DESC, CODE_SEARCH_AGENT_TOOL_DESC
 from .session import Session
@@ -53,6 +55,8 @@ class Agent(Tool):
         label: Optional[str] = None,
         availiable_tools: Optional[List[Tool]] = None,
         print_switch: bool = True,
+        enable_claudemd_reminder: bool = True,
+        enable_todo_reminder: bool = False,
     ):
         self.session: Session = session
         self.label = label
@@ -62,6 +66,8 @@ class Agent(Tool):
         self.availiable_tools = availiable_tools
         self.user_input_handler = UserInputHandler(self)
         self.tool_handler = ToolHandler(self, self.availiable_tools, show_live=print_switch)
+        self.enable_claudemd_reminder = enable_claudemd_reminder
+        self.enable_todo_reminder = enable_todo_reminder
 
     async def chat_interactive(self):
         console.print(render_hello())
@@ -80,6 +86,10 @@ class Agent(Tool):
                 # Check if task was canceled (for subagent execution)
                 if parent_tool_instance and parent_tool_instance.tool_result().tool_call.status == 'canceled':
                     return INTERRUPTED_MSG
+
+                if self.enable_todo_reminder:
+                    self._handle_todo_reminder()
+
                 ai_msg = await AgentLLM.call(
                     msgs=self.session.messages,
                     tools=tools,
@@ -113,6 +123,17 @@ class Agent(Tool):
             if print_msg:
                 for msg in msgs:
                     console.print(msg)
+
+    def _handle_todo_reminder(self):
+        last_msg = self.session.get_last_message(filter_empty=True)
+        if not self.session.todo_list:
+            reminder = EMPTY_TODO_REMINDER
+            if isinstance(last_msg, (UserMessage, ToolMessage)):
+                last_msg.append_system_reminder(reminder)
+        else:
+            reminder = TODO_REMINDER.format(todo_list_json=json.dumps(self.session.todo_list.model_dump(), ensure_ascii=False, separators=(',', ':')))
+            if isinstance(last_msg, ToolMessage):
+                last_msg.append_system_reminder(reminder)
 
     def _handle_interruption(self):
         asyncio.create_task(asyncio.sleep(0.1))
@@ -245,4 +266,4 @@ register_tool_result_renderer('CodeSearchAgent', render_agent_result)
 
 
 def get_main_agent(session: Session, config: ConfigModel) -> Agent:
-    return Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent, CodeSearchAgentTool])
+    return Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent, CodeSearchAgentTool], enable_claudemd_reminder=True, enable_todo_reminder=True)

@@ -28,15 +28,11 @@ def get_context_reminder(claude_md: str) -> str:
 
 EMPTY_TODO_REMINDER = """<system-reminder>This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.</system-reminder>"""
 
-TODO_REMINDER = """
-<system-reminder>
-Your todo list has changed. DO NOT mention this explicitly to the user. Here are the latest contents of your todo list:
+TODO_REMINDER = """<system-reminder>Your todo list has changed. DO NOT mention this explicitly to the user. Here are the latest contents of your todo list:
 
 {todo_list_json}
 
-You DO NOT need to use the TodoRead tool again, since this is the most up to date list for now. Continue on with the tasks at hand if applicable.
-</system-reminder>
-"""
+You DO NOT need to use the TodoRead tool again, since this is the most up to date list for now. Continue on with the tasks at hand if applicable.</system-reminder>"""
 
 FILE_MODIFIED_EXTERNAL_REMINDER = """<system-reminder>
 Note: {file_path} was modified, either by the user or by a linter. Don't tell the user this, since they are already aware. This change was intentional, so make sure to take it into account as you proceed (ie. don't revert it unless the user asks you to). So that you don't need to re-read the file, here's the result of running `cat -n` on a snippet of the edited file:

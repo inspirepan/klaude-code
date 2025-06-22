@@ -75,7 +75,7 @@ class TodoReadTool(Tool):
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         todo_list = instance.parent_agent.session.todo_list
-        json_todo_list = json.dumps(todo_list.model_dump())
+        json_todo_list = json.dumps(todo_list.model_dump(), ensure_ascii=False)
 
         for todo in todo_list.root:
             instance.tool_result().append_extra_data('todo_list', todo.model_dump())

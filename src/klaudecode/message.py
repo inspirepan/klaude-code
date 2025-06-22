@@ -131,7 +131,7 @@ class UserMessage(BasicMessage):
                 content.append(
                     {
                         'type': 'text',
-                        'text': f'<system_reminder>\n{reminder}\n</system_reminder>',
+                        'text': reminder,
                     }
                 )
         return content
@@ -162,6 +162,12 @@ class UserMessage(BasicMessage):
 
     def __bool__(self):
         return bool(self.content)
+
+    def append_system_reminder(self, reminder: str):
+        if not self.system_reminders:
+            self.system_reminders = [reminder]
+        else:
+            self.system_reminders.append(reminder)
 
 
 class InterruptedMessage(UserMessage):
@@ -194,7 +200,7 @@ class ToolCall(BaseModel):
         Cached property that generates JSON string from dict only once.
         WARNING: Do not modify tool_args_dict after initialization as it will not update this cache.
         """
-        return json.dumps(self.tool_args_dict) if self.tool_args_dict else ''
+        return json.dumps(self.tool_args_dict, ensure_ascii=False) if self.tool_args_dict else ''
 
     def __init__(self, **data):
         # Handle legacy data with tool_args string field
@@ -339,6 +345,7 @@ class ToolMessage(BasicMessage):
     tool_call_id: str
     tool_call_cache: ToolCall = Field(exclude=True)
     error_msg: Optional[str] = None
+    system_reminders: Optional[List[str]] = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -348,11 +355,27 @@ class ToolMessage(BasicMessage):
         return self.tool_call_cache
 
     def get_content(self):
+        content = self.content
         if self.tool_call.status == 'canceled':
-            return self.content + '\n' + INTERRUPTED_MSG
+            content += '\n' + INTERRUPTED_MSG
         elif self.tool_call.status == 'error':
-            return self.content + '\nError: ' + self.error_msg
-        return self.content or '(No content)'
+            content += '\nError: ' + self.error_msg
+        content = content or '(No content)'
+        content_list = [
+            {
+                'type': 'text',
+                'text': content,
+            }
+        ]
+        if self.system_reminders:
+            for reminder in self.system_reminders:
+                content_list.append(
+                    {
+                        'type': 'text',
+                        'text': reminder,
+                    }
+                )
+        return content_list
 
     def to_openai(self) -> ChatCompletionMessageParam:
         return {
@@ -416,6 +439,12 @@ class ToolMessage(BasicMessage):
         if self.tool_call.status == 'canceled':
             return
         super().append_extra_data(key, value)
+
+    def append_system_reminder(self, reminder: str):
+        if not self.system_reminders:
+            self.system_reminders = [reminder]
+        else:
+            self.system_reminders.append(reminder)
 
 
 # Renderer Registry
