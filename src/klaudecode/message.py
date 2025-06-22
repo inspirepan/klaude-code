@@ -1,14 +1,13 @@
 import json
 from functools import cached_property
-from typing import Callable, Dict, List, Literal, Optional, Union
+from typing import Callable, Dict, List, Literal, Optional
 
 from anthropic.types import ContentBlock, MessageParam, TextBlockParam, ToolUseBlockParam
 from openai.types.chat import ChatCompletionMessageParam
-from pydantic import BaseModel, Field, computed_field, model_validator
+from pydantic import BaseModel, Field, computed_field
 from rich.abc import RichRenderable
 from rich.text import Text
 
-from .config import ConfigModel
 from .tui import format_style, render_markdown, render_message, render_suffix, truncate_middle_text
 
 INTERRUPTED_MSG = 'Interrupted by user'
@@ -45,6 +44,7 @@ class BasicMessage(BaseModel):
     content: str = ''
     removed: bool = False  # A message is removed when /compact called.
     usage: Optional[CompletionUsage] = None
+    extra_data: Optional[dict] = None
 
     @computed_field
     @property
@@ -57,6 +57,25 @@ class BasicMessage(BaseModel):
 
     def to_anthropic(self):
         raise NotImplementedError
+
+    def set_extra_data(self, key: str, value: object):
+        if not self.extra_data:
+            self.extra_data = {}
+        self.extra_data[key] = value
+
+    def append_extra_data(self, key: str, value: object):
+        if not self.extra_data:
+            self.extra_data = {}
+        if key not in self.extra_data:
+            self.extra_data[key] = []
+        self.extra_data[key].append(value)
+
+    def get_extra_data(self, key: str, default: object = None) -> object:
+        if not self.extra_data:
+            return default
+        if key not in self.extra_data:
+            return default
+        return self.extra_data[key]
 
 
 class SystemMessage(BasicMessage):
@@ -96,65 +115,71 @@ class SystemMessage(BasicMessage):
 
 class UserMessage(BasicMessage):
     role: Literal['user'] = 'user'
-    mode: Literal[
-        'normal',
-        'plan',
-        'bash',
-        'memory',
-        'interrupted',
-    ] = 'normal'
-    suffix: Optional[Union[str, ConfigModel]] = None
-    system_reminder: Optional[str] = None
+    system_reminders: Optional[List[str]] = None
+    user_msg_type: Optional[str] = None
+    user_raw_input: Optional[str] = None
 
-    _mark_style: Optional[str] = None
-    _mark: Optional[str] = None
-    _style: Optional[str] = None
-
-    _MODE_CONF = {
-        'normal': {'_mark_style': None, '_mark': '>', '_style': None},
-        'plan': {'_mark_style': None, '_mark': '>', '_style': None},
-        'bash': {
-            '_mark_style': 'magenta',
-            '_mark': '!',
-            '_style': 'magenta',
-        },
-        'memory': {'_mark_style': 'blue', '_mark': '#', '_style': 'blue'},
-        'interrupted': {
-            '_mark_style': 'red',
-            '_mark': '⏺',
-            '_style': 'red',
-        },
-    }
-
-    @model_validator(mode='after')
-    def _inject_private_defaults(self):
-        conf = self._MODE_CONF[self.mode]
-        for k, v in conf.items():
-            setattr(self, k, v)
-        return self
+    def get_content(self):
+        content = [
+            {
+                'type': 'text',
+                'text': self.content,
+            }
+        ]
+        if self.system_reminders:
+            for reminder in self.system_reminders:
+                content.append(
+                    {
+                        'type': 'text',
+                        'text': f'<system_reminder>\n{reminder}\n</system_reminder>',
+                    }
+                )
+        return content
 
     def to_openai(self) -> ChatCompletionMessageParam:
-        return {
-            'role': 'user',
-            'content': self.content,
-        }  # TODO: add suffix and system_reminder
+        return {'role': 'user', 'content': self.get_content()}
 
     def to_anthropic(self) -> MessageParam:
-        return MessageParam(role='user', content=[{'type': 'text', 'text': self.content}])
+        return MessageParam(role='user', content=self.get_content())
 
     def __rich_console__(self, console, options):
-        yield render_message(
-            self.content,
-            style=self._style,
-            mark_style=self._mark_style,
-            mark=self._mark,
-        )
-        if self.suffix:
-            yield render_suffix(self.suffix)
+        if not self.user_msg_type or self.user_msg_type not in _USER_MSG_RENDERERS:
+            yield render_message(self.content)
+        else:
+            for item in _USER_MSG_RENDERERS[self.user_msg_type](self):
+                yield item
+        for item in self.get_suffix_renderable():
+            yield item
         yield ''
+
+    def get_suffix_renderable(self):
+        if self.user_msg_type and self.user_msg_type in _USER_MSG_SUFFIX_RENDERERS:
+            for item in _USER_MSG_SUFFIX_RENDERERS[self.user_msg_type](self):
+                yield item
+        if self.get_extra_data('error_msgs'):
+            for error in self.get_extra_data('error_msgs'):
+                yield render_suffix(error, style='red')
 
     def __bool__(self):
         return bool(self.content)
+
+
+class InterruptedMessage(UserMessage):
+    role: Literal['user'] = 'user'
+    user_msg_type: Literal['interrupted'] = 'interrupted'
+
+    def to_openai(self) -> ChatCompletionMessageParam:
+        return {'role': 'user', 'content': INTERRUPTED_MSG}
+
+    def to_anthropic(self) -> MessageParam:
+        return MessageParam(role='user', content=INTERRUPTED_MSG)
+
+    def __rich_console__(self, console, options):
+        yield render_message(INTERRUPTED_MSG, style='red')
+        yield ''
+
+    def __bool__(self):
+        return True
 
 
 class ToolCall(BaseModel):
@@ -313,7 +338,6 @@ class ToolMessage(BasicMessage):
     role: Literal['tool'] = 'tool'
     tool_call_id: str
     tool_call_cache: ToolCall = Field(exclude=True)
-    extra_data: dict = Field(default_factory=dict)
     error_msg: Optional[str] = None
 
     class Config:
@@ -328,7 +352,7 @@ class ToolMessage(BasicMessage):
             return self.content + '\n' + INTERRUPTED_MSG
         elif self.tool_call.status == 'error':
             return self.content + '\nError: ' + self.error_msg
-        return self.content or "(No content)"
+        return self.content or '(No content)'
 
     def to_openai(self) -> ChatCompletionMessageParam:
         return {
@@ -386,24 +410,19 @@ class ToolMessage(BasicMessage):
     def set_extra_data(self, key: str, value: object):
         if self.tool_call.status == 'canceled':
             return
-        self.extra_data[key] = value
+        super().set_extra_data(key, value)
 
     def append_extra_data(self, key: str, value: object):
         if self.tool_call.status == 'canceled':
             return
-        if key not in self.extra_data:
-            self.extra_data[key] = []
-        self.extra_data[key].append(value)
-
-    def get_extra_data(self, key: str, default: object = None) -> object:
-        if key not in self.extra_data:
-            return default
-        return self.extra_data[key]
+        super().append_extra_data(key, value)
 
 
 # Tool renderer registry for custom rendering
 _TOOL_CALL_RENDERERS = {}
 _TOOL_RESULT_RENDERERS = {}
+_USER_MSG_RENDERERS = {}
+_USER_MSG_SUFFIX_RENDERERS = {}
 
 
 def register_tool_call_renderer(tool_name: str, renderer_func: Callable[[ToolCall], RichRenderable]):
@@ -412,3 +431,11 @@ def register_tool_call_renderer(tool_name: str, renderer_func: Callable[[ToolCal
 
 def register_tool_result_renderer(tool_name: str, renderer_func: Callable[[ToolMessage], RichRenderable]):
     _TOOL_RESULT_RENDERERS[tool_name] = renderer_func
+
+
+def register_user_msg_suffix_renderer(user_msg_type: str, renderer_func: Callable[[UserMessage], RichRenderable]):
+    _USER_MSG_SUFFIX_RENDERERS[user_msg_type] = renderer_func
+
+
+def register_user_msg_renderer(user_msg_type: str, renderer_func: Callable[[UserMessage], RichRenderable]):
+    _USER_MSG_RENDERERS[user_msg_type] = renderer_func

@@ -2,8 +2,8 @@ import asyncio
 import os
 from typing import Annotated, List, Optional
 
-from openai import OpenAIError
 from anthropic import AnthropicError
+from openai import OpenAIError
 from pydantic import BaseModel, Field
 from rich.box import HORIZONTALS
 from rich.padding import Padding
@@ -11,15 +11,15 @@ from rich.panel import Panel
 from rich.text import Text
 
 from .config import ConfigModel
-from .user_input import CommandHandler, InputModeEnum, InputSession, UserInput
 from .llm import AgentLLM
-from .message import INTERRUPTED_MSG, AIMessage, BasicMessage, SystemMessage, ToolCall, ToolMessage, UserMessage, register_tool_call_renderer, register_tool_result_renderer
+from .message import INTERRUPTED_MSG, AIMessage, BasicMessage, SystemMessage, ToolCall, ToolMessage, UserMessage, InterruptedMessage, register_tool_call_renderer, register_tool_result_renderer
 from .prompt.system import SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT
 from .prompt.tools import AGENT_TOOL_DESC, CODE_SEARCH_AGENT_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
-from .tui import console, format_style, render_markdown, render_message, render_suffix
+from .tui import clean_last_line, console, format_style, render_markdown, render_message, render_suffix
+from .user_input import UserInputHandler, InputSession, UserInput
 
 DEFAULT_MAX_STEPS = 80
 INTERACTIVE_MAX_STEPS = 100
@@ -47,7 +47,7 @@ class Agent(Tool):
         self.print_switch = print_switch
         self.config: Optional[ConfigModel] = config
         self.availiable_tools = availiable_tools
-        self.comand_handler = CommandHandler(self)
+        self.user_input_handler = UserInputHandler(self)
         self.tool_handler = ToolHandler(self, self.availiable_tools, show_live=print_switch)
 
     async def chat_interactive(self):
@@ -55,27 +55,14 @@ class Agent(Tool):
             user_input: UserInput = await self.input_session.prompt_async()
             if user_input.raw_input.strip().lower() in QUIT:
                 break
-            cmd_res = self.comand_handler.handle(user_input)
-            if cmd_res.command_result:
-                console.print(render_suffix(cmd_res.command_result))
-            query = cmd_res.command_rewrite_query or cmd_res.raw_input
-            if query:
-                self.append_message(
-                    UserMessage(
-                        content=query,
-                        mode=user_input.mode.value,
-                        suffix=cmd_res.command_result,
-                    ),
-                    print_msg=False,
-                )
-            if cmd_res.need_agent_run:
+            need_agent_run = self.user_input_handler.handle(user_input)
+            console.print()
+            if need_agent_run:
                 await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
-            else:
-                console.print()
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
         try:
-            for i in range(max_steps):
+            for _ in range(max_steps):
                 # Check if task was canceled (for subagent execution)
                 if parent_tool_instance and parent_tool_instance.tool_result().tool_call.status == 'canceled':
                     return INTERRUPTED_MSG
@@ -84,8 +71,6 @@ class Agent(Tool):
                     tools=tools,
                     show_status=self.print_switch,
                 )
-                if i == 0:
-                    console.print()  # Insert empty line after user msg. attach LLM error to user msg.
                 self.append_message(ai_msg)
                 if ai_msg.finish_reason == 'stop':
                     return ai_msg.content or ''
@@ -93,10 +78,11 @@ class Agent(Tool):
                     await self.tool_handler.handle(ai_msg)
 
         except (OpenAIError, AnthropicError) as e:
+            clean_last_line()
+            console.print(render_suffix(f'LLM error: {str(e)}', style='red'))
             console.print()
             return f'LLM error: {str(e)}'
         except (KeyboardInterrupt, asyncio.CancelledError):
-            console.print()
             return self._handle_interruption()
         max_step_msg = f'Max steps {max_steps} reached'
         if self.print_switch:
@@ -120,7 +106,7 @@ class Agent(Tool):
                 pass
         console.console.print('', end='\r')
         console.print()
-        self.append_message(UserMessage(content=INTERRUPTED_MSG, mode=InputModeEnum.INTERRUPTED.value))
+        self.append_message(InterruptedMessage())
         return INTERRUPTED_MSG
 
     # Implement SubAgent

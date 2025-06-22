@@ -1,6 +1,7 @@
+from abc import ABC, abstractmethod
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Dict, Generator, Optional, Tuple, Type
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
@@ -9,6 +10,11 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 from pydantic import BaseModel
+from rich.abc import RichRenderable
+
+from .message import UserMessage, register_user_msg_renderer, register_user_msg_suffix_renderer
+from .tui import console, render_suffix, render_message
+from .config import ConfigModel
 
 
 class InputModeEnum(Enum):
@@ -16,29 +22,95 @@ class InputModeEnum(Enum):
     PLAN = 'plan'
     BASH = 'bash'
     MEMORY = 'memory'
-    INTERRUPTED = 'interrupted'
 
 
-class Commands(Enum):
-    COMPACT = 'compact'
-    INIT = 'init'
-    COST = 'cost'
-    CLEAR = 'clear'
-    STATUS = 'status'
-    CONTINUE = 'continue'
+# class CommandEnum(Enum):
+# COMPACT = 'compact'
+# INIT = 'init'
+# COST = 'cost'
+# CLEAR = 'clear'
+# STATUS = 'status'
+# CONTINUE = 'continue'
 
 
-AVAILABLE_COMMANDS = [cmd.value for cmd in Commands]
+class UserInput(BaseModel):
+    user_msg_type: str = 'normal'
+    cleaned_input: str  # User input without slash and command
+    raw_input: str  # User input with mode and command
+
+
+# AVAILABLE_COMMANDS = [cmd.value for cmd in CommandEnum]
+
+
+class Command(ABC):
+    @abstractmethod
+    def get_command_name(self) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_command_desc(self) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def handle(self, agent, user_input: UserInput) -> Tuple[UserMessage, bool]:
+        raise NotImplementedError
+
+    def render_user_msg(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
+        yield render_message(user_msg.user_raw_input)
+
+    def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
+        yield ''
+
 
 # Detailed descriptions for each command
-COMMAND_DESCRIPTIONS = {
-    Commands.COMPACT.value: 'Clear conversation history but keep a summary in context. Optional: /compact [instructions for summarization]',
-    Commands.INIT.value: 'Initialize a new CLAUDE.md file with codebase documentation',
-    Commands.COST.value: 'Show the total cost and duration of the current session',
-    Commands.CLEAR.value: 'Clear conversation history and free up context',
-    Commands.STATUS.value: 'Show the current setup',
-    Commands.CONTINUE.value: 'Request LLM without a new user message. WARNING: This may cause an error for a new conversation',
-}
+# COMMAND_DESCRIPTIONS = {
+#     CommandEnum.COMPACT.value: 'Clear conversation history but keep a summary in context. Optional: /compact [instructions for summarization]',
+#     CommandEnum.INIT.value: 'Initialize a new CLAUDE.md file with codebase documentation',
+#     CommandEnum.COST.value: 'Show the total cost and duration of the current session',
+#     CommandEnum.CLEAR.value: 'Clear conversation history and free up context',
+#     CommandEnum.STATUS.value: 'Show the current setup',
+#     CommandEnum.CONTINUE.value: 'Request LLM without a new user message. WARNING: This may cause an error for a new conversation',
+# }
+
+
+# Commands
+# --------------------------------------
+
+
+class StatusCommand(Command):
+    def get_command_name(self) -> str:
+        return 'status'
+
+    def get_command_desc(self) -> str:
+        return 'Show the current setup'
+
+    def handle(self, agent, user_input: UserInput) -> Tuple[UserMessage, bool]:
+        user_msg = UserMessage(
+            content=user_input.cleaned_input,
+            user_msg_type=user_input.user_msg_type,
+            user_raw_input=user_input.raw_input,
+        )
+        user_msg.set_extra_data('status', agent.config.model_dump_json())
+        return user_msg, False
+
+    def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
+        config = user_msg.get_extra_data('status')
+        if config:
+            config_model = ConfigModel.model_validate_json(config)
+            print(config_model)
+            yield render_suffix(config_model)
+
+
+ALL_COMMANDS = [StatusCommand()]
+ALL_COMMANDS_DICT = {cmd.get_command_name(): cmd for cmd in ALL_COMMANDS}
+
+for cmd in ALL_COMMANDS:
+    register_user_msg_renderer(cmd.get_command_name(), cmd.render_user_msg)
+    register_user_msg_suffix_renderer(cmd.get_command_name(), cmd.render_user_msg_suffix)
+
+
+# INPUT_PROMPT
+# -------
 
 
 class InputMode(BaseModel):
@@ -111,8 +183,8 @@ input_mode_dict = {
 class CommandCompleter(Completer):
     """Custom command completer"""
 
-    def __init__(self, commands, input_session):
-        self.commands = commands  # Commands without / prefix
+    def __init__(self, input_session):
+        self.commands = ALL_COMMANDS_DICT
         self.input_session = input_session
 
     def get_completions(self, document, _complete_event):
@@ -127,20 +199,14 @@ class CommandCompleter(Completer):
         command_part = text[1:]
         # If no space, we are still completing command name
         if ' ' not in command_part:
-            for command_name in self.commands:
+            for command_name, command in self.commands.items():
                 if command_name.startswith(command_part):
                     yield Completion(
                         command_name,
                         start_position=-len(command_part),
                         display=f'/{command_name}',
-                        display_meta=COMMAND_DESCRIPTIONS.get(command_name, f'Execute {command_name} command'),
+                        display_meta=command.get_command_desc(),
                     )
-
-
-class UserInput(BaseModel):
-    mode: InputModeEnum
-    raw_input: str
-    command: Optional[Commands] = None
 
 
 class InputSession:
@@ -156,7 +222,7 @@ class InputSession:
         self.history = FileHistory(str(history_file))
 
         # Create command completer
-        self.command_completer = CommandCompleter(AVAILABLE_COMMANDS, self)
+        self.command_completer = CommandCompleter(self)
 
         # Create key bindings
         self.kb = KeyBindings()
@@ -179,14 +245,14 @@ class InputSession:
     def _dyn_placeholder(self):
         return self.current_input_mode.placeholder
 
-    def _parse_command(self, text: str) -> Tuple[Optional[Commands], str]:
+    def _parse_command(self, text: str) -> Tuple[str, str]:
         """Parse command from input text. Returns tuple of (command_enum, remaining_text)"""
         if not text.strip():
-            return None, text
+            return '', text
 
         # Only parse commands in normal mode
         if self.current_input_mode.name != InputModeEnum.NORMAL:
-            return None, text
+            return '', text
 
         stripped = text.strip()
         if stripped.startswith('/'):
@@ -196,10 +262,9 @@ class InputSession:
                 command_part = parts[0]
                 remaining_text = parts[1] if len(parts) > 1 else ''
                 # Find matching enum
-                for cmd in Commands:
-                    if cmd.value == command_part:
-                        return cmd, remaining_text
-        return None, text
+                if command_part in ALL_COMMANDS_DICT:
+                    return ALL_COMMANDS_DICT[command_part].get_command_name(), remaining_text
+        return '', text
 
     def _switch_mode(self, event, mode_name: str):
         self.current_input_mode = input_mode_dict[mode_name]
@@ -276,50 +341,46 @@ class InputSession:
 
     def prompt(self) -> UserInput:
         input_text = self.session.prompt()
-        command, cleaned_input = self._parse_command(input_text)
+        command_name, cleaned_input = self._parse_command(input_text)
         user_input = UserInput(
-            mode=self.current_input_mode.name,
-            raw_input=cleaned_input,
-            command=command,
+            user_msg_type=command_name or self.current_input_mode.name.value,
+            cleaned_input=cleaned_input,
+            raw_input=input_text,
         )
         self._switch_to_next_mode()
         return user_input
 
     async def prompt_async(self) -> UserInput:
         input_text = await self.session.prompt_async()
-        command, cleaned_input = self._parse_command(input_text)
+        command_name, cleaned_input = self._parse_command(input_text)
         user_input = UserInput(
-            raw_input=cleaned_input,
-            mode=self.current_input_mode.name,
-            command=command,
+            user_msg_type=command_name or self.current_input_mode.name.value,
+            cleaned_input=cleaned_input,
+            raw_input=input_text,
         )
         self._switch_to_next_mode()
         return user_input
 
 
-class CommandHandler:
+class UserInputHandler:
     def __init__(self, agent):
         self.agent = agent
 
-    class CommandResult(BaseModel):
-        raw_input: str
-        command_result: Any
-        command_rewrite_query: str = ''
-        need_agent_run: bool = False
-
-    def handle(self, user_input: UserInput) -> 'CommandHandler.CommandResult':
-        if not user_input.command:
-            return self.CommandResult(raw_input=user_input.raw_input, command_result='', need_agent_run=True)
-        if user_input.command == Commands.STATUS:
-            return self.CommandResult(
-                raw_input=user_input.raw_input,
-                command_result=self.agent.config if self.agent.config else '',
-                need_agent_run=False,
+    def handle(self, user_input: UserInput) -> bool:
+        """
+        Handle special mode and command input.
+        """
+        if user_input.user_msg_type in ALL_COMMANDS_DICT:
+            command = ALL_COMMANDS_DICT[user_input.user_msg_type]
+            user_msg, need_agent_run = command.handle(self.agent, user_input)
+        else:
+            user_msg = UserMessage(
+                content=user_input.cleaned_input,
+                user_msg_type=user_input.user_msg_type,
+                user_raw_input=user_input.raw_input,
             )
-        elif user_input.command == Commands.CONTINUE:
-            return self.CommandResult(
-                raw_input='',
-                command_result='Continuing the current conversation...',
-                need_agent_run=True,
-            )
-        return self.CommandResult(raw_input=user_input.raw_input, command_result='', need_agent_run=len(user_input.raw_input) > 0)
+            need_agent_run = True
+        self.agent.append_message(user_msg, print_msg=False)
+        for item in user_msg.get_suffix_renderable():
+            console.print(item)
+        return need_agent_run

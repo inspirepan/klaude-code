@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 from typing import Literal, Optional
 
 from rich.abc import RichRenderable
@@ -193,3 +194,8 @@ def truncate_middle_text(text: str, max_lines: int = 30) -> RichRenderable:
         Text('···', style='bright_black'),
         tail_content,
     )
+
+
+def clean_last_line():
+    sys.stdout.write('\033[F\033[K')
+    sys.stdout.flush()

@@ -8,7 +8,7 @@ from typing import Callable, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from .message import AIMessage, BasicMessage, SystemMessage, ToolMessage, UserMessage
+from .message import AIMessage, BasicMessage, SystemMessage, ToolMessage, UserMessage, InterruptedMessage
 from .tools.todo import TodoList
 from .tui import console
 from .utils import sanitize_filename
@@ -75,9 +75,9 @@ class Session(BaseModel):
         dt = datetime.fromtimestamp(created_at)
         datetime_str = dt.strftime('%Y_%m%d_%H%M')
 
-        first_user_msg = self.get_first_message(role='user')
+        first_user_msg: UserMessage = self.get_first_message(role='user')
         if first_user_msg:
-            title = sanitize_filename(first_user_msg.content, max_length=20)
+            title = sanitize_filename(first_user_msg.user_raw_input or first_user_msg.content, max_length=20)
         else:
             title = 'untitled'
 
@@ -167,7 +167,10 @@ class Session(BaseModel):
                 if role == 'system':
                     messages.append(SystemMessage(**msg_data))
                 elif role == 'user':
-                    messages.append(UserMessage(**msg_data))
+                    if msg_data.get('user_msg_type') == 'interrupted':
+                        messages.append(InterruptedMessage())
+                    else:
+                        messages.append(UserMessage(**msg_data))
                 elif role == 'assistant':
                     ai_msg = AIMessage(**msg_data)
                     if ai_msg.tool_calls:

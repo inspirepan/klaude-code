@@ -126,8 +126,6 @@ def render_read_content(tool_msg: ToolMessage):
             table.add_row(f'{line_num:>{width}}:', line_content)
         table.add_row('…', f'Read [bold]{read_line_count}[/bold] lines')
         yield render_suffix(table)
-        return
-    yield render_suffix(f'Read [bold]{read_line_count}[/bold] lines')
 
 
 register_tool_call_renderer('Read', render_read_args)
