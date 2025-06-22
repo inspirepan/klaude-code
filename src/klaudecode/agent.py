@@ -20,7 +20,7 @@ from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, GrepTool, GlobTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
 from .tui import clean_last_line, console, format_style, render_markdown, render_message, render_suffix
-from .user_input import InputSession, UserInput, UserInputHandler
+from .user_input import InputSession, UserInputHandler
 
 DEFAULT_MAX_STEPS = 80
 INTERACTIVE_MAX_STEPS = 100
@@ -53,10 +53,10 @@ class Agent(Tool):
 
     async def chat_interactive(self):
         while True:
-            user_input: UserInput = await self.input_session.prompt_async()
-            if user_input.raw_input.strip().lower() in QUIT_COMMAND:
+            user_input_text = await self.input_session.prompt_async()
+            if user_input_text.strip().lower() in QUIT_COMMAND:
                 break
-            need_agent_run = self.user_input_handler.handle(user_input)
+            need_agent_run = self.user_input_handler.handle(user_input_text)
             console.print()
             if need_agent_run:
                 await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)

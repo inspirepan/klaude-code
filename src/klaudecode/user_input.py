@@ -173,18 +173,27 @@ class UserInputHandler:
     def __init__(self, agent: 'Agent'):
         self.agent = agent
 
-    def handle(self, user_input: UserInput) -> bool:
+    def handle(self, user_input_text: str) -> bool:
         """
         Handle special mode and command input.
         """
-        command = _INPUT_MODES.get(user_input.command_name, _SLASH_COMMANDS.get(user_input.command_name, None))
+
+        command_name, cleaned_input = self._parse_command(user_input_text)
+        command = _INPUT_MODES.get(command_name, _SLASH_COMMANDS.get(command_name, None))
         if command:
-            user_msg, need_agent_run = command.handle(self.agent, user_input)
+            user_msg, need_agent_run = command.handle(
+                self.agent,
+                UserInput(
+                    command_name=command_name or self.current_input_mode.get_name(),
+                    cleaned_input=cleaned_input,
+                    raw_input=user_input_text,
+                ),
+            )
         else:
             user_msg = UserMessage(
-                content=user_input.cleaned_input,
-                user_msg_type=user_input.command_name,
-                user_raw_input=user_input.raw_input,
+                content=cleaned_input,
+                user_msg_type=command_name,
+                user_raw_input=user_input_text,
             )
             need_agent_run = True
         self.agent.append_message(user_msg, print_msg=False)
@@ -194,6 +203,23 @@ class UserInputHandler:
             console.print(item)
 
         return need_agent_run
+
+    def _parse_command(self, text: str) -> Tuple[str, str]:
+        """Parse command from input text. Returns tuple of (command_enum, remaining_text)"""
+        if not text.strip():
+            return '', text
+
+        stripped = text.strip()
+        if stripped.startswith('/'):
+            # Extract command and remaining text
+            parts = stripped[1:].split(None, 1)  # Split into at most 2 parts
+            if parts:
+                command_part = parts[0]
+                remaining_text = parts[1] if len(parts) > 1 else ''
+                # Find matching enum
+                if command_part in _SLASH_COMMANDS:
+                    return _SLASH_COMMANDS[command_part].get_name(), remaining_text
+        return '', text
 
 
 # Prompt toolkit completer & key bindings
@@ -264,26 +290,6 @@ class InputSession:
 
     def _dyn_placeholder(self):
         return self.current_input_mode.get_placeholder()
-
-    def _parse_command(self, text: str) -> Tuple[str, str]:
-        """Parse command from input text. Returns tuple of (command_enum, remaining_text)"""
-        if not text.strip():
-            return '', text
-        # Only parse commands in normal mode
-        if self.current_input_mode.get_name() != NORMAL_MODE_NAME:
-            return '', text
-
-        stripped = text.strip()
-        if stripped.startswith('/'):
-            # Extract command and remaining text
-            parts = stripped[1:].split(None, 1)  # Split into at most 2 parts
-            if parts:
-                command_part = parts[0]
-                remaining_text = parts[1] if len(parts) > 1 else ''
-                # Find matching enum
-                if command_part in _SLASH_COMMANDS:
-                    return _SLASH_COMMANDS[command_part].get_name(), remaining_text
-        return '', text
 
     def _switch_mode(self, event, mode_name: str):
         self.current_input_mode = _INPUT_MODES[mode_name]
@@ -360,22 +366,10 @@ class InputSession:
 
     def prompt(self) -> UserInput:
         input_text = self.session.prompt()
-        command_name, cleaned_input = self._parse_command(input_text)
-        user_input = UserInput(
-            command_name=command_name or self.current_input_mode.get_name(),
-            cleaned_input=cleaned_input,
-            raw_input=input_text,
-        )
         self._switch_to_next_mode()
-        return user_input
+        return input_text
 
     async def prompt_async(self) -> UserInput:
         input_text = await self.session.prompt_async()
-        command_name, cleaned_input = self._parse_command(input_text)
-        user_input = UserInput(
-            command_name=command_name or self.current_input_mode.get_name(),
-            cleaned_input=cleaned_input,
-            raw_input=input_text,
-        )
         self._switch_to_next_mode()
-        return user_input
+        return input_text
