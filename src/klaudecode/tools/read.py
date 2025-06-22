@@ -5,7 +5,7 @@ from rich.table import Table
 from rich.text import Text
 
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
-from ..prompt.tools import READ_TOOL_DESC
+from ..prompt.tools import READ_TOOL_DESC, READ_TOOL_EMPTY_REMINDER, READ_TOOL_RESULT_REMINDER
 from ..tool import Tool, ToolInstance
 from ..tui import render_suffix
 from .file_utils import cache_file_content, read_file_content, truncate_content, validate_file_exists
@@ -18,8 +18,8 @@ from .file_utils import cache_file_content, read_file_content, truncate_content,
 - UTF-8 encoding support and empty file handling
 """
 
-TRUNCATE_CHAR_LIMIT = 5000
-TRUNCATE_LINE_LIMIT = 1000
+TRUNCATE_CHAR_LIMIT = 2000
+TRUNCATE_LINE_LIMIT = 2000
 
 
 class ReadTool(Tool):
@@ -28,8 +28,8 @@ class ReadTool(Tool):
 
     class Input(BaseModel):
         file_path: Annotated[str, Field(description='The absolute path to the file to read')]
-        offset: Annotated[Optional[int], Field(description='The line number to start reading from (1-based)')] = None
-        limit: Annotated[Optional[int], Field(description='The number of lines to read')] = None
+        offset: Annotated[Optional[int], Field(description='The line number to start reading from. Only provide if the file is too large to read at once')] = None
+        limit: Annotated[Optional[int], Field(description='The number of lines to read. Only provide if the file is too large to read at once.')] = None
 
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
@@ -52,7 +52,7 @@ class ReadTool(Tool):
 
         # Handle empty file
         if not content:
-            instance.tool_result().set_content('(No content)\n\nFull 0 lines')
+            instance.tool_result().set_content(READ_TOOL_EMPTY_REMINDER)
             return
 
         # Split content into lines for offset/limit processing
@@ -81,8 +81,7 @@ class ReadTool(Tool):
         truncated_numbered_lines, remaining_line_count = truncate_content(numbered_lines, TRUNCATE_CHAR_LIMIT)
         result = ''
         if len(truncated_numbered_lines) > 0:
-            width = len(str(truncated_numbered_lines[-1][0]))
-            result = '\n'.join([f'{line_num:>{width}}: {line_content}' for line_num, line_content in truncated_numbered_lines])
+            result = '\n'.join([f'{line_num}→{line_content}' for line_num, line_content in truncated_numbered_lines])
         else:
             # Handle case where single line content exceeds character limit
             result = numbered_lines[0][1][:TRUNCATE_CHAR_LIMIT] + '... (more content is truncated)'
@@ -90,6 +89,7 @@ class ReadTool(Tool):
             result += f'\n... (more {remaining_line_count} lines are truncated)'
         if warning:
             result += f'\n{warning}'
+        result += READ_TOOL_RESULT_REMINDER
         result += f'\n\nFull {total_lines} lines'
         instance.tool_result().set_content(result)
         instance.tool_result().set_extra_data('read_line_count', len(numbered_lines))

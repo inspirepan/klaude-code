@@ -1,10 +1,10 @@
-from typing import Annotated, Optional
+from typing import Annotated, List, Optional
 
 from pydantic import BaseModel, Field
 from rich.text import Text
 
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
-from ..prompt.tools import LS_TOOL_DESC
+from ..prompt.tools import LS_TOOL_DESC, LS_TOOL_RESULT_REMINDER
 from ..tool import Tool, ToolInstance
 from ..tui import render_suffix
 from ..utils import get_directory_structure
@@ -15,23 +15,16 @@ class LsTool(Tool):
     desc = LS_TOOL_DESC
 
     class Input(BaseModel):
-        path: Annotated[str, Field(description='Absolute path to the directory to list')]
-        ignore: Annotated[Optional[str], Field(description='glob patterns to ignore (e.g., "*.log, node_modules")')] = None
+        path: Annotated[str, Field(description='The absolute path to the directory to list (must be absolute, not relative)')]
+        ignore: Annotated[Optional[List[str]], Field(description='List of glob patterns to ignore')] = None
 
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         args: 'LsTool.Input' = cls.parse_input_args(tool_call)
 
         try:
-            ignore_patterns = []
-            if args.ignore:
-                if ',' in args.ignore:
-                    ignore_patterns = [pattern.strip() for pattern in args.ignore.split(',')]
-                else:
-                    ignore_patterns = [str(args.ignore)]
-
-            full_result, _, path_count = get_directory_structure(args.path, ignore_patterns, max_chars=40000)
-            instance.tool_result().set_content(full_result)
+            full_result, _, path_count = get_directory_structure(args.path, args.ignore, max_chars=40000)
+            instance.tool_result().set_content(full_result + '\n\n' + LS_TOOL_RESULT_REMINDER)
             instance.tool_result().set_extra_data('path_count', path_count)
 
         except Exception as e:
@@ -40,8 +33,8 @@ class LsTool(Tool):
 
 
 def render_ls_args(tool_call: ToolCall):
-    ignore_patterns = tool_call.tool_args_dict.get('ignore', '')
-    ignore_info = f' (ignore: {ignore_patterns})' if ignore_patterns else ''
+    ignores = tool_call.tool_args_dict.get('ignore', [])
+    ignore_info = f' (ignore: {", ".join(ignores)})' if ignores else ''
     tool_call_msg = Text.assemble(
         ('List', 'bold'),
         '(',

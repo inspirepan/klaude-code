@@ -3,9 +3,10 @@ from typing import Annotated, List, Literal
 
 from pydantic import BaseModel, Field, RootModel
 from rich.console import Group
+from rich.text import Text
 
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
-from ..prompt.tools import TODO_READ_AI_RESULT_TEMPLATE, TODO_READ_TOOL_DESC, TODO_WRITE_AI_RESULT, TODO_WRITE_TOOL_DESC
+from ..prompt.tools import TODO_READ_RESULT, TODO_READ_TOOL_DESC, TODO_WRITE_RESULT, TODO_WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import format_style, render_suffix
 
@@ -15,17 +16,14 @@ Session-level To-Do
 
 
 class Todo(BaseModel):
-    id: Annotated[
-        str,
-        "A semantic slug-style id based on todo content (e.g. 'implement-user-auth', 'fix-login-bug', 'add-dark-mode'). Use lowercase, hyphens for spaces, and keep it descriptive but concise.",
-    ]
-    content: Annotated[str, 'The content of the todo']
-    status: Annotated[Literal['pending', 'completed', 'in_progress'], 'The status of the todo'] = 'pending'
-    priority: Annotated[Literal['low', 'medium', 'high'], 'The priority of the todo'] = 'medium'
+    id: str
+    content: str
+    status: Literal['pending', 'completed', 'in_progress'] = 'pending'
+    priority: Literal['low', 'medium', 'high'] = 'medium'
 
 
 class TodoList(RootModel[List[Todo]]):
-    root: Annotated[List[Todo], Field(description='The list of todos')] = Field(default_factory=list)
+    root: List[Todo] = Field(default_factory=list)
 
     @property
     def todos(self):
@@ -43,13 +41,13 @@ class TodoWriteTool(Tool):
     description = TODO_WRITE_TOOL_DESC
 
     class Input(BaseModel):
-        todo_list: TodoList
+        todo_list: Annotated[TodoList, Field(description='The updated todo list')]
 
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         args: 'TodoWriteTool.Input' = cls.parse_input_args(tool_call)
 
-        instance.tool_result().set_content(TODO_WRITE_AI_RESULT)
+        instance.tool_result().set_content(TODO_WRITE_RESULT)
 
         old_todo_list = instance.parent_agent.session.todo_list
         old_todo_dict = {}
@@ -82,7 +80,7 @@ class TodoReadTool(Tool):
         for todo in todo_list.root:
             instance.tool_result().append_extra_data('todo_list', todo.model_dump())
 
-        instance.tool_result().set_content(TODO_READ_AI_RESULT_TEMPLATE.format(todo_list_json=json_todo_list))
+        instance.tool_result().set_content(TODO_READ_RESULT.format(todo_list_json=json_todo_list))
 
 
 def render_todo_dict(todo: dict, new_completed: bool = False):
@@ -109,11 +107,11 @@ def render_todo_write_result(tool_msg: ToolMessage):
 
 
 def render_todo_write_name(tool_call: ToolCall):
-    yield format_style('Update Todos', 'bold')
+    yield Text('Update Todos', 'bold')
 
 
 def render_todo_read_name(tool_call: ToolCall):
-    yield format_style('Read Todos', 'bold')
+    yield Text('Read Todos', 'bold')
 
 
 register_tool_result_renderer('TodoRead', render_todo_read_result)

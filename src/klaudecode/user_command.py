@@ -1,8 +1,8 @@
 import platform
 import shutil
 import subprocess
-from typing import TYPE_CHECKING, Generator, Tuple
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Generator, Tuple
 
 from rich.abc import RichRenderable
 from rich.console import Group
@@ -11,9 +11,9 @@ from rich.text import Text
 
 from .config import ConfigModel
 from .message import UserMessage
+from .prompt.commands import INIT_COMMAND, RECENT_COMMAND, TODAY_COMMAND
 from .tui import render_suffix
 from .user_input import NORMAL_MODE_NAME, Command, InputModeCommand, UserInput, register_input_mode, register_slash_command
-from .prompt.commands import TODAY_COMMAND, RECENT_COMMAND, INIT_COMMAND
 
 if TYPE_CHECKING:
     from .agent import Agent
@@ -252,7 +252,9 @@ class MacSetupCommand(Command):
             result_items.append(status_text)
 
         if result_items:
-            yield Panel.fit(Group(*result_items), title='Mac Setup Results', border_style='green' if all(r['status'] in ['already_installed', 'installed'] for r in results) else 'yellow')
+            yield Panel.fit(
+                Group(*result_items), title='Mac Setup Results', border_style='green' if all(r['status'] in ['already_installed', 'installed'] for r in results) else 'yellow'
+            )
 
 
 register_slash_command(StatusCommand())

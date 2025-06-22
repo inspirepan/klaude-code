@@ -51,8 +51,13 @@ class GlobTool(Tool):
     desc = GLOB_TOOL_DESC
 
     class Input(BaseModel):
-        pattern: Annotated[str, Field(description="Glob pattern to search for (e.g., '*.py', '**/*.js', 'test_*')")]
-        path: Annotated[str, Field(description='Directory path to search in')] = '.'
+        pattern: Annotated[str, Field(description='The glob pattern to match files against')]
+        path: Annotated[
+            str,
+            Field(
+                description='The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter "undefined" or "null" - simply omit it for the default behavior. Must be a valid directory path if provided.'
+            ),
+        ] = '.'
 
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
@@ -283,7 +288,6 @@ def render_glob_args(tool_call: ToolCall):
         ('Glob', 'bold'),
         '(',
         pattern,
-        ' ',
         (path_info, 'italic'),
         ')',
     )

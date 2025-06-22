@@ -141,7 +141,7 @@ def read_file_content(file_path: str, encoding: str = 'utf-8') -> Tuple[str, str
         try:
             with open(file_path, 'r', encoding='latin-1') as f:
                 content = f.read()
-            return content, 'Warning: File decoded using latin-1 encoding'
+            return content, '<system-reminder>warning: File decoded using latin-1 encoding</system-reminder>'
         except Exception as e:
             return '', f'Failed to read file: {str(e)}'
     except Exception as e:
@@ -164,7 +164,7 @@ def get_edit_context_snippet(new_content: str, new_string: str, old_content: str
     1. Try to find new_string in new_content
     2. If not found, find where old_string was and show that area in new_content
     3. If still not found, show first few lines of new_content
-    Returns cat -n style output format
+    Returns `line-number→line-content` style output format
     """
     # First try: find new_string in new content
     if new_string in new_content:
@@ -179,7 +179,7 @@ def get_edit_context_snippet(new_content: str, new_string: str, old_content: str
                 snippet_lines = []
                 for j, line_content in enumerate(context_lines_slice):
                     line_num = start_line_num + j
-                    snippet_lines.append(f'     {line_num:>3}\t{line_content}')
+                    snippet_lines.append(f'{line_num}→{line_content}')
                 return '\n'.join(snippet_lines)
 
     # Second try: find where old_string was and show that area in new content
@@ -201,14 +201,14 @@ def get_edit_context_snippet(new_content: str, new_string: str, old_content: str
         snippet_lines = []
         for j, line_content in enumerate(context_lines_slice):
             line_num = start_line_num + j
-            snippet_lines.append(f'     {line_num:>3}\t{line_content}')
+            snippet_lines.append(f'{line_num}→{line_content}')
         return '\n'.join(snippet_lines)
 
     # Last fallback: show first few lines of the file
     first_lines = new_content.splitlines()[:10]
     snippet_lines = []
     for i, line_content in enumerate(first_lines):
-        snippet_lines.append(f'     {i + 1:>3}\t{line_content}')
+        snippet_lines.append(f'{i + 1}→{line_content}')
     return '\n'.join(snippet_lines)
 
 

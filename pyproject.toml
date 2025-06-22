@@ -22,7 +22,7 @@ klaude = "klaudecode.cli:app"
 dev = ["isort>=6.0.1"]
 
 [tool.ruff]
-line-length = 220
+line-length = 180
 target-version = "py311"
 extend-exclude = ["build", "docs/_build"]
 

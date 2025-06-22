@@ -21,7 +21,7 @@ class WriteTool(Tool):
     desc = WRITE_TOOL_DESC
 
     class Input(BaseModel):
-        file_path: Annotated[str, Field(description='The absolute path to the file to write')]
+        file_path: Annotated[str, Field(description='The absolute path to the file to write (must be absolute, not relative)')]
         content: Annotated[str, Field(description='The content to write to the file')]
 
     @classmethod
@@ -63,9 +63,9 @@ class WriteTool(Tool):
             cache_file_content(args.file_path, args.content)
 
             if file_exists:
-                result = f'File updated successfully at: {args.file_path}\n'
+                result = f'File updated successfully at: {args.file_path}'
             else:
-                result = f'File created successfully at: {args.file_path}\n'
+                result = f'File created successfully at: {args.file_path}'
 
             instance.tool_result().set_content(result)
 

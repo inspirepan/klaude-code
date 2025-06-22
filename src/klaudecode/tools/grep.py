@@ -70,9 +70,9 @@ class GrepTool(Tool):
     desc = GREP_TOOL_DESC
 
     class Input(BaseModel):
-        pattern: Annotated[str, Field(description='Regular expression pattern to search for')]
-        path: Annotated[str, Field(description='Directory or file path to search in')] = '.'
-        include: Annotated[Optional[str], Field(description="Glob pattern for files to include (e.g., '*.py', '*.js')")] = None
+        pattern: Annotated[str, Field(description='The regular expression pattern to search for in file contents')]
+        path: Annotated[str, Field(description='The directory to search in. Defaults to the current working directory.')] = '.'
+        include: Annotated[Optional[str], Field(description='File pattern to include in the search (e.g. "*.js", "*.{ts,tsx}")')] = None
 
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
@@ -260,7 +260,6 @@ def render_grep_args(tool_call: ToolCall):
         ('Grep', 'bold'),
         '(',
         pattern,
-        ' ',
         (path_info, 'italic'),
         (include_info, 'italic'),
         ')',

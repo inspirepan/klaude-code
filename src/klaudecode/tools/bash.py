@@ -20,8 +20,13 @@ class BashTool(Tool):
     desc = BASH_TOOL_DESC
 
     class Input(BaseModel):
-        command: Annotated[str, Field(description='The bash command to execute')]
-        description: Annotated[Optional[str], Field(description='Description of what this command does')] = None
+        command: Annotated[str, Field(description='The command to execute')]
+        description: Annotated[
+            Optional[str],
+            Field(
+                description="Clear, concise description of what this command does in 5-10 words. Examples: Input: ls Output: Lists files in current directory Input: git status Output: Shows working tree status Input: npm install Output: Installs package dependencies Input: mkdir foo Output: Creates directory 'foo'"
+            ),
+        ] = None
         timeout: Annotated[
             Optional[int],
             Field(description='Optional timeout in milliseconds (max 600000)'),

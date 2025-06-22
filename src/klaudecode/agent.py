@@ -6,21 +6,32 @@ from anthropic import AnthropicError
 from openai import OpenAIError
 from pydantic import BaseModel, Field
 from rich.box import HORIZONTALS
+from rich.console import Group
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
-from rich.console import Group
 
 from . import user_command  # noqa: F401 # import user_command to trigger command registration
 from .config import ConfigModel
 from .llm import AgentLLM
-from .message import INTERRUPTED_MSG, AIMessage, BasicMessage, InterruptedMessage, SystemMessage, ToolCall, ToolMessage, UserMessage, register_tool_call_renderer, register_tool_result_renderer
-from .prompt.system import SUB_AGENT_SYSTEM_PROMPT, SUB_AGENT_TASK_USER_PROMPT
+from .message import (
+    INTERRUPTED_MSG,
+    AIMessage,
+    BasicMessage,
+    InterruptedMessage,
+    SystemMessage,
+    ToolCall,
+    ToolMessage,
+    UserMessage,
+    register_tool_call_renderer,
+    register_tool_result_renderer,
+)
+from .prompt.system import get_subagent_system_prompt
 from .prompt.tools import AGENT_TOOL_DESC, CODE_SEARCH_AGENT_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
-from .tools import BashTool, EditTool, GrepTool, GlobTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
-from .tui import clean_last_line, console, format_style, render_hello, render_markdown, render_message, render_suffix, render_status, INTERRUPT_TIP
+from .tools import BashTool, EditTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
+from .tui import INTERRUPT_TIP, clean_last_line, console, format_style, render_hello, render_markdown, render_message, render_status, render_suffix
 from .user_input import InputSession, UserInputHandler
 
 DEFAULT_MAX_STEPS = 80
@@ -181,13 +192,13 @@ class Agent(Tool):
 
         session = Session(
             work_dir=os.getcwd(),
-            messages=[SystemMessage(content=SUB_AGENT_SYSTEM_PROMPT, cached=True)],
+            messages=[SystemMessage(content=get_subagent_system_prompt(work_dir=instance.parent_agent.session.work_dir, model_name=instance.parent_agent.config.model_name.value))],
             append_message_hook=subagent_append_message_hook,
             source='subagent',
         )
         agent = cls(session, availiable_tools=cls.get_subagent_tools(), print_switch=False)
         agent.append_message(
-            UserMessage(content=SUB_AGENT_TASK_USER_PROMPT.format(description=args.description, prompt=args.prompt)),
+            UserMessage(content=args.prompt),
             print_msg=False,
         )
 

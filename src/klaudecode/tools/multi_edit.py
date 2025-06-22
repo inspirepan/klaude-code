@@ -53,8 +53,8 @@ class MultiEditTool(Tool):
     desc = MULTI_EDIT_TOOL_DESC
 
     class Input(BaseModel):
-        file_path: Annotated[str, Field(description='The absolute path to the file to edit')]
-        edits: Annotated[List[EditOperation], Field(description='List of edit operations, each containing old_string, new_string, and optional replace_all')]
+        file_path: Annotated[str, Field(description='The absolute path to the file to modify')]
+        edits: Annotated[List[EditOperation], Field(description='Array of edit operations to perform sequentially on the file')]
 
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
@@ -156,7 +156,7 @@ class MultiEditTool(Tool):
             for applied_edit in applied_edits:
                 result += f'{applied_edit.index}. Replaced "{applied_edit.old_string}" with "{applied_edit.new_string}"\n'
 
-            result += f"\nHere's the result of running `cat -n` on a snippet of the edited file:\n{snippet}"
+            result += f"\nHere's the result of running `line-number→line-content` on a snippet of the edited file:\n{snippet}"
 
             instance.tool_result().set_content(result)
             instance.tool_result().set_extra_data('diff_lines', diff_lines)

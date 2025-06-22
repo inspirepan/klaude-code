@@ -3,7 +3,7 @@ import json
 import signal
 from abc import ABC
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from pydantic import BaseModel
 from rich.columns import Columns
@@ -12,6 +12,9 @@ from rich.live import Live
 
 from .message import AIMessage, ToolCall, ToolMessage
 from .tui import console, render_status
+
+if TYPE_CHECKING:
+    from .agent import Agent
 
 
 class Tool(ABC):
@@ -110,7 +113,7 @@ class Tool(ABC):
         return json.dumps(cls.openai_schema())
 
     @classmethod
-    def create_instance(cls, tool_call: ToolCall, parent_agent) -> 'ToolInstance':
+    def create_instance(cls, tool_call: ToolCall, parent_agent: 'Agent') -> 'ToolInstance':
         return ToolInstance(tool=cls, tool_call=tool_call, parent_agent=parent_agent)
 
     @classmethod
@@ -146,11 +149,11 @@ class ToolInstance:
     ToolInstance is the instance of a runtime tool call.
     """
 
-    def __init__(self, tool: type[Tool], tool_call: ToolCall, parent_agent):
+    def __init__(self, tool: type[Tool], tool_call: ToolCall, parent_agent: 'Agent'):
         self.tool = tool
         self.tool_call = tool_call
         self.tool_msg: ToolMessage = ToolMessage(tool_call_id=tool_call.id, tool_call_cache=tool_call)
-        self.parent_agent = parent_agent
+        self.parent_agent: 'Agent' = parent_agent
 
         self._task: Optional[asyncio.Task] = None
         self._is_running = False

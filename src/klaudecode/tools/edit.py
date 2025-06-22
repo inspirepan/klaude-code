@@ -36,10 +36,10 @@ class EditTool(Tool):
     desc = EDIT_TOOL_DESC
 
     class Input(BaseModel):
-        file_path: Annotated[str, Field(description='The absolute path to the file to edit')]
+        file_path: Annotated[str, Field(description='The absolute path to the file to modify')]
         old_string: Annotated[str, Field(description='The text to replace')]
-        new_string: Annotated[str, Field(description='The text to replace it with')]
-        replace_all: Annotated[bool, Field(description='Replace all occurrences (default: false)')] = False
+        new_string: Annotated[str, Field(description='The text to replace it with (must be different from old_string)')]
+        replace_all: Annotated[bool, Field(description='Replace all occurences of old_string (default false)')] = False
 
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
@@ -113,7 +113,7 @@ class EditTool(Tool):
             snippet = get_edit_context_snippet(new_content, args.new_string, content, args.old_string, 5)
 
             diff_lines = generate_diff_lines(content, new_content)
-            result = f"The file {args.file_path} has been updated. Here's the result of running `cat -n` on a snippet of the edited file:\n{snippet}"
+            result = f"The file {args.file_path} has been updated. Here's the result of running `line-number→line-content` on a snippet of the edited file:\n{snippet}"
 
             instance.tool_result().set_content(result)
             instance.tool_result().set_extra_data('diff_lines', diff_lines)
