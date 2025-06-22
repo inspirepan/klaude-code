@@ -9,6 +9,7 @@ from rich.box import HORIZONTALS
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
+from rich.console import Group
 
 from . import user_command  # noqa: F401 # import user_command to trigger command registration
 from .config import ConfigModel
@@ -19,7 +20,7 @@ from .prompt.tools import AGENT_TOOL_DESC, CODE_SEARCH_AGENT_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, GrepTool, GlobTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
-from .tui import clean_last_line, console, format_style, render_hello, render_markdown, render_message, render_suffix, render_status
+from .tui import clean_last_line, console, format_style, render_hello, render_markdown, render_message, render_suffix, render_status, INTERRUPT_TIP
 from .user_input import InputSession, UserInputHandler
 
 DEFAULT_MAX_STEPS = 80
@@ -61,17 +62,6 @@ class Agent(Tool):
             console.print()
             if need_agent_run:
                 await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
-
-    async def headless_run(self, user_input_text: str, print_trace: bool = False):
-        need_agent_run = self.user_input_handler.handle(user_input_text)
-        if need_agent_run:
-            self.print_switch = print_trace
-            if not print_trace:
-                with render_status('Running...'):
-                    result = await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
-            else:  # verbose mode
-                result = await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
-            console.print(result)
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
         try:
@@ -124,6 +114,43 @@ class Agent(Tool):
         console.print()
         self.append_message(InterruptedMessage())
         return INTERRUPTED_MSG
+
+    async def headless_run(self, user_input_text: str, print_trace: bool = False):
+        need_agent_run = self.user_input_handler.handle(user_input_text)
+        if need_agent_run:
+            self.print_switch = print_trace
+            self.tool_handler.show_live = print_trace
+            if print_trace:
+                await self.run(tools=self.availiable_tools)
+                return
+            status = render_status('Running...')
+            status.start()
+            running = True
+
+            async def update_status():
+                while running:
+                    tool_msg_count = len([msg for msg in self.session.messages if msg.role == 'tool'])
+                    status.update(
+                        Group(
+                            f'Running... ([bold]{tool_msg_count}[/bold] tool uses)',
+                            f'[italic]see more details in session file: {self.session._get_messages_file_path()}[/italic]',
+                            INTERRUPT_TIP[1:],
+                        )
+                    )
+                    await asyncio.sleep(0.1)
+
+            update_task = asyncio.create_task(update_status())
+            try:
+                result = await self.run(tools=self.availiable_tools)
+            finally:
+                running = False
+                status.stop()
+                update_task.cancel()
+                try:
+                    await update_task
+                except asyncio.CancelledError:
+                    pass
+            console.print(result)
 
     # Implement SubAgent
     # ------------------
