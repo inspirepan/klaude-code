@@ -135,7 +135,7 @@ def get_directory_structure(path: str, ignore_pattern: Optional[List[str]] = Non
     path_obj = Path(path).resolve()
 
     if not path_obj.exists():
-        return '(path does not exist)', False
+        return '(path does not exist)', False, 0
 
     # Read .gitignore file
     gitignore_path = path_obj / '.gitignore'

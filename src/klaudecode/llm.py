@@ -14,7 +14,7 @@ from .tool import Tool
 from .tui import INTERRUPT_TIP, clean_last_line, console, render_message, render_status, render_suffix
 
 DEFAULT_RETRIES = 3
-DEFAULT_RETRY_BACKOFF_BASE = 1
+DEFAULT_RETRY_BACKOFF_BASE = 0.5
 
 NON_RETRY_EXCEPTIONS = (
     KeyboardInterrupt,

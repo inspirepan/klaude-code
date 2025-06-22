@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Generator, Tuple
+from abc import ABC, abstractmethod
 
 from rich.abc import RichRenderable
 
@@ -6,7 +7,7 @@ from .config import ConfigModel
 from .message import UserMessage
 from .tui import render_suffix
 from .user_input import NORMAL_MODE_NAME, Command, InputModeCommand, UserInput, register_input_mode, register_slash_command
-from .prompt.commands import TODAY_COMMAND, RECENT_COMMAND
+from .prompt.commands import TODAY_COMMAND, RECENT_COMMAND, INIT_COMMAND, COMPACT_COMMAND
 
 if TYPE_CHECKING:
     from .agent import Agent
@@ -16,6 +17,9 @@ This file is the concrete implementation of `Command` and `InputModeCommand` ABC
 
 
 # Commands
+# ---------------------
+
+## Special Commands
 # ---------------------
 
 
@@ -65,16 +69,6 @@ class CompactCommand(Command):
     # TODO: Implement
 
 
-class InitCommand(Command):
-    def get_name(self) -> str:
-        return 'init'
-
-    def get_command_desc(self) -> str:
-        return 'Initialize a new CLAUDE.md file with codebase documentation'
-
-    # TODO: Implement
-
-
 class CostCommand(Command):
     def get_name(self) -> str:
         return 'cost'
@@ -95,34 +89,54 @@ class ClearCommand(Command):
     # TODO: Implement
 
 
-class TodayCommand(Command):
-    def get_name(self) -> str:
-        return 'today'
+## Rewrite Query Commands
+# ---------------------
 
-    def get_command_desc(self) -> str:
-        return 'Analyze today\'s development activities in this codebase through git commit history'
+
+class RewriteQueryCommand(Command, ABC):
+    @abstractmethod
+    def get_query_content(self) -> str:
+        pass
 
     def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[UserMessage, bool]:
         user_msg, _ = super().handle(agent, user_input)
-        user_msg.content = TODAY_COMMAND
+        user_msg.content = self.get_query_content()
         if user_input.cleaned_input:
             user_msg.content += f'\n<requirement>\n{user_input.cleaned_input}\n</requirement>'
         return user_msg, True
 
 
-class RecentCommand(Command):
+class InitCommand(RewriteQueryCommand):
+    def get_name(self) -> str:
+        return 'init'
+
+    def get_command_desc(self) -> str:
+        return 'Initialize a new CLAUDE.md file with codebase documentation'
+
+    def get_query_content(self) -> str:
+        return INIT_COMMAND
+
+
+class TodayCommand(RewriteQueryCommand):
+    def get_name(self) -> str:
+        return 'today'
+
+    def get_command_desc(self) -> str:
+        return "Analyze today's development activities in this codebase through git commit history"
+
+    def get_query_content(self) -> str:
+        return TODAY_COMMAND
+
+
+class RecentCommand(RewriteQueryCommand):
     def get_name(self) -> str:
         return 'recent'
 
     def get_command_desc(self) -> str:
         return 'Analyze recent development activities in this codebase through current branch commit history'
 
-    def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[UserMessage, bool]:
-        user_msg, _ = super().handle(agent, user_input)
-        user_msg.content = RECENT_COMMAND
-        if user_input.cleaned_input:
-            user_msg.content += f'\n<requirement>\n{user_input.cleaned_input}\n</requirement>'
-        return user_msg, True
+    def get_query_content(self) -> str:
+        return RECENT_COMMAND
 
 
 register_slash_command(StatusCommand())
@@ -157,6 +171,8 @@ class PlanMode(InputModeCommand):
     def binding_key(self) -> str:
         return '*'
 
+    # TODO: Implement handle
+
 
 class BashMode(InputModeCommand):
     def get_name(self) -> str:
@@ -177,6 +193,8 @@ class BashMode(InputModeCommand):
     def binding_key(self) -> str:
         return '!'
 
+    # TODO: Implement handle
+
 
 class MemoryMode(InputModeCommand):
     def get_name(self) -> str:
@@ -196,6 +214,8 @@ class MemoryMode(InputModeCommand):
 
     def binding_key(self) -> str:
         return '#'
+
+    # TODO: Implement handle
 
 
 register_input_mode(PlanMode())
