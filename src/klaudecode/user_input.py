@@ -18,9 +18,8 @@ from .message import UserMessage, register_user_msg_renderer, register_user_msg_
 from .tui import console, render_message
 
 """
-When users press special characters like #, !, etc., they enter special input modes (memory mode, bash mode, etc.) which execute special UserInput
-When users press /, it prompts slash command completion
-The Command ABC class is an abstraction for these two types of modes/commands
+Command: When users press /, it prompts slash command completion
+InputModeCommand: When users press special characters like #, !, etc., they enter special input modes (memory mode, bash mode, etc.)
 """
 
 

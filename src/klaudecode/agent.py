@@ -74,7 +74,10 @@ class Agent(Tool):
                 )
                 self.append_message(ai_msg)
                 if ai_msg.finish_reason == 'stop':
-                    return ai_msg.content or ''
+                    # Cannot directly use this AI response's content as result,
+                    # because Claude might execute a tool call (e.g. TodoWrite) at the end and return empty content
+                    last_ai_msg = self.session.get_last_message(role='assistant', filter_empty=True)
+                    return last_ai_msg.content if last_ai_msg else ''
                 if ai_msg.finish_reason == 'tool_calls' or len(ai_msg.tool_calls) > 0:
                     await self.tool_handler.handle(ai_msg)
 

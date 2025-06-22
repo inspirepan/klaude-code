@@ -48,17 +48,13 @@ class Session(BaseModel):
         if self.append_message_hook:
             self.append_message_hook(*msgs)
 
-    def get_last_message(self, role: Literal['user', 'assistant', 'tool'] | None = None) -> Optional[BasicMessage]:
+    def get_last_message(self, role: Literal['user', 'assistant', 'tool'] | None = None, filter_empty: bool = False) -> Optional[BasicMessage]:
         """Get the last message with the specified role."""
-        if role:
-            return next((msg for msg in reversed(self.messages) if msg.role == role), None)
-        return self.messages[-1] if self.messages else None
+        return next((msg for msg in reversed(self.messages) if (not role or msg.role == role) and (not filter_empty or msg)), None)
 
-    def get_first_message(self, role: Literal['user', 'assistant', 'tool'] | None = None) -> Optional[BasicMessage]:
+    def get_first_message(self, role: Literal['user', 'assistant', 'tool'] | None = None, filter_empty: bool = False) -> Optional[BasicMessage]:
         """Get the first message with the specified role"""
-        if role:
-            return next((msg for msg in self.messages if msg.role == role), None)
-        return self.messages[0] if self.messages else None
+        return next((msg for msg in self.messages if (not role or msg.role == role) and (not filter_empty or msg)), None)
 
     def print_all(self):
         """Print all messages in the session"""
