@@ -276,9 +276,11 @@ class Session(BaseModel):
 
     async def compact_conversation_history(self, instructions: str = '', show_status: bool = True):
         non_sys_msgs = [msg for msg in self.messages if msg.role != 'system'].copy()
-        # TODO: Handle User Instructions
+        additional_instructions = '\nAdditional Instructions:\n' + instructions if instructions else ''
         # TODO: Maybe add some tool call results? Check CC
-        CompactMessageList = MessageHistory(messages=[SystemMessage(content=COMACT_SYSTEM_PROMPT)] + non_sys_msgs + [UserMessage(content=COMPACT_COMMAND + instructions)])
+        CompactMessageList = MessageHistory(
+            messages=[SystemMessage(content=COMACT_SYSTEM_PROMPT)] + non_sys_msgs + [UserMessage(content=COMPACT_COMMAND + additional_instructions)]
+        )
 
         try:
             ai_msg = await AgentLLM.call(msgs=CompactMessageList, show_status=show_status, status_text='Compacting...')

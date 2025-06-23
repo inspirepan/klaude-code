@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING, Generator, Optional, Tuple
 
 from rich.abc import RichRenderable
 from rich.console import Group
-from rich.rule import Rule
 from rich.panel import Panel
+from rich.rule import Rule
 from rich.text import Text
 
 from .config import ConfigModel
@@ -233,14 +233,14 @@ class MacSetupCommand(Command):
 
 class RewriteQueryCommand(Command, ABC):
     @abstractmethod
-    def get_query_content(self) -> str:
+    def get_query_content(self, user_input: UserInput) -> str:
         pass
 
     async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
         user_msg, _ = await super().handle(agent, user_input)
-        user_msg.content = self.get_query_content()
+        user_msg.content = self.get_query_content(user_input)
         if user_input.cleaned_input:
-            user_msg.content += f'\n<user>\n{user_input.cleaned_input}\n</user>'
+            user_msg.content += 'Additional Instructions:\n' + user_input.cleaned_input
         return user_msg, True
 
 
@@ -251,7 +251,7 @@ class InitCommand(RewriteQueryCommand):
     def get_command_desc(self) -> str:
         return 'Initialize a new CLAUDE.md file with codebase documentation'
 
-    def get_query_content(self) -> str:
+    def get_query_content(self, user_input: UserInput) -> str:
         return INIT_COMMAND
 
 
@@ -262,7 +262,7 @@ class TodayCommand(RewriteQueryCommand):
     def get_command_desc(self) -> str:
         return "Analyze today's development activities in this codebase through git commit history"
 
-    def get_query_content(self) -> str:
+    def get_query_content(self, user_input: UserInput) -> str:
         return TODAY_COMMAND
 
 
@@ -273,7 +273,7 @@ class RecentCommand(RewriteQueryCommand):
     def get_command_desc(self) -> str:
         return 'Analyze recent development activities in this codebase through current branch commit history'
 
-    def get_query_content(self) -> str:
+    def get_query_content(self, user_input: UserInput) -> str:
         return RECENT_COMMAND
 
 
