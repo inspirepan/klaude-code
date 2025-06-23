@@ -137,7 +137,7 @@ class Agent(Tool):
             if has_active_todos:
                 reminder = TODO_REMINDER.format(todo_list_json=json.dumps(self.session.todo_list.model_dump(), ensure_ascii=False, separators=(',', ':')))
                 if isinstance(last_msg, ToolMessage):
-                    last_msg.append_system_reminder(reminder)
+                    last_msg.append_post_system_reminder(reminder)
 
     def _handle_interruption(self):
         asyncio.create_task(asyncio.sleep(0.1))

@@ -85,7 +85,7 @@ class BashTool(Tool):
             instance.tool_result().set_error_msg(error_msg)
             return
         if '<system-reminder>' in error_msg:
-            instance.tool_result().append_system_reminder(error_msg)
+            instance.tool_result().append_post_system_reminder(error_msg)
 
         # Set timeout
         timeout_ms = args.timeout or cls.DEFAULT_TIMEOUT

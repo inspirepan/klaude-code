@@ -455,7 +455,7 @@ class ToolMessage(BasicMessage):
             return
         super().append_extra_data(key, value)
 
-    def append_system_reminder(self, reminder: str):
+    def append_post_system_reminder(self, reminder: str):
         if not self.system_reminders:
             self.system_reminders = [reminder]
         else:
