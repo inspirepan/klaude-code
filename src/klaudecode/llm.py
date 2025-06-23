@@ -62,7 +62,7 @@ class OpenAIProxy:
         completion = await self.client.chat.completions.create(
             model=self.model_name,
             messages=[msg.to_openai() for msg in msgs if msg],
-            tools=[tool.openai_schema() for tool in tools],
+            tools=[tool.openai_schema() for tool in tools] if tools else None,
             extra_headers=self.extra_header,
             max_tokens=self.max_tokens,
         )
@@ -100,7 +100,7 @@ class OpenAIProxy:
         stream = await self.client.chat.completions.create(
             model=self.model_name,
             messages=[msg.to_openai() for msg in msgs if msg],
-            tools=[tool.openai_schema() for tool in tools],
+            tools=[tool.openai_schema() for tool in tools] if tools else None,
             extra_headers=self.extra_header,
             max_tokens=self.max_tokens,
             stream=True,
@@ -222,7 +222,7 @@ class AnthropicProxy:
                 'type': 'enabled' if self.enable_thinking else 'disabled',
                 'budget_tokens': 2000,
             },
-            tools=[tool.anthropic_schema() for tool in tools],
+            tools=[tool.anthropic_schema() for tool in tools] if tools else None,
             messages=other_msgs,
             system=system_msgs,
             extra_headers=self.extra_header,

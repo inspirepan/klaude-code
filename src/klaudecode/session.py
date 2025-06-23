@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import time
@@ -8,11 +9,46 @@ from typing import Callable, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from .message import AIMessage, BasicMessage, InterruptedMessage, SystemMessage, ToolMessage, UserMessage
-from .message_history import MessageHistory
+from .llm import AgentLLM
+from .message import AIMessage, BasicMessage, SpecialUserMessageTypeEnum, SystemMessage, ToolMessage, UserMessage
+from .prompt.commands import COMACT_SYSTEM_PROMPT, COMPACT_COMMAND, COMPACT_MSG_PREFIX
 from .tools.todo import TodoList
 from .tui import console
 from .utils import sanitize_filename
+
+
+class MessageHistory(BaseModel):
+    messages: List[BasicMessage] = Field(default_factory=list)
+
+    def append_message(self, *msgs: BasicMessage) -> None:
+        self.messages.extend(msgs)
+
+    def get_last_message(self, role: Literal['user', 'assistant', 'tool'] | None = None, filter_empty: bool = False) -> Optional[BasicMessage]:
+        return next((msg for msg in reversed(self.messages) if (not role or msg.role == role) and (not filter_empty or msg)), None)
+
+    def get_first_message(self, role: Literal['user', 'assistant', 'tool'] | None = None, filter_empty: bool = False) -> Optional[BasicMessage]:
+        return next((msg for msg in self.messages if (not role or msg.role == role) and (not filter_empty or msg)), None)
+
+    def print_all_message(self):
+        from .tui import console
+
+        for msg in self.messages:
+            console.print(msg)
+
+    def copy(self):
+        return self.messages.copy()
+
+    def extend(self, msgs):
+        self.messages.extend(msgs)
+
+    def __len__(self) -> int:
+        return len(self.messages)
+
+    def __iter__(self):
+        return iter(self.messages)
+
+    def __getitem__(self, index):
+        return self.messages[index]
 
 
 class Session(BaseModel):
@@ -151,10 +187,7 @@ class Session(BaseModel):
                 if role == 'system':
                     messages.append(SystemMessage(**msg_data))
                 elif role == 'user':
-                    if msg_data.get('user_msg_type') == 'interrupted':
-                        messages.append(InterruptedMessage())
-                    else:
-                        messages.append(UserMessage(**msg_data))
+                    messages.append(UserMessage(**msg_data))
                 elif role == 'assistant':
                     ai_msg = AIMessage(**msg_data)
                     if ai_msg.tool_calls:
@@ -234,3 +267,25 @@ class Session(BaseModel):
             return None
         latest_session = sessions[0]
         return cls.load(latest_session['id'], work_dir)
+
+    def clear_conversation_history(self):
+        for msg in self.messages:
+            if msg.role == 'system':
+                continue
+            msg.removed = True
+
+    async def compact_conversation_history(self, instructions: str = '', show_status: bool = True):
+        non_sys_msgs = [msg for msg in self.messages if msg.role != 'system'].copy()
+        # TODO: Handle User Instructions
+        # TODO: Maybe add some tool call results? Check CC
+        CompactMessageList = MessageHistory(messages=[SystemMessage(content=COMACT_SYSTEM_PROMPT)] + non_sys_msgs + [UserMessage(content=COMPACT_COMMAND + instructions)])
+
+        try:
+            ai_msg = await AgentLLM.call(msgs=CompactMessageList, show_status=show_status, status_text='Compacting...')
+
+            self.clear_conversation_history()
+            user_msg = UserMessage(content=COMPACT_MSG_PREFIX + ai_msg.content, user_msg_type=SpecialUserMessageTypeEnum.COMPACT_RESULT.value)
+            console.print(user_msg)
+            self.append_message(user_msg)
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            pass

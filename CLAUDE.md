@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Klaude Code (claude.ai/code) when working with code in this repository.
 
 ## Development Commands
 
@@ -42,6 +42,13 @@ isort src/ && ruff format src/ && ruff check src/
 # Type checking (no mypy - relies on IDE/editor for type checking)
 ```
 
+### Testing
+```bash
+# No specific test framework configured - check README for project-specific testing
+# Verify functionality by running CLI commands:
+klaude --print "test prompt"
+```
+
 ### Debugging & Development
 ```bash
 # Run with verbose output
@@ -62,6 +69,18 @@ klaude config show
 **Agent System** (`agent.py:50`): The main Agent class that orchestrates tool execution and LLM interactions. Supports both interactive chat and headless execution modes. Agent itself is a Tool that can spawn sub-agents for complex tasks.
 
 **Tool System** (`tool.py:20`): Base Tool class with automatic schema generation from Pydantic models. All tools are parallelizable by default and have configurable timeouts.
+
+**Agent-as-Tool**: The Agent class itself is a Tool (`agent.py:50`) that can spawn sub-agents for complex tasks. This enables recursive agent execution with different tool sets and scopes.
+
+**Tool Categories**: 
+- BASIC_TOOLS (`agent.py:44`): Full file system and bash access for general development
+- READ_ONLY_TOOLS (`agent.py:45`): Limited tools for sub-agents to prevent unsafe operations
+
+**LLM Integration** (`llm.py`): Handles communication with language models (Anthropic Claude, OpenAI). Supports prompt caching and token counting.
+
+**Message System** (`message.py`): Rich message types (SystemMessage, UserMessage, AIMessage, ToolMessage) with rendering support for the terminal interface.
+
+**Session Persistence** (`session.py:52-57`): Sessions are automatically saved to `.klaude/sessions/` with structured filenames including timestamps and conversation titles for easy retrieval.
 
 ### Project Structure
 
@@ -130,6 +149,17 @@ The system prompt consists of:
    - Model-specific guidance
 
 ## Key Development Patterns
+
+### Tool Parallelization
+Tools marked as `parallelable=True` can run concurrently using `ToolHandler.run_tools_parallel()`. This is essential for performance when reading multiple files or running independent operations.
+
+### Error Handling Patterns
+- Tools should catch exceptions and return meaningful error messages
+- LLM errors (AnthropicError, OpenAIError) are handled at the agent level
+- Use Rich formatting for error output in terminal
+
+### Agent-as-Tool Pattern
+The Agent class itself implements the Tool interface (`agent.py:50`), enabling recursive agent execution with different tool sets and scopes. Sub-agents typically use READ_ONLY_TOOLS to prevent unsafe operations.
 
 ### Adding New Tools
 1. Create new file in `src/klaudecode/tools/`

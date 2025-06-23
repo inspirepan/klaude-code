@@ -125,6 +125,7 @@ COMACT_SYSTEM_PROMPT = """You are Klaude Code, CLI for Claude.
 You are a helpful AI assistant tasked with summarizing conversations."""
 
 COMPACT_MSG_PREFIX = """This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:
+
 """
 
 TODAY_COMMAND = """Please analyze what this codebase has been done today by git commit history and git diff.

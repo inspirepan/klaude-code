@@ -1,4 +1,5 @@
 import json
+from enum import Enum
 from functools import cached_property
 from typing import Callable, Dict, List, Literal, Optional
 
@@ -113,6 +114,11 @@ class SystemMessage(BasicMessage):
         return bool(self.content)
 
 
+class SpecialUserMessageTypeEnum(Enum):
+    INTERRUPTED = 'interrupted'
+    COMPACT_RESULT = 'compact_result'
+
+
 class UserMessage(BasicMessage):
     role: Literal['user'] = 'user'
     pre_system_reminders: Optional[List[str]] = None
@@ -171,7 +177,7 @@ class UserMessage(BasicMessage):
                 yield render_suffix(error, style='red')
 
     def __bool__(self):
-        return bool(self.content)
+        return not self.removed and bool(self.content)
 
     def append_pre_system_reminder(self, reminder: str):
         if not self.pre_system_reminders:
@@ -184,24 +190,6 @@ class UserMessage(BasicMessage):
             self.post_system_reminders = [reminder]
         else:
             self.post_system_reminders.append(reminder)
-
-
-class InterruptedMessage(UserMessage):
-    role: Literal['user'] = 'user'
-    user_msg_type: Literal['interrupted'] = 'interrupted'
-
-    def to_openai(self) -> ChatCompletionMessageParam:
-        return {'role': 'user', 'content': INTERRUPTED_MSG}
-
-    def to_anthropic(self) -> MessageParam:
-        return MessageParam(role='user', content=INTERRUPTED_MSG)
-
-    def __rich_console__(self, console, options):
-        yield render_message(INTERRUPTED_MSG, style='red', mark='>', mark_style='red')
-        yield ''
-
-    def __bool__(self):
-        return True
 
 
 class ToolCall(BaseModel):
@@ -339,7 +327,7 @@ class AIMessage(BasicMessage):
             yield ''
 
     def __bool__(self):
-        return bool(self.content) or bool(self.thinking_content) or bool(self.tool_calls)
+        return not self.removed and (bool(self.content) or bool(self.thinking_content) or bool(self.tool_calls))
 
     def merge(self, other: 'AIMessage') -> 'AIMessage':
         self.content += other.content
@@ -434,7 +422,7 @@ class ToolMessage(BasicMessage):
         yield ''
 
     def __bool__(self):
-        return bool(self.get_content())
+        return not self.removed and bool(self.get_content())
 
     def set_content(self, content: str):
         if self.tool_call.status == 'canceled':
@@ -485,3 +473,19 @@ def register_user_msg_suffix_renderer(user_msg_type: str, renderer_func: Callabl
 
 def register_user_msg_renderer(user_msg_type: str, renderer_func: Callable[[UserMessage], RichRenderable]):
     _USER_MSG_RENDERERS[user_msg_type] = renderer_func
+
+
+# Some Default User Message Type Renderers
+# ---------------------
+
+
+def interrupted_renderer(user_msg: UserMessage):
+    yield render_message(INTERRUPTED_MSG, style='red', mark='>', mark_style='red')
+
+
+def compact_renderer(user_msg: UserMessage):
+    yield render_message(user_msg.content, mark='✻', mark_style='blue', style='blue italic')
+
+
+register_user_msg_renderer(SpecialUserMessageTypeEnum.INTERRUPTED.value, interrupted_renderer)
+register_user_msg_renderer(SpecialUserMessageTypeEnum.COMPACT_RESULT.value, compact_renderer)

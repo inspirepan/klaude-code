@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Generator, Tuple
+from typing import TYPE_CHECKING, Dict, Generator, Optional, Tuple
 
 if TYPE_CHECKING:
     from .agent import Agent
@@ -43,7 +43,7 @@ class Command(ABC):
     def get_command_desc(self) -> str:
         raise NotImplementedError
 
-    def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[UserMessage, bool]:
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
         """
         Handle slash command.
         By default, return a user message with the command name and the user input.
@@ -88,8 +88,8 @@ class InputModeCommand(Command, ABC):
     def get_next_mode_name(self) -> str:
         raise NotImplementedError
 
-    def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[UserMessage, bool]:
-        return super().handle(agent, user_input)
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
+        return await super().handle(agent, user_input)
 
     def get_command_desc(self) -> str:
         return f'Input mode: {self.get_name()}'
@@ -174,7 +174,7 @@ class UserInputHandler:
     def __init__(self, agent: 'Agent'):
         self.agent = agent
 
-    def handle(self, user_input_text: str) -> bool:
+    async def handle(self, user_input_text: str) -> bool:
         """
         Handle special mode and command input.
         """
@@ -182,7 +182,7 @@ class UserInputHandler:
         command_name, cleaned_input = self._parse_command(user_input_text)
         command = _INPUT_MODES.get(command_name, _SLASH_COMMANDS.get(command_name, None))
         if command:
-            user_msg, need_agent_run = command.handle(
+            user_msg, need_agent_run = await command.handle(
                 self.agent,
                 UserInput(
                     command_name=command_name or self.current_input_mode.get_name(),
@@ -197,12 +197,13 @@ class UserInputHandler:
                 user_raw_input=user_input_text,
             )
             need_agent_run = True
-            user_msg.append_post_system_reminder(LANGUAGE_REMINDER)
-        self.agent.append_message(user_msg, print_msg=False)
 
-        # Render command result
-        for item in user_msg.get_suffix_renderable():
-            console.print(item)
+        if user_msg is not None:
+            user_msg.append_post_system_reminder(LANGUAGE_REMINDER)
+            self.agent.append_message(user_msg, print_msg=False)
+            # Render command result
+            for item in user_msg.get_suffix_renderable():
+                console.print(item)
 
         return need_agent_run
 

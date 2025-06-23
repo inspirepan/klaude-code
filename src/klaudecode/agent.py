@@ -19,7 +19,7 @@ from .message import (
     INTERRUPTED_MSG,
     AIMessage,
     BasicMessage,
-    InterruptedMessage,
+    SpecialUserMessageTypeEnum,
     SystemMessage,
     ToolCall,
     ToolMessage,
@@ -77,7 +77,7 @@ class Agent(Tool):
             user_input_text = await self.input_session.prompt_async()
             if user_input_text.strip().lower() in QUIT_COMMAND:
                 break
-            need_agent_run = self.user_input_handler.handle(user_input_text)
+            need_agent_run = await self.user_input_handler.handle(user_input_text)
             console.print()
             if need_agent_run:
                 await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
@@ -147,12 +147,11 @@ class Agent(Tool):
             except BaseException:
                 pass
         console.console.print('', end='\r')
-        console.print()
-        self.append_message(InterruptedMessage())
+        self.append_message(UserMessage(content=INTERRUPTED_MSG, user_msg_type=SpecialUserMessageTypeEnum.INTERRUPTED.value))
         return INTERRUPTED_MSG
 
     async def headless_run(self, user_input_text: str, print_trace: bool = False):
-        need_agent_run = self.user_input_handler.handle(user_input_text)
+        need_agent_run = await self.user_input_handler.handle(user_input_text)
         if need_agent_run:
             self.print_switch = print_trace
             self.tool_handler.show_live = print_trace

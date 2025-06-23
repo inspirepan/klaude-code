@@ -2,7 +2,7 @@ import platform
 import shutil
 import subprocess
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generator, Tuple
+from typing import TYPE_CHECKING, Generator, Optional, Tuple
 
 from rich.abc import RichRenderable
 from rich.console import Group
@@ -12,7 +12,7 @@ from rich.text import Text
 from .config import ConfigModel
 from .message import UserMessage
 from .prompt.commands import INIT_COMMAND, RECENT_COMMAND, TODAY_COMMAND
-from .tui import render_suffix
+from .tui import console, render_suffix
 from .user_input import NORMAL_MODE_NAME, Command, InputModeCommand, UserInput, register_input_mode, register_slash_command
 
 if TYPE_CHECKING:
@@ -36,8 +36,8 @@ class StatusCommand(Command):
     def get_command_desc(self) -> str:
         return 'Show the current setup'
 
-    def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[UserMessage, bool]:
-        user_msg, _ = super().handle(agent, user_input)
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
+        user_msg, _ = await super().handle(agent, user_input)
         user_msg.set_extra_data('status', agent.config)
         return user_msg, False
 
@@ -60,8 +60,8 @@ class ContinueCommand(Command):
     def get_command_desc(self) -> str:
         return 'Request LLM without new user message. NOTE: May cause error when no user message exists'
 
-    def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[UserMessage, bool]:
-        user_msg, _ = super().handle(agent, user_input)
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
+        user_msg, _ = await super().handle(agent, user_input)
         return user_msg, True
 
 
@@ -72,7 +72,13 @@ class CompactCommand(Command):
     def get_command_desc(self) -> str:
         return 'Clear conversation history but keep a summary in context. Optional: /compact [instructions for summarization]'
 
-    # TODO: Implement
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
+        user_msg, _ = await super().handle(agent, user_input)
+        user_msg.removed = True
+        console.print()
+        agent.append_message(user_msg, print_msg=False)
+        await agent.session.compact_conversation_history(instructions=user_input.cleaned_input, show_status=True)
+        return None, False
 
 
 class CostCommand(Command):
@@ -92,57 +98,16 @@ class ClearCommand(Command):
     def get_command_desc(self) -> str:
         return 'Clear conversation history and free up context'
 
-    # TODO: Implement
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
+        user_msg, _ = await super().handle(agent, user_input)
+        user_msg.removed = True
+        user_msg.append_extra_data('cleared', True)
+        agent.session.clear_conversation_history()
+        return user_msg, False
 
-
-## Rewrite Query Commands
-# ---------------------
-
-
-class RewriteQueryCommand(Command, ABC):
-    @abstractmethod
-    def get_query_content(self) -> str:
-        pass
-
-    def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[UserMessage, bool]:
-        user_msg, _ = super().handle(agent, user_input)
-        user_msg.content = self.get_query_content()
-        if user_input.cleaned_input:
-            user_msg.content += f'\n<user>\n{user_input.cleaned_input}\n</user>'
-        return user_msg, True
-
-
-class InitCommand(RewriteQueryCommand):
-    def get_name(self) -> str:
-        return 'init'
-
-    def get_command_desc(self) -> str:
-        return 'Initialize a new CLAUDE.md file with codebase documentation'
-
-    def get_query_content(self) -> str:
-        return INIT_COMMAND
-
-
-class TodayCommand(RewriteQueryCommand):
-    def get_name(self) -> str:
-        return 'today'
-
-    def get_command_desc(self) -> str:
-        return "Analyze today's development activities in this codebase through git commit history"
-
-    def get_query_content(self) -> str:
-        return TODAY_COMMAND
-
-
-class RecentCommand(RewriteQueryCommand):
-    def get_name(self) -> str:
-        return 'recent'
-
-    def get_command_desc(self) -> str:
-        return 'Analyze recent development activities in this codebase through current branch commit history'
-
-    def get_query_content(self) -> str:
-        return RECENT_COMMAND
+    def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
+        if user_msg.get_extra_data('cleared', False):
+            yield render_suffix('Conversation history cleared, context freed up')
 
 
 class MacSetupCommand(Command):
@@ -152,8 +117,8 @@ class MacSetupCommand(Command):
     def get_command_desc(self) -> str:
         return 'Install fd and rg (ripgrep) using Homebrew on macOS for optimal performance'
 
-    def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[UserMessage, bool]:
-        user_msg, _ = super().handle(agent, user_input)
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
+        user_msg, _ = await super().handle(agent, user_input)
 
         # Check if running on macOS
         if platform.system() != 'Darwin':
@@ -257,15 +222,65 @@ class MacSetupCommand(Command):
             )
 
 
+## Rewrite Query Commands
+# ---------------------
+
+
+class RewriteQueryCommand(Command, ABC):
+    @abstractmethod
+    def get_query_content(self) -> str:
+        pass
+
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
+        user_msg, _ = await super().handle(agent, user_input)
+        user_msg.content = self.get_query_content()
+        if user_input.cleaned_input:
+            user_msg.content += f'\n<user>\n{user_input.cleaned_input}\n</user>'
+        return user_msg, True
+
+
+class InitCommand(RewriteQueryCommand):
+    def get_name(self) -> str:
+        return 'init'
+
+    def get_command_desc(self) -> str:
+        return 'Initialize a new CLAUDE.md file with codebase documentation'
+
+    def get_query_content(self) -> str:
+        return INIT_COMMAND
+
+
+class TodayCommand(RewriteQueryCommand):
+    def get_name(self) -> str:
+        return 'today'
+
+    def get_command_desc(self) -> str:
+        return "Analyze today's development activities in this codebase through git commit history"
+
+    def get_query_content(self) -> str:
+        return TODAY_COMMAND
+
+
+class RecentCommand(RewriteQueryCommand):
+    def get_name(self) -> str:
+        return 'recent'
+
+    def get_command_desc(self) -> str:
+        return 'Analyze recent development activities in this codebase through current branch commit history'
+
+    def get_query_content(self) -> str:
+        return RECENT_COMMAND
+
+
 register_slash_command(StatusCommand())
-register_slash_command(MacSetupCommand())
 register_slash_command(InitCommand())
-register_slash_command(CostCommand())
-register_slash_command(ContinueCommand())
-register_slash_command(CompactCommand())
 register_slash_command(ClearCommand())
+register_slash_command(CompactCommand())
 register_slash_command(TodayCommand())
 register_slash_command(RecentCommand())
+register_slash_command(ContinueCommand())
+register_slash_command(CostCommand())
+register_slash_command(MacSetupCommand())
 
 # Input Modes
 # ---------------------
