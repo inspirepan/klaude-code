@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Generator, Optional, Tuple
 
 from rich.abc import RichRenderable
 from rich.console import Group
+from rich.rule import Rule
 from rich.panel import Panel
 from rich.text import Text
 
@@ -79,6 +80,10 @@ class CompactCommand(Command):
         agent.append_message(user_msg, print_msg=False)
         await agent.session.compact_conversation_history(instructions=user_input.cleaned_input, show_status=True)
         return None, False
+
+    def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
+        yield ''
+        yield Rule(title=Text('Previous Conversation Compacted', 'bold white'), characters='=', style='white')
 
 
 class CostCommand(Command):

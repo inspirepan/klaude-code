@@ -487,5 +487,6 @@ def compact_renderer(user_msg: UserMessage):
     yield render_message(user_msg.content, mark='✻', mark_style='blue', style='blue italic')
 
 
+
 register_user_msg_renderer(SpecialUserMessageTypeEnum.INTERRUPTED.value, interrupted_renderer)
 register_user_msg_renderer(SpecialUserMessageTypeEnum.COMPACT_RESULT.value, compact_renderer)
