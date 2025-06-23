@@ -11,9 +11,8 @@ from .message import SystemMessage
 from .prompt.system import STATIC_SYSTEM_PROMPT, get_system_prompt_dynamic_part
 from .session import Session
 from .tui import console
-from .user_questionary import ask_user
+from .user_input import user_menu_query
 from .utils import format_relative_time
-
 
 app = typer.Typer(help='Coding Agent CLI', add_completion=False)
 
@@ -43,9 +42,9 @@ async def main_async(ctx: typer.Context):
         session = session.fork()
     elif ctx.obj['resume']:
         sessions = Session.load_session_list(os.getcwd())
-        idx = ask_user(
+        idx = user_menu_query(
             [
-                f'{idx+1}. {session.get("title_msg")} ({session.get("message_count")} messages, modified at {format_relative_time(session.get("updated_at"))}, created at {format_relative_time(session.get("created_at"))})'
+                f'{idx + 1}. {session.get("title_msg")} ({session.get("message_count")} messages, modified at {format_relative_time(session.get("updated_at"))}, created at {format_relative_time(session.get("created_at"))})'
                 for idx, session in enumerate(sessions)
             ]
         )
