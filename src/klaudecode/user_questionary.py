@@ -3,7 +3,7 @@ from InquirerPy import get_style, inquirer
 from .tui import clear_last_line
 
 
-async def user_menu_query(options: list[str], title: str = None) -> int:
+async def user_select(options: list[str], title: str = None) -> int:
     if not options:
         return None
 

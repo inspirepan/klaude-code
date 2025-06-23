@@ -11,7 +11,7 @@ from .message import SystemMessage
 from .prompt.system import STATIC_SYSTEM_PROMPT, get_system_prompt_dynamic_part
 from .session import Session
 from .tui import console
-from .user_input import user_menu_query
+from .user_questionary import user_select
 from .utils import format_relative_time
 
 app = typer.Typer(help='Coding Agent CLI', add_completion=False)
@@ -55,7 +55,7 @@ async def main_async(ctx: typer.Context):
 
         header = f'{" " * 4}{"Modified":>12}{"Created":>12}{"# Messages":>12}  Title'
 
-        idx = await user_menu_query(
+        idx = await user_select(
             options,
             title=header,
         )
