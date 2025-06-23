@@ -8,7 +8,7 @@ from rich.text import Text
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import TODO_READ_RESULT, TODO_READ_TOOL_DESC, TODO_WRITE_RESULT, TODO_WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
-from ..tui import format_style, render_suffix
+from ..tui import render_suffix
 
 """
 Session-level To-Do
@@ -39,6 +39,7 @@ class TodoList(RootModel[List[Todo]]):
 class TodoWriteTool(Tool):
     name = 'TodoWrite'
     description = TODO_WRITE_TOOL_DESC
+    parallelable: bool = True
 
     class Input(BaseModel):
         todo_list: Annotated[TodoList, Field(description='The updated todo list')]

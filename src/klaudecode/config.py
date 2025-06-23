@@ -79,7 +79,7 @@ class ConfigModel(BaseModel):
 
     def __rich__(self):
         """Rich display for configuration model"""
-        table = Table.grid(padding=(0, 1))
+        table = Table.grid(padding=(0, 1), expand=False)
         table.add_column(width=1, no_wrap=True)  # Status
         table.add_column(min_width=10, no_wrap=True)  # Setting name
         table.add_column(min_width=14)  # Value
@@ -347,8 +347,8 @@ class ConfigManager:
 
     def __rich__(self):
         return Group(
-            f' config path: {Path.home() / ".klaude" / "config.json"}',
-            Panel(self.get_config_model(), box=box.HORIZONTALS),
+            f' config path: {GlobalConfigSource.get_config_path()}',
+            Panel.fit(self.get_config_model(), box=box.HORIZONTALS),
         )
 
     def get(self, key: str) -> Optional[Union[str, bool, int]]:

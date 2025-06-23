@@ -219,7 +219,7 @@ class MacSetupCommand(Command):
         if not setup_data.get('success', False):
             # Show error
             error_text = Text(f'❌ {setup_data.get("error", "Unknown error")}', style='red')
-            yield Panel(error_text, title='Mac Setup Failed', border_style='red')
+            yield Panel.fit(error_text, title='Mac Setup Failed', border_style='red')
             return
 
         # Show results

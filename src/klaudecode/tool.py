@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from pydantic import BaseModel
 from rich.columns import Columns
-from rich.console import Group
 from rich.live import Live
 
 from .message import AIMessage, ToolCall, ToolMessage
@@ -226,12 +225,15 @@ class ToolHandler:
             else:
                 non_parallelable_tool_calls.append(tool_call)
 
-        await self.handle_parallel_tool_call(parallelable_tool_calls)
+        # Handle parallelable tools first
+        await self.handle_tool_calls(parallelable_tool_calls)
 
+        # Handle non-parallelable tools one by one
         for tc in non_parallelable_tool_calls:
-            await self.handle_single_tool_call(tc)
+            await self.handle_tool_calls([tc])
 
-    async def handle_parallel_tool_call(self, tool_calls: List[ToolCall]):
+    async def handle_tool_calls(self, tool_calls: List[ToolCall]):
+        """Unified method to handle both single and multiple tool calls."""
         if not tool_calls:
             return
 
@@ -257,11 +259,16 @@ class ToolHandler:
                 pass
 
             if self.show_live:
-                tool_counts = {}
-                for tc in tool_calls:
-                    tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
-                tool_names = [f'[bold]{name}[/bold]{"*" + str(count) if count > 1 else ""}' for name, count in tool_counts.items()]
-                status_text = 'Executing ' + ' '.join(tool_names) + '... '
+                # Generate status text based on number of tools
+                if len(tool_calls) == 1:
+                    status_text = f'Executing [bold]{tool_calls[0].tool_name}[/bold]...'
+                else:
+                    tool_counts = {}
+                    for tc in tool_calls:
+                        tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
+                    tool_names = [f'[bold]{name}[/bold]{"*" + str(count) if count > 1 else ""}' for name, count in tool_counts.items()]
+                    status_text = 'Executing ' + ' '.join(tool_names) + '... '
+
                 status = render_status(status_text)
                 with Live(refresh_per_second=10, console=console.console) as live:
                     while any(ti.is_running() for ti in tool_instances) and not interrupted:
@@ -285,47 +292,5 @@ class ToolHandler:
                 except (ValueError, NotImplementedError, OSError):
                     pass
             self.agent.append_message(*(ti.tool_result() for ti in tool_instances), print_msg=False)
-            if interrupted:
-                raise asyncio.CancelledError
-
-    async def handle_single_tool_call(self, tool_call: ToolCall):
-        tool_instance = self.tool_dict[tool_call.tool_name].create_instance(tool_call, self.agent)
-        task = await tool_instance.start_async()
-
-        interrupted = False
-        signal_handler_added = False
-
-        def signal_handler():
-            nonlocal interrupted
-            interrupted = True
-            tool_instance.cancel()
-
-        try:
-            try:
-                loop = asyncio.get_event_loop()
-                loop.add_signal_handler(signal.SIGINT, signal_handler)
-                signal_handler_added = True
-            except (ValueError, NotImplementedError, OSError, RuntimeError):
-                # Signal handling not available in this context (e.g., subthread)
-                pass
-
-            if self.show_live:
-                status = render_status(f'Executing [bold]{tool_call.tool_name}[/bold]...')
-                with Live(refresh_per_second=10, console=console.console) as live:
-                    while tool_instance.is_running() and not interrupted:
-                        live.update(Group(tool_instance.tool_result(), status))
-                        await asyncio.sleep(0.1)
-                    live.update(tool_instance.tool_result())
-
-            await task
-
-        finally:
-            if signal_handler_added:
-                try:
-                    loop.remove_signal_handler(signal.SIGINT)
-                except (ValueError, NotImplementedError, OSError):
-                    pass
-
-            self.agent.append_message(tool_instance.tool_result(), print_msg=False)
             if interrupted:
                 raise asyncio.CancelledError

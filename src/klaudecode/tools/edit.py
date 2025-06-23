@@ -34,6 +34,7 @@ from .file_utils import (
 class EditTool(Tool):
     name = 'Edit'
     desc = EDIT_TOOL_DESC
+    parallelable: bool = False
 
     class Input(BaseModel):
         file_path: Annotated[str, Field(description='The absolute path to the file to modify')]

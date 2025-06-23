@@ -51,6 +51,7 @@ class AppliedEdit(NamedTuple):
 class MultiEditTool(Tool):
     name = 'MultiEdit'
     desc = MULTI_EDIT_TOOL_DESC
+    parallelable: bool = False
 
     class Input(BaseModel):
         file_path: Annotated[str, Field(description='The absolute path to the file to modify')]

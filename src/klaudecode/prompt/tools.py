@@ -342,7 +342,7 @@ Usage notes:
   - It is very helpful if you write a clear, concise description of what this command does in 5-10 words.
   - If the output exceeds 30000 characters, output will be truncated before being returned to you.
   - VERY IMPORTANT: You MUST avoid using search commands like `find` and `grep`. Instead use Grep, Glob, or Task to search. You MUST avoid read tools like `cat`, `head`, `tail`, and `ls`, and use Read and LS to read files.
-  - If you _still_ need to run `grep`, STOP. ALWAYS USE ripgrep at `rg` first, which all Claude Code users have pre-installed.
+  - If you _still_ need to run `grep`, STOP. ALWAYS USE ripgrep at `rg` first, which all Klaude Code users have pre-installed.
   - When issuing multiple commands, use the ';' or '&&' operator to separate them. DO NOT use newlines (newlines are ok in quoted strings).
   - Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of `cd`. You may use `cd` if the User explicitly requests it.
     <good-example>
@@ -368,7 +368,7 @@ When the user asks you to create a new git commit, follow these steps carefully:
 3. You have the capability to call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together for optimal performance. ALWAYS run the following commands in parallel:
    - Add relevant untracked files to the staging area.
    - Create the commit with a message ending with:
-   🤖 Generated with [Claude Code](https://claude.ai/code)
+   🤖 Generated with Klaude Code
 
    Co-Authored-By: Claude <noreply@anthropic.com>
    - Run git status to make sure the commit succeeded.
@@ -386,7 +386,7 @@ Important notes:
 git commit -m "$(cat <<'EOF'
    Commit message here.
 
-   🤖 Generated with [Claude Code](https://claude.ai/code)
+   🤖 Generated with Klaude Code
 
    Co-Authored-By: Claude <noreply@anthropic.com>
    EOF
@@ -416,7 +416,7 @@ gh pr create --title "the pr title" --body "$(cat <<'EOF'
 ## Test plan
 [Checklist of TODOs for testing the pull request...]
 
-🤖 Generated with [Claude Code](https://claude.ai/code)
+🤖 Generated with Klaude Code
 EOF
 )"
 </example>

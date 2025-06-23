@@ -13,6 +13,7 @@ from ..utils import get_directory_structure
 class LsTool(Tool):
     name = 'LS'
     desc = LS_TOOL_DESC
+    parallelable: bool = True
 
     class Input(BaseModel):
         path: Annotated[str, Field(description='The absolute path to the directory to list (must be absolute, not relative)')]

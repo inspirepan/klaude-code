@@ -49,6 +49,7 @@ DEFAULT_TIMEOUT = 30
 class GlobTool(Tool):
     name = 'Glob'
     desc = GLOB_TOOL_DESC
+    parallelable: bool = True
 
     class Input(BaseModel):
         pattern: Annotated[str, Field(description='The glob pattern to match files against')]

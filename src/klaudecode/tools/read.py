@@ -25,6 +25,7 @@ TRUNCATE_LINE_LIMIT = 2000
 class ReadTool(Tool):
     name = 'Read'
     desc = READ_TOOL_DESC.format(TRUNCATE_CHAR_LIMIT=TRUNCATE_CHAR_LIMIT, TRUNCATE_LINE_LIMIT=TRUNCATE_LINE_LIMIT)
+    parallelable: bool = True
 
     class Input(BaseModel):
         file_path: Annotated[str, Field(description='The absolute path to the file to read')]

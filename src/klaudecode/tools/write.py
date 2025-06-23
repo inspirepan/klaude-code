@@ -19,6 +19,7 @@ from .file_utils import cache_file_content, cleanup_backup, create_backup, ensur
 class WriteTool(Tool):
     name = 'Write'
     desc = WRITE_TOOL_DESC
+    parallelable: bool = False
 
     class Input(BaseModel):
         file_path: Annotated[str, Field(description='The absolute path to the file to write (must be absolute, not relative)')]

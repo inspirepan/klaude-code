@@ -355,16 +355,15 @@ class ToolMessage(BasicMessage):
         return self.tool_call_cache
 
     def get_content(self):
-        content = self.content
+        content_text = self.content
         if self.tool_call.status == 'canceled':
-            content += '\n' + INTERRUPTED_MSG
+            content_text += '\n' + INTERRUPTED_MSG
         elif self.tool_call.status == 'error':
-            content += '\nError: ' + self.error_msg
-        content = content
+            content_text += '\nError: ' + self.error_msg
         content_list = [
             {
                 'type': 'text',
-                'text': content,
+                'text': content_text if content_text else '<system-reminder>Tool ran without output or errors</system-reminder>',
             }
         ]
         if self.system_reminders:

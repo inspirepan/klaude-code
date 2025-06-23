@@ -68,6 +68,7 @@ DEFAULT_TIMEOUT = 30
 class GrepTool(Tool):
     name = 'Grep'
     desc = GREP_TOOL_DESC
+    parallelable: bool = True
 
     class Input(BaseModel):
         pattern: Annotated[str, Field(description='The regular expression pattern to search for in file contents')]

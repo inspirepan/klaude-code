@@ -83,15 +83,15 @@ class Agent(Tool):
                 await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
+        last_user_msg = self.session.get_last_message(role='user', filter_empty=True)
+        if last_user_msg:
+            last_user_msg.append_system_reminder(LANGUAGE_REMINDER)
+
         try:
             for _ in range(max_steps):
                 # Check if task was canceled (for subagent execution)
                 if parent_tool_instance and parent_tool_instance.tool_result().tool_call.status == 'canceled':
                     return INTERRUPTED_MSG
-
-                last_user_msg = self.session.get_last_message(role='user', filter_empty=True)
-                if last_user_msg:
-                    last_user_msg.append_system_reminder(LANGUAGE_REMINDER)
 
                 if self.enable_todo_reminder:
                     self._handle_todo_reminder()
@@ -194,6 +194,7 @@ class Agent(Tool):
     # ------------------
     name = 'Task'
     desc = TASK_TOOL_DESC
+    parallelable: bool = True
 
     class Input(BaseModel):
         description: Annotated[str, Field(description='A short (3-5 word) description of the task')] = None
