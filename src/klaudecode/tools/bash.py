@@ -72,7 +72,7 @@ class BashTool(Tool):
     }
 
     MAX_OUTPUT_SIZE = 30000  # Maximum output size to prevent memory overflow
-    DEFAULT_TIMEOUT = 120000  # 2 minutes in milliseconds
+    DEFAULT_TIMEOUT = 300000  # 5 minutes in milliseconds
     MAX_TIMEOUT = 600000  # 10 minutes in milliseconds
 
     @classmethod

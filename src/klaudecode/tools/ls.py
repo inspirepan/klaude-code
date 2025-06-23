@@ -24,7 +24,7 @@ class LsTool(Tool):
         args: 'LsTool.Input' = cls.parse_input_args(tool_call)
 
         try:
-            full_result, _, path_count = get_directory_structure(args.path, args.ignore, max_chars=40000)
+            full_result, _, path_count = get_directory_structure(args.path, args.ignore, max_chars=40000, show_hidden=False)
             instance.tool_result().set_content(full_result + '\n\n' + LS_TOOL_RESULT_REMINDER)
             instance.tool_result().set_extra_data('path_count', path_count)
 

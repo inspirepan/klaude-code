@@ -29,6 +29,9 @@ class MessageHistory(BaseModel):
     def get_first_message(self, role: Literal['user', 'assistant', 'tool'] | None = None, filter_empty: bool = False) -> Optional[BasicMessage]:
         return next((msg for msg in self.messages if (not role or msg.role == role) and (not filter_empty or msg)), None)
 
+    def get_role_messages(self, role: Literal['user', 'assistant', 'tool'] | None = None, filter_empty: bool = False) -> List[BasicMessage]:
+        return [msg for msg in self.messages if (not role or msg.role == role) and (not filter_empty or msg)]
+
     def print_all_message(self):
         from .tui import console
 

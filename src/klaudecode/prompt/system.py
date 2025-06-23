@@ -201,7 +201,7 @@ assistant: Clients are marked as failed in the `connectToServer` function in src
 def _get_directory_structure_context(workdir: str):
     try:
         MAX_CHARS = 40000
-        repo_map, truncated, _ = get_directory_structure(workdir, max_chars=MAX_CHARS)
+        repo_map, truncated, _ = get_directory_structure(workdir, max_chars=MAX_CHARS, max_depth=4)
         if truncated:
             return f"""directoryStructure: There are more than {MAX_CHARS} characters in the repository (ie. either there are lots of files, or there are many long filenames). Use the LS tool (passing a specific path), Bash tool, and other tools to explore nested directories. The first {MAX_CHARS} characters are included below:
 {repo_map}"""
@@ -240,7 +240,14 @@ def get_system_prompt_dynamic_part(work_dir: str = os.getcwd(), model_name: str 
     """
     Get the second part of the system prompt
     """
-    return _get_env_instruction(work_dir=work_dir, model_name=model_name) + '\n\n' + CODEBASE_INSTRUCTION + '\n\n' + _get_directory_structure_context(work_dir)
+    is_git_repo = os.path.exists(os.path.join(work_dir, '.git'))
+    return (
+        _get_env_instruction(work_dir=work_dir, model_name=model_name)
+        + '\n\n'
+        + CODEBASE_INSTRUCTION
+        + '\n\n'
+        + (_get_directory_structure_context(work_dir) if is_git_repo else '')
+    )
 
 
 # SUB AGENT SYSTEM PROMPT

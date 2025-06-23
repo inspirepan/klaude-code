@@ -231,15 +231,15 @@ def render_diff_lines(diff_lines: List[str]):
                 old_line_num = int(match.group(1))
                 new_line_num = int(match.group(2))
         elif line.startswith('-'):
-            removed_line = line[1:].strip()
-            lines.append(f'[diff_removed]{old_line_num:{width}d}:-  {escape(removed_line)}[/diff_removed]')
+            removed_line = line[1:].strip('\n\r')
+            lines.append(f'[diff_removed]{old_line_num:{width}d}:-  {removed_line}[/diff_removed]')
             old_line_num += 1
         elif line.startswith('+'):
-            added_line = line[1:].strip()
-            lines.append(f'[diff_added]{new_line_num:{width}d}:+  {escape(added_line)}[/diff_added]')
+            added_line = line[1:].strip('\n\r')
+            lines.append(f'[diff_added]{new_line_num:{width}d}:+  {added_line}[/diff_added]')
             new_line_num += 1
         elif line.startswith(' '):
-            context_line = line[1:].strip()
+            context_line = line[1:].strip('\n\r')
             lines.append(f'{old_line_num:{width}d}:   {escape(context_line)}')
             old_line_num += 1
             new_line_num += 1

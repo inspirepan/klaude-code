@@ -199,7 +199,7 @@ class UserInputHandler:
             need_agent_run = True
 
         if user_msg is not None:
-            user_msg.append_post_system_reminder(LANGUAGE_REMINDER)
+            self._handle_language_reminder(user_msg)
             self.agent.append_message(user_msg, print_msg=False)
             # Render command result
             for item in user_msg.get_suffix_renderable():
@@ -223,6 +223,11 @@ class UserInputHandler:
                 if command_part in _SLASH_COMMANDS:
                     return _SLASH_COMMANDS[command_part].get_name(), remaining_text
         return '', text
+
+    def _handle_language_reminder(self, user_msg: UserMessage):
+        if len(self.agent.session.messages) > 2:
+            return
+        user_msg.append_post_system_reminder(LANGUAGE_REMINDER)
 
 
 # Prompt toolkit completer & key bindings

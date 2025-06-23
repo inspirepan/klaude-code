@@ -1,198 +1,161 @@
 import fnmatch
+import os
 import re
-from pathlib import Path
+from collections import deque
 from typing import List, Optional, Tuple
 
 DEFAULT_IGNORE_PATTERNS = ['.git/', '.gitignore', '.venv/', '.env', '.DS_Store', '__pycache__/', 'node_modules/']
 
 
-def _parse_gitignore(gitignore_path: Path) -> List[str]:
-    """Parse .gitignore file and return list of ignore patterns"""
-    patterns = []
-    if not gitignore_path.exists():
-        return patterns
-
-    try:
-        with open(gitignore_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#'):
-                    patterns.append(line)
-    except Exception:
-        pass
-
-    return patterns
-
-
-def _matches_recursive_pattern(path_str: str, pattern: str) -> bool:
-    """Check if path matches pattern with recursive directory support"""
-    if '/' not in pattern:
-        return False
-
-    # Split pattern into directory part and file part
-    pattern_parts = pattern.split('/')
-    if len(pattern_parts) != 2:
-        return False
-
-    dir_pattern, file_pattern = pattern_parts
-    path_parts = path_str.split('/')
-
-    # Look for the directory pattern at any level
-    for i in range(len(path_parts) - 1):
-        if fnmatch.fnmatch(path_parts[i], dir_pattern):
-            # Check if the remaining path matches the file pattern
-            remaining_path = '/'.join(path_parts[i + 1 :])
-            if fnmatch.fnmatch(remaining_path, file_pattern):
-                return True
-
-    return False
-
-
-def _should_ignore(path: Path, ignore_patterns: List[str], base_path: Path) -> bool:
-    """Check if path should be ignored"""
-    if not ignore_patterns:
-        return False
-
-    relative_path = path.relative_to(base_path)
-    path_str = str(relative_path)
-
-    for pattern in ignore_patterns:
-        # Simple pattern matching implementation
-        if pattern.endswith('/'):
-            # Directory matching
-            pattern_name = pattern[:-1]
-            if path.is_dir() and (path_str == pattern_name or path_str.startswith(pattern) or path.name == pattern_name):
-                return True
-        elif '*' in pattern:
-            # Wildcard matching - try both existing and recursive matching
-            if fnmatch.fnmatch(path_str, pattern) or fnmatch.fnmatch(path.name, pattern) or _matches_recursive_pattern(path_str, pattern):
-                return True
-        else:
-            # Exact matching
-            if path_str == pattern or path.name == pattern:
-                return True
-
-    return False
-
-
-def _build_tree(path: Path, ignore_patterns: List[str], base_path: Path, char_budget: int, indent: int = 0) -> Tuple[List[str], int, bool]:
-    """Recursively build directory tree with character budget"""
-    result = []
-    truncated = False
-
-    if _should_ignore(path, ignore_patterns, base_path):
-        return result, char_budget, False
-
-    # Add current item
-    prefix = '  ' * indent
-    if path.is_dir():
-        line = f'{prefix}- {path.name}/'
-        line_cost = len(line) + 1  # +1 for newline
-
-        if char_budget != float('inf') and char_budget < line_cost:
-            return result, char_budget, True
-
-        result.append(line)
-        if char_budget != float('inf'):
-            char_budget -= line_cost
-
-        # Get and sort child items
-        try:
-            children = sorted(path.iterdir(), key=lambda x: (x.is_file(), x.name.lower()))
-            for child in children:
-                if not _should_ignore(child, ignore_patterns, base_path):
-                    child_result, char_budget, child_truncated = _build_tree(child, ignore_patterns, base_path, char_budget, indent + 1)
-                    result.extend(child_result)
-                    if child_truncated:
-                        truncated = True
-                        break
-        except PermissionError:
-            pass
-    else:
-        line = f'{prefix}- {path.name}'
-        line_cost = len(line) + 1  # +1 for newline
-
-        if char_budget != float('inf') and char_budget < line_cost:
-            return result, char_budget, True
-
-        result.append(line)
-        if char_budget != float('inf'):
-            char_budget -= line_cost
-
-    return result, char_budget, truncated
-
-
-def get_directory_structure(path: str, ignore_pattern: Optional[List[str]] = None, max_chars: int = 40000) -> Tuple[str, bool, int]:
+def get_directory_structure(
+    path: str, ignore_pattern: Optional[List[str]] = None, max_chars: int = 40000, max_depth: Optional[int] = None, show_hidden: bool = False
+) -> Tuple[str, bool, int]:
     """
-    Get directory structure with character limit, returns full result
+    Generate a text representation of directory structure using breadth-first traversal to build tree structure, then format output in depth-first manner.
 
     Args:
         path: Directory path
         ignore_pattern: Additional ignore patterns list (optional)
-        max_chars: Maximum character limit, 0 means no limit
+        max_chars: Maximum character limit, 0 means unlimited
+        max_depth: Maximum depth, None means unlimited
+        show_hidden: Whether to show hidden files, None means auto-detect
 
     Returns:
-        str: full result
+        Tuple[str, bool, int]: (content, truncated, path_count)
+        - content: Formatted directory tree text
+        - truncated: Whether truncated due to character limit
+        - path_count: Number of path items included
     """
-    path_obj = Path(path).resolve()
+    if not os.path.exists(path):
+        return f'Path does not exist: {path}', False, 0
 
-    if not path_obj.exists():
-        return '(path does not exist)', False, 0
+    if not os.path.isdir(path):
+        return f'Path is not a directory: {path}', False, 0
 
-    # Read .gitignore file
-    gitignore_path = path_obj / '.gitignore'
-    ignore_patterns = _parse_gitignore(gitignore_path)
-
-    # Add default ignore patterns
-    default_ignores = DEFAULT_IGNORE_PATTERNS
-    ignore_patterns.extend(default_ignores)
-
-    # Add additional ignore patterns
+    # Prepare ignore patterns
+    all_ignore_patterns = DEFAULT_IGNORE_PATTERNS.copy()
     if ignore_pattern:
-        ignore_patterns.extend(ignore_pattern)
+        all_ignore_patterns.extend(ignore_pattern)
 
-    # Build file tree with character budget
-    root_line = f'- {path_obj.name}/'
-    result = [root_line]
+    # Tree node structure
+    class TreeNode:
+        def __init__(self, name: str, path: str, is_dir: bool, depth: int):
+            self.name = name
+            self.path = path
+            self.is_dir = is_dir
+            self.depth = depth
+            self.children = []
 
-    if max_chars <= 0:
-        # No character limit
-        char_budget = float('inf')
-    else:
-        # Reserve space for root line and potential truncation message
-        char_budget = max_chars - len(root_line) - 1  # -1 for newline
+    def should_ignore(item_path: str, item_name: str) -> bool:
+        """Check if this item should be ignored"""
+        # Check hidden files
+        if not show_hidden and item_name.startswith('.') and item_name not in ['.', '..']:
+            return True
 
-    overall_truncated = False
+        # Check ignore patterns
+        for pattern in all_ignore_patterns:
+            if pattern.endswith('/'):
+                # Directory pattern
+                if fnmatch.fnmatch(item_name + '/', pattern) or fnmatch.fnmatch(item_path + '/', pattern):
+                    return True
+            else:
+                # File pattern
+                if fnmatch.fnmatch(item_name, pattern) or fnmatch.fnmatch(item_path, pattern):
+                    return True
+        return False
 
-    # Get and sort child items
-    try:
-        children = sorted(path_obj.iterdir(), key=lambda x: (x.is_file(), x.name.lower()))
-        for child in children:
-            if not _should_ignore(child, ignore_patterns, path_obj):
-                if char_budget == float('inf'):
-                    child_result, _, child_truncated = _build_tree(child, ignore_patterns, path_obj, float('inf'), 1)
-                else:
-                    child_result, char_budget, child_truncated = _build_tree(child, ignore_patterns, path_obj, char_budget, 1)
+    # Breadth-first traversal to build tree structure
+    root = TreeNode(os.path.basename(path) or path, path, True, 0)
+    queue = deque([root])
+    path_count = 0
+    char_budget = max_chars if max_chars > 0 else float('inf')
+    truncated = False
 
-                result.extend(child_result)
-                if child_truncated:
-                    overall_truncated = True
-                    break
-    except PermissionError as e:
-        perm_line = f'  - (permission denied: {e})'
-        perm_cost = len(perm_line) + 1
-        if char_budget == float('inf') or char_budget >= perm_cost:
-            result.append(perm_line)
-        else:
-            overall_truncated = True
+    while queue and char_budget > 0:
+        current_node = queue.popleft()
 
-    content = '\n'.join(result)
-    path_count = len(result)
+        # Check depth limit
+        if max_depth is not None and current_node.depth >= max_depth:
+            continue
 
-    if overall_truncated:
+        if not current_node.is_dir:
+            continue
+
+        try:
+            items = os.listdir(current_node.path)
+        except (PermissionError, OSError):
+            continue
+
+        # Separate directories and files, then sort
+        dirs = []
+        files = []
+
+        for item in items:
+            item_path = os.path.join(current_node.path, item)
+
+            if should_ignore(item_path, item):
+                continue
+
+            if os.path.isdir(item_path):
+                dirs.append(item)
+            else:
+                files.append(item)
+
+        # Sort: directories first, then files
+        dirs.sort()
+        files.sort()
+
+        # Create child nodes
+        for item in dirs + files:
+            item_path = os.path.join(current_node.path, item)
+            is_dir = os.path.isdir(item_path)
+            child_node = TreeNode(item, item_path, is_dir, current_node.depth + 1)
+            current_node.children.append(child_node)
+            path_count += 1
+
+            # Estimate character consumption (rough estimate: indentation + name + newline)
+            estimated_chars = (child_node.depth * 2) + len(child_node.name) + 3
+            if char_budget - estimated_chars <= 0:
+                truncated = True
+                break
+            char_budget -= estimated_chars
+
+            # If it's a directory, add to queue for further traversal
+            if is_dir:
+                queue.append(child_node)
+
+        if truncated:
+            break
+
+    # Depth-first format output
+    def format_tree() -> str:
+        lines = []
+
+        def traverse(node: TreeNode):
+            if node.depth == 0:
+                # Root directory - show absolute path
+                display_name = node.path + '/' if node.is_dir else node.path
+                lines.append(f'- {display_name}')
+            else:
+                # Sub-items
+                indent = '  ' * node.depth
+                display_name = node.name + '/' if node.is_dir else node.name
+                lines.append(f'{indent}- {display_name}')
+
+            # Recursively process all child nodes
+            for child in node.children:
+                traverse(child)
+
+        traverse(root)
+        return '\n'.join(lines)
+
+    content = format_tree()
+
+    # If truncated, add truncation information
+    if truncated:
         content += f'\n... (truncated at {max_chars} characters, use LS tool with specific paths to explore more)'
 
-    return content, overall_truncated, path_count
+    return content, truncated, path_count
 
 
 def truncate_end_text(text: str, max_lines: int = 15) -> str:

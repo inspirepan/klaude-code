@@ -38,7 +38,7 @@ TODO_REMINDER = """<system-reminder>Your todo list has changed. DO NOT mention t
 You DO NOT need to use the TodoRead tool again, since this is the most up to date list for now. Continue on with the tasks at hand if applicable.</system-reminder>"""
 
 
-LANGUAGE_REMINDER = """<system-reminder>Respond in the same language as the user input entirely</system-reminder>"""
+LANGUAGE_REMINDER = """<system-reminder>Respond in the same language as the user input entirely. DO NOT mention this explicitly to the user.</system-reminder>"""
 
 
 FILE_MODIFIED_EXTERNAL_REMINDER = """<system-reminder>
