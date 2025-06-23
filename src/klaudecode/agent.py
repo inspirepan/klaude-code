@@ -71,7 +71,7 @@ class Agent(Tool):
 
     async def chat_interactive(self):
         console.print(render_hello())
-        self.session.print_all_message()  # For continue and resume scene.
+        self.session.messages.print_all_message()  # For continue and resume scene.
 
         while True:
             user_input_text = await self.input_session.prompt_async()
@@ -101,7 +101,7 @@ class Agent(Tool):
                 if ai_msg.finish_reason == 'stop':
                     # Cannot directly use this AI response's content as result,
                     # because Claude might execute a tool call (e.g. TodoWrite) at the end and return empty content
-                    last_ai_msg = self.session.get_last_message(role='assistant', filter_empty=True)
+                    last_ai_msg = self.session.messages.get_last_message(role='assistant', filter_empty=True)
                     return last_ai_msg.content if last_ai_msg else ''
                 if ai_msg.finish_reason == 'tool_calls' or len(ai_msg.tool_calls) > 0:
                     await self.tool_handler.handle(ai_msg)
@@ -127,7 +127,7 @@ class Agent(Tool):
                     console.print(msg)
 
     def _handle_todo_reminder(self):
-        last_msg = self.session.get_last_message(filter_empty=True)
+        last_msg = self.session.messages.get_last_message(filter_empty=True)
         if not self.session.todo_list:
             reminder = EMPTY_TODO_REMINDER
             if isinstance(last_msg, (UserMessage, ToolMessage)):

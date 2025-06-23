@@ -9,6 +9,7 @@ from typing import Callable, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 from .message import AIMessage, BasicMessage, InterruptedMessage, SystemMessage, ToolMessage, UserMessage
+from .message_history import MessageHistory
 from .tools.todo import TodoList
 from .tui import console
 from .utils import sanitize_filename
@@ -17,7 +18,7 @@ from .utils import sanitize_filename
 class Session(BaseModel):
     """Session model for managing conversation history and metadata."""
 
-    messages: List[BasicMessage] = Field(default_factory=list)
+    messages: MessageHistory = Field(default_factory=MessageHistory)
     todo_list: TodoList = Field(default_factory=TodoList)
     work_dir: str
     source: Literal['user', 'subagent'] = 'user'
@@ -34,7 +35,7 @@ class Session(BaseModel):
     ) -> None:
         super().__init__(
             work_dir=work_dir,
-            messages=messages or [],
+            messages=MessageHistory(messages=messages or []),
             session_id=str(uuid.uuid4()),
             append_message_hook=append_message_hook,
             todo_list=todo_list or TodoList(),
@@ -43,23 +44,10 @@ class Session(BaseModel):
 
     def append_message(self, *msgs: BasicMessage) -> None:
         """Add messages to the session and save it."""
-        self.messages.extend(msgs)
+        self.messages.append_message(*msgs)
         self.save()
         if self.append_message_hook:
             self.append_message_hook(*msgs)
-
-    def get_last_message(self, role: Literal['user', 'assistant', 'tool'] | None = None, filter_empty: bool = False) -> Optional[BasicMessage]:
-        """Get the last message with the specified role."""
-        return next((msg for msg in reversed(self.messages) if (not role or msg.role == role) and (not filter_empty or msg)), None)
-
-    def get_first_message(self, role: Literal['user', 'assistant', 'tool'] | None = None, filter_empty: bool = False) -> Optional[BasicMessage]:
-        """Get the first message with the specified role"""
-        return next((msg for msg in self.messages if (not role or msg.role == role) and (not filter_empty or msg)), None)
-
-    def print_all_message(self):
-        """Print all messages in the session"""
-        for msg in self.messages:
-            console.print(msg)
 
     def _get_session_dir(self) -> Path:
         """Get the directory path for storing session files."""
@@ -69,9 +57,9 @@ class Session(BaseModel):
         """Generate formatted filename prefix with datetime and title."""
         created_at = getattr(self, '_created_at', time.time())
         dt = datetime.fromtimestamp(created_at)
-        datetime_str = dt.strftime('%Y_%m%d_%H%M')
+        datetime_str = dt.strftime('%Y_%m%d_%H%M%S')
 
-        first_user_msg: Optional[UserMessage] = self.get_first_message(role='user')
+        first_user_msg: Optional[UserMessage] = self.messages.get_first_message(role='user')
         if first_user_msg is not None:
             title = sanitize_filename(first_user_msg.user_raw_input or first_user_msg.content, max_length=20)
         else:
