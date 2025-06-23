@@ -38,6 +38,8 @@ ruff check src/
 
 # Run all quality checks
 isort src/ && ruff format src/ && ruff check src/
+
+# Type checking (no mypy - relies on IDE/editor for type checking)
 ```
 
 ### Debugging & Development
@@ -57,9 +59,30 @@ klaude config show
 
 **Session Management** (`session.py:17`): Manages conversation history, todo lists, and persistent state. Sessions are automatically saved and can be resumed.
 
-**Agent System** (`agent.py:50`): The main Agent class that orchestrates tool execution and LLM interactions. Supports both interactive chat and headless execution modes.
+**Agent System** (`agent.py:50`): The main Agent class that orchestrates tool execution and LLM interactions. Supports both interactive chat and headless execution modes. Agent itself is a Tool that can spawn sub-agents for complex tasks.
 
 **Tool System** (`tool.py:20`): Base Tool class with automatic schema generation from Pydantic models. All tools are parallelizable by default and have configurable timeouts.
+
+### Project Structure
+
+```
+src/klaudecode/
+├── prompt/          # System prompts and AI behavior configuration
+├── tools/           # Individual tool implementations
+├── agent.py         # Main Agent orchestrator 
+├── cli.py           # Typer-based CLI entry point
+├── session.py       # Session persistence and management
+├── tool.py          # Base Tool class and execution framework
+├── config.py        # Configuration management
+├── llm.py           # LLM integration (Anthropic/OpenAI)
+└── tui.py           # Terminal UI components with Rich
+```
+
+Key architectural patterns:
+- Tool-based architecture where even the Agent is a Tool
+- Async/await throughout for parallel tool execution
+- Pydantic models for all data structures and validation
+- Rich library for all terminal output and formatting
 
 ### Tool Architecture
 
@@ -67,7 +90,8 @@ Tools are defined in `src/klaudecode/tools/` and inherit from the base `Tool` cl
 - Defines an `Input` Pydantic model for parameters
 - Implements `call()` method for execution
 - Automatically generates JSON schema for LLM function calling
-- Can be marked as parallelizable or not
+- Can be marked as parallelizable or not (default: True)
+- Has configurable timeout (default: 300s)
 
 **Available Tools**: BashTool, EditTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
 
@@ -145,21 +169,6 @@ Key configuration files:
 - Project instructions: `CLAUDE.md` (this file)
 
 Default model: `claude-sonnet-4-20250514`
-
-### Tool Development Pattern
-Each tool in `src/klaudecode/tools/` follows this structure:
-```python
-class YourTool(Tool):
-    name = "tool_name"
-    desc = "Tool description"
-    
-    class Input(BaseModel):
-        param: str = Field(description="Parameter description")
-    
-    async def call(self, input: Input, agent: Agent) -> str:
-        # Implementation
-        return "Result"
-```
 
 ### Session and Message System
 - Sessions persist automatically in the working directory

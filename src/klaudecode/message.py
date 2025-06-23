@@ -115,26 +115,36 @@ class SystemMessage(BasicMessage):
 
 class UserMessage(BasicMessage):
     role: Literal['user'] = 'user'
-    system_reminders: Optional[List[str]] = None
+    pre_system_reminders: Optional[List[str]] = None
+    post_system_reminders: Optional[List[str]] = None
     user_msg_type: Optional[str] = None
     user_raw_input: Optional[str] = None
 
     def get_content(self):
-        content = [
-            {
-                'type': 'text',
-                'text': self.content,
-            }
-        ]
-        if self.system_reminders:
-            for reminder in self.system_reminders:
-                content.append(
+        content_list = []
+        if self.pre_system_reminders:
+            for reminder in self.pre_system_reminders:
+                content_list.append(
                     {
                         'type': 'text',
                         'text': reminder,
                     }
                 )
-        return content
+        content_list.append(
+            {
+                'type': 'text',
+                'text': self.content,
+            }
+        )
+        if self.post_system_reminders:
+            for reminder in self.post_system_reminders:
+                content_list.append(
+                    {
+                        'type': 'text',
+                        'text': reminder,
+                    }
+                )
+        return content_list
 
     def to_openai(self) -> ChatCompletionMessageParam:
         return {'role': 'user', 'content': self.get_content()}
@@ -163,11 +173,17 @@ class UserMessage(BasicMessage):
     def __bool__(self):
         return bool(self.content)
 
-    def append_system_reminder(self, reminder: str):
-        if not self.system_reminders:
-            self.system_reminders = [reminder]
+    def append_pre_system_reminder(self, reminder: str):
+        if not self.pre_system_reminders:
+            self.pre_system_reminders = [reminder]
         else:
-            self.system_reminders.append(reminder)
+            self.pre_system_reminders.append(reminder)
+
+    def append_post_system_reminder(self, reminder: str):
+        if not self.post_system_reminders:
+            self.post_system_reminders = [reminder]
+        else:
+            self.post_system_reminders.append(reminder)
 
 
 class InterruptedMessage(UserMessage):

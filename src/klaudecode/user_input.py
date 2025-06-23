@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from rich.abc import RichRenderable
 
 from .message import UserMessage, register_user_msg_renderer, register_user_msg_suffix_renderer
+from .prompt.reminder import LANGUAGE_REMINDER
 from .tui import console, render_message
 
 """
@@ -55,7 +56,7 @@ class Command(ABC):
         ), True
 
     def render_user_msg(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
-        yield render_message(user_msg.user_raw_input)
+        yield render_message(user_msg.user_raw_input, mark='>')
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         return
@@ -196,6 +197,7 @@ class UserInputHandler:
                 user_raw_input=user_input_text,
             )
             need_agent_run = True
+            user_msg.append_post_system_reminder(LANGUAGE_REMINDER)
         self.agent.append_message(user_msg, print_msg=False)
 
         # Render command result

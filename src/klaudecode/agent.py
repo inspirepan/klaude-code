@@ -27,9 +27,9 @@ from .message import (
     register_tool_call_renderer,
     register_tool_result_renderer,
 )
-from .prompt.reminder import EMPTY_TODO_REMINDER, TODO_REMINDER, LANGUAGE_REMINDER
+from .prompt.reminder import EMPTY_TODO_REMINDER, TODO_REMINDER
 from .prompt.system import get_subagent_system_prompt
-from .prompt.tools import TASK_TOOL_DESC, CODE_SEARCH_TASK_TOOL_DESC
+from .prompt.tools import CODE_SEARCH_TASK_TOOL_DESC, TASK_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
@@ -83,10 +83,6 @@ class Agent(Tool):
                 await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
-        last_user_msg = self.session.get_last_message(role='user', filter_empty=True)
-        if last_user_msg:
-            last_user_msg.append_system_reminder(LANGUAGE_REMINDER)
-
         try:
             for _ in range(max_steps):
                 # Check if task was canceled (for subagent execution)
@@ -135,11 +131,13 @@ class Agent(Tool):
         if not self.session.todo_list:
             reminder = EMPTY_TODO_REMINDER
             if isinstance(last_msg, (UserMessage, ToolMessage)):
-                last_msg.append_system_reminder(reminder)
+                last_msg.append_post_system_reminder(reminder)
         else:
-            reminder = TODO_REMINDER.format(todo_list_json=json.dumps(self.session.todo_list.model_dump(), ensure_ascii=False, separators=(',', ':')))
-            if isinstance(last_msg, ToolMessage):
-                last_msg.append_system_reminder(reminder)
+            has_active_todos = any(todo.status in ['in_progress', 'pending'] for todo in self.session.todo_list.todos)
+            if has_active_todos:
+                reminder = TODO_REMINDER.format(todo_list_json=json.dumps(self.session.todo_list.model_dump(), ensure_ascii=False, separators=(',', ':')))
+                if isinstance(last_msg, ToolMessage):
+                    last_msg.append_system_reminder(reminder)
 
     def _handle_interruption(self):
         asyncio.create_task(asyncio.sleep(0.1))
