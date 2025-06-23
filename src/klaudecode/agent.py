@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+
 from typing import Annotated, List, Optional
 
 from anthropic import AnthropicError
@@ -27,7 +28,7 @@ from .message import (
     register_tool_call_renderer,
     register_tool_result_renderer,
 )
-from .prompt.reminder import EMPTY_TODO_REMINDER, TODO_REMINDER
+from .prompt.reminder import EMPTY_TODO_REMINDER, TODO_REMINDER, get_context_reminder
 from .prompt.system import get_subagent_system_prompt
 from .prompt.tools import CODE_SEARCH_TASK_TOOL_DESC, TASK_TOOL_DESC
 from .session import Session
@@ -84,10 +85,12 @@ class Agent(Tool):
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
         try:
-            for _ in range(max_steps):
+            for i in range(max_steps):
                 # Check if task was canceled (for subagent execution)
                 if parent_tool_instance and parent_tool_instance.tool_result().tool_call.status == 'canceled':
                     return INTERRUPTED_MSG
+                if i == 0 and self.enable_claudemd_reminder:
+                    self._handle_caludemd_reminder()
 
                 if self.enable_todo_reminder:
                     self._handle_todo_reminder()
@@ -138,6 +141,12 @@ class Agent(Tool):
                 reminder = TODO_REMINDER.format(todo_list_json=json.dumps(self.session.todo_list.model_dump(), ensure_ascii=False, separators=(',', ':')))
                 if isinstance(last_msg, ToolMessage):
                     last_msg.append_post_system_reminder(reminder)
+
+    def _handle_caludemd_reminder(self):
+        reminder = get_context_reminder(self.session.work_dir)
+        last_user_msg = self.session.messages.get_last_message(role='user')
+        if last_user_msg:
+            last_user_msg.append_pre_system_reminder(reminder)
 
     def _handle_interruption(self):
         asyncio.create_task(asyncio.sleep(0.1))

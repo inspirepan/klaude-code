@@ -1,13 +1,12 @@
-CONTEXT_REMINDER_HEAD = """<system-reminder>
-As you answer the user's questions, you can use the following context:
+from pathlib import Path
+
+CONTEXT_REMINDER_HEAD = """<system-reminder>As you answer the user's questions, you can use the following context:
 """
 
 
 CLAUDE_MD_REMINDER = """
 # claudeMd
 Codebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.
-
-Contents of /Users/bytedance/.claude/CLAUDE.md (user's private global instructions for all projects):
 {claude_md}
 """
 
@@ -24,8 +23,24 @@ IMPORTANT: this context may or may not be relevant to your tasks. You should not
 """
 
 
-def get_context_reminder(claude_md: str) -> str:
-    return CONTEXT_REMINDER_HEAD + '\n\n' + CLAUDE_MD_REMINDER.format(claude_md=claude_md) + '\n\n' + CONTEXT_REMINDER_TAIL
+def get_context_reminder(workdir: str) -> str:
+    user_claudemd_path = Path.home() / '.claude' / 'CLAUDE.md'
+    project_claudemd_path = Path(workdir) / 'CLAUDE.md'
+    user_claudemd_remind = ''
+    project_claudemd_remind = ''
+    if user_claudemd_path.exists():
+        user_claudemd_content = user_claudemd_path.read_text(encoding='utf-8')
+        user_claudemd_remind = f"""Contents of {user_claudemd_path} (user's private global instructions for all projects):
+
+{user_claudemd_content}
+"""
+    if project_claudemd_path.exists():
+        project_claudemd_content = project_claudemd_path.read_text(encoding='utf-8')
+        project_claudemd_remind = f"""Contents of {project_claudemd_path} (project instructions, checked into the codebase):
+
+{project_claudemd_content}
+"""
+    return CONTEXT_REMINDER_HEAD + '\n\n' + user_claudemd_remind + '\n\n' + project_claudemd_remind + '\n\n' + CONTEXT_REMINDER_TAIL
 
 
 EMPTY_TODO_REMINDER = """<system-reminder>This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.</system-reminder>"""

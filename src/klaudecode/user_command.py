@@ -284,7 +284,7 @@ register_slash_command(CompactCommand())
 register_slash_command(TodayCommand())
 register_slash_command(RecentCommand())
 register_slash_command(ContinueCommand())
-register_slash_command(CostCommand())
+# register_slash_command(CostCommand())
 register_slash_command(MacSetupCommand())
 
 # Input Modes
@@ -357,6 +357,6 @@ class MemoryMode(InputModeCommand):
     # TODO: Implement handle
 
 
-register_input_mode(PlanMode())
-register_input_mode(BashMode())
-register_input_mode(MemoryMode())
+# register_input_mode(PlanMode())
+# register_input_mode(BashMode())
+# register_input_mode(MemoryMode())
