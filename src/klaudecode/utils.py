@@ -183,3 +183,22 @@ def sanitize_filename(text: str, max_length: int = 20) -> str:
         text = text[:max_length].rstrip('_')
 
     return text
+
+
+def format_relative_time(timestamp):
+    from datetime import datetime
+
+    now = datetime.now()
+    created = datetime.fromtimestamp(timestamp)
+    diff = now - created
+
+    if diff.days > 0:
+        return f'{diff.days} days ago'
+    elif diff.seconds > 3600:
+        hours = diff.seconds // 3600
+        return f'{hours} hours ago'
+    elif diff.seconds > 60:
+        minutes = diff.seconds // 60
+        return f'{minutes} minutes ago'
+    else:
+        return 'just now'

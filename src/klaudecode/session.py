@@ -63,6 +63,7 @@ class Session(BaseModel):
     source: Literal['user', 'subagent'] = 'user'
     session_id: str = ''
     append_message_hook: Optional[Callable] = None
+    title_msg: str = ''
 
     def __init__(
         self,
@@ -97,13 +98,7 @@ class Session(BaseModel):
         created_at = getattr(self, '_created_at', time.time())
         dt = datetime.fromtimestamp(created_at)
         datetime_str = dt.strftime('%Y_%m%d_%H%M%S')
-
-        first_user_msg: Optional[UserMessage] = self.messages.get_first_message(role='user')
-        if first_user_msg is not None:
-            title = sanitize_filename(first_user_msg.user_raw_input or first_user_msg.content, max_length=20)
-        else:
-            title = 'untitled'
-
+        title = sanitize_filename(self.title_msg, max_length=20)
         return f'{datetime_str}{".SUBAGENT" if self.source == "subagent" else ""}.{title}'
 
     def _get_metadata_file_path(self) -> Path:
@@ -126,6 +121,13 @@ class Session(BaseModel):
             if not self._get_session_dir().exists():
                 self._get_session_dir().mkdir(parents=True)
 
+            if not self.title_msg:
+                first_user_msg: Optional[UserMessage] = self.messages.get_first_message(role='user')
+                if first_user_msg is not None:
+                    self.title_msg = first_user_msg.user_raw_input or first_user_msg.content
+                else:
+                    self.title_msg = 'untitled'
+
             metadata_file = self._get_metadata_file_path()
             messages_file = self._get_messages_file_path()
             current_time = time.time()
@@ -143,6 +145,7 @@ class Session(BaseModel):
                 'message_count': len(self.messages),
                 'todo_list': self.todo_list.model_dump(),
                 'source': self.source,
+                'title_msg': self.title_msg,
             }
 
             with open(metadata_file, 'w', encoding='utf-8') as f:
@@ -214,6 +217,7 @@ class Session(BaseModel):
             session = cls(work_dir=metadata['work_dir'], messages=messages, todo_list=todo_list)
             session.session_id = metadata['id']
             session._created_at = metadata.get('created_at')
+            session.title_msg = metadata.get('title_msg', '')
             return session
 
         except Exception as e:
@@ -250,6 +254,7 @@ class Session(BaseModel):
                             'updated_at': metadata.get('updated_at'),
                             'message_count': metadata.get('message_count', 0),
                             'source': metadata.get('source', 'user'),
+                            'title_msg': metadata.get('title_msg', ''),
                         }
                     )
                 except Exception as e:
