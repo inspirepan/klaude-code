@@ -165,7 +165,12 @@ def render_hello() -> RenderResult:
         Panel.fit(table, border_style='orange'),
         '',
         render_message(
-            'type \\ followed by [bold]Enter[/bold] to insert newlines\ntype / to choose slash command\ntype ! to run bash command\ntype # to write memory\ntype * to plan mode\n',
+            'type \\ followed by [bold]Enter[/bold] to insert newlines\n'
+            'type / to choose slash command\n'
+            'type ! to run bash command\n'
+            'type # to write memory\n'
+            'type * to plan mode\n'
+            'run klaude --continue or klaude --resume to resume a conversation',
             mark='※ Tip:',
             style='bright_black',
             mark_style='bright_black',
@@ -196,6 +201,6 @@ def truncate_middle_text(text: str, max_lines: int = 30) -> RichRenderable:
     )
 
 
-def clean_last_line():
+def clear_last_line():
     sys.stdout.write('\033[F\033[K')
     sys.stdout.flush()

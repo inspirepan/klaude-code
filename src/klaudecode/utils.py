@@ -192,13 +192,15 @@ def format_relative_time(timestamp):
     created = datetime.fromtimestamp(timestamp)
     diff = now - created
 
-    if diff.days > 0:
+    if diff.days > 1:
         return f'{diff.days} days ago'
+    elif diff.days == 1:
+        return '1 day ago'
     elif diff.seconds > 3600:
         hours = diff.seconds // 3600
-        return f'{hours} hours ago'
+        return f'{hours}h ago'
     elif diff.seconds > 60:
         minutes = diff.seconds // 60
-        return f'{minutes} minutes ago'
+        return f'{minutes}m ago'
     else:
         return 'just now'

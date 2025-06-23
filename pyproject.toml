@@ -6,11 +6,12 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "anthropic>=0.54.0",
+    "inquirerpy>=0.3.4",
     "openai>=1.86.0",
     "prompt-toolkit>=3.0.51",
     "pydantic>=2.11.7",
+    "questionary>=2.1.0",
     "rich>=14.0.0",
-    "simple-term-menu>=1.6.6",
     "tiktoken>=0.9.0",
     "typer>=0.9.0",
 ]

@@ -13,7 +13,6 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 from pydantic import BaseModel
 from rich.abc import RichRenderable
-from simple_term_menu import TerminalMenu
 
 from .message import UserMessage, register_user_msg_renderer, register_user_msg_suffix_renderer
 from .prompt.reminder import LANGUAGE_REMINDER
@@ -382,12 +381,3 @@ class InputSession:
         input_text = await self.session.prompt_async()
         self._switch_to_next_mode()
         return input_text
-
-
-def user_menu_query(options: list[str]) -> int:
-    menu = TerminalMenu(
-        options,
-        clear_menu_on_exit=True,
-    )
-    idx = menu.show()
-    return idx

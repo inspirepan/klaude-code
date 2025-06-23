@@ -11,7 +11,7 @@ from rich.status import Status
 
 from .message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, count_tokens
 from .tool import Tool
-from .tui import INTERRUPT_TIP, clean_last_line, console, render_message, render_status, render_suffix
+from .tui import INTERRUPT_TIP, clear_last_line, console, render_message, render_status, render_suffix
 
 DEFAULT_RETRIES = 3
 DEFAULT_RETRY_BACKOFF_BASE = 0.5
@@ -420,7 +420,7 @@ class LLMProxy:
                     delay = self.backoff_base * (2**attempt)
                     if show_status:
                         if attempt == 0:
-                            clean_last_line()
+                            clear_last_line()
                         console.print(render_suffix(f'Retry {attempt + 1}/{self.max_retries}: call failed - {str(e)}, waiting {delay:.1f}s', style='red'))
                         # console.print(render_suffix(f'Retry {attempt + 1}/{self.max_retries}: call failed - {str(e)}, waiting {delay:.1f}s', style='red'))
                         with render_status(f'Waiting {delay:.1f}s...'):

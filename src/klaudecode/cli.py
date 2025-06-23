@@ -42,13 +42,24 @@ async def main_async(ctx: typer.Context):
         session = session.fork()
     elif ctx.obj['resume']:
         sessions = Session.load_session_list(os.getcwd())
-        idx = user_menu_query(
-            [
-                f'{idx + 1}. {session.get("title_msg")} ({session.get("message_count")} messages, modified at {format_relative_time(session.get("updated_at"))}, created at {format_relative_time(session.get("created_at"))})'
-                for idx, session in enumerate(sessions)
-            ]
+
+        options = []
+        for idx, session in enumerate(sessions):
+            title_msg = session.get('title_msg', '')[:20]
+            message_count = session.get('message_count', 0)
+            modified_at = format_relative_time(session.get('updated_at'))
+            created_at = format_relative_time(session.get('created_at'))
+
+            option = f'{idx + 1:3}.{modified_at:>12}{created_at:>12}{message_count:>12}  {title_msg:<20}'
+            options.append(option)
+
+        header = f'{" " * 4}{"Modified":>12}{"Created":>12}{"# Messages":>12}  Title'
+
+        idx = await user_menu_query(
+            options,
+            title=header,
         )
-        if not idx:
+        if idx is None:
             return
         session = Session.load(sessions[idx].get('id'))
     else:
