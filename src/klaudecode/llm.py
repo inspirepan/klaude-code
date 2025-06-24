@@ -97,14 +97,18 @@ class OpenAIProxy:
         tools: Optional[List[Tool]] = None,
         status: Optional[Status] = None,
         status_text: str = 'Thinking...',
+        timeout: float = 20.0,
     ) -> AIMessage:
-        stream = await self.client.chat.completions.create(
-            model=self.model_name,
-            messages=[msg.to_openai() for msg in msgs if msg],
-            tools=[tool.openai_schema() for tool in tools] if tools else None,
-            extra_headers=self.extra_header,
-            max_tokens=self.max_tokens,
-            stream=True,
+        stream = await asyncio.wait_for(
+            self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[msg.to_openai() for msg in msgs if msg],
+                tools=[tool.openai_schema() for tool in tools] if tools else None,
+                extra_headers=self.extra_header,
+                max_tokens=self.max_tokens,
+                stream=True,
+            ),
+            timeout=timeout,
         )
 
         content = ''
@@ -260,20 +264,24 @@ class AnthropicProxy:
         tools: Optional[List[Tool]] = None,
         status: Optional[Status] = None,
         status_text: str = 'Thinking...',
+        timeout: float = 20.0,
     ) -> AIMessage:
         system_msgs, other_msgs = self.convert_to_anthropic(msgs)
-        stream = await self.client.messages.create(
-            model=self.model_name,
-            max_tokens=self.max_tokens,
-            thinking={
-                'type': 'enabled' if self.enable_thinking else 'disabled',
-                'budget_tokens': 2000,
-            },
-            tools=[tool.anthropic_schema() for tool in tools] if tools else None,
-            messages=other_msgs,
-            system=system_msgs,
-            extra_headers=self.extra_header,
-            stream=True,
+        stream = await asyncio.wait_for(
+            self.client.messages.create(
+                model=self.model_name,
+                max_tokens=self.max_tokens,
+                thinking={
+                    'type': 'enabled' if self.enable_thinking else 'disabled',
+                    'budget_tokens': 2000,
+                },
+                tools=[tool.anthropic_schema() for tool in tools] if tools else None,
+                messages=other_msgs,
+                system=system_msgs,
+                extra_headers=self.extra_header,
+                stream=True,
+            ),
+            timeout=timeout,
         )
 
         content = ''
@@ -397,6 +405,7 @@ class LLMProxy:
         show_status: bool = True,
         use_streaming: bool = True,
         status_text: str = 'Thinking...',
+        timeout: float = 20.0,
     ) -> AIMessage:
         last_exception = None
 
@@ -405,12 +414,12 @@ class LLMProxy:
                 if show_status:
                     with render_status(status_text) as status:
                         if use_streaming:
-                            return await self.client.stream_call(msgs, tools, status, status_text)
+                            return await self.client.stream_call(msgs, tools, status, status_text, timeout)
                         else:
                             return await self.client.call(msgs, tools)
                 else:
                     if use_streaming:
-                        return await self.client.stream_call(msgs, tools, None)
+                        return await self.client.stream_call(msgs, tools, None, timeout=timeout)
                     else:
                         return await self.client.call(msgs, tools)
             except NON_RETRY_EXCEPTIONS:
@@ -446,13 +455,14 @@ class LLMProxy:
         show_status: bool = True,
         use_streaming: bool = True,
         status_text: str = 'Thinking...',
+        timeout: float = 20.0,
     ) -> AIMessage:
         attempt = 0
         max_continuations = 3
         current_msgs = msgs.copy()
         merged_response = None
         while attempt <= max_continuations:
-            response = await self._call_with_retry(current_msgs, tools, show_status, use_streaming, status_text)
+            response = await self._call_with_retry(current_msgs, tools, show_status, use_streaming, status_text, timeout)
             if merged_response is None:
                 merged_response = response
             else:
@@ -519,10 +529,11 @@ class LLM:
         show_status: bool = True,
         status_text: str = 'Thinking...',
         use_streaming: bool = True,
+        timeout: float = 20.0,
     ) -> AIMessage:
         if cls not in cls._clients or cls._clients[cls] is None:
             raise RuntimeError('LLM client not initialized. Call initialize() first.')
-        return await cls._clients[cls]._call_with_continuation(msgs, tools, show_status, use_streaming, status_text)
+        return await cls._clients[cls]._call_with_continuation(msgs, tools, show_status, use_streaming, status_text, timeout)
 
     @classmethod
     def reset(cls):
