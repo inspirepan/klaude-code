@@ -99,6 +99,11 @@ class OpenAIProxy:
         status_text: str = 'Thinking...',
         timeout: float = 20.0,
     ) -> AIMessage:
+        # Calculate input tokens and show upload indicator
+        input_tokens = sum(msg.tokens for msg in msgs if msg)
+        if status:
+            status.update(Text.assemble(status_text, (f' ↑ {input_tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
+
         stream = await asyncio.wait_for(
             self.client.chat.completions.create(
                 model=self.model_name,
@@ -118,6 +123,7 @@ class OpenAIProxy:
         completion_tokens = 0
         prompt_tokens = 0
         total_tokens = 0
+        has_tool_calls = False
         async for chunk in stream:
             if chunk.choices:
                 choice: Choice = chunk.choices[0]
@@ -126,6 +132,7 @@ class OpenAIProxy:
                 if hasattr(choice.delta, 'reasoning_content') and choice.delta.reasoning_content:
                     thinking_content += choice.delta.reasoning_content
                 if choice.delta.tool_calls:
+                    has_tool_calls = True
                     tool_call_chunk_accumulator.add_chunks(choice.delta.tool_calls)
                 if choice.finish_reason:
                     finish_reason = choice.finish_reason
@@ -135,11 +142,13 @@ class OpenAIProxy:
                 completion_tokens = usage.completion_tokens
                 total_tokens = usage.total_tokens
                 if status:
-                    status.update(Text.assemble(status_text, (f' ↓ {completion_tokens} ', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
+                    indicator = '⚒' if has_tool_calls else '↓'
+                    status.update(Text.assemble(status_text, (f' {indicator} {completion_tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
             else:
                 completion_tokens = count_tokens(content) + count_tokens(thinking_content) + tool_call_chunk_accumulator.count_tokens()
                 if status:
-                    status.update(Text.assemble(status_text, (f' ↓ {completion_tokens} ', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
+                    indicator = '⚒' if has_tool_calls else '↓'
+                    status.update(Text.assemble(status_text, (f' {indicator} {completion_tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
 
         tokens_used = CompletionUsage(
             prompt_tokens=prompt_tokens,
@@ -266,6 +275,11 @@ class AnthropicProxy:
         status_text: str = 'Thinking...',
         timeout: float = 20.0,
     ) -> AIMessage:
+        # Calculate input tokens and show upload indicator
+        input_tokens = sum(msg.tokens for msg in msgs if msg)
+        if status:
+            status.update(Text.assemble(status_text, (f' ↑ {input_tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
+
         system_msgs, other_msgs = self.convert_to_anthropic(msgs)
         stream = await asyncio.wait_for(
             self.client.messages.create(
@@ -293,6 +307,7 @@ class AnthropicProxy:
         output_tokens = 0
         content_blocks = {}
         tool_json_fragments = {}
+        has_tool_calls = False
 
         async for event in stream:
             if event.type == 'message_start':
@@ -303,6 +318,7 @@ class AnthropicProxy:
                 if event.content_block.type == 'thinking':
                     thinking_signature = getattr(event.content_block, 'signature', '')
                 elif event.content_block.type == 'tool_use':
+                    has_tool_calls = True
                     # Initialize JSON fragment accumulator for tool use blocks
                     tool_json_fragments[event.index] = ''
             elif event.type == 'content_block_delta':
@@ -333,14 +349,16 @@ class AnthropicProxy:
                 if hasattr(event, 'usage') and event.usage:
                     output_tokens = event.usage.output_tokens
                     if status:
-                        status.update(Text.assemble(status_text, (f' ↓ {output_tokens} ', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
+                        indicator = '⚒' if has_tool_calls else '↓'
+                        status.update(Text.assemble(status_text, (f' {indicator} {output_tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
             elif event.type == 'message_stop':
                 pass
             estimated_tokens = count_tokens(content) + count_tokens(thinking_content)
             for json_str in tool_json_fragments.values():
                 estimated_tokens += count_tokens(json_str)
             if status and estimated_tokens:
-                status.update(Text.assemble(status_text, (f' ↓ {estimated_tokens} ', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
+                indicator = '⚒' if has_tool_calls else '↓'
+                status.update(Text.assemble(status_text, (f' {indicator} {estimated_tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
         return AIMessage(
             content=content,
             thinking_content=thinking_content,
