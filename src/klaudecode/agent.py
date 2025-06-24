@@ -84,19 +84,18 @@ class Agent(Tool):
                 break
             need_agent_run = await self.user_input_handler.handle(user_input_text, print_msg=bool(first_message))
             console.print()
+            if epoch == 0 and self.enable_claudemd_reminder:
+                self._handle_caludemd_reminder()
             if need_agent_run:
                 await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
             epoch += 1
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
         try:
-            for i in range(max_steps):
+            for _ in range(max_steps):
                 # Check if task was canceled (for subagent execution)
                 if parent_tool_instance and parent_tool_instance.tool_result().tool_call.status == 'canceled':
                     return INTERRUPTED_MSG
-                if i == 0 and self.enable_claudemd_reminder:
-                    self._handle_caludemd_reminder()
-
                 if self.enable_todo_reminder:
                     self._handle_todo_reminder()
 
@@ -178,40 +177,43 @@ class Agent(Tool):
     async def headless_run(self, user_input_text: str, print_trace: bool = False):
         self._initialize_llm()
         need_agent_run = await self.user_input_handler.handle(user_input_text)
-        if need_agent_run:
-            self.print_switch = print_trace
-            self.tool_handler.show_live = print_trace
-            if print_trace:
-                await self.run(tools=self.availiable_tools)
-                return
-            status = render_status('Running...')
-            status.start()
-            running = True
+        if not need_agent_run:
+            return
+        if self.enable_claudemd_reminder:
+            self._handle_caludemd_reminder()
+        self.print_switch = print_trace
+        self.tool_handler.show_live = print_trace
+        if print_trace:
+            await self.run(tools=self.availiable_tools)
+            return
+        status = render_status('Running...')
+        status.start()
+        running = True
 
-            async def update_status():
-                while running:
-                    tool_msg_count = len([msg for msg in self.session.messages if msg.role == 'tool'])
-                    status.update(
-                        Group(
-                            f'Running... ([bold]{tool_msg_count}[/bold] tool uses)',
-                            f'[italic]see more details in session file: {self.session._get_messages_file_path()}[/italic]',
-                            INTERRUPT_TIP[1:],
-                        )
+        async def update_status():
+            while running:
+                tool_msg_count = len([msg for msg in self.session.messages if msg.role == 'tool'])
+                status.update(
+                    Group(
+                        f'Running... ([bold]{tool_msg_count}[/bold] tool uses)',
+                        f'[italic]see more details in session file: {self.session._get_messages_file_path()}[/italic]',
+                        INTERRUPT_TIP[1:],
                     )
-                    await asyncio.sleep(0.1)
+                )
+                await asyncio.sleep(0.1)
 
-            update_task = asyncio.create_task(update_status())
+        update_task = asyncio.create_task(update_status())
+        try:
+            result = await self.run(tools=self.availiable_tools)
+        finally:
+            running = False
+            status.stop()
+            update_task.cancel()
             try:
-                result = await self.run(tools=self.availiable_tools)
-            finally:
-                running = False
-                status.stop()
-                update_task.cancel()
-                try:
-                    await update_task
-                except asyncio.CancelledError:
-                    pass
-            console.print(result)
+                await update_task
+            except asyncio.CancelledError:
+                pass
+        console.print(result)
 
     # Implement SubAgent
     # ------------------

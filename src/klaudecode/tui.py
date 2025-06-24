@@ -170,6 +170,7 @@ def render_hello() -> RenderResult:
             'type ! to run bash command\n'
             'type # to memorize\n'
             'type * to start plan mode\n'
+            'type @ to mention a file\n'
             'run klaude --continue or klaude --resume to resume a conversation',
             mark='※ Tip:',
             style='bright_black',

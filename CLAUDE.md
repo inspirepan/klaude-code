@@ -28,6 +28,24 @@ klaude --continue
 klaude config edit
 ```
 
+### Interactive Features
+```bash
+# Available slash commands in interactive mode:
+/status      # Show current configuration
+/today       # Show today's tasks
+/recent      # Show recent tasks
+/clear       # Clear chat history
+/compact     # Toggle compact view
+/continue    # Continue previous session
+
+# Input modes (prefix with key):
+!            # Bash mode - execute bash commands directly
+*            # Plan mode - planning interface
+
+# File reference syntax:
+@filename    # Reference files with auto-completion
+```
+
 ### Code Quality
 ```bash
 # Format code (order matters - isort first, then ruff format)
@@ -169,6 +187,10 @@ The Agent class itself implements the Tool interface (`agent.py:50`), enabling r
 5. Add to `__init__.py` exports
 6. Include in appropriate tool sets in `agent.py`
 
+### Python Version Requirements
+- Requires Python 3.13+ (as specified in pyproject.toml)
+- Target version for ruff: py313
+
 ### Message Flow
 1. User input → UserMessage
 2. Agent processes with LLM → AIMessage with tool calls
@@ -188,7 +210,7 @@ Tests should be organized by component and use the existing tool patterns for fi
 ### Code Style Guidelines
 - Use single quotes for strings (configured in ruff)
 - Line length limit: 180 characters
-- Target Python 3.11+
+- Target Python 3.13+
 - Import sorting with isort before formatting with ruff
 
 ### Configuration System

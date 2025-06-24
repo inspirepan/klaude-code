@@ -98,7 +98,7 @@ class Session(BaseModel):
         created_at = getattr(self, '_created_at', time.time())
         dt = datetime.fromtimestamp(created_at)
         datetime_str = dt.strftime('%Y_%m%d_%H%M%S')
-        title = sanitize_filename(self.title_msg, max_length=20)
+        title = sanitize_filename(self.title_msg, max_length=40)
         return f'{datetime_str}{".SUBAGENT" if self.source == "subagent" else ""}.{title}'
 
     def _get_metadata_file_path(self) -> Path:
