@@ -80,12 +80,12 @@ class BashTool(Tool):
         args: 'BashTool.Input' = cls.parse_input_args(tool_call)
 
         # Validate command safety
-        is_safe, error_msg = cls._validate_command_safety(args.command)
+        is_safe, validation_msg = cls.validate_command_safety(args.command)
         if not is_safe:
-            instance.tool_result().set_error_msg(error_msg)
+            instance.tool_result().set_error_msg(validation_msg)
             return
-        if '<system-reminder>' in error_msg:
-            instance.tool_result().append_post_system_reminder(error_msg)
+        if '<system-reminder>' in validation_msg:
+            instance.tool_result().append_post_system_reminder(validation_msg)
 
         # Set timeout
         timeout_ms = args.timeout or cls.DEFAULT_TIMEOUT
@@ -93,109 +93,22 @@ class BashTool(Tool):
             timeout_ms = cls.MAX_TIMEOUT
         timeout_seconds = timeout_ms / 1000.0
 
-        # Initialize output
-        output_lines = []
-        total_output_size = 0
-        process = None
+        # Define callbacks for the execution function
+        def check_canceled():
+            return instance.tool_result().tool_call.status == 'canceled'
 
-        def update_content():
-            """Update the tool result content with current output"""
-            content = '\n'.join(output_lines)
-            if total_output_size >= cls.MAX_OUTPUT_SIZE:
-                content += f'\n[Output truncated at {cls.MAX_OUTPUT_SIZE} characters]'
+        def update_content(content: str):
             instance.tool_result().set_content(content.strip())
 
-        try:
-            # Start the process
-            process = subprocess.Popen(
-                args.command,
-                shell=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                universal_newlines=True,
-                bufsize=1,
-                preexec_fn=os.setsid,  # Create new process group
-            )
+        # Execute the command using the abstracted function
+        error_msg = cls.execute_bash_command(command=args.command, timeout_seconds=timeout_seconds, check_canceled=check_canceled, update_content=update_content)
 
-            # Initial content update
-            update_content()
-
-            start_time = time.time()
-
-            # Read output in real-time with non-blocking approach
-            while True:
-                # Check if task was canceled
-                if instance.tool_result().tool_call.status == 'canceled':
-                    output_lines.append('Command interrupted by user')
-                    update_content()
-                    cls._kill_process_tree(process.pid)
-                    break
-
-                # Check timeout
-                if time.time() - start_time > timeout_seconds:
-                    output_lines.append(f'Command timed out after {timeout_seconds:.1f} seconds')
-                    update_content()
-                    cls._kill_process_tree(process.pid)
-                    break
-
-                # Check if process is still running
-                if process.poll() is not None:
-                    # Process finished, read remaining output
-                    remaining_output = process.stdout.read()
-                    if remaining_output:
-                        for line in remaining_output.splitlines():
-                            if total_output_size < cls.MAX_OUTPUT_SIZE:
-                                output_lines.append(line)
-                                # +1 for newline
-                                total_output_size += len(line) + 1
-                            else:
-                                break
-                    break
-
-                # Read process output
-                total_output_size, should_break, error_msg = cls._read_process_output(process, output_lines, total_output_size, update_content)
-
-                if error_msg:
-                    instance.tool_result().set_error_msg(error_msg)
-                    update_content()
-                    break
-
-                if should_break:
-                    break
-
-            # Get exit code
-            if process.poll() is not None:
-                exit_code = process.returncode
-                if exit_code != 0:
-                    output_lines.append(f'Exit code: {exit_code}')
-
-            # Final content update
-            update_content()
-
-        except Exception as e:
-            import traceback
-
-            error_msg = f'Error executing command: {str(e)} {traceback.format_exc()}'
+        # Handle any error returned from execution
+        if error_msg:
             instance.tool_result().set_error_msg(error_msg)
-            update_content()
-
-            # Clean up process if it exists
-            if process and process.poll() is None:
-                try:
-                    cls._kill_process_tree(process.pid)
-                except Exception:
-                    pass
-
-        finally:
-            # Ensure process is cleaned up
-            if process and process.poll() is None:
-                try:
-                    cls._kill_process_tree(process.pid)
-                except Exception:
-                    pass
 
     @classmethod
-    def _validate_command_safety(cls, command: str) -> tuple[bool, str]:
+    def validate_command_safety(cls, command: str) -> tuple[bool, str]:
         """Validate command safety and return (is_safe, error_message)"""
         command_lower = command.lower().strip()
 
@@ -224,6 +137,114 @@ class BashTool(Tool):
                 return True, f"<system-reminder>Command '{cmd}' detected. {suggestion}</system-reminder>"
 
         return True, ''
+
+    @classmethod
+    def execute_bash_command(cls, command: str, timeout_seconds: float, check_canceled, update_content) -> str:
+        """
+        Execute a bash command and return error message if any.
+
+        Args:
+            command: The command to execute
+            timeout_seconds: Timeout in seconds
+            check_status: Callback function to check if execution should be canceled
+            update_content: Callback function to update content with current output
+
+        Returns:
+            Error message string if error occurred, empty string if successful
+        """
+        # Initialize output
+        output_lines = []
+        total_output_size = 0
+        process = None
+
+        def update_current_content():
+            """Update the content with current output"""
+            content = '\n'.join(output_lines)
+            if total_output_size >= cls.MAX_OUTPUT_SIZE:
+                content += f'\n[Output truncated at {cls.MAX_OUTPUT_SIZE} characters]'
+            update_content(content)
+
+        try:
+            # Start the process
+            process = subprocess.Popen(
+                command,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                universal_newlines=True,
+                bufsize=1,
+                preexec_fn=os.setsid,  # Create new process group
+            )
+
+            # Initial content update
+            update_current_content()
+
+            start_time = time.time()
+
+            # Read output in real-time with non-blocking approach
+            while True:
+                # Check if task was canceled
+                if check_canceled():
+                    output_lines.append('Command interrupted by user')
+                    update_current_content()
+                    cls._kill_process_tree(process.pid)
+                    break
+
+                # Check timeout
+                if time.time() - start_time > timeout_seconds:
+                    output_lines.append(f'Command timed out after {timeout_seconds:.1f} seconds')
+                    update_current_content()
+                    cls._kill_process_tree(process.pid)
+                    break
+
+                # Check if process is still running
+                if process.poll() is not None:
+                    # Process finished, read remaining output
+                    remaining_output = process.stdout.read()
+                    if remaining_output:
+                        for line in remaining_output.splitlines():
+                            if total_output_size < cls.MAX_OUTPUT_SIZE:
+                                output_lines.append(line)
+                                # +1 for newline
+                                total_output_size += len(line) + 1
+                            else:
+                                break
+                    break
+
+                # Read process output
+                total_output_size, should_break, error_msg = cls._read_process_output(process, output_lines, total_output_size, update_current_content)
+
+                if error_msg:
+                    update_current_content()
+                    return error_msg
+
+                if should_break:
+                    break
+
+            # Get exit code
+            if process.poll() is not None:
+                exit_code = process.returncode
+                if exit_code != 0:
+                    output_lines.append(f'Exit code: {exit_code}')
+
+            # Final content update
+            update_current_content()
+            return ''  # No error
+
+        except Exception as e:
+            import traceback
+
+            error_msg = f'Error executing command: {str(e)} {traceback.format_exc()}'
+            update_current_content()
+            return error_msg
+
+        finally:
+            # Ensure process is cleaned up
+            if process and process.poll() is None:
+                try:
+                    cls._kill_process_tree(process.pid)
+                except Exception:
+                    pass
 
     @classmethod
     def _kill_process_tree(cls, pid: int):
