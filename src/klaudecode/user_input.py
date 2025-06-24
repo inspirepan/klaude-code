@@ -32,6 +32,12 @@ class UserInput(BaseModel):
     raw_input: str
 
 
+class CommandHandleOutput(BaseModel):
+    user_msg: Optional[UserMessage] = None
+    need_agent_run: bool = True
+    need_render_suffix: bool = True
+
+
 # Command ABC
 # ---------------------
 
@@ -53,16 +59,20 @@ class Command(ABC):
         """
         raise NotImplementedError
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
         """
         Handle slash command.
         Return True to indicate that the agent should run.
         """
-        return UserMessage(
-            content=user_input.cleaned_input,
-            user_msg_type=user_input.command_name,
-            user_raw_input=user_input.raw_input,
-        ), True
+        return CommandHandleOutput(
+            user_msg=UserMessage(
+                content=user_input.cleaned_input,
+                user_msg_type=user_input.command_name,
+                user_raw_input=user_input.raw_input,
+            ),
+            need_agent_run=True,
+            need_render_suffix=True,
+        )
 
     def render_user_msg(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         yield render_message(user_msg.user_raw_input, mark='>')
@@ -108,7 +118,7 @@ class InputModeCommand(Command, ABC):
         """
         return NORMAL_MODE_NAME
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
         return await super().handle(agent, user_input)
 
     def get_command_desc(self) -> str:
@@ -200,35 +210,27 @@ class UserInputHandler:
         """
 
         command_name, cleaned_input = self._parse_command(user_input_text)
-        command = _INPUT_MODES.get(command_name, _SLASH_COMMANDS.get(command_name, None))
-        if command:
-            user_msg, need_agent_run = await command.handle(
-                self.agent,
-                UserInput(
-                    command_name=command_name or self.current_input_mode.get_name(),
-                    cleaned_input=cleaned_input,
-                    raw_input=user_input_text,
-                ),
-            )
-        else:
-            user_msg = UserMessage(
-                content=cleaned_input,
-                user_msg_type=command_name,
-                user_raw_input=user_input_text,
-            )
-            need_agent_run = True
+        command = _INPUT_MODES.get(command_name, _SLASH_COMMANDS.get(command_name, NormalMode()))
+        command_handle_output = await command.handle(
+            self.agent,
+            UserInput(
+                command_name=command_name or self.current_input_mode.get_name(),
+                cleaned_input=cleaned_input,
+                raw_input=user_input_text,
+            ),
+        )
+        user_msg = command_handle_output.user_msg
 
         if user_msg is not None:
             self._handle_language_reminder(user_msg)
             self.agent.append_message(user_msg, print_msg=False)
             if print_msg:
                 console.print(user_msg)
-            # Render command result only
-            else:
+            elif command_handle_output.need_render_suffix:
                 for item in user_msg.get_suffix_renderable():
                     console.print(item)
 
-        return need_agent_run
+        return command_handle_output.need_agent_run
 
     def _parse_command(self, text: str) -> Tuple[str, str]:
         """Parse command from input text. Returns tuple of (command_enum, remaining_text)"""
@@ -244,7 +246,9 @@ class UserInputHandler:
                 remaining_text = parts[1] if len(parts) > 1 else ''
                 # Find matching enum
                 if command_part in _SLASH_COMMANDS:
-                    return _SLASH_COMMANDS[command_part].get_name(), remaining_text
+                    return command_part, remaining_text
+                if command_part in _INPUT_MODES:
+                    return command_part, remaining_text
         return '', text
 
     def _handle_language_reminder(self, user_msg: UserMessage):
@@ -345,14 +349,9 @@ class UserInputCompleter(Completer):
 
                 should_ignore = False
                 for pattern in DEFAULT_IGNORE_PATTERNS:
-                    if pattern.endswith('/'):
-                        if any(fnmatch.fnmatch(part, pattern[:-1]) for part in relative_path.parts):
-                            should_ignore = True
-                            break
-                    else:
-                        if fnmatch.fnmatch(item.name, pattern) or fnmatch.fnmatch(path_str, pattern):
-                            should_ignore = True
-                            break
+                    if any(fnmatch.fnmatch(part, pattern) for part in relative_path.parts) or fnmatch.fnmatch(item.name, pattern) or fnmatch.fnmatch(path_str, pattern):
+                        should_ignore = True
+                        break
 
                 if should_ignore:
                     continue
@@ -486,10 +485,14 @@ class InputSession:
 
     def prompt(self) -> UserInput:
         input_text = self.session.prompt()
+        if self.current_input_mode.get_name() != NORMAL_MODE_NAME:
+            input_text = f'/{self.current_input_mode.get_name()} {input_text}'
         self._switch_to_next_mode()
         return input_text
 
     async def prompt_async(self) -> UserInput:
         input_text = await self.session.prompt_async()
+        if self.current_input_mode.get_name() != NORMAL_MODE_NAME:
+            input_text = f'/{self.current_input_mode.get_name()} {input_text}'
         self._switch_to_next_mode()
         return input_text

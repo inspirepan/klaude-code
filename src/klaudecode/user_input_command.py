@@ -2,7 +2,7 @@ import platform
 import shutil
 import subprocess
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generator, Optional, Tuple
+from typing import TYPE_CHECKING, Generator
 
 from rich.abc import RichRenderable
 from rich.console import Group
@@ -14,7 +14,7 @@ from .config import ConfigModel
 from .message import UserMessage
 from .prompt.commands import INIT_COMMAND, RECENT_COMMAND, TODAY_COMMAND
 from .tui import console, render_suffix
-from .user_input import Command, UserInput, register_slash_command
+from .user_input import Command, UserInput, register_slash_command, CommandHandleOutput
 
 if TYPE_CHECKING:
     from .agent import Agent
@@ -33,10 +33,10 @@ class StatusCommand(Command):
     def get_command_desc(self) -> str:
         return 'Show the current setup'
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
-        user_msg, _ = await super().handle(agent, user_input)
-        user_msg.set_extra_data('status', agent.config)
-        return user_msg, False
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent, user_input)
+        command_handle_output.user_msg.set_extra_data('status', agent.config)
+        return command_handle_output
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         config_data = user_msg.get_extra_data('status')
@@ -57,9 +57,10 @@ class ContinueCommand(Command):
     def get_command_desc(self) -> str:
         return 'Request LLM without new user message. NOTE: May cause error when no user message exists'
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
-        user_msg, _ = await super().handle(agent, user_input)
-        return user_msg, True
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent, user_input)
+        command_handle_output.need_agent_run = True
+        return command_handle_output
 
 
 class CompactCommand(Command):
@@ -69,13 +70,13 @@ class CompactCommand(Command):
     def get_command_desc(self) -> str:
         return 'Clear conversation history but keep a summary in context. Optional: /compact [instructions for summarization]'
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
-        user_msg, _ = await super().handle(agent, user_input)
-        user_msg.removed = True
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent, user_input)
+        command_handle_output.user_msg.removed = True
         console.print()
-        agent.append_message(user_msg, print_msg=False)
+        agent.append_message(command_handle_output.user_msg, print_msg=False)
         await agent.session.compact_conversation_history(instructions=user_input.cleaned_input, show_status=True)
-        return None, False
+        return command_handle_output
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         yield ''
@@ -99,12 +100,13 @@ class ClearCommand(Command):
     def get_command_desc(self) -> str:
         return 'Clear conversation history and free up context'
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
-        user_msg, _ = await super().handle(agent, user_input)
-        user_msg.removed = True
-        user_msg.append_extra_data('cleared', True)
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent, user_input)
+        command_handle_output.user_msg.removed = True
+        command_handle_output.user_msg.append_extra_data('cleared', True)
+        command_handle_output.need_agent_run = False
         agent.session.clear_conversation_history()
-        return user_msg, False
+        return command_handle_output
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         if user_msg.get_extra_data('cleared', False):
@@ -118,18 +120,18 @@ class MacSetupCommand(Command):
     def get_command_desc(self) -> str:
         return 'Install fd and rg (ripgrep) using Homebrew on macOS for optimal performance'
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
-        user_msg, _ = await super().handle(agent, user_input)
-
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent, user_input)
+        command_handle_output.need_agent_run = False
         # Check if running on macOS
         if platform.system() != 'Darwin':
-            user_msg.set_extra_data('setup_result', {'success': False, 'error': 'This command is only available on macOS'})
-            return user_msg, False
+            command_handle_output.user_msg.set_extra_data('setup_result', {'success': False, 'error': 'This command is only available on macOS'})
+            return command_handle_output
 
         # Check if Homebrew is installed
         if not shutil.which('brew'):
-            user_msg.set_extra_data('setup_result', {'success': False, 'error': 'Homebrew is not installed. Please install Homebrew first: https://brew.sh'})
-            return user_msg, False
+            command_handle_output.user_msg.set_extra_data('setup_result', {'success': False, 'error': 'Homebrew is not installed. Please install Homebrew first: https://brew.sh'})
+            return command_handle_output
 
         setup_results = []
 
@@ -141,8 +143,8 @@ class MacSetupCommand(Command):
         rg_result = self._install_tool('rg', 'Fast text search tool', package_name='ripgrep')
         setup_results.append(rg_result)
 
-        user_msg.set_extra_data('setup_result', {'success': True, 'results': setup_results})
-        return user_msg, False
+        command_handle_output.user_msg.set_extra_data('setup_result', {'success': True, 'results': setup_results})
+        return command_handle_output
 
     def _install_tool(self, command: str, description: str, package_name: str = None) -> dict:
         """Install a tool using Homebrew if not already installed"""
@@ -232,12 +234,12 @@ class RewriteQueryCommand(Command, ABC):
     def get_query_content(self, user_input: UserInput) -> str:
         pass
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
-        user_msg, _ = await super().handle(agent, user_input)
-        user_msg.content = self.get_query_content(user_input)
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent, user_input)
+        command_handle_output.user_msg.content = self.get_query_content(user_input)
         if user_input.cleaned_input:
-            user_msg.content += 'Additional Instructions:\n' + user_input.cleaned_input
-        return user_msg, True
+            command_handle_output.user_msg.content += 'Additional Instructions:\n' + user_input.cleaned_input
+        return command_handle_output
 
 
 class InitCommand(RewriteQueryCommand):

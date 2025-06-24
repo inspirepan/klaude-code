@@ -5,7 +5,7 @@ import signal
 import subprocess
 import sys
 import time
-from typing import Annotated, Optional, Set
+from typing import Annotated, Callable, Optional, Set
 
 from pydantic import BaseModel, Field
 from rich.text import Text
@@ -139,7 +139,7 @@ class BashTool(Tool):
         return True, ''
 
     @classmethod
-    def execute_bash_command(cls, command: str, timeout_seconds: float, check_canceled, update_content) -> str:
+    def execute_bash_command(cls, command: str, timeout_seconds: float, check_canceled: Callable[[], bool], update_content: Callable[[str], None]) -> str:
         """
         Execute a bash command and return error message if any.
 

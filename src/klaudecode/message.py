@@ -400,9 +400,7 @@ class ToolMessage(BasicMessage):
             ],
         )
 
-    def __rich_console__(self, console, options):
-        yield self.tool_call
-
+    def get_suffix_renderable(self):
         if self.tool_call.tool_name in _TOOL_RESULT_RENDERERS:
             for item in _TOOL_RESULT_RENDERERS[self.tool_call.tool_name](self):
                 yield item
@@ -420,6 +418,11 @@ class ToolMessage(BasicMessage):
         elif self.tool_call.status == 'error':
             yield render_suffix(self.error_msg, style='red')
         yield ''
+
+    def __rich_console__(self, console, options):
+        yield self.tool_call
+        for item in self.get_suffix_renderable():
+            yield item
 
     def __bool__(self):
         return not self.removed and bool(self.get_content())
