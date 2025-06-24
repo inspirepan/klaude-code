@@ -33,6 +33,15 @@ class ColorStyle(str, Enum):
     DIFF_REMOVED_CHAR = 'diff_removed_char'
     DIFF_ADDED_CHAR = 'diff_added_char'
     INLINE_CODE = 'inline_code'
+    # Prompt toolkit colors
+    INPUT_PROMPT = 'input_prompt'
+    INPUT_PLACEHOLDER = 'input_placeholder'
+    COMPLETION_MENU = 'completion_menu'
+    COMPLETION_SELECTED = 'completion_selected'
+    # Input mode colors
+    BASH_MODE = 'bash_mode'
+    MEMORY_MODE = 'memory_mode'
+    PLAN_MODE = 'plan_mode'
 
     def bold(self) -> Style:
         return console.console.get_style(self.value) + Style(bold=True)
@@ -74,6 +83,15 @@ light_theme = Theme(
         ColorStyle.DIFF_REMOVED_CHAR: 'rgb(63,63,63) on rgb(193,81,78)',
         ColorStyle.DIFF_ADDED_CHAR: 'rgb(63,63,63) on rgb(80,155,78)',
         ColorStyle.INLINE_CODE: 'rgb(109,104,218)',
+        # Prompt toolkit
+        ColorStyle.INPUT_PROMPT: 'rgb(63,63,63)',
+        ColorStyle.INPUT_PLACEHOLDER: 'rgb(126,129,129)',
+        ColorStyle.COMPLETION_MENU: 'rgb(154,154,154)',
+        ColorStyle.COMPLETION_SELECTED: 'rgb(74,74,74)',
+        # Input mode colors
+        ColorStyle.BASH_MODE: 'rgb(234,51,134)',
+        ColorStyle.MEMORY_MODE: 'rgb(109,104,218)',
+        ColorStyle.PLAN_MODE: 'rgb(106,164,165)',
     }
 )
 
@@ -101,6 +119,15 @@ dark_theme = Theme(
         ColorStyle.DIFF_REMOVED_CHAR: 'rgb(255,255,255) on rgb(167,95,107)',
         ColorStyle.DIFF_ADDED_CHAR: 'rgb(255,255,255) on rgb(88,164,102)',
         ColorStyle.INLINE_CODE: 'rgb(180,184,245)',
+        # Prompt toolkit
+        ColorStyle.INPUT_PROMPT: 'rgb(210,210,210)',
+        ColorStyle.INPUT_PLACEHOLDER: 'rgb(151,153,153)',
+        ColorStyle.COMPLETION_MENU: 'rgb(154,154,154)',
+        ColorStyle.COMPLETION_SELECTED: 'rgb(170,221,255)',
+        # Input mode colors
+        ColorStyle.BASH_MODE: 'rgb(255,102,170)',
+        ColorStyle.MEMORY_MODE: 'rgb(200,205,255)',
+        ColorStyle.PLAN_MODE: 'rgb(126,184,185)',
     }
 )
 
@@ -284,3 +311,43 @@ def truncate_middle_text(text: str, max_lines: int = 30) -> RichRenderable:
 def clear_last_line():
     sys.stdout.write('\033[F\033[K')
     sys.stdout.flush()
+
+
+def get_prompt_toolkit_color(color_style: ColorStyle) -> str:
+    """Get hex color value for prompt-toolkit from theme"""
+    style_value = console.console.get_style(color_style.value)
+    if hasattr(style_value, 'color') and style_value.color:
+        # Convert rich Color to hex
+        if hasattr(style_value.color, 'triplet'):
+            r, g, b = style_value.color.triplet
+            return f'#{r:02x}{g:02x}{b:02x}'
+        elif hasattr(style_value.color, 'number'):
+            # Handle palette colors
+            return f'ansi{style_value.color.number}'
+    # Fallback to extract from rgb() string
+    rgb_match = re.search(r'rgb\((\d+),(\d+),(\d+)\)', str(style_value))
+    if rgb_match:
+        r, g, b = map(int, rgb_match.groups())
+        return f'#{r:02x}{g:02x}{b:02x}'
+    return '#ffffff'
+
+
+def get_prompt_toolkit_style() -> dict:
+    """Get prompt-toolkit style dict based on current theme"""
+    return {
+        'completion-menu': 'bg:default',
+        'completion-menu.border': 'bg:default',
+        'completion-menu.completion': f'bg:default fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_MENU)}',
+        'completion-menu.completion.current': f'bg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED)} fg:#aaddff',
+        'scrollbar.background': 'bg:default',
+        'scrollbar.button': 'bg:default',
+        'completion-menu.meta.completion': f'bg:default fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_MENU)}',
+        'completion-menu.meta.completion.current': f'bg:#aaddff fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED)}',
+        'placeholder': get_prompt_toolkit_color(ColorStyle.INPUT_PLACEHOLDER),
+        '': get_prompt_toolkit_color(ColorStyle.INPUT_PROMPT),
+    }
+
+
+def get_inquirer_style() -> dict:
+    """Get InquirerPy style dict based on current theme"""
+    return {'question': f'bold {get_prompt_toolkit_color(ColorStyle.INPUT_PROMPT)}', 'pointer': f'fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED)} bg:#aaddff'}

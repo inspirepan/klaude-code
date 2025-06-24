@@ -18,7 +18,7 @@ from rich.markup import escape
 
 from .message import UserMessage, register_user_msg_content_func, register_user_msg_renderer, register_user_msg_suffix_renderer
 from .prompt.reminder import LANGUAGE_REMINDER
-from .tui import console, render_message
+from .tui import console, render_message, get_prompt_toolkit_style, get_prompt_toolkit_color, ColorStyle
 from .utils import DEFAULT_IGNORE_PATTERNS
 
 """
@@ -104,6 +104,7 @@ class InputModeCommand(Command, ABC):
         raise NotImplementedError
 
     @abstractmethod
+    @abstractmethod
     def _get_color(self) -> str:
         """
         The color of the input.
@@ -139,20 +140,11 @@ class InputModeCommand(Command, ABC):
         raise NotImplementedError
 
     def get_style(self):
-        style_dict = {
-            'completion-menu': 'bg:default',
-            'completion-menu.border': 'bg:default',
-            'completion-menu.completion': 'bg:default fg:#9a9a9a',
-            'completion-menu.completion.current': 'bg:#4a4a4a fg:#aaddff',
-            'scrollbar.background': 'bg:default',
-            'scrollbar.button': 'bg:default',
-            'completion-menu.meta.completion': 'bg:default fg:#9a9a9a',
-            'completion-menu.meta.completion.current': 'bg:#aaddff fg:#4a4a4a',
-        }
+        style_dict = get_prompt_toolkit_style()
         if self._get_color():
             style_dict.update(
                 {
-                    'placeholder': self._get_color(),
+                    'placeholder': get_prompt_toolkit_color(ColorStyle.INPUT_PLACEHOLDER),
                     '': self._get_color(),
                 }
             )

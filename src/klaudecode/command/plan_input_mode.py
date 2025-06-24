@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from ..tui import get_prompt_toolkit_color, ColorStyle
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput
 
 if TYPE_CHECKING:
@@ -14,7 +15,7 @@ class PlanMode(InputModeCommand):
         return '*'
 
     def _get_color(self) -> str:
-        return '#6aa4a5'
+        return get_prompt_toolkit_color(ColorStyle.PLAN_MODE)
 
     def get_placeholder(self) -> str:
         return 'plan mode on...'

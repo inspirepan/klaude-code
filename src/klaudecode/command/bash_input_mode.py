@@ -11,7 +11,7 @@ from rich.text import Text
 from ..message import UserMessage, render_message, render_suffix
 from ..prompt.commands import BASH_INPUT_MODE_CONTENT
 from ..tools.bash import BashTool
-from ..tui import ColorStyle, console
+from ..tui import ColorStyle, console, get_prompt_toolkit_color
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput
 
 if TYPE_CHECKING:
@@ -26,7 +26,7 @@ class BashMode(InputModeCommand):
         return '!'
 
     def _get_color(self) -> str:
-        return '#ea3386'
+        return get_prompt_toolkit_color(ColorStyle.BASH_MODE)
 
     def get_placeholder(self) -> str:
         return 'type a bash command...'

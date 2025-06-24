@@ -7,7 +7,7 @@ from rich.markup import escape
 from rich.text import Text
 
 from ..message import UserMessage, render_message, render_suffix
-from ..tui import ColorStyle
+from ..tui import ColorStyle, get_prompt_toolkit_color
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput
 from ..user_questionary import user_select
 
@@ -23,7 +23,7 @@ class MemoryMode(InputModeCommand):
         return '#'
 
     def _get_color(self) -> str:
-        return '#b3b9f4'
+        return get_prompt_toolkit_color(ColorStyle.MEMORY_MODE)
 
     def get_placeholder(self) -> str:
         return 'type to memorize...'
@@ -57,7 +57,7 @@ class MemoryMode(InputModeCommand):
             return command_handle_output
 
         if choice == 0:
-            claude_md_path = Path(agent.session.workdir) / 'CLAUDE.md'
+            claude_md_path = Path(agent.session.work_dir) / 'CLAUDE.md'
             location = 'project'
         else:
             claude_md_path = Path.home() / '.claude' / 'CLAUDE.md'
@@ -91,7 +91,7 @@ class MemoryMode(InputModeCommand):
 
         if result:
             if status == 'success':
-                yield render_suffix(Text(result, style=ColorStyle.INLINE_CODE.value))
+                yield render_suffix(Text(result, style=ColorStyle.MEMORY_MODE.value))
             elif status == 'error':
                 yield render_suffix(Text(result, style=ColorStyle.ERROR.bold()))
             else:
