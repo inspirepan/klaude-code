@@ -214,7 +214,7 @@ class UserInputHandler:
         command_handle_output = await command.handle(
             self.agent,
             UserInput(
-                command_name=command_name or self.current_input_mode.get_name(),
+                command_name=command_name or NORMAL_MODE_NAME,
                 cleaned_input=cleaned_input,
                 raw_input=user_input_text,
             ),
@@ -356,14 +356,44 @@ class UserInputCompleter(Completer):
                 if should_ignore:
                     continue
 
-                if name_prefix and not item.name.lower().startswith(name_prefix.lower()):
-                    continue
+                # Enhanced matching: support matching any part of the path
+                if name_prefix:
+                    path_str_lower = path_str.lower()
+                    name_prefix_lower = name_prefix.lower()
+                    
+                    # Check if prefix matches any part of the full path
+                    if name_prefix_lower not in path_str_lower:
+                        continue
 
                 matches.append({'path': relative_path, 'name': item.name})
         except (OSError, PermissionError):
             return
 
-        matches.sort(key=lambda x: x['name'].lower())
+        # Enhanced sorting: prioritize better matches
+        def sort_key(match):
+            path_str = str(match['path']).lower()
+            name = match['name'].lower()
+            prefix_lower = name_prefix.lower() if name_prefix else ''
+            
+            if not prefix_lower:
+                return (0, name)
+            
+            # Priority 1: Exact filename prefix match
+            if name.startswith(prefix_lower):
+                return (0, name)
+            
+            # Priority 2: Filename contains the prefix
+            if prefix_lower in name:
+                return (1, name)
+            
+            # Priority 3: Path prefix match
+            if path_str.startswith(prefix_lower):
+                return (2, path_str)
+            
+            # Priority 4: Any part of path contains the prefix
+            return (3, path_str)
+
+        matches.sort(key=sort_key)
 
         matches = matches[:10]
 

@@ -62,14 +62,14 @@ class BashMode(InputModeCommand):
         command_handle_output = await super().handle(agent, user_input)
         command = user_input.cleaned_input
 
-        # 安全性检查
+        # Safety check
         is_safe, error_msg = BashTool.validate_command_safety(command)
         if not is_safe:
             command_result = f'Error: {error_msg}'
             command_handle_output.user_msg.set_extra_data('command_result', command_result)
             return command_handle_output
 
-        # 执行命令并流式显示输出
+        # Execute command and display output in streaming mode
         command_result = await self._execute_command_with_live_output(command)
         command_handle_output.user_msg.set_extra_data('command_result', command_result)
         command_handle_output.need_render_suffix = False
