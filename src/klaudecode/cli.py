@@ -6,7 +6,6 @@ import typer
 
 from .agent import get_main_agent
 from .config import ConfigManager
-from .llm import AgentLLM
 from .message import SystemMessage
 from .prompt.system import STATIC_SYSTEM_PROMPT, get_system_prompt_dynamic_part
 from .session import Session
@@ -29,7 +28,7 @@ async def main_async(ctx: typer.Context):
         )
         agent = get_main_agent(session, config=ctx.obj['config'])
         try:
-            await agent.headless_run(ctx.obj['prompt'], print_trace=ctx.obj['verbose'])
+            await agent.headless_run(ctx.obj['prompt'])
         except KeyboardInterrupt:
             pass
         return
@@ -106,8 +105,9 @@ def main(
         '--thinking',
         help='Enable Claude Extended Thinking capability (only for Anthropic Offical API)',
     ),
-    no_mcp: bool = typer.Option(False, '--no-mcp', help='Disable MCP (Model Context Protocol) loading'),
-    verbose: bool = typer.Option(False, '--verbose', help='Enable verbose output'),
+    # TODO:
+    # no_mcp: bool = typer.Option(False, '--no-mcp', help='Disable MCP (Model Context Protocol) loading'),
+    # verbose: bool = typer.Option(False, '--verbose', help='Enable verbose output'),
 ):
     ctx.ensure_object(dict)
     if ctx.invoked_subcommand is None:
@@ -123,18 +123,9 @@ def main(
         ctx.obj['prompt'] = prompt
         ctx.obj['resume'] = resume
         ctx.obj['continue_latest'] = continue_latest
-        ctx.obj['no_mcp'] = no_mcp
-        ctx.obj['verbose'] = verbose
+        # ctx.obj['no_mcp'] = no_mcp
+        # ctx.obj['verbose'] = verbose
         ctx.obj['config'] = config_manager.get_config_model()
-        AgentLLM.initialize(
-            model_name=config_manager.get('model_name'),
-            base_url=config_manager.get('base_url'),
-            api_key=config_manager.get('api_key'),
-            model_azure=config_manager.get('model_azure'),
-            max_tokens=config_manager.get('max_tokens'),
-            extra_header=config_manager.get('extra_header'),
-            enable_thinking=config_manager.get('enable_thinking'),
-        )
         asyncio.run(main_async(ctx))
 
 

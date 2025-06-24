@@ -37,7 +37,7 @@ class BashMode(InputModeCommand):
         return '#ea3386'
 
     def get_placeholder(self) -> str:
-        return 'type to run bash command...'
+        return 'type a bash command...'
 
     def binding_key(self) -> str:
         return '!'

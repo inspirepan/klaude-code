@@ -100,7 +100,6 @@ class InputModeCommand(Command, ABC):
         """
         raise NotImplementedError
 
-
     def get_next_mode_name(self) -> str:
         """
         The name of the next input mode.
@@ -193,7 +192,7 @@ class UserInputHandler:
     def __init__(self, agent: 'Agent'):
         self.agent = agent
 
-    async def handle(self, user_input_text: str) -> bool:
+    async def handle(self, user_input_text: str, print_msg: bool = True) -> bool:
         """
         Handle special mode and command input.
         """
@@ -220,9 +219,12 @@ class UserInputHandler:
         if user_msg is not None:
             self._handle_language_reminder(user_msg)
             self.agent.append_message(user_msg, print_msg=False)
-            # Render command result
-            for item in user_msg.get_suffix_renderable():
-                console.print(item)
+            if print_msg:
+                console.print(user_msg)
+            # Render command result only
+            else:
+                for item in user_msg.get_suffix_renderable():
+                    console.print(item)
 
         return need_agent_run
 
@@ -277,7 +279,7 @@ class CommandCompleter(Completer):
                     yield Completion(
                         command_name,
                         start_position=-len(command_part),
-                        display=f'/{command_name}',
+                        display=f'/{command_name:15}',
                         display_meta=command.get_command_desc(),
                     )
 

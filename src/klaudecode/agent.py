@@ -70,18 +70,23 @@ class Agent(Tool):
         self.enable_claudemd_reminder = enable_claudemd_reminder
         self.enable_todo_reminder = enable_todo_reminder
 
-    async def chat_interactive(self):
+    async def chat_interactive(self, first_message: str = None):
+        self._initialize_llm()
         console.print(render_hello())
         self.session.messages.print_all_message()  # For continue and resume scene.
-
+        epoch = 0
         while True:
-            user_input_text = await self.input_session.prompt_async()
+            if epoch == 0 and first_message:
+                user_input_text = first_message
+            else:
+                user_input_text = await self.input_session.prompt_async()
             if user_input_text.strip().lower() in QUIT_COMMAND:
                 break
-            need_agent_run = await self.user_input_handler.handle(user_input_text)
+            need_agent_run = await self.user_input_handler.handle(user_input_text, print_msg=bool(first_message))
             console.print()
             if need_agent_run:
                 await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
+            epoch += 1
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
         try:
@@ -159,7 +164,19 @@ class Agent(Tool):
         self.append_message(UserMessage(content=INTERRUPTED_MSG, user_msg_type=SpecialUserMessageTypeEnum.INTERRUPTED.value))
         return INTERRUPTED_MSG
 
+    def _initialize_llm(self):
+        AgentLLM.initialize(
+            model_name=self.config.model_name.value,
+            base_url=self.config.base_url.value,
+            api_key=self.config.api_key.value,
+            model_azure=self.config.model_azure.value,
+            max_tokens=self.config.max_tokens.value,
+            extra_header=self.config.extra_header.value,
+            enable_thinking=self.config.enable_thinking.value,
+        )
+
     async def headless_run(self, user_input_text: str, print_trace: bool = False):
+        self._initialize_llm()
         need_agent_run = await self.user_input_handler.handle(user_input_text)
         if need_agent_run:
             self.print_switch = print_trace
