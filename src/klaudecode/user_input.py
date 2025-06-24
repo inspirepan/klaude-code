@@ -1,3 +1,4 @@
+import fnmatch
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Generator, Optional, Tuple
@@ -17,6 +18,7 @@ from rich.abc import RichRenderable
 from .message import UserMessage, register_user_msg_renderer, register_user_msg_suffix_renderer
 from .prompt.reminder import LANGUAGE_REMINDER
 from .tui import console, render_message
+from .utils import DEFAULT_IGNORE_PATTERNS
 
 """
 Command: When users press /, it prompts slash command completion
@@ -255,8 +257,8 @@ class UserInputHandler:
 # ----------------------------------------
 
 
-class CommandCompleter(Completer):
-    """Custom command completer"""
+class UserInputCompleter(Completer):
+    """Custom user input completer"""
 
     def __init__(self, input_session):
         self.commands: Dict[str, Command] = _SLASH_COMMANDS
@@ -267,7 +269,15 @@ class CommandCompleter(Completer):
         if self.input_session.current_input_mode.get_name() != NORMAL_MODE_NAME:
             return
         text = document.text
-        # Only provide completion when input starts with /
+        cursor_position = document.cursor_position
+
+        # Check for @ file completion
+        at_match = self._find_at_file_pattern(text, cursor_position)
+        if at_match:
+            yield from self._get_file_completions(at_match)
+            return
+
+        # Original slash command completion
         if not text.startswith('/'):
             return
         # Get command part (content after /)
@@ -283,6 +293,90 @@ class CommandCompleter(Completer):
                         display_meta=command.get_command_desc(),
                     )
 
+    def _find_at_file_pattern(self, text, cursor_position):
+        for i in range(cursor_position - 1, -1, -1):
+            if text[i] == '@':
+                if i == 0 or text[i - 1].isspace():
+                    file_prefix = text[i + 1 : cursor_position]
+                    return {'at_position': i, 'prefix': file_prefix, 'start_position': i + 1 - cursor_position}
+            elif text[i].isspace():
+                break
+        return None
+
+    def _get_file_completions(self, at_match):
+        prefix = at_match['prefix']
+        start_position = at_match['start_position']
+
+        workdir = self.input_session.workdir
+
+        if prefix:
+            prefix_path = Path(prefix)
+            if prefix_path.is_absolute():
+                search_dir = prefix_path.parent if prefix_path.parent.exists() else workdir
+                name_prefix = prefix_path.name
+            else:
+                search_dir = workdir / prefix_path.parent if prefix_path.parent != Path('.') else workdir
+                name_prefix = prefix_path.name
+        else:
+            search_dir = workdir
+            name_prefix = ''
+
+        if not search_dir.exists():
+            return
+
+        matches = []
+        try:
+            for item in search_dir.rglob('*'):
+                if item.name.startswith('.'):
+                    continue
+
+                if not item.is_file():
+                    continue
+
+                if any(part.startswith('.') for part in item.parts):
+                    continue
+
+                try:
+                    relative_path = item.relative_to(workdir)
+                    path_str = str(relative_path)
+                except ValueError:
+                    relative_path = item
+                    path_str = str(item)
+
+                should_ignore = False
+                for pattern in DEFAULT_IGNORE_PATTERNS:
+                    if pattern.endswith('/'):
+                        if any(fnmatch.fnmatch(part, pattern[:-1]) for part in relative_path.parts):
+                            should_ignore = True
+                            break
+                    else:
+                        if fnmatch.fnmatch(item.name, pattern) or fnmatch.fnmatch(path_str, pattern):
+                            should_ignore = True
+                            break
+
+                if should_ignore:
+                    continue
+
+                if name_prefix and not item.name.lower().startswith(name_prefix.lower()):
+                    continue
+
+                matches.append({'path': relative_path, 'name': item.name})
+        except (OSError, PermissionError):
+            return
+
+        matches.sort(key=lambda x: x['name'].lower())
+
+        matches = matches[:10]
+
+        for match in matches:
+            path_str = str(match['path'])
+
+            yield Completion(
+                path_str,
+                start_position=start_position,
+                display=path_str,
+            )
+
 
 class InputSession:
     def __init__(self, workdir: str = None):
@@ -295,9 +389,7 @@ class InputSession:
             history_file.parent.mkdir(parents=True, exist_ok=True)
             history_file.touch()
         self.history = FileHistory(str(history_file))
-
-        # Create command completer
-        self.command_completer = CommandCompleter(self)
+        self.user_input_completer = UserInputCompleter(self)
 
         # Create key bindings
         self.kb = KeyBindings()
@@ -309,7 +401,7 @@ class InputSession:
             key_bindings=self.kb,
             history=self.history,
             placeholder=self._dyn_placeholder,
-            completer=self.command_completer,
+            completer=self.user_input_completer,
             style=self.current_input_mode.get_style(),
         )
         self.buf = self.session.default_buffer
@@ -337,7 +429,6 @@ class InputSession:
         self.buf.insert_text(char)
 
     def _setup_key_bindings(self):
-        # 动态注册输入模式的键绑定
         for mode in _INPUT_MODES.values():
             if mode.binding_key():
 

@@ -11,35 +11,7 @@ from ..message import ToolCall, ToolMessage, register_tool_call_renderer, regist
 from ..prompt.tools import GLOB_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import render_suffix
-
-DEFAULT_IGNORE_PATTERNS = [
-    'node_modules',
-    '.git',
-    '.svn',
-    '.hg',
-    '.bzr',
-    '__pycache__',
-    '.pytest_cache',
-    '.mypy_cache',
-    '.tox',
-    '.venv',
-    'venv',
-    '.env',
-    '.virtualenv',
-    'dist',
-    'build',
-    'target',
-    'out',
-    'bin',
-    'obj',
-    '.DS_Store',
-    'Thumbs.db',
-    '*.tmp',
-    '*.temp',
-    '*.log',
-    '*.cache',
-    '*.lock',
-]
+from ..utils import DEFAULT_IGNORE_PATTERNS
 
 DEFAULT_MAX_DEPTH = 10
 DEFAULT_MAX_FILES = 50

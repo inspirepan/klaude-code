@@ -4,7 +4,34 @@ import re
 from collections import deque
 from typing import List, Optional, Tuple
 
-DEFAULT_IGNORE_PATTERNS = ['.git/', '.gitignore', '.venv/', '.env', '.DS_Store', '__pycache__/', 'node_modules/']
+DEFAULT_IGNORE_PATTERNS = [
+    'node_modules',
+    '.git',
+    '.svn',
+    '.hg',
+    '.bzr',
+    '__pycache__',
+    '.pytest_cache',
+    '.mypy_cache',
+    '.tox',
+    '.venv',
+    'venv',
+    '.env',
+    '.virtualenv',
+    'dist',
+    'build',
+    'target',
+    'out',
+    'bin',
+    'obj',
+    '.DS_Store',
+    'Thumbs.db',
+    '*.tmp',
+    '*.temp',
+    '*.log',
+    '*.cache',
+    '*.lock',
+]
 
 
 def get_directory_structure(
