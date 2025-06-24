@@ -331,7 +331,7 @@ def render_bash_args(tool_call: ToolCall):
         (tool_call.tool_name, 'bold'),
         '(',
         (f'{description} → ' if description else '', 'orange'),
-        tool_call.tool_args_dict.get('command', ''),
+        (tool_call.tool_args_dict.get('command', ''), 'white'),
         ')',
     )
     yield tool_call_msg

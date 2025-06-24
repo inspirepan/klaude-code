@@ -85,9 +85,9 @@ class EditTool(Tool):
             # Check for uniqueness if not replace_all
             if not args.replace_all and occurrence_count > 1:
                 error_msg = (
-                    f'Found {occurrence_count} matches of the string to replace, but replace_all is false.'
-                    'To replace all occurrences, set replace_all to true.'
-                    'To replace only one occurrence, please provide more context to uniquely identify the instance.'
+                    f'Found {occurrence_count} matches of the string to replace, but replace_all is false. '
+                    'To replace all occurrences, set replace_all to true. '
+                    'To replace only one occurrence, please provide more context to uniquely identify the instance. '
                     f'String: "{args.old_string}"'
                 )
                 instance.tool_result().set_error_msg(error_msg)

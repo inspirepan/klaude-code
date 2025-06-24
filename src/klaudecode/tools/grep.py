@@ -260,7 +260,7 @@ def render_grep_args(tool_call: ToolCall):
     tool_call_msg = Text.assemble(
         ('Grep', 'bold'),
         '(',
-        pattern,
+        (pattern, 'white'),
         (path_info, 'italic'),
         (include_info, 'italic'),
         ')',

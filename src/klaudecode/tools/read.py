@@ -1,6 +1,7 @@
 from typing import Annotated, Optional
 
 from pydantic import BaseModel, Field
+from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
 
@@ -155,7 +156,7 @@ def render_read_content(tool_msg: ToolMessage):
         table.add_column(width=width, justify='right')
         table.add_column(overflow='fold')
         for line_num, line_content in brief_list:
-            table.add_row(f'{line_num:>{width}}:', line_content)
+            table.add_row(f'{line_num:>{width}}:', escape(line_content))
         table.add_row('…', f'Read [bold]{read_line_count}[/bold] lines')
         yield render_suffix(table)
     else:

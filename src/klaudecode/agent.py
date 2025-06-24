@@ -34,6 +34,7 @@ from .prompt.tools import CODE_SEARCH_TASK_TOOL_DESC, TASK_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
+from .tools.mcp_tool import MCPManager
 from .tui import INTERRUPT_TIP, clear_last_line, console, format_style, render_hello, render_markdown, render_message, render_status, render_suffix
 from .user_input import InputSession, UserInputHandler
 
@@ -58,6 +59,7 @@ class Agent(Tool):
         print_switch: bool = True,
         enable_claudemd_reminder: bool = True,
         enable_todo_reminder: bool = True,
+        enable_mcp: bool = True,
     ):
         self.session: Session = session
         self.label = label
@@ -66,29 +68,41 @@ class Agent(Tool):
         self.config: Optional[ConfigModel] = config
         self.availiable_tools = availiable_tools
         self.user_input_handler = UserInputHandler(self)
-        self.tool_handler = ToolHandler(self, self.availiable_tools, show_live=print_switch)
+        self.tool_handler = ToolHandler(self, self.availiable_tools or [], show_live=print_switch)
         self.enable_claudemd_reminder = enable_claudemd_reminder
         self.enable_todo_reminder = enable_todo_reminder
+        self.enable_mcp = enable_mcp
+        self.mcp_manager: Optional[MCPManager] = None
 
     async def chat_interactive(self, first_message: str = None):
         self._initialize_llm()
         console.print(render_hello())
+
+        # Initialize MCP
+        if self.enable_mcp:
+            await self._initialize_mcp()
+
         self.session.messages.print_all_message()  # For continue and resume scene.
         epoch = 0
-        while True:
-            if epoch == 0 and first_message:
-                user_input_text = first_message
-            else:
-                user_input_text = await self.input_session.prompt_async()
-            if user_input_text.strip().lower() in QUIT_COMMAND:
-                break
-            need_agent_run = await self.user_input_handler.handle(user_input_text, print_msg=bool(first_message))
-            console.print()
-            if epoch == 0 and self.enable_claudemd_reminder:
-                self._handle_caludemd_reminder()
-            if need_agent_run:
-                await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self.availiable_tools)
-            epoch += 1
+        try:
+            while True:
+                if epoch == 0 and first_message:
+                    user_input_text = first_message
+                else:
+                    user_input_text = await self.input_session.prompt_async()
+                if user_input_text.strip().lower() in QUIT_COMMAND:
+                    break
+                need_agent_run = await self.user_input_handler.handle(user_input_text, print_msg=bool(first_message))
+                console.print()
+                if epoch == 0 and self.enable_claudemd_reminder:
+                    self._handle_caludemd_reminder()
+                if need_agent_run:
+                    await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self._get_all_tools())
+                epoch += 1
+        finally:
+            # Clean up MCP resources
+            if self.mcp_manager:
+                await self.mcp_manager.shutdown()
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
         try:
@@ -111,6 +125,8 @@ class Agent(Tool):
                     last_ai_msg = self.session.messages.get_last_message(role='assistant', filter_empty=True)
                     return last_ai_msg.content if last_ai_msg else ''
                 if ai_msg.finish_reason == 'tool_calls' or len(ai_msg.tool_calls) > 0:
+                    # Update tool handler with MCP tools
+                    self._update_tool_handler_tools(tools)
                     await self.tool_handler.handle(ai_msg)
 
         except (OpenAIError, AnthropicError) as e:
@@ -176,44 +192,74 @@ class Agent(Tool):
 
     async def headless_run(self, user_input_text: str, print_trace: bool = False):
         self._initialize_llm()
-        need_agent_run = await self.user_input_handler.handle(user_input_text)
-        if not need_agent_run:
-            return
-        if self.enable_claudemd_reminder:
-            self._handle_caludemd_reminder()
-        self.print_switch = print_trace
-        self.tool_handler.show_live = print_trace
-        if print_trace:
-            await self.run(tools=self.availiable_tools)
-            return
-        status = render_status('Running...')
-        status.start()
-        running = True
+        # Initialize MCP
+        if self.enable_mcp:
+            await self._initialize_mcp()
 
-        async def update_status():
-            while running:
-                tool_msg_count = len([msg for msg in self.session.messages if msg.role == 'tool'])
-                status.update(
-                    Group(
-                        f'Running... ([bold]{tool_msg_count}[/bold] tool uses)',
-                        f'[italic]see more details in session file: {self.session._get_messages_file_path()}[/italic]',
-                        INTERRUPT_TIP[1:],
-                    )
-                )
-                await asyncio.sleep(0.1)
-
-        update_task = asyncio.create_task(update_status())
         try:
-            result = await self.run(tools=self.availiable_tools)
-        finally:
-            running = False
-            status.stop()
-            update_task.cancel()
+            need_agent_run = await self.user_input_handler.handle(user_input_text)
+            if not need_agent_run:
+                return
+            if self.enable_claudemd_reminder:
+                self._handle_caludemd_reminder()
+            self.print_switch = print_trace
+            self.tool_handler.show_live = print_trace
+            if print_trace:
+                await self.run(tools=self._get_all_tools())
+                return
+            status = render_status('Running...')
+            status.start()
+            running = True
+
+            async def update_status():
+                while running:
+                    tool_msg_count = len([msg for msg in self.session.messages if msg.role == 'tool'])
+                    status.update(
+                        Group(
+                            f'Running... ([bold]{tool_msg_count}[/bold] tool uses)',
+                            f'[italic]see more details in session file: {self.session._get_messages_file_path()}[/italic]',
+                            INTERRUPT_TIP[1:],
+                        )
+                    )
+                    await asyncio.sleep(0.1)
+
+            update_task = asyncio.create_task(update_status())
             try:
-                await update_task
-            except asyncio.CancelledError:
-                pass
-        console.print(result)
+                result = await self.run(tools=self._get_all_tools())
+            finally:
+                running = False
+                status.stop()
+                update_task.cancel()
+                try:
+                    await update_task
+                except asyncio.CancelledError:
+                    pass
+            console.print(result)
+        finally:
+            # Clean up MCP resources
+            if self.mcp_manager:
+                await self.mcp_manager.shutdown()
+
+    async def _initialize_mcp(self):
+        """Initialize MCP manager"""
+        if self.mcp_manager is None:
+            self.mcp_manager = MCPManager(self.session.work_dir)
+            await self.mcp_manager.initialize()
+
+    def _get_all_tools(self) -> List[Tool]:
+        """Get all available tools including MCP tools"""
+        tools = self.availiable_tools.copy() if self.availiable_tools else []
+
+        # Add MCP tools
+        if self.mcp_manager and self.mcp_manager.is_initialized():
+            mcp_tools = self.mcp_manager.get_mcp_tools()
+            tools.extend(mcp_tools)
+
+        return tools
+
+    def _update_tool_handler_tools(self, tools: List[Tool]):
+        """Update ToolHandler's tool dictionary"""
+        self.tool_handler.tool_dict = {tool.name: tool for tool in tools} if tools else {}
 
     # Implement SubAgent
     # ------------------
@@ -297,5 +343,5 @@ register_tool_call_renderer('CodeSearchTask', render_agent_args)
 register_tool_result_renderer('CodeSearchTask', render_agent_result)
 
 
-def get_main_agent(session: Session, config: ConfigModel) -> Agent:
-    return Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent, CodeSearchTaskTool], enable_claudemd_reminder=True, enable_todo_reminder=True)
+def get_main_agent(session: Session, config: ConfigModel, enable_mcp: bool = False) -> Agent:
+    return Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent, CodeSearchTaskTool], enable_claudemd_reminder=True, enable_todo_reminder=True, enable_mcp=enable_mcp)

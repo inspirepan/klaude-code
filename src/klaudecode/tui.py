@@ -62,7 +62,7 @@ class ConsoleProxy:
 console = ConsoleProxy()
 
 
-INTERRUPT_TIP = ' [bright_black]Press ctrl+c to interrupt[/bright_black]'
+INTERRUPT_TIP = ' [bright_black]Press ctrl+c to interrupt[/bright_black]  '
 
 
 def render_status(status: str, spinner: str = 'dots', spinner_style: str = ''):

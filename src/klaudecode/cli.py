@@ -26,7 +26,7 @@ async def main_async(ctx: typer.Context):
                 SystemMessage(content=get_system_prompt_dynamic_part(os.getcwd(), ctx.obj['config'].model_name)),
             ],
         )
-        agent = get_main_agent(session, config=ctx.obj['config'])
+        agent = get_main_agent(session, config=ctx.obj['config'], enable_mcp=ctx.obj['mcp'])
         try:
             await agent.headless_run(ctx.obj['prompt'])
         except KeyboardInterrupt:
@@ -69,7 +69,7 @@ async def main_async(ctx: typer.Context):
                 SystemMessage(content=get_system_prompt_dynamic_part(os.getcwd(), ctx.obj['config'].model_name)),
             ],
         )
-    agent = get_main_agent(session, config=ctx.obj['config'])
+    agent = get_main_agent(session, config=ctx.obj['config'], enable_mcp=ctx.obj['mcp'])
     try:
         await agent.chat_interactive()
     except KeyboardInterrupt:
@@ -106,7 +106,7 @@ def main(
         help='Enable Claude Extended Thinking capability (only for Anthropic Offical API)',
     ),
     # TODO:
-    # no_mcp: bool = typer.Option(False, '--no-mcp', help='Disable MCP (Model Context Protocol) loading'),
+    mcp: bool = typer.Option(False, '--mcp', help='Enable MCP (Model Context Protocol) tools'),
     # verbose: bool = typer.Option(False, '--verbose', help='Enable verbose output'),
 ):
     ctx.ensure_object(dict)
@@ -123,7 +123,7 @@ def main(
         ctx.obj['prompt'] = prompt
         ctx.obj['resume'] = resume
         ctx.obj['continue_latest'] = continue_latest
-        # ctx.obj['no_mcp'] = no_mcp
+        ctx.obj['mcp'] = mcp
         # ctx.obj['verbose'] = verbose
         ctx.obj['config'] = config_manager.get_config_model()
         asyncio.run(main_async(ctx))
@@ -144,3 +144,36 @@ def config_edit():
     from .config import GlobalConfigSource
 
     GlobalConfigSource.edit_config_file()
+
+
+mcp_app = typer.Typer(help='Manage MCP (Model Context Protocol) servers')
+app.add_typer(mcp_app, name='mcp')
+
+
+@mcp_app.command('show')
+def mcp_show():
+    """Show current MCP configuration and available tools"""
+    import asyncio
+
+    from .tools.mcp_tool import MCPManager
+
+    async def show_mcp_info():
+        mcp_manager = MCPManager()
+        try:
+            await mcp_manager.initialize()
+            console.print(mcp_manager)
+        except Exception as e:
+            console.print(f'[red]Error connecting to MCP servers: {e}[/red]')
+        finally:
+            await mcp_manager.shutdown()
+
+    asyncio.run(show_mcp_info())
+
+
+@mcp_app.command('edit')
+def mcp_edit():
+    """Edit MCP configuration file"""
+    from .mcp_config import MCPConfigManager
+
+    config_manager = MCPConfigManager()
+    config_manager.edit_config_file()

@@ -232,11 +232,11 @@ def render_diff_lines(diff_lines: List[str]):
                 new_line_num = int(match.group(2))
         elif line.startswith('-'):
             removed_line = line[1:].strip('\n\r')
-            lines.append(f'[diff_removed]{old_line_num:{width}d}:-  {removed_line}[/diff_removed]')
+            lines.append(f'[diff_removed]{old_line_num:{width}d}:-  {escape(removed_line)}[/diff_removed]')
             old_line_num += 1
         elif line.startswith('+'):
             added_line = line[1:].strip('\n\r')
-            lines.append(f'[diff_added]{new_line_num:{width}d}:+  {added_line}[/diff_added]')
+            lines.append(f'[diff_added]{new_line_num:{width}d}:+  {escape(added_line)}[/diff_added]')
             new_line_num += 1
         elif line.startswith(' '):
             context_line = line[1:].strip('\n\r')

@@ -260,7 +260,7 @@ def render_glob_args(tool_call: ToolCall):
     tool_call_msg = Text.assemble(
         ('Glob', 'bold'),
         '(',
-        pattern,
+        (pattern, 'white'),
         (path_info, 'italic'),
         ')',
     )
