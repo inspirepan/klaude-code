@@ -22,6 +22,87 @@ TRUNCATE_CHAR_LIMIT = 2000
 TRUNCATE_LINE_LIMIT = 2000
 
 
+class ReadResult:
+    def __init__(self):
+        self.success = True
+        self.error_msg = None
+        self.content = None
+        self.read_line_count = 0
+        self.brief = []
+
+
+def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[int] = None) -> ReadResult:
+    result = ReadResult()
+
+    # Validate file exists
+    is_valid, error_msg = validate_file_exists(file_path)
+    if not is_valid:
+        result.success = False
+        result.error_msg = error_msg
+        return result
+
+    # Read file content
+    content, warning = read_file_content(file_path)
+    if not content and warning:
+        result.success = False
+        result.error_msg = warning
+        return result
+
+    # Cache the file content for potential future edits
+    cache_file_content(file_path, content)
+
+    # Handle empty file
+    if not content:
+        result.content = READ_TOOL_EMPTY_REMINDER
+        return result
+
+    # Split content into lines for offset/limit processing
+    lines = content.splitlines()
+    total_lines = len(lines)
+
+    # Build list of (line_number, content) tuples
+    numbered_lines = [(i + 1, line) for i, line in enumerate(lines)]
+
+    if offset is not None:
+        if offset < 1:
+            result.success = False
+            result.error_msg = 'Offset must be >= 1'
+            return result
+        if offset > total_lines:
+            result.success = False
+            result.error_msg = f'Offset {offset} exceeds file length ({total_lines} lines)'
+            return result
+        numbered_lines = numbered_lines[offset - 1 :]
+
+    if limit is not None:
+        if limit < 1:
+            result.success = False
+            result.error_msg = 'Limit must be >= 1'
+            return result
+        numbered_lines = numbered_lines[:limit]
+
+    # Truncate if necessary
+    truncated_numbered_lines, remaining_line_count = truncate_content(numbered_lines, TRUNCATE_CHAR_LIMIT)
+    formatted_content = ''
+    if len(truncated_numbered_lines) > 0:
+        formatted_content = '\n'.join([f'{line_num}→{line_content}' for line_num, line_content in truncated_numbered_lines])
+    else:
+        # Handle case where single line content exceeds character limit
+        formatted_content = numbered_lines[0][1][:TRUNCATE_CHAR_LIMIT] + '... (more content is truncated)'
+    if remaining_line_count > 0:
+        formatted_content += f'\n... (more {remaining_line_count} lines are truncated)'
+    if warning:
+        formatted_content += f'\n{warning}'
+    formatted_content += READ_TOOL_RESULT_REMINDER
+    formatted_content += f'\n\nFull {total_lines} lines'
+
+    result.content = formatted_content
+    result.read_line_count = len(numbered_lines)
+    result.brief = truncated_numbered_lines[:5]
+
+    return result
+
+
 class ReadTool(Tool):
     name = 'Read'
     desc = READ_TOOL_DESC.format(TRUNCATE_CHAR_LIMIT=TRUNCATE_CHAR_LIMIT, TRUNCATE_LINE_LIMIT=TRUNCATE_LINE_LIMIT)
@@ -36,65 +117,15 @@ class ReadTool(Tool):
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         args: 'ReadTool.Input' = cls.parse_input_args(tool_call)
 
-        # Validate file exists
-        is_valid, error_msg = validate_file_exists(args.file_path)
-        if not is_valid:
-            instance.tool_result().set_error_msg(error_msg)
+        result = execute_read(args.file_path, args.offset, args.limit)
+
+        if not result.success:
+            instance.tool_result().set_error_msg(result.error_msg)
             return
 
-        # Read file content
-        content, warning = read_file_content(args.file_path)
-        if not content and warning:
-            instance.tool_result().set_error_msg(warning)
-            return
-
-        # Cache the file content for potential future edits
-        cache_file_content(args.file_path, content)
-
-        # Handle empty file
-        if not content:
-            instance.tool_result().set_content(READ_TOOL_EMPTY_REMINDER)
-            return
-
-        # Split content into lines for offset/limit processing
-        lines = content.splitlines()
-        total_lines = len(lines)
-
-        # Build list of (line_number, content) tuples
-        numbered_lines = [(i + 1, line) for i, line in enumerate(lines)]
-
-        if args.offset is not None:
-            if args.offset < 1:
-                instance.tool_result().set_error_msg('Offset must be >= 1')
-                return
-            if args.offset > total_lines:
-                instance.tool_result().set_error_msg(f'Offset {args.offset} exceeds file length ({total_lines} lines)')
-                return
-            numbered_lines = numbered_lines[args.offset - 1 :]
-
-        if args.limit is not None:
-            if args.limit < 1:
-                instance.tool_result().set_error_msg('Limit must be >= 1')
-                return
-            numbered_lines = numbered_lines[: args.limit]
-
-        # Truncate if necessary
-        truncated_numbered_lines, remaining_line_count = truncate_content(numbered_lines, TRUNCATE_CHAR_LIMIT)
-        result = ''
-        if len(truncated_numbered_lines) > 0:
-            result = '\n'.join([f'{line_num}→{line_content}' for line_num, line_content in truncated_numbered_lines])
-        else:
-            # Handle case where single line content exceeds character limit
-            result = numbered_lines[0][1][:TRUNCATE_CHAR_LIMIT] + '... (more content is truncated)'
-        if remaining_line_count > 0:
-            result += f'\n... (more {remaining_line_count} lines are truncated)'
-        if warning:
-            result += f'\n{warning}'
-        result += READ_TOOL_RESULT_REMINDER
-        result += f'\n\nFull {total_lines} lines'
-        instance.tool_result().set_content(result)
-        instance.tool_result().set_extra_data('read_line_count', len(numbered_lines))
-        instance.tool_result().set_extra_data('brief', truncated_numbered_lines[:5])
+        instance.tool_result().set_content(result.content)
+        instance.tool_result().set_extra_data('read_line_count', result.read_line_count)
+        instance.tool_result().set_extra_data('brief', result.brief)
 
 
 def render_read_args(tool_call: ToolCall):
