@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Generator
 from rich.abc import RichRenderable
 from rich.console import Group
 from rich.panel import Panel
-from rich.rule import Rule
 from rich.text import Text
 
 from .config import ConfigModel

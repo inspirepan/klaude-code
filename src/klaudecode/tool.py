@@ -57,12 +57,12 @@ class Tool(ABC):
     def tokens(cls) -> int:
         """Calculate total tokens for tool description and parameters"""
         desc_tokens = count_tokens(cls.get_desc())
-        
+
         # Convert parameters to JSON string and count tokens
         params = cls.get_parameters()
         params_text = json.dumps(params, ensure_ascii=False)
         params_tokens = count_tokens(params_text)
-        
+
         return desc_tokens + params_tokens
 
     @classmethod

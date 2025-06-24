@@ -15,7 +15,7 @@ from prompt_toolkit.styles import Style
 from pydantic import BaseModel
 from rich.abc import RichRenderable
 
-from .message import UserMessage, register_user_msg_renderer, register_user_msg_suffix_renderer
+from .message import UserMessage, register_user_msg_content_func, register_user_msg_renderer, register_user_msg_suffix_renderer
 from .prompt.reminder import LANGUAGE_REMINDER
 from .tui import console, render_message
 from .utils import DEFAULT_IGNORE_PATTERNS
@@ -80,6 +80,10 @@ class Command(ABC):
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         return
         yield  # Make sure to return a generator
+
+    def get_content(self, user_msg: UserMessage) -> str:
+        """Generate content for the user message - can be overridden by subclasses"""
+        return user_msg.content
 
     @classmethod
     def is_slash_command(cls) -> bool:
@@ -193,12 +197,14 @@ def register_input_mode(input_mode: InputModeCommand):
     _INPUT_MODES[input_mode.get_name()] = input_mode
     register_user_msg_renderer(input_mode.get_name(), input_mode.render_user_msg)
     register_user_msg_suffix_renderer(input_mode.get_name(), input_mode.render_user_msg_suffix)
+    register_user_msg_content_func(input_mode.get_name(), input_mode.get_content)
 
 
 def register_slash_command(command: Command):
     _SLASH_COMMANDS[command.get_name()] = command
     register_user_msg_renderer(command.get_name(), command.render_user_msg)
     register_user_msg_suffix_renderer(command.get_name(), command.render_user_msg_suffix)
+    register_user_msg_content_func(command.get_name(), command.get_content)
 
 
 # User Input Handler

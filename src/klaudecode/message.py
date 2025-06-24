@@ -7,8 +7,8 @@ from anthropic.types import ContentBlock, MessageParam, TextBlockParam, ToolUseB
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field
 from rich.abc import RichRenderable
-from rich.text import Text
 from rich.rule import Rule
+from rich.text import Text
 
 from .tui import format_style, render_markdown, render_message, render_suffix, truncate_middle_text
 
@@ -169,10 +169,15 @@ class UserMessage(BasicMessage):
                         'text': reminder,
                     }
                 )
+
+        # Check if there's a custom content generator for this user message type
+        main_content = self.content
+        if self.user_msg_type and self.user_msg_type in _USER_MSG_CONTENT_FUNCS:
+            main_content = _USER_MSG_CONTENT_FUNCS[self.user_msg_type](self)
         content_list.append(
             {
                 'type': 'text',
-                'text': self.content,
+                'text': main_content,
             }
         )
         if self.post_system_reminders:
@@ -492,6 +497,7 @@ _TOOL_CALL_RENDERERS = {}
 _TOOL_RESULT_RENDERERS = {}
 _USER_MSG_RENDERERS = {}
 _USER_MSG_SUFFIX_RENDERERS = {}
+_USER_MSG_CONTENT_FUNCS = {}
 
 
 def register_tool_call_renderer(tool_name: str, renderer_func: Callable[[ToolCall], RichRenderable]):
@@ -508,6 +514,11 @@ def register_user_msg_suffix_renderer(user_msg_type: str, renderer_func: Callabl
 
 def register_user_msg_renderer(user_msg_type: str, renderer_func: Callable[[UserMessage], RichRenderable]):
     _USER_MSG_RENDERERS[user_msg_type] = renderer_func
+
+
+def register_user_msg_content_func(user_msg_type: str, content_func: Callable[['UserMessage'], str]):
+    """Register a custom content generator for a specific user message type"""
+    _USER_MSG_CONTENT_FUNCS[user_msg_type] = content_func
 
 
 # Some Default User Message Type Renderers
