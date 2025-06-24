@@ -1,0 +1,21 @@
+from ..user_input import InputModeCommand
+
+
+class PlanMode(InputModeCommand):
+    def get_name(self) -> str:
+        return 'plan'
+
+    def _get_prompt(self) -> str:
+        return '*'
+
+    def _get_color(self) -> str:
+        return '#6aa4a5'
+
+    def get_placeholder(self) -> str:
+        return 'type to start planning...'
+
+    def get_next_mode_name(self) -> str:
+        return 'plan'
+
+    def binding_key(self) -> str:
+        return '*'

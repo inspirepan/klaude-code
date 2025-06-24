@@ -7,40 +7,14 @@ from rich.abc import RichRenderable
 from rich.live import Live
 from rich.text import Text
 
-from .message import UserMessage, render_message, render_suffix
-from .prompt.commands import BASH_INPUT_MODE_CONTENT
-from .tools.bash import BashTool
-from .tui import console
-from .user_input import CommandHandleOutput, InputModeCommand, UserInput, register_input_mode
+from ..message import UserMessage, render_message, render_suffix
+from ..prompt.commands import BASH_INPUT_MODE_CONTENT
+from ..tools.bash import BashTool
+from ..tui import console
+from ..user_input import CommandHandleOutput, InputModeCommand, UserInput
 
 if TYPE_CHECKING:
-    from .agent import Agent
-
-
-# Input Modes
-# ---------------------
-
-
-class PlanMode(InputModeCommand):
-    def get_name(self) -> str:
-        return 'plan'
-
-    def _get_prompt(self) -> str:
-        return '*'
-
-    def _get_color(self) -> str:
-        return '#6aa4a5'
-
-    def get_placeholder(self) -> str:
-        return 'type to start planning...'
-
-    def get_next_mode_name(self) -> str:
-        return 'plan'
-
-    def binding_key(self) -> str:
-        return '*'
-
-    # TODO: Implement handle
+    from ..agent import Agent
 
 
 class BashMode(InputModeCommand):
@@ -103,50 +77,60 @@ class BashMode(InputModeCommand):
                     except Exception:
                         pass
 
-            # Set signal handler
             old_handler = signal.signal(signal.SIGINT, signal_handler)
 
-            with Live(render_suffix(display_text), console=console.console, refresh_per_second=10) as live:
-                while process.poll() is None and not interrupted:
-                    try:
-                        # Read stdout
-                        stdout_output = process.stdout.readline()
-                        if stdout_output:
-                            output_lines.append(stdout_output.rstrip())
-                            # Update display (only show stdout)
-                            display_text = Text()
-                            for line in output_lines[-50:]:  # Only show last 50 lines
-                                display_text.append(line + '\n')
-                            live.update(render_suffix(display_text))
-                        else:
-                            await asyncio.sleep(0.01)
-                    except Exception:
+            with Live(render_suffix(display_text), refresh_per_second=4, console=console) as live:
+                # Read outputs concurrently
+                while True:
+                    if interrupted:
                         break
 
-                # Ensure remaining output is captured
-                if process.poll() is not None and not interrupted:
-                    remaining_stdout = process.stdout.read()
-                    remaining_stderr = process.stderr.read()
+                    if process.poll() is not None:
+                        # Process has finished
+                        break
 
+                    # Read available output
+                    await asyncio.sleep(0.1)  # Small delay to prevent busy waiting
+
+                    # Read stdout
+                    if process.stdout.readable():
+                        try:
+                            line = process.stdout.readline()
+                            if line:
+                                output_lines.append(line.rstrip('\n'))
+                                display_text.append(line)
+                                live.update(render_suffix(display_text))
+                        except Exception:
+                            pass
+
+                    # Read stderr
+                    if process.stderr.readable():
+                        try:
+                            line = process.stderr.readline()
+                            if line:
+                                error_lines.append(line.rstrip('\n'))
+                                display_text.append(line, style='red')
+                                live.update(render_suffix(display_text))
+                        except Exception:
+                            pass
+
+                # Read any remaining output
+                try:
+                    remaining_stdout, remaining_stderr = process.communicate(timeout=1)
                     if remaining_stdout:
-                        for line in remaining_stdout.strip().split('\n'):
-                            if line:
-                                output_lines.append(line)
-
+                        output_lines.extend(remaining_stdout.rstrip('\n').split('\n'))
+                        display_text.append(remaining_stdout)
                     if remaining_stderr:
-                        for line in remaining_stderr.strip().split('\n'):
-                            if line:
-                                error_lines.append(line)
+                        error_lines.extend(remaining_stderr.rstrip('\n').split('\n'))
+                        display_text.append(remaining_stderr, style='red')
+                except subprocess.TimeoutExpired:
+                    pass
 
-                # Final display update
-                display_text = Text()
-                for line in output_lines:
-                    display_text.append(line + '\n')
-
+                # Show exit code if non-zero or interrupted
                 if interrupted:
-                    display_text.append('\n[Command interrupted by user]', style='bold red')
-                    error_lines.append('Command interrupted by user')
-                elif process.poll() is not None and process.returncode != 0:
+                    display_text.append('\n[Process interrupted]', style='bold yellow')
+                    error_lines.append('[Process interrupted]')
+                elif process.returncode != 0:
                     display_text.append(f'\n[Exit code: {process.returncode}]', style='bold red')
 
                 live.update(render_suffix(display_text))
@@ -186,27 +170,3 @@ class BashMode(InputModeCommand):
         stdout = user_msg.get_extra_data('stdout', '')
         stderr = user_msg.get_extra_data('stderr', '')
         return BASH_INPUT_MODE_CONTENT.format(command=command, stdout=stdout, stderr=stderr)
-
-
-class MemoryMode(InputModeCommand):
-    def get_name(self) -> str:
-        return 'memory'
-
-    def _get_prompt(self) -> str:
-        return '#'
-
-    def _get_color(self) -> str:
-        return '#b3b9f4'
-
-    def get_placeholder(self) -> str:
-        return 'type to memorize...'
-
-    def binding_key(self) -> str:
-        return '#'
-
-    # TODO: Implement handle
-
-
-register_input_mode(PlanMode())
-register_input_mode(BashMode())
-register_input_mode(MemoryMode())
