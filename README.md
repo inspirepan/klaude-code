@@ -14,7 +14,7 @@ A powerful coding agent CLI that brings Claude AI's coding capabilities directly
 ## Installation
 
 ### Requirements
-- Python 3.11 or higher
+- Python 3.13 or higher
 - [uv](https://docs.astral.sh/uv/) (recommended) or pip
 
 ### Install from Source
@@ -33,6 +33,22 @@ uv pip install -e .
 
 ## Usage
 
+### Quick Start
+
+```bash
+# Interactive mode
+klaude
+
+# Headless mode (run once and exit)
+klaude --print "Fix the type errors in src/main.py"
+
+# Continue previous session
+klaude --continue
+
+# Enable MCP (Model Context Protocol) support
+klaude --mcp
+```
+
 ### Interactive Mode
 
 Start an interactive coding session:
@@ -43,12 +59,53 @@ klaude
 
 This opens a chat interface where you can ask for help with coding tasks, request code changes, debug issues, and more.
 
+#### Slash Commands
+
+In interactive mode, use these slash commands for quick actions:
+
+```bash
+/status      # Show current configuration and model info
+/clear       # Clear current chat history
+/compact     # Compact conversation and freeup context window
+/theme       # Switch between light and dark themes
+/init        # Initialize project CLAUDE.md
+```
+
+#### Input Modes
+
+Prefix your input with special characters for different modes:
+
+```bash
+!            # Bash mode - execute bash commands directly
+             # Example: ! ls -la
+             # Example: ! git status
+             
+*            # Plan mode - enter planning interface
+             # Example: * plan the user authentication feature
+             # Example: * design the database schema
+
+#            # Memory mode - access session memory and context
+             # Example: # do not add comments
+             # Example: # do not use emoji
+
+@filename    # File reference with auto-completion
+             # Example: @src/main.py to reference a file
+             # Example: @package.json to reference package file
+```
+
 ### Headless Mode
 
 Execute a single prompt and exit:
 
 ```bash
 klaude --print "Fix the type errors in src/main.py"
+```
+
+Useful for automation and scripting:
+
+```bash
+# Run tests and fix errors
+klaude --print "run tests and fix any failing tests"
 ```
 
 ### Continue Previous Session
@@ -61,8 +118,34 @@ klaude --continue
 
 ### Command Line Options
 
+#### Main Options
+
 - `-p, --print <prompt>`: Run in headless mode with the given prompt
+- `-r, --resume`: Choose from previous sessions to resume
 - `-c, --continue`: Continue the latest session
+- `--mcp`: Enable Model Context Protocol support
+
+#### Model Configuration
+
+- `--api-key <key>`: Override API key from config
+- `--model <name>`: Override model name from config
+- `--base-url <url>`: Override base URL from config
+- `--max-tokens <num>`: Override max tokens from config
+- `--model-azure`: Use Azure OpenAI model
+- `--extra-header <header>`: Add extra HTTP header
+- `--thinking`: Enable Claude Extended Thinking capability (Anthropic API only)
+
+#### Subcommands
+
+```bash
+# Configuration management
+klaude config show    # Show current configuration
+klaude config edit    # Edit configuration file
+
+# MCP (Model Context Protocol) management
+klaude mcp show       # Show MCP configuration and available tools
+klaude mcp edit       # Edit MCP configuration file
+```
 
 
 ## Configuration
