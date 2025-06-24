@@ -245,7 +245,7 @@ class AnthropicProxy:
             tool_calls=tool_calls,
             finish_reason=self.convert_stop_reason(resp.stop_reason),
             usage=CompletionUsage(
-                # TODO: cached prompt
+                # TODO: cached prompt token
                 completion_tokens=resp.usage.output_tokens,
                 prompt_tokens=resp.usage.input_tokens,
                 total_tokens=resp.usage.input_tokens + resp.usage.output_tokens,

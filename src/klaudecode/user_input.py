@@ -37,16 +37,23 @@ class UserInput(BaseModel):
 class Command(ABC):
     @abstractmethod
     def get_name(self) -> str:
+        """
+        The name of the command.
+        /{name}
+        """
         raise NotImplementedError
 
     @abstractmethod
     def get_command_desc(self) -> str:
+        """
+        The description of the command.
+        /{name} {desc}
+        """
         raise NotImplementedError
 
     async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
         """
         Handle slash command.
-        By default, return a user message with the command name and the user input.
         Return True to indicate that the agent should run.
         """
         return UserMessage(
@@ -74,19 +81,31 @@ class InputModeCommand(Command, ABC):
 
     @abstractmethod
     def _get_prompt(self) -> str:
+        """
+        The mark of input line, default is '>'
+        """
         raise NotImplementedError
 
     @abstractmethod
     def _get_color(self) -> str:
+        """
+        The color of the input.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def get_placeholder(self) -> str:
+        """
+        The placeholder of the input hint.
+        """
         raise NotImplementedError
 
-    @abstractmethod
+
     def get_next_mode_name(self) -> str:
-        raise NotImplementedError
+        """
+        The name of the next input mode.
+        """
+        return NORMAL_MODE_NAME
 
     async def handle(self, agent: 'Agent', user_input: UserInput) -> Tuple[Optional[UserMessage], bool]:
         return await super().handle(agent, user_input)

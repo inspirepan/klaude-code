@@ -168,8 +168,8 @@ def render_hello() -> RenderResult:
             'type \\ followed by [bold]Enter[/bold] to insert newlines\n'
             'type / to choose slash command\n'
             'type ! to run bash command\n'
-            'type # to write memory\n'
-            'type * to plan mode\n'
+            'type # to memorize\n'
+            'type * to start plan mode\n'
             'run klaude --continue or klaude --resume to resume a conversation',
             mark='※ Tip:',
             style='bright_black',

@@ -14,14 +14,10 @@ from .config import ConfigModel
 from .message import UserMessage
 from .prompt.commands import INIT_COMMAND, RECENT_COMMAND, TODAY_COMMAND
 from .tui import console, render_suffix
-from .user_input import NORMAL_MODE_NAME, Command, InputModeCommand, UserInput, register_slash_command
+from .user_input import Command, UserInput, register_slash_command
 
 if TYPE_CHECKING:
     from .agent import Agent
-"""
-This file is the concrete implementation of `Command` and `InputModeCommand` ABC in `user_input.py`
-"""
-
 
 # Commands
 # ---------------------
@@ -286,77 +282,3 @@ register_slash_command(RecentCommand())
 register_slash_command(ContinueCommand())
 # register_slash_command(CostCommand())
 register_slash_command(MacSetupCommand())
-
-# Input Modes
-# ---------------------
-
-
-class PlanMode(InputModeCommand):
-    def get_name(self) -> str:
-        return 'plan'
-
-    def _get_prompt(self) -> str:
-        return '*'
-
-    def _get_color(self) -> str:
-        return '#6aa4a5'
-
-    def get_placeholder(self) -> str:
-        return 'type plan...'
-
-    def get_next_mode_name(self) -> str:
-        return 'plan'
-
-    def binding_key(self) -> str:
-        return '*'
-
-    # TODO: Implement handle
-
-
-class BashMode(InputModeCommand):
-    def get_name(self) -> str:
-        return 'bash'
-
-    def _get_prompt(self) -> str:
-        return '!'
-
-    def _get_color(self) -> str:
-        return '#ea3386'
-
-    def get_placeholder(self) -> str:
-        return 'type command...'
-
-    def get_next_mode_name(self) -> str:
-        return NORMAL_MODE_NAME
-
-    def binding_key(self) -> str:
-        return '!'
-
-    # TODO: Implement handle
-
-
-class MemoryMode(InputModeCommand):
-    def get_name(self) -> str:
-        return 'memory'
-
-    def _get_prompt(self) -> str:
-        return '#'
-
-    def _get_color(self) -> str:
-        return '#b3b9f4'
-
-    def get_placeholder(self) -> str:
-        return 'type memory...'
-
-    def get_next_mode_name(self) -> str:
-        return NORMAL_MODE_NAME
-
-    def binding_key(self) -> str:
-        return '#'
-
-    # TODO: Implement handle
-
-
-# register_input_mode(PlanMode())
-# register_input_mode(BashMode())
-# register_input_mode(MemoryMode())

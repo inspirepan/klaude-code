@@ -12,7 +12,8 @@ from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
 
-from . import user_command  # noqa: F401 # import user_command to trigger command registration
+from . import user_input_command  # noqa: F401 # import user_command to trigger command registration
+from . import user_input_mode  # noqa: F401 # import user_command to trigger command registration
 from .config import ConfigModel
 from .llm import AgentLLM
 from .message import (

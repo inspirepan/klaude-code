@@ -50,10 +50,10 @@ async def main_async(ctx: typer.Context):
             modified_at = format_relative_time(session.get('updated_at'))
             created_at = format_relative_time(session.get('created_at'))
 
-            option = f'{idx + 1:3}.{modified_at:>12}{created_at:>12}{message_count:>12}  {title_msg:<20}'
+            option = f'{idx + 1:3}.{modified_at:>10}{created_at:>9}{message_count:>12}  {title_msg:<20}'
             options.append(option)
 
-        header = f'{" " * 4}{"Modified":>12}{"Created":>12}{"# Messages":>12}  Title'
+        header = f'{" " * 4}{"Modified":>10}{"Created":>9}{"# Messages":>12}  Title'
 
         idx = await user_select(
             options,
