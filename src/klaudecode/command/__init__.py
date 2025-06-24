@@ -10,6 +10,7 @@ from .plan_input_mode import PlanMode
 from .recent_command import RecentCommand
 from .rewrite_query_command import RewriteQueryCommand
 from .status_command import StatusCommand
+from .theme_command import ThemeCommand
 from .today_command import TodayCommand
 
 __all__ = [
@@ -23,12 +24,13 @@ __all__ = [
     'InitCommand',
     'TodayCommand',
     'RecentCommand',
+    'ThemeCommand',
     'PlanMode',
     'BashMode',
     'MemoryMode',
 ]
 
-from ..user_input import register_slash_command, register_input_mode
+from ..user_input import register_input_mode, register_slash_command
 
 register_input_mode(PlanMode())
 register_input_mode(BashMode())
@@ -42,3 +44,4 @@ register_slash_command(RecentCommand())
 register_slash_command(ContinueCommand())
 # register_slash_command(CostCommand())
 register_slash_command(MacSetupCommand())
+register_slash_command(ThemeCommand())

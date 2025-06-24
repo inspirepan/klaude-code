@@ -9,6 +9,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from ..message import UserMessage
+from ..tui import ColorStyle
 from ..user_input import Command, CommandHandleOutput, UserInput
 
 if TYPE_CHECKING:
@@ -87,8 +88,8 @@ class MacSetupCommand(Command):
 
         if not setup_data.get('success', False):
             # Show error
-            error_text = Text(f'❌ {setup_data.get("error", "Unknown error")}', style='red')
-            yield Panel.fit(error_text, title='Mac Setup Failed', border_style='red')
+            error_text = Text(f'✗ {setup_data.get("error", "Unknown error")}', style=ColorStyle.ERROR)
+            yield Panel.fit(error_text, title='Mac Setup Failed', border_style=ColorStyle.ERROR)
             return
 
         # Show results
@@ -102,25 +103,29 @@ class MacSetupCommand(Command):
             version = result.get('version', '')
 
             if status == 'already_installed':
-                status_text = Text(f'✓ {tool}', style='bold green')
-                status_text.append(f' ({desc}) - Already installed', style='dim')
-                if version and version != 'unknown':
-                    status_text.append(f' - {version}', style='cyan')
+                status_text = Text.assemble(
+                    (f'✓ {tool}', ColorStyle.SUCCESS.bold()),
+                    (f' ({desc}) - Already installed', ColorStyle.MUTED.value),
+                    (f' - {version}', ColorStyle.MUTED.value),
+                )
             elif status == 'installed':
-                status_text = Text(f'🎉 {tool}', style='bright_green')
-                status_text.append(f' ({desc}) - Successfully installed', style='green')
-                if version and version != 'unknown':
-                    status_text.append(f' - {version}', style='cyan')
+                status_text = Text.assemble(
+                    (f'✓ {tool}', ColorStyle.SUCCESS.bold()),
+                    (f' ({desc}) - Successfully installed', ColorStyle.MUTED.value),
+                    (f' - {version}', ColorStyle.MUTED.value),
+                )
             else:  # failed
-                status_text = Text(f'✗ {tool}', style='bold red')
-                status_text.append(f' ({desc}) - Failed', style='red')
-                error = result.get('error', '')
-                if error:
-                    status_text.append(f': {error}', style='dim red')
+                status_text = Text.assemble(
+                    (f'✗ {tool}', ColorStyle.ERROR.bold()),
+                    (f' ({desc}) - Failed', ColorStyle.MUTED.value),
+                    (f': {result.get("error", "")}', ColorStyle.ERROR.value),
+                )
 
             result_items.append(status_text)
 
         if result_items:
             yield Panel.fit(
-                Group(*result_items), title='Mac Setup Results', border_style='green' if all(r['status'] in ['already_installed', 'installed'] for r in results) else 'yellow'
+                Group(*result_items),
+                title='Mac Setup Results',
+                border_style=ColorStyle.SUCCESS if all(r['status'] in ['already_installed', 'installed'] for r in results) else ColorStyle.WARNING,
             )

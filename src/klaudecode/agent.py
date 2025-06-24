@@ -34,7 +34,7 @@ from .prompt.tools import CODE_SEARCH_TASK_TOOL_DESC, TASK_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
-from .tui import INTERRUPT_TIP, clear_last_line, console, format_style, render_hello, render_markdown, render_message, render_status, render_suffix
+from .tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, format_style, render_hello, render_markdown, render_message, render_status, render_suffix
 from .user_input import InputSession, UserInputHandler
 
 DEFAULT_MAX_STEPS = 80
@@ -110,7 +110,7 @@ class Agent(Tool):
         total_tokens = messages_tokens + tools_tokens
         if total_tokens > self.config.context_window_threshold.value * TOKEN_WARNING_THRESHOLD:
             clear_last_line()
-            console.print(f'Notice: total_tokens: {total_tokens}, context_window_threshold: {self.config.context_window_threshold.value}\n', style='yellow')
+            console.print(f'Notice: total_tokens: {total_tokens}, context_window_threshold: {self.config.context_window_threshold.value}\n', style=ColorStyle.WARNING)
         if total_tokens > self.config.context_window_threshold.value:
             await self.session.compact_conversation_history(show_status=self.print_switch)
 
@@ -145,14 +145,14 @@ class Agent(Tool):
 
         except (OpenAIError, AnthropicError) as e:
             clear_last_line()
-            console.print(render_suffix(f'LLM error: {str(e)}', style='red'))
+            console.print(render_suffix(f'LLM error: {str(e)}', style=ColorStyle.ERROR))
             console.print()
             return f'LLM error: {str(e)}'
         except (KeyboardInterrupt, asyncio.CancelledError):
             return self._handle_interruption()
         max_step_msg = f'Max steps {max_steps} reached'
         if self.print_switch:
-            console.print(render_message(max_step_msg, mark_style='blue'))
+            console.print(render_message(max_step_msg, mark_style=ColorStyle.INFO))
             console.print()
         return max_step_msg
 
@@ -232,7 +232,7 @@ class Agent(Tool):
                         Group(
                             f'Running... ([bold]{tool_msg_count}[/bold] tool uses)',
                             f'[italic]see more details in session file: {self.session._get_messages_file_path()}[/italic]',
-                            INTERRUPT_TIP[1:],
+                            Text(INTERRUPT_TIP[1:], style=ColorStyle.MUTED),
                         )
                     )
                     await asyncio.sleep(0.1)
@@ -348,7 +348,7 @@ def render_agent_result(tool_msg: ToolMessage):
             for item in tool_call.get_suffix_renderable():
                 yield render_suffix(item)
     if tool_msg.content:
-        yield render_suffix(Panel.fit(render_markdown(tool_msg.content), border_style='agent_result'))
+        yield render_suffix(Panel.fit(render_markdown(tool_msg.content), border_style=ColorStyle.AGENT_BORDER))
 
 
 register_tool_call_renderer('Task', render_agent_args)

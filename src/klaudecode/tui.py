@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+from enum import Enum
 from typing import Literal, Optional
 
 from rich.abc import RichRenderable
@@ -12,44 +13,107 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
+
+class ColorStyle(str, Enum):
+    AI_MESSAGE = 'ai_message'
+    AI_THINKING = 'ai_thinking'
+    ERROR = 'error'
+    SUCCESS = 'success'
+    WARNING = 'warning'
+    INFO = 'info'
+    HIGHLIGHT = 'highlight'
+    MAIN = 'main'
+    MUTED = 'muted'
+    TODO_COMPLETED = 'todo_completed'
+    TODO_IN_PROGRESS = 'todo_in_progress'
+    AGENT_BORDER = 'agent_border'
+    DIFF_REMOVED_LINE = 'diff_removed_line'
+    DIFF_ADDED_LINE = 'diff_added_line'
+    DIFF_REMOVED_CHAR = 'diff_removed_char'
+    DIFF_ADDED_CHAR = 'diff_added_char'
+    INLINE_CODE = 'inline_code'
+
+    def bold(self) -> str:
+        return f'{self.value} bold'
+
+    def italic(self) -> str:
+        return f'{self.value} italic'
+
+    def bold_italic(self) -> str:
+        return f'bold {self.value} italic'
+
+    def __str__(self) -> str:
+        return self.value
+
+    def __repr__(self) -> str:
+        return self.value
+
+
 light_theme = Theme(
     {
-        'orange': 'rgb(201,125,92)',
-        'blue': 'rgb(62,99,153)',
-        'red': 'rgb(158,57,66)',
-        'green': 'rgb(65,120,64)',
-        'agent_result': 'rgb(210,231,227)',
-        'yellow': 'rgb(143,110,44)',
-        'purple': 'rgb(139,134,248)',
-        'diff_removed': 'white on rgb(242,172,180)',
-        'diff_added': 'white on rgb(133,216,133)',
-        'diff_removed_char': 'white on rgb(193,81,78)',
-        'diff_added_char': 'white on rgb(80,155,78)',
+        # AI and user interaction
+        ColorStyle.AI_MESSAGE: 'rgb(181,105,72)',
+        ColorStyle.AI_THINKING: 'rgb(180,204,245)',
+        # Status indicators
+        ColorStyle.ERROR: 'rgb(158,57,66)',
+        ColorStyle.SUCCESS: 'rgb(65,120,64)',
+        ColorStyle.WARNING: 'rgb(143,110,44)',
+        ColorStyle.INFO: 'rgb(180,204,245)',
+        ColorStyle.HIGHLIGHT: 'rgb(0,3,3)',
+        ColorStyle.MAIN: 'rgb(63,63,63)',
+        ColorStyle.MUTED: 'rgb(126,129,129)',
+        # Todo
+        ColorStyle.TODO_COMPLETED: 'rgb(65,120,64)',
+        ColorStyle.TODO_IN_PROGRESS: 'rgb(180,204,245)',
+        # Tools and agents
+        ColorStyle.AGENT_BORDER: 'rgb(210,231,227)',
+        # Code diff
+        ColorStyle.DIFF_REMOVED_LINE: 'rgb(63,63,63) on rgb(242,172,180)',
+        ColorStyle.DIFF_ADDED_LINE: 'rgb(63,63,63) on rgb(133,216,133)',
+        ColorStyle.DIFF_REMOVED_CHAR: 'rgb(63,63,63) on rgb(193,81,78)',
+        ColorStyle.DIFF_ADDED_CHAR: 'rgb(63,63,63) on rgb(80,155,78)',
+        ColorStyle.INLINE_CODE: 'rgb(109,104,218)',
     }
 )
 
 dark_theme = Theme(
     {
-        'orange': 'rgb(201,125,92)',
-        'blue': 'rgb(62,99,153)',
-        'red': 'rgb(237,116,130)',
-        'green': 'rgb(65,120,64)',
-        'agent_result': 'rgb(10,31,27)',
-        'yellow': 'rgb(143,110,44)',
-        'purple': 'rgb(139,134,248)',
-        'diff_removed': 'white on rgb(242,172,180)',
-        'diff_added': 'white on rgb(133,216,133)',
-        'diff_removed_char': 'white on rgb(193,81,78)',
-        'diff_added_char': 'white on rgb(80,155,78)',
+        # AI and user interaction
+        ColorStyle.AI_MESSAGE: 'rgb(201,125,92)',
+        ColorStyle.AI_THINKING: 'rgb(180,204,245)',
+        # Status indicators
+        ColorStyle.ERROR: 'rgb(237,118,129)',
+        ColorStyle.SUCCESS: 'rgb(107,184,109)',
+        ColorStyle.WARNING: 'rgb(143,110,44)',
+        ColorStyle.INFO: 'rgb(180,204,245)',
+        ColorStyle.HIGHLIGHT: 'rgb(255,255,255)',
+        ColorStyle.MAIN: 'rgb(210,210,210)',
+        ColorStyle.MUTED: 'rgb(151,153,153)',
+        # Todo
+        ColorStyle.TODO_COMPLETED: 'rgb(107,184,109)',
+        ColorStyle.TODO_IN_PROGRESS: 'rgb(180,204,245)',
+        # Tools and agents
+        ColorStyle.AGENT_BORDER: 'rgb(110,131,127)',
+        # Code diff
+        ColorStyle.DIFF_REMOVED_LINE: 'rgb(255,255,255) on rgb(112,47,55)',
+        ColorStyle.DIFF_ADDED_LINE: 'rgb(255,255,255) on rgb(49,91,48)',
+        ColorStyle.DIFF_REMOVED_CHAR: 'rgb(255,255,255) on rgb(167,95,107)',
+        ColorStyle.DIFF_ADDED_CHAR: 'rgb(255,255,255) on rgb(88,164,102)',
+        ColorStyle.INLINE_CODE: 'rgb(180,184,245)',
     }
 )
 
 
 class ConsoleProxy:
     def __init__(self):
-        # TODO: theme detect or config
-        self.console = Console(theme=light_theme)
+        self.console = Console(theme=light_theme, style=ColorStyle.MAIN.value)
         self.silent = False
+
+    def set_theme(self, theme_name: str):
+        if theme_name == 'dark':
+            self.console = Console(theme=dark_theme, style=ColorStyle.MAIN.value)
+        else:
+            self.console = Console(theme=light_theme, style=ColorStyle.MAIN.value)
 
     def print(self, *args, **kwargs):
         if not self.silent:
@@ -62,17 +126,20 @@ class ConsoleProxy:
 console = ConsoleProxy()
 
 
-INTERRUPT_TIP = ' [bright_black]Press ctrl+c to interrupt[/bright_black]  '
+def format_style(content: str, style: Optional[str] = None):
+    if style and isinstance(content, str):
+        # Handle ColorStyle enum values
+        if hasattr(style, 'value'):
+            style = style.value
+        return f'[{style}]{content}[/{style}]'
+    return content
+
+
+INTERRUPT_TIP = ' Press ctrl+c to interrupt  '
 
 
 def render_status(status: str, spinner: str = 'dots', spinner_style: str = ''):
-    return Status(status + INTERRUPT_TIP, console=console.console, spinner=spinner, spinner_style=spinner_style)
-
-
-def format_style(content: str, style: Optional[str] = None):
-    if style and isinstance(content, str):
-        return f'[{style}]{content}[/{style}]'
-    return content
+    return Status(Text.assemble(status, (INTERRUPT_TIP, ColorStyle.MUTED.value)), console=console.console, spinner=spinner, spinner_style=spinner_style)
 
 
 def render_message(
@@ -88,9 +155,9 @@ def render_message(
     table.add_column(width=mark_width, no_wrap=True)
     table.add_column(overflow='fold')
     if status == 'error':
-        mark = format_style(mark, 'red')
+        mark = format_style(mark, ColorStyle.ERROR)
     elif status == 'canceled':
-        mark = format_style(mark, 'yellow')
+        mark = format_style(mark, ColorStyle.WARNING)
     elif status == 'processing':
         mark = format_style('○', mark_style)
     else:
@@ -120,8 +187,8 @@ def render_markdown(text: str) -> str:
     # Handle italic: *text* -> [italic]text[/italic]
     text = re.sub(r'\*([^*\n]+?)\*', r'[italic]\1[/italic]', text)
 
-    # Handle inline code: `text` -> [purple]text[/purple]
-    text = re.sub(r'`([^`\n]+?)`', r'[purple]\1[/purple]', text)
+    # Handle inline code: `text` -> [inline_code]text[/inline_code]
+    text = re.sub(r'`([^`\n]+?)`', r'[inline_code]\1[/inline_code]', text)
 
     # Handle inline lists, replace number symbols
     lines = text.split('\n')
@@ -132,11 +199,11 @@ def render_markdown(text: str) -> str:
         if line.strip().startswith('#'):
             # Keep all # symbols and bold the entire line
             line = f'[bold]{line}[/bold]'
-        # Handle blockquotes: > text -> [bright_black]▌ text[/bright_black]
+        # Handle blockquotes: > text -> [muted]▌ text[/muted]
         elif line.strip().startswith('>'):
             # Remove > symbol and maintain indentation
             quote_content = re.sub(r'^(\s*)>\s?', r'\1', line)
-            line = f'[bright_black]▌ {quote_content}[/bright_black]'
+            line = f'[muted]▌ {quote_content}[/muted]'
         else:
             # Match numbered lists: 1. -> •
             line = re.sub(r'^(\s*)(\d+)\.\s+', r'\1• ', line)
@@ -152,30 +219,30 @@ def render_hello() -> RenderResult:
     table.add_column(width=0, no_wrap=True)
     table.add_column(overflow='fold')
     table.add_row(
-        '[orange]✻[/orange]',
+        Text('✻', style=ColorStyle.AI_MESSAGE),
         Group(
             'Welcome to [bold]Klaude Code[/bold]!',
             '',
             '[italic]/status for your current setup[/italic]',
             '',
-            format_style('cwd: {}'.format(os.getcwd()), 'bright_black'),
+            format_style('cwd: {}'.format(os.getcwd()), ColorStyle.MUTED),
         ),
     )
     return Group(
-        Panel.fit(table, border_style='orange'),
+        Panel.fit(table, border_style=ColorStyle.AI_MESSAGE),
         '',
         render_message(
-            'type [bold]\\\[/bold] followed by [bold]Enter[/bold] to insert newlines\n'
-            'type [bold]/[/bold] to choose slash command\n'
-            'type [bold]![/bold] to run bash command\n'
-            'type [bold]#[/bold] to memorize\n'
-            'type [bold]*[/bold] to start plan mode\n'
-            'type [bold]@[/bold] to mention a file\n'
+            'type \\ followed by [bold]Enter[/bold] to insert newlines\n'
+            'type / to choose slash command\n'
+            'type ! to run bash command\n'
+            'type # to memorize\n'
+            'type * to start plan mode\n'
+            'type @ to mention a file\n'
             'run [bold]klaude --continue[/bold] or [bold]klaude --resume[/bold] to resume a conversation\n'
             'run [bold]klaude mcp edit[/bold] to setup MCP, run [bold]klaude --mcp[/bold] to enable MCP',
             mark='※ Tips:',
-            style='bright_black',
-            mark_style='bright_black',
+            style=ColorStyle.MUTED,
+            mark_style=ColorStyle.MUTED,
             mark_width=6,
         ),
         '',
@@ -196,9 +263,9 @@ def truncate_middle_text(text: str, max_lines: int = 30) -> RichRenderable:
     tail_content = '\n'.join(lines[-tail_lines:])
     return Group(
         head_content,
-        Text('···', style='bright_black'),
-        Text.assemble('+ ', Text(str(middle_lines), style='bold'), ' lines', style='bright_black'),
-        Text('···', style='bright_black'),
+        Text('···', style=ColorStyle.MUTED),
+        Text.assemble('+ ', Text(str(middle_lines), style='bold'), ' lines', style=ColorStyle.MUTED),
+        Text('···', style=ColorStyle.MUTED),
         tail_content,
     )
 

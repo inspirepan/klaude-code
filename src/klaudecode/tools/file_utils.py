@@ -8,6 +8,8 @@ from typing import Dict, List, Tuple
 from rich.console import Group
 from rich.markup import escape
 
+from ..tui import ColorStyle
+
 """
 - File validation functions (existence, cache status)
 - Content processing functions (string replacement, occurrence counting)
@@ -232,11 +234,11 @@ def render_diff_lines(diff_lines: List[str]):
                 new_line_num = int(match.group(2))
         elif line.startswith('-'):
             removed_line = line[1:].strip('\n\r')
-            lines.append(f'[diff_removed]{old_line_num:{width}d}:-  {escape(removed_line)}[/diff_removed]')
+            lines.append(f'[{ColorStyle.DIFF_REMOVED_LINE.value}]{old_line_num:{width}d}:-  {escape(removed_line)}[/{ColorStyle.DIFF_REMOVED_LINE.value}]')
             old_line_num += 1
         elif line.startswith('+'):
             added_line = line[1:].strip('\n\r')
-            lines.append(f'[diff_added]{new_line_num:{width}d}:+  {escape(added_line)}[/diff_added]')
+            lines.append(f'[{ColorStyle.DIFF_ADDED_LINE.value}]{new_line_num:{width}d}:+  {escape(added_line)}[/{ColorStyle.DIFF_ADDED_LINE.value}]')
             new_line_num += 1
         elif line.startswith(' '):
             context_line = line[1:].strip('\n\r')

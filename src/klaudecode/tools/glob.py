@@ -10,7 +10,7 @@ from rich.text import Text
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import GLOB_TOOL_DESC
 from ..tool import Tool, ToolInstance
-from ..tui import render_suffix
+from ..tui import ColorStyle, render_suffix
 from ..utils import DEFAULT_IGNORE_PATTERNS
 
 DEFAULT_MAX_DEPTH = 10
@@ -260,7 +260,7 @@ def render_glob_args(tool_call: ToolCall):
     tool_call_msg = Text.assemble(
         ('Glob', 'bold'),
         '(',
-        (pattern, 'purple'),
+        (pattern, ColorStyle.INLINE_CODE.value),
         path_info,
         ')',
     )
@@ -277,7 +277,7 @@ def render_glob_content(tool_msg: ToolMessage):
     count_text.append(' files')
 
     if truncated:
-        count_text.append(f' (truncated to {DEFAULT_MAX_FILES} files)', style='yellow')
+        count_text.append(f' (truncated to {DEFAULT_MAX_FILES} files)', style=ColorStyle.WARNING)
 
     yield render_suffix(count_text)
 

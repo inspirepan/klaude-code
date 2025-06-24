@@ -8,10 +8,11 @@ from openai.types.chat import ChatCompletionMessageToolCall
 from openai.types.chat.chat_completion_chunk import Choice, ChoiceDeltaToolCall
 from openai.types.chat.chat_completion_message_tool_call import Function
 from rich.status import Status
+from rich.text import Text
 
 from .message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, count_tokens
 from .tool import Tool
-from .tui import INTERRUPT_TIP, clear_last_line, console, render_message, render_status, render_suffix
+from .tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, render_message, render_status, render_suffix
 
 DEFAULT_RETRIES = 3
 DEFAULT_RETRY_BACKOFF_BASE = 0.5
@@ -130,11 +131,11 @@ class OpenAIProxy:
                 completion_tokens = usage.completion_tokens
                 total_tokens = usage.total_tokens
                 if status:
-                    status.update(f'{status_text} [green]↓ {completion_tokens} tokens[/green] {INTERRUPT_TIP}')
+                    status.update(Text.assemble(status_text, (f' ↓ {completion_tokens} ', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
             else:
                 completion_tokens = count_tokens(content) + count_tokens(thinking_content) + tool_call_chunk_accumulator.count_tokens()
                 if status:
-                    status.update(f'{status_text} [green]↓ {completion_tokens} tokens[/green] {INTERRUPT_TIP}')
+                    status.update(Text.assemble(status_text, (f' ↓ {completion_tokens} ', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
 
         tokens_used = CompletionUsage(
             prompt_tokens=prompt_tokens,
@@ -324,14 +325,14 @@ class AnthropicProxy:
                 if hasattr(event, 'usage') and event.usage:
                     output_tokens = event.usage.output_tokens
                     if status:
-                        status.update(f'{status_text} [green]↓ {output_tokens} tokens[/green] {INTERRUPT_TIP}')
+                        status.update(Text.assemble(status_text, (f' ↓ {output_tokens} ', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
             elif event.type == 'message_stop':
                 pass
             estimated_tokens = count_tokens(content) + count_tokens(thinking_content)
             for json_str in tool_json_fragments.values():
                 estimated_tokens += count_tokens(json_str)
             if status and estimated_tokens:
-                status.update(f'{status_text} [green]↓ {estimated_tokens} tokens[/green] {INTERRUPT_TIP}')
+                status.update(Text.assemble(status_text, (f' ↓ {estimated_tokens} ', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
         return AIMessage(
             content=content,
             thinking_content=thinking_content,
@@ -416,24 +417,23 @@ class LLMProxy:
                 raise
             except Exception as e:
                 last_exception = e
-                if attempt < self.max_retries - 1:
-                    delay = self.backoff_base * (2**attempt)
-                    if show_status:
-                        if attempt == 0:
-                            clear_last_line()
-                        console.print(render_suffix(f'Retry {attempt + 1}/{self.max_retries}: call failed - {str(e)}, waiting {delay:.1f}s', style='red'))
-                        # console.print(render_suffix(f'Retry {attempt + 1}/{self.max_retries}: call failed - {str(e)}, waiting {delay:.1f}s', style='red'))
-                        with render_status(f'Waiting {delay:.1f}s...'):
-                            await asyncio.sleep(delay)
-                    else:
+                delay = self.backoff_base * (2**attempt)
+                if show_status:
+                    if attempt == 0:
+                        clear_last_line()
+                    console.print(render_suffix(f'Retry {attempt + 1}/{self.max_retries}: call failed - {str(e)}, waiting {delay:.1f}s', style=ColorStyle.ERROR))
+                    with render_status(f'Waiting {delay:.1f}s...'):
                         await asyncio.sleep(delay)
+                else:
+                    await asyncio.sleep(delay)
             finally:
-                if attempt > 0 and attempt < self.max_retries - 1:
+                if attempt > 0 and attempt < self.max_retries:
                     console.print()
+        clear_last_line()
         console.print(
             render_suffix(
                 f'Final failure: call failed after {self.max_retries} retries - {last_exception}',
-                style='red',
+                style=ColorStyle.ERROR,
             )
         )
         console.print()
@@ -463,7 +463,7 @@ class LLMProxy:
             if attempt > max_continuations:
                 break
             if show_status:
-                console.print(render_message('Continuing...', style='yellow'))
+                console.print(render_message('Continuing...', style=ColorStyle.WARNING))
             current_msgs.append({'role': 'assistant', 'content': response.content})
 
         return merged_response

@@ -3,12 +3,12 @@ import json
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
-from rich.console import Group
+from rich.console import Group, Text
 from rich.table import Table
 
 from ..message import ToolCall
 from ..tool import Tool, ToolInstance
-from ..tui import console, format_style
+from ..tui import ColorStyle, console
 from .mcp_client import MCPClient
 
 
@@ -149,7 +149,7 @@ class MCPManager:
                     wrapper_class = MCPToolWrapper.create_from_mcp_tool(tool_info, self.mcp_client)
                     self.mcp_tools[wrapper_class.name] = wrapper_class
                 except Exception as e:
-                    console.print(format_style(f'Failed to create wrapper for MCP tool {tool_info["name"]}: {e}', 'red'))
+                    console.print(f'Failed to create wrapper for MCP tool {tool_info["name"]}: {e}', style=ColorStyle.ERROR)
 
         self._initialized = success
         return success
@@ -176,26 +176,30 @@ class MCPManager:
         config_manager = MCPConfigManager()
         config = config_manager.load_config()
 
-        yield f'\nMCP configuration file path: [green]{config_manager.get_config_path()}[/green]'
+        yield Text.assemble(
+            '\nMCP configuration file path: ',
+            (str(config_manager.get_config_path()), ColorStyle.SUCCESS.value),
+            '\n',
+        )
 
         # Show configured servers
         if not config.mcpServers:
-            yield '[yellow]No MCP servers configured[/yellow]'
+            yield Text('No MCP servers configured', style=ColorStyle.WARNING.value)
             return
 
-        yield '\n[bold]Configured MCP servers:[/bold]'
+        yield Text('\nConfigured MCP servers:', style='bold')
         server_table = Table.grid(padding=(0, 1))
         server_table.add_column(no_wrap=True)
         server_table.add_column(no_wrap=True)
         server_table.add_column(overflow='fold')
         for name, server_config in config.mcpServers.items():
             args_str = ' '.join(server_config.args) if server_config.args else ''
-            server_table.add_row(f'[cyan]{name}[/cyan]', server_config.command, args_str)
+            server_table.add_row(Text(name, style=ColorStyle.SUCCESS), Text(server_config.command), Text(args_str))
         yield server_table
 
         # Show tools if initialized
         if self._initialized and self.mcp_client and self.mcp_client.tools:
-            yield f'\n[bold green]Available MCP tools ({len(self.mcp_client.tools)}):[/bold green]'
+            yield Text(f'\nAvailable MCP tools ({len(self.mcp_client.tools)}):', style=ColorStyle.SUCCESS.bold())
 
             # Group tools by server
             tools_by_server = {}
@@ -230,8 +234,10 @@ class MCPManager:
                             param_desc = param_schema.get('description', '')
                             is_required = param_name in required_fields
                             required_indicator = '*' if is_required else ''
-                            param_table.add_row(f'· [bold white]{param_name}[/bold white]{required_indicator}', f'[blue]{param_type}[/blue]', f'{param_desc}')
-                        main_table.add_row(f'[green]mcp__{tool_name}[/green]', Group(tool_desc, '', param_table, ''))
+                            param_table.add_row(
+                                Text(f'· {param_name}{required_indicator}', style=ColorStyle.HIGHLIGHT.bold()), Text(param_type, style=ColorStyle.INFO), Text(param_desc)
+                            )
+                        main_table.add_row(Text(f'mcp__{tool_name}', style=ColorStyle.SUCCESS), Group(tool_desc, '', param_table, ''))
                     else:
                         main_table.add_row('', tool_desc)
 
@@ -240,6 +246,6 @@ class MCPManager:
 
             yield main_table
         elif not self._initialized:
-            yield '\n[yellow]MCP tools not loaded (manager not initialized)[/yellow]'
+            yield Text('\nMCP tools not loaded (manager not initialized)', style=ColorStyle.WARNING)
         else:
-            yield '\n[yellow]Unable to connect to any MCP servers or no tools available[/yellow]'
+            yield Text('\nUnable to connect to any MCP servers or no tools available', style=ColorStyle.WARNING)

@@ -13,6 +13,7 @@ from rich.text import Text
 from ..message import ToolCall, register_tool_call_renderer
 from ..prompt.tools import BASH_TOOL_DESC
 from ..tool import Tool, ToolInstance
+from ..tui import ColorStyle
 
 
 class BashTool(Tool):
@@ -330,8 +331,8 @@ def render_bash_args(tool_call: ToolCall):
     tool_call_msg = Text.assemble(
         (tool_call.tool_name, 'bold'),
         '(',
-        (f'{description} → ' if description else '', 'orange'),
-        (tool_call.tool_args_dict.get('command', ''), 'white'),
+        (f'{description} → ' if description else '', ColorStyle.AI_MESSAGE.value),
+        (tool_call.tool_args_dict.get('command', ''), ColorStyle.HIGHLIGHT.value),
         ')',
     )
     yield tool_call_msg

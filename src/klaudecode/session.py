@@ -13,7 +13,7 @@ from .llm import AgentLLM
 from .message import AIMessage, BasicMessage, SpecialUserMessageTypeEnum, SystemMessage, ToolMessage, UserMessage
 from .prompt.commands import COMACT_SYSTEM_PROMPT, COMPACT_COMMAND, COMPACT_MSG_PREFIX
 from .tools.todo import TodoList
-from .tui import console
+from .tui import ColorStyle, console, format_style
 from .utils import sanitize_filename
 
 
@@ -161,7 +161,7 @@ class Session(BaseModel):
                 json.dump(messages_data, f, indent=2, ensure_ascii=False)
 
         except Exception as e:
-            console.print(f'[red]Failed to save session - error: {e}[/red]')
+            console.print(format_style(f'Failed to save session - error: {e}', ColorStyle.ERROR))
 
     @classmethod
     def load(cls, session_id: str, work_dir: str = os.getcwd()) -> Optional['Session']:
@@ -221,7 +221,7 @@ class Session(BaseModel):
             return session
 
         except Exception as e:
-            console.print(f'[red]Failed to load session {session_id}: {e}[/red]')
+            console.print(format_style(f'Failed to load session {session_id}: {e}', ColorStyle.ERROR))
             return None
 
     def fork(self) -> 'Session':
@@ -258,13 +258,13 @@ class Session(BaseModel):
                         }
                     )
                 except Exception as e:
-                    console.print(f'[yellow]Warning: Failed to read metadata file {metadata_file}: {e}[/yellow]')
+                    console.print(format_style(f'Warning: Failed to read metadata file {metadata_file}: {e}', ColorStyle.WARNING))
                     continue
             sessions.sort(key=lambda x: x.get('updated_at', 0), reverse=True)
             return sessions
 
         except Exception as e:
-            console.print(f'[red]Failed to list sessions: {e}[/red]')
+            console.print(format_style(f'Failed to list sessions: {e}', ColorStyle.ERROR))
             return []
 
     @classmethod

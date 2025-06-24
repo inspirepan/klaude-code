@@ -5,15 +5,23 @@ from typing import Optional
 import typer
 
 from .agent import get_main_agent
-from .config import ConfigManager
+from .config import ConfigManager, ConfigModel
 from .message import SystemMessage
 from .prompt.system import STATIC_SYSTEM_PROMPT, get_system_prompt_dynamic_part
 from .session import Session
-from .tui import console
+from .tui import ColorStyle, console, format_style
 from .user_questionary import user_select
 from .utils import format_relative_time
 
 app = typer.Typer(help='Coding Agent CLI', add_completion=False)
+
+
+def setup_config(**kwargs) -> ConfigModel:
+    config_manager = ConfigManager.setup(**kwargs)
+    config_model = config_manager.get_config_model()
+    if hasattr(config_model, 'theme') and config_model.theme:
+        console.set_theme(config_model.theme.value)
+    return config_model
 
 
 async def main_async(ctx: typer.Context):
@@ -36,7 +44,7 @@ async def main_async(ctx: typer.Context):
     if ctx.obj['continue_latest']:
         session = Session.get_latest_session(os.getcwd())
         if not session:
-            console.print('[red]No session found[/red]')
+            console.print(format_style('No session found', ColorStyle.ERROR))
             return
         session = session.fork()
     elif ctx.obj['resume']:
@@ -75,7 +83,7 @@ async def main_async(ctx: typer.Context):
     except KeyboardInterrupt:
         pass
     finally:
-        console.print('\n[orange]Bye![/orange]')
+        console.print(format_style('\nBye!', ColorStyle.AI_MESSAGE))
 
 
 @app.callback(invoke_without_command=True)
@@ -111,7 +119,7 @@ def main(
 ):
     ctx.ensure_object(dict)
     if ctx.invoked_subcommand is None:
-        config_manager = ConfigManager.setup(
+        config_model = setup_config(
             api_key=api_key,
             model_name=model,
             base_url=base_url,
@@ -120,12 +128,13 @@ def main(
             extra_header=extra_header,
             enable_thinking=thinking,
         )
+
         ctx.obj['prompt'] = prompt
         ctx.obj['resume'] = resume
         ctx.obj['continue_latest'] = continue_latest
         ctx.obj['mcp'] = mcp
         # ctx.obj['verbose'] = verbose
-        ctx.obj['config'] = config_manager.get_config_model()
+        ctx.obj['config'] = config_model
         asyncio.run(main_async(ctx))
 
 
@@ -157,13 +166,15 @@ def mcp_show():
 
     from .mcp.mcp_tool import MCPManager
 
+    _ = setup_config()
+
     async def show_mcp_info():
         mcp_manager = MCPManager()
         try:
             await mcp_manager.initialize()
             console.print(mcp_manager)
         except Exception as e:
-            console.print(f'[red]Error connecting to MCP servers: {e}[/red]')
+            console.print(format_style(f'Error connecting to MCP servers: {e}', ColorStyle.ERROR))
         finally:
             await mcp_manager.shutdown()
 

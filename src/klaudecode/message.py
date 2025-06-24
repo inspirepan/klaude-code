@@ -7,10 +7,11 @@ from anthropic.types import ContentBlock, MessageParam, TextBlockParam, ToolUseB
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field
 from rich.abc import RichRenderable
+from rich.markup import escape
 from rich.rule import Rule
 from rich.text import Text
 
-from .tui import format_style, render_markdown, render_message, render_suffix, truncate_middle_text
+from .tui import ColorStyle, format_style, render_markdown, render_message, render_suffix, truncate_middle_text
 
 INTERRUPTED_MSG = 'Interrupted by user'
 
@@ -198,7 +199,7 @@ class UserMessage(BasicMessage):
 
     def __rich_console__(self, console, options):
         if not self.user_msg_type or self.user_msg_type not in _USER_MSG_RENDERERS:
-            yield render_message(self.content, mark='>')
+            yield render_message(escape(self.content), mark='>')
         else:
             for item in _USER_MSG_RENDERERS[self.user_msg_type](self):
                 yield item
@@ -212,7 +213,7 @@ class UserMessage(BasicMessage):
                 yield item
         if self.get_extra_data('error_msgs'):
             for error in self.get_extra_data('error_msgs'):
-                yield render_suffix(error, style='red')
+                yield render_suffix(error, style=ColorStyle.ERROR)
 
     def __bool__(self):
         return not self.removed and bool(self.content)
@@ -283,12 +284,12 @@ class ToolCall(BaseModel):
         if self.tool_name in _TOOL_CALL_RENDERERS:
             for i, item in enumerate(_TOOL_CALL_RENDERERS[self.tool_name](self)):
                 if i == 0:
-                    yield render_message(item, mark_style='green', status=self.status)
+                    yield render_message(item, mark_style=ColorStyle.SUCCESS, status=self.status)
                 else:
                     yield item
         else:
             msg = Text.assemble((self.tool_name, 'bold'), '(', self.tool_args, ')')
-            yield render_message(msg, mark_style='green', status=self.status)
+            yield render_message(msg, mark_style=ColorStyle.SUCCESS, status=self.status)
 
     def get_suffix_renderable(self):
         if self.tool_name in _TOOL_CALL_RENDERERS:
@@ -345,7 +346,7 @@ class AIMessage(BasicMessage):
         )
 
     def __rich_console__(self, console, options):
-        THINKING_STYLE = 'blue'
+        THINKING_STYLE = ColorStyle.AI_THINKING
         if self.thinking_content:
             yield render_message(
                 format_style('Thinking...', THINKING_STYLE),
@@ -360,7 +361,7 @@ class AIMessage(BasicMessage):
             )
             yield ''
         if self.content:
-            yield render_message(render_markdown(self.content), mark_style='orange', style='orange')
+            yield render_message(render_markdown(self.content), mark_style=ColorStyle.AI_MESSAGE, style=ColorStyle.AI_MESSAGE)
             yield ''
 
     def __bool__(self):
@@ -445,15 +446,15 @@ class ToolMessage(BasicMessage):
             if self.content:
                 yield render_suffix(
                     truncate_middle_text(self.content) if isinstance(self.content, str) else self.content,
-                    style='red' if self.tool_call.status == 'error' else None,
+                    style=ColorStyle.ERROR if self.tool_call.status == 'error' else None,
                 )
             elif self.tool_call.status == 'success':
                 yield render_suffix('(No content)')
 
         if self.tool_call.status == 'canceled':
-            yield render_suffix(INTERRUPTED_MSG, style='red')
+            yield render_suffix(INTERRUPTED_MSG, style=ColorStyle.WARNING)
         elif self.tool_call.status == 'error':
-            yield render_suffix(self.error_msg, style='red')
+            yield render_suffix(self.error_msg, style=ColorStyle.ERROR)
         yield ''
 
     def __rich_console__(self, console, options):
@@ -526,12 +527,12 @@ def register_user_msg_content_func(user_msg_type: str, content_func: Callable[['
 
 
 def interrupted_renderer(user_msg: UserMessage):
-    yield render_message(INTERRUPTED_MSG, style='red', mark='>', mark_style='red')
+    yield render_message(INTERRUPTED_MSG, style=ColorStyle.ERROR, mark='>', mark_style=ColorStyle.ERROR)
 
 
 def compact_renderer(user_msg: UserMessage):
-    yield Rule(title=Text('Previous Conversation Compacted', 'bold white'), characters='=', style='white')
-    yield render_message(user_msg.content, mark='✻', mark_style='blue', style='blue italic')
+    yield Rule(title=Text('Previous Conversation Compacted', ColorStyle.HIGHLIGHT.bold()), characters='=', style=ColorStyle.HIGHLIGHT.value)
+    yield render_message(user_msg.content, mark='✻', mark_style=ColorStyle.AI_THINKING, style=ColorStyle.AI_THINKING.italic())
 
 
 register_user_msg_renderer(SpecialUserMessageTypeEnum.INTERRUPTED.value, interrupted_renderer)

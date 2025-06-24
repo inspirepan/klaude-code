@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from ..tui import console, format_style
+from ..tui import ColorStyle, console
 
 
 class MCPServerConfig(BaseModel):
@@ -49,7 +49,7 @@ class MCPConfigManager:
                 self._config = MCPConfig.model_validate(config_data)
                 return self._config
         except (json.JSONDecodeError, IOError) as e:
-            console.print(format_style(f'Warning: Failed to load MCP config: {e}', 'yellow'))
+            console.print(f'Warning: Failed to load MCP config: {e}', style=ColorStyle.WARNING)
             self._config = MCPConfig()
             return self._config
 
@@ -65,7 +65,7 @@ class MCPConfigManager:
             self._config = config
             return True
         except (IOError, OSError) as e:
-            console.print(format_style(f'Error: Failed to save MCP config: {e}', 'red'))
+            console.print(f'Error: Failed to save MCP config: {e}', style=ColorStyle.ERROR)
             return False
 
     def add_server(self, name: str, command: str, args: List[str] = None, env: Dict[str, str] = None) -> bool:
@@ -73,7 +73,7 @@ class MCPConfigManager:
         config = self.load_config()
 
         if name in config.mcpServers:
-            console.print(format_style(f'Server "{name}" already exists', 'yellow'))
+            console.print(f'Server "{name}" already exists', style=ColorStyle.WARNING)
             return False
 
         config.mcpServers[name] = MCPServerConfig(command=command, args=args, env=env)
@@ -85,7 +85,7 @@ class MCPConfigManager:
         config = self.load_config()
 
         if name not in config.mcpServers:
-            console.print(format_style(f'Server "{name}" not found', 'red'))
+            console.print(f'Server "{name}" not found', style=ColorStyle.ERROR)
             return False
 
         del config.mcpServers[name]
@@ -106,7 +106,7 @@ class MCPConfigManager:
         if not self.config_path.exists():
             self.create_example_config()
 
-        console.print(format_style(f'Opening MCP config file: {self.config_path}', 'green'))
+        console.print(f'Opening MCP config file: {self.config_path}', style=ColorStyle.SUCCESS)
 
         import sys
 

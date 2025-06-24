@@ -8,9 +8,10 @@ from pydantic import BaseModel
 from rich import box
 from rich.console import Group
 from rich.panel import Panel
+from rich.text import Text
 from rich.table import Table
 
-from .tui import console, format_style
+from .tui import ColorStyle, console, format_style
 
 """
 Unified configuration management system
@@ -25,6 +26,7 @@ DEFAULT_MODEL_AZURE = False
 DEFAULT_MAX_TOKENS = 8196
 DEFAULT_EXTRA_HEADER = {}
 DEFAULT_ENABLE_THINKING = False
+DEFAULT_THEME = 'light'
 
 T = TypeVar('T')
 
@@ -51,6 +53,7 @@ class ConfigModel(BaseModel):
     context_window_threshold: Optional[ConfigValue[int]] = None
     extra_header: Optional[ConfigValue[Union[Dict, str]]] = None
     enable_thinking: Optional[ConfigValue[bool]] = None
+    theme: Optional[ConfigValue[str]] = None
 
     def __init__(self, source: str = 'unknown', **data):
         # Convert plain values to ConfigValue objects with source
@@ -94,21 +97,22 @@ class ConfigModel(BaseModel):
             ('context_window_threshold', 'Context Threshold'),
             ('extra_header', 'Extra Header'),
             ('enable_thinking', 'Extended Thinking'),
+            ('theme', 'Theme'),
         ]
 
         for key, display_name in config_items:
             config_value = getattr(self, key, None)
             if config_value and config_value.value is not None:
-                status = format_style('✓', 'green bold')
+                status = Text('✓', style=ColorStyle.SUCCESS)
                 value = str(config_value.value)
                 source = f'from {config_value.source}'
             else:
-                status = format_style('✗', 'red bold')
-                value = format_style('Not Set', 'red')
+                status = Text('✗', style=ColorStyle.ERROR.bold())
+                value = Text('Not Set', style=ColorStyle.ERROR)
                 source = ''
             table.add_row(
                 status,
-                format_style(display_name, 'bold bright_black'),
+                Text(display_name, style=ColorStyle.MUTED),
                 value,
                 source,
             )
@@ -226,7 +230,7 @@ class GlobalConfigSource(ConfigSource):
                 filtered_data = {k: v for k, v in config_data.items() if k in valid_fields}
                 self.config_model = ConfigModel(source='config', **filtered_data)
         except (json.JSONDecodeError, IOError) as e:
-            console.print(format_style(f'Warning: Failed to load config: {e}', 'yellow'))
+            console.print(format_style(f'Warning: Failed to load config: {e}', ColorStyle.WARNING))
             self.config_model = ConfigModel(source='config')
 
     @classmethod
@@ -236,8 +240,8 @@ class GlobalConfigSource(ConfigSource):
         if config_path.exists():
             console.print(
                 format_style(
-                    f'Opening config file: {format_style(str(config_path), "green")}',
-                    'green',
+                    f'Opening config file: {str(config_path)}',
+                    ColorStyle.SUCCESS,
                 )
             )
             import sys
@@ -245,7 +249,7 @@ class GlobalConfigSource(ConfigSource):
             editor = os.getenv('EDITOR', 'vi' if sys.platform != 'darwin' else 'open')
             os.system(f'{editor} {config_path}')
         else:
-            console.print(format_style('Config file not found', 'red'))
+            console.print(format_style('Config file not found', ColorStyle.ERROR))
 
     @classmethod
     def create_example_config(cls, config_path: Path = None):
@@ -262,16 +266,17 @@ class GlobalConfigSource(ConfigSource):
             'context_window_threshold': DEFAULT_CONTEXT_WINDOW_THRESHOLD,
             'extra_header': DEFAULT_EXTRA_HEADER,
             'enable_thinking': DEFAULT_ENABLE_THINKING,
+            'theme': DEFAULT_THEME,
         }
         try:
             config_path.parent.mkdir(parents=True, exist_ok=True)
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(example_config, f, indent=2, ensure_ascii=False)
-            console.print(format_style(f'Example config file created at: {config_path}', 'green'))
+            console.print(format_style(f'Example config file created at: {config_path}', ColorStyle.SUCCESS))
             console.print('Please edit the file and set your actual API key.')
             return True
         except (IOError, OSError) as e:
-            console.print(format_style(f'Error: Failed to create config file: {e}', 'red'))
+            console.print(format_style(f'Error: Failed to create config file: {e}', ColorStyle.ERROR))
             return False
 
     @classmethod
@@ -298,6 +303,7 @@ class DefaultConfigSource(ConfigSource):
             context_window_threshold=DEFAULT_CONTEXT_WINDOW_THRESHOLD,
             extra_header=DEFAULT_EXTRA_HEADER,
             enable_thinking=DEFAULT_ENABLE_THINKING,
+            theme=DEFAULT_THEME,
         )
 
 
@@ -334,7 +340,7 @@ class ConfigManager:
         api_key_config = self._merged_config_model.api_key
 
         if not api_key_config or not api_key_config.value or api_key_config.source == 'default':
-            console.print(format_style('Warning: API key not set', 'red'))
+            console.print(format_style('Warning: API key not set', ColorStyle.ERROR))
             console.print('Please set your API key using one of the following methods:')
             console.print('  1. Command line: --api-key YOUR_API_KEY')
             console.print('  2. Environment: export API_KEY=YOUR_API_KEY')

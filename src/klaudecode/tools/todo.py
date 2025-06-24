@@ -8,7 +8,7 @@ from rich.text import Text
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import TODO_READ_RESULT, TODO_READ_TOOL_DESC, TODO_WRITE_RESULT, TODO_WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
-from ..tui import render_suffix
+from ..tui import ColorStyle, format_style, render_suffix
 
 """
 Session-level To-Do
@@ -88,11 +88,11 @@ def render_todo_dict(todo: dict, new_completed: bool = False):
     content = todo['content']
     status = todo.get('status', 'pending')
     if status == 'completed' and new_completed:
-        return f'[green]☒ [s]{content}[/s][/green]'
+        return format_style(f'☒ [s]{content}[/s]', ColorStyle.TODO_COMPLETED)
     elif status == 'completed':
-        return f'[bright_black]☒ [s]{content}[/s][/bright_black]'
+        return format_style(f'☒ [s]{content}[/s]', ColorStyle.MUTED)
     elif status == 'in_progress':
-        return f'[blue]☐ [bold]{content}[/bold][/blue]'
+        return format_style(f'☐ [bold]{content}[/bold]', ColorStyle.TODO_IN_PROGRESS)
     else:
         return f'☐ {content}'
 

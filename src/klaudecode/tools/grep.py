@@ -10,7 +10,7 @@ from rich.text import Text
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import GREP_TOOL_DESC
 from ..tool import Tool, ToolInstance
-from ..tui import render_suffix
+from ..tui import ColorStyle, render_suffix
 
 DEFAULT_IGNORE_PATTERNS = [
     '*.jpg',
@@ -260,7 +260,7 @@ def render_grep_args(tool_call: ToolCall):
     tool_call_msg = Text.assemble(
         ('Grep', 'bold'),
         '(',
-        (pattern, 'purple'),
+        (pattern, ColorStyle.INLINE_CODE.value),
         path_info,
         include_info,
         ')',
@@ -278,7 +278,7 @@ def render_grep_content(tool_msg: ToolMessage):
     count_text.append(' matches')
 
     if truncated:
-        count_text.append(f' (truncated to {DEFAULT_MAX_RESULTS} matches)', style='yellow')
+        count_text.append(f' (truncated to {DEFAULT_MAX_RESULTS} matches)', style=ColorStyle.WARNING)
 
     yield render_suffix(count_text)
 

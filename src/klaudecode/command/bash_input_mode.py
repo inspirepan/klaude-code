@@ -5,12 +5,13 @@ from typing import TYPE_CHECKING, Generator
 
 from rich.abc import RichRenderable
 from rich.live import Live
+from rich.markup import escape
 from rich.text import Text
 
 from ..message import UserMessage, render_message, render_suffix
 from ..prompt.commands import BASH_INPUT_MODE_CONTENT
 from ..tools.bash import BashTool
-from ..tui import console
+from ..tui import ColorStyle, console
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput
 
 if TYPE_CHECKING:
@@ -79,7 +80,7 @@ class BashMode(InputModeCommand):
 
             old_handler = signal.signal(signal.SIGINT, signal_handler)
 
-            with Live(render_suffix(display_text), refresh_per_second=4, console=console) as live:
+            with Live(render_suffix(display_text), refresh_per_second=4, console=console.console) as live:
                 # Read outputs concurrently
                 while True:
                     if interrupted:
@@ -109,7 +110,7 @@ class BashMode(InputModeCommand):
                             line = process.stderr.readline()
                             if line:
                                 error_lines.append(line.rstrip('\n'))
-                                display_text.append(line, style='red')
+                                display_text.append(line, style=ColorStyle.ERROR)
                                 live.update(render_suffix(display_text))
                         except Exception:
                             pass
@@ -122,16 +123,16 @@ class BashMode(InputModeCommand):
                         display_text.append(remaining_stdout)
                     if remaining_stderr:
                         error_lines.extend(remaining_stderr.rstrip('\n').split('\n'))
-                        display_text.append(remaining_stderr, style='red')
+                        display_text.append(remaining_stderr, style=ColorStyle.ERROR)
                 except subprocess.TimeoutExpired:
                     pass
 
                 # Show exit code if non-zero or interrupted
                 if interrupted:
-                    display_text.append('\n[Process interrupted]', style='bold yellow')
+                    display_text.append('\n[Process interrupted]', style=ColorStyle.WARNING.bold())
                     error_lines.append('[Process interrupted]')
                 elif process.returncode != 0:
-                    display_text.append(f'\n[Exit code: {process.returncode}]', style='bold red')
+                    display_text.append(f'\n[Exit code: {process.returncode}]', style=ColorStyle.ERROR.bold())
 
                 live.update(render_suffix(display_text))
 
@@ -153,7 +154,7 @@ class BashMode(InputModeCommand):
         return '\n'.join(output_lines), '\n'.join(error_lines)
 
     def render_user_msg(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
-        yield render_message(user_msg.content, mark='!', style=self._get_color(), mark_style=self._get_color())
+        yield render_message(escape(user_msg.content), mark='!', style=self._get_color(), mark_style=self._get_color())
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         stdout = user_msg.get_extra_data('stdout', '')
@@ -163,7 +164,7 @@ class BashMode(InputModeCommand):
         if stdout:
             yield render_suffix(stdout)
         if stderr:
-            yield render_suffix(Text(stderr, style='bold red'))
+            yield render_suffix(Text(stderr, style=ColorStyle.ERROR.bold()))
 
     def get_content(self, user_msg: UserMessage) -> str:
         command = user_msg.content
