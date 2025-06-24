@@ -53,18 +53,18 @@ light_theme = Theme(
     {
         # AI and user interaction
         ColorStyle.AI_MESSAGE: 'rgb(181,105,72)',
-        ColorStyle.AI_THINKING: 'rgb(180,204,245)',
+        ColorStyle.AI_THINKING: 'rgb(62,99,153)',
         # Status indicators
         ColorStyle.ERROR: 'rgb(158,57,66)',
         ColorStyle.SUCCESS: 'rgb(65,120,64)',
         ColorStyle.WARNING: 'rgb(143,110,44)',
-        ColorStyle.INFO: 'rgb(180,204,245)',
+        ColorStyle.INFO: 'rgb(62,99,153)',
         ColorStyle.HIGHLIGHT: 'rgb(0,3,3)',
         ColorStyle.MAIN: 'rgb(63,63,63)',
         ColorStyle.MUTED: 'rgb(126,129,129)',
         # Todo
         ColorStyle.TODO_COMPLETED: 'rgb(65,120,64)',
-        ColorStyle.TODO_IN_PROGRESS: 'rgb(180,204,245)',
+        ColorStyle.TODO_IN_PROGRESS: 'rgb(62,99,153)',
         # Tools and agents
         ColorStyle.AGENT_BORDER: 'rgb(210,231,227)',
         # Code diff
