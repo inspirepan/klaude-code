@@ -3,14 +3,14 @@ import signal
 import subprocess
 from typing import TYPE_CHECKING, Generator
 
+from rich.abc import RichRenderable
 from rich.live import Live
 from rich.text import Text
-from rich.abc import RichRenderable
 
 from .message import UserMessage, render_message, render_suffix
 from .tools.bash import BashTool
-from .user_input import CommandHandleOutput, InputModeCommand, UserInput, register_input_mode
 from .tui import console
+from .user_input import CommandHandleOutput, InputModeCommand, UserInput, register_input_mode
 
 if TYPE_CHECKING:
     from .agent import Agent

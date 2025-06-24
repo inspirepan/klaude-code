@@ -14,7 +14,7 @@ from .config import ConfigModel
 from .message import UserMessage
 from .prompt.commands import INIT_COMMAND, RECENT_COMMAND, TODAY_COMMAND
 from .tui import console, render_suffix
-from .user_input import Command, UserInput, register_slash_command, CommandHandleOutput
+from .user_input import Command, CommandHandleOutput, UserInput, register_slash_command
 
 if TYPE_CHECKING:
     from .agent import Agent

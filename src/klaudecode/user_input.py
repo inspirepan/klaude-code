@@ -360,7 +360,7 @@ class UserInputCompleter(Completer):
                 if name_prefix:
                     path_str_lower = path_str.lower()
                     name_prefix_lower = name_prefix.lower()
-                    
+
                     # Check if prefix matches any part of the full path
                     if name_prefix_lower not in path_str_lower:
                         continue
@@ -374,22 +374,22 @@ class UserInputCompleter(Completer):
             path_str = str(match['path']).lower()
             name = match['name'].lower()
             prefix_lower = name_prefix.lower() if name_prefix else ''
-            
+
             if not prefix_lower:
                 return (0, name)
-            
+
             # Priority 1: Exact filename prefix match
             if name.startswith(prefix_lower):
                 return (0, name)
-            
+
             # Priority 2: Filename contains the prefix
             if prefix_lower in name:
                 return (1, name)
-            
+
             # Priority 3: Path prefix match
             if path_str.startswith(prefix_lower):
                 return (2, path_str)
-            
+
             # Priority 4: Any part of path contains the prefix
             return (3, path_str)
 
