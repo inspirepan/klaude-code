@@ -26,7 +26,7 @@ class PlanMode(InputModeCommand):
         return '*'
 
     async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
-        user_msg, _ = await super().handle(agent, user_input)
-        agent.append_message(user_msg)
+        command_handle_output = await super().handle(agent, user_input)
         agent.plan_mode_activated = True
-        return CommandHandleOutput(user_msg=user_msg, need_agent_run=True)
+        command_handle_output.need_agent_run = True
+        return command_handle_output

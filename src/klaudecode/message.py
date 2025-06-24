@@ -11,7 +11,7 @@ from rich.markup import escape
 from rich.rule import Rule
 from rich.text import Text
 
-from .tui import ColorStyle, format_style, render_markdown, render_message, render_suffix, truncate_middle_text
+from .tui import ColorStyle, render_markdown, render_message, render_suffix, truncate_middle_text
 
 INTERRUPTED_MSG = 'Interrupted by user'
 
@@ -349,19 +349,20 @@ class AIMessage(BasicMessage):
         THINKING_STYLE = ColorStyle.AI_THINKING
         if self.thinking_content:
             yield render_message(
-                format_style('Thinking...', THINKING_STYLE),
+                Text('Thinking...', style=THINKING_STYLE.value),
                 mark='✻',
                 mark_style=THINKING_STYLE,
                 style='italic',
             )
             yield render_message(
-                format_style(self.thinking_content, THINKING_STYLE),
+                Text(self.thinking_content, style=THINKING_STYLE.value),
                 mark='',
                 style='italic',
+                render_text=True,
             )
             yield ''
         if self.content:
-            yield render_message(render_markdown(self.content), mark_style=ColorStyle.AI_MESSAGE, style=ColorStyle.AI_MESSAGE)
+            yield render_message(render_markdown(self.content), mark_style=ColorStyle.AI_MESSAGE, style=ColorStyle.AI_MESSAGE, render_text=True)
             yield ''
 
     def __bool__(self):
@@ -532,7 +533,7 @@ def interrupted_renderer(user_msg: UserMessage):
 
 def compact_renderer(user_msg: UserMessage):
     yield Rule(title=Text('Previous Conversation Compacted', ColorStyle.HIGHLIGHT.bold()), characters='=', style=ColorStyle.HIGHLIGHT.value)
-    yield render_message(user_msg.content, mark='✻', mark_style=ColorStyle.AI_THINKING, style=ColorStyle.AI_THINKING.italic())
+    yield render_message(user_msg.content, mark='✻', mark_style=ColorStyle.AI_THINKING, style=ColorStyle.AI_THINKING.italic(), render_text=True)
 
 
 register_user_msg_renderer(SpecialUserMessageTypeEnum.INTERRUPTED.value, interrupted_renderer)

@@ -8,12 +8,13 @@ from pathlib import Path
 from typing import Callable, List, Literal, Optional
 
 from pydantic import BaseModel, Field
+from rich.text import Text
 
 from .llm import AgentLLM
 from .message import AIMessage, BasicMessage, SpecialUserMessageTypeEnum, SystemMessage, ToolMessage, UserMessage
 from .prompt.commands import COMACT_SYSTEM_PROMPT, COMPACT_COMMAND, COMPACT_MSG_PREFIX
 from .tools.todo import TodoList
-from .tui import ColorStyle, console, format_style
+from .tui import ColorStyle, console
 from .utils import sanitize_filename
 
 
@@ -161,7 +162,7 @@ class Session(BaseModel):
                 json.dump(messages_data, f, indent=2, ensure_ascii=False)
 
         except Exception as e:
-            console.print(format_style(f'Failed to save session - error: {e}', ColorStyle.ERROR))
+            console.print(Text(f'Failed to save session - error: {e}', style=ColorStyle.ERROR.value))
 
     @classmethod
     def load(cls, session_id: str, work_dir: str = os.getcwd()) -> Optional['Session']:
@@ -221,7 +222,7 @@ class Session(BaseModel):
             return session
 
         except Exception as e:
-            console.print(format_style(f'Failed to load session {session_id}: {e}', ColorStyle.ERROR))
+            console.print(Text(f'Failed to load session {session_id}: {e}', style=ColorStyle.ERROR.value))
             return None
 
     def fork(self) -> 'Session':
@@ -258,13 +259,13 @@ class Session(BaseModel):
                         }
                     )
                 except Exception as e:
-                    console.print(format_style(f'Warning: Failed to read metadata file {metadata_file}: {e}', ColorStyle.WARNING))
+                    console.print(Text(f'Warning: Failed to read metadata file {metadata_file}: {e}', style=ColorStyle.WARNING.value))
                     continue
             sessions.sort(key=lambda x: x.get('updated_at', 0), reverse=True)
             return sessions
 
         except Exception as e:
-            console.print(format_style(f'Failed to list sessions: {e}', ColorStyle.ERROR))
+            console.print(Text(f'Failed to list sessions: {e}', style=ColorStyle.ERROR.value))
             return []
 
     @classmethod

@@ -9,6 +9,7 @@ from rich.console import Console, Group, RenderResult
 from rich.markup import escape
 from rich.panel import Panel
 from rich.status import Status
+from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
@@ -33,14 +34,14 @@ class ColorStyle(str, Enum):
     DIFF_ADDED_CHAR = 'diff_added_char'
     INLINE_CODE = 'inline_code'
 
-    def bold(self) -> str:
-        return f'{self.value} bold'
+    def bold(self) -> Style:
+        return console.console.get_style(self.value) + Style(bold=True)
 
-    def italic(self) -> str:
-        return f'{self.value} italic'
+    def italic(self) -> Style:
+        return console.console.get_style(self.value) + Style(italic=True)
 
-    def bold_italic(self) -> str:
-        return f'bold {self.value} italic'
+    def bold_italic(self) -> Style:
+        return console.console.get_style(self.value) + Style(bold=True, italic=True)
 
     def __str__(self) -> str:
         return self.value
@@ -150,19 +151,28 @@ def render_message(
     mark: Optional[str] = '⏺',
     status: Literal['processing', 'success', 'error', 'canceled'] = 'success',
     mark_width: int = 0,
+    render_text: bool = False,
 ) -> RichRenderable:
     table = Table.grid(padding=(0, 1))
     table.add_column(width=mark_width, no_wrap=True)
     table.add_column(overflow='fold')
     if status == 'error':
-        mark = format_style(mark, ColorStyle.ERROR)
+        mark = Text(mark, style=ColorStyle.ERROR.value)
     elif status == 'canceled':
-        mark = format_style(mark, ColorStyle.WARNING)
+        mark = Text(mark, style=ColorStyle.WARNING.value)
     elif status == 'processing':
-        mark = format_style('○', mark_style)
+        mark = Text('○', style=mark_style)
     else:
-        mark = format_style(mark, mark_style)
-    table.add_row(mark, format_style(message, style))
+        mark = Text(mark, style=mark_style)
+    if isinstance(message, str):
+        if render_text:
+            render_message = Text.from_markup(message, style=style)
+        else:
+            render_message = Text(message, style=style)
+    else:
+        render_message = message
+
+    table.add_row(mark, render_message)
     return table
 
 
@@ -225,7 +235,7 @@ def render_hello() -> RenderResult:
             '',
             '[italic]/status for your current setup[/italic]',
             '',
-            format_style('cwd: {}'.format(os.getcwd()), ColorStyle.MUTED),
+            Text('cwd: {}'.format(os.getcwd()), style=ColorStyle.MUTED.value),
         ),
     )
     return Group(
@@ -244,6 +254,7 @@ def render_hello() -> RenderResult:
             style=ColorStyle.MUTED,
             mark_style=ColorStyle.MUTED,
             mark_width=6,
+            render_text=True,
         ),
         '',
     )

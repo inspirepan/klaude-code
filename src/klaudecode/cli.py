@@ -9,7 +9,7 @@ from .config import ConfigManager, ConfigModel
 from .message import SystemMessage
 from .prompt.system import STATIC_SYSTEM_PROMPT, get_system_prompt_dynamic_part
 from .session import Session
-from .tui import ColorStyle, console, format_style
+from .tui import ColorStyle, console
 from .user_questionary import user_select
 from .utils import format_relative_time
 
@@ -44,7 +44,7 @@ async def main_async(ctx: typer.Context):
     if ctx.obj['continue_latest']:
         session = Session.get_latest_session(os.getcwd())
         if not session:
-            console.print(format_style('No session found', ColorStyle.ERROR))
+            console.print('No session found', style=ColorStyle.ERROR.value)
             return
         session = session.fork()
     elif ctx.obj['resume']:
@@ -83,7 +83,7 @@ async def main_async(ctx: typer.Context):
     except KeyboardInterrupt:
         pass
     finally:
-        console.print(format_style('\nBye!', ColorStyle.AI_MESSAGE))
+        console.print('\nBye!', style=ColorStyle.AI_MESSAGE.value)
 
 
 @app.callback(invoke_without_command=True)
@@ -174,7 +174,7 @@ def mcp_show():
             await mcp_manager.initialize()
             console.print(mcp_manager)
         except Exception as e:
-            console.print(format_style(f'Error connecting to MCP servers: {e}', ColorStyle.ERROR))
+            console.print(f'Error connecting to MCP servers: {e}', style=ColorStyle.ERROR.value)
         finally:
             await mcp_manager.shutdown()
 

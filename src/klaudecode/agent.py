@@ -35,7 +35,7 @@ from .prompt.tools import CODE_SEARCH_TASK_TOOL_DESC, TASK_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, ExitPlanModeTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
-from .tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, format_style, render_hello, render_markdown, render_message, render_status, render_suffix
+from .tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, render_hello, render_markdown, render_message, render_status, render_suffix
 from .user_input import _INPUT_MODES, NORMAL_MODE_NAME, InputSession, UserInputHandler
 from .user_questionary import user_select
 
@@ -61,7 +61,7 @@ class Agent(Tool):
         enable_claudemd_reminder: bool = True,
         enable_todo_reminder: bool = True,
         enable_mcp: bool = True,
-        enable_plan_mode_reminder: bool = False,
+        enable_plan_mode_reminder: bool = True,
     ):
         self.session: Session = session
         self.label = label
@@ -146,12 +146,8 @@ class Agent(Tool):
                     last_ai_msg = self.session.messages.get_last_message(role='assistant', filter_empty=True)
                     return last_ai_msg.content if last_ai_msg else ''
                 if ai_msg.finish_reason == 'tool_calls' or len(ai_msg.tool_calls) > 0:
-                    exit_plan_call = next((call for call in ai_msg.tool_calls.values() if call.tool_name == ExitPlanModeTool.get_name()), None)
-                    if exit_plan_call:
-                        should_continue = await self._handle_exit_plan_mode(exit_plan_call)
-                        if not should_continue:
-                            return 'Plan mode maintained, awaiting further instructions.'
-
+                    if not await self._handle_exit_plan_mode(ai_msg.tool_calls):
+                        return 'Plan mode maintained, awaiting further instructions.'
                     # Update tool handler with MCP tools
                     self._update_tool_handler_tools(tools)
                     await self.tool_handler.handle(ai_msg)
@@ -196,8 +192,12 @@ class Agent(Tool):
         if last_msg and isinstance(last_msg, (UserMessage, ToolMessage)):
             last_msg.append_post_system_reminder(PLAN_MODE_REMINDER)
 
-    async def _handle_exit_plan_mode(self, tool_call: ToolCall) -> bool:
-        console.print(tool_call)
+    async def _handle_exit_plan_mode(self, tool_calls: List[ToolCall]) -> bool:
+        exit_plan_call: ToolCall = next((call for call in tool_calls.values() if call.tool_name == ExitPlanModeTool.get_name()), None)
+        if not exit_plan_call:
+            return True
+        exit_plan_call.status = 'success'
+        console.print(exit_plan_call)
         # Ask user for confirmation
         options = ['Yes', 'No, keep planning']
         selection = await user_select(options, 'Would you like to proceed?')
@@ -206,7 +206,7 @@ class Agent(Tool):
             if hasattr(self, 'input_session') and self.input_session:
                 self.input_session.current_input_mode = _INPUT_MODES[NORMAL_MODE_NAME]
             self.plan_mode_activated = False
-        tool_msg = ToolMessage(tool_call_id=tool_call.id, tool_call_cache=tool_call, content=APPROVE_MSG if approved else REJECT_MSG)
+        tool_msg = ToolMessage(tool_call_id=exit_plan_call.id, tool_call_cache=exit_plan_call, content=APPROVE_MSG if approved else REJECT_MSG)
         tool_msg.set_extra_data('approved', approved)
         console.print(*tool_msg.get_suffix_renderable())
         self.append_message(tool_msg, print_msg=False)
@@ -365,7 +365,7 @@ class CodeSearchTaskTool(Agent):
 
 
 def render_agent_args(tool_call: ToolCall):
-    yield format_style(tool_call.tool_name, 'bold')
+    yield Text(tool_call.tool_name, style='bold')
     yield Padding.indent(
         Panel.fit(
             tool_call.tool_args_dict['prompt'],
