@@ -5,9 +5,10 @@ from typing import Callable, Dict, List, Literal, Optional
 
 from anthropic.types import ContentBlock, MessageParam, TextBlockParam, ToolUseBlockParam
 from openai.types.chat import ChatCompletionMessageParam
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field
 from rich.abc import RichRenderable
 from rich.text import Text
+from rich.rule import Rule
 
 from .tui import format_style, render_markdown, render_message, render_suffix, truncate_middle_text
 
@@ -47,11 +48,35 @@ class BasicMessage(BaseModel):
     usage: Optional[CompletionUsage] = None
     extra_data: Optional[dict] = None
 
-    @computed_field
+    def get_content(self):
+        """Get content in the format sent to LLM - should be overridden by subclasses"""
+        return [{'type': 'text', 'text': self.content}]
+
     @property
     def tokens(self) -> int:
-        """Calculate token count for the message content"""
-        return count_tokens(self.content)
+        """Get token count - calculated dynamically"""
+        content_list = self.get_content()
+        total_text = ''
+
+        # Handle different content formats
+        if isinstance(content_list, str):
+            total_text = content_list
+        elif isinstance(content_list, list):
+            for item in content_list:
+                if isinstance(item, dict):
+                    if item.get('type') == 'text':
+                        total_text += item.get('text', '')
+                    elif item.get('type') == 'thinking':
+                        total_text += item.get('thinking', '')
+                    elif item.get('type') == 'tool_use':
+                        # Add tool call text
+                        tool_name = item.get('name', '')
+                        tool_input = json.dumps(item.get('input', {})) if item.get('input') else ''
+                        total_text += f'{tool_name}({tool_input})'
+                elif isinstance(item, str):
+                    total_text += item
+
+        return count_tokens(total_text)
 
     def to_openai(self) -> ChatCompletionMessageParam:
         raise NotImplementedError
@@ -83,19 +108,18 @@ class SystemMessage(BasicMessage):
     role: Literal['system'] = 'system'
     cached: bool = False
 
-    def to_openai(self) -> ChatCompletionMessageParam:
-        return {
-            'role': 'system',
-            'content': [
-                {
-                    'type': 'text',
-                    'text': self.content,
-                    'cache_control': {'type': 'ephemeral'} if self.cached else None,
-                }
-            ],
-        }
+    def get_content(self):
+        """Get system message content for OpenAI format"""
+        return [
+            {
+                'type': 'text',
+                'text': self.content,
+                'cache_control': {'type': 'ephemeral'} if self.cached else None,
+            }
+        ]
 
-    def to_anthropic(self) -> TextBlockParam:
+    def get_anthropic_content(self):
+        """Get system message content for Anthropic format"""
         if self.cached:
             return {
                 'type': 'text',
@@ -106,6 +130,15 @@ class SystemMessage(BasicMessage):
             'type': 'text',
             'text': self.content,
         }
+
+    def to_openai(self) -> ChatCompletionMessageParam:
+        return {
+            'role': 'system',
+            'content': self.get_content(),
+        }
+
+    def to_anthropic(self) -> TextBlockParam:
+        return self.get_anthropic_content()
 
     def __rich__(self):
         return ''  # System message is not displayed.
@@ -217,7 +250,6 @@ class ToolCall(BaseModel):
                     data['tool_args_dict'] = {}
         super().__init__(**data)
 
-    @computed_field
     @property
     def tokens(self) -> int:
         func_tokens = count_tokens(self.tool_name)
@@ -268,21 +300,8 @@ class AIMessage(BasicMessage):
     thinking_signature: Optional[str] = None
     finish_reason: Literal['stop', 'length', 'tool_calls', 'content_filter', 'function_call'] = 'stop'
 
-    @computed_field
-    @property
-    def tokens(self) -> int:
-        """Calculate token count for AI message including tool calls"""
-        content_tokens = count_tokens(self.content + self.thinking_content)
-        tool_call_tokens = sum(tc.tokens for tc in self.tool_calls.values())
-        return content_tokens + tool_call_tokens
-
-    def to_openai(self) -> ChatCompletionMessageParam:
-        result = {'role': 'assistant', 'content': self.content}
-        if self.tool_calls:
-            result['tool_calls'] = [tc.to_openai() for tc in self.tool_calls.values()]
-        return result
-
-    def to_anthropic(self) -> MessageParam:
+    def get_content(self):
+        """Get AI message content including thinking and tool calls for Anthropic"""
         content: List[ContentBlock] = []
         if self.thinking_content:
             content.append(
@@ -302,9 +321,22 @@ class AIMessage(BasicMessage):
         if self.tool_calls:
             for tc in self.tool_calls.values():
                 content.append(tc.to_anthropic())
+        return content
+
+    def get_openai_content(self):
+        """Get AI message content for OpenAI format"""
+        result = {'role': 'assistant', 'content': self.content}
+        if self.tool_calls:
+            result['tool_calls'] = [tc.to_openai() for tc in self.tool_calls.values()]
+        return result
+
+    def to_openai(self) -> ChatCompletionMessageParam:
+        return self.get_openai_content()
+
+    def to_anthropic(self) -> MessageParam:
         return MessageParam(
             role='assistant',
-            content=content,
+            content=self.get_content(),
         )
 
     def __rich_console__(self, console, options):
@@ -487,6 +519,7 @@ def interrupted_renderer(user_msg: UserMessage):
 
 
 def compact_renderer(user_msg: UserMessage):
+    yield Rule(title=Text('Previous Conversation Compacted', 'bold white'), characters='=', style='white')
     yield render_message(user_msg.content, mark='✻', mark_style='blue', style='blue italic')
 
 

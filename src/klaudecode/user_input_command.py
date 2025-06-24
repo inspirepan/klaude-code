@@ -80,7 +80,6 @@ class CompactCommand(Command):
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         yield ''
-        yield Rule(title=Text('Previous Conversation Compacted', 'bold white'), characters='=', style='white')
 
 
 class CostCommand(Command):

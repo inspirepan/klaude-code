@@ -26,6 +26,9 @@ klaude --continue
 
 # Edit configuration
 klaude config edit
+
+# Enable MCP (Model Context Protocol) support
+klaude --mcp
 ```
 
 ### Interactive Features
@@ -80,25 +83,27 @@ klaude config show
 
 ### Core Components
 
-**CLI Entry Point** (`cli.py:15`): Uses Typer for command-line interface with both interactive and headless modes.
+**CLI Entry Point** (`cli.py:16`): Uses Typer for command-line interface with both interactive and headless modes. Supports MCP integration via `--mcp` flag.
 
-**Session Management** (`session.py:17`): Manages conversation history, todo lists, and persistent state. Sessions are automatically saved and can be resumed.
+**Session Management** (`session.py:57`): Manages conversation history, todo lists, and persistent state. Sessions are automatically saved to `.klaude/sessions/` and can be resumed or forked.
 
-**Agent System** (`agent.py:50`): The main Agent class that orchestrates tool execution and LLM interactions. Supports both interactive chat and headless execution modes. Agent itself is a Tool that can spawn sub-agents for complex tasks.
+**Agent System** (`agent.py:51`): The main Agent class that orchestrates tool execution and LLM interactions. Supports both interactive chat and headless execution modes. Agent itself is a Tool that can spawn sub-agents for complex tasks.
 
-**Tool System** (`tool.py:20`): Base Tool class with automatic schema generation from Pydantic models. All tools are parallelizable by default and have configurable timeouts.
+**Tool System** (`tool.py:19`): Base Tool class with automatic schema generation from Pydantic models. All tools are parallelizable by default and have configurable timeouts.
 
-**Agent-as-Tool**: The Agent class itself is a Tool (`agent.py:50`) that can spawn sub-agents for complex tasks. This enables recursive agent execution with different tool sets and scopes.
+**Agent-as-Tool**: The Agent class implements the Tool interface (`agent.py:51`), enabling recursive agent execution with different tool sets and scopes.
 
 **Tool Categories**: 
-- BASIC_TOOLS (`agent.py:44`): Full file system and bash access for general development
-- READ_ONLY_TOOLS (`agent.py:45`): Limited tools for sub-agents to prevent unsafe operations
+- BASIC_TOOLS (`agent.py:45`): Full file system and bash access for general development
+- READ_ONLY_TOOLS (`agent.py:46`): Limited tools for sub-agents to prevent unsafe operations
 
 **LLM Integration** (`llm.py`): Handles communication with language models (Anthropic Claude, OpenAI). Supports prompt caching and token counting.
 
 **Message System** (`message.py`): Rich message types (SystemMessage, UserMessage, AIMessage, ToolMessage) with rendering support for the terminal interface.
 
-**Session Persistence** (`session.py:52-57`): Sessions are automatically saved to `.klaude/sessions/` with structured filenames including timestamps and conversation titles for easy retrieval.
+**Session Persistence**: Sessions are automatically saved to `.klaude/sessions/` with structured filenames including timestamps and conversation titles for easy retrieval.
+
+**MCP Support** (`mcp/`): Model Context Protocol integration for external tool providers and enhanced capabilities.
 
 ### Project Structure
 
@@ -190,6 +195,7 @@ The Agent class itself implements the Tool interface (`agent.py:50`), enabling r
 ### Python Version Requirements
 - Requires Python 3.13+ (as specified in pyproject.toml)
 - Target version for ruff: py313
+- Note: README.md incorrectly states 3.11+ - should be updated to match pyproject.toml
 
 ### Message Flow
 1. User input → UserMessage

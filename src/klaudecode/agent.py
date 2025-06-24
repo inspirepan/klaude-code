@@ -40,7 +40,7 @@ from .user_input import InputSession, UserInputHandler
 
 DEFAULT_MAX_STEPS = 80
 INTERACTIVE_MAX_STEPS = 100
-TOKEN_WARNING_THRESHOLD = 0.8
+TOKEN_WARNING_THRESHOLD = 0.9
 TODO_SUGGESTION_LENGTH_THRESHOLD = 40
 
 BASIC_TOOLS = [LsTool, GrepTool, GlobTool, ReadTool, EditTool, MultiEditTool, WriteTool, BashTool, TodoWriteTool, TodoReadTool]
@@ -104,12 +104,27 @@ class Agent(Tool):
             if self.mcp_manager:
                 await self.mcp_manager.shutdown()
 
+    async def _auto_compact_conversation(self, tools: Optional[List[Tool]] = None):
+        """Check token count and compact conversation history if necessary"""
+        messages_tokens = sum(msg.tokens for msg in self.session.messages)
+        tools_tokens = sum(tool.tokens() for tool in (tools or self.tools))
+        total_tokens = messages_tokens + tools_tokens
+        if total_tokens > self.config.context_window_threshold.value * TOKEN_WARNING_THRESHOLD:
+            clear_last_line()
+            console.print(f'Notice: total_tokens: {total_tokens}, context_window_threshold: {self.config.context_window_threshold.value}\n', style='yellow')
+        if total_tokens > self.config.context_window_threshold.value:
+            await self.session.compact_conversation_history(show_status=self.print_switch)
+
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
         try:
             for _ in range(max_steps):
                 # Check if task was canceled (for subagent execution)
                 if parent_tool_instance and parent_tool_instance.tool_result().tool_call.status == 'canceled':
                     return INTERRUPTED_MSG
+
+                # Check token count and compact if necessary
+                await self._auto_compact_conversation(tools)
+
                 if self.enable_todo_reminder:
                     self._handle_todo_reminder()
 

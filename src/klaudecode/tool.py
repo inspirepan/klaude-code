@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from rich.columns import Columns
 from rich.live import Live
 
-from .message import AIMessage, ToolCall, ToolMessage
+from .message import AIMessage, ToolCall, ToolMessage, count_tokens
 from .tui import console, render_status
 
 if TYPE_CHECKING:
@@ -52,6 +52,18 @@ class Tool(ABC):
             return cls._resolve_schema_refs(schema)
 
         return {'type': 'object', 'properties': {}, 'required': []}
+
+    @classmethod
+    def tokens(cls) -> int:
+        """Calculate total tokens for tool description and parameters"""
+        desc_tokens = count_tokens(cls.get_desc())
+        
+        # Convert parameters to JSON string and count tokens
+        params = cls.get_parameters()
+        params_text = json.dumps(params, ensure_ascii=False)
+        params_tokens = count_tokens(params_text)
+        
+        return desc_tokens + params_tokens
 
     @classmethod
     def _resolve_schema_refs(cls, schema: Dict[str, Any]) -> Dict[str, Any]:

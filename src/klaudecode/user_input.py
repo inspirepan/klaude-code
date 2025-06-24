@@ -178,6 +178,7 @@ class NormalMode(InputModeCommand):
         command_handle_output.need_agent_run = True
         return command_handle_output
 
+
 # All Command Registry
 # ---------------------
 
