@@ -5,8 +5,8 @@ from typing import Any, Dict
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+from ..tui import console, format_style
 from .mcp_config import MCPConfigManager
-from .tui import console, format_style
 
 
 class MCPClient:

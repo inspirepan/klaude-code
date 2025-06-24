@@ -155,7 +155,7 @@ def mcp_show():
     """Show current MCP configuration and available tools"""
     import asyncio
 
-    from .tools.mcp_tool import MCPManager
+    from .mcp.mcp_tool import MCPManager
 
     async def show_mcp_info():
         mcp_manager = MCPManager()
@@ -173,7 +173,7 @@ def mcp_show():
 @mcp_app.command('edit')
 def mcp_edit():
     """Edit MCP configuration file"""
-    from .mcp_config import MCPConfigManager
+    from .mcp.mcp_config import MCPConfigManager
 
     config_manager = MCPConfigManager()
     config_manager.edit_config_file()

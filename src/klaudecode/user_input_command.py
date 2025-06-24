@@ -104,7 +104,6 @@ class ClearCommand(Command):
         command_handle_output = await super().handle(agent, user_input)
         command_handle_output.user_msg.removed = True
         command_handle_output.user_msg.append_extra_data('cleared', True)
-        command_handle_output.need_agent_run = False
         agent.session.clear_conversation_history()
         return command_handle_output
 
@@ -122,7 +121,6 @@ class MacSetupCommand(Command):
 
     async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
         command_handle_output = await super().handle(agent, user_input)
-        command_handle_output.need_agent_run = False
         # Check if running on macOS
         if platform.system() != 'Darwin':
             command_handle_output.user_msg.set_extra_data('setup_result', {'success': False, 'error': 'This command is only available on macOS'})
@@ -236,6 +234,7 @@ class RewriteQueryCommand(Command, ABC):
 
     async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
         command_handle_output = await super().handle(agent, user_input)
+        command_handle_output.need_agent_run = True
         command_handle_output.user_msg.content = self.get_query_content(user_input)
         if user_input.cleaned_input:
             command_handle_output.user_msg.content += 'Additional Instructions:\n' + user_input.cleaned_input

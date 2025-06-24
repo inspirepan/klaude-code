@@ -165,17 +165,18 @@ def render_hello() -> RenderResult:
         Panel.fit(table, border_style='orange'),
         '',
         render_message(
-            'type \\ followed by [bold]Enter[/bold] to insert newlines\n'
-            'type / to choose slash command\n'
-            'type ! to run bash command\n'
-            'type # to memorize\n'
-            'type * to start plan mode\n'
-            'type @ to mention a file\n'
-            'run klaude --continue or klaude --resume to resume a conversation',
-            mark='※ Tip:',
+            'type [bold]\\\[/bold] followed by [bold]Enter[/bold] to insert newlines\n'
+            'type [bold]/[/bold] to choose slash command\n'
+            'type [bold]![/bold] to run bash command\n'
+            'type [bold]#[/bold] to memorize\n'
+            'type [bold]*[/bold] to start plan mode\n'
+            'type [bold]@[/bold] to mention a file\n'
+            'run [bold]klaude --continue[/bold] or [bold]klaude --resume[/bold] to resume a conversation\n'
+            'run [bold]klaude mcp edit[/bold] to setup MCP, run [bold]klaude --mcp[/bold] to enable MCP',
+            mark='※ Tips:',
             style='bright_black',
             mark_style='bright_black',
-            mark_width=5,
+            mark_width=6,
         ),
         '',
     )

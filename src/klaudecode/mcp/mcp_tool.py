@@ -6,10 +6,10 @@ from pydantic import BaseModel, Field
 from rich.console import Group
 from rich.table import Table
 
-from ..mcp_client import MCPClient
 from ..message import ToolCall
 from ..tool import Tool, ToolInstance
 from ..tui import console, format_style
+from .mcp_client import MCPClient
 
 
 class MCPToolWrapper(Tool):
@@ -171,7 +171,7 @@ class MCPManager:
 
     def __rich_console__(self, console, options):
         """Rich console rendering for MCP configuration and tools"""
-        from ..mcp_config import MCPConfigManager
+        from .mcp_config import MCPConfigManager
 
         config_manager = MCPConfigManager()
         config = config_manager.load_config()

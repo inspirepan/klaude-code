@@ -16,6 +16,7 @@ from . import user_input_command  # noqa: F401 # import user_command to trigger 
 from . import user_input_mode  # noqa: F401 # import user_command to trigger command registration
 from .config import ConfigModel
 from .llm import AgentLLM
+from .mcp.mcp_tool import MCPManager
 from .message import (
     INTERRUPTED_MSG,
     AIMessage,
@@ -34,7 +35,6 @@ from .prompt.tools import CODE_SEARCH_TASK_TOOL_DESC, TASK_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
-from .tools.mcp_tool import MCPManager
 from .tui import INTERRUPT_TIP, clear_last_line, console, format_style, render_hello, render_markdown, render_message, render_status, render_suffix
 from .user_input import InputSession, UserInputHandler
 

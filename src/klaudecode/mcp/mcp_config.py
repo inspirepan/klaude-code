@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from .tui import console, format_style
+from ..tui import console, format_style
 
 
 class MCPServerConfig(BaseModel):

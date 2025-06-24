@@ -34,7 +34,7 @@ class UserInput(BaseModel):
 
 class CommandHandleOutput(BaseModel):
     user_msg: Optional[UserMessage] = None
-    need_agent_run: bool = True
+    need_agent_run: bool = False
     need_render_suffix: bool = True
 
 
@@ -70,7 +70,7 @@ class Command(ABC):
                 user_msg_type=user_input.command_name,
                 user_raw_input=user_input.raw_input,
             ),
-            need_agent_run=True,
+            need_agent_run=False,
             need_render_suffix=True,
         )
 
@@ -173,6 +173,10 @@ class NormalMode(InputModeCommand):
     def binding_key(self) -> str:
         return ''
 
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent, user_input)
+        command_handle_output.need_agent_run = True
+        return command_handle_output
 
 # All Command Registry
 # ---------------------
