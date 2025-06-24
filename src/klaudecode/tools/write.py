@@ -2,11 +2,14 @@ import os
 from typing import Annotated
 
 from pydantic import BaseModel, Field
+from rich.markup import escape
+from rich.table import Table
 from rich.text import Text
 
-from ..message import ToolCall, register_tool_call_renderer
+from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
+from ..tui import render_suffix
 from .file_utils import cache_file_content, cleanup_backup, create_backup, ensure_directory_exists, restore_backup, validate_file_cache, write_file_content
 
 """
@@ -63,12 +66,20 @@ class WriteTool(Tool):
             # Update cache with new content
             cache_file_content(args.file_path, args.content)
 
+            # Extract preview lines for display
+            lines = args.content.splitlines()
+            preview_lines = []
+            for i, line in enumerate(lines[:5], 1):
+                preview_lines.append((i, line))
+
             if file_exists:
                 result = f'File updated successfully at: {args.file_path}'
             else:
                 result = f'File created successfully at: {args.file_path}'
 
             instance.tool_result().set_content(result)
+            instance.tool_result().set_extra_data('preview_lines', preview_lines)
+            instance.tool_result().set_extra_data('total_lines', len(lines))
 
             # Clean up backup on success
             if backup_path:
@@ -97,4 +108,30 @@ def render_write_args(tool_call: ToolCall):
     yield tool_call_msg
 
 
+def render_write_result(tool_msg: ToolMessage):
+    preview_lines = tool_msg.get_extra_data('preview_lines', [])
+    total_lines = tool_msg.get_extra_data('total_lines', 0)
+
+    if preview_lines:
+        table = Table.grid(padding=(0, 1))
+        width = len(str(preview_lines[-1][0])) if preview_lines else 1
+        table.add_column(width=width, justify='right')
+        table.add_column(overflow='fold')
+
+        for line_num, line_content in preview_lines:
+            table.add_row(f'{line_num:>{width}}:', escape(line_content))
+
+        if total_lines > len(preview_lines):
+            table.add_row('…', f'Written [bold]{total_lines}[/bold] lines')
+        else:
+            table.add_row('', f'Written [bold]{total_lines}[/bold] lines')
+
+        yield render_suffix(table)
+    elif total_lines > 0:
+        yield render_suffix(f'Written [bold]{total_lines}[/bold] lines')
+    else:
+        yield render_suffix('(Empty file)')
+
+
 register_tool_call_renderer('Write', render_write_args)
+register_tool_result_renderer('Write', render_write_result)
