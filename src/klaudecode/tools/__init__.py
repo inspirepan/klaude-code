@@ -4,6 +4,7 @@ __version__ = '0.1.0'
 
 from .bash import BashTool
 from .edit import EditTool
+from .exit_plan_mode import ExitPlanModeTool
 from .glob import GlobTool
 from .grep import GrepTool
 from .ls import LsTool
@@ -17,6 +18,7 @@ __all__ = [
     'TodoReadTool',
     'TodoWriteTool',
     'EditTool',
+    'ExitPlanModeTool',
     'MultiEditTool',
     'ReadTool',
     'WriteTool',

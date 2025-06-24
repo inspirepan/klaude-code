@@ -43,6 +43,10 @@ class Tool(ABC):
         return cls.timeout
 
     @classmethod
+    def skip_in_tool_handler(cls) -> bool:
+        return False
+
+    @classmethod
     def get_parameters(cls) -> Dict[str, Any]:
         if hasattr(cls, 'parameters'):
             return cls.parameters
@@ -232,6 +236,8 @@ class ToolHandler:
         for tool_call in ai_message.tool_calls.values():
             if tool_call.tool_name not in self.tool_dict:
                 pass
+            if self.tool_dict[tool_call.tool_name].skip_in_tool_handler():
+                continue
             if self.tool_dict[tool_call.tool_name].is_parallelable():
                 parallelable_tool_calls.append(tool_call)
             else:

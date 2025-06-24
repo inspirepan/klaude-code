@@ -1,4 +1,4 @@
-PLAN_TOOL_ARG_DESC = """The plan you came up with, that you want to run by the user for approval. Supports markdown. The plan should be pretty concise.
+EXIT_PLAN_MODE_TOOL_PLAN_ARG_DESC = """The plan you came up with, that you want to run by the user for approval. Supports markdown. The plan should be pretty concise.
 """
 
 EXIT_PLAN_MODE_TOOL_DESC = """Use this tool when you are in plan mode and have finished presenting your plan and are ready to code. This will prompt the user to exit plan mode.
@@ -7,3 +7,11 @@ EXIT_PLAN_MODE_TOOL_DESC = """Use this tool when you are in plan mode and have f
 PLAN_MODE_REMINDER = """<system-reminder>Plan mode is active. The user indicated that they do not want you to execute yet -- you MUST NOT make any edits, run any non-readonly tools (including changing configs or making commits), or otherwise make any changes to the system. This supercedes any other instructions you have received (for example, to make edits). Instead, you should:
 1. Answer the user's query
 2. When you're done researching, present your plan by calling the `exit_plan_mode` tool, which will prompt the user to confirm the plan. Do NOT make any file changes or run any tools that modify the system state in any way until the user has confirmed the plan.</system-reminder>"""
+
+
+APPROVE_MSG = """User has approved your plan. You can now start coding. Start with updating your todo list if applicable"""
+APPROVE_HINT = """User approved Claude's plan"""
+
+
+REJECT_MSG = """The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed."""
+REJECT_HINT = """User rejected Claude's plan"""

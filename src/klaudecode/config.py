@@ -8,8 +8,8 @@ from pydantic import BaseModel
 from rich import box
 from rich.console import Group
 from rich.panel import Panel
-from rich.text import Text
 from rich.table import Table
+from rich.text import Text
 
 from .tui import ColorStyle, console, format_style
 

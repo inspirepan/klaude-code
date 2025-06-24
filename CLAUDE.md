@@ -65,9 +65,12 @@ isort src/ && ruff format src/ && ruff check src/
 
 ### Testing
 ```bash
-# No specific test framework configured - check README for project-specific testing
-# Verify functionality by running CLI commands:
+# No test framework configured - verify functionality manually
 klaude --print "test prompt"
+
+# Test specific functionality
+klaude config show  # Verify configuration
+klaude --continue   # Test session resumption
 ```
 
 ### Debugging & Development
@@ -196,6 +199,9 @@ The Agent class itself implements the Tool interface (`agent.py:50`), enabling r
 - Requires Python 3.13+ (as specified in pyproject.toml)
 - Target version for ruff: py313
 - Note: README.md incorrectly states 3.11+ - should be updated to match pyproject.toml
+
+### Known Issues
+- README.md states Python 3.11+ requirement but pyproject.toml requires 3.13+ - use 3.13+
 
 ### Message Flow
 1. User input → UserMessage
