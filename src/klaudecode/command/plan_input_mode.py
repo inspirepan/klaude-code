@@ -17,7 +17,7 @@ class PlanMode(InputModeCommand):
         return '#6aa4a5'
 
     def get_placeholder(self) -> str:
-        return 'type to start planning...'
+        return 'plan mode on...'
 
     def get_next_mode_name(self) -> str:
         return 'plan'

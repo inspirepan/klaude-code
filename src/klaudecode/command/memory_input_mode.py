@@ -1,4 +1,18 @@
-from ..user_input import InputModeCommand
+import asyncio
+from pathlib import Path
+from typing import TYPE_CHECKING, Generator
+
+from rich.abc import RichRenderable
+from rich.markup import escape
+from rich.text import Text
+
+from ..message import UserMessage, render_message, render_suffix
+from ..tui import ColorStyle
+from ..user_input import CommandHandleOutput, InputModeCommand, UserInput
+from ..user_questionary import user_select
+
+if TYPE_CHECKING:
+    from ..agent import Agent
 
 
 class MemoryMode(InputModeCommand):
@@ -16,3 +30,69 @@ class MemoryMode(InputModeCommand):
 
     def binding_key(self) -> str:
         return '#'
+
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent, user_input)
+        content = user_input.cleaned_input
+
+        if not content.strip():
+            command_handle_output.user_msg.set_extra_data('result', 'No content to save')
+            command_handle_output.user_msg.set_extra_data('status', 'error')
+            command_handle_output.need_agent_run = False
+            return command_handle_output
+
+        options = ['Project memory          Checked in at ./CLAUDE.md', 'User memory             Saved in ~/.claude/CLAUDE.md']
+        try:
+            choice = await user_select(options, 'Where should this memory be saved?')
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            command_handle_output.user_msg.set_extra_data('result', 'Cancelled by user')
+            command_handle_output.user_msg.set_extra_data('status', 'cancelled')
+            command_handle_output.need_agent_run = False
+            return command_handle_output
+
+        if choice is None:
+            command_handle_output.user_msg.set_extra_data('result', 'Cancelled by user')
+            command_handle_output.user_msg.set_extra_data('status', 'cancelled')
+            command_handle_output.need_agent_run = False
+            return command_handle_output
+
+        if choice == 0:
+            claude_md_path = Path(agent.session.workdir) / 'CLAUDE.md'
+            location = 'project'
+        else:
+            claude_md_path = Path.home() / '.claude' / 'CLAUDE.md'
+            claude_md_path.parent.mkdir(exist_ok=True)
+            location = 'system'
+
+        lines = [line.strip() for line in content.split('\n') if line.strip()]
+        formatted_content = '\n'.join(f'- {line}' for line in lines)
+
+        if claude_md_path.exists():
+            existing_content = claude_md_path.read_text(encoding='utf-8')
+            new_content = f'{existing_content}\n\n{formatted_content}'
+        else:
+            new_content = formatted_content
+
+        claude_md_path.write_text(new_content, encoding='utf-8')
+
+        command_handle_output.user_msg.set_extra_data('result', f'Saved to {claude_md_path}')
+        command_handle_output.user_msg.set_extra_data('status', 'success')
+        command_handle_output.user_msg.set_extra_data('location', location)
+        command_handle_output.user_msg.set_extra_data('path', str(claude_md_path))
+        command_handle_output.need_agent_run = False
+        return command_handle_output
+
+    def render_user_msg(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
+        yield render_message(escape(user_msg.content), mark='#', style=self._get_color(), mark_style=self._get_color())
+
+    def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
+        result = user_msg.get_extra_data('result', '')
+        status = user_msg.get_extra_data('status', '')
+
+        if result:
+            if status == 'success':
+                yield render_suffix(Text(result, style=ColorStyle.INLINE_CODE.value))
+            elif status == 'error':
+                yield render_suffix(Text(result, style=ColorStyle.ERROR.bold()))
+            else:
+                yield render_suffix(result)
