@@ -16,6 +16,18 @@ from .utils import format_relative_time
 app = typer.Typer(help='Coding Agent CLI', add_completion=False)
 
 
+@app.command('version')
+def version_command():
+    """Show version information"""
+    # Import here to avoid circular imports
+    from importlib.metadata import version
+    try:
+        pkg_version = version('klaude-code')
+        console.print(Text(f'klaude-code {pkg_version}', style=ColorStyle.SUCCESS.value))
+    except Exception:
+        console.print(Text('klaude-code (development)', style=ColorStyle.SUCCESS.value))
+
+
 def setup_config(**kwargs) -> ConfigModel:
     config_manager = ConfigManager.setup(**kwargs)
     config_model = config_manager.get_config_model()

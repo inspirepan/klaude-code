@@ -17,6 +17,16 @@ A powerful coding agent CLI that brings Claude AI's coding capabilities directly
 - Python 3.13 or higher
 - [uv](https://docs.astral.sh/uv/) (recommended) or pip
 
+### Install from PyPI (Recommended)
+
+```bash
+# Install with uv (recommended)
+uv tool install klaude-code
+
+# Or install with pip
+pip install klaude-code
+```
+
 ### Install from Source
 
 ```bash
