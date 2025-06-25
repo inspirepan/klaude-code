@@ -8,9 +8,10 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from pydantic import BaseModel
 from rich.columns import Columns
 from rich.live import Live
+from rich.text import Text
 
 from .message import AIMessage, ToolCall, ToolMessage, count_tokens
-from .tui import console, render_status
+from .tui import ColorStyle, console, render_status
 
 if TYPE_CHECKING:
     from .agent import Agent
@@ -279,13 +280,13 @@ class ToolHandler:
             if self.show_live:
                 # Generate status text based on number of tools
                 if len(tool_calls) == 1:
-                    status_text = f'Executing [bold]{tool_calls[0].tool_name}[/bold]...'
+                    status_text = Text.assemble('Executing', (tool_calls[0].tool_name, ColorStyle.HIGHLIGHT.bold()), '...')
                 else:
                     tool_counts = {}
                     for tc in tool_calls:
                         tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
-                    tool_names = [f'[bold]{name}[/bold]{"*" + str(count) if count > 1 else ""}' for name, count in tool_counts.items()]
-                    status_text = 'Executing ' + ' '.join(tool_names) + '... '
+                    tool_names = [Text.assemble(name, (ColorStyle.HIGHLIGHT.bold(), '*' + str(count) if count > 1 else '')) for name, count in tool_counts.items()]
+                    status_text = Text.assemble('Executing', *tool_names, '...')
 
                 status = render_status(status_text)
                 with Live(refresh_per_second=10, console=console.console) as live:

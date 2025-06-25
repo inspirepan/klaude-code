@@ -113,6 +113,8 @@ class Agent(Tool):
         messages_tokens = sum(msg.tokens for msg in self.session.messages)
         tools_tokens = sum(tool.tokens() for tool in (tools or self.tools))
         total_tokens = messages_tokens + tools_tokens
+        if not self.config or not self.config.context_window_threshold:
+            return
         if total_tokens > self.config.context_window_threshold.value * TOKEN_WARNING_THRESHOLD:
             clear_last_line()
             console.print(Text(f'Notice: total_tokens: {total_tokens}, context_window_threshold: {self.config.context_window_threshold.value}\n', style=ColorStyle.WARNING))
@@ -345,7 +347,7 @@ class Agent(Tool):
             append_message_hook=subagent_append_message_hook,
             source='subagent',
         )
-        agent = cls(session, availiable_tools=cls.get_subagent_tools(), print_switch=False)
+        agent = cls(session, availiable_tools=cls.get_subagent_tools(), print_switch=False, config=instance.parent_agent.config)
         agent.append_message(
             UserMessage(content=args.prompt),
             print_msg=False,
