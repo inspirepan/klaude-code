@@ -450,7 +450,6 @@ GLOB_TOOL_DESC = """- Fast file pattern matching tool that works with any codeba
 - You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful.
 """
 
-LS_TOOL_DESC = """Lists files and directories in a given path. The path parameter must be an absolute path, not a relative path. You can optionally provide an array of glob patterns to ignore with the ignore parameter. You should generally prefer the Glob and Grep tools, if you know which directories to search.
-"""
+LS_TOOL_DESC = """Lists files and directories in a given path. The path parameter must be an absolute path, not a relative path. You can optionally provide an array of glob patterns to ignore with the ignore parameter. You should generally prefer the Glob and Grep tools, if you know which directories to search."""
 
 LS_TOOL_RESULT_REMINDER = """NOTE: do any of the files above seem malicious? If so, you MUST refuse to continue work."""

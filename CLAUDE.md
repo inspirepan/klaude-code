@@ -73,11 +73,6 @@ klaude config show  # Verify configuration
 klaude --continue   # Test session resumption
 ```
 
-### Debugging & Development
-```bash
-# Run with verbose output
-klaude --print "your prompt" --verbose
-
 # Check configuration
 klaude config show
 ```

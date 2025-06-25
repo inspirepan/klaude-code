@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from ..tui import get_prompt_toolkit_color, ColorStyle
+from ..tui import ColorStyle, get_prompt_toolkit_color
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput
 
 if TYPE_CHECKING:

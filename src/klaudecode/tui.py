@@ -154,15 +154,6 @@ class ConsoleProxy:
 console = ConsoleProxy()
 
 
-def format_style(content: str, style: Optional[str] = None):
-    if style and isinstance(content, str):
-        # Handle ColorStyle enum values
-        if hasattr(style, 'value'):
-            style = style.value
-        return f'[{style}]{content}[/{style}]'
-    return content
-
-
 INTERRUPT_TIP = ' Press ctrl+c to interrupt  '
 
 

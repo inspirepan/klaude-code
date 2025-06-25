@@ -151,7 +151,7 @@ TODAY_COMMAND = """Please analyze what this codebase has been done today by git 
     • Retrieve complete diff content for each commit
     • Capture all code changes, additions, and deletions
 
-## 5. Generate Comprehensive Analysis
+## 5. Generate Comprehensive Development Analysis In One Response
 
 ### Part 1. Analyze Each Commit Chronologically
     • Start with earliest commit and work forward in time
@@ -196,7 +196,7 @@ RECENT_COMMAND = """Please analyze the recent development activities in this cod
     • Capture all code changes, additions, deletions, and modifications
     • Focus on understanding the evolution of the codebase
 
-## 5. Generate Comprehensive Development Analysis
+## 5. Generate Comprehensive Development Analysis In One Response
 
 ### Part 1. Chronological Development Timeline
     • Analyze commits from oldest to newest in the recent period

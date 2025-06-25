@@ -18,7 +18,7 @@ from rich.markup import escape
 
 from .message import UserMessage, register_user_msg_content_func, register_user_msg_renderer, register_user_msg_suffix_renderer
 from .prompt.reminder import LANGUAGE_REMINDER
-from .tui import console, render_message, get_prompt_toolkit_style, get_prompt_toolkit_color, ColorStyle
+from .tui import ColorStyle, console, get_prompt_toolkit_color, get_prompt_toolkit_style, render_message
 from .utils import DEFAULT_IGNORE_PATTERNS
 
 """

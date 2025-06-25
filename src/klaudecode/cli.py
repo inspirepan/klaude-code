@@ -111,11 +111,9 @@ def main(
     thinking: Optional[bool] = typer.Option(
         None,
         '--thinking',
-        help='Enable Claude Extended Thinking capability (only for Anthropic Offical API)',
+        help='Enable Claude Extended Thinking capability (only for Anthropic Offical API yet)',
     ),
-    # TODO:
     mcp: bool = typer.Option(False, '--mcp', help='Enable MCP (Model Context Protocol) tools'),
-    # verbose: bool = typer.Option(False, '--verbose', help='Enable verbose output'),
 ):
     ctx.ensure_object(dict)
     if ctx.invoked_subcommand is None:
@@ -133,7 +131,6 @@ def main(
         ctx.obj['resume'] = resume
         ctx.obj['continue_latest'] = continue_latest
         ctx.obj['mcp'] = mcp
-        # ctx.obj['verbose'] = verbose
         ctx.obj['config'] = config_model
         asyncio.run(main_async(ctx))
 
