@@ -9,9 +9,10 @@ from typing import Annotated, Callable, Optional, Set
 
 from pydantic import BaseModel, Field
 from rich.console import Group
-from rich.text import Text
 from rich.padding import Padding
 from rich.rule import Rule
+from rich.text import Text
+
 from ..message import ToolCall, register_tool_call_renderer
 from ..prompt.tools import BASH_TOOL_DESC
 from ..tool import Tool, ToolInstance
@@ -331,19 +332,10 @@ class BashTool(Tool):
 def render_bash_args(tool_call: ToolCall):
     description = tool_call.tool_args_dict.get('description', '')
     command = tool_call.tool_args_dict.get('command', '')
-    if len(command) < 60 and '\n' not in command:
-        tool_call_msg = Text.assemble(
-            ('Bash', 'bold'),
-            '(',
-            (f'{description} → ' if description else '', ColorStyle.AI_MESSAGE.value),
-            (command, ColorStyle.HIGHLIGHT.value),
-            ')',
-        )
-        yield tool_call_msg
-    else:
-        yield Text.assemble(('Bash', 'bold'), '(', (description, ColorStyle.AI_MESSAGE.value), ')')
-        yield Padding.indent(
-            Group(
+
+    yield Text.assemble(('Bash', 'bold'), '(', (description, ColorStyle.AI_MESSAGE.value), ')')
+    yield Padding.indent(
+        Group(
                 Rule(style=ColorStyle.SEPARATOR.value),
                 Text(command, style=ColorStyle.HIGHLIGHT.value),
                 Rule(style=ColorStyle.SEPARATOR.value),

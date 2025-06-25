@@ -274,8 +274,6 @@ class UserInputCompleter(Completer):
 
     def get_completions(self, document, _complete_event):
         # Only provide completion in normal mode
-        if self.input_session.current_input_mode.get_name() != NORMAL_MODE_NAME:
-            return
         text = document.text
         cursor_position = document.cursor_position
 
@@ -283,6 +281,8 @@ class UserInputCompleter(Completer):
         at_match = self._find_at_file_pattern(text, cursor_position)
         if at_match:
             yield from self._get_file_completions(at_match)
+            return
+        if self.input_session.current_input_mode.get_name() != NORMAL_MODE_NAME:
             return
 
         # Original slash command completion
