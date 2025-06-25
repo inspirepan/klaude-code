@@ -278,17 +278,20 @@ class ToolHandler:
                 pass
 
             if self.show_live:
-                # Generate status text based on number of tools
-                if len(tool_calls) == 1:
-                    status_text = Text.assemble('Executing', (tool_calls[0].tool_name, ColorStyle.HIGHLIGHT.bold()), '...')
-                else:
-                    tool_counts = {}
-                    for tc in tool_calls:
-                        tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
-                    tool_names = [Text.assemble(name, (ColorStyle.HIGHLIGHT.bold(), '*' + str(count) if count > 1 else '')) for name, count in tool_counts.items()]
-                    status_text = Text.assemble('Executing', *tool_names, '...')
+                try:
+                    # Generate status text based on number of tools
+                    if len(tool_calls) == 1:
+                        status_text = Text.assemble('Executing', (tool_calls[0].tool_name, ColorStyle.HIGHLIGHT.bold()), '...')
+                    else:
+                        tool_counts = {}
+                        for tc in tool_calls:
+                            tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
+                        tool_names = [Text.assemble((name, ColorStyle.HIGHLIGHT.bold()), '*' + str(count) if count > 1 else '') for name, count in tool_counts.items()]
+                        status_text = Text.assemble('Executing ', *tool_names, '...')
 
-                status = render_status(status_text)
+                    status = render_status(status_text)
+                except Exception as e:
+                    print(str(e))
                 with Live(refresh_per_second=10, console=console.console) as live:
                     while any(ti.is_running() for ti in tool_instances) and not interrupted:
                         tool_results = [ti.tool_result() for ti in tool_instances]
