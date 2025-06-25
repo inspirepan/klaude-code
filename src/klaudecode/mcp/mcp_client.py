@@ -5,7 +5,7 @@ from typing import Any, Dict
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-from ..tui import ColorStyle, console
+from ..tui import ColorStyle, Text, console
 from .mcp_config import MCPConfigManager
 
 
@@ -27,7 +27,7 @@ class MCPClient:
 
         config = self.config_manager.load_config()
         if not config.mcpServers:
-            console.print('No MCP servers configured', style=ColorStyle.WARNING)
+            console.print(Text('No MCP servers configured', style=ColorStyle.WARNING))
             return True
 
         # Connect to all configured servers
@@ -36,7 +36,7 @@ class MCPClient:
 
         for server_name, server_config in config.mcpServers.items():
             try:
-                console.print(f'Connecting to MCP server: [bold cyan]{server_name}[/bold cyan]')
+                console.print(Text.from_markup(f'Connecting to MCP server: [bold cyan]{server_name}[/bold cyan]'))
                 server_params = StdioServerParameters(command=server_config.command, args=server_config.args or [], env=server_config.env or {})
                 client_transport = await asyncio.wait_for(self.exit_stack.enter_async_context(stdio_client(server_params)), timeout=10.0)
                 client_session = await asyncio.wait_for(self.exit_stack.enter_async_context(ClientSession(client_transport[0], client_transport[1])), timeout=5.0)
@@ -56,16 +56,14 @@ class MCPClient:
                 success_count += 1
                 sussess_servers.append(server_name)
             except asyncio.TimeoutError:
-                console.print(f'Timeout connecting to MCP server {server_name}', style=ColorStyle.ERROR)
+                console.print(Text(f'Timeout connecting to MCP server {server_name}', style=ColorStyle.ERROR))
                 continue
             except Exception as e:
-                console.print(f'Failed to connect to MCP server {server_name}: {e}', style=ColorStyle.ERROR)
+                console.print(Text(f'Failed to connect to MCP server {server_name}: {e}', style=ColorStyle.ERROR))
                 continue
-        if success_count == 0:
-            console.print('No MCP servers connected successfully', style=ColorStyle.WARNING)
-        else:
+        if success_count > 0:
             sussess_server_names = ', '.join(sussess_servers)
-            console.print(f'Connected to {success_count}/{len(config.mcpServers)} MCP servers: [bold cyan]{sussess_server_names}[/bold cyan]', style=ColorStyle.SUCCESS)
+            console.print(Text.from_markup(f'Connected to {success_count}/{len(config.mcpServers)} MCP servers: [bold cyan]{sussess_server_names}[/bold cyan]', style=ColorStyle.SUCCESS))
         self._initialized = True
         return True
 

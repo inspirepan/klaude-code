@@ -230,7 +230,7 @@ class GlobalConfigSource(ConfigSource):
                 filtered_data = {k: v for k, v in config_data.items() if k in valid_fields}
                 self.config_model = ConfigModel(source='config', **filtered_data)
         except (json.JSONDecodeError, IOError) as e:
-            console.print(Text(f'Warning: Failed to load config: {e}', style=ColorStyle.WARNING.value))
+            console.print(Text(f'Warning: Failed to load config: {e}', style=ColorStyle.ERROR.value))
             self.config_model = ConfigModel(source='config')
 
     @classmethod
@@ -238,13 +238,13 @@ class GlobalConfigSource(ConfigSource):
         """Open the configuration file in the default editor"""
         config_path = cls.get_config_path()
         if config_path.exists():
-            console.print(f'Opening config file: {str(config_path)}', style=ColorStyle.SUCCESS.value)
+            console.print(Text(f'Opening config file: {str(config_path)}', style=ColorStyle.SUCCESS.value))
             import sys
 
             editor = os.getenv('EDITOR', 'vi' if sys.platform != 'darwin' else 'open')
             os.system(f'{editor} {config_path}')
         else:
-            console.print('Config file not found', style=ColorStyle.ERROR.value)
+            console.print(Text('Config file not found', style=ColorStyle.ERROR.value))
 
     @classmethod
     def create_example_config(cls, config_path: Path = None):
@@ -267,11 +267,11 @@ class GlobalConfigSource(ConfigSource):
             config_path.parent.mkdir(parents=True, exist_ok=True)
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(example_config, f, indent=2, ensure_ascii=False)
-            console.print(f'Example config file created at: {config_path}', style=ColorStyle.SUCCESS.value)
-            console.print('Please edit the file and set your actual API key.')
+            console.print(Text(f'Example config file created at: {config_path}', style=ColorStyle.SUCCESS.value))
+            console.print(Text('Please edit the file and set your actual API key.'))
             return True
         except (IOError, OSError) as e:
-            console.print(f'Error: Failed to create config file: {e}', style=ColorStyle.ERROR.value)
+            console.print(Text(f'Error: Failed to create config file: {e}', style=ColorStyle.ERROR.value))
             return False
 
     @classmethod
@@ -335,12 +335,12 @@ class ConfigManager:
         api_key_config = self._merged_config_model.api_key
 
         if not api_key_config or not api_key_config.value or api_key_config.source == 'default':
-            console.print('Warning: API key not set', style=ColorStyle.ERROR.value)
+            console.print(Text('Error: API key not set', style=ColorStyle.ERROR.value))
             console.print('Please set your API key using one of the following methods:')
             console.print('  1. Command line: --api-key YOUR_API_KEY')
             console.print('  2. Environment: export API_KEY=YOUR_API_KEY')
-            console.print("  3. Config file: Run 'klaude config edit' to set it")
-            return
+            console.print("  3. Config file: Run 'klaude config edit' to init & set it")
+            raise ValueError('API key not set')
 
     def get_config_model(self) -> ConfigModel:
         """Get merged configuration model from all sources"""

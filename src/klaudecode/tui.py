@@ -253,7 +253,7 @@ def render_hello() -> RenderResult:
             '',
             '[italic]/status for your current setup[/italic]',
             '',
-            Text('cwd: {}'.format(os.getcwd()), style=ColorStyle.MUTED.value),
+            Text('cwd: {}'.format(os.getcwd())),
         ),
     )
     return Group(

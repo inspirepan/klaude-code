@@ -115,7 +115,7 @@ class Agent(Tool):
         total_tokens = messages_tokens + tools_tokens
         if total_tokens > self.config.context_window_threshold.value * TOKEN_WARNING_THRESHOLD:
             clear_last_line()
-            console.print(f'Notice: total_tokens: {total_tokens}, context_window_threshold: {self.config.context_window_threshold.value}\n', style=ColorStyle.WARNING)
+            console.print(Text(f'Notice: total_tokens: {total_tokens}, context_window_threshold: {self.config.context_window_threshold.value}\n', style=ColorStyle.WARNING))
         if total_tokens > self.config.context_window_threshold.value:
             await self.session.compact_conversation_history(show_status=self.print_switch)
 

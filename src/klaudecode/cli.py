@@ -9,7 +9,7 @@ from .config import ConfigManager, ConfigModel
 from .message import SystemMessage
 from .prompt.system import STATIC_SYSTEM_PROMPT, get_system_prompt_dynamic_part
 from .session import Session
-from .tui import ColorStyle, console
+from .tui import ColorStyle, Text, console
 from .user_questionary import user_select
 from .utils import format_relative_time
 
@@ -44,7 +44,7 @@ async def main_async(ctx: typer.Context):
     if ctx.obj['continue_latest']:
         session = Session.get_latest_session(os.getcwd())
         if not session:
-            console.print('No session found', style=ColorStyle.ERROR.value)
+            console.print(Text('No session found', style=ColorStyle.ERROR.value))
             return
         session = session.fork()
     elif ctx.obj['resume']:
@@ -83,7 +83,7 @@ async def main_async(ctx: typer.Context):
     except KeyboardInterrupt:
         pass
     finally:
-        console.print('\nBye!', style=ColorStyle.AI_MESSAGE.value)
+        console.print(Text('\nBye!', style=ColorStyle.AI_MESSAGE.value))
 
 
 @app.callback(invoke_without_command=True)
@@ -117,15 +117,19 @@ def main(
 ):
     ctx.ensure_object(dict)
     if ctx.invoked_subcommand is None:
-        config_model = setup_config(
-            api_key=api_key,
-            model_name=model,
-            base_url=base_url,
-            model_azure=model_azure,
-            max_tokens=max_tokens,
-            extra_header=extra_header,
-            enable_thinking=thinking,
-        )
+        try:
+            config_model = setup_config(
+                api_key=api_key,
+                model_name=model,
+                base_url=base_url,
+                model_azure=model_azure,
+                max_tokens=max_tokens,
+                extra_header=extra_header,
+                enable_thinking=thinking,
+            )
+        except ValueError as e:
+            console.print(Text(f'Error: {e}', style=ColorStyle.ERROR.value))
+            raise typer.Exit(code=1)
 
         ctx.obj['prompt'] = prompt
         ctx.obj['resume'] = resume
@@ -171,7 +175,7 @@ def mcp_show():
             await mcp_manager.initialize()
             console.print(mcp_manager)
         except Exception as e:
-            console.print(f'Error connecting to MCP servers: {e}', style=ColorStyle.ERROR.value)
+            console.print(Text(f'Error connecting to MCP servers: {e}', style=ColorStyle.ERROR.value))
         finally:
             await mcp_manager.shutdown()
 
