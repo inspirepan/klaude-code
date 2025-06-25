@@ -28,7 +28,7 @@ cd klaude-code
 uv sync
 
 # Install in development mode
-uv pip install -e .
+uv tool install -e .
 ```
 
 ## Usage
