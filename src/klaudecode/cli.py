@@ -28,6 +28,36 @@ def version_command():
         console.print(Text('klaude-code (development)', style=ColorStyle.SUCCESS.value))
 
 
+@app.command('update')
+def update_command():
+    """Update klaude-code to the latest version"""
+    import subprocess
+    import sys
+    
+    console.print(Text('Updating klaude-code...', style=ColorStyle.INFO.value))
+    
+    try:
+        # Try uv first (recommended)
+        result = subprocess.run(['uv', 'tool', 'upgrade', 'klaude-code'], 
+                              capture_output=True, text=True)
+        if result.returncode == 0:
+            console.print(Text('✓ Updated successfully with uv', style=ColorStyle.SUCCESS.value))
+            return
+    except FileNotFoundError:
+        pass
+    
+    try:
+        # Fallback to pip
+        result = subprocess.run([sys.executable, '-m', 'pip', 'install', '--upgrade', 'klaude-code'], 
+                              capture_output=True, text=True)
+        if result.returncode == 0:
+            console.print(Text('✓ Updated successfully with pip', style=ColorStyle.SUCCESS.value))
+        else:
+            console.print(Text(f'✗ Update failed: {result.stderr}', style=ColorStyle.ERROR.value))
+    except Exception as e:
+        console.print(Text(f'✗ Update failed: {e}', style=ColorStyle.ERROR.value))
+
+
 def setup_config(**kwargs) -> ConfigModel:
     config_manager = ConfigManager.setup(**kwargs)
     config_model = config_manager.get_config_model()
