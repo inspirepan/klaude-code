@@ -281,12 +281,12 @@ class ToolHandler:
                 try:
                     # Generate status text based on number of tools
                     if len(tool_calls) == 1:
-                        status_text = Text.assemble('Executing', (tool_calls[0].tool_name, ColorStyle.HIGHLIGHT.bold()), '...')
+                        status_text = Text.assemble('Executing ', (tool_calls[0].tool_name, ColorStyle.HIGHLIGHT.bold()), '...')
                     else:
                         tool_counts = {}
                         for tc in tool_calls:
                             tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
-                        tool_names = [Text.assemble((name, ColorStyle.HIGHLIGHT.bold()), '*' + str(count) if count > 1 else '') for name, count in tool_counts.items()]
+                        tool_names = [Text.assemble((name, ColorStyle.HIGHLIGHT.bold()), '*' + str(count) if count > 1 else '', ' ') for name, count in tool_counts.items()]
                         status_text = Text.assemble('Executing ', *tool_names, '...')
 
                     status = render_status(status_text)
