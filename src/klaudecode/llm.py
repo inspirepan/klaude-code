@@ -448,7 +448,12 @@ class LLMProxy:
                 if show_status:
                     if attempt == 0:
                         clear_last_line()
-                    console.print(render_suffix(f'Retry {attempt + 1}/{self.max_retries}: call failed - {str(e)}, waiting {delay:.1f}s', style=ColorStyle.ERROR.value))
+                    console.print(
+                        render_suffix(
+                            f'Retry {attempt + 1}/{self.max_retries}: call {self.client.model_name} failed - {str(e)}, waiting {delay:.1f}s',
+                            style=ColorStyle.ERROR.value,
+                        )
+                    )
                     with render_status(f'Waiting {delay:.1f}s...'):
                         await asyncio.sleep(delay)
                 else:
@@ -459,7 +464,7 @@ class LLMProxy:
         clear_last_line()
         console.print(
             render_suffix(
-                f'Final failure: call failed after {self.max_retries} retries - {last_exception}',
+                f'Final failure: call {self.client.model_name} failed after {self.max_retries} retries - {last_exception}',
                 style=ColorStyle.ERROR.value,
             )
         )

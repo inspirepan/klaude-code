@@ -8,7 +8,7 @@ from rich.text import Text
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import READ_TOOL_DESC, READ_TOOL_EMPTY_REMINDER, READ_TOOL_RESULT_REMINDER
 from ..tool import Tool, ToolInstance
-from ..tui import render_suffix
+from ..tui import ColorStyle, render_suffix
 from .file_utils import cache_file_content, read_file_content, truncate_content, validate_file_exists
 
 """
@@ -30,6 +30,8 @@ class ReadResult:
         self.content = None
         self.read_line_count = 0
         self.brief = []
+        self.actual_range = None
+        self.truncated = False
 
 
 def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[int] = None) -> ReadResult:
@@ -84,6 +86,21 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
 
     # Truncate if necessary
     truncated_numbered_lines, remaining_line_count = truncate_content(numbered_lines, TRUNCATE_CHAR_LIMIT)
+
+    # Check if content was truncated
+    result.truncated = remaining_line_count > 0 or len(truncated_numbered_lines) < len(numbered_lines)
+
+    # Calculate actual range that AI will read
+    if len(numbered_lines) > 0:
+        start_line = numbered_lines[0][0]
+        end_line = numbered_lines[-1][0]
+        if len(truncated_numbered_lines) > 0:
+            # If truncated, show range of what's actually shown
+            actual_end_line = truncated_numbered_lines[-1][0]
+            result.actual_range = f'{start_line}:{actual_end_line}'
+        else:
+            result.actual_range = f'{start_line}:{end_line}'
+
     formatted_content = ''
     if len(truncated_numbered_lines) > 0:
         formatted_content = '\n'.join([f'{line_num}→{line_content}' for line_num, line_content in truncated_numbered_lines])
@@ -127,6 +144,8 @@ class ReadTool(Tool):
         instance.tool_result().set_content(result.content)
         instance.tool_result().set_extra_data('read_line_count', result.read_line_count)
         instance.tool_result().set_extra_data('brief', result.brief)
+        instance.tool_result().set_extra_data('actual_range', result.actual_range)
+        instance.tool_result().set_extra_data('truncated', result.truncated)
 
 
 def render_read_args(tool_call: ToolCall):
@@ -150,6 +169,9 @@ def render_read_args(tool_call: ToolCall):
 def render_read_content(tool_msg: ToolMessage):
     read_line_count = tool_msg.get_extra_data('read_line_count', 0)
     brief_list = tool_msg.get_extra_data('brief', [])
+    actual_range = tool_msg.get_extra_data('actual_range', None)
+    truncated = tool_msg.get_extra_data('truncated', False)
+
     if brief_list:
         table = Table.grid(padding=(0, 1))
         width = len(str(brief_list[-1][0]))
@@ -157,9 +179,19 @@ def render_read_content(tool_msg: ToolMessage):
         table.add_column(overflow='fold')
         for line_num, line_content in brief_list:
             table.add_row(f'{line_num:>{width}}:', escape(line_content))
-        table.add_row('…', f'Read [bold]{read_line_count}[/bold] lines')
+
+        # Build read info with Rich Text for styling
+        read_text = Text()
+        read_text.append('Read ')
+        read_text.append(str(read_line_count), style='bold')
+        read_text.append(' lines')
+
+        if actual_range and truncated:
+            read_text.append(f' (truncated to line {actual_range})', style=ColorStyle.WARNING.value)
+
+        table.add_row('…', read_text)
         yield render_suffix(table)
-    else:
+    elif tool_msg.tool_call.status == 'success':
         yield render_suffix('(No content)')
 
 
