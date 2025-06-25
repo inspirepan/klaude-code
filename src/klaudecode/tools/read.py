@@ -19,8 +19,9 @@ from .file_utils import cache_file_content, read_file_content, truncate_content,
 - UTF-8 encoding support and empty file handling
 """
 
-TRUNCATE_CHAR_LIMIT = 2000
-TRUNCATE_LINE_LIMIT = 2000
+READ_TRUNCATE_CHAR_LIMIT = 40000
+READ_TRUNCATE_LINE_CHAR_LIMIT = 2000
+READ_TRUNCATE_LINE_LIMIT = 2000
 
 
 class ReadResult:
@@ -85,7 +86,7 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
         numbered_lines = numbered_lines[:limit]
 
     # Truncate if necessary
-    truncated_numbered_lines, remaining_line_count = truncate_content(numbered_lines, TRUNCATE_CHAR_LIMIT)
+    truncated_numbered_lines, remaining_line_count = truncate_content(numbered_lines, READ_TRUNCATE_CHAR_LIMIT, READ_TRUNCATE_LINE_LIMIT, READ_TRUNCATE_LINE_CHAR_LIMIT)
 
     # Check if content was truncated
     result.truncated = remaining_line_count > 0 or len(truncated_numbered_lines) < len(numbered_lines)
@@ -102,11 +103,7 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
             result.actual_range = f'{start_line}:{end_line}'
 
     formatted_content = ''
-    if len(truncated_numbered_lines) > 0:
-        formatted_content = '\n'.join([f'{line_num}→{line_content}' for line_num, line_content in truncated_numbered_lines])
-    else:
-        # Handle case where single line content exceeds character limit
-        formatted_content = numbered_lines[0][1][:TRUNCATE_CHAR_LIMIT] + '... (more content is truncated)'
+    formatted_content = '\n'.join([f'{line_num}→{line_content}' for line_num, line_content in truncated_numbered_lines])
     if remaining_line_count > 0:
         formatted_content += f'\n... (more {remaining_line_count} lines are truncated)'
     if warning:
@@ -123,7 +120,7 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
 
 class ReadTool(Tool):
     name = 'Read'
-    desc = READ_TOOL_DESC.format(TRUNCATE_CHAR_LIMIT=TRUNCATE_CHAR_LIMIT, TRUNCATE_LINE_LIMIT=TRUNCATE_LINE_LIMIT)
+    desc = READ_TOOL_DESC.format(TRUNCATE_LINE_LIMIT=READ_TRUNCATE_LINE_LIMIT, TRUNCATE_LINE_CHAR_LIMIT=READ_TRUNCATE_LINE_CHAR_LIMIT)
     parallelable: bool = True
 
     class Input(BaseModel):

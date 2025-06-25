@@ -23,6 +23,7 @@ FILE_CACHE: Dict[str, str] = {}
 
 TRUNCATE_CHAR_LIMIT = 5000
 TRUNCATE_LINE_LIMIT = 1000
+TRUNCATE_LINE_CHAR_LIMIT = 2000
 FILE_NOT_READ_ERROR = 'File has not been read yet. Read it first before writing to it.'
 FILE_MODIFIED_ERROR = 'File has been modified externally. Either by user or a linter. Read it first before writing to it.'
 
@@ -110,7 +111,9 @@ def generate_diff_lines(old_content: str, new_content: str) -> List[str]:
     return diff_lines
 
 
-def truncate_content(numbered_lines: List[Tuple[int, str]], char_limit: int = TRUNCATE_CHAR_LIMIT, line_limit: int = TRUNCATE_LINE_LIMIT) -> Tuple[List[Tuple[int, str]], int]:
+def truncate_content(
+    numbered_lines: List[Tuple[int, str]], char_limit: int = TRUNCATE_CHAR_LIMIT, line_limit: int = TRUNCATE_LINE_LIMIT, line_char_limit: int = TRUNCATE_LINE_CHAR_LIMIT
+) -> Tuple[List[Tuple[int, str]], int]:
     total_char_count = sum(len(line_content) for _, line_content in numbered_lines)
     if total_char_count <= char_limit and len(numbered_lines) <= line_limit:
         return numbered_lines, 0
@@ -121,11 +124,20 @@ def truncate_content(numbered_lines: List[Tuple[int, str]], char_limit: int = TR
         if i >= line_limit:
             remaining_line_count = len(numbered_lines) - i
             break
-        if char_count + len(line_content) + 1 > char_limit:
+
+        # Handle single line character limit first
+        if len(line_content) > line_char_limit:
+            processed_line_content = line_content[:line_char_limit] + f'... (more {len(line_content) - line_char_limit} characters in this line are truncated)'
+        else:
+            processed_line_content = line_content
+
+        # Then check if adding this processed line would exceed char_limit
+        if char_count + len(processed_line_content) + 1 > char_limit:
             remaining_line_count = len(numbered_lines) - i
             break
-        truncated_lines.append((line_num, line_content))
-        char_count += len(line_content) + 1
+
+        truncated_lines.append((line_num, processed_line_content))
+        char_count += len(processed_line_content) + 1
     return truncated_lines, remaining_line_count
 
 

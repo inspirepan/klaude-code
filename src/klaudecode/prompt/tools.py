@@ -239,7 +239,7 @@ Usage:
 - The file_path parameter must be an absolute path, not a relative path
 - By default, it reads up to {TRUNCATE_LINE_LIMIT} lines starting from the beginning of the file
 - You can optionally specify a line offset and limit (especially handy for long files), but it's recommended to read the whole file by not providing these parameters
-- Any lines longer than {TRUNCATE_CHAR_LIMIT} characters will be truncated
+- Any lines longer than {TRUNCATE_LINE_CHAR_LIMIT} characters will be truncated
 - Results are returned using `line-number→line-content` format, with line numbers starting at 1
 - You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful.
 - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.
