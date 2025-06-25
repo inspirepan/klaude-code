@@ -93,25 +93,66 @@ class BashMode(InputModeCommand):
                     # Read available output
                     await asyncio.sleep(0.1)  # Small delay to prevent busy waiting
 
-                    # Read stdout
+                    # Read stdout - read all available data
                     if process.stdout.readable():
                         try:
-                            line = process.stdout.readline()
-                            if line:
-                                output_lines.append(line.rstrip('\n'))
-                                display_text.append(line)
-                                live.update(render_suffix(display_text))
+                            import select
+                            import sys
+                            
+                            # Check if data is available to read (non-blocking)
+                            if sys.platform != 'win32':
+                                ready, _, _ = select.select([process.stdout], [], [], 0)
+                                if ready:
+                                    data = process.stdout.read(4096)
+                                    if data:
+                                        lines = data.split('\n')
+                                        # Handle partial lines
+                                        for i, line in enumerate(lines):
+                                            if i == len(lines) - 1 and not data.endswith('\n'):
+                                                # Last line might be partial, add it to display but not to output_lines yet
+                                                display_text.append(line)
+                                            else:
+                                                if line or i < len(lines) - 1:  # Include empty lines except the last one if data doesn't end with \n
+                                                    output_lines.append(line)
+                                                    display_text.append(line + '\n' if i < len(lines) - 1 else line)
+                                        live.update(render_suffix(display_text))
+                            else:
+                                # Windows fallback - use readline
+                                line = process.stdout.readline()
+                                if line:
+                                    output_lines.append(line.rstrip('\n'))
+                                    display_text.append(line)
+                                    live.update(render_suffix(display_text))
                         except Exception:
                             pass
 
                     # Read stderr
                     if process.stderr.readable():
                         try:
-                            line = process.stderr.readline()
-                            if line:
-                                error_lines.append(line.rstrip('\n'))
-                                display_text.append(line, style=ColorStyle.ERROR.value)
-                                live.update(render_suffix(display_text))
+                            import select
+                            import sys
+                            
+                            if sys.platform != 'win32':
+                                ready, _, _ = select.select([process.stderr], [], [], 0)
+                                if ready:
+                                    data = process.stderr.read(4096)
+                                    if data:
+                                        lines = data.split('\n')
+                                        for i, line in enumerate(lines):
+                                            if i == len(lines) - 1 and not data.endswith('\n'):
+                                                display_text.append(line, style=ColorStyle.ERROR.value)
+                                            else:
+                                                if line or i < len(lines) - 1:
+                                                    error_lines.append(line)
+                                                    display_text.append(line + '\n' if i < len(lines) - 1 else line, style=ColorStyle.ERROR.value)
+                                        live.update(render_suffix(display_text))
+                            else:
+                                # Windows fallback
+                                line = process.stderr.readline()
+                                if line:
+                                    error_lines.append(line.rstrip('\n'))
+                                    display_text.append(line, style=ColorStyle.ERROR.value)
+                                    live.update(render_suffix(display_text))
                         except Exception:
                             pass
 

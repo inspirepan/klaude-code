@@ -106,6 +106,7 @@ class Agent(Tool):
                     self.session.save()
                 epoch += 1
         finally:
+            self.session.save()
             # Clean up MCP resources
             if self.mcp_manager:
                 await self.mcp_manager.shutdown()
@@ -290,6 +291,7 @@ class Agent(Tool):
                     pass
             console.print(result)
         finally:
+            self.session.save()
             # Clean up MCP resources
             if self.mcp_manager:
                 await self.mcp_manager.shutdown()
