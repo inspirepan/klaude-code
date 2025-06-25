@@ -4,8 +4,9 @@ import os
 import time
 import uuid
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
-from typing import Callable, List, Literal, Optional
+from typing import Callable, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 from rich.text import Text
@@ -18,11 +19,53 @@ from .tui import ColorStyle, console
 from .utils import sanitize_filename
 
 
+class MessageStorageStatus(str, Enum):
+    """Status of message storage in JSONL file."""
+
+    NEW = 'new'  # Message not yet stored
+    STORED = 'stored'  # Message stored in file
+    MODIFIED = 'modified'  # Message modified after storage
+
+
+class MessageStorageState(BaseModel):
+    """State tracking for message storage in JSONL format."""
+
+    status: MessageStorageStatus = MessageStorageStatus.NEW
+    line_number: Optional[int] = None  # Line number in JSONL file (0-based)
+    file_path: Optional[str] = None  # Path to JSONL file
+
+
 class MessageHistory(BaseModel):
     messages: List[BasicMessage] = Field(default_factory=list)
+    storage_states: Dict[int, MessageStorageState] = Field(default_factory=dict, exclude=True)
 
     def append_message(self, *msgs: BasicMessage) -> None:
+        start_index = len(self.messages)
         self.messages.extend(msgs)
+        # Mark new messages as NEW status
+        for i, msg in enumerate(msgs, start=start_index):
+            self.storage_states[i] = MessageStorageState(status=MessageStorageStatus.NEW)
+
+    def mark_message_modified(self, index: int) -> None:
+        """Mark a message as modified for incremental update."""
+        if index in self.storage_states and self.storage_states[index].status == MessageStorageStatus.STORED:
+            self.storage_states[index].status = MessageStorageStatus.MODIFIED
+
+    def get_storage_state(self, index: int) -> MessageStorageState:
+        """Get storage state for a message."""
+        return self.storage_states.get(index, MessageStorageState())
+
+    def set_storage_state(self, index: int, state: MessageStorageState) -> None:
+        """Set storage state for a message."""
+        self.storage_states[index] = state
+
+    def get_unsaved_messages(self) -> List[tuple[int, BasicMessage]]:
+        """Get all messages that need to be saved (NEW or MODIFIED)."""
+        return [
+            (i, msg)
+            for i, msg in enumerate(self.messages)
+            if self.storage_states.get(i, MessageStorageState()).status in (MessageStorageStatus.NEW, MessageStorageStatus.MODIFIED)
+        ]
 
     def get_last_message(self, role: Literal['user', 'assistant', 'tool'] | None = None, filter_empty: bool = False) -> Optional[BasicMessage]:
         return next((msg for msg in reversed(self.messages) if (not role or msg.role == role) and (not filter_empty or msg)), None)
@@ -84,9 +127,8 @@ class Session(BaseModel):
         )
 
     def append_message(self, *msgs: BasicMessage) -> None:
-        """Add messages to the session and save it."""
+        """Add messages to the session."""
         self.messages.append_message(*msgs)
-        self.save()
         if self.append_message_hook:
             self.append_message_hook(*msgs)
 
@@ -110,7 +152,7 @@ class Session(BaseModel):
     def _get_messages_file_path(self) -> Path:
         """Get the file path for session messages."""
         prefix = self._get_formatted_filename_prefix()
-        return self._get_session_dir() / f'{prefix}.messages.{self.session_id}.json'
+        return self._get_session_dir() / f'{prefix}.messages.{self.session_id}.jsonl'
 
     def save(self) -> None:
         """Save session to local files (metadata and messages separately)"""
@@ -152,17 +194,77 @@ class Session(BaseModel):
             with open(metadata_file, 'w', encoding='utf-8') as f:
                 json.dump(metadata, f, indent=2, ensure_ascii=False)
 
-            # Save messages (heavy data)
-            messages_data = {
-                'session_id': self.session_id,
-                'messages': [msg.model_dump(exclude_none=True) for msg in self.messages],
-            }
-
-            with open(messages_file, 'w', encoding='utf-8') as f:
-                json.dump(messages_data, f, indent=2, ensure_ascii=False)
+            # Save messages using JSONL format with incremental updates
+            self._save_messages_jsonl(messages_file)
 
         except Exception as e:
             console.print(Text(f'Failed to save session - error: {e}', style=ColorStyle.ERROR.value))
+
+    def _save_messages_jsonl(self, messages_file: Path) -> None:
+        """Save messages to JSONL file with incremental updates."""
+        unsaved_messages = self.messages.get_unsaved_messages()
+
+        if not unsaved_messages:
+            return
+
+        # Create file if it doesn't exist
+        if not messages_file.exists():
+            with open(messages_file, 'w', encoding='utf-8') as f:
+                # Write session header
+                header = {'session_id': self.session_id, 'version': '1.0'}
+                f.write(json.dumps(header, ensure_ascii=False) + '\n')
+
+            # All messages are new, write them all
+            with open(messages_file, 'a', encoding='utf-8') as f:
+                for i, msg in enumerate(self.messages):
+                    msg_data = msg.model_dump(exclude_none=True)
+                    f.write(json.dumps(msg_data, ensure_ascii=False) + '\n')
+                    # Update storage state
+                    state = MessageStorageState(
+                        status=MessageStorageStatus.STORED,
+                        line_number=i + 1,  # +1 for header line
+                        file_path=str(messages_file),
+                    )
+                    self.messages.set_storage_state(i, state)
+        else:
+            # Read existing file to get line count
+            with open(messages_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+
+            # Handle new messages (append)
+            new_messages = [(i, msg) for i, msg in unsaved_messages if self.messages.get_storage_state(i).status == MessageStorageStatus.NEW]
+
+            if new_messages:
+                with open(messages_file, 'a', encoding='utf-8') as f:
+                    for i, msg in new_messages:
+                        msg_data = msg.model_dump(exclude_none=True)
+                        f.write(json.dumps(msg_data, ensure_ascii=False) + '\n')
+                        # Update storage state
+                        state = MessageStorageState(status=MessageStorageStatus.STORED, line_number=len(lines), file_path=str(messages_file))
+                        self.messages.set_storage_state(i, state)
+                        lines.append('')  # Track line count
+
+            # Handle modified messages (update in place)
+            modified_messages = [(i, msg) for i, msg in unsaved_messages if self.messages.get_storage_state(i).status == MessageStorageStatus.MODIFIED]
+
+            if modified_messages:
+                # Read all lines
+                with open(messages_file, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+
+                # Update modified lines
+                for i, msg in modified_messages:
+                    state = self.messages.get_storage_state(i)
+                    if state.line_number is not None and state.line_number < len(lines):
+                        msg_data = msg.model_dump(exclude_none=True)
+                        lines[state.line_number] = json.dumps(msg_data, ensure_ascii=False) + '\n'
+                        # Mark as stored
+                        state.status = MessageStorageStatus.STORED
+                        self.messages.set_storage_state(i, state)
+
+                # Write back all lines
+                with open(messages_file, 'w', encoding='utf-8') as f:
+                    f.writelines(lines)
 
     @classmethod
     def load(cls, session_id: str, work_dir: str = os.getcwd()) -> Optional['Session']:
@@ -171,7 +273,7 @@ class Session(BaseModel):
         try:
             session_dir = cls(work_dir=work_dir)._get_session_dir()
             metadata_files = list(session_dir.glob(f'*.metadata.{session_id}.json'))
-            messages_files = list(session_dir.glob(f'*.messages.{session_id}.json'))
+            messages_files = list(session_dir.glob(f'*.messages.{session_id}.jsonl'))
 
             if not metadata_files or not messages_files:
                 return None
@@ -184,30 +286,44 @@ class Session(BaseModel):
 
             with open(metadata_file, 'r', encoding='utf-8') as f:
                 metadata = json.load(f)
-            with open(messages_file, 'r', encoding='utf-8') as f:
-                messages_data = json.load(f)
 
+            # Load messages from JSONL file
             messages = []
             tool_calls_dict = {}
-            for msg_data in messages_data.get('messages', []):
-                role = msg_data.get('role')
-                if role == 'system':
-                    messages.append(SystemMessage(**msg_data))
-                elif role == 'user':
-                    messages.append(UserMessage(**msg_data))
-                elif role == 'assistant':
-                    ai_msg = AIMessage(**msg_data)
-                    if ai_msg.tool_calls:
-                        for tool_call_id, tool_call in ai_msg.tool_calls.items():
-                            tool_calls_dict[tool_call_id] = tool_call
-                    messages.append(ai_msg)
-                elif role == 'tool':
-                    tool_call_id = msg_data.get('tool_call_id')
-                    if tool_call_id and tool_call_id in tool_calls_dict:
-                        msg_data['tool_call_cache'] = tool_calls_dict[tool_call_id]
-                    else:
-                        raise ValueError(f'Tool call {tool_call_id} not found')
-                    messages.append(ToolMessage(**msg_data))
+
+            with open(messages_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+
+            # Skip header line (first line contains session info)
+            for line_num, line in enumerate(lines[1:], start=1):
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    msg_data = json.loads(line)
+                    role = msg_data.get('role')
+
+                    if role == 'system':
+                        messages.append(SystemMessage(**msg_data))
+                    elif role == 'user':
+                        messages.append(UserMessage(**msg_data))
+                    elif role == 'assistant':
+                        ai_msg = AIMessage(**msg_data)
+                        if ai_msg.tool_calls:
+                            for tool_call_id, tool_call in ai_msg.tool_calls.items():
+                                tool_calls_dict[tool_call_id] = tool_call
+                        messages.append(ai_msg)
+                    elif role == 'tool':
+                        tool_call_id = msg_data.get('tool_call_id')
+                        if tool_call_id and tool_call_id in tool_calls_dict:
+                            msg_data['tool_call_cache'] = tool_calls_dict[tool_call_id]
+                        else:
+                            raise ValueError(f'Tool call {tool_call_id} not found')
+                        messages.append(ToolMessage(**msg_data))
+                except json.JSONDecodeError as e:
+                    console.print(Text(f'Warning: Failed to parse message line {line_num}: {e}', style=ColorStyle.WARNING.value))
+                    continue
 
             todo_list_data = metadata.get('todo_list', [])
             if isinstance(todo_list_data, list):
@@ -219,6 +335,16 @@ class Session(BaseModel):
             session.session_id = metadata['id']
             session._created_at = metadata.get('created_at')
             session.title_msg = metadata.get('title_msg', '')
+
+            # Initialize storage states for loaded messages
+            for i, msg in enumerate(messages):
+                state = MessageStorageState(
+                    status=MessageStorageStatus.STORED,
+                    line_number=i + 1,  # +1 for header line
+                    file_path=str(messages_file),
+                )
+                session.messages.set_storage_state(i, state)
+
             return session
 
         except Exception as e:

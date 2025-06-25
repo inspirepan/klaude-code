@@ -336,12 +336,12 @@ def render_bash_args(tool_call: ToolCall):
     yield Text.assemble(('Bash', 'bold'), '(', (description, ColorStyle.AI_MESSAGE.value), ')')
     yield Padding.indent(
         Group(
-                Rule(style=ColorStyle.SEPARATOR.value),
-                Text(command, style=ColorStyle.HIGHLIGHT.value),
-                Rule(style=ColorStyle.SEPARATOR.value),
-            ),
-            level=2,
-        )
+            Rule(style=ColorStyle.SEPARATOR.value),
+            Text(command, style=ColorStyle.HIGHLIGHT.value),
+            Rule(style=ColorStyle.SEPARATOR.value),
+        ),
+        level=2,
+    )
 
 
 register_tool_call_renderer('Bash', render_bash_args)

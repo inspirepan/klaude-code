@@ -102,6 +102,8 @@ class Agent(Tool):
                     self._handle_caludemd_reminder()
                 if need_agent_run:
                     await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self._get_all_tools())
+                else:
+                    self.session.save()
                 epoch += 1
         finally:
             # Clean up MCP resources
@@ -135,7 +137,7 @@ class Agent(Tool):
                     self._handle_todo_reminder()
                 if self.enable_plan_mode_reminder:
                     self._handle_plan_mode_reminder()
-
+                self.session.save()
                 ai_msg = await AgentLLM.call(
                     msgs=self.session.messages,
                     tools=tools,
