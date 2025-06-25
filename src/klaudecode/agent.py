@@ -117,7 +117,7 @@ class Agent(Tool):
             return
         if total_tokens > self.config.context_window_threshold.value * TOKEN_WARNING_THRESHOLD:
             clear_last_line()
-            console.print(Text(f'Notice: total_tokens: {total_tokens}, context_window_threshold: {self.config.context_window_threshold.value}\n', style=ColorStyle.WARNING))
+            console.print(Text(f'Notice: total_tokens: {total_tokens}, context_window_threshold: {self.config.context_window_threshold.value}\n', style=ColorStyle.WARNING.value))
         if total_tokens > self.config.context_window_threshold.value:
             await self.session.compact_conversation_history(show_status=self.print_switch)
 
@@ -156,14 +156,14 @@ class Agent(Tool):
 
         except (OpenAIError, AnthropicError) as e:
             clear_last_line()
-            console.print(render_suffix(f'LLM error: {str(e)}', style=ColorStyle.ERROR))
+            console.print(render_suffix(f'LLM error: {str(e)}', style=ColorStyle.ERROR.value))
             console.print()
             return f'LLM error: {str(e)}'
         except (KeyboardInterrupt, asyncio.CancelledError):
             return self._handle_interruption()
         max_step_msg = f'Max steps {max_steps} reached'
         if self.print_switch:
-            console.print(render_message(max_step_msg, mark_style=ColorStyle.INFO))
+            console.print(render_message(max_step_msg, mark_style=ColorStyle.INFO.value))
             console.print()
         return max_step_msg
 

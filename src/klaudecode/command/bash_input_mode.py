@@ -110,7 +110,7 @@ class BashMode(InputModeCommand):
                             line = process.stderr.readline()
                             if line:
                                 error_lines.append(line.rstrip('\n'))
-                                display_text.append(line, style=ColorStyle.ERROR)
+                                display_text.append(line, style=ColorStyle.ERROR.value)
                                 live.update(render_suffix(display_text))
                         except Exception:
                             pass
@@ -123,7 +123,7 @@ class BashMode(InputModeCommand):
                         display_text.append(remaining_stdout)
                     if remaining_stderr:
                         error_lines.extend(remaining_stderr.rstrip('\n').split('\n'))
-                        display_text.append(remaining_stderr, style=ColorStyle.ERROR)
+                        display_text.append(remaining_stderr, style=ColorStyle.ERROR.value)
                 except subprocess.TimeoutExpired:
                     pass
 

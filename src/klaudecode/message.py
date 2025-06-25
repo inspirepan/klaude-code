@@ -213,7 +213,7 @@ class UserMessage(BasicMessage):
                 yield item
         if self.get_extra_data('error_msgs'):
             for error in self.get_extra_data('error_msgs'):
-                yield render_suffix(error, style=ColorStyle.ERROR)
+                yield render_suffix(error, style=ColorStyle.ERROR.value)
 
     def __bool__(self):
         return not self.removed and bool(self.content)
@@ -284,12 +284,12 @@ class ToolCall(BaseModel):
         if self.tool_name in _TOOL_CALL_RENDERERS:
             for i, item in enumerate(_TOOL_CALL_RENDERERS[self.tool_name](self)):
                 if i == 0:
-                    yield render_message(item, mark_style=ColorStyle.SUCCESS, status=self.status)
+                    yield render_message(item, mark_style=ColorStyle.SUCCESS.value, status=self.status)
                 else:
                     yield item
         else:
             msg = Text.assemble((self.tool_name, 'bold'), '(', self.tool_args, ')')
-            yield render_message(msg, mark_style=ColorStyle.SUCCESS, status=self.status)
+            yield render_message(msg, mark_style=ColorStyle.SUCCESS.value, status=self.status)
 
     def get_suffix_renderable(self):
         if self.tool_name in _TOOL_CALL_RENDERERS:
@@ -346,16 +346,15 @@ class AIMessage(BasicMessage):
         )
 
     def __rich_console__(self, console, options):
-        THINKING_STYLE = ColorStyle.AI_THINKING
         if self.thinking_content:
             yield render_message(
-                Text('Thinking...', style=THINKING_STYLE.value),
+                Text('Thinking...', style=ColorStyle.AI_THINKING.value),
                 mark='✻',
-                mark_style=THINKING_STYLE,
+                mark_style=ColorStyle.AI_THINKING.value,
                 style='italic',
             )
             yield render_message(
-                Text(self.thinking_content, style=THINKING_STYLE.value),
+                Text(self.thinking_content, style=ColorStyle.AI_THINKING.value),
                 mark='',
                 style='italic',
                 render_text=True,
@@ -447,15 +446,15 @@ class ToolMessage(BasicMessage):
             if self.content:
                 yield render_suffix(
                     truncate_middle_text(self.content) if isinstance(self.content, str) else self.content,
-                    style=ColorStyle.ERROR if self.tool_call.status == 'error' else None,
+                    style=ColorStyle.ERROR.value if self.tool_call.status == 'error' else None,
                 )
             elif self.tool_call.status == 'success':
                 yield render_suffix('(No content)')
 
         if self.tool_call.status == 'canceled':
-            yield render_suffix(INTERRUPTED_MSG, style=ColorStyle.WARNING)
+            yield render_suffix(INTERRUPTED_MSG, style=ColorStyle.WARNING.value)
         elif self.tool_call.status == 'error':
-            yield render_suffix(self.error_msg, style=ColorStyle.ERROR)
+            yield render_suffix(self.error_msg, style=ColorStyle.ERROR.value)
         yield ''
 
     def __rich_console__(self, console, options):
@@ -528,12 +527,12 @@ def register_user_msg_content_func(user_msg_type: str, content_func: Callable[['
 
 
 def interrupted_renderer(user_msg: UserMessage):
-    yield render_message(INTERRUPTED_MSG, style=ColorStyle.ERROR, mark='>', mark_style=ColorStyle.ERROR)
+    yield render_message(INTERRUPTED_MSG, style=ColorStyle.ERROR.value, mark='>', mark_style=ColorStyle.ERROR.value)
 
 
 def compact_renderer(user_msg: UserMessage):
     yield Rule(title=Text('Previous Conversation Compacted', ColorStyle.HIGHLIGHT.bold()), characters='=', style=ColorStyle.HIGHLIGHT.value)
-    yield render_message(user_msg.content, mark='✻', mark_style=ColorStyle.AI_THINKING, style=ColorStyle.AI_THINKING.italic(), render_text=True)
+    yield render_message(user_msg.content, mark='✻', mark_style=ColorStyle.AI_THINKING.value, style=ColorStyle.AI_THINKING.italic(), render_text=True)
 
 
 register_user_msg_renderer(SpecialUserMessageTypeEnum.INTERRUPTED.value, interrupted_renderer)

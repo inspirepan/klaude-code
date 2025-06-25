@@ -103,16 +103,16 @@ class ConfigModel(BaseModel):
         for key, display_name in config_items:
             config_value = getattr(self, key, None)
             if config_value and config_value.value is not None:
-                status = Text('✓', style=ColorStyle.SUCCESS)
+                status = Text('✓', style=ColorStyle.SUCCESS.value)
                 value = str(config_value.value)
                 source = f'from {config_value.source}'
             else:
                 status = Text('✗', style=ColorStyle.ERROR.bold())
-                value = Text('Not Set', style=ColorStyle.ERROR)
+                value = Text('Not Set', style=ColorStyle.ERROR.value)
                 source = ''
             table.add_row(
                 status,
-                Text(display_name, style=ColorStyle.INFO),
+                Text(display_name, style=ColorStyle.INFO.value),
                 value,
                 source,
             )

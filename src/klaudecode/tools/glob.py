@@ -277,7 +277,7 @@ def render_glob_content(tool_msg: ToolMessage):
     count_text.append(' files')
 
     if truncated:
-        count_text.append(f' (truncated to {DEFAULT_MAX_FILES} files)', style=ColorStyle.WARNING)
+        count_text.append(f' (truncated to {DEFAULT_MAX_FILES} files)', style=ColorStyle.WARNING.value)
 
     yield render_suffix(count_text)
 

@@ -27,7 +27,7 @@ class MCPClient:
 
         config = self.config_manager.load_config()
         if not config.mcpServers:
-            console.print(Text('No MCP servers configured', style=ColorStyle.WARNING))
+            console.print(Text('No MCP servers configured', style=ColorStyle.WARNING.value))
             return True
 
         # Connect to all configured servers
@@ -56,14 +56,18 @@ class MCPClient:
                 success_count += 1
                 sussess_servers.append(server_name)
             except asyncio.TimeoutError:
-                console.print(Text(f'Timeout connecting to MCP server {server_name}', style=ColorStyle.ERROR))
+                console.print(Text(f'Timeout connecting to MCP server {server_name}', style=ColorStyle.ERROR.value))
                 continue
             except Exception as e:
-                console.print(Text(f'Failed to connect to MCP server {server_name}: {e}', style=ColorStyle.ERROR))
+                console.print(Text(f'Failed to connect to MCP server {server_name}: {e}', style=ColorStyle.ERROR.value))
                 continue
         if success_count > 0:
             sussess_server_names = ', '.join(sussess_servers)
-            console.print(Text.from_markup(f'Connected to {success_count}/{len(config.mcpServers)} MCP servers: [bold cyan]{sussess_server_names}[/bold cyan]', style=ColorStyle.SUCCESS))
+            console.print(
+                Text.from_markup(
+                    f'Connected to {success_count}/{len(config.mcpServers)} MCP servers: [bold cyan]{sussess_server_names}[/bold cyan]', style=ColorStyle.SUCCESS.value
+                )
+            )
         self._initialized = True
         return True
 

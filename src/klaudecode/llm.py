@@ -448,7 +448,7 @@ class LLMProxy:
                 if show_status:
                     if attempt == 0:
                         clear_last_line()
-                    console.print(render_suffix(f'Retry {attempt + 1}/{self.max_retries}: call failed - {str(e)}, waiting {delay:.1f}s', style=ColorStyle.ERROR))
+                    console.print(render_suffix(f'Retry {attempt + 1}/{self.max_retries}: call failed - {str(e)}, waiting {delay:.1f}s', style=ColorStyle.ERROR.value))
                     with render_status(f'Waiting {delay:.1f}s...'):
                         await asyncio.sleep(delay)
                 else:
@@ -460,7 +460,7 @@ class LLMProxy:
         console.print(
             render_suffix(
                 f'Final failure: call failed after {self.max_retries} retries - {last_exception}',
-                style=ColorStyle.ERROR,
+                style=ColorStyle.ERROR.value,
             )
         )
         console.print()
@@ -491,7 +491,7 @@ class LLMProxy:
             if attempt > max_continuations:
                 break
             if show_status:
-                console.print(render_message('Continuing...', style=ColorStyle.WARNING))
+                console.print(render_message('Continuing...', style=ColorStyle.WARNING.value))
             current_msgs.append({'role': 'assistant', 'content': response.content})
 
         return merged_response

@@ -88,8 +88,8 @@ class MacSetupCommand(Command):
 
         if not setup_data.get('success', False):
             # Show error
-            error_text = Text(f'✗ {setup_data.get("error", "Unknown error")}', style=ColorStyle.ERROR)
-            yield Panel.fit(error_text, title='Mac Setup Failed', border_style=ColorStyle.ERROR)
+            error_text = Text(f'✗ {setup_data.get("error", "Unknown error")}', style=ColorStyle.ERROR.value)
+            yield Panel.fit(error_text, title='Mac Setup Failed', border_style=ColorStyle.ERROR.value)
             return
 
         # Show results
@@ -127,5 +127,5 @@ class MacSetupCommand(Command):
             yield Panel.fit(
                 Group(*result_items),
                 title='Mac Setup Results',
-                border_style=ColorStyle.SUCCESS if all(r['status'] in ['already_installed', 'installed'] for r in results) else ColorStyle.WARNING,
+                border_style=ColorStyle.SUCCESS.value if all(r['status'] in ['already_installed', 'installed'] for r in results) else ColorStyle.WARNING.value,
             )

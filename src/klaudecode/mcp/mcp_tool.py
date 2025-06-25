@@ -149,7 +149,7 @@ class MCPManager:
                     wrapper_class = MCPToolWrapper.create_from_mcp_tool(tool_info, self.mcp_client)
                     self.mcp_tools[wrapper_class.name] = wrapper_class
                 except Exception as e:
-                    console.print(Text(f'Failed to create wrapper for MCP tool {tool_info["name"]}: {e}', style=ColorStyle.ERROR))
+                    console.print(Text(f'Failed to create wrapper for MCP tool {tool_info["name"]}: {e}', style=ColorStyle.ERROR.value))
 
         self._initialized = success
         return success
@@ -194,7 +194,7 @@ class MCPManager:
         server_table.add_column(overflow='fold')
         for name, server_config in config.mcpServers.items():
             args_str = ' '.join(server_config.args) if server_config.args else ''
-            server_table.add_row(Text(name, style=ColorStyle.SUCCESS), Text(server_config.command), Text(args_str))
+            server_table.add_row(Text(name, style=ColorStyle.SUCCESS.value), Text(server_config.command), Text(args_str))
         yield server_table
 
         # Show tools if initialized
@@ -235,9 +235,9 @@ class MCPManager:
                             is_required = param_name in required_fields
                             required_indicator = '*' if is_required else ''
                             param_table.add_row(
-                                Text(f'· {param_name}{required_indicator}', style=ColorStyle.HIGHLIGHT.bold()), Text(param_type, style=ColorStyle.INFO), Text(param_desc)
+                                Text(f'· {param_name}{required_indicator}', style=ColorStyle.HIGHLIGHT.bold()), Text(param_type, style=ColorStyle.INFO.value), Text(param_desc)
                             )
-                        main_table.add_row(Text(f'mcp__{tool_name}', style=ColorStyle.SUCCESS), Group(tool_desc, '', param_table, ''))
+                        main_table.add_row(Text(f'mcp__{tool_name}', style=ColorStyle.SUCCESS.value), Group(tool_desc, '', param_table, ''))
                     else:
                         main_table.add_row('', tool_desc)
 
@@ -246,6 +246,6 @@ class MCPManager:
 
             yield main_table
         elif not self._initialized:
-            yield Text('\nMCP tools not loaded (manager not initialized)', style=ColorStyle.WARNING)
+            yield Text('\nMCP tools not loaded (manager not initialized)', style=ColorStyle.WARNING.value)
         else:
-            yield Text('\nUnable to connect to any MCP servers or no tools available', style=ColorStyle.WARNING)
+            yield Text('\nUnable to connect to any MCP servers or no tools available', style=ColorStyle.WARNING.value)
