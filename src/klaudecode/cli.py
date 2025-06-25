@@ -16,48 +16,6 @@ from .utils import format_relative_time
 app = typer.Typer(help='Coding Agent CLI', add_completion=False)
 
 
-@app.command('version')
-def version_command():
-    """Show version information"""
-    # Import here to avoid circular imports
-    from importlib.metadata import version
-    try:
-        pkg_version = version('klaude-code')
-        console.print(Text(f'klaude-code {pkg_version}', style=ColorStyle.SUCCESS.value))
-    except Exception:
-        console.print(Text('klaude-code (development)', style=ColorStyle.SUCCESS.value))
-
-
-@app.command('update')
-def update_command():
-    """Update klaude-code to the latest version"""
-    import subprocess
-    import sys
-    
-    console.print(Text('Updating klaude-code...', style=ColorStyle.INFO.value))
-    
-    try:
-        # Try uv first (recommended)
-        result = subprocess.run(['uv', 'tool', 'upgrade', 'klaude-code'], 
-                              capture_output=True, text=True)
-        if result.returncode == 0:
-            console.print(Text('✓ Updated successfully with uv', style=ColorStyle.SUCCESS.value))
-            return
-    except FileNotFoundError:
-        pass
-    
-    try:
-        # Fallback to pip
-        result = subprocess.run([sys.executable, '-m', 'pip', 'install', '--upgrade', 'klaude-code'], 
-                              capture_output=True, text=True)
-        if result.returncode == 0:
-            console.print(Text('✓ Updated successfully with pip', style=ColorStyle.SUCCESS.value))
-        else:
-            console.print(Text(f'✗ Update failed: {result.stderr}', style=ColorStyle.ERROR.value))
-    except Exception as e:
-        console.print(Text(f'✗ Update failed: {e}', style=ColorStyle.ERROR.value))
-
-
 def setup_config(**kwargs) -> ConfigModel:
     config_manager = ConfigManager.setup(**kwargs)
     config_model = config_manager.get_config_model()
@@ -91,7 +49,9 @@ async def main_async(ctx: typer.Context):
         session = session.fork()
     elif ctx.obj['resume']:
         sessions = Session.load_session_list(os.getcwd())
-
+        if not sessions or len(sessions) == 0:
+            console.print(Text('No session found', style=ColorStyle.ERROR.value))
+            return
         options = []
         for idx, session in enumerate(sessions):
             title_msg = session.get('title_msg', '')[:20]
@@ -231,3 +191,44 @@ def mcp_edit():
 
     config_manager = MCPConfigManager()
     config_manager.edit_config_file()
+
+
+@app.command('version')
+def version_command():
+    """Show version information"""
+    # Import here to avoid circular imports
+    from importlib.metadata import version
+
+    try:
+        pkg_version = version('klaude-code')
+        console.print(Text(f'klaude-code {pkg_version}', style=ColorStyle.SUCCESS.value))
+    except Exception:
+        console.print(Text('klaude-code (development)', style=ColorStyle.SUCCESS.value))
+
+
+@app.command('update')
+def update_command():
+    """Update klaude-code to the latest version"""
+    import subprocess
+    import sys
+
+    console.print(Text('Updating klaude-code...', style=ColorStyle.INFO.value))
+
+    try:
+        # Try uv first (recommended)
+        result = subprocess.run(['uv', 'tool', 'upgrade', 'klaude-code'], capture_output=True, text=True)
+        if result.returncode == 0:
+            console.print(Text('✓ Updated successfully with uv', style=ColorStyle.SUCCESS.value))
+            return
+    except FileNotFoundError:
+        pass
+
+    try:
+        # Fallback to pip
+        result = subprocess.run([sys.executable, '-m', 'pip', 'install', '--upgrade', 'klaude-code'], capture_output=True, text=True)
+        if result.returncode == 0:
+            console.print(Text('✓ Updated successfully with pip', style=ColorStyle.SUCCESS.value))
+        else:
+            console.print(Text(f'✗ Update failed: {result.stderr}', style=ColorStyle.ERROR.value))
+    except Exception as e:
+        console.print(Text(f'✗ Update failed: {e}', style=ColorStyle.ERROR.value))

@@ -16,8 +16,10 @@ from rich.theme import Theme
 
 
 class ColorStyle(str, Enum):
+    # AI and user interaction
     AI_MESSAGE = 'ai_message'
     AI_THINKING = 'ai_thinking'
+    # For status indicators
     ERROR = 'error'
     SUCCESS = 'success'
     WARNING = 'warning'
@@ -25,9 +27,13 @@ class ColorStyle(str, Enum):
     HIGHLIGHT = 'highlight'
     MAIN = 'main'
     MUTED = 'muted'
+    SEPARATOR = 'separator'
     TODO_COMPLETED = 'todo_completed'
     TODO_IN_PROGRESS = 'todo_in_progress'
+    # Tools and agents
     AGENT_BORDER = 'agent_border'
+    BASH_TOOL_CALL = 'bash_tool_call'
+    # Code
     DIFF_REMOVED_LINE = 'diff_removed_line'
     DIFF_ADDED_LINE = 'diff_added_line'
     DIFF_REMOVED_CHAR = 'diff_removed_char'
@@ -72,12 +78,14 @@ light_theme = Theme(
         ColorStyle.HIGHLIGHT: 'rgb(0,3,3)',
         ColorStyle.MAIN: 'rgb(63,63,63)',
         ColorStyle.MUTED: 'rgb(126,129,129)',
+        ColorStyle.SEPARATOR: 'rgb(200,200,200)',
         # Todo
         ColorStyle.TODO_COMPLETED: 'rgb(65,120,64)',
         ColorStyle.TODO_IN_PROGRESS: 'rgb(62,99,153)',
         # Tools and agents
-        ColorStyle.AGENT_BORDER: 'rgb(210,231,227)',
-        # Code diff
+        ColorStyle.BASH_TOOL_CALL: 'rgb(43,100,101)',
+        ColorStyle.AGENT_BORDER: 'rgb(43,100,101)',
+        # Code
         ColorStyle.DIFF_REMOVED_LINE: 'rgb(63,63,63) on rgb(242,172,180)',
         ColorStyle.DIFF_ADDED_LINE: 'rgb(63,63,63) on rgb(133,216,133)',
         ColorStyle.DIFF_REMOVED_CHAR: 'rgb(63,63,63) on rgb(193,81,78)',
@@ -91,7 +99,7 @@ light_theme = Theme(
         # Input mode colors
         ColorStyle.BASH_MODE: 'rgb(234,51,134)',
         ColorStyle.MEMORY_MODE: 'rgb(109,104,218)',
-        ColorStyle.PLAN_MODE: 'rgb(106,164,165)',
+        ColorStyle.PLAN_MODE: 'rgb(43,100,101)',
     }
 )
 
@@ -108,12 +116,14 @@ dark_theme = Theme(
         ColorStyle.HIGHLIGHT: 'rgb(255,255,255)',
         ColorStyle.MAIN: 'rgb(210,210,210)',
         ColorStyle.MUTED: 'rgb(151,153,153)',
+        ColorStyle.SEPARATOR: 'rgb(50,50,50)',
         # Todo
         ColorStyle.TODO_COMPLETED: 'rgb(107,184,109)',
         ColorStyle.TODO_IN_PROGRESS: 'rgb(180,204,245)',
         # Tools and agents
         ColorStyle.AGENT_BORDER: 'rgb(110,131,127)',
-        # Code diff
+        ColorStyle.BASH_TOOL_CALL: 'rgb(126,184,185)',
+        # Code
         ColorStyle.DIFF_REMOVED_LINE: 'rgb(255,255,255) on rgb(112,47,55)',
         ColorStyle.DIFF_ADDED_LINE: 'rgb(255,255,255) on rgb(49,91,48)',
         ColorStyle.DIFF_REMOVED_CHAR: 'rgb(255,255,255) on rgb(167,95,107)',

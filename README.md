@@ -31,7 +31,7 @@ pip install klaude-code
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/inspirepan/klaude-code.git
 cd klaude-code
 
 # Install dependencies with uv (recommended)
