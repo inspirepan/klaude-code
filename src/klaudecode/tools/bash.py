@@ -75,6 +75,20 @@ class BashTool(Tool):
         'ls': 'Use LS tool instead of ls command',
     }
 
+    # Interactive prompt patterns to detect
+    INTERACTIVE_PATTERNS = [
+        'password:',
+        'enter passphrase',
+        'are you sure',
+        '(y/n)',
+        'press enter',
+        'continue?',
+        'do you want to',
+        'confirm',
+        'type \'yes\'',
+        'enter to continue'
+    ]
+
     MAX_OUTPUT_SIZE = 30000  # Maximum output size to prevent memory overflow
     DEFAULT_TIMEOUT = 300000  # 5 minutes in milliseconds
     MAX_TIMEOUT = 600000  # 10 minutes in milliseconds
@@ -169,15 +183,28 @@ class BashTool(Tool):
             update_content(content)
 
         try:
+            # Set up non-interactive environment
+            env = os.environ.copy()
+            env.update({
+                'DEBIAN_FRONTEND': 'noninteractive',
+                'SSH_ASKPASS': '',
+                'GIT_ASKPASS': 'echo',
+                'SUDO_ASKPASS': '/bin/false',
+                'BATCH': '1',
+                'NONINTERACTIVE': '1'
+            })
+            
             # Start the process
             process = subprocess.Popen(
                 command,
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,  # Disable stdin
                 universal_newlines=True,
                 bufsize=1,
                 preexec_fn=os.setsid,  # Create new process group
+                env=env,
             )
 
             # Initial content update
@@ -283,6 +310,16 @@ class BashTool(Tool):
     def _process_output_line(cls, line: str, output_lines: list, total_output_size: int, update_content_func) -> tuple[int, bool]:
         """Process a single output line and return (new_total_size, should_break)"""
         line = line.rstrip('\n\r')
+        
+        # Check for interactive prompts
+        line_lower = line.lower()
+        for pattern in cls.INTERACTIVE_PATTERNS:
+            if pattern in line_lower:
+                output_lines.append(f'Interactive prompt detected: {line}')
+                output_lines.append('Command terminated due to interactive prompt')
+                update_content_func()
+                return total_output_size, True
+        
         if total_output_size < cls.MAX_OUTPUT_SIZE:
             output_lines.append(line)
             total_output_size += len(line) + 1  # +1 for newline
