@@ -1,5 +1,4 @@
 import asyncio
-import json
 import os
 from typing import Annotated, List, Optional
 
@@ -29,7 +28,7 @@ from .message import (
     register_tool_result_renderer,
 )
 from .prompt.plan_mode import APPROVE_MSG, PLAN_MODE_REMINDER, REJECT_MSG
-from .prompt.reminder import EMPTY_TODO_REMINDER, TODO_REMINDER, get_context_reminder
+from .prompt.reminder import EMPTY_TODO_REMINDER, get_context_reminder
 from .prompt.system import get_subagent_system_prompt
 from .prompt.tools import CODE_SEARCH_TASK_TOOL_DESC, TASK_TOOL_DESC
 from .session import Session
@@ -58,8 +57,6 @@ class Agent(Tool):
         label: Optional[str] = None,
         availiable_tools: Optional[List[Tool]] = None,
         print_switch: bool = True,
-        enable_claudemd_reminder: bool = True,
-        enable_todo_reminder: bool = True,
         enable_mcp: bool = True,
         enable_plan_mode_reminder: bool = True,
     ):
@@ -71,8 +68,6 @@ class Agent(Tool):
         self.availiable_tools = availiable_tools
         self.user_input_handler = UserInputHandler(self)
         self.tool_handler = ToolHandler(self, self.availiable_tools or [], show_live=print_switch)
-        self.enable_claudemd_reminder = enable_claudemd_reminder
-        self.enable_todo_reminder = enable_todo_reminder
         self.enable_mcp = enable_mcp
         self.mcp_manager: Optional[MCPManager] = None
         self.plan_mode_activated: bool = False
@@ -98,8 +93,6 @@ class Agent(Tool):
                     break
                 need_agent_run = await self.user_input_handler.handle(user_input_text, print_msg=bool(first_message))
                 console.print()
-                if epoch == 0 and self.enable_claudemd_reminder:
-                    self._handle_caludemd_reminder()
                 if need_agent_run:
                     await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self._get_all_tools())
                 else:
@@ -126,6 +119,8 @@ class Agent(Tool):
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
         try:
+            self._handle_claudemd_reminder()
+            self._handle_empty_todo_reminder()
             for _ in range(max_steps):
                 # Check if task was canceled (for subagent execution)
                 if parent_tool_instance and parent_tool_instance.tool_result().tool_call.status == 'canceled':
@@ -134,8 +129,6 @@ class Agent(Tool):
                 # Check token count and compact if necessary
                 await self._auto_compact_conversation(tools)
 
-                if self.enable_todo_reminder:
-                    self._handle_todo_reminder()
                 if self.enable_plan_mode_reminder:
                     self._handle_plan_mode_reminder()
                 self.session.save()
@@ -177,18 +170,16 @@ class Agent(Tool):
                 for msg in msgs:
                     console.print(msg)
 
-    def _handle_todo_reminder(self):
-        last_msg = self.session.messages.get_last_message(filter_empty=True)
-        if not self.session.todo_list:
-            reminder = EMPTY_TODO_REMINDER
-            if isinstance(last_msg, (UserMessage, ToolMessage)):
-                last_msg.append_post_system_reminder(reminder)
-        else:
-            has_active_todos = any(todo.status in ['in_progress', 'pending'] for todo in self.session.todo_list.todos)
-            if has_active_todos:
-                reminder = TODO_REMINDER.format(todo_list_json=json.dumps(self.session.todo_list.model_dump(), ensure_ascii=False, separators=(',', ':')))
-                if isinstance(last_msg, ToolMessage):
-                    last_msg.append_post_system_reminder(reminder)
+    def _handle_claudemd_reminder(self):
+        reminder = get_context_reminder(self.session.work_dir)
+        last_user_msg = self.session.messages.get_last_message(role='user')
+        if last_user_msg:
+            last_user_msg.append_pre_system_reminder(reminder)
+
+    def _handle_empty_todo_reminder(self):
+        if TodoWriteTool in self.availiable_tools:
+            last_msg = self.session.messages.get_last_message(filter_empty=True)
+            last_msg.append_post_system_reminder(EMPTY_TODO_REMINDER)
 
     def _handle_plan_mode_reminder(self):
         if not self.plan_mode_activated:
@@ -216,12 +207,6 @@ class Agent(Tool):
         console.print(*tool_msg.get_suffix_renderable())
         self.append_message(tool_msg, print_msg=False)
         return approved
-
-    def _handle_caludemd_reminder(self):
-        reminder = get_context_reminder(self.session.work_dir)
-        last_user_msg = self.session.messages.get_last_message(role='user')
-        if last_user_msg:
-            last_user_msg.append_pre_system_reminder(reminder)
 
     def _handle_interruption(self):
         asyncio.create_task(asyncio.sleep(0.1))
@@ -255,8 +240,6 @@ class Agent(Tool):
             need_agent_run = await self.user_input_handler.handle(user_input_text)
             if not need_agent_run:
                 return
-            if self.enable_claudemd_reminder:
-                self._handle_caludemd_reminder()
             self.print_switch = print_trace
             self.tool_handler.show_live = print_trace
             if print_trace:
@@ -400,4 +383,4 @@ register_tool_result_renderer('CodeSearchTask', render_agent_result)
 
 
 def get_main_agent(session: Session, config: ConfigModel, enable_mcp: bool = False) -> Agent:
-    return Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent, CodeSearchTaskTool], enable_claudemd_reminder=True, enable_todo_reminder=True, enable_mcp=enable_mcp)
+    return Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent, CodeSearchTaskTool], enable_mcp=enable_mcp)

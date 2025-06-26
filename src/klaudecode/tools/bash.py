@@ -301,6 +301,14 @@ class BashTool(Tool):
                 output_lines.append('Command terminated due to interactive prompt')
                 update_content_func()
                 return total_output_size, True
+        if total_output_size < cls.MAX_OUTPUT_SIZE:
+            output_lines.append(line)
+            total_output_size += len(line) + 1  # +1 for newline
+            update_content_func()
+            return total_output_size, False
+        else:
+            update_content_func()
+            return total_output_size, True
 
     @classmethod
     def _read_process_output(cls, process, output_lines: list, total_output_size: int, update_content_func) -> tuple[int, bool, str]:

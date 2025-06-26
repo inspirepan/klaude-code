@@ -6,6 +6,7 @@ from rich.console import Group
 from rich.text import Text
 
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
+from ..prompt.reminder import TODO_REMINDER
 from ..prompt.tools import TODO_READ_RESULT, TODO_READ_TOOL_DESC, TODO_WRITE_RESULT, TODO_WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
@@ -47,8 +48,9 @@ class TodoWriteTool(Tool):
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         args: 'TodoWriteTool.Input' = cls.parse_input_args(tool_call)
-
-        instance.tool_result().set_content(TODO_WRITE_RESULT)
+        json_todo_list = json.dumps(args.todo_list.model_dump(), ensure_ascii=False)
+        reminder = TODO_REMINDER.format(todo_list_json=json_todo_list)
+        instance.tool_result().set_content(TODO_WRITE_RESULT + '\n' + reminder)
 
         old_todo_list = instance.parent_agent.session.todo_list
         old_todo_dict = {}
