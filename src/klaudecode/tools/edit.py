@@ -14,7 +14,7 @@ from .file_utils import (
     count_occurrences,
     create_backup,
     generate_diff_lines,
-    get_edit_context_snippet,
+    generate_snippet_from_diff,
     read_file_content,
     render_diff_lines,
     replace_string_in_content,
@@ -111,10 +111,10 @@ class EditTool(Tool):
             # Update cache
             cache_file_content(args.file_path)
 
-            # Generate smart context snippet with fallback logic
-            snippet = get_edit_context_snippet(new_content, args.new_string, content, args.old_string, 5)
-
+            # Generate diff and snippet
             diff_lines = generate_diff_lines(content, new_content)
+            snippet = generate_snippet_from_diff(diff_lines)
+
             result = f"The file {args.file_path} has been updated. Here's the result of running `line-number→line-content` on a snippet of the edited file:\n{snippet}"
 
             instance.tool_result().set_content(result)

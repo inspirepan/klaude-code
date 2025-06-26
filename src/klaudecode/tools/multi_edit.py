@@ -14,7 +14,7 @@ from .file_utils import (
     count_occurrences,
     create_backup,
     generate_diff_lines,
-    get_edit_context_snippet,
+    generate_snippet_from_diff,
     read_file_content,
     render_diff_lines,
     replace_string_in_content,
@@ -148,12 +148,9 @@ class MultiEditTool(Tool):
             # Update cache
             cache_file_content(args.file_path)
 
-            # Generate context snippet for the last edit
-            last_edit = args.edits[-1]
-            snippet = get_edit_context_snippet(working_content, last_edit.new_string, original_content, last_edit.old_string, 5)
-
-            # Generate diff
+            # Generate diff and snippet
             diff_lines = generate_diff_lines(original_content, working_content)
+            snippet = generate_snippet_from_diff(diff_lines)
 
             # AI readable result
             result = f'Applied {len(args.edits)} edits to {args.file_path}:\n'

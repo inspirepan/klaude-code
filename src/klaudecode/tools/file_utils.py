@@ -201,58 +201,35 @@ def write_file_content(file_path: str, content: str, encoding: str = 'utf-8') ->
         return f'Failed to write file: {str(e)}'
 
 
-def get_edit_context_snippet(new_content: str, new_string: str, old_content: str, old_string: str, context_lines: int = 5) -> str:
+def generate_snippet_from_diff(diff_lines: List[str]) -> str:
     """
-    Smart context snippet for edit results with fallback logic:
-    1. Try to find new_string in new_content
-    2. If not found, find where old_string was and show that area in new_content
-    3. If still not found, show first few lines of new_content
-    Returns `line-number→line-content` style output format
+    Generate a snippet from diff lines that includes context and new content.
+    Only includes context lines (' ') and added lines ('+') in line-number→line-content format.
     """
-    # First try: find new_string in new content
-    if new_string in new_content:
-        lines = new_content.splitlines()
-        for i, line in enumerate(lines):
-            if new_string in line:
-                start_idx = max(0, i - context_lines)
-                end_idx = min(len(lines), i + context_lines + 1)
-                context_lines_slice = lines[start_idx:end_idx]
-                start_line_num = start_idx + 1
+    if not diff_lines:
+        return ''
 
-                snippet_lines = []
-                for j, line_content in enumerate(context_lines_slice):
-                    line_num = start_line_num + j
-                    snippet_lines.append(f'{line_num}→{line_content}')
-                return '\n'.join(snippet_lines)
-
-    # Second try: find where old_string was and show that area in new content
-    old_lines = old_content.splitlines()
-    new_lines = new_content.splitlines()
-
-    old_line_idx = -1
-    for i, line in enumerate(old_lines):
-        if old_string in line:
-            old_line_idx = i
-            break
-
-    if old_line_idx != -1 and old_line_idx < len(new_lines):
-        start_idx = max(0, old_line_idx - context_lines)
-        end_idx = min(len(new_lines), old_line_idx + context_lines + 1)
-        context_lines_slice = new_lines[start_idx:end_idx]
-        start_line_num = start_idx + 1
-
-        snippet_lines = []
-        for j, line_content in enumerate(context_lines_slice):
-            line_num = start_line_num + j
-            snippet_lines.append(f'{line_num}→{line_content}')
-        return '\n'.join(snippet_lines)
-
-    # Last fallback: show first few lines of the file
-    print('get_edit_context_snippet fallback ❌')
-    first_lines = new_content.splitlines()[:10]
+    new_line_num = 1
     snippet_lines = []
-    for i, line_content in enumerate(first_lines):
-        snippet_lines.append(f'{i + 1}→{line_content}')
+
+    for line in diff_lines:
+        if line.startswith('---') or line.startswith('+++'):
+            continue
+        elif line.startswith('@@'):
+            match = re.search(r'@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@', line)
+            if match:
+                new_line_num = int(match.group(2))
+        elif line.startswith('-'):
+            continue
+        elif line.startswith('+'):
+            added_line = line[1:].rstrip('\n\r')
+            snippet_lines.append(f'{new_line_num}→{added_line}')
+            new_line_num += 1
+        elif line.startswith(' '):
+            context_line = line[1:].rstrip('\n\r')
+            snippet_lines.append(f'{new_line_num}→{context_line}')
+            new_line_num += 1
+
     return '\n'.join(snippet_lines)
 
 
