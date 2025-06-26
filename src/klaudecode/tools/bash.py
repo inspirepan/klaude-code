@@ -76,18 +76,7 @@ class BashTool(Tool):
     }
 
     # Interactive prompt patterns to detect
-    INTERACTIVE_PATTERNS = [
-        'password:',
-        'enter passphrase',
-        'are you sure',
-        '(y/n)',
-        'press enter',
-        'continue?',
-        'do you want to',
-        'confirm',
-        'type \'yes\'',
-        'enter to continue'
-    ]
+    INTERACTIVE_PATTERNS = ['password:', 'enter passphrase', 'are you sure', '(y/n)', 'press enter', 'continue?', 'do you want to', 'confirm', "type 'yes'", 'enter to continue']
 
     MAX_OUTPUT_SIZE = 30000  # Maximum output size to prevent memory overflow
     DEFAULT_TIMEOUT = 300000  # 5 minutes in milliseconds
@@ -185,15 +174,8 @@ class BashTool(Tool):
         try:
             # Set up non-interactive environment
             env = os.environ.copy()
-            env.update({
-                'DEBIAN_FRONTEND': 'noninteractive',
-                'SSH_ASKPASS': '',
-                'GIT_ASKPASS': 'echo',
-                'SUDO_ASKPASS': '/bin/false',
-                'BATCH': '1',
-                'NONINTERACTIVE': '1'
-            })
-            
+            env.update({'DEBIAN_FRONTEND': 'noninteractive', 'SSH_ASKPASS': '', 'GIT_ASKPASS': 'echo', 'SUDO_ASKPASS': '/bin/false', 'BATCH': '1', 'NONINTERACTIVE': '1'})
+
             # Start the process
             process = subprocess.Popen(
                 command,
@@ -310,7 +292,7 @@ class BashTool(Tool):
     def _process_output_line(cls, line: str, output_lines: list, total_output_size: int, update_content_func) -> tuple[int, bool]:
         """Process a single output line and return (new_total_size, should_break)"""
         line = line.rstrip('\n\r')
-        
+
         # Check for interactive prompts
         line_lower = line.lower()
         for pattern in cls.INTERACTIVE_PATTERNS:
@@ -319,16 +301,6 @@ class BashTool(Tool):
                 output_lines.append('Command terminated due to interactive prompt')
                 update_content_func()
                 return total_output_size, True
-        
-        if total_output_size < cls.MAX_OUTPUT_SIZE:
-            output_lines.append(line)
-            total_output_size += len(line) + 1  # +1 for newline
-            update_content_func()
-            return total_output_size, False
-        else:
-            output_lines.append(f'[Output truncated at {cls.MAX_OUTPUT_SIZE} characters]')
-            update_content_func()
-            return total_output_size, True
 
     @classmethod
     def _read_process_output(cls, process, output_lines: list, total_output_size: int, update_content_func) -> tuple[int, bool, str]:

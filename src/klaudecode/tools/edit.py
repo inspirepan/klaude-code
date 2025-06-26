@@ -8,6 +8,7 @@ from ..prompt.tools import EDIT_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import render_suffix
 from .file_utils import (
+    EDIT_ERROR_OLD_STRING_NEW_STRING_IDENTICAL,
     cache_file_content,
     cleanup_backup,
     count_occurrences,
@@ -60,7 +61,7 @@ class EditTool(Tool):
 
         # Validate input
         if args.old_string == args.new_string:
-            instance.tool_result().set_error_msg('old_string and new_string cannot be the same')
+            instance.tool_result().set_error_msg(EDIT_ERROR_OLD_STRING_NEW_STRING_IDENTICAL)
             return
 
         if not args.old_string:

@@ -98,7 +98,7 @@ class BashMode(InputModeCommand):
                         try:
                             import select
                             import sys
-                            
+
                             # Check if data is available to read (non-blocking)
                             if sys.platform != 'win32':
                                 ready, _, _ = select.select([process.stdout], [], [], 0)
@@ -131,7 +131,7 @@ class BashMode(InputModeCommand):
                         try:
                             import select
                             import sys
-                            
+
                             if sys.platform != 'win32':
                                 ready, _, _ = select.select([process.stderr], [], [], 0)
                                 if ready:

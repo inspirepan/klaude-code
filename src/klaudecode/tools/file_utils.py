@@ -27,12 +27,17 @@ TRUNCATE_LINE_CHAR_LIMIT = 2000
 FILE_NOT_READ_ERROR = 'File has not been read yet. Read it first before writing to it.'
 FILE_MODIFIED_ERROR = 'File has been modified externally. Either by user or a linter. Read it first before writing to it.'
 
+FILE_NOT_EXIST_ERROR = 'File does not exist.'
+FILE_NOT_A_FILE_ERROR = 'EISDIR: illegal operation on a directory, read.'
+
+EDIT_ERROR_OLD_STRING_NEW_STRING_IDENTICAL = 'No changes to make: old_string and new_string are exactly the same.'
+
 
 def validate_file_exists(file_path: str) -> Tuple[bool, str]:
     if not os.path.exists(file_path):
-        return False, f'File does not exist: {file_path}'
+        return False, FILE_NOT_EXIST_ERROR
     if not os.path.isfile(file_path):
-        return False, f'Path is not a file: {file_path}'
+        return False, FILE_NOT_A_FILE_ERROR
     return True, ''
 
 

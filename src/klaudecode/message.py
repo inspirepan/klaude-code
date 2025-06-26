@@ -14,6 +14,8 @@ from rich.text import Text
 from .tui import ColorStyle, render_markdown, render_message, render_suffix, truncate_middle_text
 
 INTERRUPTED_MSG = 'Interrupted by user'
+TRUNCATE_CHARS = 40100
+TRUNCATE_POSTFIX = '... (truncated at 40100 characters)'
 
 
 # Lazy initialize tiktoken encoder for GPT-4
@@ -398,6 +400,8 @@ class ToolMessage(BasicMessage):
 
     def get_content(self):
         content_text = self.content
+        if len(content_text) > TRUNCATE_CHARS:
+            content_text = content_text[:TRUNCATE_CHARS] + '\n' + TRUNCATE_POSTFIX
         if self.tool_call.status == 'canceled':
             content_text += '\n' + INTERRUPTED_MSG
         elif self.tool_call.status == 'error':

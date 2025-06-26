@@ -62,9 +62,7 @@ class MessageHistory(BaseModel):
     def get_unsaved_messages(self) -> List[tuple[int, BasicMessage]]:
         """Get all messages that need to be saved (NEW or MODIFIED)."""
         return [
-            (i, msg)
-            for i, msg in enumerate(self.messages)
-            if self.storage_states.get(i, MessageStorageState()).status in (MessageStorageStatus.NEW, MessageStorageStatus.MODIFIED)
+            (i, msg) for i, msg in enumerate(self.messages) if self.storage_states.get(i, MessageStorageState()).status in (MessageStorageStatus.NEW, MessageStorageStatus.MODIFIED)
         ]
 
     def get_last_message(self, role: Literal['user', 'assistant', 'tool'] | None = None, filter_empty: bool = False) -> Optional[BasicMessage]:
