@@ -116,36 +116,6 @@ def generate_diff_lines(old_content: str, new_content: str) -> List[str]:
     return diff_lines
 
 
-def truncate_content(
-    numbered_lines: List[Tuple[int, str]], char_limit: int = TRUNCATE_CHAR_LIMIT, line_limit: int = TRUNCATE_LINE_LIMIT, line_char_limit: int = TRUNCATE_LINE_CHAR_LIMIT
-) -> Tuple[List[Tuple[int, str]], int]:
-    total_char_count = sum(len(line_content) for _, line_content in numbered_lines)
-    if total_char_count <= char_limit and len(numbered_lines) <= line_limit:
-        return numbered_lines, 0
-    truncated_lines = []
-    char_count = 0
-    remaining_line_count = 0
-    for i, (line_num, line_content) in enumerate(numbered_lines):
-        if i >= line_limit:
-            remaining_line_count = len(numbered_lines) - i
-            break
-
-        # Handle single line character limit first
-        if len(line_content) > line_char_limit:
-            processed_line_content = line_content[:line_char_limit] + f'... (more {len(line_content) - line_char_limit} characters in this line are truncated)'
-        else:
-            processed_line_content = line_content
-
-        # Then check if adding this processed line would exceed char_limit
-        if char_count + len(processed_line_content) + 1 > char_limit:
-            remaining_line_count = len(numbered_lines) - i
-            break
-
-        truncated_lines.append((line_num, processed_line_content))
-        char_count += len(processed_line_content) + 1
-    return truncated_lines, remaining_line_count
-
-
 def ensure_directory_exists(file_path: str):
     directory = os.path.dirname(file_path)
     if directory:

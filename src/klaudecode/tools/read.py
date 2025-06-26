@@ -1,3 +1,4 @@
+import os
 from typing import Annotated, Optional
 
 from pydantic import BaseModel, Field
@@ -5,11 +6,11 @@ from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
 
-from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
+from ..message import ToolCall, ToolMessage, count_tokens, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import READ_TOOL_DESC, READ_TOOL_EMPTY_REMINDER, READ_TOOL_RESULT_REMINDER
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from .file_utils import cache_file_content, read_file_content, truncate_content, validate_file_exists
+from .file_utils import cache_file_content, read_file_content, validate_file_exists
 
 """
 - Flexible reading with offset and line limit support
@@ -19,9 +20,12 @@ from .file_utils import cache_file_content, read_file_content, truncate_content,
 - UTF-8 encoding support and empty file handling
 """
 
-READ_TRUNCATE_CHAR_LIMIT = 40000
 READ_TRUNCATE_LINE_CHAR_LIMIT = 2000
 READ_TRUNCATE_LINE_LIMIT = 2000
+READ_MAX_FILE_SIZE_KB = 256
+READ_MAX_TOKENS = 25000
+READ_SIZE_LIMIT_ERROR_MSG = 'File content ({size:.1f}KB) exceeds maximum allowed size ({max_size}KB). Please use offset and limit parameters to read specific portions of the file, or use the GrepTool to search for specific content.'
+READ_TOKEN_LIMIT_ERROR_MSG = 'File content ({tokens} tokens) exceeds maximum allowed tokens ({max_tokens}). Please use offset and limit parameters to read specific portions of the file, or use the GrepTool to search for specific content.'
 
 
 class ReadResult:
@@ -35,6 +39,36 @@ class ReadResult:
         self.truncated = False
 
 
+def truncate_content(numbered_lines, line_limit: int, line_char_limit: int):
+    """Truncate content by line limit and line character limit only, no total character limit"""
+    if len(numbered_lines) <= line_limit:
+        # Apply line character limit only
+        truncated_lines = []
+        for line_num, line_content in numbered_lines:
+            if len(line_content) > line_char_limit:
+                processed_line_content = line_content[:line_char_limit] + f'... (more {len(line_content) - line_char_limit} characters in this line are truncated)'
+            else:
+                processed_line_content = line_content
+            truncated_lines.append((line_num, processed_line_content))
+        return truncated_lines, 0
+
+    # Apply both line limit and line character limit
+    truncated_lines = []
+    for i, (line_num, line_content) in enumerate(numbered_lines):
+        if i >= line_limit:
+            remaining_line_count = len(numbered_lines) - i
+            return truncated_lines, remaining_line_count
+
+        if len(line_content) > line_char_limit:
+            processed_line_content = line_content[:line_char_limit] + f'... (more {len(line_content) - line_char_limit} characters in this line are truncated)'
+        else:
+            processed_line_content = line_content
+
+        truncated_lines.append((line_num, processed_line_content))
+
+    return truncated_lines, 0
+
+
 def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[int] = None) -> ReadResult:
     result = ReadResult()
 
@@ -45,11 +79,32 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
         result.error_msg = error_msg
         return result
 
+    # Check file size limit
+    try:
+        file_size = os.path.getsize(file_path)
+        max_size_bytes = READ_MAX_FILE_SIZE_KB * 1024
+        if file_size > max_size_bytes:
+            result.success = False
+            size_kb = file_size / 1024
+            result.error_msg = READ_SIZE_LIMIT_ERROR_MSG.format(size=size_kb, max_size=READ_MAX_FILE_SIZE_KB)
+            return result
+    except OSError as e:
+        result.success = False
+        result.error_msg = f'Failed to check file size: {str(e)}'
+        return result
+
     # Read file content
     content, warning = read_file_content(file_path)
     if not content and warning:
         result.success = False
         result.error_msg = warning
+        return result
+
+    # Check token count limit
+    token_count = count_tokens(content)
+    if token_count > READ_MAX_TOKENS:
+        result.success = False
+        result.error_msg = READ_TOKEN_LIMIT_ERROR_MSG.format(tokens=token_count, max_tokens=READ_MAX_TOKENS)
         return result
 
     # Cache the file content for potential future edits
@@ -85,8 +140,8 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
             return result
         numbered_lines = numbered_lines[:limit]
 
-    # Truncate if necessary
-    truncated_numbered_lines, remaining_line_count = truncate_content(numbered_lines, READ_TRUNCATE_CHAR_LIMIT, READ_TRUNCATE_LINE_LIMIT, READ_TRUNCATE_LINE_CHAR_LIMIT)
+    # Truncate if necessary (only line limit and line char limit, no total char limit)
+    truncated_numbered_lines, remaining_line_count = truncate_content(numbered_lines, READ_TRUNCATE_LINE_LIMIT, READ_TRUNCATE_LINE_CHAR_LIMIT)
 
     # Check if content was truncated
     result.truncated = remaining_line_count > 0 or len(truncated_numbered_lines) < len(numbered_lines)
@@ -109,7 +164,6 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
     if warning:
         formatted_content += f'\n{warning}'
     formatted_content += READ_TOOL_RESULT_REMINDER
-    formatted_content += f'\n\nFull {total_lines} lines'
 
     result.content = formatted_content
     result.read_line_count = len(numbered_lines)
