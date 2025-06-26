@@ -28,12 +28,14 @@ from .message import (
     register_tool_result_renderer,
 )
 from .prompt.plan_mode import APPROVE_MSG, PLAN_MODE_REMINDER, REJECT_MSG
-from .prompt.reminder import EMPTY_TODO_REMINDER, get_context_reminder
+from .prompt.reminder import EMPTY_TODO_REMINDER, FILE_MODIFIED_EXTERNAL_REMINDER, get_context_reminder
 from .prompt.system import get_subagent_system_prompt
 from .prompt.tools import CODE_SEARCH_TASK_TOOL_DESC, TASK_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, ExitPlanModeTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
+from .tools.file_utils import get_modified_files
+from .tools.read import execute_read
 from .tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, render_hello, render_markdown, render_message, render_status, render_suffix
 from .user_input import _INPUT_MODES, NORMAL_MODE_NAME, InputSession, UserInputHandler
 from .user_questionary import user_select
@@ -131,6 +133,8 @@ class Agent(Tool):
 
                 if self.enable_plan_mode_reminder:
                     self._handle_plan_mode_reminder()
+                self._handle_file_external_modified_reminder()
+
                 self.session.save()
                 ai_msg = await AgentLLM.call(
                     msgs=self.session.messages,
@@ -192,6 +196,24 @@ class Agent(Tool):
         last_msg = self.session.messages.get_last_message(filter_empty=True)
         if last_msg and isinstance(last_msg, (UserMessage, ToolMessage)):
             last_msg.append_post_system_reminder(PLAN_MODE_REMINDER)
+
+    def _handle_file_external_modified_reminder(self):
+        modified_files = get_modified_files()
+        if not modified_files:
+            return
+
+        last_msg = self.session.messages.get_last_message(filter_empty=True)
+        if not last_msg:
+            return
+
+        for file_path in modified_files:
+            try:
+                result = execute_read(file_path)
+                if result.success:
+                    reminder = FILE_MODIFIED_EXTERNAL_REMINDER.format(file_path=file_path, file_content=result.content)
+                    last_msg.append_post_system_reminder(reminder)
+            except Exception:
+                continue
 
     async def _handle_exit_plan_mode(self, tool_calls: List[ToolCall]) -> bool:
         exit_plan_call: ToolCall = next((call for call in tool_calls.values() if call.tool_name == ExitPlanModeTool.get_name()), None)
