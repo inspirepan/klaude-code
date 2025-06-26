@@ -69,6 +69,56 @@ def truncate_content(numbered_lines, line_limit: int, line_char_limit: int):
     return truncated_lines, 0
 
 
+def read_file_lines_partial(file_path: str, offset: Optional[int] = None, limit: Optional[int] = None) -> tuple[list[str], str]:
+    """Read file lines with offset and limit to avoid loading entire file into memory"""
+    try:
+        lines = []
+        warning = ''
+        with open(file_path, 'r', encoding='utf-8') as f:
+            if offset is not None and offset > 1:
+                for _ in range(offset - 1):
+                    try:
+                        next(f)
+                    except StopIteration:
+                        break
+
+            count = 0
+            max_lines = limit if limit is not None else float('inf')
+
+            for line in f:
+                if count >= max_lines:
+                    break
+                lines.append(line.rstrip('\n\r'))
+                count += 1
+
+        return lines, warning
+    except UnicodeDecodeError:
+        try:
+            lines = []
+            with open(file_path, 'r', encoding='latin-1') as f:
+                if offset is not None and offset > 1:
+                    for _ in range(offset - 1):
+                        try:
+                            next(f)
+                        except StopIteration:
+                            break
+
+                count = 0
+                max_lines = limit if limit is not None else float('inf')
+
+                for line in f:
+                    if count >= max_lines:
+                        break
+                    lines.append(line.rstrip('\n\r'))
+                    count += 1
+
+            return lines, '<system-reminder>warning: File decoded using latin-1 encoding</system-reminder>'
+        except Exception as e:
+            return [], f'Failed to read file: {str(e)}'
+    except Exception as e:
+        return [], f'Failed to read file: {str(e)}'
+
+
 def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[int] = None) -> ReadResult:
     result = ReadResult()
 
@@ -79,69 +129,85 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
         result.error_msg = error_msg
         return result
 
-    # Check file size limit
-    try:
-        file_size = os.path.getsize(file_path)
-        max_size_bytes = READ_MAX_FILE_SIZE_KB * 1024
-        if file_size > max_size_bytes:
+    # Check file size limit only when no offset/limit is provided (reading entire file)
+    if offset is None and limit is None:
+        try:
+            file_size = os.path.getsize(file_path)
+            max_size_bytes = READ_MAX_FILE_SIZE_KB * 1024
+            if file_size > max_size_bytes:
+                result.success = False
+                size_kb = file_size / 1024
+                result.error_msg = READ_SIZE_LIMIT_ERROR_MSG.format(size=size_kb, max_size=READ_MAX_FILE_SIZE_KB)
+                return result
+        except OSError as e:
             result.success = False
-            size_kb = file_size / 1024
-            result.error_msg = READ_SIZE_LIMIT_ERROR_MSG.format(size=size_kb, max_size=READ_MAX_FILE_SIZE_KB)
+            result.error_msg = f'Failed to check file size: {str(e)}'
             return result
-    except OSError as e:
-        result.success = False
-        result.error_msg = f'Failed to check file size: {str(e)}'
-        return result
 
-    # Read file content
-    content, warning = read_file_content(file_path)
-    if not content and warning:
-        result.success = False
-        result.error_msg = warning
-        return result
+    # Read file content - use partial reading if offset/limit provided
+    if offset is not None or limit is not None:
+        lines, warning = read_file_lines_partial(file_path, offset, limit)
+        if not lines and warning:
+            result.success = False
+            result.error_msg = warning
+            return result
+        content = '\n'.join(lines)
+        total_lines = None  # We don't know total lines when reading partially
+    else:
+        content, warning = read_file_content(file_path)
+        if not content and warning:
+            result.success = False
+            result.error_msg = warning
+            return result
+        lines = content.splitlines()
+        total_lines = len(lines)
 
-    # Check token count limit
-    token_count = count_tokens(content)
-    if token_count > READ_MAX_TOKENS:
-        result.success = False
-        result.error_msg = READ_TOKEN_LIMIT_ERROR_MSG.format(tokens=token_count, max_tokens=READ_MAX_TOKENS)
-        return result
-
-    # Cache the file content for potential future edits
-    cache_file_content(file_path, content)
+    # Cache the file content for potential future edits (only if reading entire file)
+    if offset is None and limit is None:
+        cache_file_content(file_path, content)
 
     # Handle empty file
     if not content:
         result.content = READ_TOOL_EMPTY_REMINDER
         return result
 
-    # Split content into lines for offset/limit processing
-    lines = content.splitlines()
-    total_lines = len(lines)
-
     # Build list of (line_number, content) tuples
-    numbered_lines = [(i + 1, line) for i, line in enumerate(lines)]
+    if offset is not None or limit is not None:
+        # For partial reads, we already have the lines we need
+        start_line_num = offset if offset is not None else 1
+        numbered_lines = [(start_line_num + i, line) for i, line in enumerate(lines)]
+    else:
+        # For full file reads, handle offset/limit on the loaded content
+        numbered_lines = [(i + 1, line) for i, line in enumerate(lines)]
 
-    if offset is not None:
-        if offset < 1:
-            result.success = False
-            result.error_msg = 'Offset must be >= 1'
-            return result
-        if offset > total_lines:
-            result.success = False
-            result.error_msg = f'Offset {offset} exceeds file length ({total_lines} lines)'
-            return result
-        numbered_lines = numbered_lines[offset - 1 :]
+        if offset is not None:
+            if offset < 1:
+                result.success = False
+                result.error_msg = 'Offset must be >= 1'
+                return result
+            if offset > total_lines:
+                result.success = False
+                result.error_msg = f'Offset {offset} exceeds file length ({total_lines} lines)'
+                return result
+            numbered_lines = numbered_lines[offset - 1 :]
 
-    if limit is not None:
-        if limit < 1:
-            result.success = False
-            result.error_msg = 'Limit must be >= 1'
-            return result
-        numbered_lines = numbered_lines[:limit]
+        if limit is not None:
+            if limit < 1:
+                result.success = False
+                result.error_msg = 'Limit must be >= 1'
+                return result
+            numbered_lines = numbered_lines[:limit]
 
     # Truncate if necessary (only line limit and line char limit, no total char limit)
     truncated_numbered_lines, remaining_line_count = truncate_content(numbered_lines, READ_TRUNCATE_LINE_LIMIT, READ_TRUNCATE_LINE_CHAR_LIMIT)
+
+    # Check token count limit after truncation
+    truncated_content = '\n'.join([line_content for _, line_content in truncated_numbered_lines])
+    token_count = count_tokens(truncated_content)
+    if token_count > READ_MAX_TOKENS:
+        result.success = False
+        result.error_msg = READ_TOKEN_LIMIT_ERROR_MSG.format(tokens=token_count, max_tokens=READ_MAX_TOKENS)
+        return result
 
     # Check if content was truncated
     result.truncated = remaining_line_count > 0 or len(truncated_numbered_lines) < len(numbered_lines)
