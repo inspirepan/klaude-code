@@ -162,9 +162,7 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
         lines = content.splitlines()
         total_lines = len(lines)
 
-    # Cache the file content for potential future edits (only if reading entire file)
-    if offset is None and limit is None:
-        cache_file_content(file_path)
+    cache_file_content(file_path)
 
     # Handle empty file
     if not content:
