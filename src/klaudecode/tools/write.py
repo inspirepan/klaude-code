@@ -64,7 +64,7 @@ class WriteTool(Tool):
                 return
 
             # Update cache with new content
-            cache_file_content(args.file_path, args.content)
+            cache_file_content(args.file_path)
 
             # Extract preview lines for display
             lines = args.content.splitlines()

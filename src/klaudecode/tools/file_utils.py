@@ -19,7 +19,63 @@ from ..tui import ColorStyle
 - File system operations (directory creation, text file identification)
 """
 
-FILE_CACHE: Dict[str, str] = {}
+
+class FileCache:
+    def __init__(self):
+        self._cache: Dict[str, Tuple[float, int, str]] = {}
+
+    def _calculate_file_hash_streaming(self, file_path: str, chunk_size: int = 8192) -> str:
+        hash_obj = hashlib.md5()
+        try:
+            with open(file_path, 'rb') as f:
+                while chunk := f.read(chunk_size):
+                    hash_obj.update(chunk)
+            return hash_obj.hexdigest()
+        except Exception:
+            return ''
+
+    def cache_file_metadata(self, file_path: str):
+        try:
+            stat = os.stat(file_path)
+            mtime = stat.st_mtime
+            size = stat.st_size
+            content_hash = self._calculate_file_hash_streaming(file_path)
+            if content_hash:
+                self._cache[file_path] = (mtime, size, content_hash)
+        except OSError:
+            pass
+
+    def is_file_modified(self, file_path: str) -> Tuple[bool, str]:
+        if file_path not in self._cache:
+            return True, 'File not in cache'
+
+        try:
+            stat = os.stat(file_path)
+            cached_mtime, cached_size, cached_hash = self._cache[file_path]
+
+            if stat.st_mtime != cached_mtime or stat.st_size != cached_size:
+                return True, 'File modified (mtime or size changed)'
+
+            return False, ''
+        except OSError:
+            return True, 'File access error'
+
+    def invalidate(self, file_path: str):
+        self._cache.pop(file_path, None)
+
+    def clear(self):
+        self._cache.clear()
+
+    def get_modified_files(self) -> List[str]:
+        modified_files = []
+        for file_path in self._cache.keys():
+            is_modified, _ = self.is_file_modified(file_path)
+            if is_modified:
+                modified_files.append(file_path)
+        return modified_files
+
+
+_file_cache = FileCache()
 
 TRUNCATE_CHAR_LIMIT = 5000
 TRUNCATE_LINE_LIMIT = 1000
@@ -42,24 +98,21 @@ def validate_file_exists(file_path: str) -> Tuple[bool, str]:
 
 
 def validate_file_cache(file_path: str) -> Tuple[bool, str]:
-    if file_path not in FILE_CACHE:
-        return False, FILE_NOT_READ_ERROR
-
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            current_content = f.read()
-        current_hash = hashlib.md5(current_content.encode()).hexdigest()
-        cached_hash = FILE_CACHE[file_path]
-        if current_hash != cached_hash:
+    is_modified, error_msg = _file_cache.is_file_modified(file_path)
+    if is_modified:
+        if error_msg == 'File not in cache':
+            return False, FILE_NOT_READ_ERROR
+        else:
             return False, FILE_MODIFIED_ERROR
-    except Exception:
-        return False, FILE_NOT_READ_ERROR
-
     return True, ''
 
 
-def cache_file_content(file_path: str, content: str):
-    FILE_CACHE[file_path] = hashlib.md5(content.encode()).hexdigest()
+def cache_file_content(file_path: str):
+    _file_cache.cache_file_metadata(file_path)
+
+
+def get_modified_files() -> List[str]:
+    return _file_cache.get_modified_files()
 
 
 def count_occurrences(content: str, search_string: str) -> int:
@@ -195,6 +248,7 @@ def get_edit_context_snippet(new_content: str, new_string: str, old_content: str
         return '\n'.join(snippet_lines)
 
     # Last fallback: show first few lines of the file
+    print('get_edit_context_snippet fallback ❌')
     first_lines = new_content.splitlines()[:10]
     snippet_lines = []
     for i, line_content in enumerate(first_lines):

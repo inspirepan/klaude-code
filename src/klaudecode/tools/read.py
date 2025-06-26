@@ -164,7 +164,7 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
 
     # Cache the file content for potential future edits (only if reading entire file)
     if offset is None and limit is None:
-        cache_file_content(file_path, content)
+        cache_file_content(file_path)
 
     # Handle empty file
     if not content:

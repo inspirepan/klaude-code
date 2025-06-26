@@ -157,6 +157,11 @@ class Agent(Tool):
             return f'LLM error: {str(e)}'
         except (KeyboardInterrupt, asyncio.CancelledError):
             return self._handle_interruption()
+        except Exception as e:
+            clear_last_line()
+            console.print(render_suffix(f'Error: {str(e)}', style=ColorStyle.ERROR.value))
+            console.print()
+            return f'Error: {str(e)}'
         max_step_msg = f'Max steps {max_steps} reached'
         if self.print_switch:
             console.print(render_message(max_step_msg, mark_style=ColorStyle.INFO.value))

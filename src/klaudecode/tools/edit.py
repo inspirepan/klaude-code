@@ -109,7 +109,7 @@ class EditTool(Tool):
                 return
 
             # Update cache
-            cache_file_content(args.file_path, new_content)
+            cache_file_content(args.file_path)
 
             # Generate smart context snippet with fallback logic
             snippet = get_edit_context_snippet(new_content, args.new_string, content, args.old_string, 5)

@@ -146,7 +146,7 @@ class MultiEditTool(Tool):
                 return
 
             # Update cache
-            cache_file_content(args.file_path, working_content)
+            cache_file_content(args.file_path)
 
             # Generate context snippet for the last edit
             last_edit = args.edits[-1]
