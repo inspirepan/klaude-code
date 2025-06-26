@@ -152,7 +152,6 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
             result.error_msg = warning
             return result
         content = '\n'.join(lines)
-        total_lines = None  # We don't know total lines when reading partially
     else:
         content, warning = read_file_content(file_path)
         if not content and warning:
@@ -160,7 +159,6 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
             result.error_msg = warning
             return result
         lines = content.splitlines()
-        total_lines = len(lines)
 
     cache_file_content(file_path)
 
@@ -177,25 +175,6 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
     else:
         # For full file reads, handle offset/limit on the loaded content
         numbered_lines = [(i + 1, line) for i, line in enumerate(lines)]
-
-        if offset is not None:
-            if offset < 1:
-                result.success = False
-                result.error_msg = 'Offset must be >= 1'
-                return result
-            if offset > total_lines:
-                result.success = False
-                result.error_msg = f'Offset {offset} exceeds file length ({total_lines} lines)'
-                return result
-            numbered_lines = numbered_lines[offset - 1 :]
-
-        if limit is not None:
-            if limit < 1:
-                result.success = False
-                result.error_msg = 'Limit must be >= 1'
-                return result
-            numbered_lines = numbered_lines[:limit]
-
     # Truncate if necessary (only line limit and line char limit, no total char limit)
     truncated_numbered_lines, remaining_line_count = truncate_content(numbered_lines, READ_TRUNCATE_LINE_LIMIT, READ_TRUNCATE_LINE_CHAR_LIMIT)
 
