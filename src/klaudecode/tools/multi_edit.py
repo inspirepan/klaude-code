@@ -180,12 +180,6 @@ def _validate_all_edits(edits: List[EditOperation], original_content: str) -> Va
     if len(edits) == 0:
         return ValidationResult(False, 'No edits provided')
 
-    # Detect potential conflicts
-    conflicts = _detect_edit_conflicts(edits, original_content)
-    if conflicts:
-        conflict_descriptions = [conflict.description for conflict in conflicts]
-        return ValidationResult(False, 'Edit conflicts detected:\n' + '\n'.join(conflict_descriptions))
-
     # Simulate all edits to ensure they work
     simulated_content = original_content
     for i, edit in enumerate(edits):
@@ -232,83 +226,6 @@ def _validate_single_edit(edit: EditOperation, content: str, index: int) -> Vali
 
     return ValidationResult(True)
 
-
-def _detect_edit_conflicts(edits: List[EditOperation], content: str) -> List[EditConflict]:
-    conflicts = []
-
-    for i in range(len(edits) - 1):
-        for j in range(i + 1, len(edits)):
-            edit1 = edits[i]
-            edit2 = edits[j]
-
-            old_string1 = edit1.old_string
-            new_string1 = edit1.new_string
-            old_string2 = edit2.old_string
-            new_string2 = edit2.new_string
-
-            # # Conflict Type 1: Later edit modifies earlier edit's result
-            # if new_string1 in old_string2:
-            #     conflicts.append(
-            #         EditConflict(
-            #             type='dependency',
-            #             edits=(i, j),
-            #             description=f'Edit {j + 1} depends on result of edit {i + 1}',
-            #         )
-            #     )
-
-            # Conflict Type 2: Overlapping replacements
-            if _edits_overlap(edit1, edit2, content):
-                conflicts.append(
-                    EditConflict(
-                        type='overlap',
-                        edits=(i, j),
-                        description=f'Edits {i + 1} and {j + 1} affect overlapping text',
-                    )
-                )
-
-            # Conflict Type 3: Same target, different replacements
-            if old_string1 == old_string2 and new_string1 != new_string2:
-                conflicts.append(
-                    EditConflict(
-                        type='contradiction',
-                        edits=(i, j),
-                        description=f'Edits {i + 1} and {j + 1} replace same text differently',
-                    )
-                )
-
-    return conflicts
-
-
-def _edits_overlap(edit1: EditOperation, edit2: EditOperation, content: str) -> bool:
-    old_string1 = edit1.old_string
-    old_string2 = edit2.old_string
-
-    # Find positions of all occurrences
-    positions1 = _find_all_positions(content, old_string1)
-    positions2 = _find_all_positions(content, old_string2)
-
-    # Check if any positions overlap
-    for pos1 in positions1:
-        end1 = pos1 + len(old_string1)
-        for pos2 in positions2:
-            end2 = pos2 + len(old_string2)
-            # Check for overlap: pos1 < end2 and pos2 < end1
-            if pos1 < end2 and pos2 < end1:
-                return True
-
-    return False
-
-
-def _find_all_positions(content: str, search_string: str) -> List[int]:
-    positions = []
-    start = 0
-    while True:
-        pos = content.find(search_string, start)
-        if pos == -1:
-            break
-        positions.append(pos)
-        start = pos + 1
-    return positions
 
 
 def render_multi_edit_args(tool_call: ToolCall):
