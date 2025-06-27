@@ -175,7 +175,7 @@ class EnvConfigSource(ConfigSource):
             'api_key': 'API_KEY',
             'model_name': 'MODEL_NAME',
             'base_url': 'BASE_URL',
-            'model_azure': 'model_azure',
+            'model_azure': 'MODEL_AZURE',
             'max_tokens': 'MAX_TOKENS',
             'context_window_threshold': 'CONTEXT_WINDOW_THRESHOLD',
             'extra_header': 'EXTRA_HEADER',

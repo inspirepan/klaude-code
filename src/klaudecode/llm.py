@@ -99,10 +99,10 @@ class OpenAIProxy:
         status_text: str = 'Thinking...',
         timeout: float = 20.0,
     ) -> AIMessage:
-        # Calculate input tokens and show upload indicator
-        input_tokens = sum(msg.tokens for msg in msgs if msg)
+        # Calculate last message tokens and show upload indicator
+        last_msg_tokens = msgs[-1].tokens if msgs else 0
         if status:
-            status.update(Text.assemble(status_text, (f' ↑ {input_tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
+            status.update(Text.assemble(status_text, (f' ↑ {last_msg_tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
 
         stream = await asyncio.wait_for(
             self.client.chat.completions.create(
@@ -275,10 +275,10 @@ class AnthropicProxy:
         status_text: str = 'Thinking...',
         timeout: float = 20.0,
     ) -> AIMessage:
-        # Calculate input tokens and show upload indicator
-        input_tokens = sum(msg.tokens for msg in msgs if msg)
+        # Calculate last message tokens and show upload indicator
+        last_msg_tokens = msgs[-1].tokens if msgs else 0
         if status:
-            status.update(Text.assemble(status_text, (f' ↑ {input_tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
+            status.update(Text.assemble(status_text, (f' ↑ {last_msg_tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
 
         system_msgs, other_msgs = self.convert_to_anthropic(msgs)
         stream = await asyncio.wait_for(

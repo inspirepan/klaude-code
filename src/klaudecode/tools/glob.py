@@ -14,8 +14,10 @@ from ..tui import ColorStyle, render_suffix
 from ..utils import DEFAULT_IGNORE_PATTERNS
 
 DEFAULT_MAX_DEPTH = 10
-DEFAULT_MAX_FILES = 50
+DEFAULT_MAX_FILES = 100
 DEFAULT_TIMEOUT = 30
+
+GLOB_TRUNCATED_SUGGESTION = '(Results are truncated. Consider using a more specific path or pattern.)'
 
 
 class GlobTool(Tool):
@@ -225,7 +227,7 @@ class GlobTool(Tool):
         result_lines = files
         if truncated:
             suggestion = cls._get_refinement_suggestion(pattern, path, file_count)
-            result_lines.append(f'... (showing first {DEFAULT_MAX_FILES} of {file_count} files)')
+            result_lines.append(GLOB_TRUNCATED_SUGGESTION)
             result_lines.append(suggestion)
 
         return '\n'.join(result_lines), file_count, truncated

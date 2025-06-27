@@ -94,7 +94,7 @@ class MCPClient:
         """Execute MCP tool"""
         # Find tool and server
         tool_info = None
-        for key, info in self.tools.items():
+        for _, info in self.tools.items():
             if info['name'] == tool_name:
                 tool_info = info
                 break
