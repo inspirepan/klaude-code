@@ -1,6 +1,4 @@
 import re
-import shlex
-import shutil
 
 
 class BashUtils:

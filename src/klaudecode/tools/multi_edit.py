@@ -1,3 +1,4 @@
+import os
 from typing import Annotated, List, NamedTuple, Tuple
 
 from pydantic import BaseModel, Field
@@ -227,15 +228,21 @@ def _validate_single_edit(edit: EditOperation, content: str, index: int) -> Vali
     return ValidationResult(True)
 
 
-
 def render_multi_edit_args(tool_call: ToolCall):
     file_path = tool_call.tool_args_dict.get('file_path', '')
     edits = tool_call.tool_args_dict.get('edits', [])
 
+    # Convert absolute path to relative path
+    try:
+        relative_path = os.path.relpath(file_path, os.getcwd())
+        display_path = relative_path if len(relative_path) < len(file_path) else file_path
+    except (ValueError, OSError):
+        display_path = file_path
+
     tool_call_msg = Text.assemble(
         ('Update', ColorStyle.HIGHLIGHT.bold()),
         '(',
-        file_path,
+        display_path,
         ' - ',
         (str(len(edits)), 'bold'),
         ' edits',

@@ -208,7 +208,17 @@ def render_grep_args(tool_call: ToolCall):
     include = tool_call.tool_args_dict.get('include', '')
 
     include_info = f' include={include}' if include else ''
-    path_info = f' in {path}' if path != '.' else ''
+
+    # Convert absolute path to relative path, but only if it's not the default '.'
+    if path != '.':
+        try:
+            relative_path = os.path.relpath(path, os.getcwd())
+            display_path = relative_path if len(relative_path) < len(path) else path
+            path_info = f' in {display_path}'
+        except (ValueError, OSError):
+            path_info = f' in {path}'
+    else:
+        path_info = ''
 
     tool_call_msg = Text.assemble(
         ('Grep', ColorStyle.HIGHLIGHT.bold()),

@@ -1,3 +1,4 @@
+import os
 from typing import Annotated, List, Optional
 
 from pydantic import BaseModel, Field
@@ -36,10 +37,19 @@ class LsTool(Tool):
 def render_ls_args(tool_call: ToolCall):
     ignores = tool_call.tool_args_dict.get('ignore', [])
     ignore_info = f' (ignore: {", ".join(ignores)})' if ignores else ''
+
+    path = tool_call.tool_args_dict.get('path', '')
+    # Convert absolute path to relative path
+    try:
+        relative_path = os.path.relpath(path, os.getcwd())
+        display_path = relative_path if len(relative_path) < len(path) else path
+    except (ValueError, OSError):
+        display_path = path
+
     tool_call_msg = Text.assemble(
         ('List', ColorStyle.HIGHLIGHT.bold()),
         '(',
-        tool_call.tool_args_dict.get('path', ''),
+        display_path,
         ignore_info,
         ')',
     )

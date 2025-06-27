@@ -1,3 +1,4 @@
+import os
 from typing import Annotated
 
 from pydantic import BaseModel, Field
@@ -138,10 +139,17 @@ class EditTool(Tool):
 def render_edit_args(tool_call: ToolCall):
     file_path = tool_call.tool_args_dict.get('file_path', '')
 
+    # Convert absolute path to relative path
+    try:
+        relative_path = os.path.relpath(file_path, os.getcwd())
+        display_path = relative_path if len(relative_path) < len(file_path) else file_path
+    except (ValueError, OSError):
+        display_path = file_path
+
     tool_call_msg = Text.assemble(
         ('Update', ColorStyle.HIGHLIGHT.bold()),
         '(',
-        file_path,
+        display_path,
         ')',
     )
     yield tool_call_msg
