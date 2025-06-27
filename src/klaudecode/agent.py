@@ -381,7 +381,7 @@ class CodeSearchTaskTool(Agent):
 
 
 def render_agent_args(tool_call: ToolCall):
-    yield Text(tool_call.tool_name, style='bold')
+    yield Text(tool_call.tool_name, style=ColorStyle.HIGHLIGHT.bold())
     yield Padding.indent(
         Panel.fit(
             tool_call.tool_args_dict['prompt'],

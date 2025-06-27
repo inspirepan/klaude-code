@@ -251,7 +251,7 @@ def render_read_args(tool_call: ToolCall):
     elif offset:
         line_range = f' [{offset}:]'
     tool_call_msg = Text.assemble(
-        (tool_call.tool_name, 'bold'),
+        (tool_call.tool_name, ColorStyle.HIGHLIGHT.bold()),
         '(',
         tool_call.tool_args_dict.get('file_path', ''),
         line_range,

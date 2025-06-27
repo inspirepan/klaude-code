@@ -110,11 +110,11 @@ def render_todo_write_result(tool_msg: ToolMessage):
 
 
 def render_todo_write_name(tool_call: ToolCall):
-    yield Text('Update Todos', 'bold')
+    yield Text('Update Todos', ColorStyle.HIGHLIGHT.bold())
 
 
 def render_todo_read_name(tool_call: ToolCall):
-    yield Text('Read Todos', 'bold')
+    yield Text('Read Todos', ColorStyle.HIGHLIGHT.bold())
 
 
 register_tool_result_renderer('TodoRead', render_todo_read_result)

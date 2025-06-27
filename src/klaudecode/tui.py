@@ -2,12 +2,14 @@ import os
 import re
 import sys
 from enum import Enum
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
+from rich import box
 from rich.abc import RichRenderable
 from rich.console import Console, Group, RenderResult
 from rich.markup import escape
 from rich.panel import Panel
+from rich.rule import Rule
 from rich.status import Status
 from rich.style import Style
 from rich.table import Table
@@ -172,7 +174,7 @@ def render_status(status: str, spinner: str = 'dots', spinner_style: str = ''):
 
 
 def render_message(
-    message: str | Text,
+    message: str | RichRenderable,
     *,
     style: Optional[str] = None,
     mark_style: Optional[str] = None,
@@ -214,10 +216,10 @@ def render_suffix(content: str | RichRenderable, style: Optional[str] = None, re
     return table
 
 
-def render_markdown(text: str) -> str:
-    """Convert Markdown syntax to Rich format string"""
+def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Group:
+    """Convert Markdown syntax to Rich Group"""
     if not text:
-        return ''
+        return Group()
     text = escape(text)
     # Handle bold: **text** -> [bold]text[/bold]
     text = re.sub(r'\*\*(.*?)\*\*', r'[bold]\1[/bold]', text)
@@ -228,28 +230,73 @@ def render_markdown(text: str) -> str:
     # Handle inline code: `text` -> [inline_code]text[/inline_code]
     text = re.sub(r'`([^`\n]+?)`', r'[inline_code]\1[/inline_code]', text)
 
-    # Handle inline lists, replace number symbols
     lines = text.split('\n')
     formatted_lines = []
+    i = 0
 
-    for line in lines:
-        # Handle headers: # text -> [bold]# text[/bold]
+    while i < len(lines):
+        line = lines[i]
+
+        # Check for table start
+        if line.strip().startswith('|') and line.strip().endswith('|'):
+            # Look ahead for header separator or another table row
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                # Check if next line is separator or another table row
+                if re.match(r'^\s*\|[\s\-\|:]+\|\s*$', next_line) or (next_line.startswith('|') and next_line.endswith('|')):
+                    table = _parse_markdown_table(lines, i, style=style)
+                    formatted_lines.append(table['table'])
+                    i = table['end_index']
+                    continue
+
+        # Handle other line types
         if line.strip().startswith('#'):
-            # Keep all # symbols and bold the entire line
-            line = f'[bold]{line}[/bold]'
-        # Handle blockquotes: > text -> [muted]▌ text[/muted]
+            stripped = line.strip()
+            if stripped.startswith('# ') and not stripped.startswith('## '):
+                line = Text.from_markup(f'[ai_thinking][bold]{line}[/bold][/ai_thinking]', style=style)
+            else:
+                line = Text.from_markup(f'[bold]{line}[/bold]', style=style)
         elif line.strip().startswith('>'):
-            # Remove > symbol and maintain indentation
             quote_content = re.sub(r'^(\s*)>\s?', r'\1', line)
-            line = f'[muted]▌ {quote_content}[/muted]'
+            line = Text.from_markup(f'[muted]▌ {quote_content}[/muted]', style=style)
+        elif line.strip() == '---':
+            line = Rule(style=ColorStyle.MUTED.value)
         else:
-            # Match numbered lists: 1. -> •
-            line = re.sub(r'^(\s*)(\d+)\.\s+', r'\1• ', line)
-            # Match dash lists: - -> •
-            line = re.sub(r'^(\s*)[-*]\s+', r'\1• ', line)
-        formatted_lines.append(line)
+            line = Text.from_markup(line, style=style)
 
-    return '\n'.join(formatted_lines)
+        formatted_lines.append(line)
+        i += 1
+
+    return Group(*formatted_lines)
+
+
+def _parse_markdown_table(lines: list[str], start_index: int, style: Optional[Union[str, Style]] = None) -> dict:
+    """Parse markdown table and return rich Table"""
+    header_line = lines[start_index].strip()
+    # Extract headers
+    headers = [Text(cell.strip(), style=style) for cell in header_line.split('|')[1:-1]]
+
+    # Create table
+    table = Table(show_header=True, header_style='bold', box=box.ROUNDED, show_lines=True, style=style)
+    for header in headers:
+        table.add_column(header)
+
+    # Check if next line is separator
+    i = start_index + 1
+    if i < len(lines) and re.match(r'^\s*\|[\s\-\|:]+\|\s*$', lines[i].strip()):
+        # Skip separator line
+        i += 1
+
+    # Parse data rows
+    while i < len(lines) and lines[i].strip().startswith('|') and lines[i].strip().endswith('|'):
+        row_data = [cell.strip() for cell in lines[i].split('|')[1:-1]]
+        # Pad row if it has fewer columns than headers
+        while len(row_data) < len(headers):
+            row_data.append('')
+        table.add_row(*row_data[: len(headers)], style=style)
+        i += 1
+
+    return {'table': table, 'end_index': i}
 
 
 def render_hello() -> RenderResult:

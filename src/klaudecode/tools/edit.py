@@ -6,7 +6,7 @@ from rich.text import Text
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import EDIT_TOOL_DESC
 from ..tool import Tool, ToolInstance
-from ..tui import render_suffix
+from ..tui import ColorStyle, render_suffix
 from .file_utils import (
     EDIT_ERROR_OLD_STRING_NEW_STRING_IDENTICAL,
     cache_file_content,
@@ -139,7 +139,7 @@ def render_edit_args(tool_call: ToolCall):
     file_path = tool_call.tool_args_dict.get('file_path', '')
 
     tool_call_msg = Text.assemble(
-        ('Update', 'bold'),
+        ('Update', ColorStyle.HIGHLIGHT.bold()),
         '(',
         file_path,
         ')',

@@ -9,7 +9,7 @@ from rich.text import Text
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
-from ..tui import render_suffix
+from ..tui import ColorStyle, render_suffix
 from .file_utils import cache_file_content, cleanup_backup, create_backup, ensure_directory_exists, restore_backup, validate_file_cache, write_file_content
 
 """
@@ -100,7 +100,7 @@ def render_write_args(tool_call: ToolCall):
     file_path = tool_call.tool_args_dict.get('file_path', '')
 
     tool_call_msg = Text.assemble(
-        (tool_call.tool_name, 'bold'),
+        (tool_call.tool_name, ColorStyle.HIGHLIGHT.bold()),
         '(',
         file_path,
         ')',

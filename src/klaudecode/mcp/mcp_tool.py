@@ -237,7 +237,7 @@ class MCPManager:
                             param_table.add_row(
                                 Text(f'· {param_name}{required_indicator}', style=ColorStyle.HIGHLIGHT.bold()), Text(param_type, style=ColorStyle.INFO.value), Text(param_desc)
                             )
-                        main_table.add_row(Text(f'mcp__{tool_name}', style=ColorStyle.SUCCESS.value), Group(tool_desc, '', param_table, ''))
+                        main_table.add_row(Text(tool_name, style=ColorStyle.SUCCESS.value), Group(tool_desc, '', param_table, ''))
                     else:
                         main_table.add_row('', tool_desc)
 

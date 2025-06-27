@@ -6,7 +6,7 @@ from rich.text import Text
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import LS_TOOL_DESC, LS_TOOL_RESULT_REMINDER
 from ..tool import Tool, ToolInstance
-from ..tui import render_suffix
+from ..tui import ColorStyle, render_suffix
 from ..utils import get_directory_structure
 
 
@@ -37,7 +37,7 @@ def render_ls_args(tool_call: ToolCall):
     ignores = tool_call.tool_args_dict.get('ignore', [])
     ignore_info = f' (ignore: {", ".join(ignores)})' if ignores else ''
     tool_call_msg = Text.assemble(
-        ('List', 'bold'),
+        ('List', ColorStyle.HIGHLIGHT.bold()),
         '(',
         tool_call.tool_args_dict.get('path', ''),
         ignore_info,

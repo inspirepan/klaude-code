@@ -260,7 +260,7 @@ def render_glob_args(tool_call: ToolCall):
     path_info = f' in {path}' if path != '.' else ''
 
     tool_call_msg = Text.assemble(
-        ('Glob', 'bold'),
+        ('Glob', ColorStyle.HIGHLIGHT.bold()),
         '(',
         (pattern, ColorStyle.INLINE_CODE.value),
         path_info,

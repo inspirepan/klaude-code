@@ -258,7 +258,7 @@ def render_grep_args(tool_call: ToolCall):
     path_info = f' in {path}' if path != '.' else ''
 
     tool_call_msg = Text.assemble(
-        ('Grep', 'bold'),
+        ('Grep', ColorStyle.HIGHLIGHT.bold()),
         '(',
         (pattern, ColorStyle.INLINE_CODE.value),
         path_info,

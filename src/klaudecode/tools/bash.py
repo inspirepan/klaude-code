@@ -350,7 +350,7 @@ def render_bash_args(tool_call: ToolCall):
     description = tool_call.tool_args_dict.get('description', '')
     command = tool_call.tool_args_dict.get('command', '')
 
-    yield Text.assemble(('Bash', 'bold'), '(', (description, ColorStyle.AI_MESSAGE.value), ')')
+    yield Text.assemble(('Bash', ColorStyle.HIGHLIGHT.bold()), '(', (description, ColorStyle.AI_MESSAGE.value), ')')
     yield Padding.indent(
         Group(
             Rule(style=ColorStyle.SEPARATOR.value),

@@ -282,6 +282,16 @@ class ToolCall(BaseModel):
             'input': self.tool_args_dict,
         }
 
+    @staticmethod
+    def get_display_tool_name(tool_name: str) -> str:
+        if tool_name.startswith('mcp__'):
+            return tool_name[5:] + '(MCP)'
+        return tool_name
+
+    @staticmethod
+    def get_display_tool_args(tool_args_dict: dict) -> Text:
+        return Text.from_markup(', '.join([f'[b]{k}[/b]={v}' for k, v in tool_args_dict.items()]))
+
     def __rich_console__(self, console, options):
         if self.tool_name in _TOOL_CALL_RENDERERS:
             for i, item in enumerate(_TOOL_CALL_RENDERERS[self.tool_name](self)):
@@ -290,7 +300,8 @@ class ToolCall(BaseModel):
                 else:
                     yield item
         else:
-            msg = Text.assemble((self.tool_name, 'bold'), '(', self.tool_args, ')')
+            tool_name = ToolCall.get_display_tool_name(self.tool_name)
+            msg = Text.assemble((tool_name, ColorStyle.HIGHLIGHT.bold()), '(', ToolCall.get_display_tool_args(self.tool_args_dict), ')')
             yield render_message(msg, mark_style=ColorStyle.SUCCESS.value, status=self.status)
 
     def get_suffix_renderable(self):
@@ -298,7 +309,7 @@ class ToolCall(BaseModel):
             for item in _TOOL_CALL_RENDERERS[self.tool_name](self):
                 yield item
         else:
-            yield Text.assemble((self.tool_name, 'bold'), '(', self.tool_args, ')')
+            yield Text.assemble((ToolCall.get_display_tool_name(self.tool_name), 'bold'), '(', ToolCall.get_display_tool_args(self.tool_args_dict), ')')
 
 
 class AIMessage(BasicMessage):
@@ -363,7 +374,7 @@ class AIMessage(BasicMessage):
             )
             yield ''
         if self.content:
-            yield render_message(render_markdown(self.content), mark_style=ColorStyle.AI_MESSAGE, style=ColorStyle.AI_MESSAGE, render_text=True)
+            yield render_message(render_markdown(self.content, style=ColorStyle.AI_MESSAGE.value), mark_style=ColorStyle.AI_MESSAGE, style=ColorStyle.AI_MESSAGE, render_text=True)
             yield ''
 
     def __bool__(self):
