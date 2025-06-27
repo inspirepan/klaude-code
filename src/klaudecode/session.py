@@ -16,7 +16,7 @@ from .message import AIMessage, BasicMessage, SpecialUserMessageTypeEnum, System
 from .prompt.commands import COMACT_SYSTEM_PROMPT, COMPACT_COMMAND, COMPACT_MSG_PREFIX
 from .tools.todo import TodoList
 from .tui import ColorStyle, console
-from .utils import sanitize_filename
+from .utils.str_utils import sanitize_filename
 
 
 class MessageStorageStatus(str, Enum):

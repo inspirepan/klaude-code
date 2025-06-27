@@ -10,7 +10,7 @@ from ..message import ToolCall, ToolMessage, register_tool_call_renderer, regist
 from ..prompt.tools import WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from .file_utils import cache_file_content, cleanup_backup, create_backup, ensure_directory_exists, restore_backup, validate_file_cache, write_file_content
+from ..utils.file_utils import cleanup_backup, create_backup, ensure_directory_exists, restore_backup, track_file, validate_file_track_status, write_file_content
 
 """
 - Safety mechanism requiring existing files to be read first
@@ -38,7 +38,7 @@ class WriteTool(Tool):
         try:
             # If file exists, it must have been read first (safety check)
             if file_exists:
-                is_valid, error_msg = validate_file_cache(args.file_path)
+                is_valid, error_msg = validate_file_track_status(args.file_path)
                 if not is_valid:
                     instance.tool_result().set_error_msg(error_msg)
                     return
@@ -63,8 +63,8 @@ class WriteTool(Tool):
                 instance.tool_result().set_error_msg(error_msg)
                 return
 
-            # Update cache with new content
-            cache_file_content(args.file_path)
+            # Update tracking with new content
+            track_file(args.file_path)
 
             # Extract preview lines for display
             lines = args.content.splitlines()

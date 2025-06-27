@@ -19,7 +19,7 @@ from rich.markup import escape
 from .message import UserMessage, register_user_msg_content_func, register_user_msg_renderer, register_user_msg_suffix_renderer
 from .prompt.reminder import LANGUAGE_REMINDER
 from .tui import ColorStyle, console, get_prompt_toolkit_color, get_prompt_toolkit_style, render_message
-from .utils import DEFAULT_IGNORE_PATTERNS
+from .utils.file_utils import DEFAULT_IGNORE_PATTERNS
 
 """
 Command: When users press /, it prompts slash command completion
@@ -463,16 +463,22 @@ class InputSession:
 
     def _setup_key_bindings(self):
         for mode in _INPUT_MODES.values():
-            if mode.binding_key():
+            binding_keys = []
+            if hasattr(mode, 'binding_keys'):
+                binding_keys = mode.binding_keys()
+            elif mode.binding_key():
+                binding_keys = [mode.binding_key()]
 
-                def make_binding(current_mode):
-                    @self.kb.add(current_mode.binding_key())
+            for key in binding_keys:
+
+                def make_binding(current_mode, bind_key):
+                    @self.kb.add(bind_key)
                     def _(event):
-                        self._switch_mode_or_insert(event, current_mode.get_name(), current_mode.binding_key())
+                        self._switch_mode_or_insert(event, current_mode.get_name(), bind_key)
 
                     return _
 
-                make_binding(mode)
+                make_binding(mode, key)
 
         @self.kb.add('backspace')
         def _(event):

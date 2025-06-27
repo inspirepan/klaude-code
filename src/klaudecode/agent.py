@@ -34,11 +34,11 @@ from .prompt.tools import CODE_SEARCH_TASK_TOOL_DESC, TASK_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, ExitPlanModeTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
-from .tools.file_utils import get_modified_files
 from .tools.read import execute_read
 from .tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, render_hello, render_markdown, render_message, render_status, render_suffix
 from .user_input import _INPUT_MODES, NORMAL_MODE_NAME, InputSession, UserInputHandler
 from .user_questionary import user_select
+from .utils.file_utils import get_modified_files
 
 DEFAULT_MAX_STEPS = 80
 INTERACTIVE_MAX_STEPS = 100

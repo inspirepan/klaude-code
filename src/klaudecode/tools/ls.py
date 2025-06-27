@@ -7,7 +7,7 @@ from ..message import ToolCall, ToolMessage, register_tool_call_renderer, regist
 from ..prompt.tools import LS_TOOL_DESC, LS_TOOL_RESULT_REMINDER
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from ..utils import get_directory_structure
+from ..utils.file_utils import get_directory_structure
 
 
 class LsTool(Tool):

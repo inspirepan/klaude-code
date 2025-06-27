@@ -11,54 +11,7 @@ from ..message import ToolCall, ToolMessage, register_tool_call_renderer, regist
 from ..prompt.tools import GREP_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-
-DEFAULT_IGNORE_PATTERNS = [
-    '*.jpg',
-    '*.jpeg',
-    '*.png',
-    '*.gif',
-    '*.bmp',
-    '*.svg',
-    '*.mp4',
-    '*.mov',
-    '*.avi',
-    '*.mkv',
-    '*.webm',
-    '*.mp3',
-    '*.wav',
-    '*.flac',
-    '*.ogg',
-    '*.zip',
-    '*.tar',
-    '*.gz',
-    '*.bz2',
-    '*.xz',
-    '*.7z',
-    '*.pdf',
-    '*.doc',
-    '*.docx',
-    '*.xls',
-    '*.xlsx',
-    '*.ppt',
-    '*.pptx',
-    '*.exe',
-    '*.dll',
-    '*.so',
-    '*.dylib',
-    'node_modules',
-    '.git',
-    '.svn',
-    '.hg',
-    '__pycache__',
-    '.pytest_cache',
-    '.mypy_cache',
-    '.venv',
-    'venv',
-    '.env',
-    'dist',
-    'build',
-    'target',
-]
+from ..utils.file_utils import DEFAULT_IGNORE_PATTERNS
 
 DEFAULT_MAX_MATCHES_PER_FILE = 10
 DEFAULT_MAX_RESULTS = 100  # Maximum total results to show

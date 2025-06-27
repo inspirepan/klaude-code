@@ -21,7 +21,7 @@ class MacSetupCommand(Command):
         return 'mac-setup'
 
     def get_command_desc(self) -> str:
-        return 'Install fd and rg (ripgrep) using Homebrew on macOS for optimal performance'
+        return 'Install fd, rg (ripgrep) using Homebrew on macOS for optimal performance'
 
     async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
         command_handle_output = await super().handle(agent, user_input)

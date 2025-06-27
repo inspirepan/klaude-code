@@ -298,15 +298,9 @@ class ToolHandler:
                 with Live(refresh_per_second=10, console=console.console) as live:
                     while any(ti.is_running() for ti in tool_instances) and not interrupted:
                         tool_results = [ti.tool_result() for ti in tool_instances]
-                        live.update(Columns([*tool_results, status], equal=True, expand=False))
+                        live.update(Columns([*tool_results, status]))
                         await asyncio.sleep(0.1)
-                    live.update(
-                        Columns(
-                            [ti.tool_result() for ti in tool_instances],
-                            equal=True,
-                            expand=False,
-                        )
-                    )
+                    live.update(Columns([ti.tool_result() for ti in tool_instances]))
 
             await asyncio.gather(*tasks, return_exceptions=True)
 

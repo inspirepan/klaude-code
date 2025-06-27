@@ -10,7 +10,7 @@ from ..message import ToolCall, ToolMessage, count_tokens, register_tool_call_re
 from ..prompt.tools import READ_TOOL_DESC, READ_TOOL_EMPTY_REMINDER, READ_TOOL_RESULT_REMINDER
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from .file_utils import cache_file_content, read_file_content, validate_file_exists
+from ..utils.file_utils import read_file_content, track_file, validate_file_exists
 
 """
 - Flexible reading with offset and line limit support
@@ -160,7 +160,7 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
             return result
         lines = content.splitlines()
 
-    cache_file_content(file_path)
+    track_file(file_path)
 
     # Handle empty file
     if not content:

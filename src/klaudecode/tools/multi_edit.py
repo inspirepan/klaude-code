@@ -7,9 +7,8 @@ from ..message import ToolCall, ToolMessage, register_tool_call_renderer, regist
 from ..prompt.tools import MULTI_EDIT_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from .file_utils import (
+from ..utils.file_utils import (
     EDIT_ERROR_OLD_STRING_NEW_STRING_IDENTICAL,
-    cache_file_content,
     cleanup_backup,
     count_occurrences,
     create_backup,
@@ -19,8 +18,9 @@ from .file_utils import (
     render_diff_lines,
     replace_string_in_content,
     restore_backup,
-    validate_file_cache,
+    track_file,
     validate_file_exists,
+    validate_file_track_status,
     write_file_content,
 )
 
@@ -75,8 +75,8 @@ class MultiEditTool(Tool):
             instance.tool_result().set_error_msg(error_msg)
             return
 
-        # Validation 3: Check cached file state
-        is_valid, error_msg = validate_file_cache(args.file_path)
+        # Validation 3: Check tracked file state
+        is_valid, error_msg = validate_file_track_status(args.file_path)
         if not is_valid:
             instance.tool_result().set_error_msg(error_msg)
             return
@@ -145,8 +145,8 @@ class MultiEditTool(Tool):
                 instance.tool_result().set_error_msg(f'Failed to write file: {error_msg}. {ERROR_NOT_APPLIED}')
                 return
 
-            # Update cache
-            cache_file_content(args.file_path)
+            # Update tracking
+            track_file(args.file_path)
 
             # Generate diff and snippet
             diff_lines = generate_diff_lines(original_content, working_content)
@@ -246,15 +246,15 @@ def _detect_edit_conflicts(edits: List[EditOperation], content: str) -> List[Edi
             old_string2 = edit2.old_string
             new_string2 = edit2.new_string
 
-            # Conflict Type 1: Later edit modifies earlier edit's result
-            if new_string1 in old_string2:
-                conflicts.append(
-                    EditConflict(
-                        type='dependency',
-                        edits=(i, j),
-                        description=f'Edit {j + 1} depends on result of edit {i + 1}',
-                    )
-                )
+            # # Conflict Type 1: Later edit modifies earlier edit's result
+            # if new_string1 in old_string2:
+            #     conflicts.append(
+            #         EditConflict(
+            #             type='dependency',
+            #             edits=(i, j),
+            #             description=f'Edit {j + 1} depends on result of edit {i + 1}',
+            #         )
+            #     )
 
             # Conflict Type 2: Overlapping replacements
             if _edits_overlap(edit1, edit2, content):

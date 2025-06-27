@@ -1,0 +1,672 @@
+import difflib
+import fnmatch
+import hashlib
+import os
+import re
+import shutil
+from collections import deque
+from typing import Dict, List, Optional, Tuple
+
+from rich.console import Group
+from rich.markup import escape
+
+from ..tui import ColorStyle
+
+# File tracking constants
+DEFAULT_CHUNK_SIZE = 8192
+
+# Content truncation constants
+TRUNCATE_CHAR_LIMIT = 5000
+TRUNCATE_LINE_LIMIT = 1000
+TRUNCATE_LINE_CHAR_LIMIT = 2000
+
+# Directory structure constants
+DEFAULT_MAX_CHARS = 40000
+DEFAULT_TREE_WIDTH = 3
+INDENT_SIZE = 2
+
+# Error messages
+FILE_NOT_READ_ERROR = 'File has not been read yet. Read it first before writing to it.'
+FILE_MODIFIED_ERROR = 'File has been modified externally. Either by user or a linter. Read it first before writing to it.'
+FILE_NOT_EXIST_ERROR = 'File does not exist.'
+FILE_NOT_A_FILE_ERROR = 'EISDIR: illegal operation on a directory, read.'
+EDIT_ERROR_OLD_STRING_NEW_STRING_IDENTICAL = 'No changes to make: old_string and new_string are exactly the same.'
+
+
+class FileTracker:
+    """Tracks file modifications and read status using metadata and hash."""
+
+    def __init__(self):
+        self._tracking: Dict[str, Tuple[float, int, str]] = {}
+
+    def _calculate_hash_for_file(self, file_path: str, chunk_size: int = DEFAULT_CHUNK_SIZE) -> str:
+        """Calculate MD5 hash of file content using streaming approach.
+
+        Args:
+            file_path: Path to the file
+            chunk_size: Size of chunks to read at a time
+
+        Returns:
+            MD5 hash as hex string, empty string on error
+        """
+        hash_obj = hashlib.md5()
+        try:
+            with open(file_path, 'rb') as f:
+                while chunk := f.read(chunk_size):
+                    hash_obj.update(chunk)
+            return hash_obj.hexdigest()
+        except Exception:
+            return ''
+
+    def track_file_metadata(self, file_path: str) -> None:
+        """Track file metadata including mtime, size and content hash.
+
+        Args:
+            file_path: Path to the file to track
+        """
+        try:
+            stat = os.stat(file_path)
+            mtime = stat.st_mtime
+            size = stat.st_size
+            file_hash = self._calculate_hash_for_file(file_path)
+            if file_hash:
+                self._tracking[file_path] = (mtime, size, file_hash)
+        except OSError:
+            pass
+
+    def is_file_modified(self, file_path: str) -> Tuple[bool, str]:
+        """Check if file has been modified since last tracking.
+
+        Args:
+            file_path: Path to the file to check
+
+        Returns:
+            Tuple of (is_modified, reason)
+        """
+        if file_path not in self._tracking:
+            return True, 'File not in tracking'
+
+        try:
+            stat = os.stat(file_path)
+            tracking_mtime, tracking_size, tracking_hash = self._tracking[file_path]
+
+            if stat.st_mtime != tracking_mtime or stat.st_size != tracking_size:
+                return True, 'File modified (mtime or size changed)'
+
+            return False, ''
+        except OSError:
+            return True, 'File access error'
+
+    def invalidate(self, file_path: str) -> None:
+        """Remove file from tracking.
+
+        Args:
+            file_path: Path to remove from tracking
+        """
+        self._tracking.pop(file_path, None)
+
+    def clear(self) -> None:
+        """Clear all tracked file metadata."""
+        self._tracking.clear()
+
+    def get_modified_files(self) -> List[str]:
+        """Get list of all files that have been modified since tracking.
+
+        Returns:
+            List of file paths that have been modified
+        """
+        modified_files = []
+        for file_path in self._tracking.keys():
+            is_modified, _ = self.is_file_modified(file_path)
+            if is_modified:
+                modified_files.append(file_path)
+        return modified_files
+
+
+_file_tracker = FileTracker()
+
+
+# File validation functions
+
+DEFAULT_IGNORE_PATTERNS = [
+    'node_modules',
+    '.git',
+    '.svn',
+    '.hg',
+    '.bzr',
+    '__pycache__',
+    '.pytest_cache',
+    '.mypy_cache',
+    '.tox',
+    '.venv',
+    'venv',
+    '.env',
+    '.virtualenv',
+    'dist',
+    'build',
+    'target',
+    'out',
+    'bin',
+    'obj',
+    '.DS_Store',
+    'Thumbs.db',
+    '*.tmp',
+    '*.temp',
+    '*.log',
+    '*.cache',
+    '*.lock',
+    '*.jpg',
+    '*.jpeg',
+    '*.png',
+    '*.gif',
+    '*.bmp',
+    '*.svg',
+    '*.mp4',
+    '*.mov',
+    '*.avi',
+    '*.mkv',
+    '*.webm',
+    '*.mp3',
+    '*.wav',
+    '*.flac',
+    '*.ogg',
+    '*.zip',
+    '*.tar',
+    '*.gz',
+    '*.bz2',
+    '*.xz',
+    '*.7z',
+    '*.pdf',
+    '*.doc',
+    '*.docx',
+    '*.xls',
+    '*.xlsx',
+    '*.ppt',
+    '*.pptx',
+    '*.exe',
+    '*.dll',
+    '*.so',
+    '*.dylib',
+]
+
+
+def validate_file_exists(file_path: str) -> Tuple[bool, str]:
+    """Validate that file exists and is a regular file.
+
+    Args:
+        file_path: Path to validate
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not os.path.exists(file_path):
+        return False, FILE_NOT_EXIST_ERROR
+    if not os.path.isfile(file_path):
+        return False, FILE_NOT_A_FILE_ERROR
+    return True, ''
+
+
+def validate_file_track_status(file_path: str) -> Tuple[bool, str]:
+    """Validate that file is properly tracked and not modified.
+
+    Args:
+        file_path: Path to validate
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    is_modified, error_msg = _file_tracker.is_file_modified(file_path)
+    if is_modified:
+        if error_msg == 'File not in tracking':
+            return False, FILE_NOT_READ_ERROR
+        else:
+            return False, FILE_MODIFIED_ERROR
+    return True, ''
+
+
+# File tracking management
+def track_file(file_path: str) -> None:
+    """Track file metadata for change detection.
+
+    Args:
+        file_path: Path to track
+    """
+    _file_tracker.track_file_metadata(file_path)
+
+
+def get_modified_files() -> List[str]:
+    """Get list of all tracked files that have been modified.
+
+    Returns:
+        List of modified file paths
+    """
+    return _file_tracker.get_modified_files()
+
+
+# String operations
+def count_occurrences(content: str, search_string: str) -> int:
+    """Count occurrences of search string in content.
+
+    Args:
+        content: Text content to search
+        search_string: String to count
+
+    Returns:
+        Number of occurrences
+    """
+    return content.count(search_string)
+
+
+def replace_string_in_content(content: str, old_string: str, new_string: str, replace_all: bool = False) -> Tuple[str, int]:
+    """Replace occurrences of old_string with new_string in content.
+
+    Args:
+        content: Text content to modify
+        old_string: String to replace
+        new_string: Replacement string
+        replace_all: Whether to replace all occurrences or just first
+
+    Returns:
+        Tuple of (modified_content, replacement_count)
+    """
+    if replace_all:
+        new_content = content.replace(old_string, new_string)
+        count = content.count(old_string)
+    else:
+        new_content = content.replace(old_string, new_string, 1)
+        count = 1 if old_string in content else 0
+
+    return new_content, count
+
+
+# File backup operations
+def create_backup(file_path: str) -> str:
+    """Create a backup copy of the file.
+
+    Args:
+        file_path: Path to the file to backup
+
+    Returns:
+        Path to the backup file
+
+    Raises:
+        Exception: If backup creation fails
+    """
+    backup_path = f'{file_path}.backup'
+    try:
+        shutil.copy2(file_path, backup_path)
+        return backup_path
+    except Exception as e:
+        raise Exception(f'Failed to create backup: {str(e)}')
+
+
+def restore_backup(file_path: str, backup_path: str) -> None:
+    """Restore file from backup.
+
+    Args:
+        file_path: Original file path
+        backup_path: Path to backup file
+
+    Raises:
+        Exception: If restore fails
+    """
+    try:
+        shutil.move(backup_path, file_path)
+    except Exception as e:
+        raise Exception(f'Failed to restore backup: {str(e)}')
+
+
+def cleanup_backup(backup_path: str) -> None:
+    """Remove backup file if it exists.
+
+    Args:
+        backup_path: Path to backup file to remove
+    """
+    try:
+        if os.path.exists(backup_path):
+            os.remove(backup_path)
+    except Exception:
+        pass
+
+
+# File diff operations
+def generate_diff_lines(old_content: str, new_content: str) -> List[str]:
+    """Generate unified diff lines between old and new content.
+
+    Args:
+        old_content: Original content
+        new_content: Modified content
+
+    Returns:
+        List of diff lines in unified format
+    """
+    old_lines = old_content.splitlines(keepends=True)
+    new_lines = new_content.splitlines(keepends=True)
+
+    diff_lines = list(
+        difflib.unified_diff(
+            old_lines,
+            new_lines,
+            lineterm='',
+        )
+    )
+
+    return diff_lines
+
+
+def ensure_directory_exists(file_path: str) -> None:
+    """Ensure parent directory of file path exists.
+
+    Args:
+        file_path: File path whose parent directory should exist
+    """
+    directory = os.path.dirname(file_path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+
+
+# File I/O operations
+def read_file_content(file_path: str, encoding: str = 'utf-8') -> Tuple[str, str]:
+    """Read file content with fallback encoding handling.
+
+    Args:
+        file_path: Path to file to read
+        encoding: Primary encoding to try
+
+    Returns:
+        Tuple of (content, warning_message)
+    """
+    try:
+        with open(file_path, 'r', encoding=encoding) as f:
+            content = f.read()
+        return content, ''
+    except UnicodeDecodeError:
+        try:
+            with open(file_path, 'r', encoding='latin-1') as f:
+                content = f.read()
+            return content, '<system-reminder>warning: File decoded using latin-1 encoding</system-reminder>'
+        except Exception as e:
+            return '', f'Failed to read file: {str(e)}'
+    except Exception as e:
+        return '', f'Failed to read file: {str(e)}'
+
+
+def write_file_content(file_path: str, content: str, encoding: str = 'utf-8') -> str:
+    """Write content to file, creating parent directories if needed.
+
+    Args:
+        file_path: Path to write to
+        content: Content to write
+        encoding: Encoding to use
+
+    Returns:
+        Error message if write fails, empty string on success
+    """
+    try:
+        ensure_directory_exists(file_path)
+        with open(file_path, 'w', encoding=encoding) as f:
+            f.write(content)
+        return ''
+    except Exception as e:
+        return f'Failed to write file: {str(e)}'
+
+
+def generate_snippet_from_diff(diff_lines: List[str]) -> str:
+    """Generate a snippet from diff lines showing context and new content.
+
+    Only includes context lines (' ') and added lines ('+') in line-number→line-content format.
+
+    Args:
+        diff_lines: List of unified diff lines
+
+    Returns:
+        Formatted snippet string
+    """
+    if not diff_lines:
+        return ''
+
+    new_line_num = 1
+    snippet_lines = []
+
+    for line in diff_lines:
+        if line.startswith('---') or line.startswith('+++'):
+            continue
+        elif line.startswith('@@'):
+            match = re.search(r'@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@', line)
+            if match:
+                new_line_num = int(match.group(2))
+        elif line.startswith('-'):
+            continue
+        elif line.startswith('+'):
+            added_line = line[1:].rstrip('\n\r')
+            snippet_lines.append(f'{new_line_num}→{added_line}')
+            new_line_num += 1
+        elif line.startswith(' '):
+            context_line = line[1:].rstrip('\n\r')
+            snippet_lines.append(f'{new_line_num}→{context_line}')
+            new_line_num += 1
+
+    return '\n'.join(snippet_lines)
+
+
+def render_diff_lines(diff_lines: List[str]) -> Group:
+    """Render diff lines with color formatting for terminal display.
+
+    Args:
+        diff_lines: List of unified diff lines
+
+    Returns:
+        Rich Group object with formatted diff content
+    """
+    if not diff_lines:
+        return ''
+
+    old_line_num = 1
+    new_line_num = 1
+    width = 3
+
+    lines = []
+    for line in diff_lines:
+        if line.startswith('---') or line.startswith('+++'):
+            continue
+        elif line.startswith('@@'):
+            match = re.search(r'@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@', line)
+            if match:
+                old_line_num = int(match.group(1))
+                new_line_num = int(match.group(2))
+        elif line.startswith('-'):
+            removed_line = line[1:].strip('\n\r')
+            lines.append(f'[{ColorStyle.DIFF_REMOVED_LINE.value}]{old_line_num:{width}d}:-  {escape(removed_line)}[/{ColorStyle.DIFF_REMOVED_LINE.value}]')
+            old_line_num += 1
+        elif line.startswith('+'):
+            added_line = line[1:].strip('\n\r')
+            lines.append(f'[{ColorStyle.DIFF_ADDED_LINE.value}]{new_line_num:{width}d}:+  {escape(added_line)}[/{ColorStyle.DIFF_ADDED_LINE.value}]')
+            new_line_num += 1
+        elif line.startswith(' '):
+            context_line = line[1:].strip('\n\r')
+            lines.append(f'{old_line_num:{width}d}:   {escape(context_line)}')
+            old_line_num += 1
+            new_line_num += 1
+        else:
+            lines.append(line)
+    return Group(*lines)
+
+
+# Directory operations
+
+
+class TreeNode:
+    """Represents a node in the directory tree."""
+
+    def __init__(self, name: str, path: str, is_dir: bool, depth: int):
+        self.name = name
+        self.path = path
+        self.is_dir = is_dir
+        self.depth = depth
+        self.children: List['TreeNode'] = []
+
+
+def _should_ignore_path(item_path: str, item_name: str, ignore_patterns: List[str], show_hidden: bool) -> bool:
+    """Check if a path should be ignored based on patterns and settings.
+
+    Args:
+        item_path: Full path to the item
+        item_name: Name of the item
+        ignore_patterns: List of patterns to ignore
+        show_hidden: Whether to show hidden files
+
+    Returns:
+        True if path should be ignored
+    """
+    if not show_hidden and item_name.startswith('.') and item_name not in ['.', '..']:
+        return True
+
+    for pattern in ignore_patterns:
+        if pattern.endswith('/'):
+            if fnmatch.fnmatch(item_name + '/', pattern) or fnmatch.fnmatch(item_path + '/', pattern):
+                return True
+        else:
+            if fnmatch.fnmatch(item_name, pattern) or fnmatch.fnmatch(item_path, pattern):
+                return True
+    return False
+
+
+def _build_directory_tree(root_path: str, ignore_patterns: List[str], max_chars: int, max_depth: Optional[int], show_hidden: bool) -> Tuple[TreeNode, int, bool]:
+    """Build directory tree using breadth-first traversal.
+
+    Args:
+        root_path: Root directory path
+        ignore_patterns: Patterns to ignore
+        max_chars: Maximum character limit
+        max_depth: Maximum depth
+        show_hidden: Whether to show hidden files
+
+    Returns:
+        Tuple of (root_node, path_count, truncated)
+    """
+    root = TreeNode(os.path.basename(root_path) or root_path, root_path, True, 0)
+    queue = deque([root])
+    path_count = 0
+    char_budget = max_chars if max_chars > 0 else float('inf')
+    truncated = False
+
+    while queue and char_budget > 0:
+        current_node = queue.popleft()
+
+        if max_depth is not None and current_node.depth >= max_depth:
+            continue
+
+        if not current_node.is_dir:
+            continue
+
+        try:
+            items = os.listdir(current_node.path)
+        except (PermissionError, OSError):
+            continue
+
+        dirs = []
+        files = []
+
+        for item in items:
+            item_path = os.path.join(current_node.path, item)
+
+            if _should_ignore_path(item_path, item, ignore_patterns, show_hidden):
+                continue
+
+            if os.path.isdir(item_path):
+                dirs.append(item)
+            else:
+                files.append(item)
+
+        dirs.sort()
+        files.sort()
+
+        for item in dirs + files:
+            item_path = os.path.join(current_node.path, item)
+            is_dir = os.path.isdir(item_path)
+            child_node = TreeNode(item, item_path, is_dir, current_node.depth + 1)
+            current_node.children.append(child_node)
+            path_count += 1
+
+            estimated_chars = (child_node.depth * INDENT_SIZE) + len(child_node.name) + 3
+            if char_budget - estimated_chars <= 0:
+                truncated = True
+                break
+            char_budget -= estimated_chars
+
+            if is_dir:
+                queue.append(child_node)
+
+        if truncated:
+            break
+
+    return root, path_count, truncated
+
+
+def _format_tree_node(node: TreeNode) -> List[str]:
+    """Format tree node and its children into display lines.
+
+    Args:
+        node: Tree node to format
+
+    Returns:
+        List of formatted lines
+    """
+    lines = []
+
+    def traverse(current_node: TreeNode):
+        if current_node.depth == 0:
+            display_name = current_node.path + '/' if current_node.is_dir else current_node.path
+            lines.append(f'- {display_name}')
+        else:
+            indent = '  ' * current_node.depth
+            display_name = current_node.name + '/' if current_node.is_dir else current_node.name
+            lines.append(f'{indent}- {display_name}')
+
+        for child in current_node.children:
+            traverse(child)
+
+    traverse(node)
+    return lines
+
+
+def get_directory_structure(
+    path: str, ignore_pattern: Optional[List[str]] = None, max_chars: int = DEFAULT_MAX_CHARS, max_depth: Optional[int] = None, show_hidden: bool = False
+) -> Tuple[str, bool, int]:
+    """Generate a text representation of directory structure.
+
+    Uses breadth-first traversal to build tree structure, then formats output
+    in depth-first manner for better readability.
+
+    Args:
+        path: Directory path to analyze
+        ignore_pattern: Additional ignore patterns list (optional)
+        max_chars: Maximum character limit, 0 means unlimited
+        max_depth: Maximum depth, None means unlimited
+        show_hidden: Whether to show hidden files
+
+    Returns:
+        Tuple[str, bool, int]: (content, truncated, path_count)
+        - content: Formatted directory tree text
+        - truncated: Whether truncated due to character limit
+        - path_count: Number of path items included
+    """
+    if not os.path.exists(path):
+        return f'Path does not exist: {path}', False, 0
+
+    if not os.path.isdir(path):
+        return f'Path is not a directory: {path}', False, 0
+
+    all_ignore_patterns = DEFAULT_IGNORE_PATTERNS.copy()
+    if ignore_pattern:
+        all_ignore_patterns.extend(ignore_pattern)
+
+    root_node, path_count, truncated = _build_directory_tree(path, all_ignore_patterns, max_chars, max_depth, show_hidden)
+
+    lines = _format_tree_node(root_node)
+    content = '\n'.join(lines)
+
+    if truncated:
+        content += f'\n... (truncated at {max_chars} characters, use LS tool with specific paths to explore more)'
+
+    return content, truncated, path_count

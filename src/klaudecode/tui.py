@@ -50,6 +50,8 @@ class ColorStyle(str, Enum):
     BASH_MODE = 'bash_mode'
     MEMORY_MODE = 'memory_mode'
     PLAN_MODE = 'plan_mode'
+    # Markdown
+    H1 = 'h1'
 
     def bold(self) -> Style:
         return console.console.get_style(self.value) + Style(bold=True)
@@ -102,6 +104,8 @@ light_theme = Theme(
         ColorStyle.BASH_MODE: 'rgb(234,51,134)',
         ColorStyle.MEMORY_MODE: 'rgb(109,104,218)',
         ColorStyle.PLAN_MODE: 'rgb(43,100,101)',
+        # Markdown
+        ColorStyle.H1: 'rgb(181,75,52)',
     }
 )
 
@@ -140,6 +144,8 @@ dark_theme = Theme(
         ColorStyle.BASH_MODE: 'rgb(255,102,170)',
         ColorStyle.MEMORY_MODE: 'rgb(200,205,255)',
         ColorStyle.PLAN_MODE: 'rgb(126,184,185)',
+        # Markdown
+        ColorStyle.H1: 'rgb(221,145,112)',
     }
 )
 
@@ -227,6 +233,9 @@ def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Gro
     # Handle italic: *text* -> [italic]text[/italic]
     text = re.sub(r'\*([^*\n]+?)\*', r'[italic]\1[/italic]', text)
 
+    # Handle strikethrough: ~~text~~ -> [strike]text[/strike]
+    text = re.sub(r'~~(.*?)~~', r'[strike]\1[/strike]', text)
+
     # Handle inline code: `text` -> [inline_code]text[/inline_code]
     text = re.sub(r'`([^`\n]+?)`', r'[inline_code]\1[/inline_code]', text)
 
@@ -253,14 +262,19 @@ def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Gro
         if line.strip().startswith('#'):
             stripped = line.strip()
             if stripped.startswith('# ') and not stripped.startswith('## '):
-                line = Text.from_markup(f'[ai_thinking][bold]{line}[/bold][/ai_thinking]', style=style)
+                grid = Table.grid(padding=(0, 0))
+                grid.add_column(overflow='fold')
+                grid.add_row(Rule(style=ColorStyle.H1.value))
+                grid.add_row(Text.from_markup(f'[bold]{line}[/bold]', style=ColorStyle.H1.value))
+                grid.add_row(Rule(style=ColorStyle.H1.value))
+                line = grid
             else:
                 line = Text.from_markup(f'[bold]{line}[/bold]', style=style)
         elif line.strip().startswith('>'):
             quote_content = re.sub(r'^(\s*)>\s?', r'\1', line)
             line = Text.from_markup(f'[muted]▌ {quote_content}[/muted]', style=style)
         elif line.strip() == '---':
-            line = Rule(style=ColorStyle.MUTED.value)
+            line = Rule(style=ColorStyle.SEPARATOR.value)
         else:
             line = Text.from_markup(line, style=style)
 
@@ -277,7 +291,7 @@ def _parse_markdown_table(lines: list[str], start_index: int, style: Optional[Un
     headers = [Text(cell.strip(), style=style) for cell in header_line.split('|')[1:-1]]
 
     # Create table
-    table = Table(show_header=True, header_style='bold', box=box.ROUNDED, show_lines=True, style=style)
+    table = Table(show_header=True, header_style='bold', box=box.SQUARE, show_lines=True, style=style)
     for header in headers:
         table.add_column(header)
 

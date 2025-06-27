@@ -11,7 +11,7 @@ from ..message import ToolCall, ToolMessage, register_tool_call_renderer, regist
 from ..prompt.tools import GLOB_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from ..utils import DEFAULT_IGNORE_PATTERNS
+from ..utils.file_utils import DEFAULT_IGNORE_PATTERNS
 
 DEFAULT_MAX_DEPTH = 10
 DEFAULT_MAX_FILES = 100

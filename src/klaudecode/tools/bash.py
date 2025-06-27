@@ -17,6 +17,7 @@ from ..message import ToolCall, register_tool_call_renderer
 from ..prompt.tools import BASH_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle
+from ..utils.bash_utils import BashUtils
 
 
 class BashTool(Tool):
@@ -74,9 +75,6 @@ class BashTool(Tool):
         'tail': 'Use Read tool instead of tail command',
         'ls': 'Use LS tool instead of ls command',
     }
-
-    # Interactive prompt patterns to detect
-    INTERACTIVE_PATTERNS = ['password:', 'enter passphrase', 'are you sure', '(y/n)', 'press enter', 'continue?', 'do you want to', 'confirm', "type 'yes'", 'enter to continue']
 
     MAX_OUTPUT_SIZE = 30000  # Maximum output size to prevent memory overflow
     DEFAULT_TIMEOUT = 300000  # 5 minutes in milliseconds
@@ -174,11 +172,14 @@ class BashTool(Tool):
         try:
             # Set up non-interactive environment
             env = os.environ.copy()
-            env.update({'DEBIAN_FRONTEND': 'noninteractive', 'SSH_ASKPASS': '', 'GIT_ASKPASS': 'echo', 'SUDO_ASKPASS': '/bin/false', 'BATCH': '1', 'NONINTERACTIVE': '1'})
+            env.update(BashUtils.get_non_interactive_env())
+
+            # Preprocess command to handle interactive tools
+            processed_command = BashUtils.preprocess_command(command)
 
             # Start the process
             process = subprocess.Popen(
-                command,
+                processed_command,
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
@@ -215,7 +216,9 @@ class BashTool(Tool):
                     # Process finished, read remaining output
                     remaining_output = process.stdout.read()
                     if remaining_output:
-                        for line in remaining_output.splitlines():
+                        # Strip ANSI codes from output
+                        clean_output = BashUtils.strip_ansi_codes(remaining_output)
+                        for line in clean_output.splitlines():
                             if total_output_size < cls.MAX_OUTPUT_SIZE:
                                 output_lines.append(line)
                                 # +1 for newline
@@ -293,17 +296,25 @@ class BashTool(Tool):
         """Process a single output line and return (new_total_size, should_break)"""
         line = line.rstrip('\n\r')
 
+        # Strip ANSI codes from line
+        clean_line = BashUtils.strip_ansi_codes(line)
+
         # Check for interactive prompts
-        line_lower = line.lower()
-        for pattern in cls.INTERACTIVE_PATTERNS:
-            if pattern in line_lower:
-                output_lines.append(f'Interactive prompt detected: {line}')
-                output_lines.append('Command terminated due to interactive prompt')
-                update_content_func()
-                return total_output_size, True
+        if BashUtils.detect_interactive_prompt(clean_line):
+            output_lines.append(f'Interactive prompt detected: {clean_line}')
+            output_lines.append('Command terminated due to interactive prompt')
+            update_content_func()
+            return total_output_size, True
+
+        # Check for safe continue prompts that we can handle
+        if BashUtils.detect_safe_continue_prompt(clean_line):
+            output_lines.append(f'Safe continue prompt detected: {clean_line}')
+            # We could handle this by sending ENTER, but for now just log it
+            pass
+
         if total_output_size < cls.MAX_OUTPUT_SIZE:
-            output_lines.append(line)
-            total_output_size += len(line) + 1  # +1 for newline
+            output_lines.append(clean_line)
+            total_output_size += len(clean_line) + 1  # +1 for newline
             update_content_func()
             return total_output_size, False
         else:

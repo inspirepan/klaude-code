@@ -11,7 +11,7 @@ from .prompt.system import STATIC_SYSTEM_PROMPT, get_system_prompt_dynamic_part
 from .session import Session
 from .tui import ColorStyle, Text, console
 from .user_questionary import user_select
-from .utils import format_relative_time
+from .utils.str_utils import format_relative_time
 
 app = typer.Typer(help='Coding Agent CLI', add_completion=False)
 

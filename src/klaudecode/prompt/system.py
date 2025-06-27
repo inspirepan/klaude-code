@@ -2,7 +2,7 @@ import os
 import platform
 from datetime import datetime
 
-from ..utils import get_directory_structure
+from ..utils.file_utils import get_directory_structure
 
 # STATIC SYSTEM PROMPT (CACHE CONTROL)
 # ------------------------------------------------------------------------------------------------

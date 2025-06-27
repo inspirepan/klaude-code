@@ -1,4 +1,7 @@
 import asyncio
+import os
+import pty
+import select
 import signal
 import subprocess
 from typing import TYPE_CHECKING, Generator
@@ -13,6 +16,7 @@ from ..prompt.commands import BASH_INPUT_MODE_CONTENT
 from ..tools.bash import BashTool
 from ..tui import ColorStyle, console, get_prompt_toolkit_color
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput
+from ..utils.bash_utils import BashUtils
 
 if TYPE_CHECKING:
     from ..agent import Agent
@@ -34,6 +38,9 @@ class BashMode(InputModeCommand):
     def binding_key(self) -> str:
         return '!'
 
+    def binding_keys(self) -> list[str]:
+        return ['!', '！']
+
     async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
         command_handle_output = await super().handle(agent, user_input)
         command = user_input.cleaned_input
@@ -46,8 +53,10 @@ class BashMode(InputModeCommand):
             command_handle_output.user_msg.set_extra_data('stderr', error_result)
             return command_handle_output
 
+        processed_command = BashUtils.preprocess_command(command)
+
         # Execute command and display output in streaming mode
-        stdout, stderr = await self._execute_command_with_live_output(command)
+        stdout, stderr = await self._execute_command_with_live_output(processed_command)
         command_handle_output.user_msg.set_extra_data('stdout', stdout)
         command_handle_output.user_msg.set_extra_data('stderr', stderr)
         command_handle_output.need_render_suffix = False
@@ -55,17 +64,34 @@ class BashMode(InputModeCommand):
         return command_handle_output
 
     async def _execute_command_with_live_output(self, command: str) -> tuple[str, str]:
-        """Execute command with live output display using rich.live, returns stdout and stderr"""
+        """Execute command with live output display using pty for real streaming"""
         output_lines = []
         error_lines = []
+        master_fd = None
         process = None
 
-        # Create display text
         display_text = Text()
 
         try:
-            # Start process, capture stdout and stderr separately
-            process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, bufsize=0)
+            processed_command = BashUtils.preprocess_command(command)
+
+            env = os.environ.copy()
+            env.update(BashUtils.get_non_interactive_env())
+
+            master_fd, slave_fd = pty.openpty()
+
+            process = subprocess.Popen(
+                processed_command,
+                shell=True,
+                stdout=slave_fd,
+                stderr=subprocess.STDOUT,
+                stdin=slave_fd,
+                universal_newlines=True,
+                preexec_fn=os.setsid,
+                env=env,
+            )
+
+            os.close(slave_fd)
 
             interrupted = False
 
@@ -74,101 +100,68 @@ class BashMode(InputModeCommand):
                 interrupted = True
                 if process and process.poll() is None:
                     try:
-                        BashTool._kill_process_tree(process.pid)
+                        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
                     except Exception:
                         pass
 
             old_handler = signal.signal(signal.SIGINT, signal_handler)
 
-            with Live(render_suffix(display_text), refresh_per_second=4, console=console.console) as live:
-                # Read outputs concurrently
+            with Live(render_suffix(display_text), refresh_per_second=10, console=console.console) as live:
+                partial_line = ''
+
                 while True:
                     if interrupted:
                         break
 
                     if process.poll() is not None:
-                        # Process has finished
                         break
 
-                    # Read available output
-                    await asyncio.sleep(0.1)  # Small delay to prevent busy waiting
+                    try:
+                        ready, _, _ = select.select([master_fd], [], [], 0.01)
+                        if ready:
+                            data = os.read(master_fd, 4096).decode('utf-8', errors='replace')
+                            if data:
+                                data = BashUtils.strip_ansi_codes(data)
+                                lines = (partial_line + data).split('\n')
+                                partial_line = lines[-1]
 
-                    # Read stdout - read all available data
-                    if process.stdout.readable():
-                        try:
-                            import select
-                            import sys
-
-                            # Check if data is available to read (non-blocking)
-                            if sys.platform != 'win32':
-                                ready, _, _ = select.select([process.stdout], [], [], 0)
-                                if ready:
-                                    data = process.stdout.read(4096)
-                                    if data:
-                                        lines = data.split('\n')
-                                        # Handle partial lines
-                                        for i, line in enumerate(lines):
-                                            if i == len(lines) - 1 and not data.endswith('\n'):
-                                                # Last line might be partial, add it to display but not to output_lines yet
-                                                display_text.append(line)
-                                            else:
-                                                if line or i < len(lines) - 1:  # Include empty lines except the last one if data doesn't end with \n
-                                                    output_lines.append(line)
-                                                    display_text.append(line + '\n' if i < len(lines) - 1 else line)
+                                for line in lines[:-1]:
+                                    if BashUtils.detect_safe_continue_prompt(line):
+                                        # Send ENTER key for safe continue prompts
+                                        display_text.append(f'Auto-continuing from prompt: {line}\n')
+                                        try:
+                                            os.write(master_fd, b'\n')
+                                        except OSError:
+                                            pass
+                                        output_lines.append(line)
+                                        display_text.append(line + '\n')
+                                        continue
+                                    elif BashUtils.detect_interactive_prompt(line):
+                                        display_text.append(f'Interactive prompt detected: {line}\n')
+                                        display_text.append('Command terminated due to interactive prompt\n')
                                         live.update(render_suffix(display_text))
-                            else:
-                                # Windows fallback - use readline
-                                line = process.stdout.readline()
-                                if line:
-                                    output_lines.append(line.rstrip('\n'))
-                                    display_text.append(line)
-                                    live.update(render_suffix(display_text))
-                        except Exception:
-                            pass
+                                        try:
+                                            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                                        except Exception:
+                                            pass
+                                        return '\n'.join(output_lines), '[Process interrupted]'
 
-                    # Read stderr
-                    if process.stderr.readable():
-                        try:
-                            import select
-                            import sys
+                                    output_lines.append(line)
+                                    display_text.append(line + '\n')
 
-                            if sys.platform != 'win32':
-                                ready, _, _ = select.select([process.stderr], [], [], 0)
-                                if ready:
-                                    data = process.stderr.read(4096)
-                                    if data:
-                                        lines = data.split('\n')
-                                        for i, line in enumerate(lines):
-                                            if i == len(lines) - 1 and not data.endswith('\n'):
-                                                display_text.append(line, style=ColorStyle.ERROR.value)
-                                            else:
-                                                if line or i < len(lines) - 1:
-                                                    error_lines.append(line)
-                                                    display_text.append(line + '\n' if i < len(lines) - 1 else line, style=ColorStyle.ERROR.value)
-                                        live.update(render_suffix(display_text))
-                            else:
-                                # Windows fallback
-                                line = process.stderr.readline()
-                                if line:
-                                    error_lines.append(line.rstrip('\n'))
-                                    display_text.append(line, style=ColorStyle.ERROR.value)
-                                    live.update(render_suffix(display_text))
-                        except Exception:
-                            pass
+                                if partial_line:
+                                    display_text.append(partial_line)
 
-                # Read any remaining output
-                try:
-                    remaining_stdout, remaining_stderr = process.communicate(timeout=1)
-                    if remaining_stdout:
-                        output_lines.extend(remaining_stdout.rstrip('\n').split('\n'))
-                        display_text.append(remaining_stdout)
-                    if remaining_stderr:
-                        error_lines.extend(remaining_stderr.rstrip('\n').split('\n'))
-                        display_text.append(remaining_stderr, style=ColorStyle.ERROR.value)
-                except subprocess.TimeoutExpired:
-                    pass
+                                live.update(render_suffix(display_text))
+                    except (OSError, UnicodeDecodeError):
+                        break
 
-                # Show exit code if non-zero or interrupted
+                    await asyncio.sleep(0.01)
+
+                if partial_line:
+                    output_lines.append(partial_line)
+                    display_text.append(partial_line)
+
                 if interrupted:
                     display_text.append('\n[Process interrupted]', style=ColorStyle.WARNING.bold())
                     error_lines.append('[Process interrupted]')
@@ -177,21 +170,24 @@ class BashMode(InputModeCommand):
 
                 live.update(render_suffix(display_text))
 
-            # Restore signal handler
             signal.signal(signal.SIGINT, old_handler)
 
         except Exception as e:
             error_lines.append(f'Error executing command: {str(e)}')
 
         finally:
-            # Clean up process
+            if master_fd is not None:
+                try:
+                    os.close(master_fd)
+                except OSError:
+                    pass
+
             if process and process.poll() is None:
                 try:
-                    BashTool._kill_process_tree(process.pid)
+                    os.killpg(os.getpgid(process.pid), signal.SIGTERM)
                 except Exception:
                     pass
 
-        # Return stdout and stderr
         return '\n'.join(output_lines), '\n'.join(error_lines)
 
     def render_user_msg(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:

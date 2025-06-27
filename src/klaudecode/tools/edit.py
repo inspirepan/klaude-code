@@ -7,9 +7,8 @@ from ..message import ToolCall, ToolMessage, register_tool_call_renderer, regist
 from ..prompt.tools import EDIT_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from .file_utils import (
+from ..utils.file_utils import (
     EDIT_ERROR_OLD_STRING_NEW_STRING_IDENTICAL,
-    cache_file_content,
     cleanup_backup,
     count_occurrences,
     create_backup,
@@ -19,8 +18,9 @@ from .file_utils import (
     render_diff_lines,
     replace_string_in_content,
     restore_backup,
-    validate_file_cache,
+    track_file,
     validate_file_exists,
+    validate_file_track_status,
     write_file_content,
 )
 
@@ -53,8 +53,8 @@ class EditTool(Tool):
             instance.tool_result().set_error_msg(error_msg)
             return
 
-        # Validate file cache (must be read first)
-        is_valid, error_msg = validate_file_cache(args.file_path)
+        # Validate file tracking (must be read first)
+        is_valid, error_msg = validate_file_track_status(args.file_path)
         if not is_valid:
             instance.tool_result().set_error_msg(error_msg)
             return
@@ -108,8 +108,8 @@ class EditTool(Tool):
                 instance.tool_result().set_error_msg(error_msg)
                 return
 
-            # Update cache
-            cache_file_content(args.file_path)
+            # Update tracking
+            track_file(args.file_path)
 
             # Generate diff and snippet
             diff_lines = generate_diff_lines(content, new_content)
