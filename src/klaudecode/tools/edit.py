@@ -49,6 +49,7 @@ class EditTool(Tool):
         # Validate file exists
         is_valid, error_msg = validate_file_exists(args.file_path)
         if not is_valid:
+            instance.parent_agent.session.file_tracker.remove(args.file_path)
             instance.tool_result().set_error_msg(error_msg)
             return
 

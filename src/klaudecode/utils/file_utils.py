@@ -140,28 +140,29 @@ class FileTracker(BaseModel):
         except OSError:
             return CheckModifiedResult.OS_ACCESS_ERROR
 
-    def remove(self, file_path: str) -> None:
+    def remove(self, file_path: str):
         """Remove file from tracking.
 
         Args:
             file_path: Path to remove from tracking
         """
-        self.tracking.pop(file_path, None)
+        if file_path in self.tracking:
+            self.tracking.pop(file_path)
 
     def clear(self) -> None:
         """Clear all tracked file metadata."""
         self.tracking.clear()
 
     def get_all_modified(self) -> List[str]:
-        """Get list of all files that have been modified since tracking.
+        """Get list of all files that have been modified or deleted since tracking.
 
         Returns:
-            List of file paths that have been modified
+            List of file paths that have been modified or deleted
         """
         modified_files = []
         for file_path in self.tracking.keys():
             check_modified_result = self.check_modified(file_path)
-            if check_modified_result == CheckModifiedResult.MODIFIED:
+            if check_modified_result == CheckModifiedResult.MODIFIED or check_modified_result == CheckModifiedResult.OS_ACCESS_ERROR:
                 modified_files.append(file_path)
         return modified_files
 

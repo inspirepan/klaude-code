@@ -74,6 +74,8 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
     # Validate file exists
     is_valid, error_msg = validate_file_exists(file_path)
     if not is_valid:
+        if tracker is not None:
+            tracker.remove(file_path)
         result.success = False
         result.error_msg = error_msg
         return result

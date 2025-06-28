@@ -28,7 +28,7 @@ from .message import (
     register_tool_result_renderer,
 )
 from .prompt.plan_mode import APPROVE_MSG, PLAN_MODE_REMINDER, REJECT_MSG
-from .prompt.reminder import EMPTY_TODO_REMINDER, FILE_MODIFIED_EXTERNAL_REMINDER, get_context_reminder
+from .prompt.reminder import EMPTY_TODO_REMINDER, FILE_DELETED_EXTERNAL_REMINDER, FILE_MODIFIED_EXTERNAL_REMINDER, get_context_reminder
 from .prompt.system import get_subagent_system_prompt
 from .prompt.tools import CODE_SEARCH_TASK_TOOL_DESC, TASK_TOOL_DESC
 from .session import Session
@@ -211,8 +211,12 @@ class Agent(Tool):
                 if result.success:
                     reminder = FILE_MODIFIED_EXTERNAL_REMINDER.format(file_path=file_path, file_content=result.content)
                     last_msg.append_post_system_reminder(reminder)
+                else:
+                    reminder = FILE_DELETED_EXTERNAL_REMINDER.format(file_path=file_path)
+                    last_msg.append_post_system_reminder(reminder)
             except Exception:
-                continue
+                reminder = FILE_DELETED_EXTERNAL_REMINDER.format(file_path=file_path)
+                last_msg.append_post_system_reminder(reminder)
 
     async def _handle_exit_plan_mode(self, tool_calls: List[ToolCall]) -> bool:
         exit_plan_call: ToolCall = next((call for call in tool_calls.values() if call.tool_name == ExitPlanModeTool.get_name()), None)

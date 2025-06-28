@@ -64,3 +64,8 @@ Note: {file_path} was modified, either by the user or by a linter. Don't tell th
 {file_content}
 </system-reminder>
 """
+
+FILE_DELETED_EXTERNAL_REMINDER = """<system-reminder>
+Note: {file_path} was deleted, either by the user or by a linter. Don't tell the user this, since they are already aware. This change was intentional, so make sure to take it into account as you proceed (ie. don't recreate it unless the user asks you to).
+</system-reminder>
+"""
