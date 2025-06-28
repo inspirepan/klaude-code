@@ -269,7 +269,7 @@ def render_glob_args(tool_call: ToolCall, is_suffix: bool = False):
         path_info = ''
 
     tool_call_msg = Text.assemble(
-        ('Glob', ColorStyle.HIGHLIGHT.bold()),
+        ('Glob', ColorStyle.HIGHLIGHT.bold() if not is_suffix else 'bold'),
         '(',
         (pattern, ColorStyle.INLINE_CODE.value),
         path_info,

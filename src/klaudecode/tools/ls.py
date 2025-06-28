@@ -47,7 +47,7 @@ def render_ls_args(tool_call: ToolCall, is_suffix: bool = False):
         display_path = path
 
     tool_call_msg = Text.assemble(
-        ('List', ColorStyle.HIGHLIGHT.bold()),
+        ('List', ColorStyle.HIGHLIGHT.bold() if not is_suffix else 'bold'),
         '(',
         display_path,
         ignore_info,

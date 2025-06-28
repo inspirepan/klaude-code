@@ -119,15 +119,15 @@ def render_todo_write_name(tool_call: ToolCall, is_suffix: bool = False):
             if todo.get('status') == 'in_progress':
                 in_progress_todos.append(todo.get('content'))
         if in_progress_todos:
-            yield Text.assemble(('Update Todos', ColorStyle.HIGHLIGHT.bold()), '(', ', '.join(in_progress_todos), ')')
+            yield Text.assemble(('Update Todos', 'bold'), '(', ', '.join(in_progress_todos), ')')
         else:
-            yield Text('Update Todos', ColorStyle.HIGHLIGHT.bold())
+            yield Text('Update Todos', style='bold')
         return
     yield Text('Update Todos', ColorStyle.HIGHLIGHT.bold())
 
 
 def render_todo_read_name(tool_call: ToolCall, is_suffix: bool = False):
-    yield Text('Read Todos', ColorStyle.HIGHLIGHT.bold())
+    yield Text('Read Todos', ColorStyle.HIGHLIGHT.bold() if not is_suffix else 'bold')
 
 
 register_tool_result_renderer('TodoRead', render_todo_read_result)

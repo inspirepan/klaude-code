@@ -239,7 +239,7 @@ def render_multi_edit_args(tool_call: ToolCall, is_suffix: bool = False):
         display_path = file_path
 
     tool_call_msg = Text.assemble(
-        ('Update', ColorStyle.HIGHLIGHT.bold()),
+        ('Update', ColorStyle.HIGHLIGHT.bold() if not is_suffix else 'bold'),
         '(',
         display_path,
         ' - ',
