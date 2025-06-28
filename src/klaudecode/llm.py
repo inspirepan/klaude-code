@@ -47,6 +47,8 @@ class OpenAIProxy:
         model_azure: bool,
         max_tokens: int,
         extra_header: dict,
+        extra_body: dict,
+        enable_thinking: Optional[bool] = None,
     ):
         self.model_name = model_name
         self.base_url = base_url
@@ -54,6 +56,8 @@ class OpenAIProxy:
         self.model_azure = model_azure
         self.max_tokens = max_tokens
         self.extra_header = extra_header
+        self.extra_body = extra_body.copy() if extra_body else {}
+        self.enable_thinking = enable_thinking
         if model_azure:
             self.client = openai.AsyncAzureOpenAI(
                 azure_endpoint=self.base_url,
@@ -65,6 +69,13 @@ class OpenAIProxy:
                 base_url=self.base_url,
                 api_key=self.api_key,
             )
+        self.extra_body.update(
+            {
+                'thinking': {
+                    'type': 'auto' if self.enable_thinking is None else ('enabled' if self.enable_thinking else 'disabled'),
+                }
+            }
+        )
 
     async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
         completion = await self.client.chat.completions.create(
@@ -72,6 +83,7 @@ class OpenAIProxy:
             messages=[msg.to_openai() for msg in msgs if msg],
             tools=[tool.openai_schema() for tool in tools] if tools else None,
             extra_headers=self.extra_header,
+            extra_body=self.extra_body,
             max_tokens=self.max_tokens,
         )
         message = completion.choices[0].message
@@ -118,13 +130,14 @@ class OpenAIProxy:
                     tools=[tool.openai_schema() for tool in tools] if tools else None,
                     extra_headers=self.extra_header,
                     max_tokens=self.max_tokens,
+                    extra_body=self.extra_body,
                     stream=True,
                 ),
                 timeout=timeout,
             )
         except asyncio.TimeoutError:
             # Convert timeout to cancellation for consistency
-            raise asyncio.CancelledError("Request timed out")
+            raise asyncio.CancelledError('Request timed out')
 
         content = ''
         thinking_content = ''
@@ -240,12 +253,14 @@ class AnthropicProxy:
         max_tokens: int,
         enable_thinking: bool,
         extra_header: dict,
+        extra_body: dict,
     ):
         self.model_name = model_name
         self.api_key = api_key
         self.max_tokens = max_tokens
         self.enable_thinking = enable_thinking
         self.extra_header = extra_header
+        self.extra_body = extra_body
         self.client = anthropic.AsyncAnthropic(api_key=self.api_key)
 
     async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
@@ -261,6 +276,7 @@ class AnthropicProxy:
             messages=other_msgs,
             system=system_msgs,
             extra_headers=self.extra_header,
+            extra_body=self.extra_body,
         )
         thinking_block = next((block for block in resp.content if block.type == 'thinking'), None)
         tool_use_blocks = [block for block in resp.content if block.type == 'tool_use']
@@ -312,13 +328,14 @@ class AnthropicProxy:
                     messages=other_msgs,
                     system=system_msgs,
                     extra_headers=self.extra_header,
+                    extra_body=self.extra_body,
                     stream=True,
                 ),
                 timeout=timeout,
             )
         except asyncio.TimeoutError:
             # Convert timeout to cancellation for consistency
-            raise asyncio.CancelledError("Request timed out")
+            raise asyncio.CancelledError('Request timed out')
 
         content = ''
         thinking_content = ''
@@ -460,6 +477,7 @@ class LLMProxy:
         model_azure: bool,
         max_tokens: int,
         extra_header: dict,
+        extra_body: dict,
         enable_thinking: bool,
         max_retries=DEFAULT_RETRIES,
         backoff_base=DEFAULT_RETRY_BACKOFF_BASE,
@@ -467,9 +485,9 @@ class LLMProxy:
         self.max_retries = max_retries
         self.backoff_base = backoff_base
         if base_url == 'https://api.anthropic.com/v1/':
-            self.client = AnthropicProxy(model_name, api_key, max_tokens, enable_thinking, extra_header)
+            self.client = AnthropicProxy(model_name, api_key, max_tokens, enable_thinking, extra_header, extra_body)
         else:
-            self.client = OpenAIProxy(model_name, base_url, api_key, model_azure, max_tokens, extra_header)
+            self.client = OpenAIProxy(model_name, base_url, api_key, model_azure, max_tokens, extra_header, extra_body, enable_thinking)
 
     async def _call_with_retry(
         self,
@@ -497,7 +515,14 @@ class LLMProxy:
                 print_thinking_flag = False
                 with render_status(status_text.ljust(15)) as status:
                     async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout, interrupt_check):
-                        indicator = '⚒' if stream_status.phase == 'tool_call' else '↑' if stream_status.phase == 'upload' else '↓'
+                        if stream_status.phase == 'tool_call':
+                            indicator = '⚒'
+                        elif stream_status.phase == 'upload':
+                            indicator = '↑'
+                        elif stream_status.phase == 'think':
+                            indicator = '✻'
+                        else:
+                            indicator = '↓'
                         current_status_text = (
                             tool_call_status_text(stream_status.tool_names[-1]) if stream_status.phase == 'tool_call' and stream_status.tool_names else status_text
                         )
@@ -612,6 +637,7 @@ class LLMManager:
                 'model_azure': config.model_azure.value,
                 'max_tokens': config.max_tokens.value,
                 'extra_header': config.extra_header.value,
+                'extra_body': config.extra_body.value,
                 'enable_thinking': config.enable_thinking.value,
             }
 
@@ -633,6 +659,7 @@ class LLMManager:
                 model_azure=self.config_cache['model_azure'],
                 max_tokens=self.config_cache['max_tokens'],
                 extra_header=self.config_cache['extra_header'],
+                extra_body=self.config_cache['extra_body'],
                 enable_thinking=self.config_cache['enable_thinking'],
             )
 

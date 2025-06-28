@@ -109,7 +109,6 @@ def main(
     base_url: Optional[str] = typer.Option(None, '--base-url', help='Override base URL from config'),
     max_tokens: Optional[int] = typer.Option(None, '--max-tokens', help='Override max tokens from config'),
     model_azure: Optional[bool] = typer.Option(None, '--model-azure', help='Override model is azure from config'),
-    extra_header: Optional[str] = typer.Option(None, '--extra-header', help='Override extra header from config'),
     thinking: Optional[bool] = typer.Option(
         None,
         '--thinking',
@@ -127,7 +126,6 @@ def main(
                 base_url=base_url,
                 model_azure=model_azure,
                 max_tokens=max_tokens,
-                extra_header=extra_header,
                 enable_thinking=thinking,
             )
         except ValueError as e:

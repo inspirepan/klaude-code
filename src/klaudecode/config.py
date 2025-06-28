@@ -25,6 +25,7 @@ DEFAULT_BASE_URL = 'https://api.anthropic.com/v1/'
 DEFAULT_MODEL_AZURE = False
 DEFAULT_MAX_TOKENS = 8196
 DEFAULT_EXTRA_HEADER = {}
+DEFAULT_EXTRA_BODY = {}
 DEFAULT_ENABLE_THINKING = False
 DEFAULT_THEME = 'dark'  # or 'light'
 
@@ -52,6 +53,7 @@ class ConfigModel(BaseModel):
     max_tokens: Optional[ConfigValue[int]] = None
     context_window_threshold: Optional[ConfigValue[int]] = None
     extra_header: Optional[ConfigValue[Union[Dict, str]]] = None
+    extra_body: Optional[ConfigValue[Union[Dict, str]]] = None
     enable_thinking: Optional[ConfigValue[bool]] = None
     theme: Optional[ConfigValue[str]] = None
 
@@ -96,6 +98,7 @@ class ConfigModel(BaseModel):
             ('max_tokens', 'Max Tokens'),
             ('context_window_threshold', 'Context Threshold'),
             ('extra_header', 'Extra Header'),
+            ('extra_body', 'Extra Body'),
             ('enable_thinking', 'Extended Thinking'),
             ('theme', 'Theme'),
         ]
@@ -150,6 +153,7 @@ class ArgConfigSource(ConfigSource):
         max_tokens: Optional[int] = None,
         context_window_threshold: Optional[int] = None,
         extra_header: Optional[str] = None,
+        extra_body: Optional[str] = None,
         enable_thinking: Optional[bool] = None,
     ):
         super().__init__('cli')
@@ -162,6 +166,7 @@ class ArgConfigSource(ConfigSource):
             max_tokens=max_tokens,
             context_window_threshold=context_window_threshold,
             extra_header=extra_header,
+            extra_body=extra_body,
             enable_thinking=enable_thinking,
         )
 
@@ -179,6 +184,7 @@ class EnvConfigSource(ConfigSource):
             'max_tokens': 'MAX_TOKENS',
             'context_window_threshold': 'CONTEXT_WINDOW_THRESHOLD',
             'extra_header': 'EXTRA_HEADER',
+            'extra_body': 'EXTRA_BODY',
             'enable_thinking': 'ENABLE_THINKING',
         }
         self._load_env_config()
@@ -260,6 +266,7 @@ class GlobalConfigSource(ConfigSource):
             'max_tokens': DEFAULT_MAX_TOKENS,
             'context_window_threshold': DEFAULT_CONTEXT_WINDOW_THRESHOLD,
             'extra_header': DEFAULT_EXTRA_HEADER,
+            'extra_body': DEFAULT_EXTRA_BODY,
             'enable_thinking': DEFAULT_ENABLE_THINKING,
             'theme': DEFAULT_THEME,
         }
@@ -297,6 +304,7 @@ class DefaultConfigSource(ConfigSource):
             max_tokens=DEFAULT_MAX_TOKENS,
             context_window_threshold=DEFAULT_CONTEXT_WINDOW_THRESHOLD,
             extra_header=DEFAULT_EXTRA_HEADER,
+            extra_body=DEFAULT_EXTRA_BODY,
             enable_thinking=DEFAULT_ENABLE_THINKING,
             theme=DEFAULT_THEME,
         )
@@ -348,8 +356,8 @@ class ConfigManager:
 
     def __rich__(self):
         return Group(
-            f' config path: {GlobalConfigSource.get_config_path()}',
-            Panel.fit(self.get_config_model(), box=box.HORIZONTALS),
+            Text(f' config path: {GlobalConfigSource.get_config_path()}', style=ColorStyle.HIGHLIGHT.value),
+            Panel.fit(self.get_config_model(), box=box.ROUNDED, border_style=ColorStyle.SEPARATOR.value),
         )
 
     def get(self, key: str) -> Optional[Union[str, bool, int]]:
@@ -371,6 +379,7 @@ class ConfigManager:
         max_tokens: Optional[int] = None,
         context_window_threshold: Optional[int] = None,
         extra_header: Optional[str] = None,
+        extra_body: Optional[str] = None,
         enable_thinking: Optional[bool] = None,
     ) -> 'ConfigManager':
         """Create a ConfigManager with all configuration sources
@@ -393,6 +402,7 @@ class ConfigManager:
                 max_tokens=max_tokens,
                 context_window_threshold=context_window_threshold,
                 extra_header=extra_header,
+                extra_body=extra_body,
                 enable_thinking=enable_thinking,
             ),
         ]
