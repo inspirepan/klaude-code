@@ -112,11 +112,21 @@ def render_todo_write_result(tool_msg: ToolMessage):
     yield render_suffix(Group(*(render_todo_dict(todo, todo.get('id') in new_completed_todos) for todo in todo_list)))
 
 
-def render_todo_write_name(tool_call: ToolCall):
+def render_todo_write_name(tool_call: ToolCall, is_suffix: bool = False):
+    if is_suffix:
+        in_progress_todos = []
+        for todo in tool_call.tool_args_dict.get('todo_list', {}):
+            if todo.get('status') == 'in_progress':
+                in_progress_todos.append(todo.get('content'))
+        if in_progress_todos:
+            yield Text.assemble(('Update Todos', ColorStyle.HIGHLIGHT.bold()), '(', ', '.join(in_progress_todos), ')')
+        else:
+            yield Text('Update Todos', ColorStyle.HIGHLIGHT.bold())
+        return
     yield Text('Update Todos', ColorStyle.HIGHLIGHT.bold())
 
 
-def render_todo_read_name(tool_call: ToolCall):
+def render_todo_read_name(tool_call: ToolCall, is_suffix: bool = False):
     yield Text('Read Todos', ColorStyle.HIGHLIGHT.bold())
 
 

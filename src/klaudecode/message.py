@@ -305,7 +305,7 @@ class ToolCall(BaseModel):
 
     def get_suffix_renderable(self):
         if self.tool_name in _TOOL_CALL_RENDERERS:
-            for item in _TOOL_CALL_RENDERERS[self.tool_name](self):
+            for item in _TOOL_CALL_RENDERERS[self.tool_name](self, is_suffix=True):
                 yield item
         else:
             yield Text.assemble((ToolCall.get_display_tool_name(self.tool_name), 'bold'), '(', ToolCall.get_display_tool_args(self.tool_args_dict), ')')
@@ -524,7 +524,7 @@ _USER_MSG_SUFFIX_RENDERERS = {}
 _USER_MSG_CONTENT_FUNCS = {}
 
 
-def register_tool_call_renderer(tool_name: str, renderer_func: Callable[[ToolCall], RichRenderable]):
+def register_tool_call_renderer(tool_name: str, renderer_func: Callable[[ToolCall, bool], RichRenderable]):
     _TOOL_CALL_RENDERERS[tool_name] = renderer_func
 
 

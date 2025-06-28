@@ -469,19 +469,23 @@ class LLMProxy:
                 if not show_status:
                     return await self.client.call(msgs, tools)
                 if not use_streaming:
-                    with render_status(status_text):
+                    with render_status(status_text.ljust(15)):
                         ai_message = await self.client.call(msgs, tools)
                     console.print(ai_message)
                     return ai_message
 
                 print_content_flag = False
                 print_thinking_flag = False
-                with render_status(status_text) as status:
+                with render_status(status_text.ljust(15)) as status:
                     async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout):
                         indicator = '⚒' if stream_status.phase == 'tool_call' else '↑' if stream_status.phase == 'upload' else '↓'
-                        status_text = tool_call_status_text(stream_status.tool_names[-1]) if stream_status.phase == 'tool_call' and stream_status.tool_names else status_text
+                        current_status_text = (
+                            tool_call_status_text(stream_status.tool_names[-1]) if stream_status.phase == 'tool_call' and stream_status.tool_names else status_text
+                        )
                         status.update(
-                            Text.assemble(status_text, (f' {indicator} {stream_status.tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value))
+                            Text.assemble(
+                                current_status_text.ljust(15), (f' {indicator} {stream_status.tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)
+                            )
                         )
                         if stream_status.phase == 'tool_call' and not print_content_flag and ai_message.content:
                             console.print(*ai_message.get_content_renderable())

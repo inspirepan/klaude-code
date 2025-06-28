@@ -34,7 +34,7 @@ class LsTool(Tool):
             instance.tool_result().set_error_msg(error_msg)
 
 
-def render_ls_args(tool_call: ToolCall):
+def render_ls_args(tool_call: ToolCall, is_suffix: bool = False):
     ignores = tool_call.tool_args_dict.get('ignore', [])
     ignore_info = f' (ignore: {", ".join(ignores)})' if ignores else ''
 

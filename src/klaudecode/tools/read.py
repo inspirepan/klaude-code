@@ -194,7 +194,7 @@ class ReadTool(Tool):
         instance.tool_result().set_extra_data('truncated', result.truncated)
 
 
-def render_read_args(tool_call: ToolCall):
+def render_read_args(tool_call: ToolCall, is_suffix: bool = False):
     offset = tool_call.tool_args_dict.get('offset', 0)
     limit = tool_call.tool_args_dict.get('limit', 0)
     line_range = ''

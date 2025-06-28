@@ -202,7 +202,7 @@ class GrepTool(Tool):
         return f'Too many results ({total_matches} total). {suggestion_text}'
 
 
-def render_grep_args(tool_call: ToolCall):
+def render_grep_args(tool_call: ToolCall, is_suffix: bool = False):
     pattern = tool_call.tool_args_dict.get('pattern', '')
     path = tool_call.tool_args_dict.get('path', '.')
     include = tool_call.tool_args_dict.get('include', '')

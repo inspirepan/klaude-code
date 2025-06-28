@@ -29,7 +29,7 @@ class ExitPlanModeTool(Tool):
         pass
 
 
-def render_exit_plan_mode_args(tool_call: ToolCall):
+def render_exit_plan_mode_args(tool_call: ToolCall, is_suffix: bool = False):
     yield Text("Here is Claude's plan:", ColorStyle.HIGHLIGHT.bold())
     yield Padding.indent(
         Panel.fit(render_markdown(tool_call.tool_args_dict['plan']), border_style=ColorStyle.AGENT_BORDER),

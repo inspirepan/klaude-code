@@ -383,7 +383,7 @@ class CodeSearchTaskTool(Agent):
         return READ_ONLY_TOOLS
 
 
-def render_agent_args(tool_call: ToolCall):
+def render_agent_args(tool_call: ToolCall, is_suffix: bool = False):
     yield Text(tool_call.tool_name, style=ColorStyle.HIGHLIGHT.bold())
     yield Padding.indent(
         Panel.fit(

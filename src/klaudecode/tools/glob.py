@@ -253,7 +253,7 @@ class GlobTool(Tool):
         return f'Too many files ({total_files} total). {suggestion_text}'
 
 
-def render_glob_args(tool_call: ToolCall):
+def render_glob_args(tool_call: ToolCall, is_suffix: bool = False):
     pattern = tool_call.tool_args_dict.get('pattern', '')
     path = tool_call.tool_args_dict.get('path', '.')
 

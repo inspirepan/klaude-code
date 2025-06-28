@@ -227,7 +227,7 @@ def _validate_single_edit(edit: EditOperation, content: str, index: int) -> Vali
     return ValidationResult(True)
 
 
-def render_multi_edit_args(tool_call: ToolCall):
+def render_multi_edit_args(tool_call: ToolCall, is_suffix: bool = False):
     file_path = tool_call.tool_args_dict.get('file_path', '')
     edits = tool_call.tool_args_dict.get('edits', [])
 

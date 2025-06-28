@@ -135,7 +135,7 @@ class EditTool(Tool):
             instance.tool_result().set_error_msg(f'Failed to edit file: {str(e)}')
 
 
-def render_edit_args(tool_call: ToolCall):
+def render_edit_args(tool_call: ToolCall, is_suffix: bool = False):
     file_path = tool_call.tool_args_dict.get('file_path', '')
 
     # Convert absolute path to relative path

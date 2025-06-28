@@ -95,7 +95,7 @@ class WriteTool(Tool):
             instance.tool_result().set_error_msg(f'Failed to write file: {str(e)}')
 
 
-def render_write_args(tool_call: ToolCall):
+def render_write_args(tool_call: ToolCall, is_suffix: bool = False):
     file_path = tool_call.tool_args_dict.get('file_path', '')
 
     # Convert absolute path to relative path

@@ -82,7 +82,7 @@ light_theme = Theme(
         ColorStyle.INFO: 'rgb(62,99,153)',
         ColorStyle.HIGHLIGHT: 'rgb(0,3,3)',
         ColorStyle.MAIN: 'rgb(102,102,102)',
-        ColorStyle.MUTED: 'rgb(156,159,159)',
+        ColorStyle.MUTED: 'rgb(136,139,139)',
         ColorStyle.SEPARATOR: 'rgb(200,200,200)',
         # Todo
         ColorStyle.TODO_COMPLETED: 'rgb(65,120,64)',
