@@ -175,7 +175,7 @@ class BashTool(Tool):
             env.update(BashUtils.get_non_interactive_env())
 
             # Preprocess command to handle interactive tools
-            processed_command = BashUtils.preprocess_command(command)
+            processed_command = BashUtils.preprocess_command(command, timeout_seconds)
 
             # Start the process
             process = subprocess.Popen(

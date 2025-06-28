@@ -70,7 +70,7 @@ class BashUtils:
         }
 
     @classmethod
-    def preprocess_command(cls, command: str) -> str:
+    def preprocess_command(cls, command: str, timeout_seconds: float = 30.0) -> str:
         """Preprocess command to handle interactive tools"""
 
         # Replace common interactive tools with non-interactive alternatives
@@ -85,12 +85,45 @@ class BashUtils:
         for pattern, replacement in replacements.items():
             command = re.sub(pattern, replacement, command)
 
-        return f'timeout 30s {command}'
+        # Check if command needs bash -c wrapping by detecting complex shell syntax
+        needs_bash_wrapper = cls._needs_bash_wrapper(command)
+        
+        timeout_str = f'{timeout_seconds:.0f}s'
+        if needs_bash_wrapper:
+            return f"timeout {timeout_str} bash -c '{command}'"
+        else:
+            return f'timeout {timeout_str} {command}'
 
     @classmethod
     def strip_ansi_codes(cls, data: str) -> str:
         """Strip ANSI escape codes from output"""
         return re.sub(r'\x1b\[[0-9;]*[HJKmlsu]|\x1b\[[\?][0-9;]*[hlc]|\x1b\][0-9];[^\x07]*\x07|\x1b\(|\x1b\)|\x1b\[s|\x1b\[u', '', data)
+
+    @classmethod
+    def _needs_bash_wrapper(cls, command: str) -> bool:
+        """Check if command needs bash -c wrapping based on shell syntax complexity"""
+        # Remove quoted strings to avoid false positives
+        cleaned_command = re.sub(r'["\'].*?["\']', '', command)
+        
+        # Check for shell metacharacters that indicate complex syntax
+        complex_chars = [';', '|', '&', '(', ')', '{', '}', '[', ']']
+        has_complex_chars = any(char in cleaned_command for char in complex_chars)
+        
+        # Check for shell operators
+        shell_operators = ['&&', '||', '>>', '<<', '2>', '&>', '|&']
+        has_operators = any(op in cleaned_command for op in shell_operators)
+        
+        # Check for shell keywords
+        shell_keywords = ['for', 'while', 'if', 'case', 'function', 'do', 'done', 'then', 'else', 'fi', 'esac']
+        has_keywords = any(re.search(r'\b' + keyword + r'\b', cleaned_command, re.IGNORECASE) for keyword in shell_keywords)
+        
+        # Check for variable assignments
+        has_assignment = re.search(r'\w+=', cleaned_command)
+        
+        # Check for command substitution
+        has_substitution = '`' in cleaned_command or '$(' in cleaned_command
+        
+        return has_complex_chars or has_operators or has_keywords or has_assignment or has_substitution
 
     @classmethod
     def detect_interactive_prompt(cls, text: str) -> bool:
