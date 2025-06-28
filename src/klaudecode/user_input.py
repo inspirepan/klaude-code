@@ -304,9 +304,8 @@ class UserInputCompleter(Completer):
     def _find_at_file_pattern(self, text, cursor_position):
         for i in range(cursor_position - 1, -1, -1):
             if text[i] == '@':
-                if i == 0 or text[i - 1].isspace():
-                    file_prefix = text[i + 1 : cursor_position]
-                    return {'at_position': i, 'prefix': file_prefix, 'start_position': i + 1 - cursor_position}
+                file_prefix = text[i + 1 : cursor_position]
+                return {'at_position': i, 'prefix': file_prefix, 'start_position': i + 1 - cursor_position}
             elif text[i].isspace():
                 break
         return None
@@ -456,7 +455,9 @@ class InputSession:
 
     def _switch_mode_or_insert(self, event, mode_name: str, char: str):
         """Switch to mode if at line start, otherwise insert character"""
-        if self.buf.text == '' and self.buf.cursor_position == 0:
+        # Check if cursor is at the beginning of current line
+        current_line_start = self.buf.document.get_start_of_line_position()
+        if self.buf.cursor_position == self.buf.document.cursor_position + current_line_start:
             self._switch_mode(event, mode_name)
             return
         self.buf.insert_text(char)
@@ -482,7 +483,9 @@ class InputSession:
 
         @self.kb.add('backspace')
         def _(event):
-            if self.buf.text == '' and self.buf.cursor_position == 0:
+            # Check if cursor is at the beginning of current line
+            current_line_start = self.buf.document.get_start_of_line_position()
+            if self.buf.cursor_position == self.buf.document.cursor_position + current_line_start:
                 self._switch_mode(event, NORMAL_MODE_NAME)
                 return
             self.buf.delete_before_cursor()
