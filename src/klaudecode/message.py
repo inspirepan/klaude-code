@@ -201,7 +201,7 @@ class UserMessage(BasicMessage):
 
     def __rich_console__(self, console, options):
         if not self.user_msg_type or self.user_msg_type not in _USER_MSG_RENDERERS:
-            yield render_message(escape(self.content), mark='>')
+            yield render_message(Text(self.content), mark='>')
         else:
             for item in _USER_MSG_RENDERERS[self.user_msg_type](self):
                 yield item

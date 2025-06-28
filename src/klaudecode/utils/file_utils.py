@@ -476,19 +476,23 @@ def render_diff_lines(diff_lines: List[str]) -> Group:
                 new_line_num = int(match.group(2))
         elif line.startswith('-'):
             removed_line = line[1:].strip('\n\r')
-            lines.append(f'[{ColorStyle.DIFF_REMOVED_LINE.value}]{old_line_num:{width}d}:-  {escape(removed_line)}[/{ColorStyle.DIFF_REMOVED_LINE.value}]')
+            text = Text(f'{old_line_num:{width}d}:-  {removed_line}')
+            text.stylize(ColorStyle.DIFF_REMOVED_LINE.value)
+            lines.append(text)
             old_line_num += 1
         elif line.startswith('+'):
             added_line = line[1:].strip('\n\r')
-            lines.append(f'[{ColorStyle.DIFF_ADDED_LINE.value}]{new_line_num:{width}d}:+  {escape(added_line)}[/{ColorStyle.DIFF_ADDED_LINE.value}]')
+            text = Text(f'{new_line_num:{width}d}:+  {added_line}')
+            text.stylize(ColorStyle.DIFF_ADDED_LINE.value)
+            lines.append(text)
             new_line_num += 1
         elif line.startswith(' '):
             context_line = line[1:].strip('\n\r')
-            lines.append(f'{old_line_num:{width}d}:   {escape(context_line)}')
+            lines.append(Text.assemble(f'{new_line_num:{width}d}:   ', Text(context_line)))
             old_line_num += 1
             new_line_num += 1
         else:
-            lines.append(line)
+            lines.append(Text(line))
     return Group(*lines)
 
 

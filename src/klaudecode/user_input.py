@@ -14,7 +14,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 from pydantic import BaseModel
 from rich.abc import RichRenderable
-from rich.markup import escape
+from rich.text import Text
 
 from .message import UserMessage, register_user_msg_content_func, register_user_msg_renderer, register_user_msg_suffix_renderer
 from .prompt.reminder import LANGUAGE_REMINDER
@@ -76,7 +76,7 @@ class Command(ABC):
         )
 
     def render_user_msg(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
-        yield render_message(escape(user_msg.user_raw_input), mark='>')
+        yield render_message(Text(user_msg.user_raw_input), mark='>')
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         return

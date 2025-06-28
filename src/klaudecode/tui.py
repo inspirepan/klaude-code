@@ -218,7 +218,7 @@ def render_suffix(content: str | RichRenderable, style: Optional[str] = None, re
     table = Table.grid(padding=(0, 1))
     table.add_column(width=3, no_wrap=True, style=style)
     table.add_column(overflow='fold', style=style)
-    table.add_row('  ⎿ ', Text(escape(content)) if isinstance(content, str) and not render_text else content)
+    table.add_row('  ⎿ ', Text(content) if isinstance(content, str) and not render_text else content)
     return table
 
 

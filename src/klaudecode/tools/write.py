@@ -126,7 +126,7 @@ def render_write_result(tool_msg: ToolMessage):
         table.add_column(overflow='fold')
 
         for line_num, line_content in preview_lines:
-            table.add_row(f'{line_num:>{width}}:', escape(line_content))
+            table.add_row(f'{line_num:>{width}}:', Text(line_content))
 
         if total_lines > len(preview_lines):
             table.add_row('…', f'Written [bold]{total_lines}[/bold] lines')

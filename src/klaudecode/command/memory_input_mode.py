@@ -83,7 +83,7 @@ class MemoryMode(InputModeCommand):
         return command_handle_output
 
     def render_user_msg(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
-        yield render_message(escape(user_msg.content), mark='#', style=self._get_color(), mark_style=self._get_color())
+        yield render_message(Text(user_msg.content), mark='#', style=self._get_color(), mark_style=self._get_color())
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         result = user_msg.get_extra_data('result', '')

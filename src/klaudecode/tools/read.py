@@ -281,7 +281,7 @@ def render_read_content(tool_msg: ToolMessage):
         table.add_column(width=width, justify='right')
         table.add_column(overflow='fold')
         for line_num, line_content in brief_list:
-            table.add_row(f'{line_num:>{width}}:', escape(line_content))
+            table.add_row(f'{line_num:>{width}}:', Text(line_content))
 
         # Build read info with Rich Text for styling
         read_text = Text()

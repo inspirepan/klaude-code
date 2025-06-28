@@ -191,7 +191,7 @@ class BashMode(InputModeCommand):
         return '\n'.join(output_lines), '\n'.join(error_lines)
 
     def render_user_msg(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
-        yield render_message(escape(user_msg.content), mark='!', style=self._get_color(), mark_style=self._get_color())
+        yield render_message(Text(user_msg.content), mark='!', style=self._get_color(), mark_style=self._get_color())
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         stdout = user_msg.get_extra_data('stdout', '')
