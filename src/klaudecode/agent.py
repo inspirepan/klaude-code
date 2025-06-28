@@ -162,6 +162,9 @@ class Agent(Tool):
             return self._handle_interruption()
         except Exception as e:
             clear_last_line()
+            import traceback
+
+            traceback.print_exc()
             console.print(render_suffix(f'Error: {str(e)}', style=ColorStyle.ERROR.value))
             console.print()
             return f'Error: {str(e)}'
@@ -171,12 +174,11 @@ class Agent(Tool):
             console.print()
         return max_step_msg
 
-    def append_message(self, *msgs: BasicMessage, print_msg=True):
+    def append_message(self, *msgs: BasicMessage, print_msg=False):
         self.session.append_message(*msgs)
-        if self.print_switch:
-            if print_msg:
-                for msg in msgs:
-                    console.print(msg)
+        if self.print_switch and print_msg:
+            for msg in msgs:
+                console.print(msg)
 
     def _handle_claudemd_reminder(self):
         reminder = get_context_reminder(self.session.work_dir)
@@ -236,7 +238,7 @@ class Agent(Tool):
         tool_msg = ToolMessage(tool_call_id=exit_plan_call.id, tool_call_cache=exit_plan_call, content=APPROVE_MSG if approved else REJECT_MSG)
         tool_msg.set_extra_data('approved', approved)
         console.print(*tool_msg.get_suffix_renderable())
-        self.append_message(tool_msg, print_msg=False)
+        self.append_message(tool_msg)
         return approved
 
     def _handle_interruption(self):
@@ -247,7 +249,7 @@ class Agent(Tool):
             except BaseException:
                 pass
         console.console.print('', end='\r')
-        self.append_message(UserMessage(content=INTERRUPTED_MSG, user_msg_type=SpecialUserMessageTypeEnum.INTERRUPTED.value))
+        self.append_message(UserMessage(content=INTERRUPTED_MSG, user_msg_type=SpecialUserMessageTypeEnum.INTERRUPTED.value), print_msg=True)
         return INTERRUPTED_MSG
 
     def _initialize_llm(self):
@@ -366,10 +368,7 @@ class Agent(Tool):
             source='subagent',
         )
         agent = cls(session, availiable_tools=cls.get_subagent_tools(), print_switch=False, config=instance.parent_agent.config)
-        agent.append_message(
-            UserMessage(content=args.prompt),
-            print_msg=False,
-        )
+        agent.append_message(UserMessage(content=args.prompt))
 
         result = asyncio.run(agent.run(max_steps=DEFAULT_MAX_STEPS, parent_tool_instance=instance, tools=cls.get_subagent_tools()))
         instance.tool_result().set_content((result or '').strip())

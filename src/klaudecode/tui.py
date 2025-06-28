@@ -267,9 +267,9 @@ def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Gro
             if stripped.startswith('## ') and not stripped.startswith('### '):
                 grid = Table.grid(padding=(0, 0))
                 grid.add_column(overflow='fold')
-                grid.add_row(Rule(style=ColorStyle.H1.value))
+                # grid.add_row(Rule(style=ColorStyle.H1.value))
                 grid.add_row(Text.from_markup(f'[bold]{line}[/bold]', style=ColorStyle.H1.value))
-                grid.add_row(Rule(style=ColorStyle.H1.value))
+                # grid.add_row(Rule(style=ColorStyle.H1.value))
                 line = grid
             else:
                 line = Text.from_markup(f'[bold]{line}[/bold]', style=style)

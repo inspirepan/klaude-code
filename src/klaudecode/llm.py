@@ -1,13 +1,13 @@
 import asyncio
-from typing import Dict, List, Literal, Optional, Tuple
+from typing import AsyncGenerator, Dict, List, Literal, Optional, Tuple
 
 import anthropic
 import openai
-from anthropic.types import MessageParam, StopReason, TextBlockParam
+from anthropic.types import MessageParam, RawMessageStreamEvent, StopReason, TextBlockParam
 from openai.types.chat import ChatCompletionMessageToolCall
 from openai.types.chat.chat_completion_chunk import Choice, ChoiceDeltaToolCall
 from openai.types.chat.chat_completion_message_tool_call import Function
-from rich.status import Status
+from pydantic import BaseModel, Field
 from rich.text import Text
 
 from .message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, count_tokens
@@ -29,6 +29,12 @@ NON_RETRY_EXCEPTIONS = (
     openai.UnprocessableEntityError,
     anthropic.UnprocessableEntityError,
 )
+
+
+class StreamStatus(BaseModel):
+    phase: Literal['upload', 'think', 'content', 'tool_call', 'completed'] = 'upload'
+    tokens: int = 0
+    tool_names: List[str] = Field(default_factory=list)
 
 
 class OpenAIProxy:
@@ -95,14 +101,11 @@ class OpenAIProxy:
         self,
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
-        status: Optional[Status] = None,
-        status_text: str = 'Thinking...',
         timeout: float = 20.0,
-    ) -> AIMessage:
+    ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         # Calculate last message tokens and show upload indicator
         last_msg_tokens = msgs[-1].tokens if msgs else 0
-        if status:
-            status.update(Text.assemble(status_text, (f' ↑ {last_msg_tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
+        stream_status = StreamStatus(tokens=last_msg_tokens)
 
         stream = await asyncio.wait_for(
             self.client.chat.completions.create(
@@ -123,32 +126,39 @@ class OpenAIProxy:
         completion_tokens = 0
         prompt_tokens = 0
         total_tokens = 0
-        has_tool_calls = False
+        stream_status.phase = 'content'
         async for chunk in stream:
             if chunk.choices:
                 choice: Choice = chunk.choices[0]
                 if choice.delta.content:
                     content += choice.delta.content
                 if hasattr(choice.delta, 'reasoning_content') and choice.delta.reasoning_content:
+                    stream_status.phase = 'think'
                     thinking_content += choice.delta.reasoning_content
                 if choice.delta.tool_calls:
-                    has_tool_calls = True
+                    stream_status.phase = 'tool_call'
                     tool_call_chunk_accumulator.add_chunks(choice.delta.tool_calls)
+                    stream_status.tool_names.extend([tc.function.name for tc in choice.delta.tool_calls if tc and tc.function and tc.function.name])
                 if choice.finish_reason:
                     finish_reason = choice.finish_reason
+                    stream_status.phase = 'completed'
             if chunk.usage:
                 usage: CompletionUsage = chunk.usage
                 prompt_tokens = usage.prompt_tokens
                 completion_tokens = usage.completion_tokens
                 total_tokens = usage.total_tokens
-                if status:
-                    indicator = '⚒' if has_tool_calls else '↓'
-                    status.update(Text.assemble(status_text, (f' {indicator} {completion_tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
             else:
                 completion_tokens = count_tokens(content) + count_tokens(thinking_content) + tool_call_chunk_accumulator.count_tokens()
-                if status:
-                    indicator = '⚒' if has_tool_calls else '↓'
-                    status.update(Text.assemble(status_text, (f' {indicator} {completion_tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
+
+            stream_status.tokens = completion_tokens
+            yield (
+                stream_status,
+                AIMessage(
+                    content=content,
+                    thinking_content=thinking_content,
+                    finish_reason=finish_reason,
+                ),
+            )
 
         tokens_used = CompletionUsage(
             prompt_tokens=prompt_tokens,
@@ -156,12 +166,15 @@ class OpenAIProxy:
             total_tokens=total_tokens,
         )
 
-        return AIMessage(
-            content=content,
-            tool_calls=tool_call_chunk_accumulator.get_tool_call_msg_dict(),
-            thinking_content=thinking_content,
-            usage=tokens_used,
-            finish_reason=finish_reason,
+        yield (
+            stream_status,
+            AIMessage(
+                content=content,
+                tool_calls=tool_call_chunk_accumulator.get_tool_call_msg_dict(),
+                thinking_content=thinking_content,
+                usage=tokens_used,
+                finish_reason=finish_reason,
+            ),
         )
 
     class OpenAIToolCallChunkAccumulator:
@@ -271,14 +284,11 @@ class AnthropicProxy:
         self,
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
-        status: Optional[Status] = None,
-        status_text: str = 'Thinking...',
         timeout: float = 20.0,
-    ) -> AIMessage:
+    ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         # Calculate last message tokens and show upload indicator
         last_msg_tokens = msgs[-1].tokens if msgs else 0
-        if status:
-            status.update(Text.assemble(status_text, (f' ↑ {last_msg_tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
+        stream_status = StreamStatus(tokens=last_msg_tokens)
 
         system_msgs, other_msgs = self.convert_to_anthropic(msgs)
         stream = await asyncio.wait_for(
@@ -307,20 +317,26 @@ class AnthropicProxy:
         output_tokens = 0
         content_blocks = {}
         tool_json_fragments = {}
-        has_tool_calls = False
+        tool_call_tokens = 0
+        stream_status.phase = 'content'
 
         async for event in stream:
+            event: RawMessageStreamEvent
+            need_estimate = True
             if event.type == 'message_start':
                 input_tokens = event.message.usage.input_tokens
                 output_tokens = event.message.usage.output_tokens
             elif event.type == 'content_block_start':
                 content_blocks[event.index] = event.content_block
                 if event.content_block.type == 'thinking':
+                    stream_status.phase = 'think'
                     thinking_signature = getattr(event.content_block, 'signature', '')
                 elif event.content_block.type == 'tool_use':
-                    has_tool_calls = True
+                    stream_status.phase = 'tool_call'
                     # Initialize JSON fragment accumulator for tool use blocks
                     tool_json_fragments[event.index] = ''
+                    if event.content_block.name:
+                        stream_status.tool_names.append(event.content_block.name)
             elif event.type == 'content_block_delta':
                 if event.delta.type == 'text_delta':
                     content += event.delta.text
@@ -332,6 +348,7 @@ class AnthropicProxy:
                     # Accumulate JSON fragments for tool inputs
                     if event.index in tool_json_fragments:
                         tool_json_fragments[event.index] += event.delta.partial_json
+                        tool_call_tokens += count_tokens(event.delta.partial_json)
             elif event.type == 'content_block_stop':
                 # Use the tracked content block
                 block = content_blocks.get(event.index)
@@ -346,29 +363,40 @@ class AnthropicProxy:
             elif event.type == 'message_delta':
                 if hasattr(event.delta, 'stop_reason') and event.delta.stop_reason:
                     finish_reason = self.convert_stop_reason(event.delta.stop_reason)
+                    stream_status.phase = 'completed'
                 if hasattr(event, 'usage') and event.usage:
                     output_tokens = event.usage.output_tokens
-                    if status:
-                        indicator = '⚒' if has_tool_calls else '↓'
-                        status.update(Text.assemble(status_text, (f' {indicator} {output_tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
+                    need_estimate = False
             elif event.type == 'message_stop':
                 pass
-            estimated_tokens = count_tokens(content) + count_tokens(thinking_content)
-            for json_str in tool_json_fragments.values():
-                estimated_tokens += count_tokens(json_str)
-            if status and estimated_tokens:
-                indicator = '⚒' if has_tool_calls else '↓'
-                status.update(Text.assemble(status_text, (f' {indicator} {estimated_tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)))
-        return AIMessage(
-            content=content,
-            thinking_content=thinking_content,
-            thinking_signature=thinking_signature,
-            tool_calls=tool_calls,
-            finish_reason=finish_reason,
-            usage=CompletionUsage(
-                completion_tokens=output_tokens,
-                prompt_tokens=input_tokens,
-                total_tokens=input_tokens + output_tokens,
+
+            if need_estimate:
+                estimated_tokens = count_tokens(content) + count_tokens(thinking_content)
+                for json_str in tool_json_fragments.values():
+                    estimated_tokens += count_tokens(json_str)
+                stream_status.tokens = estimated_tokens + tool_call_tokens
+            yield (
+                stream_status,
+                AIMessage(
+                    content=content,
+                    thinking_content=thinking_content,
+                    thinking_signature=thinking_signature,
+                    finish_reason=finish_reason,
+                ),
+            )
+        yield (
+            stream_status,
+            AIMessage(
+                content=content,
+                thinking_content=thinking_content,
+                thinking_signature=thinking_signature,
+                tool_calls=tool_calls,
+                finish_reason=finish_reason,
+                usage=CompletionUsage(
+                    completion_tokens=output_tokens,
+                    prompt_tokens=input_tokens,
+                    total_tokens=input_tokens + output_tokens,
+                ),
             ),
         )
 
@@ -394,6 +422,15 @@ class AnthropicProxy:
         if not stop_reason:
             return 'stop'
         return AnthropicProxy.anthropic_stop_reason_openai_mapping[stop_reason]
+
+
+def tool_call_status_text(tool_name: str) -> str:
+    """
+    Write -> Writing
+    """
+    if tool_name.endswith('e'):
+        return f'{tool_name[:-1]}ing...'
+    return f'{tool_name}ing...'
 
 
 class LLMProxy:
@@ -429,17 +466,30 @@ class LLMProxy:
 
         for attempt in range(self.max_retries):
             try:
-                if show_status:
-                    with render_status(status_text) as status:
-                        if use_streaming:
-                            return await self.client.stream_call(msgs, tools, status, status_text, timeout)
-                        else:
-                            return await self.client.call(msgs, tools)
-                else:
-                    if use_streaming:
-                        return await self.client.stream_call(msgs, tools, None, timeout=timeout)
-                    else:
-                        return await self.client.call(msgs, tools)
+                if not show_status:
+                    return await self.client.call(msgs, tools)
+                if not use_streaming:
+                    with render_status(status_text):
+                        ai_message = await self.client.call(msgs, tools)
+                    console.print(ai_message)
+                    return ai_message
+
+                print_flag = False
+                with render_status(status_text) as status:
+                    async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout):
+                        indicator = '⚒' if stream_status.phase == 'tool_call' else '↑' if stream_status.phase == 'upload' else '↓'
+                        status_text = tool_call_status_text(stream_status.tool_names[-1]) if stream_status.phase == 'tool_call' and stream_status.tool_names else status_text
+                        status.update(
+                            Text.assemble(status_text, (f' {indicator} {stream_status.tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value))
+                        )
+                        if stream_status.phase == 'tool_call' and not print_flag:
+                            console.print(ai_message)
+                            print_flag = True
+
+                if not print_flag:
+                    console.print(ai_message)
+                return ai_message
+
             except NON_RETRY_EXCEPTIONS:
                 raise
             except Exception as e:
@@ -448,6 +498,9 @@ class LLMProxy:
                 if show_status:
                     if attempt == 0:
                         clear_last_line()
+                    import traceback
+
+                    traceback.print_exc()
                     console.print(
                         render_suffix(
                             f'Retry {attempt + 1}/{self.max_retries}: call {self.client.model_name} failed - {str(e)}, waiting {delay:.1f}s',
@@ -480,6 +533,11 @@ class LLMProxy:
         status_text: str = 'Thinking...',
         timeout: float = 20.0,
     ) -> AIMessage:
+        """
+        NOT USED. This method was designed to automatically continue generation when max_tokens is reached,
+        but it undermines the user's control over max_tokens. Users should explicitly manage token limits
+        rather than having implicit auto-continuation that bypasses their intended constraints.
+        """
         attempt = 0
         max_continuations = 3
         current_msgs = msgs.copy()
@@ -556,7 +614,7 @@ class LLM:
     ) -> AIMessage:
         if cls not in cls._clients or cls._clients[cls] is None:
             raise RuntimeError('LLM client not initialized. Call initialize() first.')
-        return await cls._clients[cls]._call_with_continuation(msgs, tools, show_status, use_streaming, status_text, timeout)
+        return await cls._clients[cls]._call_with_retry(msgs, tools, show_status, use_streaming, status_text, timeout)
 
     @classmethod
     def reset(cls):

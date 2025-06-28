@@ -365,6 +365,7 @@ class AIMessage(BasicMessage):
                 mark_style=ColorStyle.AI_THINKING.value,
                 style='italic',
             )
+            yield ''
             yield render_message(
                 Text(self.thinking_content, style=ColorStyle.AI_THINKING.value),
                 mark='',

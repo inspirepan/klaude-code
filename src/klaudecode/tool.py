@@ -224,7 +224,7 @@ class ToolHandler:
     """
 
     def __init__(self, agent, tools: List[Tool], show_live: bool = True):
-        self.agent = agent
+        self.agent: 'Agent' = agent
         self.tool_dict = {tool.name: tool for tool in tools} if tools else {}
         self.show_live = show_live
 
@@ -310,6 +310,6 @@ class ToolHandler:
                     loop.remove_signal_handler(signal.SIGINT)
                 except (ValueError, NotImplementedError, OSError):
                     pass
-            self.agent.append_message(*(ti.tool_result() for ti in tool_instances), print_msg=False)
+            self.agent.append_message(*(ti.tool_result() for ti in tool_instances))
             if interrupted:
                 raise asyncio.CancelledError
