@@ -519,6 +519,31 @@ def render_diff_lines(diff_lines: List[str]) -> Group:
     remove_line_symbol.stylize(ColorStyle.DIFF_REMOVED_LINE.value)
     context_line_symbol = Text('  ')
 
+    def _is_single_line_change(start_idx: int) -> bool:
+        """Check if this is a single line removal followed by single line addition between context lines."""
+        if start_idx == 0 or start_idx >= len(diff_lines) - 2:
+            return False
+        
+        # Check if previous line is context or start of hunk
+        prev_line = diff_lines[start_idx - 1]
+        if not (prev_line.startswith(' ') or prev_line.startswith('@@')):
+            return False
+        
+        # Check if current is single '-' and next is single '+'
+        current_line = diff_lines[start_idx]
+        next_line = diff_lines[start_idx + 1]
+        if not (current_line.startswith('-') and next_line.startswith('+')):
+            return False
+        
+        # Check if the line after '+' is context or end of diff
+        if start_idx + 2 < len(diff_lines):
+            after_plus = diff_lines[start_idx + 2]
+            if not (after_plus.startswith(' ') or after_plus.startswith('@@') or 
+                   after_plus.startswith('---') or after_plus.startswith('+++')):
+                return False
+        
+        return True
+
     # Parse the diff to find consecutive remove/add pairs
     i = 0
     while i < len(diff_lines):
@@ -539,10 +564,21 @@ def render_diff_lines(diff_lines: List[str]) -> Group:
             removed_line = line[1:].strip('\n\r')
             if i + 1 < len(diff_lines) and diff_lines[i + 1].startswith('+'):
                 added_line = diff_lines[i + 1][1:].strip('\n\r')
-                # Generate character-level diff for this pair
-                styled_old, styled_new = generate_char_level_diff(removed_line, added_line)
-                grid.add_row(Text(f'{old_line_num:{width}d} '), remove_line_symbol, styled_old)
-                grid.add_row(Text(f'{new_line_num:{width}d} '), add_line_symbol, styled_new)
+                
+                # Only do character-level diff for single line changes between context lines
+                if _is_single_line_change(i):
+                    styled_old, styled_new = generate_char_level_diff(removed_line, added_line)
+                    grid.add_row(Text(f'{old_line_num:{width}d} '), remove_line_symbol, styled_old)
+                    grid.add_row(Text(f'{new_line_num:{width}d} '), add_line_symbol, styled_new)
+                else:
+                    # Use simple line-level styling for consecutive changes
+                    old_text = Text(removed_line)
+                    old_text.stylize(ColorStyle.DIFF_REMOVED_LINE.value)
+                    new_text = Text(added_line)
+                    new_text.stylize(ColorStyle.DIFF_ADDED_LINE.value)
+                    grid.add_row(Text(f'{old_line_num:{width}d} '), remove_line_symbol, old_text)
+                    grid.add_row(Text(f'{new_line_num:{width}d} '), add_line_symbol, new_text)
+                
                 old_line_num += 1
                 new_line_num += 1
                 i += 2  # Skip both lines

@@ -93,8 +93,8 @@ light_theme = Theme(
         # Code
         ColorStyle.DIFF_REMOVED_LINE: 'rgb(0,0,0) on rgb(255,168,180)',
         ColorStyle.DIFF_ADDED_LINE: 'rgb(0,0,0) on rgb(105,219,124)',
-        ColorStyle.DIFF_REMOVED_CHAR: 'rgb(0,0,0) on rgb(209,69,75)',
-        ColorStyle.DIFF_ADDED_CHAR: 'rgb(0,0,0) on rgb(47,157,68)',
+        ColorStyle.DIFF_REMOVED_CHAR: 'rgb(0,0,0) on rgb(239,109,119)',
+        ColorStyle.DIFF_ADDED_CHAR: 'rgb(0,0,0) on rgb(57,177,78)',
         ColorStyle.CONTEXT_LINE: 'rgb(0,0,0)',
         ColorStyle.INLINE_CODE: 'rgb(109,104,218)',
         # Prompt toolkit
