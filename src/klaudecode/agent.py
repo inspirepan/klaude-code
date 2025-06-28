@@ -5,15 +5,14 @@ from typing import Annotated, List, Optional
 from anthropic import AnthropicError
 from openai import OpenAIError
 from pydantic import BaseModel, Field
-from rich.box import HORIZONTALS
+
 from rich.console import Group
-from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
 
 from . import command  # noqa: F401 # import user_command to trigger command registration
 from .config import ConfigModel
-from .llm import AgentLLM, LLMManager
+from .llm import LLMManager
 from .mcp.mcp_tool import MCPManager
 from .message import (
     INTERRUPTED_MSG,
@@ -363,19 +362,19 @@ class Agent(Tool):
             source='subagent',
         )
         agent = cls(session, availiable_tools=cls.get_subagent_tools(), print_switch=False, config=instance.parent_agent.config)
-        # Initialize LLM manager for subagent  
+        # Initialize LLM manager for subagent
         agent._initialize_llm()
         agent.append_message(UserMessage(content=args.prompt))
-        
+
         # Use asyncio.run with proper isolation and error suppression
         import asyncio
         import warnings
-        
+
         # Temporarily suppress ResourceWarnings and RuntimeErrors from HTTP cleanup
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore", ResourceWarning)
-            warnings.simplefilter("ignore", RuntimeWarning)
-            
+            warnings.simplefilter('ignore', ResourceWarning)
+            warnings.simplefilter('ignore', RuntimeWarning)
+
             # Set custom exception handler to suppress cleanup errors
             def exception_handler(loop, context):
                 # Ignore "Event loop is closed" and similar cleanup errors
@@ -385,7 +384,7 @@ class Agent(Tool):
                     return
                 # Log other exceptions normally
                 loop.default_exception_handler(context)
-            
+
             try:
                 loop = asyncio.new_event_loop()
                 loop.set_exception_handler(exception_handler)
@@ -401,12 +400,16 @@ class Agent(Tool):
                         task.cancel()
                     if pending:
                         loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                except:
+                except Exception:
                     pass
                 finally:
                     asyncio.set_event_loop(None)
                     # Don't close loop explicitly to avoid cleanup issues
-        
+                    
+                    # Force garbage collection to trigger any delayed HTTP client cleanup
+                    import gc
+                    gc.collect()
+
         instance.tool_result().set_content((result or '').strip())
 
 
@@ -420,15 +423,22 @@ class CodeSearchTaskTool(Agent):
 
 
 def render_agent_args(tool_call: ToolCall, is_suffix: bool = False):
-    yield Text(tool_call.tool_name, style=ColorStyle.HIGHLIGHT.bold())
-    yield Padding.indent(
-        Panel.fit(
-            tool_call.tool_args_dict['prompt'],
-            title=Text(tool_call.tool_args_dict['description'], style='bold'),
-            box=HORIZONTALS,
-        ),
-        level=2,
+    yield Text.assemble(
+        (tool_call.tool_name, ColorStyle.HIGHLIGHT.bold()),
+        '(',
+        (tool_call.tool_args_dict.get('description', ''), ColorStyle.HIGHLIGHT.bold()),
+        ')',
+        ' → ',
+        tool_call.tool_args_dict.get('prompt', ''),
     )
+    # yield Padding.indent(
+    #     Group(
+    #         Rule(style=ColorStyle.SEPARATOR.value),
+    #         Text(tool_call.tool_args_dict.get('prompt', '')),
+    #         Rule(style=ColorStyle.AGENT_BORDER.value),
+    #     ),
+    #     level=2,
+    # )
 
 
 def render_agent_result(tool_msg: ToolMessage):

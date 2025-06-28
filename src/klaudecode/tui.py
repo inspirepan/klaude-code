@@ -34,7 +34,6 @@ class ColorStyle(str, Enum):
     TODO_IN_PROGRESS = 'todo_in_progress'
     # Tools and agents
     AGENT_BORDER = 'agent_border'
-    BASH_TOOL_CALL = 'bash_tool_call'
     # Code
     DIFF_REMOVED_LINE = 'diff_removed_line'
     DIFF_ADDED_LINE = 'diff_added_line'
@@ -88,8 +87,7 @@ light_theme = Theme(
         ColorStyle.TODO_COMPLETED: 'rgb(65,120,64)',
         ColorStyle.TODO_IN_PROGRESS: 'rgb(62,99,153)',
         # Tools and agents
-        ColorStyle.BASH_TOOL_CALL: 'rgb(43,100,101)',
-        ColorStyle.AGENT_BORDER: 'rgb(43,100,101)',
+        ColorStyle.AGENT_BORDER: 'rgb(205,232,227)',
         # Code
         ColorStyle.DIFF_REMOVED_LINE: 'rgb(0,0,0) on rgb(255,168,180)',
         ColorStyle.DIFF_ADDED_LINE: 'rgb(0,0,0) on rgb(105,219,124)',
@@ -130,7 +128,6 @@ dark_theme = Theme(
         ColorStyle.TODO_IN_PROGRESS: 'rgb(180,204,245)',
         # Tools and agents
         ColorStyle.AGENT_BORDER: 'rgb(110,131,127)',
-        ColorStyle.BASH_TOOL_CALL: 'rgb(126,184,185)',
         # Code
         ColorStyle.DIFF_REMOVED_LINE: 'rgb(255,255,255) on rgb(112,47,55)',
         ColorStyle.DIFF_ADDED_LINE: 'rgb(255,255,255) on rgb(49,91,48)',

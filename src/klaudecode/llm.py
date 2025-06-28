@@ -64,16 +64,6 @@ class OpenAIProxy:
                 base_url=self.base_url,
                 api_key=self.api_key,
             )
-        
-        # Monkey patch the client's __del__ method to prevent cleanup errors
-        original_del = getattr(self.client, '__del__', None)
-        def safe_del():
-            try:
-                if original_del:
-                    original_del()
-            except:
-                pass
-        self.client.__del__ = safe_del
 
     async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
         completion = await self.client.chat.completions.create(
@@ -250,16 +240,6 @@ class AnthropicProxy:
         self.enable_thinking = enable_thinking
         self.extra_header = extra_header
         self.client = anthropic.AsyncAnthropic(api_key=self.api_key)
-        
-        # Monkey patch the client's __del__ method to prevent cleanup errors
-        original_del = getattr(self.client, '__del__', None)
-        def safe_del():
-            try:
-                if original_del:
-                    original_del()
-            except:
-                pass
-        self.client.__del__ = safe_del
 
     async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
         system_msgs, other_msgs = self.convert_to_anthropic(msgs)
@@ -664,13 +644,14 @@ class FastLLM(LLM):
 
 class LLMManager:
     """Thread-safe LLM connection pool manager"""
-    
+
     def __init__(self):
         import threading
+
         self.client_pool = {}  # {thread_id: LLMProxy}
         self.config_cache = None  # Current configuration
         self._lock = threading.Lock()
-    
+
     def initialize_from_config(self, config):
         """Initialize LLM manager from ConfigModel"""
         with self._lock:
@@ -683,16 +664,17 @@ class LLMManager:
                 'extra_header': config.extra_header.value,
                 'enable_thinking': config.enable_thinking.value,
             }
-    
+
     def get_client(self) -> LLMProxy:
         """Get LLM client for current thread"""
         import threading
+
         thread_id = threading.get_ident()
-        
+
         if thread_id not in self.client_pool:
             if not self.config_cache:
                 raise RuntimeError('LLMManager not initialized. Call initialize_from_config() first.')
-            
+
             # Create new client for this thread
             self.client_pool[thread_id] = LLMProxy(
                 model_name=self.config_cache['model_name'],
@@ -703,9 +685,9 @@ class LLMManager:
                 extra_header=self.config_cache['extra_header'],
                 enable_thinking=self.config_cache['enable_thinking'],
             )
-        
+
         return self.client_pool[thread_id]
-    
+
     async def call(
         self,
         msgs: List[BasicMessage],
@@ -718,13 +700,14 @@ class LLMManager:
         """Unified LLM call interface"""
         client = self.get_client()
         return await client._call_with_retry(msgs, tools, show_status, use_streaming, status_text, timeout)
-    
+
     async def cleanup_thread(self, thread_id: int = None):
         """Clean up client for specific thread (or current thread)"""
         import threading
+
         if thread_id is None:
             thread_id = threading.get_ident()
-        
+
         if thread_id in self.client_pool:
             client = self.client_pool[thread_id]
             # Proactively close HTTP client connections
@@ -737,7 +720,7 @@ class LLMManager:
                 # Ignore cleanup errors
                 pass
             del self.client_pool[thread_id]
-    
+
     def reset(self):
         """Reset all clients and configuration"""
         with self._lock:
