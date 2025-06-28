@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 from rich.console import Group
+from rich.table import Table
 from rich.text import Text
 
 from ..tui import ColorStyle
@@ -471,7 +472,9 @@ def render_diff_lines(diff_lines: List[str]) -> Group:
     new_line_num = 1
     width = 3
 
-    lines = []
+    grid = Table.grid(padding=(0, 0))
+    grid.add_column(no_wrap=True)
+    grid.add_column(overflow='fold')
     for line in diff_lines:
         if line.startswith('---') or line.startswith('+++'):
             continue
@@ -482,24 +485,24 @@ def render_diff_lines(diff_lines: List[str]) -> Group:
                 new_line_num = int(match.group(2))
         elif line.startswith('-'):
             removed_line = line[1:].strip('\n\r')
-            text = Text(f'{old_line_num:{width}d}:-  {removed_line}')
+            text = Text(removed_line)
             text.stylize(ColorStyle.DIFF_REMOVED_LINE.value)
-            lines.append(text)
+            grid.add_row(Text(f'{old_line_num:{width}d}:-  ', style=ColorStyle.DIFF_REMOVED_LINE.value), text)
             old_line_num += 1
         elif line.startswith('+'):
             added_line = line[1:].strip('\n\r')
-            text = Text(f'{new_line_num:{width}d}:+  {added_line}')
+            text = Text(added_line)
             text.stylize(ColorStyle.DIFF_ADDED_LINE.value)
-            lines.append(text)
+            grid.add_row(Text(f'{new_line_num:{width}d}:+  ', style=ColorStyle.DIFF_ADDED_LINE.value), text)
             new_line_num += 1
         elif line.startswith(' '):
             context_line = line[1:].strip('\n\r')
-            lines.append(Text.assemble(f'{new_line_num:{width}d}:   ', Text(context_line)))
+            grid.add_row(Text(f'{new_line_num:{width}d}:   '), Text(context_line))
             old_line_num += 1
             new_line_num += 1
         else:
-            lines.append(Text(line))
-    return Group(*lines)
+            grid.add_row('', Text(line))
+    return grid
 
 
 # Directory operations

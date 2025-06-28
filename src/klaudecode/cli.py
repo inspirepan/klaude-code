@@ -44,13 +44,13 @@ async def main_async(ctx: typer.Context):
     if ctx.obj['continue_latest']:
         session = Session.get_latest_session(os.getcwd())
         if not session:
-            console.print(Text('No session found', style=ColorStyle.ERROR.value))
+            console.print(Text(f'No session found in {os.getcwd()}', style=ColorStyle.ERROR.value))
             return
         session = session.fork()
     elif ctx.obj['resume']:
         sessions = Session.load_session_list(os.getcwd())
         if not sessions or len(sessions) == 0:
-            console.print(Text('No session found', style=ColorStyle.ERROR.value))
+            console.print(Text(f'No session found in {os.getcwd()}', style=ColorStyle.ERROR.value))
             return
         options = []
         for idx, session in enumerate(sessions):
