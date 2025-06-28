@@ -164,6 +164,8 @@ class Agent(Tool):
             console.print()
             return f'LLM error: {str(e)}'
         except (KeyboardInterrupt, asyncio.CancelledError):
+            # Clear any live displays before handling interruption
+            clear_last_line()
             return self._handle_interruption()
         except Exception as e:
             clear_last_line()

@@ -20,6 +20,7 @@ DEFAULT_RETRY_BACKOFF_BASE = 0.5
 NON_RETRY_EXCEPTIONS = (
     KeyboardInterrupt,
     asyncio.CancelledError,
+    asyncio.TimeoutError,
     openai.APIStatusError,
     anthropic.APIStatusError,
     openai.AuthenticationError,
@@ -109,17 +110,21 @@ class OpenAIProxy:
         stream_status = StreamStatus(tokens=sum(msg.tokens for msg in msgs))
         yield (stream_status, AIMessage(content=''))
 
-        stream = await asyncio.wait_for(
-            self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[msg.to_openai() for msg in msgs if msg],
-                tools=[tool.openai_schema() for tool in tools] if tools else None,
-                extra_headers=self.extra_header,
-                max_tokens=self.max_tokens,
-                stream=True,
-            ),
-            timeout=timeout,
-        )
+        try:
+            stream = await asyncio.wait_for(
+                self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[msg.to_openai() for msg in msgs if msg],
+                    tools=[tool.openai_schema() for tool in tools] if tools else None,
+                    extra_headers=self.extra_header,
+                    max_tokens=self.max_tokens,
+                    stream=True,
+                ),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            # Convert timeout to cancellation for consistency
+            raise asyncio.CancelledError("Request timed out")
 
         content = ''
         thinking_content = ''
@@ -297,22 +302,26 @@ class AnthropicProxy:
         yield (stream_status, AIMessage(content=''))
 
         system_msgs, other_msgs = self.convert_to_anthropic(msgs)
-        stream = await asyncio.wait_for(
-            self.client.messages.create(
-                model=self.model_name,
-                max_tokens=self.max_tokens,
-                thinking={
-                    'type': 'enabled' if self.enable_thinking else 'disabled',
-                    'budget_tokens': 2000,
-                },
-                tools=[tool.anthropic_schema() for tool in tools] if tools else None,
-                messages=other_msgs,
-                system=system_msgs,
-                extra_headers=self.extra_header,
-                stream=True,
-            ),
-            timeout=timeout,
-        )
+        try:
+            stream = await asyncio.wait_for(
+                self.client.messages.create(
+                    model=self.model_name,
+                    max_tokens=self.max_tokens,
+                    thinking={
+                        'type': 'enabled' if self.enable_thinking else 'disabled',
+                        'budget_tokens': 2000,
+                    },
+                    tools=[tool.anthropic_schema() for tool in tools] if tools else None,
+                    messages=other_msgs,
+                    system=system_msgs,
+                    extra_headers=self.extra_header,
+                    stream=True,
+                ),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            # Convert timeout to cancellation for consistency
+            raise asyncio.CancelledError("Request timed out")
 
         content = ''
         thinking_content = ''
@@ -511,7 +520,12 @@ class LLMProxy:
                     console.print(*ai_message.get_content_renderable())
                 return ai_message
 
-            except NON_RETRY_EXCEPTIONS:
+            except NON_RETRY_EXCEPTIONS as e:
+                # Handle cancellation and other non-retry exceptions immediately
+                if isinstance(e, (asyncio.CancelledError, KeyboardInterrupt)):
+                    # Clean up any status display
+                    if show_status:
+                        clear_last_line()
                 raise
             except Exception as e:
                 last_exception = e
