@@ -228,12 +228,13 @@ def render_read_content(tool_msg: ToolMessage):
     truncated = tool_msg.get_extra_data('truncated', False)
 
     if brief_list:
-        table = Table.grid(padding=(0, 1))
+        table = Table.grid(padding=(0, 2))
         width = len(str(brief_list[-1][0]))
         table.add_column(width=width, justify='right')
         table.add_column(overflow='fold')
         for line_num, line_content in brief_list:
-            table.add_row(f'{line_num:>{width}}:', Text(line_content))
+            line_text = Text(line_content)
+            table.add_row(f'{line_num:>{width}}', line_text)
 
         # Build read info with Rich Text for styling
         read_text = Text()

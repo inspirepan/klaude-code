@@ -119,13 +119,13 @@ def render_write_result(tool_msg: ToolMessage):
     total_lines = tool_msg.get_extra_data('total_lines', 0)
 
     if preview_lines:
-        table = Table.grid(padding=(0, 1))
+        table = Table.grid(padding=(0, 2))
         width = len(str(preview_lines[-1][0])) if preview_lines else 1
         table.add_column(width=width, justify='right')
         table.add_column(overflow='fold')
 
         for line_num, line_content in preview_lines:
-            table.add_row(f'{line_num:>{width}}:', Text(line_content))
+            table.add_row(f'{line_num:>{width}}', Text(line_content))
 
         if total_lines > len(preview_lines):
             table.add_row('…', f'Written [bold]{total_lines}[/bold] lines')

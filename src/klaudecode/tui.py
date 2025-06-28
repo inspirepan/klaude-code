@@ -40,6 +40,7 @@ class ColorStyle(str, Enum):
     DIFF_ADDED_LINE = 'diff_added_line'
     DIFF_REMOVED_CHAR = 'diff_removed_char'
     DIFF_ADDED_CHAR = 'diff_added_char'
+    CONTEXT_LINE = 'context_line'
     INLINE_CODE = 'inline_code'
     # Prompt toolkit colors
     INPUT_PROMPT = 'input_prompt'
@@ -80,8 +81,8 @@ light_theme = Theme(
         ColorStyle.WARNING: 'rgb(143,110,44)',
         ColorStyle.INFO: 'rgb(62,99,153)',
         ColorStyle.HIGHLIGHT: 'rgb(0,3,3)',
-        ColorStyle.MAIN: 'rgb(63,63,63)',
-        ColorStyle.MUTED: 'rgb(126,129,129)',
+        ColorStyle.MAIN: 'rgb(102,102,102)',
+        ColorStyle.MUTED: 'rgb(156,159,159)',
         ColorStyle.SEPARATOR: 'rgb(200,200,200)',
         # Todo
         ColorStyle.TODO_COMPLETED: 'rgb(65,120,64)',
@@ -90,10 +91,11 @@ light_theme = Theme(
         ColorStyle.BASH_TOOL_CALL: 'rgb(43,100,101)',
         ColorStyle.AGENT_BORDER: 'rgb(43,100,101)',
         # Code
-        ColorStyle.DIFF_REMOVED_LINE: 'rgb(63,63,63) on rgb(242,172,180)',
-        ColorStyle.DIFF_ADDED_LINE: 'rgb(63,63,63) on rgb(133,216,133)',
-        ColorStyle.DIFF_REMOVED_CHAR: 'rgb(63,63,63) on rgb(193,81,78)',
-        ColorStyle.DIFF_ADDED_CHAR: 'rgb(63,63,63) on rgb(80,155,78)',
+        ColorStyle.DIFF_REMOVED_LINE: 'rgb(0,0,0) on rgb(255,168,180)',
+        ColorStyle.DIFF_ADDED_LINE: 'rgb(0,0,0) on rgb(105,219,124)',
+        ColorStyle.DIFF_REMOVED_CHAR: 'rgb(0,0,0) on rgb(209,69,75)',
+        ColorStyle.DIFF_ADDED_CHAR: 'rgb(0,0,0) on rgb(47,157,68)',
+        ColorStyle.CONTEXT_LINE: 'rgb(0,0,0)',
         ColorStyle.INLINE_CODE: 'rgb(109,104,218)',
         # Prompt toolkit
         ColorStyle.INPUT_PROMPT: 'rgb(63,63,63)',
@@ -134,6 +136,7 @@ dark_theme = Theme(
         ColorStyle.DIFF_ADDED_LINE: 'rgb(255,255,255) on rgb(49,91,48)',
         ColorStyle.DIFF_REMOVED_CHAR: 'rgb(255,255,255) on rgb(167,95,107)',
         ColorStyle.DIFF_ADDED_CHAR: 'rgb(255,255,255) on rgb(88,164,102)',
+        ColorStyle.CONTEXT_LINE: 'rgb(255,255,255)',
         ColorStyle.INLINE_CODE: 'rgb(180,184,245)',
         # Prompt toolkit
         ColorStyle.INPUT_PROMPT: 'rgb(210,210,210)',

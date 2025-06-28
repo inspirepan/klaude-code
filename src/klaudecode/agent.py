@@ -181,13 +181,14 @@ class Agent(Tool):
     def _handle_claudemd_reminder(self):
         reminder = get_context_reminder(self.session.work_dir)
         last_user_msg = self.session.messages.get_last_message(role='user')
-        if last_user_msg:
+        if last_user_msg and isinstance(last_user_msg, UserMessage):
             last_user_msg.append_pre_system_reminder(reminder)
 
     def _handle_empty_todo_reminder(self):
         if TodoWriteTool in self.availiable_tools:
             last_msg = self.session.messages.get_last_message(filter_empty=True)
-            last_msg.append_post_system_reminder(EMPTY_TODO_REMINDER)
+            if last_msg and isinstance(last_msg, (UserMessage, ToolMessage)):
+                last_msg.append_post_system_reminder(EMPTY_TODO_REMINDER)
 
     def _handle_plan_mode_reminder(self):
         if not self.plan_mode_activated:
@@ -202,7 +203,7 @@ class Agent(Tool):
             return
 
         last_msg = self.session.messages.get_last_message(filter_empty=True)
-        if not last_msg:
+        if not last_msg or not isinstance(last_msg, (UserMessage, ToolMessage)):
             return
 
         for file_path in modified_files:

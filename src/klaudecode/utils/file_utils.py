@@ -457,6 +457,41 @@ def generate_snippet_from_diff(diff_lines: List[str]) -> str:
     return '\n'.join(snippet_lines)
 
 
+def generate_char_level_diff(old_line: str, new_line: str) -> Tuple[Text, Text]:
+    """Generate character-level diff for two lines.
+
+    Args:
+        old_line: Original line content
+        new_line: Modified line content
+
+    Returns:
+        Tuple of (styled_old_line, styled_new_line)
+    """
+    matcher = difflib.SequenceMatcher(None, old_line, new_line)
+
+    old_text = Text()
+    new_text = Text()
+
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        old_segment = old_line[i1:i2]
+        new_segment = new_line[j1:j2]
+
+        if tag == 'equal':
+            old_text.append(old_segment, style=ColorStyle.DIFF_REMOVED_LINE.value)
+            new_text.append(new_segment, style=ColorStyle.DIFF_ADDED_LINE.value)
+        elif tag == 'delete':
+            old_text.append(old_segment, style=ColorStyle.DIFF_REMOVED_CHAR.value)
+            # No corresponding text in new line
+        elif tag == 'insert':
+            # No corresponding text in old line
+            new_text.append(new_segment, style=ColorStyle.DIFF_ADDED_CHAR.value)
+        elif tag == 'replace':
+            old_text.append(old_segment, style=ColorStyle.DIFF_REMOVED_CHAR.value)
+            new_text.append(new_segment, style=ColorStyle.DIFF_ADDED_CHAR.value)
+
+    return old_text, new_text
+
+
 def render_diff_lines(diff_lines: List[str]) -> Group:
     """Render diff lines with color formatting for terminal display.
 
@@ -474,35 +509,70 @@ def render_diff_lines(diff_lines: List[str]) -> Group:
     width = 3
 
     grid = Table.grid(padding=(0, 0))
-    grid.add_column(no_wrap=True)
+    grid.add_column()
+    grid.add_column()
     grid.add_column(overflow='fold')
-    for line in diff_lines:
+
+    add_line_symbol = Text('+ ')
+    add_line_symbol.stylize(ColorStyle.DIFF_ADDED_LINE.value)
+    remove_line_symbol = Text('- ')
+    remove_line_symbol.stylize(ColorStyle.DIFF_REMOVED_LINE.value)
+    context_line_symbol = Text('  ')
+
+    # Parse the diff to find consecutive remove/add pairs
+    i = 0
+    while i < len(diff_lines):
+        line = diff_lines[i]
+
         if line.startswith('---') or line.startswith('+++'):
+            i += 1
             continue
         elif line.startswith('@@'):
             match = re.search(r'@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@', line)
             if match:
                 old_line_num = int(match.group(1))
                 new_line_num = int(match.group(2))
+            i += 1
+            continue
         elif line.startswith('-'):
+            # Check if next line is an add (indicating a modification)
             removed_line = line[1:].strip('\n\r')
-            text = Text(removed_line)
-            text.stylize(ColorStyle.DIFF_REMOVED_LINE.value)
-            grid.add_row(Text(f'{old_line_num:{width}d}:-  ', style=ColorStyle.DIFF_REMOVED_LINE.value), text)
-            old_line_num += 1
+            if i + 1 < len(diff_lines) and diff_lines[i + 1].startswith('+'):
+                added_line = diff_lines[i + 1][1:].strip('\n\r')
+                # Generate character-level diff for this pair
+                styled_old, styled_new = generate_char_level_diff(removed_line, added_line)
+                grid.add_row(Text(f'{old_line_num:{width}d} '), remove_line_symbol, styled_old)
+                grid.add_row(Text(f'{new_line_num:{width}d} '), add_line_symbol, styled_new)
+                old_line_num += 1
+                new_line_num += 1
+                i += 2  # Skip both lines
+            else:
+                # Pure removal
+                text = Text(removed_line)
+                text.stylize(ColorStyle.DIFF_REMOVED_LINE.value)
+                grid.add_row(Text(f'{old_line_num:{width}d} '), remove_line_symbol, text)
+                old_line_num += 1
+                i += 1
         elif line.startswith('+'):
+            # Pure addition (not part of a modification pair)
             added_line = line[1:].strip('\n\r')
             text = Text(added_line)
             text.stylize(ColorStyle.DIFF_ADDED_LINE.value)
-            grid.add_row(Text(f'{new_line_num:{width}d}:+  ', style=ColorStyle.DIFF_ADDED_LINE.value), text)
+            grid.add_row(Text(f'{new_line_num:{width}d} '), add_line_symbol, text)
             new_line_num += 1
+            i += 1
         elif line.startswith(' '):
             context_line = line[1:].strip('\n\r')
-            grid.add_row(Text(f'{new_line_num:{width}d}:   '), Text(context_line))
+            text = Text(context_line)
+            text.stylize(ColorStyle.CONTEXT_LINE.value)
+            grid.add_row(Text(f'{new_line_num:{width}d} '), context_line_symbol, text)
             old_line_num += 1
             new_line_num += 1
+            i += 1
         else:
-            grid.add_row('', Text(line))
+            grid.add_row('', '', Text(line))
+            i += 1
+
     return grid
 
 
