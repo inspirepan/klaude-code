@@ -11,7 +11,7 @@ from typing import Callable, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 from rich.text import Text
 
-from .llm import AgentLLM, LLMManager
+from .llm import LLMManager
 from .message import AIMessage, BasicMessage, SpecialUserMessageTypeEnum, SystemMessage, ToolMessage, UserMessage
 from .prompt.commands import COMACT_SYSTEM_PROMPT, COMPACT_COMMAND, COMPACT_MSG_PREFIX
 from .tools.todo import TodoList
@@ -431,8 +431,7 @@ class Session(BaseModel):
             if llm_manager:
                 ai_msg = await llm_manager.call(msgs=CompactMessageList, show_status=show_status, status_text='Compacting...')
             else:
-                # Fallback to old method if llm_manager not provided
-                ai_msg = await AgentLLM.call(msgs=CompactMessageList, show_status=show_status, status_text='Compacting...')
+                raise RuntimeError('LLM manager not initialized')
 
             self.clear_conversation_history()
             user_msg = UserMessage(content=COMPACT_MSG_PREFIX + ai_msg.content, user_msg_type=SpecialUserMessageTypeEnum.COMPACT_RESULT.value)

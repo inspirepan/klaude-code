@@ -100,7 +100,7 @@ class BashTool(Tool):
 
         # Define callbacks for the execution function
         def check_canceled():
-            return instance.tool_result().tool_call.status == 'canceled'
+            return instance.tool_result().tool_call.status == 'canceled' or instance.check_interrupt()
 
         def update_content(content: str):
             instance.tool_result().set_content(content.strip())
@@ -197,7 +197,7 @@ class BashTool(Tool):
 
             # Read output in real-time with non-blocking approach
             while True:
-                # Check if task was canceled
+                # Check if task was canceled (more frequently)
                 if check_canceled():
                     output_lines.append('Command interrupted by user')
                     update_current_content()
@@ -227,8 +227,8 @@ class BashTool(Tool):
                                 break
                     break
 
-                # Read process output
-                total_output_size, should_break, error_msg = cls._read_process_output(process, output_lines, total_output_size, update_current_content)
+                # Read process output with interrupt checking
+                total_output_size, should_break, error_msg = cls._read_process_output(process, output_lines, total_output_size, update_current_content, check_canceled)
 
                 if error_msg:
                     update_current_content()
@@ -264,32 +264,54 @@ class BashTool(Tool):
 
     @classmethod
     def _kill_process_tree(cls, pid: int):
-        """Kill a process and all its children"""
+        """Kill a process and all its children with improved reliability"""
         try:
-            # Get all child processes
+            # Method 1: Use process group kill if available
+            try:
+                os.killpg(os.getpgid(pid), signal.SIGTERM)
+                time.sleep(0.1)
+                try:
+                    os.killpg(os.getpgid(pid), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                return  # If successful, we're done
+            except (ProcessLookupError, OSError):
+                pass  # Fall back to individual process killing
+
+            # Method 2: Recursively kill children using pgrep
             children = []
             try:
-                output = subprocess.check_output(['pgrep', '-P', str(pid)], stderr=subprocess.DEVNULL)
+                # Use pgrep to find all descendants, not just direct children
+                output = subprocess.check_output(['pgrep', '-P', str(pid)], stderr=subprocess.DEVNULL, timeout=2)
                 children = [int(child_pid) for child_pid in output.decode().strip().split('\n') if child_pid]
-            except subprocess.CalledProcessError:
-                # No children found
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                # No children found or pgrep failed
                 pass
 
-            # Kill children first
+            # Kill children first (recursive)
             for child_pid in children:
                 cls._kill_process_tree(child_pid)
 
-            # Kill the main process
+            # Method 3: Kill the main process
             try:
                 os.kill(pid, signal.SIGTERM)
                 time.sleep(0.1)
-                os.kill(pid, signal.SIGKILL)
+                # Check if process is still alive
+                try:
+                    os.kill(pid, 0)  # Check if process exists
+                    os.kill(pid, signal.SIGKILL)  # Force kill if still alive
+                except ProcessLookupError:
+                    pass  # Process already dead
             except ProcessLookupError:
                 # Process already dead
                 pass
+
         except Exception:
-            # Ignore errors in cleanup
-            pass
+            # Last resort: try to kill with SIGKILL directly
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except (ProcessLookupError, OSError):
+                pass  # Process might already be dead
 
     @classmethod
     def _process_output_line(cls, line: str, output_lines: list, total_output_size: int, update_content_func) -> tuple[int, bool]:
@@ -322,11 +344,11 @@ class BashTool(Tool):
             return total_output_size, True
 
     @classmethod
-    def _read_process_output(cls, process, output_lines: list, total_output_size: int, update_content_func) -> tuple[int, bool, str]:
+    def _read_process_output(cls, process, output_lines: list, total_output_size: int, update_content_func, check_canceled=None) -> tuple[int, bool, str]:
         """Read output from process. Returns (new_total_size, should_break, error_msg)"""
         if sys.platform != 'win32':
-            # Unix-like systems: use select
-            ready, _, _ = select.select([process.stdout], [], [], 0.1)
+            # Unix-like systems: use select with shorter timeout for better responsiveness
+            ready, _, _ = select.select([process.stdout], [], [], 0.05)  # Reduced from 0.1 to 0.05
             if ready:
                 try:
                     line = process.stdout.readline()
@@ -339,19 +361,23 @@ class BashTool(Tool):
                 except Exception as e:
                     return total_output_size, True, f'Error reading output: {str(e)}'
             else:
-                # No data available, small delay
-                time.sleep(0.01)
+                # No data available, check for cancellation before delay
+                if check_canceled and check_canceled():
+                    return total_output_size, True, ''
+                time.sleep(0.005)  # Reduced delay for better responsiveness
                 return total_output_size, False, ''
         else:
-            # Windows: use simple readline approach
+            # Windows: use simple readline approach with cancellation check
             try:
                 line = process.stdout.readline()
                 if line:
                     new_size, should_break = cls._process_output_line(line, output_lines, total_output_size, update_content_func)
                     return new_size, should_break, ''
                 else:
-                    # No more output, small delay to prevent busy waiting
-                    time.sleep(0.01)
+                    # No more output, check cancellation before delay
+                    if check_canceled and check_canceled():
+                        return total_output_size, True, ''
+                    time.sleep(0.005)  # Reduced delay for better responsiveness
                     return total_output_size, False, ''
             except Exception as e:
                 return total_output_size, True, f'Error reading output: {str(e)}'

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import signal
+import threading
 from abc import ABC
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -148,13 +149,20 @@ class Tool(ABC):
     async def invoke_async(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         loop = asyncio.get_event_loop()
         with ThreadPoolExecutor() as executor:
-            future = loop.run_in_executor(executor, cls.invoke, tool_call, instance)
+
+            def run_with_interrupt_check():
+                # Provide interrupt check capability to sync tools
+                return cls.invoke(tool_call, instance)
+
+            future = loop.run_in_executor(executor, run_with_interrupt_check)
             try:
                 await asyncio.wait_for(future, timeout=cls.get_timeout())
             except asyncio.CancelledError:
+                instance._interrupt_flag.set()  # Signal the thread
                 future.cancel()
                 raise
             except asyncio.TimeoutError:
+                instance._interrupt_flag.set()  # Signal the thread
                 future.cancel()
                 instance.tool_msg.tool_call.status = 'canceled'
                 instance.tool_msg.content = f"Tool '{cls.get_name()}' timed out after {cls.get_timeout()}s"
@@ -174,6 +182,8 @@ class ToolInstance:
         self._task: Optional[asyncio.Task] = None
         self._is_running = False
         self._is_completed = False
+        self._interrupt_flag = threading.Event()  # Thread-safe interrupt flag
+        self._cancel_requested = False
 
     def tool_result(self) -> ToolMessage:
         return self.tool_msg
@@ -212,10 +222,20 @@ class ToolInstance:
             await self._task
 
     def cancel(self):
+        self._cancel_requested = True
+        self._interrupt_flag.set()  # Signal interruption to sync code
         if self._task and not self._task.done():
             self._task.cancel()
             self._is_completed = True
             self.tool_msg.tool_call.status = 'canceled'
+
+    def is_cancelled(self) -> bool:
+        """Check if cancellation was requested"""
+        return self._cancel_requested or self._interrupt_flag.is_set()
+
+    def check_interrupt(self) -> bool:
+        """Check if tool should be interrupted (for use in sync code)"""
+        return self._interrupt_flag.is_set()
 
 
 class ToolHandler:
@@ -227,6 +247,7 @@ class ToolHandler:
         self.agent: 'Agent' = agent
         self.tool_dict = {tool.name: tool for tool in tools} if tools else {}
         self.show_live = show_live
+        self._global_interrupt = threading.Event()  # Global interrupt flag
 
     async def handle(self, ai_message: AIMessage):
         if not ai_message.tool_calls or not len(ai_message.tool_calls):
@@ -262,20 +283,35 @@ class ToolHandler:
         interrupted = False
         signal_handler_added = False
 
-        def signal_handler():
+        def signal_handler(*args):
             nonlocal interrupted
             interrupted = True
+            self._global_interrupt.set()  # Set global interrupt flag
             for ti in tool_instances:
                 ti.cancel()
 
+        # Backup interrupt checking for scenarios where signal handler fails
+        async def interrupt_monitor():
+            while not interrupted and any(ti.is_running() for ti in tool_instances):
+                try:
+                    # Check if any external interrupt mechanism triggered
+                    if hasattr(self.agent, '_should_interrupt') and self.agent._should_interrupt():
+                        signal_handler()
+                        break
+                    await asyncio.sleep(0.05)  # Check every 50ms
+                except asyncio.CancelledError:
+                    break
+
         try:
+            monitor_task = None
             try:
                 loop = asyncio.get_event_loop()
                 loop.add_signal_handler(signal.SIGINT, signal_handler)
                 signal_handler_added = True
             except (ValueError, NotImplementedError, OSError, RuntimeError):
                 # Signal handling not available in this context (e.g., subthread)
-                pass
+                # Start backup interrupt monitoring
+                monitor_task = asyncio.create_task(interrupt_monitor())
 
             if self.show_live:
                 try:
@@ -309,6 +345,12 @@ class ToolHandler:
                 try:
                     loop.remove_signal_handler(signal.SIGINT)
                 except (ValueError, NotImplementedError, OSError):
+                    pass
+            if monitor_task:
+                monitor_task.cancel()
+                try:
+                    await monitor_task
+                except asyncio.CancelledError:
                     pass
             self.agent.append_message(*(ti.tool_result() for ti in tool_instances))
             if interrupted:

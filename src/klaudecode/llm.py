@@ -104,6 +104,7 @@ class OpenAIProxy:
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
         timeout: float = 20.0,
+        interrupt_check: Optional[callable] = None,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         stream_status = StreamStatus(tokens=sum(msg.tokens for msg in msgs))
         yield (stream_status, AIMessage(content=''))
@@ -129,6 +130,10 @@ class OpenAIProxy:
         total_tokens = 0
         stream_status.phase = 'content'
         async for chunk in stream:
+            # Check for interruption at the start of each chunk
+            if interrupt_check and interrupt_check():
+                raise asyncio.CancelledError('Stream interrupted by user')
+
             if chunk.choices:
                 choice: Choice = chunk.choices[0]
                 if choice.delta.content:
@@ -286,6 +291,7 @@ class AnthropicProxy:
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
         timeout: float = 20.0,
+        interrupt_check: Optional[callable] = None,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         stream_status = StreamStatus(tokens=sum(msg.tokens for msg in msgs))
         yield (stream_status, AIMessage(content=''))
@@ -321,6 +327,10 @@ class AnthropicProxy:
         stream_status.phase = 'content'
 
         async for event in stream:
+            # Check for interruption at the start of each event
+            if interrupt_check and interrupt_check():
+                raise asyncio.CancelledError('Stream interrupted by user')
+
             event: RawMessageStreamEvent
             need_estimate = True
             if event.type == 'message_start':
@@ -463,6 +473,7 @@ class LLMProxy:
         use_streaming: bool = True,
         status_text: str = 'Thinking...',
         timeout: float = 20.0,
+        interrupt_check: Optional[callable] = None,
     ) -> AIMessage:
         last_exception = None
 
@@ -479,7 +490,7 @@ class LLMProxy:
                 print_content_flag = False
                 print_thinking_flag = False
                 with render_status(status_text.ljust(15)) as status:
-                    async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout):
+                    async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout, interrupt_check):
                         indicator = '⚒' if stream_status.phase == 'tool_call' else '↑' if stream_status.phase == 'upload' else '↓'
                         current_status_text = (
                             tool_call_status_text(stream_status.tool_names[-1]) if stream_status.phase == 'tool_call' and stream_status.tool_names else status_text
@@ -570,78 +581,6 @@ class LLMProxy:
         return merged_response
 
 
-class LLM:
-    """Singleton for every subclass"""
-
-    _instances = {}
-    _clients = {}
-
-    def __new__(cls):
-        if cls not in cls._instances:
-            cls._instances[cls] = super().__new__(cls)
-        return cls._instances[cls]
-
-    @classmethod
-    def initialize(
-        cls,
-        model_name: str,
-        base_url: str,
-        api_key: str,
-        model_azure: bool,
-        max_tokens: int,
-        extra_header: dict,
-        enable_thinking: bool,
-    ):
-        instance = cls()
-        cls._clients[cls] = LLMProxy(
-            model_name=model_name,
-            base_url=base_url,
-            api_key=api_key,
-            model_azure=model_azure,
-            max_tokens=max_tokens,
-            extra_header=extra_header,
-            enable_thinking=enable_thinking,
-        )
-        return instance
-
-    @classmethod
-    def get_instance(cls) -> Optional['LLM']:
-        return cls._instances.get(cls)
-
-    @property
-    def client(self) -> Optional[LLMProxy]:
-        return self._clients.get(self.__class__)
-
-    @classmethod
-    async def call(
-        cls,
-        msgs: List[BasicMessage],
-        tools: Optional[List[Tool]] = None,
-        show_status: bool = True,
-        status_text: str = 'Thinking...',
-        use_streaming: bool = True,
-        timeout: float = 20.0,
-    ) -> AIMessage:
-        if cls not in cls._clients or cls._clients[cls] is None:
-            raise RuntimeError('LLM client not initialized. Call initialize() first.')
-        return await cls._clients[cls]._call_with_retry(msgs, tools, show_status, use_streaming, status_text, timeout)
-
-    @classmethod
-    def reset(cls):
-        if cls in cls._instances:
-            del cls._instances[cls]
-        if cls in cls._clients:
-            del cls._clients[cls]
-
-
-class AgentLLM(LLM):
-    pass
-
-
-class FastLLM(LLM):
-    pass
-
-
 class LLMManager:
     """Thread-safe LLM connection pool manager"""
 
@@ -696,10 +635,11 @@ class LLMManager:
         status_text: str = 'Thinking...',
         use_streaming: bool = True,
         timeout: float = 20.0,
+        interrupt_check: Optional[callable] = None,
     ) -> AIMessage:
         """Unified LLM call interface"""
         client = self.get_client()
-        return await client._call_with_retry(msgs, tools, show_status, use_streaming, status_text, timeout)
+        return await client._call_with_retry(msgs, tools, show_status, use_streaming, status_text, timeout, interrupt_check)
 
     async def cleanup_thread(self, thread_id: int = None):
         """Clean up client for specific thread (or current thread)"""

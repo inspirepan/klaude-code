@@ -1,11 +1,11 @@
 import asyncio
 import os
+import threading
 from typing import Annotated, List, Optional
 
 from anthropic import AnthropicError
 from openai import OpenAIError
 from pydantic import BaseModel, Field
-
 from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
@@ -73,6 +73,7 @@ class Agent(Tool):
         self.plan_mode_activated: bool = False
         self.enable_plan_mode_reminder = enable_plan_mode_reminder
         self.llm_manager: Optional[LLMManager] = None
+        self._interrupt_flag = threading.Event()  # Global interrupt flag for this agent
 
     async def chat_interactive(self, first_message: str = None):
         self._initialize_llm()
@@ -86,6 +87,9 @@ class Agent(Tool):
         epoch = 0
         try:
             while True:
+                # Clear interrupt flag at the start of each interaction
+                self._clear_interrupt()
+
                 if epoch == 0 and first_message:
                     user_input_text = first_message
                 else:
@@ -139,6 +143,7 @@ class Agent(Tool):
                     msgs=self.session.messages,
                     tools=tools,
                     show_status=self.print_switch,
+                    interrupt_check=self._should_interrupt,
                 )
                 self.append_message(ai_msg)
                 if ai_msg.finish_reason == 'stop':
@@ -222,7 +227,7 @@ class Agent(Tool):
                 last_msg.append_post_system_reminder(reminder)
 
     async def _handle_exit_plan_mode(self, tool_calls: List[ToolCall]) -> bool:
-        exit_plan_call: ToolCall = next((call for call in tool_calls.values() if call.tool_name == ExitPlanModeTool.get_name()), None)
+        exit_plan_call: Optional[ToolCall] = next((call for call in tool_calls.values() if call.tool_name == ExitPlanModeTool.get_name()), None)
         if not exit_plan_call:
             return True
         exit_plan_call.status = 'success'
@@ -242,6 +247,10 @@ class Agent(Tool):
         return approved
 
     def _handle_interruption(self):
+        # Set the interrupt flag
+        self._interrupt_flag.set()
+
+        # Clean up any live displays
         asyncio.create_task(asyncio.sleep(0.1))
         if hasattr(console.console, '_live'):
             try:
@@ -249,8 +258,18 @@ class Agent(Tool):
             except BaseException:
                 pass
         console.console.print('', end='\r')
+
+        # Add interrupted message
         self.append_message(UserMessage(content=INTERRUPTED_MSG, user_msg_type=SpecialUserMessageTypeEnum.INTERRUPTED.value), print_msg=True)
         return INTERRUPTED_MSG
+
+    def _should_interrupt(self) -> bool:
+        """Check if the agent should be interrupted"""
+        return self._interrupt_flag.is_set()
+
+    def _clear_interrupt(self):
+        """Clear the interrupt flag (for testing or reset)"""
+        self._interrupt_flag.clear()
 
     def _initialize_llm(self):
         if not self.llm_manager:
@@ -264,6 +283,8 @@ class Agent(Tool):
             await self._initialize_mcp()
 
         try:
+            # Clear any previous interrupt state
+            self._clear_interrupt()
             need_agent_run = await self.user_input_handler.handle(user_input_text)
             if not need_agent_run:
                 return
@@ -405,9 +426,10 @@ class Agent(Tool):
                 finally:
                     asyncio.set_event_loop(None)
                     # Don't close loop explicitly to avoid cleanup issues
-                    
+
                     # Force garbage collection to trigger any delayed HTTP client cleanup
                     import gc
+
                     gc.collect()
 
         instance.tool_result().set_content((result or '').strip())
