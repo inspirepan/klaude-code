@@ -360,14 +360,14 @@ class Session(BaseModel):
             console.print(Text(f'Failed to load session {session_id}: {e}', style=ColorStyle.ERROR.value))
             return None
 
-    def fork(self) -> 'Session':
-        forked_session = Session(
+    def create_new_session(self) -> 'Session':
+        new_session = Session(
             work_dir=self.work_dir,
-            messages=self.messages.copy(),  # Copy the messages list
-            todo_list=self.todo_list.model_copy(),
-            file_tracker=self.file_tracker.model_copy(),
+            messages=self.messages.messages,
+            todo_list=self.todo_list,
+            file_tracker=self.file_tracker,
         )
-        return forked_session
+        return new_session
 
     @classmethod
     def load_session_list(cls, work_dir: str = os.getcwd()) -> List[dict]:

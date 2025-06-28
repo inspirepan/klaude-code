@@ -46,7 +46,7 @@ async def main_async(ctx: typer.Context):
         if not session:
             console.print(Text(f'No session found in {os.getcwd()}', style=ColorStyle.ERROR.value))
             return
-        session = session.fork()
+        session = session.create_new_session()
     elif ctx.obj['resume']:
         sessions = Session.load_session_list(os.getcwd())
         if not sessions or len(sessions) == 0:
