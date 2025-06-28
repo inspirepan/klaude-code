@@ -358,6 +358,12 @@ class AIMessage(BasicMessage):
         )
 
     def __rich_console__(self, console, options):
+        for item in self.get_thinking_renderable():
+            yield item
+        for item in self.get_content_renderable():
+            yield item
+
+    def get_thinking_renderable(self):
         if self.thinking_content:
             yield render_message(
                 Text('Thinking...', style=ColorStyle.AI_THINKING.value),
@@ -373,6 +379,8 @@ class AIMessage(BasicMessage):
                 render_text=True,
             )
             yield ''
+
+    def get_content_renderable(self):
         if self.content:
             yield render_message(render_markdown(self.content, style=ColorStyle.AI_MESSAGE.value), mark_style=ColorStyle.AI_MESSAGE, style=ColorStyle.AI_MESSAGE, render_text=True)
             yield ''

@@ -103,9 +103,8 @@ class OpenAIProxy:
         tools: Optional[List[Tool]] = None,
         timeout: float = 20.0,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
-        # Calculate last message tokens and show upload indicator
-        last_msg_tokens = msgs[-1].tokens if msgs else 0
-        stream_status = StreamStatus(tokens=last_msg_tokens)
+        stream_status = StreamStatus(tokens=sum(msg.tokens for msg in msgs))
+        yield (stream_status, AIMessage(content=''))
 
         stream = await asyncio.wait_for(
             self.client.chat.completions.create(
@@ -286,9 +285,8 @@ class AnthropicProxy:
         tools: Optional[List[Tool]] = None,
         timeout: float = 20.0,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
-        # Calculate last message tokens and show upload indicator
-        last_msg_tokens = msgs[-1].tokens if msgs else 0
-        stream_status = StreamStatus(tokens=last_msg_tokens)
+        stream_status = StreamStatus(tokens=sum(msg.tokens for msg in msgs))
+        yield (stream_status, AIMessage(content=''))
 
         system_msgs, other_msgs = self.convert_to_anthropic(msgs)
         stream = await asyncio.wait_for(
@@ -337,6 +335,8 @@ class AnthropicProxy:
                     tool_json_fragments[event.index] = ''
                     if event.content_block.name:
                         stream_status.tool_names.append(event.content_block.name)
+                else:
+                    stream_status.phase = 'content'
             elif event.type == 'content_block_delta':
                 if event.delta.type == 'text_delta':
                     content += event.delta.text
@@ -474,7 +474,8 @@ class LLMProxy:
                     console.print(ai_message)
                     return ai_message
 
-                print_flag = False
+                print_content_flag = False
+                print_thinking_flag = False
                 with render_status(status_text) as status:
                     async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout):
                         indicator = '⚒' if stream_status.phase == 'tool_call' else '↑' if stream_status.phase == 'upload' else '↓'
@@ -482,12 +483,15 @@ class LLMProxy:
                         status.update(
                             Text.assemble(status_text, (f' {indicator} {stream_status.tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value))
                         )
-                        if stream_status.phase == 'tool_call' and not print_flag:
-                            console.print(ai_message)
-                            print_flag = True
+                        if stream_status.phase == 'tool_call' and not print_content_flag:
+                            console.print(*ai_message.get_content_renderable())
+                            print_content_flag = True
+                        if stream_status.phase == 'content' and not print_thinking_flag and ai_message.thinking_content:
+                            console.print(*ai_message.get_thinking_renderable())
+                            print_thinking_flag = True
 
-                if not print_flag:
-                    console.print(ai_message)
+                if not print_content_flag:
+                    console.print(*ai_message.get_content_renderable())
                 return ai_message
 
             except NON_RETRY_EXCEPTIONS:
