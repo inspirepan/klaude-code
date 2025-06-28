@@ -483,14 +483,14 @@ class LLMProxy:
                         status.update(
                             Text.assemble(status_text, (f' {indicator} {stream_status.tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value))
                         )
-                        if stream_status.phase == 'tool_call' and not print_content_flag:
+                        if stream_status.phase == 'tool_call' and not print_content_flag and ai_message.content:
                             console.print(*ai_message.get_content_renderable())
                             print_content_flag = True
                         if stream_status.phase == 'content' and not print_thinking_flag and ai_message.thinking_content:
                             console.print(*ai_message.get_thinking_renderable())
                             print_thinking_flag = True
 
-                if not print_content_flag:
+                if not print_content_flag and ai_message.content:
                     console.print(*ai_message.get_content_renderable())
                 return ai_message
 

@@ -22,7 +22,7 @@ INDENT_SIZE = 2
 FILE_NOT_READ_ERROR_MSG = 'File has not been read yet. Read it first before writing to it.'
 FILE_MODIFIED_ERROR_MSG = 'File has been modified externally. Either by user or a linter. Read it first before writing to it.'
 FILE_NOT_EXIST_ERROR_MSG = 'File does not exist.'
-FILE_NOT_A_FILE_ERROR_MSG = 'EISDIR: illegal operation on a directory, read.'
+FILE_NOT_A_FILE_ERROR_MSG = 'EISDIR: illegal operation on a directory.'
 EDIT_OLD_STRING_NEW_STRING_IDENTICAL_ERROR_MSG = 'No changes to make: old_string and new_string are exactly the same.'
 
 
