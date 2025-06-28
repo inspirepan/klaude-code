@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Generator
 
 from rich.abc import RichRenderable
-from rich.markup import escape
 from rich.text import Text
 
 from ..message import UserMessage, render_message, render_suffix

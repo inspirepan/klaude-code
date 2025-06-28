@@ -2,7 +2,6 @@ import os
 from typing import Annotated
 
 from pydantic import BaseModel, Field
-from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
 
@@ -10,7 +9,7 @@ from ..message import ToolCall, ToolMessage, register_tool_call_renderer, regist
 from ..prompt.tools import WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from ..utils.file_utils import cleanup_backup, create_backup, ensure_directory_exists, restore_backup, track_file, validate_file_track_status, write_file_content
+from ..utils.file_utils import cleanup_backup, create_backup, ensure_directory_exists, restore_backup, write_file_content
 
 """
 - Safety mechanism requiring existing files to be read first
@@ -38,7 +37,7 @@ class WriteTool(Tool):
         try:
             # If file exists, it must have been read first (safety check)
             if file_exists:
-                is_valid, error_msg = validate_file_track_status(args.file_path)
+                is_valid, error_msg = instance.parent_agent.session.file_tracker.validate_track(args.file_path)
                 if not is_valid:
                     instance.tool_result().set_error_msg(error_msg)
                     return
@@ -64,7 +63,7 @@ class WriteTool(Tool):
                 return
 
             # Update tracking with new content
-            track_file(args.file_path)
+            instance.parent_agent.session.file_tracker.track(args.file_path)
 
             # Extract preview lines for display
             lines = args.content.splitlines()
@@ -136,7 +135,7 @@ def render_write_result(tool_msg: ToolMessage):
         yield render_suffix(table)
     elif total_lines > 0:
         yield render_suffix(f'Written [bold]{total_lines}[/bold] lines')
-    else:
+    elif tool_msg.tool_call.status == 'success':
         yield render_suffix('(Empty file)')
 
 

@@ -1,132 +1,29 @@
 import difflib
 import fnmatch
-import hashlib
 import os
 import re
 import shutil
 from collections import deque
+from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
+from pydantic import BaseModel, Field
 from rich.console import Group
-from rich.markup import escape
+from rich.text import Text
 
 from ..tui import ColorStyle
 
-# File tracking constants
-DEFAULT_CHUNK_SIZE = 8192
-
-# Content truncation constants
-TRUNCATE_CHAR_LIMIT = 5000
-TRUNCATE_LINE_LIMIT = 1000
-TRUNCATE_LINE_CHAR_LIMIT = 2000
-
 # Directory structure constants
 DEFAULT_MAX_CHARS = 40000
-DEFAULT_TREE_WIDTH = 3
 INDENT_SIZE = 2
 
 # Error messages
-FILE_NOT_READ_ERROR = 'File has not been read yet. Read it first before writing to it.'
-FILE_MODIFIED_ERROR = 'File has been modified externally. Either by user or a linter. Read it first before writing to it.'
-FILE_NOT_EXIST_ERROR = 'File does not exist.'
-FILE_NOT_A_FILE_ERROR = 'EISDIR: illegal operation on a directory, read.'
-EDIT_ERROR_OLD_STRING_NEW_STRING_IDENTICAL = 'No changes to make: old_string and new_string are exactly the same.'
+FILE_NOT_READ_ERROR_MSG = 'File has not been read yet. Read it first before writing to it.'
+FILE_MODIFIED_ERROR_MSG = 'File has been modified externally. Either by user or a linter. Read it first before writing to it.'
+FILE_NOT_EXIST_ERROR_MSG = 'File does not exist.'
+FILE_NOT_A_FILE_ERROR_MSG = 'EISDIR: illegal operation on a directory, read.'
+EDIT_OLD_STRING_NEW_STRING_IDENTICAL_ERROR_MSG = 'No changes to make: old_string and new_string are exactly the same.'
 
-
-class FileTracker:
-    """Tracks file modifications and read status using metadata and hash."""
-
-    def __init__(self):
-        self._tracking: Dict[str, Tuple[float, int, str]] = {}
-
-    def _calculate_hash_for_file(self, file_path: str, chunk_size: int = DEFAULT_CHUNK_SIZE) -> str:
-        """Calculate MD5 hash of file content using streaming approach.
-
-        Args:
-            file_path: Path to the file
-            chunk_size: Size of chunks to read at a time
-
-        Returns:
-            MD5 hash as hex string, empty string on error
-        """
-        hash_obj = hashlib.md5()
-        try:
-            with open(file_path, 'rb') as f:
-                while chunk := f.read(chunk_size):
-                    hash_obj.update(chunk)
-            return hash_obj.hexdigest()
-        except Exception:
-            return ''
-
-    def track_file_metadata(self, file_path: str) -> None:
-        """Track file metadata including mtime, size and content hash.
-
-        Args:
-            file_path: Path to the file to track
-        """
-        try:
-            stat = os.stat(file_path)
-            mtime = stat.st_mtime
-            size = stat.st_size
-            file_hash = self._calculate_hash_for_file(file_path)
-            if file_hash:
-                self._tracking[file_path] = (mtime, size, file_hash)
-        except OSError:
-            pass
-
-    def is_file_modified(self, file_path: str) -> Tuple[bool, str]:
-        """Check if file has been modified since last tracking.
-
-        Args:
-            file_path: Path to the file to check
-
-        Returns:
-            Tuple of (is_modified, reason)
-        """
-        if file_path not in self._tracking:
-            return True, 'File not in tracking'
-
-        try:
-            stat = os.stat(file_path)
-            tracking_mtime, tracking_size, tracking_hash = self._tracking[file_path]
-
-            if stat.st_mtime != tracking_mtime or stat.st_size != tracking_size:
-                return True, 'File modified (mtime or size changed)'
-
-            return False, ''
-        except OSError:
-            return True, 'File access error'
-
-    def invalidate(self, file_path: str) -> None:
-        """Remove file from tracking.
-
-        Args:
-            file_path: Path to remove from tracking
-        """
-        self._tracking.pop(file_path, None)
-
-    def clear(self) -> None:
-        """Clear all tracked file metadata."""
-        self._tracking.clear()
-
-    def get_modified_files(self) -> List[str]:
-        """Get list of all files that have been modified since tracking.
-
-        Returns:
-            List of file paths that have been modified
-        """
-        modified_files = []
-        for file_path in self._tracking.keys():
-            is_modified, _ = self.is_file_modified(file_path)
-            if is_modified:
-                modified_files.append(file_path)
-        return modified_files
-
-
-_file_tracker = FileTracker()
-
-
-# File validation functions
 
 DEFAULT_IGNORE_PATTERNS = [
     'node_modules',
@@ -190,6 +87,102 @@ DEFAULT_IGNORE_PATTERNS = [
 ]
 
 
+class FileStatus(BaseModel):
+    mtime: float
+    size: int
+
+
+class CheckModifiedResult(Enum):
+    MODIFIED = 'modified'
+    NOT_TRACKED = 'not_tracked'
+    OS_ACCESS_ERROR = 'os_access_error'
+    NOT_MODIFIED = 'not_modified'
+
+
+class FileTracker(BaseModel):
+    """Tracks file modifications and read status using metadata."""
+
+    tracking: Dict[str, FileStatus] = Field(default_factory=dict)
+
+    def track(self, file_path: str) -> None:
+        """Track file metadata including mtime and size.
+
+        Args:
+            file_path: Path to the file to track
+        """
+        try:
+            stat = os.stat(file_path)
+            self.tracking[file_path] = FileStatus(mtime=stat.st_mtime, size=stat.st_size)
+        except OSError:
+            pass
+
+    def check_modified(self, file_path: str) -> CheckModifiedResult:
+        """Check if file has been modified since last tracking.
+
+        Args:
+            file_path: Path to the file to check
+
+        Returns:
+            Tuple of (is_modified, reason)
+        """
+        if file_path not in self.tracking:
+            return CheckModifiedResult.NOT_TRACKED
+
+        try:
+            stat = os.stat(file_path)
+            tracked_status = self.tracking[file_path]
+
+            if stat.st_mtime != tracked_status.mtime or stat.st_size != tracked_status.size:
+                return CheckModifiedResult.MODIFIED
+
+            return CheckModifiedResult.NOT_MODIFIED
+        except OSError:
+            return CheckModifiedResult.OS_ACCESS_ERROR
+
+    def remove(self, file_path: str) -> None:
+        """Remove file from tracking.
+
+        Args:
+            file_path: Path to remove from tracking
+        """
+        self.tracking.pop(file_path, None)
+
+    def clear(self) -> None:
+        """Clear all tracked file metadata."""
+        self.tracking.clear()
+
+    def get_all_modified(self) -> List[str]:
+        """Get list of all files that have been modified since tracking.
+
+        Returns:
+            List of file paths that have been modified
+        """
+        modified_files = []
+        for file_path in self.tracking.keys():
+            check_modified_result = self.check_modified(file_path)
+            if check_modified_result == CheckModifiedResult.MODIFIED:
+                modified_files.append(file_path)
+        return modified_files
+
+    def validate_track(self, file_path: str) -> Tuple[bool, str]:
+        """Validate that file is properly tracked and not modified.
+
+        Args:
+            file_path: Path to validate
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        check_modified_result = self.check_modified(file_path)
+        if check_modified_result == CheckModifiedResult.NOT_TRACKED:
+            return False, FILE_NOT_READ_ERROR_MSG
+        elif check_modified_result == CheckModifiedResult.MODIFIED:
+            return False, FILE_MODIFIED_ERROR_MSG
+        elif check_modified_result == CheckModifiedResult.OS_ACCESS_ERROR:
+            return False, FILE_MODIFIED_ERROR_MSG
+        return True, ''
+
+
 def validate_file_exists(file_path: str) -> Tuple[bool, str]:
     """Validate that file exists and is a regular file.
 
@@ -200,47 +193,21 @@ def validate_file_exists(file_path: str) -> Tuple[bool, str]:
         Tuple of (is_valid, error_message)
     """
     if not os.path.exists(file_path):
-        return False, FILE_NOT_EXIST_ERROR
+        return False, FILE_NOT_EXIST_ERROR_MSG
     if not os.path.isfile(file_path):
-        return False, FILE_NOT_A_FILE_ERROR
+        return False, FILE_NOT_A_FILE_ERROR_MSG
     return True, ''
 
 
-def validate_file_track_status(file_path: str) -> Tuple[bool, str]:
-    """Validate that file is properly tracked and not modified.
+def ensure_directory_exists(file_path: str) -> None:
+    """Ensure parent directory of file path exists.
 
     Args:
-        file_path: Path to validate
-
-    Returns:
-        Tuple of (is_valid, error_message)
+        file_path: File path whose parent directory should exist
     """
-    is_modified, error_msg = _file_tracker.is_file_modified(file_path)
-    if is_modified:
-        if error_msg == 'File not in tracking':
-            return False, FILE_NOT_READ_ERROR
-        else:
-            return False, FILE_MODIFIED_ERROR
-    return True, ''
-
-
-# File tracking management
-def track_file(file_path: str) -> None:
-    """Track file metadata for change detection.
-
-    Args:
-        file_path: Path to track
-    """
-    _file_tracker.track_file_metadata(file_path)
-
-
-def get_modified_files() -> List[str]:
-    """Get list of all tracked files that have been modified.
-
-    Returns:
-        List of modified file paths
-    """
-    return _file_tracker.get_modified_files()
+    directory = os.path.dirname(file_path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
 
 
 # String operations
@@ -329,42 +296,6 @@ def cleanup_backup(backup_path: str) -> None:
         pass
 
 
-# File diff operations
-def generate_diff_lines(old_content: str, new_content: str) -> List[str]:
-    """Generate unified diff lines between old and new content.
-
-    Args:
-        old_content: Original content
-        new_content: Modified content
-
-    Returns:
-        List of diff lines in unified format
-    """
-    old_lines = old_content.splitlines(keepends=True)
-    new_lines = new_content.splitlines(keepends=True)
-
-    diff_lines = list(
-        difflib.unified_diff(
-            old_lines,
-            new_lines,
-            lineterm='',
-        )
-    )
-
-    return diff_lines
-
-
-def ensure_directory_exists(file_path: str) -> None:
-    """Ensure parent directory of file path exists.
-
-    Args:
-        file_path: File path whose parent directory should exist
-    """
-    directory = os.path.dirname(file_path)
-    if directory:
-        os.makedirs(directory, exist_ok=True)
-
-
 # File I/O operations
 def read_file_content(file_path: str, encoding: str = 'utf-8') -> Tuple[str, str]:
     """Read file content with fallback encoding handling.
@@ -391,6 +322,56 @@ def read_file_content(file_path: str, encoding: str = 'utf-8') -> Tuple[str, str
         return '', f'Failed to read file: {str(e)}'
 
 
+def read_file_lines_partial(file_path: str, offset: Optional[int] = None, limit: Optional[int] = None) -> tuple[list[str], str]:
+    """Read file lines with offset and limit to avoid loading entire file into memory"""
+    try:
+        lines = []
+        warning = ''
+        with open(file_path, 'r', encoding='utf-8') as f:
+            if offset is not None and offset > 1:
+                for _ in range(offset - 1):
+                    try:
+                        next(f)
+                    except StopIteration:
+                        break
+
+            count = 0
+            max_lines = limit if limit is not None else float('inf')
+
+            for line in f:
+                if count >= max_lines:
+                    break
+                lines.append(line.rstrip('\n\r'))
+                count += 1
+
+        return lines, warning
+    except UnicodeDecodeError:
+        try:
+            lines = []
+            with open(file_path, 'r', encoding='latin-1') as f:
+                if offset is not None and offset > 1:
+                    for _ in range(offset - 1):
+                        try:
+                            next(f)
+                        except StopIteration:
+                            break
+
+                count = 0
+                max_lines = limit if limit is not None else float('inf')
+
+                for line in f:
+                    if count >= max_lines:
+                        break
+                    lines.append(line.rstrip('\n\r'))
+                    count += 1
+
+            return lines, '<system-reminder>warning: File decoded using latin-1 encoding</system-reminder>'
+        except Exception as e:
+            return [], f'Failed to read file: {str(e)}'
+    except Exception as e:
+        return [], f'Failed to read file: {str(e)}'
+
+
 def write_file_content(file_path: str, content: str, encoding: str = 'utf-8') -> str:
     """Write content to file, creating parent directories if needed.
 
@@ -409,6 +390,31 @@ def write_file_content(file_path: str, content: str, encoding: str = 'utf-8') ->
         return ''
     except Exception as e:
         return f'Failed to write file: {str(e)}'
+
+
+# File diff operations
+def generate_diff_lines(old_content: str, new_content: str) -> List[str]:
+    """Generate unified diff lines between old and new content.
+
+    Args:
+        old_content: Original content
+        new_content: Modified content
+
+    Returns:
+        List of diff lines in unified format
+    """
+    old_lines = old_content.splitlines(keepends=True)
+    new_lines = new_content.splitlines(keepends=True)
+
+    diff_lines = list(
+        difflib.unified_diff(
+            old_lines,
+            new_lines,
+            lineterm='',
+        )
+    )
+
+    return diff_lines
 
 
 def generate_snippet_from_diff(diff_lines: List[str]) -> str:

@@ -16,6 +16,7 @@ from .message import AIMessage, BasicMessage, SpecialUserMessageTypeEnum, System
 from .prompt.commands import COMACT_SYSTEM_PROMPT, COMPACT_COMMAND, COMPACT_MSG_PREFIX
 from .tools.todo import TodoList
 from .tui import ColorStyle, console
+from .utils.file_utils import FileTracker
 from .utils.str_utils import sanitize_filename
 
 
@@ -101,6 +102,7 @@ class Session(BaseModel):
 
     messages: MessageHistory = Field(default_factory=MessageHistory)
     todo_list: TodoList = Field(default_factory=TodoList)
+    file_tracker: FileTracker = Field(default_factory=FileTracker)
     work_dir: str
     source: Literal['user', 'subagent'] = 'user'
     session_id: str = ''
@@ -113,6 +115,7 @@ class Session(BaseModel):
         messages: Optional[List[BasicMessage]] = None,
         append_message_hook: Optional[Callable] = None,
         todo_list: Optional[TodoList] = None,
+        file_tracker: Optional[FileTracker] = None,
         source: Literal['user', 'subagent'] = 'user',
     ) -> None:
         super().__init__(
@@ -121,6 +124,7 @@ class Session(BaseModel):
             session_id=str(uuid.uuid4()),
             append_message_hook=append_message_hook,
             todo_list=todo_list or TodoList(),
+            file_tracker=file_tracker or FileTracker(),
             source=source,
         )
 
@@ -185,6 +189,7 @@ class Session(BaseModel):
                 'updated_at': current_time,
                 'message_count': len(self.messages),
                 'todo_list': self.todo_list.model_dump(),
+                'file_tracker': self.file_tracker.model_dump(),
                 'source': self.source,
                 'title_msg': self.title_msg,
             }
@@ -329,7 +334,13 @@ class Session(BaseModel):
             else:
                 todo_list = TodoList()
 
-            session = cls(work_dir=metadata['work_dir'], messages=messages, todo_list=todo_list)
+            file_tracker_data = metadata.get('file_tracker', {})
+            if file_tracker_data:
+                file_tracker = FileTracker(**file_tracker_data)
+            else:
+                file_tracker = FileTracker()
+
+            session = cls(work_dir=metadata['work_dir'], messages=messages, todo_list=todo_list, file_tracker=file_tracker)
             session.session_id = metadata['id']
             session._created_at = metadata.get('created_at')
             session.title_msg = metadata.get('title_msg', '')
@@ -354,6 +365,7 @@ class Session(BaseModel):
             work_dir=self.work_dir,
             messages=self.messages.copy(),  # Copy the messages list
             todo_list=self.todo_list.model_copy(),
+            file_tracker=self.file_tracker.model_copy(),
         )
         return forked_session
 

@@ -7,7 +7,6 @@ from anthropic.types import ContentBlock, MessageParam, TextBlockParam, ToolUseB
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field
 from rich.abc import RichRenderable
-from rich.markup import escape
 from rich.rule import Rule
 from rich.text import Text
 

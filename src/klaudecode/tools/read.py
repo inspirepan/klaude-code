@@ -2,7 +2,6 @@ import os
 from typing import Annotated, Optional
 
 from pydantic import BaseModel, Field
-from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
 
@@ -10,7 +9,7 @@ from ..message import ToolCall, ToolMessage, count_tokens, register_tool_call_re
 from ..prompt.tools import READ_TOOL_DESC, READ_TOOL_EMPTY_REMINDER, READ_TOOL_RESULT_REMINDER
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from ..utils.file_utils import read_file_content, track_file, validate_file_exists
+from ..utils.file_utils import FileTracker, read_file_content, read_file_lines_partial, validate_file_exists
 
 """
 - Flexible reading with offset and line limit support
@@ -69,57 +68,7 @@ def truncate_content(numbered_lines, line_limit: int, line_char_limit: int):
     return truncated_lines, 0
 
 
-def read_file_lines_partial(file_path: str, offset: Optional[int] = None, limit: Optional[int] = None) -> tuple[list[str], str]:
-    """Read file lines with offset and limit to avoid loading entire file into memory"""
-    try:
-        lines = []
-        warning = ''
-        with open(file_path, 'r', encoding='utf-8') as f:
-            if offset is not None and offset > 1:
-                for _ in range(offset - 1):
-                    try:
-                        next(f)
-                    except StopIteration:
-                        break
-
-            count = 0
-            max_lines = limit if limit is not None else float('inf')
-
-            for line in f:
-                if count >= max_lines:
-                    break
-                lines.append(line.rstrip('\n\r'))
-                count += 1
-
-        return lines, warning
-    except UnicodeDecodeError:
-        try:
-            lines = []
-            with open(file_path, 'r', encoding='latin-1') as f:
-                if offset is not None and offset > 1:
-                    for _ in range(offset - 1):
-                        try:
-                            next(f)
-                        except StopIteration:
-                            break
-
-                count = 0
-                max_lines = limit if limit is not None else float('inf')
-
-                for line in f:
-                    if count >= max_lines:
-                        break
-                    lines.append(line.rstrip('\n\r'))
-                    count += 1
-
-            return lines, '<system-reminder>warning: File decoded using latin-1 encoding</system-reminder>'
-        except Exception as e:
-            return [], f'Failed to read file: {str(e)}'
-    except Exception as e:
-        return [], f'Failed to read file: {str(e)}'
-
-
-def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[int] = None) -> ReadResult:
+def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[int] = None, tracker: FileTracker = None) -> ReadResult:
     result = ReadResult()
 
     # Validate file exists
@@ -160,7 +109,8 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
             return result
         lines = content.splitlines()
 
-    track_file(file_path)
+    if tracker is not None:
+        tracker.track(file_path)
 
     # Handle empty file
     if not content:
@@ -229,7 +179,7 @@ class ReadTool(Tool):
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         args: 'ReadTool.Input' = cls.parse_input_args(tool_call)
 
-        result = execute_read(args.file_path, args.offset, args.limit)
+        result = execute_read(args.file_path, args.offset, args.limit, instance.parent_agent.session.file_tracker)
 
         if not result.success:
             instance.tool_result().set_error_msg(result.error_msg)

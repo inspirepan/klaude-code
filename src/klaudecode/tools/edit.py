@@ -9,7 +9,7 @@ from ..prompt.tools import EDIT_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
 from ..utils.file_utils import (
-    EDIT_ERROR_OLD_STRING_NEW_STRING_IDENTICAL,
+    EDIT_OLD_STRING_NEW_STRING_IDENTICAL_ERROR_MSG,
     cleanup_backup,
     count_occurrences,
     create_backup,
@@ -19,9 +19,7 @@ from ..utils.file_utils import (
     render_diff_lines,
     replace_string_in_content,
     restore_backup,
-    track_file,
     validate_file_exists,
-    validate_file_track_status,
     write_file_content,
 )
 
@@ -55,14 +53,14 @@ class EditTool(Tool):
             return
 
         # Validate file tracking (must be read first)
-        is_valid, error_msg = validate_file_track_status(args.file_path)
+        is_valid, error_msg = instance.parent_agent.session.file_tracker.validate_track(args.file_path)
         if not is_valid:
             instance.tool_result().set_error_msg(error_msg)
             return
 
         # Validate input
         if args.old_string == args.new_string:
-            instance.tool_result().set_error_msg(EDIT_ERROR_OLD_STRING_NEW_STRING_IDENTICAL)
+            instance.tool_result().set_error_msg(EDIT_OLD_STRING_NEW_STRING_IDENTICAL_ERROR_MSG)
             return
 
         if not args.old_string:
@@ -110,7 +108,7 @@ class EditTool(Tool):
                 return
 
             # Update tracking
-            track_file(args.file_path)
+            instance.parent_agent.session.file_tracker.track(args.file_path)
 
             # Generate diff and snippet
             diff_lines = generate_diff_lines(content, new_content)

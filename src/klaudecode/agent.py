@@ -38,7 +38,6 @@ from .tools.read import execute_read
 from .tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, render_hello, render_markdown, render_message, render_status, render_suffix
 from .user_input import _INPUT_MODES, NORMAL_MODE_NAME, InputSession, UserInputHandler
 from .user_questionary import user_select
-from .utils.file_utils import get_modified_files
 
 DEFAULT_MAX_STEPS = 80
 INTERACTIVE_MAX_STEPS = 100
@@ -198,7 +197,7 @@ class Agent(Tool):
             last_msg.append_post_system_reminder(PLAN_MODE_REMINDER)
 
     def _handle_file_external_modified_reminder(self):
-        modified_files = get_modified_files()
+        modified_files = self.session.file_tracker.get_all_modified()
         if not modified_files:
             return
 
@@ -208,7 +207,7 @@ class Agent(Tool):
 
         for file_path in modified_files:
             try:
-                result = execute_read(file_path)
+                result = execute_read(file_path, tracker=self.session.file_tracker)
                 if result.success:
                     reminder = FILE_MODIFIED_EXTERNAL_REMINDER.format(file_path=file_path, file_content=result.content)
                     last_msg.append_post_system_reminder(reminder)
