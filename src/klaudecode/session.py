@@ -11,7 +11,7 @@ from typing import Callable, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 from rich.text import Text
 
-from .llm import AgentLLM
+from .llm import AgentLLM, LLMManager
 from .message import AIMessage, BasicMessage, SpecialUserMessageTypeEnum, SystemMessage, ToolMessage, UserMessage
 from .prompt.commands import COMACT_SYSTEM_PROMPT, COMPACT_COMMAND, COMPACT_MSG_PREFIX
 from .tools.todo import TodoList
@@ -419,7 +419,7 @@ class Session(BaseModel):
                 continue
             msg.removed = True
 
-    async def compact_conversation_history(self, instructions: str = '', show_status: bool = True):
+    async def compact_conversation_history(self, instructions: str = '', show_status: bool = True, llm_manager: Optional[LLMManager] = None):
         non_sys_msgs = [msg for msg in self.messages if msg.role != 'system'].copy()
         additional_instructions = '\nAdditional Instructions:\n' + instructions if instructions else ''
         # TODO: Maybe add some tool call results? Check CC
@@ -428,7 +428,11 @@ class Session(BaseModel):
         )
 
         try:
-            ai_msg = await AgentLLM.call(msgs=CompactMessageList, show_status=show_status, status_text='Compacting...')
+            if llm_manager:
+                ai_msg = await llm_manager.call(msgs=CompactMessageList, show_status=show_status, status_text='Compacting...')
+            else:
+                # Fallback to old method if llm_manager not provided
+                ai_msg = await AgentLLM.call(msgs=CompactMessageList, show_status=show_status, status_text='Compacting...')
 
             self.clear_conversation_history()
             user_msg = UserMessage(content=COMPACT_MSG_PREFIX + ai_msg.content, user_msg_type=SpecialUserMessageTypeEnum.COMPACT_RESULT.value)

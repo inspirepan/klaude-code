@@ -64,6 +64,16 @@ class OpenAIProxy:
                 base_url=self.base_url,
                 api_key=self.api_key,
             )
+        
+        # Monkey patch the client's __del__ method to prevent cleanup errors
+        original_del = getattr(self.client, '__del__', None)
+        def safe_del():
+            try:
+                if original_del:
+                    original_del()
+            except:
+                pass
+        self.client.__del__ = safe_del
 
     async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
         completion = await self.client.chat.completions.create(
@@ -81,14 +91,16 @@ class OpenAIProxy:
                 prompt_tokens=completion.usage.prompt_tokens,
                 total_tokens=completion.usage.total_tokens,
             )
-        tool_calls = {
-            raw_tc.id: ToolCall(
-                id=raw_tc.id,
-                tool_name=raw_tc.function.name,
-                tool_args=raw_tc.function.arguments,
-            )
-            for raw_tc in message.tool_calls
-        }
+        tool_calls = {}
+        if message.tool_calls:
+            tool_calls = {
+                raw_tc.id: ToolCall(
+                    id=raw_tc.id,
+                    tool_name=raw_tc.function.name,
+                    tool_args=raw_tc.function.arguments,
+                )
+                for raw_tc in message.tool_calls
+            }
         return AIMessage(
             content=message.content,
             tool_calls=tool_calls,
@@ -238,6 +250,16 @@ class AnthropicProxy:
         self.enable_thinking = enable_thinking
         self.extra_header = extra_header
         self.client = anthropic.AsyncAnthropic(api_key=self.api_key)
+        
+        # Monkey patch the client's __del__ method to prevent cleanup errors
+        original_del = getattr(self.client, '__del__', None)
+        def safe_del():
+            try:
+                if original_del:
+                    original_del()
+            except:
+                pass
+        self.client.__del__ = safe_del
 
     async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
         system_msgs, other_msgs = self.convert_to_anthropic(msgs)
@@ -638,3 +660,86 @@ class AgentLLM(LLM):
 
 class FastLLM(LLM):
     pass
+
+
+class LLMManager:
+    """Thread-safe LLM connection pool manager"""
+    
+    def __init__(self):
+        import threading
+        self.client_pool = {}  # {thread_id: LLMProxy}
+        self.config_cache = None  # Current configuration
+        self._lock = threading.Lock()
+    
+    def initialize_from_config(self, config):
+        """Initialize LLM manager from ConfigModel"""
+        with self._lock:
+            self.config_cache = {
+                'model_name': config.model_name.value,
+                'base_url': config.base_url.value,
+                'api_key': config.api_key.value,
+                'model_azure': config.model_azure.value,
+                'max_tokens': config.max_tokens.value,
+                'extra_header': config.extra_header.value,
+                'enable_thinking': config.enable_thinking.value,
+            }
+    
+    def get_client(self) -> LLMProxy:
+        """Get LLM client for current thread"""
+        import threading
+        thread_id = threading.get_ident()
+        
+        if thread_id not in self.client_pool:
+            if not self.config_cache:
+                raise RuntimeError('LLMManager not initialized. Call initialize_from_config() first.')
+            
+            # Create new client for this thread
+            self.client_pool[thread_id] = LLMProxy(
+                model_name=self.config_cache['model_name'],
+                base_url=self.config_cache['base_url'],
+                api_key=self.config_cache['api_key'],
+                model_azure=self.config_cache['model_azure'],
+                max_tokens=self.config_cache['max_tokens'],
+                extra_header=self.config_cache['extra_header'],
+                enable_thinking=self.config_cache['enable_thinking'],
+            )
+        
+        return self.client_pool[thread_id]
+    
+    async def call(
+        self,
+        msgs: List[BasicMessage],
+        tools: Optional[List[Tool]] = None,
+        show_status: bool = True,
+        status_text: str = 'Thinking...',
+        use_streaming: bool = True,
+        timeout: float = 20.0,
+    ) -> AIMessage:
+        """Unified LLM call interface"""
+        client = self.get_client()
+        return await client._call_with_retry(msgs, tools, show_status, use_streaming, status_text, timeout)
+    
+    async def cleanup_thread(self, thread_id: int = None):
+        """Clean up client for specific thread (or current thread)"""
+        import threading
+        if thread_id is None:
+            thread_id = threading.get_ident()
+        
+        if thread_id in self.client_pool:
+            client = self.client_pool[thread_id]
+            # Proactively close HTTP client connections
+            try:
+                if hasattr(client.client, 'client'):
+                    http_client = client.client.client
+                    if hasattr(http_client, 'aclose'):
+                        await http_client.aclose()
+            except Exception:
+                # Ignore cleanup errors
+                pass
+            del self.client_pool[thread_id]
+    
+    def reset(self):
+        """Reset all clients and configuration"""
+        with self._lock:
+            self.client_pool.clear()
+            self.config_cache = None

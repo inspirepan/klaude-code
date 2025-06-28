@@ -13,7 +13,7 @@ from rich.text import Text
 
 from . import command  # noqa: F401 # import user_command to trigger command registration
 from .config import ConfigModel
-from .llm import AgentLLM
+from .llm import AgentLLM, LLMManager
 from .mcp.mcp_tool import MCPManager
 from .message import (
     INTERRUPTED_MSG,
@@ -73,6 +73,7 @@ class Agent(Tool):
         self.mcp_manager: Optional[MCPManager] = None
         self.plan_mode_activated: bool = False
         self.enable_plan_mode_reminder = enable_plan_mode_reminder
+        self.llm_manager: Optional[LLMManager] = None
 
     async def chat_interactive(self, first_message: str = None):
         self._initialize_llm()
@@ -116,13 +117,13 @@ class Agent(Tool):
             clear_last_line()
             console.print(Text(f'Notice: total_tokens: {total_tokens}, context_window_threshold: {self.config.context_window_threshold.value}\n', style=ColorStyle.WARNING.value))
         if total_tokens > self.config.context_window_threshold.value:
-            await self.session.compact_conversation_history(show_status=self.print_switch)
+            await self.session.compact_conversation_history(show_status=self.print_switch, llm_manager=self.llm_manager)
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
         try:
             self._handle_claudemd_reminder()
             self._handle_empty_todo_reminder()
-            for _ in range(max_steps):
+            for i in range(max_steps):
                 # Check if task was canceled (for subagent execution)
                 if parent_tool_instance and parent_tool_instance.tool_result().tool_call.status == 'canceled':
                     return INTERRUPTED_MSG
@@ -135,7 +136,7 @@ class Agent(Tool):
                 self._handle_file_external_modified_reminder()
 
                 self.session.save()
-                ai_msg = await AgentLLM.call(
+                ai_msg = await self.llm_manager.call(
                     msgs=self.session.messages,
                     tools=tools,
                     show_status=self.print_switch,
@@ -253,15 +254,9 @@ class Agent(Tool):
         return INTERRUPTED_MSG
 
     def _initialize_llm(self):
-        AgentLLM.initialize(
-            model_name=self.config.model_name.value,
-            base_url=self.config.base_url.value,
-            api_key=self.config.api_key.value,
-            model_azure=self.config.model_azure.value,
-            max_tokens=self.config.max_tokens.value,
-            extra_header=self.config.extra_header.value,
-            enable_thinking=self.config.enable_thinking.value,
-        )
+        if not self.llm_manager:
+            self.llm_manager = LLMManager()
+        self.llm_manager.initialize_from_config(self.config)
 
     async def headless_run(self, user_input_text: str, print_trace: bool = False):
         self._initialize_llm()
@@ -368,9 +363,50 @@ class Agent(Tool):
             source='subagent',
         )
         agent = cls(session, availiable_tools=cls.get_subagent_tools(), print_switch=False, config=instance.parent_agent.config)
+        # Initialize LLM manager for subagent  
+        agent._initialize_llm()
         agent.append_message(UserMessage(content=args.prompt))
-
-        result = asyncio.run(agent.run(max_steps=DEFAULT_MAX_STEPS, parent_tool_instance=instance, tools=cls.get_subagent_tools()))
+        
+        # Use asyncio.run with proper isolation and error suppression
+        import asyncio
+        import warnings
+        
+        # Temporarily suppress ResourceWarnings and RuntimeErrors from HTTP cleanup
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ResourceWarning)
+            warnings.simplefilter("ignore", RuntimeWarning)
+            
+            # Set custom exception handler to suppress cleanup errors
+            def exception_handler(loop, context):
+                # Ignore "Event loop is closed" and similar cleanup errors
+                if 'Event loop is closed' in str(context.get('exception', '')):
+                    return
+                if 'aclose' in str(context.get('exception', '')):
+                    return
+                # Log other exceptions normally
+                loop.default_exception_handler(context)
+            
+            try:
+                loop = asyncio.new_event_loop()
+                loop.set_exception_handler(exception_handler)
+                asyncio.set_event_loop(loop)
+                result = loop.run_until_complete(agent.run(max_steps=DEFAULT_MAX_STEPS, parent_tool_instance=instance, tools=cls.get_subagent_tools()))
+            except Exception as e:
+                result = f'SubAgent error: {str(e)}'
+            finally:
+                try:
+                    # Suppress any remaining tasks
+                    pending = asyncio.all_tasks(loop)
+                    for task in pending:
+                        task.cancel()
+                    if pending:
+                        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                except:
+                    pass
+                finally:
+                    asyncio.set_event_loop(None)
+                    # Don't close loop explicitly to avoid cleanup issues
+        
         instance.tool_result().set_content((result or '').strip())
 
 
