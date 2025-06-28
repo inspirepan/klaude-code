@@ -101,7 +101,7 @@ def render_todo_dict(todo: dict, new_completed: bool = False):
 
 def render_todo_read_result(tool_msg: ToolMessage):
     if tool_msg.get_extra_data('todo_list') is None:
-        yield '(No Content)'
+        yield render_suffix('(No Content)')
         return
     yield render_suffix(Group(*(render_todo_dict(todo) for todo in tool_msg.get_extra_data('todo_list'))))
 

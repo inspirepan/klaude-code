@@ -142,6 +142,7 @@ class OpenAIProxy:
             if chunk.choices:
                 choice: Choice = chunk.choices[0]
                 if choice.delta.content:
+                    stream_status.phase = 'content'
                     content += choice.delta.content
                 if hasattr(choice.delta, 'reasoning_content') and choice.delta.reasoning_content:
                     stream_status.phase = 'think'
@@ -189,10 +190,6 @@ class OpenAIProxy:
         )
 
     class OpenAIToolCallChunkAccumulator:
-        """
-        WARNING: streaming is only tested for Claude, which returns tool calls in the specific sequence: tool_call_id, tool_call_name, followed by chunks of tool_call_args
-        """
-
         def __init__(self):
             self.tool_call_list: List[ChatCompletionMessageToolCall] = []
 
@@ -512,7 +509,7 @@ class LLMProxy:
                         if stream_status.phase == 'tool_call' and not print_content_flag and ai_message.content:
                             console.print(*ai_message.get_content_renderable())
                             print_content_flag = True
-                        if stream_status.phase == 'content' and not print_thinking_flag and ai_message.thinking_content:
+                        if stream_status.phase in ['content', 'tool_call'] and not print_thinking_flag and ai_message.thinking_content:
                             console.print(*ai_message.get_thinking_renderable())
                             print_thinking_flag = True
 
