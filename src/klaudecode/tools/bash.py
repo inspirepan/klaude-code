@@ -23,7 +23,7 @@ from ..utils.bash_utils import BashUtils
 class BashTool(Tool):
     name = 'Bash'
     desc = BASH_TOOL_DESC
-    parallelable: bool = True
+    parallelable: bool = False
 
     class Input(BaseModel):
         command: Annotated[str, Field(description='The command to execute')]

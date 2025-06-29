@@ -277,20 +277,28 @@ class UserInputCompleter(Completer):
         text = document.text
         cursor_position = document.cursor_position
 
-        # Check for @ file completion
+        # Check for @ file completion first
         at_match = self._find_at_file_pattern(text, cursor_position)
         if at_match:
-            yield from self._get_file_completions(at_match)
+            try:
+                yield from self._get_file_completions(at_match)
+            except Exception:
+                # If file completion fails, fall back to normal behavior
+                pass
             return
+            
+        # Only do slash command completion in normal mode
         if self.input_session.current_input_mode.get_name() != NORMAL_MODE_NAME:
             return
 
-        # Original slash command completion
-        if not text.startswith('/'):
+        # Original slash command completion - but only if text starts with /
+        if not text.startswith('/') or cursor_position == 0:
             return
+            
         # Get command part (content after /)
-        command_part = text[1:]
-        # If no space, we are still completing command name
+        command_part = text[1:cursor_position] if cursor_position > 1 else ''
+        
+        # If no space in the command part, we are still completing command name
         if ' ' not in command_part:
             for command_name, command in self.commands.items():
                 if command_name.startswith(command_part):
@@ -305,6 +313,9 @@ class UserInputCompleter(Completer):
         for i in range(cursor_position - 1, -1, -1):
             if text[i] == '@':
                 file_prefix = text[i + 1 : cursor_position]
+                # Avoid file completion for patterns that start with / or contain command characters
+                if file_prefix.startswith('/') or any(c in file_prefix for c in ['/', '\\']):
+                    return None
                 return {'at_position': i, 'prefix': file_prefix, 'start_position': i + 1 - cursor_position}
             elif text[i].isspace():
                 break
@@ -314,13 +325,17 @@ class UserInputCompleter(Completer):
         prefix = at_match['prefix']
         start_position = at_match['start_position']
 
+        # Safety check - avoid searching problematic paths
+        if not prefix or prefix.startswith('/') or any(c in prefix for c in ['/', '\\']):
+            return
+
         workdir = self.input_session.workdir
 
         if prefix:
             prefix_path = Path(prefix)
             if prefix_path.is_absolute():
-                search_dir = prefix_path.parent if prefix_path.parent.exists() else workdir
-                name_prefix = prefix_path.name
+                # Don't allow absolute path completion for security
+                return
             else:
                 search_dir = workdir / prefix_path.parent if prefix_path.parent != Path('.') else workdir
                 name_prefix = prefix_path.name
@@ -328,7 +343,7 @@ class UserInputCompleter(Completer):
             search_dir = workdir
             name_prefix = ''
 
-        if not search_dir.exists():
+        if not search_dir.exists() or not search_dir.is_dir():
             return
 
         matches = []
@@ -433,8 +448,9 @@ class InputSession:
     def _switch_mode_or_insert(self, event, mode_name: str, char: str):
         """Switch to mode if at line start, otherwise insert character"""
         # Check if cursor is at the beginning of current line
-        current_line_start = self.buf.document.get_start_of_line_position()
-        if self.buf.cursor_position == self.buf.document.cursor_position + current_line_start:
+        document = self.buf.document
+        current_line_start_pos = document.cursor_position + document.get_start_of_line_position()
+        if self.buf.cursor_position == current_line_start_pos:
             self._switch_mode(event, mode_name)
             return
         self.buf.insert_text(char)
@@ -448,21 +464,24 @@ class InputSession:
                 binding_keys = [mode.binding_key()]
 
             for key in binding_keys:
-
-                def make_binding(current_mode, bind_key):
+                if not key:  # Skip empty keys
+                    continue
+                    
+                # Create a proper closure with default arguments to avoid late binding
+                def make_binding(current_mode=mode, bind_key=key):
                     @self.kb.add(bind_key)
                     def _(event):
                         self._switch_mode_or_insert(event, current_mode.get_name(), bind_key)
-
                     return _
 
-                make_binding(mode, key)
+                make_binding()
 
         @self.kb.add('backspace')
         def _(event):
             # Check if cursor is at the beginning of current line
-            current_line_start = self.buf.document.get_start_of_line_position()
-            if self.buf.cursor_position == self.buf.document.cursor_position + current_line_start:
+            document = self.buf.document
+            current_line_start_pos = document.cursor_position + document.get_start_of_line_position()
+            if self.buf.cursor_position == current_line_start_pos:
                 self._switch_mode(event, NORMAL_MODE_NAME)
                 return
             self.buf.delete_before_cursor()
