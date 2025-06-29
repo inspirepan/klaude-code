@@ -275,7 +275,7 @@ class MCPManager:
                             is_required = param_name in required_fields
                             required_indicator = '*' if is_required else ''
                             param_table.add_row(
-                                Text(f'· {param_name}{required_indicator}', style=ColorStyle.HIGHLIGHT.value)), Text(param_type, style=ColorStyle.INFO.value), Text(param_desc)
+                                Text(f'· {param_name}{required_indicator}', style=ColorStyle.HIGHLIGHT.value), Text(param_type, style=ColorStyle.INFO.value), Text(param_desc)
                             )
                         main_table.add_row(Text(tool_name, style=ColorStyle.SUCCESS.value), Group(tool_desc, '', param_table, ''))
                     else:
