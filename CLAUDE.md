@@ -4,13 +4,17 @@ This file provides guidance to Klaude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
+### Build and Install
 ```bash
-# Install dependencies 
+# Install dependencies
 uv sync
 
 # Install in development mode
 uv pip install -e .
+```
 
+### Code Quality
+```bash
 # Format code
 isort src/ && ruff format src/
 
@@ -18,49 +22,108 @@ isort src/ && ruff format src/
 ruff check src/
 ```
 
+### Package Management
+```bash
+# Build package
+uv build
+
+# Upload to PyPI
+twine upload dist/*
+```
+
+### Testing
+This project currently does not have a formal test suite. When adding tests, follow standard Python testing patterns.
+
 ## Architecture Overview
 
-Klaude Code is a Python-based CLI tool that brings Claude AI coding capabilities to the terminal. The architecture is modular with clear separation of concerns:
+Klaude Code is a CLI tool that provides an AI coding assistant powered by Claude. The architecture follows a modular design:
 
 ### Core Components
 
-- **CLI Entry** (`cli.py`): Typer-based command interface with support for interactive and headless modes
-- **Agent System** (`agent.py`): Core AI orchestration with step limits (80 headless, 100 interactive) and token management
-- **Session Management** (`session.py`): Persistent conversation history with fork/resume capabilities
-- **Tool Framework** (`tool.py`): Extensible tool system with automatic JSON schema generation
-- **LLM Integration** (`llm.py`): Multi-provider support (Anthropic/OpenAI/Azure) with thinking mode
+**Entry Point & CLI (`cli.py`)**
+- Typer-based command interface with subcommands for config and MCP management
+- Supports interactive mode, headless mode, and session continuation
+- Handles both synchronous CLI operations and asynchronous agent execution
 
-### Tool Categories
+**Agent System (`agent.py`)**
+- `Agent` class serves as the main orchestrator and implements the `Tool` interface for sub-agents
+- Manages conversation flow, tool execution, and interrupt handling
+- Supports both interactive chat and headless execution modes
+- Includes specialized `CodeSearchTaskTool` for read-only code analysis
+- Handles plan mode activation/deactivation and user confirmations
 
-The tool system is organized into functional groups:
+**Session Management (`session.py`)**
+- `Session` class manages conversation history, metadata, and persistence
+- Uses JSONL format for incremental message storage with proper state tracking
+- Integrates `TodoList` and `FileTracker` for task and file change management
+- Supports session resumption and conversation compacting
 
-- **File Operations**: Read, Write, Edit, MultiEdit tools for file manipulation
-- **Search Tools**: Grep, Glob, Ls tools for code discovery
-- **System Integration**: Bash tool for command execution
-- **Project Management**: TodoRead, TodoWrite for task tracking
-- **Special Tools**: ExitPlanMode for workflow control
+**Tool System (`tool.py`)**
+- Base `Tool` class with JSON schema generation for LLM function calling
+- `ToolHandler` manages parallel and sequential tool execution with interrupt support
+- `ToolInstance` provides runtime state management and cancellation capabilities
+- Automatic timeout handling and error recovery
 
-Tools inherit from `Tool` base class and define input parameters via Pydantic models.
+**LLM Integration (`llm.py`)**
+- Abstracted LLM client supporting both OpenAI and Anthropic APIs
+- Configurable model parameters, token limits, and thinking mode
+- Handles streaming responses and tool calling protocols
 
-### Input Modes
+### Tool Organization
 
-The CLI supports multiple input modes identified by prefixes:
-- `!`: Bash mode for direct command execution
-- `*`: Plan mode for structured planning interface  
-- `#`: Memory mode for session context management
-- `@filename`: File reference with auto-completion
+**Core Tools (`tools/`)**
+- File operations: `ReadTool`, `WriteTool`, `EditTool`, `MultiEditTool`
+- System integration: `BashTool`, `LsTool`
+- Code search: `GrepTool`, `GlobTool`
+- Task management: `TodoWriteTool`, `TodoReadTool`
+- Special: `ExitPlanModeTool` for plan mode workflow
 
-### MCP Integration
+**MCP Integration (`mcp/`)**
+- Model Context Protocol support for extending tool capabilities
+- `MCPManager` handles server connections and tool discovery
+- `MCPTool` wraps external MCP tools for seamless integration
 
-Model Context Protocol support is available via the `--mcp` flag, allowing integration with external MCP servers for extended capabilities.
+### Input and User Interface
 
-## Key Design Patterns
+**User Input (`user_input.py`)**
+- `InputSession` handles different input modes (normal, bash, plan, memory)
+- `UserInputHandler` processes special prefixes and command routing
+- Integration with file auto-completion and command execution
 
-- **Session Forking**: Sessions can be forked to create branches for different conversation paths
-- **Tool Registration**: Tools are automatically discovered and registered via decorators
-- **Message Rendering**: Extensible message rendering system with custom renderers for different content types
-- **Configuration Management**: Hierarchical config system with global user settings at `~/.klaude/config.json`
+**Terminal UI (`tui.py`)**
+- Rich-based console interface with theming support
+- Message rendering with syntax highlighting and formatting
+- Live status updates and interactive elements
 
-## Entry Points
+### Key Design Patterns
 
-Main entry point is `klaude` command which maps to `klaudecode.cli:app`. The CLI supports both interactive chat mode and headless execution via the `--print` flag.
+**Message Flow**
+- Messages flow through: UserInput → Agent → LLM → Tools → ToolHandler → Agent
+- Each message type (`UserMessage`, `AIMessage`, `ToolMessage`, `SystemMessage`) has specific rendering and storage behavior
+- Session persistence uses incremental JSONL storage for efficiency
+
+**Tool Execution**
+- Tools can be parallelable or sequential
+- Interrupt handling at multiple levels (tool, handler, agent)
+- Automatic schema generation from Pydantic models for LLM function calling
+
+**Configuration Management**
+- Global config in `~/.klaude/config.json`
+- MCP config in `~/.klaude/mcp_config.json`
+- Project-specific sessions in `.klaude/sessions/`
+
+## File Structure Patterns
+
+- `command/`: Slash commands for interactive mode
+- `prompt/`: System prompts and templating
+- `tools/`: Individual tool implementations
+- `utils/`: Utility functions for file operations, string processing
+- `mcp/`: Model Context Protocol integration
+
+## Special Notes
+
+- The project uses Python 3.13+ and modern async/await patterns throughout
+- Tool calling uses both OpenAI and Anthropic function calling formats
+- Session files use JSONL format for append-only message storage
+- The agent can spawn sub-agents for complex tasks while maintaining proper isolation
+- Plan mode provides a special workflow for task planning and approval
