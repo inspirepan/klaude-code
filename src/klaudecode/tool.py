@@ -363,7 +363,7 @@ TOOL_CALL_STATUS_TEXT_DICT = {
     'Edit': ['Updating', 'Modifying', 'Changing', 'Tweaking', 'Adjusting', 'Refining', 'Fixing'],
     'Read': ['Exploring', 'Reading', 'Scanning', 'Analyzing', 'Inspecting', 'Examining', 'Studying'],
     'Write': ['Writing', 'Creating', 'Adding', 'Crafting', 'Composing', 'Building', 'Generating'],
-    'TodoWrite': ['Planning', 'Organizing', 'Structuring', 'Brainstorming', 'Strategizing', 'Mapping', 'Outlining'],
+    'TodoWrite': ['Planning', 'Organizing', 'Structuring', 'Brainstorming', 'Strategizing', 'Outlining'],
     'TodoRead': ['Planning', 'Organizing', 'Structuring', 'Reviewing', 'Checking', 'Assessing', 'Tracking'],
     'LS': ['Exploring', 'Scanning', 'Browsing', 'Investigating', 'Surveying', 'Discovering', 'Wandering'],
     'Grep': ['Searching', 'Looking', 'Finding', 'Hunting', 'Tracking', 'Filtering', 'Digging'],
@@ -373,10 +373,15 @@ TOOL_CALL_STATUS_TEXT_DICT = {
 }
 
 
-def get_tool_call_status_text(tool_name: str) -> str:
+def get_tool_call_status_text(tool_name: str, seed: Optional[int] = None) -> str:
     """
     Write -> Writing
     """
+    if seed is not None:
+        import random
+
+        random.seed(seed)
+
     if tool_name in TOOL_CALL_STATUS_TEXT_DICT:
         return random.choice(TOOL_CALL_STATUS_TEXT_DICT[tool_name]) + '...'
     if tool_name.startswith('mcp__'):

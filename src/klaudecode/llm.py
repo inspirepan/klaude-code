@@ -1,4 +1,5 @@
 import asyncio
+import time
 from typing import AsyncGenerator, Dict, List, Literal, Optional, Tuple
 
 import anthropic
@@ -17,6 +18,69 @@ from .tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, render_mes
 DEFAULT_RETRIES = 3
 DEFAULT_RETRY_BACKOFF_BASE = 0.5
 STATUS_TEXT_LENGTH = 12
+
+REASONING_STATUS_TEXT_LIST = [
+    'Thinking',
+    'Reflecting',
+    'Reasoning',
+]
+
+CONTENT_STATUS_TEXT_LIST = [
+    'Composing',
+    'Crafting',
+    'Formulating',
+    'Responding',
+    'Articulating',
+    'Expressing',
+    'Detailing',
+    'Explaining',
+    'Describing',
+    'Pondering',
+    'Considering',
+    'Analyzing',
+    'Contemplating',
+    'Deliberating',
+    'Evaluating',
+    'Assessing',
+    'Examining',
+]
+
+UPLOAD_STATUS_TEXT_LIST = [
+    'Waiting',
+    'Loading',
+    'Connecting',
+    'Preparing',
+    'Launching',
+    'Buffering',
+]
+
+
+def get_reasoning_status_text(seed: Optional[int] = None) -> str:
+    """Get random reasoning status text"""
+    if seed is not None:
+        import random
+
+        random.seed(seed)
+    return random.choice(REASONING_STATUS_TEXT_LIST) + '...'
+
+
+def get_content_status_text(seed: Optional[int] = None) -> str:
+    """Get random content generation status text"""
+    if seed is not None:
+        import random
+
+        random.seed(seed)
+    return random.choice(CONTENT_STATUS_TEXT_LIST) + '...'
+
+
+def get_upload_status_text(seed: Optional[int] = None) -> str:
+    """Get random upload status text"""
+    if seed is not None:
+        import random
+
+        random.seed(seed)
+    return random.choice(UPLOAD_STATUS_TEXT_LIST) + '...'
+
 
 NON_RETRY_EXCEPTIONS = (
     KeyboardInterrupt,
@@ -491,7 +555,7 @@ class LLMProxy:
         tools: Optional[List[Tool]] = None,
         show_status: bool = True,
         use_streaming: bool = True,
-        status_text: str = 'Thinking...',
+        status_text: Optional[str] = None,
         timeout: float = 20.0,
         interrupt_check: Optional[callable] = None,
     ) -> AIMessage:
@@ -500,27 +564,41 @@ class LLMProxy:
             try:
                 if not show_status:
                     return await self.client.call(msgs, tools)
+
                 if not use_streaming:
-                    with render_status(status_text.ljust(STATUS_TEXT_LENGTH)):
+                    with render_status(get_content_status_text().ljust(STATUS_TEXT_LENGTH)):
                         ai_message = await self.client.call(msgs, tools)
                     console.print(ai_message)
                     return ai_message
 
+                status_text_seed = int(time.time() * 1000) % 10000
+                if status_text:
+                    reasoning_status_text = status_text
+                    content_status_text = status_text
+                    upload_status_text = status_text
+                else:
+                    reasoning_status_text = get_reasoning_status_text(status_text_seed)
+                    content_status_text = get_content_status_text(status_text_seed)
+                    upload_status_text = get_upload_status_text(status_text_seed)
+
                 print_content_flag = False
                 print_thinking_flag = False
-                with render_status(status_text.ljust(STATUS_TEXT_LENGTH)) as status:
+
+                current_status_text = upload_status_text
+                with render_status(current_status_text.ljust(STATUS_TEXT_LENGTH)) as status:
                     async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout, interrupt_check):
                         if stream_status.phase == 'tool_call':
                             indicator = '⚒'
+                            if stream_status.tool_names:
+                                current_status_text = get_tool_call_status_text(stream_status.tool_names[-1], status_text_seed)
                         elif stream_status.phase == 'upload':
                             indicator = '↑'
                         elif stream_status.phase == 'think':
                             indicator = '✻'
+                            current_status_text = reasoning_status_text
                         else:
                             indicator = '↓'
-                        current_status_text = (
-                            get_tool_call_status_text(stream_status.tool_names[-1]) if stream_status.phase == 'tool_call' and stream_status.tool_names else status_text
-                        )
+                            current_status_text = content_status_text
                         status.update(
                             Text.assemble(
                                 current_status_text.ljust(STATUS_TEXT_LENGTH),
@@ -584,7 +662,7 @@ class LLMProxy:
         tools: Optional[List[Tool]] = None,
         show_status: bool = True,
         use_streaming: bool = True,
-        status_text: str = 'Thinking...',
+        status_text: Optional[str] = None,
         timeout: float = 20.0,
     ) -> AIMessage:
         """
@@ -669,7 +747,7 @@ class LLMManager:
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
         show_status: bool = True,
-        status_text: str = 'Thinking...',
+        status_text: Optional[str] = None,
         use_streaming: bool = True,
         timeout: float = 20.0,
         interrupt_check: Optional[callable] = None,
