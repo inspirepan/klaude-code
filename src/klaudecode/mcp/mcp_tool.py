@@ -1,4 +1,5 @@
 import asyncio
+import concurrent.futures
 import json
 from typing import Any, Dict, Optional
 
@@ -90,34 +91,83 @@ class MCPToolWrapper(Tool):
 
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
-        """Execute MCP tool"""
+        """Execute MCP tool (sync wrapper for compatibility)"""
         try:
             # Parse input parameters
             args_dict = json.loads(tool_call.tool_args)
 
-            # Asynchronously call MCP tool
-            result = asyncio.run(cls._call_mcp_tool_async(args_dict))
+            # Create a new event loop for this thread if none exists
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If we're in an async context, create a new thread
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(cls._sync_mcp_call, args_dict)
+                        result = future.result(timeout=cls.timeout)
+                else:
+                    # Use the existing loop
+                    result = loop.run_until_complete(
+                        asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=cls.timeout)
+                    )
+            except RuntimeError:
+                # No event loop in current thread, create a new one
+                result = asyncio.run(
+                    asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=cls.timeout)
+                )
 
             # Set result
-            if isinstance(result, dict):
-                if 'content' in result:
-                    # Process content array
-                    content_parts = []
-                    for content_item in result['content']:
-                        if content_item.get('type') == 'text':
-                            content_parts.append(content_item.get('text', ''))
-                        elif content_item.get('type') == 'image':
-                            content_parts.append(f'[Image: {content_item.get("data", "base64 data")}]')
-                        else:
-                            content_parts.append(str(content_item))
-                    instance.tool_result().set_content('\n'.join(content_parts))
-                else:
-                    instance.tool_result().set_content(json.dumps(result, indent=2, ensure_ascii=False))
-            else:
-                instance.tool_result().set_content(str(result))
+            cls._process_result(result, instance)
 
         except Exception as e:
             instance.tool_result().set_error_msg(f'MCP tool error: {str(e)}')
+
+    @classmethod
+    def _sync_mcp_call(cls, args_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Synchronous wrapper for MCP tool call"""
+        return asyncio.run(
+            asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=cls.timeout)
+        )
+
+    @classmethod
+    async def invoke_async(cls, tool_call: ToolCall, instance: 'ToolInstance'):
+        """Execute MCP tool (native async implementation)"""
+        try:
+            # Parse input parameters
+            args_dict = json.loads(tool_call.tool_args)
+
+            # Call MCP tool directly with proper timeout handling
+            result = await asyncio.wait_for(
+                cls._call_mcp_tool_async(args_dict),
+                timeout=cls.timeout
+            )
+
+            # Set result
+            cls._process_result(result, instance)
+
+        except asyncio.TimeoutError:
+            instance.tool_result().set_error_msg(f'MCP tool {cls.mcp_tool_name} timed out after {cls.timeout}s')
+        except Exception as e:
+            instance.tool_result().set_error_msg(f'MCP tool error: {str(e)}')
+
+    @classmethod
+    def _process_result(cls, result: Dict[str, Any], instance: 'ToolInstance'):
+        """Process MCP tool result and set it to instance"""
+        if isinstance(result, dict):
+            if 'content' in result:
+                # Process content array
+                content_parts = []
+                for content_item in result['content']:
+                    if content_item.get('type') == 'text':
+                        content_parts.append(content_item.get('text', ''))
+                    elif content_item.get('type') == 'image':
+                        content_parts.append(f'[Image: {content_item.get("data", "base64 data")}]')
+                    else:
+                        content_parts.append(str(content_item))
+                instance.tool_result().set_content('\n'.join(content_parts))
+            else:
+                instance.tool_result().set_content(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            instance.tool_result().set_content(str(result))
 
     @classmethod
     async def _call_mcp_tool_async(cls, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -199,7 +249,7 @@ class MCPManager:
 
         # Show tools if initialized
         if self._initialized and self.mcp_client and self.mcp_client.tools:
-            yield Text(f'\nAvailable MCP tools ({len(self.mcp_client.tools)}):', style=ColorStyle.SUCCESS.bold())
+            yield Text(f'\nAvailable MCP tools ({len(self.mcp_client.tools)}):\n', style=ColorStyle.SUCCESS.bold())
 
             # Group tools by server
             tools_by_server = {}
