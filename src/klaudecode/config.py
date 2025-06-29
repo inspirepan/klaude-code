@@ -26,6 +26,7 @@ def parse_json_string(value: Union[Dict, str]) -> Dict:
             return {}
     return {}
 
+
 """
 Unified configuration management system
 Priority: CLI args > Environment variables > Config file > Default values
@@ -177,7 +178,7 @@ class ArgConfigSource(ConfigSource):
         # Parse JSON strings for extra_header and extra_body
         parsed_extra_header = parse_json_string(extra_header) if extra_header else None
         parsed_extra_body = parse_json_string(extra_body) if extra_body else None
-        
+
         self.config_model = ConfigModel(
             source='cli',
             api_key=api_key,
@@ -327,6 +328,7 @@ class DefaultConfigSource(ConfigSource):
             model_name=DEFAULT_MODEL_NAME,
             base_url=DEFAULT_BASE_URL,
             model_azure=DEFAULT_MODEL_AZURE,
+            api_version=DEFAULT_API_VERSION,
             max_tokens=DEFAULT_MAX_TOKENS,
             context_window_threshold=DEFAULT_CONTEXT_WINDOW_THRESHOLD,
             extra_header=DEFAULT_EXTRA_HEADER,
