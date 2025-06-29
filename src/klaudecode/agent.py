@@ -41,7 +41,8 @@ from .user_questionary import user_select
 
 DEFAULT_MAX_STEPS = 80
 INTERACTIVE_MAX_STEPS = 100
-TOKEN_WARNING_THRESHOLD = 0.9
+TOKEN_WARNING_THRESHOLD = 0.85
+COMPACT_THRESHOLD = 0.9
 TODO_SUGGESTION_LENGTH_THRESHOLD = 40
 
 BASIC_TOOLS = [LsTool, GrepTool, GlobTool, ReadTool, EditTool, MultiEditTool, WriteTool, BashTool, TodoWriteTool, TodoReadTool, ExitPlanModeTool]
@@ -277,7 +278,7 @@ class Agent(Tool):
 
     async def _auto_compact_conversation(self, tools: Optional[List[Tool]] = None):
         """Check token count and compact conversation history if necessary"""
-        messages_tokens = sum(msg.tokens for msg in self.session.messages)
+        messages_tokens = sum(msg.tokens for msg in self.session.messages if msg)
         tools_tokens = sum(tool.tokens() for tool in (tools or self.tools))
         total_tokens = messages_tokens + tools_tokens
         if not self.config or not self.config.context_window_threshold:
@@ -285,7 +286,7 @@ class Agent(Tool):
         if total_tokens > self.config.context_window_threshold.value * TOKEN_WARNING_THRESHOLD:
             clear_last_line()
             console.print(Text(f'Notice: total_tokens: {total_tokens}, context_window_threshold: {self.config.context_window_threshold.value}\n', style=ColorStyle.WARNING.value))
-        if total_tokens > self.config.context_window_threshold.value:
+        if total_tokens > self.config.context_window_threshold.value * COMPACT_THRESHOLD:
             await self.session.compact_conversation_history(show_status=self.print_switch, llm_manager=self.llm_manager)
 
     async def headless_run(self, user_input_text: str, print_trace: bool = False):

@@ -22,7 +22,7 @@ class CompactCommand(Command):
         command_handle_output.user_msg.removed = True
         console.print()
         agent.append_message(command_handle_output.user_msg)
-        await agent.session.compact_conversation_history(instructions=user_input.cleaned_input, show_status=True)
+        await agent.session.compact_conversation_history(instructions=user_input.cleaned_input, show_status=True, llm_manager=agent.llm_manager)
         return command_handle_output
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:

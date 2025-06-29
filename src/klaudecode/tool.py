@@ -1,6 +1,5 @@
 import asyncio
 import json
-import random
 import signal
 import threading
 from abc import ABC

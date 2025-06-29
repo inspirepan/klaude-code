@@ -187,7 +187,7 @@ class OpenAIProxy:
         timeout: float = 20.0,
         interrupt_check: Optional[callable] = None,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
-        stream_status = StreamStatus(tokens=sum(msg.tokens for msg in msgs))
+        stream_status = StreamStatus(tokens=sum(msg.tokens for msg in msgs if msg))
         yield (stream_status, AIMessage(content=''))
 
         try:
@@ -379,7 +379,7 @@ class AnthropicProxy:
         timeout: float = 20.0,
         interrupt_check: Optional[callable] = None,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
-        stream_status = StreamStatus(tokens=sum(msg.tokens for msg in msgs))
+        stream_status = StreamStatus(tokens=sum(msg.tokens for msg in msgs if msg))
         yield (stream_status, AIMessage(content=''))
 
         system_msgs, other_msgs = self.convert_to_anthropic(msgs)

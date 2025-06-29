@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 class MacSetupCommand(Command):
     def get_name(self) -> str:
-        return 'mac-setup'
+        return 'mac_setup'
 
     def get_command_desc(self) -> str:
         return 'Install fd, rg (ripgrep) using Homebrew on macOS for optimal performance'
@@ -126,6 +126,5 @@ class MacSetupCommand(Command):
         if result_items:
             yield Panel.fit(
                 Group(*result_items),
-                title='Mac Setup Results',
                 border_style=ColorStyle.SUCCESS.value if all(r['status'] in ['already_installed', 'installed'] for r in results) else ColorStyle.WARNING.value,
             )
