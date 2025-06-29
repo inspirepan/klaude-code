@@ -2,7 +2,7 @@ import re
 import sys
 from enum import Enum
 from pathlib import Path
-from typing import List, Literal, Optional, Union
+from typing import List, Literal, Optional, Tuple, Union
 
 from rich import box
 from rich.abc import RichRenderable
@@ -212,11 +212,11 @@ def render_message(
     return table
 
 
-def render_grid(item: List[List[Union[str, RichRenderable]]]) -> RichRenderable:
+def render_grid(item: List[List[Union[str, RichRenderable]]], padding: Tuple[int, int] = (0, 1)) -> RichRenderable:
     if not item:
         return ''
     column_count = len(item[0])
-    grid = Table.grid(padding=(0, 1))
+    grid = Table.grid(padding=padding)
     for _ in range(column_count):
         grid.add_column(overflow='fold')
     for row in item:
@@ -337,19 +337,19 @@ def _parse_markdown_table(lines: list[str], start_index: int, style: Optional[Un
 
 
 def render_hello() -> RenderResult:
-    table = Table.grid(padding=(0, 1))
-    table.add_column(width=0, no_wrap=True)
-    table.add_column(overflow='fold')
-    table.add_row(
-        Text('✻', style=ColorStyle.AI_MESSAGE),
-        Group(
-            'Welcome to [bold]Klaude Code[/bold]!',
-            '',
-            '[italic]/status for your current setup[/italic]',
-            '',
-            Text('cwd: {}'.format(Path.cwd())),
-        ),
-    )
+    grid_data = [
+        [
+            Text('✻', style=ColorStyle.AI_MESSAGE),
+            Group(
+                'Welcome to [bold]Klaude Code[/bold]!',
+                '',
+                '[italic]/status for your current setup[/italic]',
+                '',
+                Text('cwd: {}'.format(Path.cwd())),
+            ),
+        ]
+    ]
+    table = render_grid(grid_data)
     return Group(
         Panel.fit(table, border_style=ColorStyle.AI_MESSAGE),
         '',

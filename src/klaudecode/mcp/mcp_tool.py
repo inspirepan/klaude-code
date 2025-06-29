@@ -9,7 +9,7 @@ from rich.table import Table
 
 from ..message import ToolCall
 from ..tool import Tool, ToolInstance
-from ..tui import ColorStyle, console
+from ..tui import ColorStyle, console, render_grid
 from .mcp_client import MCPClient
 
 
@@ -229,14 +229,13 @@ class MCPManager:
             return
 
         yield Text('\nConfigured MCP servers:', style='bold')
-        server_table = Table.grid(padding=(0, 1))
-        server_table.add_column(no_wrap=True)
-        server_table.add_column(no_wrap=True)
-        server_table.add_column(overflow='fold')
-        for name, server_config in config.mcpServers.items():
-            args_str = ' '.join(server_config.args) if server_config.args else ''
-            server_table.add_row(Text(name, style=ColorStyle.SUCCESS.value), Text(server_config.command), Text(args_str))
-        yield server_table
+
+        yield render_grid(
+            [
+                [Text(name, style=ColorStyle.INFO.bold()), Text(server_config.command), Text(' '.join(server_config.args) if server_config.args else '')]
+                for name, server_config in config.mcpServers.items()
+            ]
+        )
 
         # Show tools if initialized
         if self._initialized and self.mcp_client and self.mcp_client.tools:
@@ -255,7 +254,7 @@ class MCPManager:
             main_table.add_column(overflow='fold')
 
             for server_name, tools in tools_by_server.items():
-                main_table.add_row(f'[bold cyan]{server_name}[/bold cyan] ({len(tools)} tools)', '')
+                main_table.add_row(Text.assemble((server_name, ColorStyle.INFO.bold()), f'({len(tools)} tools)'), '')
 
                 for tool_info in tools:
                     tool_name = tool_info['name']
@@ -276,7 +275,7 @@ class MCPManager:
                             is_required = param_name in required_fields
                             required_indicator = '*' if is_required else ''
                             param_table.add_row(
-                                Text(f'· {param_name}{required_indicator}', style=ColorStyle.HIGHLIGHT.bold()), Text(param_type, style=ColorStyle.INFO.value), Text(param_desc)
+                                Text(f'· {param_name}{required_indicator}', style=ColorStyle.HIGHLIGHT.value)), Text(param_type, style=ColorStyle.INFO.value), Text(param_desc)
                             )
                         main_table.add_row(Text(tool_name, style=ColorStyle.SUCCESS.value), Group(tool_desc, '', param_table, ''))
                     else:

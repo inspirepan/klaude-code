@@ -2,13 +2,12 @@ from pathlib import Path
 from typing import Annotated, Optional
 
 from pydantic import BaseModel, Field
-from rich.table import Table
 from rich.text import Text
 
 from ..message import ToolCall, ToolMessage, count_tokens, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import READ_TOOL_DESC, READ_TOOL_EMPTY_REMINDER, READ_TOOL_RESULT_REMINDER
 from ..tool import Tool, ToolInstance
-from ..tui import ColorStyle, render_suffix
+from ..tui import ColorStyle, render_grid, render_suffix
 from ..utils.file_utils import FileTracker, get_relative_path_for_display, read_file_content, read_file_lines_partial, validate_file_exists
 
 """
@@ -224,14 +223,8 @@ def render_read_content(tool_msg: ToolMessage):
     truncated = tool_msg.get_extra_data('truncated', False)
 
     if brief_list:
-        table = Table.grid(padding=(0, 2))
         width = len(str(brief_list[-1][0]))
-        table.add_column(width=width, justify='right')
-        table.add_column(overflow='fold')
-        for line_num, line_content in brief_list:
-            line_text = Text(line_content)
-            table.add_row(f'{line_num:>{width}}', line_text)
-
+        table = render_grid([[f'{line_num:>{width}}', Text(line_content)] for line_num, line_content in brief_list], padding=(0, 2))
         # Build read info with Rich Text for styling
         read_text = Text()
         read_text.append('Read ')

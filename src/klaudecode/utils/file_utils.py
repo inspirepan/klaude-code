@@ -347,7 +347,6 @@ def read_file_lines_partial(file_path: str, offset: Optional[int] = None, limit:
     """Read file lines with offset and limit to avoid loading entire file into memory"""
     try:
         lines = []
-        warning = ''
         with open(file_path, 'r', encoding='utf-8') as f:
             if offset is not None and offset > 1:
                 for _ in range(offset - 1):
@@ -365,7 +364,7 @@ def read_file_lines_partial(file_path: str, offset: Optional[int] = None, limit:
                 lines.append(line.rstrip('\n\r'))
                 count += 1
 
-        return lines, warning
+        return lines, ''
     except UnicodeDecodeError:
         try:
             lines = []

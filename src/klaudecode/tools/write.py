@@ -2,13 +2,12 @@ from pathlib import Path
 from typing import Annotated
 
 from pydantic import BaseModel, Field
-from rich.table import Table
 from rich.text import Text
 
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
-from ..tui import ColorStyle, render_suffix
+from ..tui import ColorStyle, render_grid, render_suffix
 from ..utils.file_utils import cleanup_backup, create_backup, ensure_directory_exists, get_relative_path_for_display, restore_backup, write_file_content
 
 """
@@ -115,18 +114,9 @@ def render_write_result(tool_msg: ToolMessage):
     total_lines = tool_msg.get_extra_data('total_lines', 0)
 
     if preview_lines:
-        table = Table.grid(padding=(0, 2))
         width = len(str(preview_lines[-1][0])) if preview_lines else 1
-        table.add_column(width=width, justify='right')
-        table.add_column(overflow='fold')
-
-        for line_num, line_content in preview_lines:
-            table.add_row(f'{line_num:>{width}}', Text(line_content))
-
-        if total_lines > len(preview_lines):
-            table.add_row('…', f'Written [bold]{total_lines}[/bold] lines')
-        else:
-            table.add_row('', f'Written [bold]{total_lines}[/bold] lines')
+        table = render_grid([[f'{line_num:>{width}}', Text(line_content)] for line_num, line_content in preview_lines], padding=(0, 2))
+        table.add_row('…' if total_lines > len(preview_lines) else '', f'Written [bold]{total_lines}[/bold] lines')
 
         yield render_suffix(table)
     elif total_lines > 0:

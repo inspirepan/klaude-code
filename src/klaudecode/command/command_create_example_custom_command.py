@@ -9,7 +9,7 @@ from rich.text import Text
 
 from ..message import UserMessage
 from ..prompt.commands import ANALYSE_RECENT_GTI_COMMIT_COMMAND, GIT_COMMIT_COMMAND
-from ..tui import ColorStyle
+from ..tui import ColorStyle, render_grid
 from ..user_input import Command, CommandHandleOutput, UserInput
 from ..user_questionary import user_select
 
@@ -69,17 +69,16 @@ class CreateExampleCommand(Command):
         recent_analysis_file = user_msg.get_extra_data('recent_analysis_file')
         scope = user_msg.get_extra_data('scope')
         if git_commit_file and recent_analysis_file:
-            grid = Table.grid()
-            grid.add_column()
-            grid.add_column(overflow='fold')
-            grid.add_row(Text('/create_git_commit ', style=ColorStyle.SUCCESS.bold()), Text(f'- {git_commit_file}'))
-            grid.add_row(Text('/analyse_recent_git_commit ', style=ColorStyle.SUCCESS.bold()), Text(f'- {recent_analysis_file}'))
-
             yield Panel.fit(
                 Group(
                     Text.assemble(('✓ ', ColorStyle.SUCCESS.bold()), (f'Example commands created in {scope} scope:', ColorStyle.SUCCESS), (' (restart to use)', ColorStyle.MUTED)),
                     '',
-                    grid,
+                    render_grid(
+                        [
+                            [Text('/create_git_commit ', style=ColorStyle.SUCCESS.bold()), Text(f'- {git_commit_file}')],
+                            [Text('/analyse_recent_git_commit ', style=ColorStyle.SUCCESS.bold()), Text(f'- {recent_analysis_file}')],
+                        ]
+                    ),
                 ),
                 border_style=ColorStyle.SUCCESS.value,
             )
