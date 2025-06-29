@@ -222,7 +222,7 @@ Please analyze the conversation and extract:
 
 1. **Command Name**: A short, descriptive name for the command (lowercase, use underscores if needed)
 2. **Description**: A brief description of what this command does  
-3. **Command Content**: The actual content that would be sent to the AI when this command is used
+3. **Command Content**: The actual content that would be sent to the AI when this command is used (written from the user's perspective, as if the user is directly asking the AI to perform the task)
 
 Guidelines for creating the command:
 - Focus on the main task or workflow pattern, not specific details

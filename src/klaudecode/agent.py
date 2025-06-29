@@ -125,7 +125,7 @@ class Agent(Tool):
         try:
             self._handle_claudemd_reminder()
             self._handle_empty_todo_reminder()
-            for i in range(max_steps):
+            for _ in range(max_steps):
                 # Check if task was canceled (for subagent execution)
                 if parent_tool_instance and parent_tool_instance.tool_result().tool_call.status == 'canceled':
                     return INTERRUPTED_MSG
@@ -138,12 +138,14 @@ class Agent(Tool):
                 self._handle_file_external_modified_reminder()
 
                 self.session.save()
+
                 ai_msg = await self.llm_manager.call(
                     msgs=self.session.messages,
                     tools=tools,
                     show_status=self.print_switch,
                     interrupt_check=self._should_interrupt,
                 )
+
                 self.append_message(ai_msg)
                 if ai_msg.finish_reason == 'stop':
                     # Cannot directly use this AI response's content as result,

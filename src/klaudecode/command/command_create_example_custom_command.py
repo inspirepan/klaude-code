@@ -74,8 +74,8 @@ class CreateExampleCommand(Command):
                     '',
                     render_grid(
                         [
-                            [Text('/create_git_commit ', style=ColorStyle.SUCCESS.bold()), Text(f'- {git_commit_file}')],
-                            [Text('/analyse_recent_git_commit ', style=ColorStyle.SUCCESS.bold()), Text(f'- {recent_analysis_file}')],
+                            [Text('/create_git_commit ', style=ColorStyle.SUCCESS.bold()), Text(git_commit_file)],
+                            [Text('/analyse_recent_git_commit ', style=ColorStyle.SUCCESS.bold()), Text(recent_analysis_file)],
                         ]
                     ),
                 ),

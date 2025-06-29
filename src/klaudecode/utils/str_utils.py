@@ -1,4 +1,5 @@
 import re
+from typing import Optional
 
 
 def truncate_end_text(text: str, max_lines: int = 15) -> str:
@@ -14,7 +15,7 @@ def truncate_end_text(text: str, max_lines: int = 15) -> str:
     return truncated_content
 
 
-def sanitize_filename(text: str, max_length: int = 20) -> str:
+def sanitize_filename(text: str, max_length: Optional[int] = None) -> str:
     if not text:
         return 'untitled'
     text = re.sub(r'[^\w\u4e00-\u9fff\u3400-\u4dbf\u3040-\u309f\u30a0-\u30ff\s.-]', '_', text)
@@ -22,7 +23,7 @@ def sanitize_filename(text: str, max_length: int = 20) -> str:
     text = text.strip('_')
     if not text:
         return 'untitled'
-    if len(text) > max_length:
+    if max_length and len(text) > max_length:
         text = text[:max_length].rstrip('_')
 
     return text
