@@ -59,9 +59,7 @@ class CustomCommand(RewriteQueryCommand):
         def execute_command(match):
             command = match.group(1).strip()
             try:
-                result = subprocess.run(
-                    command, shell=True, capture_output=True, text=True, timeout=30, cwd=self.file_path.parent.parent if self.file_path.parent.name == 'commands' else Path.cwd()
-                )
+                result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30, cwd=Path.cwd())
 
                 output_parts = []
                 if result.stdout.strip():
