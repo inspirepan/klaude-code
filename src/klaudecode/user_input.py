@@ -147,6 +147,8 @@ class InputModeCommand(Command, ABC):
 
     def get_style(self):
         style_dict = get_prompt_toolkit_style()
+        if self._get_color():
+            style_dict[''] = self._get_color()
         return Style.from_dict(style_dict)
 
 
