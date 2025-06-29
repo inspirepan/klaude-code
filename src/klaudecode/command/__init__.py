@@ -5,6 +5,7 @@ from .command_cost import CostCommand
 from .command_create_example_custom_command import CreateExampleCommand
 from .command_init import InitCommand
 from .command_mac_setup import MacSetupCommand
+from .command_memory import MemoryCommand
 from .command_save_as_custom_command import SaveAsCustomCommandCommand
 from .command_status import StatusCommand
 from .command_theme import ThemeCommand
@@ -13,7 +14,7 @@ from .custom_command_manager import CustomCommandManager, custom_command_manager
 from .input_mode_bash import BashMode
 from .input_mode_memory import MemoryMode
 from .input_mode_plan import PlanMode
-from .rewrite_query_command import RewriteQueryCommand
+from .query_rewrite_command import QueryRewriteCommand
 
 __all__ = [
     'StatusCommand',
@@ -22,7 +23,8 @@ __all__ = [
     'CostCommand',
     'ClearCommand',
     'MacSetupCommand',
-    'RewriteQueryCommand',
+    'QueryRewriteCommand',
+    'MemoryCommand',
     'InitCommand',
     'ThemeCommand',
     'CreateExampleCommand',
@@ -42,6 +44,7 @@ register_input_mode(BashMode())
 register_input_mode(MemoryMode())
 register_slash_command(StatusCommand())
 register_slash_command(InitCommand())
+register_slash_command(MemoryCommand())
 register_slash_command(ClearCommand())
 register_slash_command(CompactCommand())
 register_slash_command(ContinueCommand())

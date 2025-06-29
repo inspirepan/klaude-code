@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from ..agent import Agent
 
 
-class RewriteQueryCommand(Command, ABC):
+class QueryRewriteCommand(Command, ABC):
     @abstractmethod
     def get_query_content(self, user_input: UserInput) -> str:
         pass

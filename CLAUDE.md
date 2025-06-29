@@ -11,15 +11,21 @@ uv sync
 
 # Install in development mode
 uv pip install -e .
+
+# Run the CLI in development
+klaude
 ```
 
 ### Code Quality
 ```bash
-# Format code
+# Format code (ruff is configured for line-length 180, Python 3.13+)
 isort src/ && ruff format src/
 
 # Lint code
 ruff check src/
+
+# Run all quality checks
+isort src/ && ruff format src/ && ruff check src/
 ```
 
 ### Package Management
@@ -127,3 +133,5 @@ Klaude Code is a CLI tool that provides an AI coding assistant powered by Claude
 - Session files use JSONL format for append-only message storage
 - The agent can spawn sub-agents for complex tasks while maintaining proper isolation
 - Plan mode provides a special workflow for task planning and approval
+- Code formatting uses ruff with 180 character line length and single quote style
+- Entry point is defined as `klaude = "klaudecode.cli:app"` in pyproject.toml

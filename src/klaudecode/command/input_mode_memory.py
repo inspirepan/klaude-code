@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 class MemoryMode(InputModeCommand):
     def get_name(self) -> str:
-        return 'memory'
+        return 'memory_input'
 
     def _get_prompt(self) -> str:
         return '#'

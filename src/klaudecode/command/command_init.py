@@ -2,13 +2,13 @@ from typing import TYPE_CHECKING
 
 from ..prompt.commands import INIT_COMMAND
 from ..user_input import UserInput
-from .rewrite_query_command import RewriteQueryCommand
+from .query_rewrite_command import QueryRewriteCommand
 
 if TYPE_CHECKING:
     pass
 
 
-class InitCommand(RewriteQueryCommand):
+class InitCommand(QueryRewriteCommand):
     def get_name(self) -> str:
         return 'init'
 

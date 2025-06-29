@@ -6,13 +6,13 @@ from typing import TYPE_CHECKING, List, Optional
 import yaml
 
 from ..user_input import UserInput
-from .rewrite_query_command import RewriteQueryCommand
+from .query_rewrite_command import QueryRewriteCommand
 
 if TYPE_CHECKING:
     pass
 
 
-class CustomCommand(RewriteQueryCommand):
+class CustomCommand(QueryRewriteCommand):
     def __init__(
         self,
         name: str,
