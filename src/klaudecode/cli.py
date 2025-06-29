@@ -118,7 +118,6 @@ def main(
     extra_header: Optional[str] = typer.Option(None, '--extra-header', help='Override extra header from config (JSON string)'),
     extra_body: Optional[str] = typer.Option(None, '--extra-body', help='Override extra body from config (JSON string)'),
     mcp: bool = typer.Option(False, '--mcp', help='Enable MCP (Model Context Protocol) tools'),
-    debug: bool = typer.Option(False, '--debug', help='Enable debug mode to save HTTP requests/responses'),
 ):
     ctx.ensure_object(dict)
     if ctx.invoked_subcommand is None:
@@ -142,7 +141,6 @@ def main(
         ctx.obj['resume'] = resume
         ctx.obj['continue_latest'] = continue_latest
         ctx.obj['mcp'] = mcp
-        ctx.obj['debug'] = debug
         ctx.obj['config'] = config_model
         asyncio.run(main_async(ctx))
 

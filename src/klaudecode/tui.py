@@ -125,7 +125,7 @@ dark_theme = Theme(
         ColorStyle.SEPARATOR: 'rgb(50,50,50)',
         # Todo
         ColorStyle.TODO_COMPLETED: 'rgb(107,184,109)',
-        ColorStyle.TODO_IN_PROGRESS: 'rgb(180,204,245)',
+        ColorStyle.TODO_IN_PROGRESS: 'rgb(150,204,235)',
         # Tools and agents
         ColorStyle.AGENT_BORDER: 'rgb(110,131,127)',
         # Code
@@ -139,7 +139,7 @@ dark_theme = Theme(
         ColorStyle.INPUT_PROMPT: 'rgb(210,210,210)',
         ColorStyle.INPUT_PLACEHOLDER: 'rgb(151,153,153)',
         ColorStyle.COMPLETION_MENU: 'rgb(154,154,154)',
-        ColorStyle.COMPLETION_SELECTED: 'rgb(170,221,255)',
+        ColorStyle.COMPLETION_SELECTED: 'rgb(74,74,74)',
         # Input mode colors
         ColorStyle.BASH_MODE: 'rgb(255,102,170)',
         ColorStyle.MEMORY_MODE: 'rgb(200,205,255)',
