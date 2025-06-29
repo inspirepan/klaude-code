@@ -114,6 +114,9 @@ def main(
         '--thinking',
         help='Enable Claude Extended Thinking capability (only for Anthropic Offical API yet)',
     ),
+    api_version: Optional[str] = typer.Option(None, '--api-version', help='Override API version from config'),
+    extra_header: Optional[str] = typer.Option(None, '--extra-header', help='Override extra header from config (JSON string)'),
+    extra_body: Optional[str] = typer.Option(None, '--extra-body', help='Override extra body from config (JSON string)'),
     mcp: bool = typer.Option(False, '--mcp', help='Enable MCP (Model Context Protocol) tools'),
     debug: bool = typer.Option(False, '--debug', help='Enable debug mode to save HTTP requests/responses'),
 ):
@@ -127,6 +130,9 @@ def main(
                 model_azure=model_azure,
                 max_tokens=max_tokens,
                 enable_thinking=thinking,
+                api_version=api_version,
+                extra_header=extra_header,
+                extra_body=extra_body,
             )
         except ValueError as e:
             console.print(Text(f'Error: {e}', style=ColorStyle.ERROR.value))

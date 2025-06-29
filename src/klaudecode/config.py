@@ -13,6 +13,19 @@ from rich.text import Text
 
 from .tui import ColorStyle, console
 
+
+def parse_json_string(value: Union[Dict, str]) -> Dict:
+    """Parse JSON string to dict, return as-is if already dict"""
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            console.print(Text(f'Warning: Invalid JSON string, using empty dict: {value}', style=ColorStyle.ERROR.value))
+            return {}
+    return {}
+
 """
 Unified configuration management system
 Priority: CLI args > Environment variables > Config file > Default values
@@ -27,6 +40,7 @@ DEFAULT_MAX_TOKENS = 8196
 DEFAULT_EXTRA_HEADER = {}
 DEFAULT_EXTRA_BODY = {}
 DEFAULT_ENABLE_THINKING = False
+DEFAULT_API_VERSION = '2024-03-01-preview'
 DEFAULT_THEME = 'dark'  # or 'light'
 
 T = TypeVar('T')
@@ -55,6 +69,7 @@ class ConfigModel(BaseModel):
     extra_header: Optional[ConfigValue[Union[Dict, str]]] = None
     extra_body: Optional[ConfigValue[Union[Dict, str]]] = None
     enable_thinking: Optional[ConfigValue[bool]] = None
+    api_version: Optional[ConfigValue[str]] = None
     theme: Optional[ConfigValue[str]] = None
 
     def __init__(self, source: str = 'unknown', **data):
@@ -100,6 +115,7 @@ class ConfigModel(BaseModel):
             ('extra_header', 'Extra Header'),
             ('extra_body', 'Extra Body'),
             ('enable_thinking', 'Extended Thinking'),
+            ('api_version', 'API Version'),
             ('theme', 'Theme'),
         ]
 
@@ -155,8 +171,13 @@ class ArgConfigSource(ConfigSource):
         extra_header: Optional[str] = None,
         extra_body: Optional[str] = None,
         enable_thinking: Optional[bool] = None,
+        api_version: Optional[str] = None,
     ):
         super().__init__('cli')
+        # Parse JSON strings for extra_header and extra_body
+        parsed_extra_header = parse_json_string(extra_header) if extra_header else None
+        parsed_extra_body = parse_json_string(extra_body) if extra_body else None
+        
         self.config_model = ConfigModel(
             source='cli',
             api_key=api_key,
@@ -165,9 +186,10 @@ class ArgConfigSource(ConfigSource):
             model_azure=model_azure,
             max_tokens=max_tokens,
             context_window_threshold=context_window_threshold,
-            extra_header=extra_header,
-            extra_body=extra_body,
+            extra_header=parsed_extra_header,
+            extra_body=parsed_extra_body,
             enable_thinking=enable_thinking,
+            api_version=api_version,
         )
 
 
@@ -186,6 +208,7 @@ class EnvConfigSource(ConfigSource):
             'extra_header': 'EXTRA_HEADER',
             'extra_body': 'EXTRA_BODY',
             'enable_thinking': 'ENABLE_THINKING',
+            'api_version': 'API_VERSION',
         }
         self._load_env_config()
 
@@ -203,6 +226,8 @@ class EnvConfigSource(ConfigSource):
                         config_data[key] = int(env_value)
                     except ValueError:
                         config_data[key] = None
+                elif key in ['extra_header', 'extra_body']:
+                    config_data[key] = parse_json_string(env_value)
                 else:
                     config_data[key] = env_value
 
@@ -268,6 +293,7 @@ class GlobalConfigSource(ConfigSource):
             'extra_header': DEFAULT_EXTRA_HEADER,
             'extra_body': DEFAULT_EXTRA_BODY,
             'enable_thinking': DEFAULT_ENABLE_THINKING,
+            'api_version': DEFAULT_API_VERSION,
             'theme': DEFAULT_THEME,
         }
         try:
@@ -381,6 +407,7 @@ class ConfigManager:
         extra_header: Optional[str] = None,
         extra_body: Optional[str] = None,
         enable_thinking: Optional[bool] = None,
+        api_version: Optional[str] = None,
     ) -> 'ConfigManager':
         """Create a ConfigManager with all configuration sources
 
@@ -404,6 +431,7 @@ class ConfigManager:
                 extra_header=extra_header,
                 extra_body=extra_body,
                 enable_thinking=enable_thinking,
+                api_version=api_version,
             ),
         ]
 

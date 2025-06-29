@@ -48,6 +48,7 @@ class OpenAIProxy:
         max_tokens: int,
         extra_header: dict,
         extra_body: dict,
+        api_version: str,
         enable_thinking: Optional[bool] = None,
     ):
         self.model_name = model_name
@@ -57,11 +58,12 @@ class OpenAIProxy:
         self.max_tokens = max_tokens
         self.extra_header = extra_header
         self.extra_body = extra_body.copy() if extra_body else {}
+        self.api_version = api_version
         self.enable_thinking = enable_thinking
         if model_azure:
             self.client = openai.AsyncAzureOpenAI(
                 azure_endpoint=self.base_url,
-                api_version='2024-03-01-preview',
+                api_version=self.api_version,
                 api_key=self.api_key,
             )
         else:
@@ -480,6 +482,7 @@ class LLMProxy:
         extra_header: dict,
         extra_body: dict,
         enable_thinking: bool,
+        api_version: str,
         max_retries=DEFAULT_RETRIES,
         backoff_base=DEFAULT_RETRY_BACKOFF_BASE,
     ):
@@ -488,7 +491,7 @@ class LLMProxy:
         if base_url == 'https://api.anthropic.com/v1/':
             self.client = AnthropicProxy(model_name, api_key, max_tokens, enable_thinking, extra_header, extra_body)
         else:
-            self.client = OpenAIProxy(model_name, base_url, api_key, model_azure, max_tokens, extra_header, extra_body, enable_thinking)
+            self.client = OpenAIProxy(model_name, base_url, api_key, model_azure, max_tokens, extra_header, extra_body, api_version, enable_thinking)
 
     async def _call_with_retry(
         self,
@@ -640,6 +643,7 @@ class LLMManager:
                 'extra_header': config.extra_header.value,
                 'extra_body': config.extra_body.value,
                 'enable_thinking': config.enable_thinking.value,
+                'api_version': config.api_version.value,
             }
 
     def get_client(self) -> LLMProxy:
@@ -662,6 +666,7 @@ class LLMManager:
                 extra_header=self.config_cache['extra_header'],
                 extra_body=self.config_cache['extra_body'],
                 enable_thinking=self.config_cache['enable_thinking'],
+                api_version=self.config_cache['api_version'],
             )
 
         return self.client_pool[thread_id]
