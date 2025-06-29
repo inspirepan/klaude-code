@@ -35,7 +35,7 @@ from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, ExitPlanModeTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
 from .tools.read import execute_read
-from .tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, render_hello, render_markdown, render_message, render_status, render_suffix
+from .tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, render_grid, render_hello, render_markdown, render_message, render_status, render_suffix
 from .user_input import _INPUT_MODES, NORMAL_MODE_NAME, InputSession, UserInputHandler
 from .user_questionary import user_select
 
@@ -301,7 +301,7 @@ class Agent(Tool):
         try:
             # Clear any previous interrupt state
             self._clear_interrupt()
-            need_agent_run = await self.user_input_handler.handle(user_input_text)
+            need_agent_run = await self.user_input_handler.handle(user_input_text, print_msg=False)
             if not need_agent_run:
                 return
             self.print_switch = print_trace
@@ -319,7 +319,9 @@ class Agent(Tool):
                     status.update(
                         Group(
                             f'Running... ([bold]{tool_msg_count}[/bold] tool uses)',
-                            f'[italic]see more details in session file: {self.session._get_messages_file_path()}[/italic]',
+                            '',
+                            render_grid([['details:', Text(str(self.session._get_messages_file_path()), style=ColorStyle.MUTED)]]),
+                            '',
                             Text(INTERRUPT_TIP[1:], style=ColorStyle.MUTED),
                         )
                     )

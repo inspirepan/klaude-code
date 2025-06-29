@@ -1,8 +1,5 @@
-import glob as python_glob
-import shutil
-import subprocess
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 from pydantic import BaseModel, Field
 from rich.text import Text
@@ -11,11 +8,10 @@ from ..message import ToolCall, ToolMessage, register_tool_call_renderer, regist
 from ..prompt.tools import GLOB_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from ..utils.file_utils import DEFAULT_IGNORE_PATTERNS, get_relative_path_for_display
+from ..utils.file_searcher import FileSearcher
+from ..utils.file_utils import get_relative_path_for_display
 
-DEFAULT_MAX_DEPTH = 10
 DEFAULT_MAX_FILES = 100
-DEFAULT_TIMEOUT = 30
 
 GLOB_TRUNCATED_SUGGESTION = '(Results are truncated. Consider using a more specific path or pattern.)'
 
@@ -39,7 +35,7 @@ class GlobTool(Tool):
         args: 'GlobTool.Input' = cls.parse_input_args(tool_call)
 
         # Validate glob pattern
-        error_msg = cls._validate_glob_pattern(args.pattern)
+        error_msg = FileSearcher.validate_glob_pattern(args.pattern)
         if error_msg:
             instance.tool_result().set_error_msg(error_msg)
             return
@@ -59,171 +55,20 @@ class GlobTool(Tool):
             instance.tool_result().set_error_msg(f'Search failed: {str(e)}')
 
     @classmethod
-    def _validate_glob_pattern(cls, pattern: str) -> Optional[str]:
-        """Validate glob pattern and return error message if invalid"""
-        try:
-            # Test the pattern with a simple glob operation
-            python_glob.glob(pattern, recursive=True)
-            return None
-        except Exception as e:
-            return f'Invalid glob pattern: {str(e)}'
-
-    @classmethod
-    def _has_fd(cls) -> bool:
-        """Check if fd (find alternative) is available on the system"""
-        return shutil.which('fd') is not None
-
-    @classmethod
-    def _has_find(cls) -> bool:
-        """Check if find command is available on the system"""
-        return shutil.which('find') is not None
-
-    @classmethod
-    def _build_fd_command(cls, pattern: str, path: str) -> list[str]:
-        """Build fd command with optimized arguments"""
-        args = ['fd', '--type', 'f', '--glob']  # Only files, use glob patterns
-
-        # Add depth limit
-        args.extend(['--max-depth', str(DEFAULT_MAX_DEPTH)])
-
-        # Add ignore patterns
-        for ignore_pattern in DEFAULT_IGNORE_PATTERNS:
-            args.extend(['--exclude', ignore_pattern])
-
-        # Add pattern and search path (fd uses glob patterns with --glob flag)
-        args.extend([pattern, path])
-
-        return args
-
-    @classmethod
-    def _build_find_command(cls, pattern: str, path: str) -> list[str]:
-        """Build find command as fallback"""
-        args = ['find', path, '-type', 'f']  # Only files
-
-        # Add depth limit
-        args.extend(['-maxdepth', str(DEFAULT_MAX_DEPTH)])
-
-        # Add name pattern
-        args.extend(['-name', pattern])
-
-        # Add ignore patterns
-        for ignore_pattern in DEFAULT_IGNORE_PATTERNS:
-            if ignore_pattern.startswith('*.'):
-                args.extend(['!', '-name', ignore_pattern])
-            else:
-                args.extend(['!', '-path', f'*/{ignore_pattern}/*'])
-
-        return args
-
-    @classmethod
-    def _execute_command(cls, command: list[str]) -> tuple[str, str, int]:
-        """Execute command and return stdout, stderr, and return code"""
-        try:
-            result = subprocess.run(command, capture_output=True, text=True, timeout=DEFAULT_TIMEOUT, cwd=Path.cwd())
-            return result.stdout, result.stderr, result.returncode
-        except subprocess.TimeoutExpired:
-            return '', f'Search timed out after {DEFAULT_TIMEOUT} seconds', 1
-        except Exception as e:
-            return '', f'Command execution failed: {str(e)}', 1
-
-    @classmethod
-    def _python_glob_search(cls, pattern: str, path: str) -> list[str]:
-        """Use Python's glob module as fallback"""
-        try:
-            # Construct full pattern
-            if path != '.':
-                full_pattern = Path(path) / pattern
-            else:
-                full_pattern = pattern
-
-            # Add recursive search if pattern doesn't already include it
-            if '**' not in full_pattern and '/' in pattern:
-                full_pattern = Path(path) / '**' / pattern
-
-            # Get all matches
-            matches = python_glob.glob(full_pattern, recursive=True)
-
-            # Filter matches
-            filtered_matches = []
-            for match in matches:
-                try:
-                    if not Path(match).exists() or not Path(match).is_file():
-                        continue
-
-                    # Skip hidden files
-                    if Path(match).name.startswith('.'):
-                        continue
-
-                    # Check ignore patterns
-                    should_ignore = False
-                    for ignore_pattern in DEFAULT_IGNORE_PATTERNS:
-                        if ignore_pattern.startswith('*.'):
-                            # File extension pattern
-                            if match.endswith(ignore_pattern[1:]):
-                                should_ignore = True
-                                break
-                        else:
-                            # Directory pattern
-                            if f'/{ignore_pattern}/' in match or match.endswith(f'/{ignore_pattern}'):
-                                should_ignore = True
-                                break
-
-                    if not should_ignore:
-                        filtered_matches.append(match)
-
-                except (OSError, PermissionError):
-                    continue
-
-            return sorted(filtered_matches)
-
-        except Exception:
-            return []
-
-    @classmethod
     def _execute_glob_search(cls, pattern: str, path: str) -> tuple[str, int, bool]:
         """Execute glob search and return formatted results with truncation info"""
-        files = []
+        files = FileSearcher.search_files(pattern, path)
 
-        # Try fd first (fastest)
-        if cls._has_fd():
-            command = cls._build_fd_command(pattern, path)
-            stdout, stderr, return_code = cls._execute_command(command)
-
-            if return_code == 0 and stdout.strip():
-                files = [line.strip() for line in stdout.strip().split('\n') if line.strip()]
-
-        # Try find command as fallback
-        if not files and cls._has_find():
-            command = cls._build_find_command(pattern, path)
-            stdout, stderr, return_code = cls._execute_command(command)
-
-            if return_code == 0 and stdout.strip():
-                files = [line.strip() for line in stdout.strip().split('\n') if line.strip()]
-
-        # Use Python glob as ultimate fallback
-        if not files:
-            files = cls._python_glob_search(pattern, path)
-
-        # Handle no results
         if not files:
             return 'No files found matching the pattern', 0, False
-
-        # Sort by modification time (as specified in tool description)
-        try:
-            files.sort(key=lambda f: Path(f).stat().st_mtime, reverse=True)
-        except OSError:
-            # If we can't get modification time, just use alphabetical sort
-            files.sort()
 
         file_count = len(files)
         truncated = False
 
-        # Apply truncation if needed
         if len(files) > DEFAULT_MAX_FILES:
             files = files[:DEFAULT_MAX_FILES]
             truncated = True
 
-        # Build result with truncation message
         result_lines = files
         if truncated:
             suggestion = cls._get_refinement_suggestion(pattern, path, file_count)

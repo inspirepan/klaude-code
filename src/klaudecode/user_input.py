@@ -1,4 +1,3 @@
-import fnmatch
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Generator, Optional, Tuple
@@ -19,7 +18,7 @@ from rich.text import Text
 from .message import UserMessage, register_user_msg_content_func, register_user_msg_renderer, register_user_msg_suffix_renderer
 from .prompt.reminder import LANGUAGE_REMINDER
 from .tui import ColorStyle, console, get_prompt_toolkit_color, get_prompt_toolkit_style, render_message
-from .utils.file_utils import DEFAULT_IGNORE_PATTERNS
+from .utils.file_searcher import FileSearcher
 
 """
 Command: When users press /, it prompts slash command completion
@@ -334,46 +333,27 @@ class UserInputCompleter(Completer):
 
         matches = []
         try:
-            for item in search_dir.rglob('*'):
-                if item.name.startswith('.'):
-                    continue
+            files = FileSearcher.search_files(f'{name_prefix}*' if name_prefix else '*', str(search_dir))
 
-                if not item.is_file():
-                    continue
-
-                if any(part.startswith('.') for part in item.parts):
-                    continue
-
+            for file_path in files:
                 try:
-                    relative_path = item.relative_to(workdir)
+                    relative_path = Path(file_path).relative_to(workdir)
                     path_str = str(relative_path)
                 except ValueError:
-                    relative_path = item
-                    path_str = str(item)
+                    relative_path = Path(file_path)
+                    path_str = str(file_path)
 
-                should_ignore = False
-                for pattern in DEFAULT_IGNORE_PATTERNS:
-                    if any(fnmatch.fnmatch(part, pattern) for part in relative_path.parts) or fnmatch.fnmatch(item.name, pattern) or fnmatch.fnmatch(path_str, pattern):
-                        should_ignore = True
-                        break
-
-                if should_ignore:
-                    continue
-
-                # Enhanced matching: support matching any part of the path
                 if name_prefix:
                     path_str_lower = path_str.lower()
                     name_prefix_lower = name_prefix.lower()
 
-                    # Check if prefix matches any part of the full path
                     if name_prefix_lower not in path_str_lower:
                         continue
 
-                matches.append({'path': relative_path, 'name': item.name})
+                matches.append({'path': relative_path, 'name': relative_path.name})
         except (OSError, PermissionError):
             return
 
-        # Enhanced sorting: prioritize better matches
         def sort_key(match):
             path_str = str(match['path']).lower()
             name = match['name'].lower()
@@ -382,19 +362,15 @@ class UserInputCompleter(Completer):
             if not prefix_lower:
                 return (0, name)
 
-            # Priority 1: Exact filename prefix match
             if name.startswith(prefix_lower):
                 return (0, name)
 
-            # Priority 2: Filename contains the prefix
             if prefix_lower in name:
                 return (1, name)
 
-            # Priority 3: Path prefix match
             if path_str.startswith(prefix_lower):
                 return (2, path_str)
 
-            # Priority 4: Any part of path contains the prefix
             return (3, path_str)
 
         matches.sort(key=sort_key)
