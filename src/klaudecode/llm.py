@@ -11,11 +11,12 @@ from pydantic import BaseModel, Field
 from rich.text import Text
 
 from .message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, count_tokens
-from .tool import Tool
+from .tool import Tool, get_tool_call_status_text
 from .tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, render_message, render_status, render_suffix
 
 DEFAULT_RETRIES = 3
 DEFAULT_RETRY_BACKOFF_BASE = 0.5
+STATUS_TEXT_LENGTH = 12
 
 NON_RETRY_EXCEPTIONS = (
     KeyboardInterrupt,
@@ -462,15 +463,6 @@ class AnthropicProxy:
         return AnthropicProxy.anthropic_stop_reason_openai_mapping[stop_reason]
 
 
-def tool_call_status_text(tool_name: str) -> str:
-    """
-    Write -> Writing
-    """
-    if tool_name.endswith('e'):
-        return f'{tool_name[:-1]}ing...'
-    return f'{tool_name}ing...'
-
-
 class LLMProxy:
     def __init__(
         self,
@@ -504,20 +496,19 @@ class LLMProxy:
         interrupt_check: Optional[callable] = None,
     ) -> AIMessage:
         last_exception = None
-
         for attempt in range(self.max_retries):
             try:
                 if not show_status:
                     return await self.client.call(msgs, tools)
                 if not use_streaming:
-                    with render_status(status_text.ljust(15)):
+                    with render_status(status_text.ljust(STATUS_TEXT_LENGTH)):
                         ai_message = await self.client.call(msgs, tools)
                     console.print(ai_message)
                     return ai_message
 
                 print_content_flag = False
                 print_thinking_flag = False
-                with render_status(status_text.ljust(15)) as status:
+                with render_status(status_text.ljust(STATUS_TEXT_LENGTH)) as status:
                     async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout, interrupt_check):
                         if stream_status.phase == 'tool_call':
                             indicator = '⚒'
@@ -528,11 +519,13 @@ class LLMProxy:
                         else:
                             indicator = '↓'
                         current_status_text = (
-                            tool_call_status_text(stream_status.tool_names[-1]) if stream_status.phase == 'tool_call' and stream_status.tool_names else status_text
+                            get_tool_call_status_text(stream_status.tool_names[-1]) if stream_status.phase == 'tool_call' and stream_status.tool_names else status_text
                         )
                         status.update(
                             Text.assemble(
-                                current_status_text.ljust(15), (f' {indicator} {stream_status.tokens} tokens', ColorStyle.SUCCESS.value), (INTERRUPT_TIP, ColorStyle.MUTED.value)
+                                current_status_text.ljust(STATUS_TEXT_LENGTH),
+                                (f' {indicator} {stream_status.tokens} tokens', ColorStyle.SUCCESS.value),
+                                (INTERRUPT_TIP, ColorStyle.MUTED.value),
                             )
                         )
                         if stream_status.phase == 'tool_call' and not print_content_flag and ai_message.content:

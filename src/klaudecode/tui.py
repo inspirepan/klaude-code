@@ -42,10 +42,10 @@ class ColorStyle(str, Enum):
     CONTEXT_LINE = 'context_line'
     INLINE_CODE = 'inline_code'
     # Prompt toolkit colors
-    INPUT_PROMPT = 'input_prompt'
     INPUT_PLACEHOLDER = 'input_placeholder'
     COMPLETION_MENU = 'completion_menu'
-    COMPLETION_SELECTED = 'completion_selected'
+    COMPLETION_SELECTED_FG = 'completion_selected_fg'
+    COMPLETION_SELECTED_BG = 'completion_selected_bg'
     # Input mode colors
     BASH_MODE = 'bash_mode'
     MEMORY_MODE = 'memory_mode'
@@ -96,10 +96,10 @@ light_theme = Theme(
         ColorStyle.CONTEXT_LINE: 'rgb(0,0,0)',
         ColorStyle.INLINE_CODE: 'rgb(109,104,218)',
         # Prompt toolkit
-        ColorStyle.INPUT_PROMPT: 'rgb(63,63,63)',
-        ColorStyle.INPUT_PLACEHOLDER: 'rgb(126,129,129)',
+        ColorStyle.INPUT_PLACEHOLDER: 'rgb(136,139,139)',
         ColorStyle.COMPLETION_MENU: 'rgb(154,154,154)',
-        ColorStyle.COMPLETION_SELECTED: 'rgb(74,74,74)',
+        ColorStyle.COMPLETION_SELECTED_FG: 'rgb(74,74,74)',
+        ColorStyle.COMPLETION_SELECTED_BG: 'rgb(170,221,255)',
         # Input mode colors
         ColorStyle.BASH_MODE: 'rgb(234,51,134)',
         ColorStyle.MEMORY_MODE: 'rgb(109,104,218)',
@@ -136,10 +136,10 @@ dark_theme = Theme(
         ColorStyle.CONTEXT_LINE: 'rgb(255,255,255)',
         ColorStyle.INLINE_CODE: 'rgb(180,184,245)',
         # Prompt toolkit
-        ColorStyle.INPUT_PROMPT: 'rgb(210,210,210)',
         ColorStyle.INPUT_PLACEHOLDER: 'rgb(151,153,153)',
         ColorStyle.COMPLETION_MENU: 'rgb(154,154,154)',
-        ColorStyle.COMPLETION_SELECTED: 'rgb(74,74,74)',
+        ColorStyle.COMPLETION_SELECTED_FG: 'rgb(74,74,74)',
+        ColorStyle.COMPLETION_SELECTED_BG: 'rgb(170,221,255)',
         # Input mode colors
         ColorStyle.BASH_MODE: 'rgb(255,102,170)',
         ColorStyle.MEMORY_MODE: 'rgb(200,205,255)',
@@ -411,16 +411,17 @@ def get_prompt_toolkit_style() -> dict:
         'completion-menu': 'bg:default',
         'completion-menu.border': 'bg:default',
         'completion-menu.completion': f'bg:default fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_MENU)}',
-        'completion-menu.completion.current': f'bg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED)} fg:#aaddff',
+        'completion-menu.completion.current': f'bg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED_FG)} fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED_BG)}',
         'scrollbar.background': 'bg:default',
         'scrollbar.button': 'bg:default',
         'completion-menu.meta.completion': f'bg:default fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_MENU)}',
-        'completion-menu.meta.completion.current': f'bg:#aaddff fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED)}',
-        'placeholder': get_prompt_toolkit_color(ColorStyle.INPUT_PLACEHOLDER),
-        '': get_prompt_toolkit_color(ColorStyle.INPUT_PROMPT),
+        'completion-menu.meta.completion.current': f'bg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED_BG)} fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED_FG)}',
     }
 
 
 def get_inquirer_style() -> dict:
     """Get InquirerPy style dict based on current theme"""
-    return {'question': f'bold {get_prompt_toolkit_color(ColorStyle.INPUT_PROMPT)}', 'pointer': f'fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED)} bg:#aaddff'}
+    return {
+        'question': f'bold {get_prompt_toolkit_color(ColorStyle.HIGHLIGHT)}',
+        'pointer': f'fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED_FG)} bg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED_BG)}',
+    }

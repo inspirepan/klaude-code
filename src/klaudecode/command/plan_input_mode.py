@@ -17,7 +17,7 @@ class PlanMode(InputModeCommand):
     def _get_color(self) -> str:
         return get_prompt_toolkit_color(ColorStyle.PLAN_MODE)
 
-    def get_placeholder(self) -> str:
+    def _get_placeholder(self) -> str:
         return 'plan mode on...'
 
     def get_next_mode_name(self) -> str:

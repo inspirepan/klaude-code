@@ -1,5 +1,6 @@
 import asyncio
 import json
+import random
 import signal
 import threading
 from abc import ABC
@@ -355,3 +356,31 @@ class ToolHandler:
             self.agent.append_message(*(ti.tool_result() for ti in tool_instances))
             if interrupted:
                 raise asyncio.CancelledError
+
+
+TOOL_CALL_STATUS_TEXT_DICT = {
+    'MultiEdit': ['Updating', 'Modifying', 'Changing', 'Refactoring', 'Transforming', 'Rewriting', 'Polishing'],
+    'Edit': ['Updating', 'Modifying', 'Changing', 'Tweaking', 'Adjusting', 'Refining', 'Fixing'],
+    'Read': ['Exploring', 'Reading', 'Scanning', 'Analyzing', 'Inspecting', 'Examining', 'Studying'],
+    'Write': ['Writing', 'Creating', 'Adding', 'Crafting', 'Composing', 'Building', 'Generating'],
+    'TodoWrite': ['Planning', 'Organizing', 'Structuring', 'Brainstorming', 'Strategizing', 'Mapping', 'Outlining'],
+    'TodoRead': ['Planning', 'Organizing', 'Structuring', 'Reviewing', 'Checking', 'Assessing', 'Tracking'],
+    'LS': ['Exploring', 'Scanning', 'Browsing', 'Investigating', 'Surveying', 'Discovering', 'Wandering'],
+    'Grep': ['Searching', 'Looking', 'Finding', 'Hunting', 'Tracking', 'Filtering', 'Digging'],
+    'Glob': ['Searching', 'Looking', 'Finding', 'Matching', 'Collecting', 'Gathering', 'Harvesting'],
+    'Bash': ['Executing', 'Running', 'Processing', 'Computing', 'Launching', 'Invoking', 'Commanding'],
+    'ExitPlanMode': ['Planning', 'Thinking', 'Strategizing'],
+}
+
+
+def get_tool_call_status_text(tool_name: str) -> str:
+    """
+    Write -> Writing
+    """
+    if tool_name in TOOL_CALL_STATUS_TEXT_DICT:
+        return random.choice(TOOL_CALL_STATUS_TEXT_DICT[tool_name]) + '...'
+    if tool_name.startswith('mcp__'):
+        return 'Executing...'
+    if tool_name.endswith('e'):
+        return f'{tool_name[:-1]}ing...'
+    return f'{tool_name}ing...'

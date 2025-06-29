@@ -31,7 +31,7 @@ class BashMode(InputModeCommand):
     def _get_color(self) -> str:
         return get_prompt_toolkit_color(ColorStyle.BASH_MODE)
 
-    def get_placeholder(self) -> str:
+    def _get_placeholder(self) -> str:
         return 'type a bash command...'
 
     def binding_key(self) -> str:

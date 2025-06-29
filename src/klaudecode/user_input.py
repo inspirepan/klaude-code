@@ -112,7 +112,7 @@ class InputModeCommand(Command, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_placeholder(self) -> str:
+    def _get_placeholder(self) -> str:
         """
         The placeholder of the input hint.
         """
@@ -135,19 +135,18 @@ class InputModeCommand(Command, ABC):
             return HTML(f'<style fg="{self._get_color()}">{self._get_prompt()} </style>')
         return self._get_prompt() + ' '
 
+    def get_placeholder(self):
+        color = self._get_color() or get_prompt_toolkit_color(ColorStyle.INPUT_PLACEHOLDER)
+        if color:
+            return HTML(f'<style fg="{color}">{self._get_placeholder()} </style>')
+        return self._get_placeholder() + ' '
+
     def binding_key(self) -> str:
         # ! DO NOT BIND `/` `enter` `backspace`
         raise NotImplementedError
 
     def get_style(self):
         style_dict = get_prompt_toolkit_style()
-        if self._get_color():
-            style_dict.update(
-                {
-                    'placeholder': get_prompt_toolkit_color(ColorStyle.INPUT_PLACEHOLDER),
-                    '': self._get_color(),
-                }
-            )
         return Style.from_dict(style_dict)
 
 
@@ -161,7 +160,7 @@ class NormalMode(InputModeCommand):
     def _get_color(self) -> str:
         return ''
 
-    def get_placeholder(self) -> str:
+    def _get_placeholder(self) -> str:
         return 'type you query... type exit to quit.'
 
     def get_next_mode_name(self) -> str:

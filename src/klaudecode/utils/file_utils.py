@@ -91,10 +91,10 @@ DEFAULT_IGNORE_PATTERNS = [
 
 def get_relative_path_for_display(file_path: str) -> str:
     """Convert absolute path to relative path for display purposes.
-    
+
     Args:
         file_path: Absolute file path to convert
-        
+
     Returns:
         Relative path if shorter than absolute path, otherwise absolute path
     """
