@@ -1,16 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python:*)",
-      "WebFetch(domain:rich.readthedocs.io)",
-      "Bash(pip install:*)",
-      "Bash(uv add:*)",
-      "Bash(find:*)",
-      "Bash(rg:*)",
-      "Bash(uv sync:*)",
-      "Bash(uv run:*)",
-      "Bash(cat:*)",
-      "Bash(source:*)",
+      "Bash(ruff check:*)"
     ],
     "deny": []
   }

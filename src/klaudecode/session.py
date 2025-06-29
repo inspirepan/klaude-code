@@ -20,11 +20,10 @@ from .utils.str_utils import sanitize_filename
 
 
 class MessageStorageStatus(str, Enum):
-    """Status of message storage in JSONL file."""
+    """Status of message storage in JSONL file, used exclusively for incremental updates."""
 
     NEW = 'new'  # Message not yet stored
     STORED = 'stored'  # Message stored in file
-    MODIFIED = 'modified'  # Message modified after storage
 
 
 class MessageStorageState(BaseModel):
@@ -43,13 +42,8 @@ class MessageHistory(BaseModel):
         start_index = len(self.messages)
         self.messages.extend(msgs)
         # Mark new messages as NEW status
-        for i, msg in enumerate(msgs, start=start_index):
+        for i, _ in enumerate(msgs, start=start_index):
             self.storage_states[i] = MessageStorageState(status=MessageStorageStatus.NEW)
-
-    def mark_message_modified(self, index: int) -> None:
-        """Mark a message as modified for incremental update."""
-        if index in self.storage_states and self.storage_states[index].status == MessageStorageStatus.STORED:
-            self.storage_states[index].status = MessageStorageStatus.MODIFIED
 
     def get_storage_state(self, index: int) -> MessageStorageState:
         """Get storage state for a message."""
@@ -60,10 +54,8 @@ class MessageHistory(BaseModel):
         self.storage_states[index] = state
 
     def get_unsaved_messages(self) -> List[tuple[int, BasicMessage]]:
-        """Get all messages that need to be saved (NEW or MODIFIED)."""
-        return [
-            (i, msg) for i, msg in enumerate(self.messages) if self.storage_states.get(i, MessageStorageState()).status in (MessageStorageStatus.NEW, MessageStorageStatus.MODIFIED)
-        ]
+        """Get all messages that need to be saved (NEW)."""
+        return [(i, msg) for i, msg in enumerate(self.messages) if self.storage_states.get(i, MessageStorageState()).status == MessageStorageStatus.NEW]
 
     def get_last_message(self, role: Literal['user', 'assistant', 'tool'] | None = None, filter_empty: bool = False) -> Optional[BasicMessage]:
         return next((msg for msg in reversed(self.messages) if (not role or msg.role == role) and (not filter_empty or msg)), None)
@@ -103,7 +95,7 @@ class Session(BaseModel):
     todo_list: TodoList = Field(default_factory=TodoList)
     file_tracker: FileTracker = Field(default_factory=FileTracker)
     work_dir: Path
-    source: Literal['user', 'subagent'] = 'user'
+    source: Literal['user', 'subagent', 'clear', 'compact'] = 'user'
     session_id: str = ''
     append_message_hook: Optional[Callable] = None
     title_msg: str = ''
@@ -119,7 +111,7 @@ class Session(BaseModel):
         append_message_hook: Optional[Callable] = None,
         todo_list: Optional[TodoList] = None,
         file_tracker: Optional[FileTracker] = None,
-        source: Literal['user', 'subagent'] = 'user',
+        source: Literal['user', 'subagent', 'clear', 'compact'] = 'user',
     ) -> None:
         super().__init__(
             work_dir=work_dir,
@@ -147,7 +139,15 @@ class Session(BaseModel):
         dt = datetime.fromtimestamp(created_at)
         datetime_str = dt.strftime('%Y_%m%d_%H%M%S')
         title = sanitize_filename(self.title_msg, max_length=40)
-        return f'{datetime_str}{".SUBAGENT" if self.source == "subagent" else ""}.{title}'
+        if self.source == 'subagent':
+            source_str = '.SUBAGENT'
+        elif self.source == 'clear':
+            source_str = '.CLEAR'
+        elif self.source == 'compact':
+            source_str = '.COMPACT'
+        else:
+            source_str = ''
+        return f'{datetime_str}{source_str}.{title}'
 
     def _get_metadata_file_path(self) -> Path:
         """Get the file path for session metadata."""
@@ -238,39 +238,15 @@ class Session(BaseModel):
                 lines = f.readlines()
 
             # Handle new messages (append)
-            new_messages = [(i, msg) for i, msg in unsaved_messages if self.messages.get_storage_state(i).status == MessageStorageStatus.NEW]
-
-            if new_messages:
+            if unsaved_messages:
                 with open(messages_file, 'a', encoding='utf-8') as f:
-                    for i, msg in new_messages:
+                    for i, msg in unsaved_messages:
                         msg_data = msg.model_dump(exclude_none=True)
                         f.write(json.dumps(msg_data, ensure_ascii=False) + '\n')
                         # Update storage state
                         state = MessageStorageState(status=MessageStorageStatus.STORED, line_number=len(lines), file_path=str(messages_file))
                         self.messages.set_storage_state(i, state)
                         lines.append('')  # Track line count
-
-            # Handle modified messages (update in place)
-            modified_messages = [(i, msg) for i, msg in unsaved_messages if self.messages.get_storage_state(i).status == MessageStorageStatus.MODIFIED]
-
-            if modified_messages:
-                # Read all lines
-                with open(messages_file, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
-
-                # Update modified lines
-                for i, msg in modified_messages:
-                    state = self.messages.get_storage_state(i)
-                    if state.line_number is not None and state.line_number < len(lines):
-                        msg_data = msg.model_dump(exclude_none=True)
-                        lines[state.line_number] = json.dumps(msg_data, ensure_ascii=False) + '\n'
-                        # Mark as stored
-                        state.status = MessageStorageStatus.STORED
-                        self.messages.set_storage_state(i, state)
-
-                # Write back all lines
-                with open(messages_file, 'w', encoding='utf-8') as f:
-                    f.writelines(lines)
 
     @classmethod
     def load(cls, session_id: str, work_dir: Path = Path.cwd()) -> Optional['Session']:
