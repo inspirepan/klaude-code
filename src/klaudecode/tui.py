@@ -51,7 +51,7 @@ class ColorStyle(str, Enum):
     MEMORY_MODE = 'memory_mode'
     PLAN_MODE = 'plan_mode'
     # Markdown
-    H1 = 'h1'
+    H2 = 'h1'
 
     def bold(self) -> Style:
         return console.console.get_style(self.value) + Style(bold=True)
@@ -105,7 +105,7 @@ light_theme = Theme(
         ColorStyle.MEMORY_MODE: 'rgb(109,104,218)',
         ColorStyle.PLAN_MODE: 'rgb(43,100,101)',
         # Markdown
-        ColorStyle.H1: 'rgb(181,75,52)',
+        ColorStyle.H2: 'rgb(181,75,52)',
     }
 )
 
@@ -145,7 +145,7 @@ dark_theme = Theme(
         ColorStyle.MEMORY_MODE: 'rgb(200,205,255)',
         ColorStyle.PLAN_MODE: 'rgb(126,184,185)',
         # Markdown
-        ColorStyle.H1: 'rgb(221,145,112)',
+        ColorStyle.H2: 'rgb(221,145,112)',
     }
 )
 
@@ -261,22 +261,33 @@ def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Gro
         # Handle other line types
         if line.strip().startswith('##'):
             stripped = line.strip()
-            if stripped.startswith('## ') and not stripped.startswith('### '):
-                grid = Table.grid(padding=(0, 0))
-                grid.add_column(overflow='fold')
-                # grid.add_row(Rule(style=ColorStyle.H1.value))
-                grid.add_row(Text.from_markup(f'[bold]{line}[/bold]', style=ColorStyle.H1.value))
-                # grid.add_row(Rule(style=ColorStyle.H1.value))
-                line = grid
+            # Match any number of # followed by space and title text
+            header_match = re.match(r'^(#+)\s+(.+)', stripped)
+            if header_match:
+                hashes, title = header_match.groups()
+                line = Text.from_markup(f'{hashes} [bold]{title}[/bold]', style=style if len(hashes) > 2 else ColorStyle.H2.value)
             else:
-                line = Text.from_markup(f'[bold]{line}[/bold]', style=style)
+                line = Text.from_markup(line, style=style + Style(bold=True))
         elif line.strip().startswith('>'):
             quote_content = re.sub(r'^(\s*)>\s?', r'\1', line)
             line = Text.from_markup(f'[muted]▌ {quote_content}[/muted]', style=style)
         elif line.strip() == '---':
             line = Rule(style=ColorStyle.SEPARATOR.value)
         else:
-            line = Text.from_markup(line, style=style)
+            # Handle list items with proper indentation
+            list_match = re.match(r'^(\s*)([*\-+]|\d+\.)\s+(.+)', line)
+            if list_match:
+                indent, marker, content = list_match.groups()
+                # Create a grid with proper indentation
+                table = Table.grid(padding=(0, 0))
+                table.add_column(width=len(indent) + len(marker) + 1, no_wrap=True)
+                table.add_column(overflow='fold')
+                marker_text = Text.from_markup(f'{indent}{marker} ', style=style)
+                content_text = Text.from_markup(content, style=style)
+                table.add_row(marker_text, content_text)
+                line = table
+            else:
+                line = Text.from_markup(line, style=style)
 
         formatted_lines.append(line)
         i += 1
