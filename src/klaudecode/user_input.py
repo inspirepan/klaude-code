@@ -348,7 +348,8 @@ class UserInputCompleter(Completer):
 
         matches = []
         try:
-            files = FileSearcher.search_files(f'{name_prefix}*' if name_prefix else '*', str(search_dir))
+            # Use fuzzy search for better user experience in @file completion
+            files = FileSearcher.search_files_fuzzy(name_prefix or '', str(search_dir))
 
             for file_path in files:
                 try:

@@ -56,6 +56,67 @@ class FileSearcher:
         return files
 
     @classmethod
+    def search_files_fuzzy(cls, keyword: str, path: str = '.') -> list[str]:
+        """Search for files with fuzzy matching for user input completion
+        
+        This method is designed for @file completion in user input.
+        It searches for files whose names contain the keyword, not just start with it.
+        """
+        if not keyword:
+            # If no keyword, return all files
+            return cls.search_files('*', path)
+        
+        files = []
+        
+        # Try multiple patterns for fuzzy matching
+        patterns = [
+            f'*{keyword}*',      # Contains keyword anywhere
+            f'{keyword}*',       # Starts with keyword  
+            f'*{keyword}*.py',   # Python files containing keyword
+            f'*{keyword}*.js',   # JS files containing keyword
+            f'*{keyword}*.ts',   # TS files containing keyword
+        ]
+        
+        seen_files = set()
+        
+        for pattern in patterns:
+            try:
+                pattern_files = cls.search_files(pattern, path)
+                for file_path in pattern_files:
+                    if file_path not in seen_files:
+                        files.append(file_path)
+                        seen_files.add(file_path)
+            except Exception:
+                continue
+        
+        # Sort by relevance: exact matches first, then by modification time
+        def relevance_key(file_path: str) -> tuple:
+            filename = Path(file_path).name.lower()
+            keyword_lower = keyword.lower()
+            
+            # Priority 1: Exact filename match
+            if filename == keyword_lower:
+                return (0, filename)
+            
+            # Priority 2: Filename starts with keyword
+            if filename.startswith(keyword_lower):
+                return (1, filename)
+            
+            # Priority 3: Filename contains keyword
+            if keyword_lower in filename:
+                return (2, filename)
+            
+            # Priority 4: Path contains keyword
+            return (3, file_path.lower())
+        
+        try:
+            files.sort(key=relevance_key)
+        except OSError:
+            files.sort()
+        
+        return files
+
+    @classmethod
     def _has_fd(cls) -> bool:
         return shutil.which('fd') is not None
 
