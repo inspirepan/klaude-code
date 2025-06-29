@@ -2,7 +2,7 @@ import re
 import sys
 from enum import Enum
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import List, Literal, Optional, Union
 
 from rich import box
 from rich.abc import RichRenderable
@@ -210,6 +210,18 @@ def render_message(
 
     table.add_row(mark, render_message)
     return table
+
+
+def render_grid(item: List[List[Union[str, RichRenderable]]]) -> RichRenderable:
+    if not item:
+        return ''
+    column_count = len(item[0])
+    grid = Table.grid(padding=(0, 1))
+    for _ in range(column_count):
+        grid.add_column(overflow='fold')
+    for row in item:
+        grid.add_row(*row)
+    return grid
 
 
 def render_suffix(content: str | RichRenderable, style: Optional[str] = None, render_text: bool = False) -> RichRenderable:

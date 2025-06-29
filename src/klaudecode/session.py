@@ -12,7 +12,8 @@ from rich.text import Text
 
 from .llm import LLMManager
 from .message import AIMessage, BasicMessage, SpecialUserMessageTypeEnum, SystemMessage, ToolMessage, UserMessage
-from .prompt.commands import COMACT_SYSTEM_PROMPT, COMPACT_COMMAND, COMPACT_MSG_PREFIX
+from .prompt.commands import ANALYZE_FOR_COMMAND_PROMPT, ANALYZE_FOR_COMMAND_SYSTEM_PROMPT, COMACT_SYSTEM_PROMPT, COMPACT_COMMAND, COMPACT_MSG_PREFIX
+from .tools.analyse_conversation_result import AnalyzeConversationTool
 from .tools.todo import TodoList
 from .tui import ColorStyle, console
 from .utils.file_utils import FileTracker
@@ -474,3 +475,27 @@ class Session(BaseModel):
 
         except (KeyboardInterrupt, asyncio.CancelledError):
             pass
+
+    async def analyze_conversation_for_command(self, llm_manager: Optional[LLMManager] = None) -> Optional[dict]:
+        non_sys_msgs = [msg for msg in self.messages if msg.role != 'system'].copy()
+
+        analyze_message_list = MessageHistory(
+            messages=[SystemMessage(content=ANALYZE_FOR_COMMAND_SYSTEM_PROMPT)] + non_sys_msgs + [UserMessage(content=ANALYZE_FOR_COMMAND_PROMPT)]
+        )
+
+        try:
+            if llm_manager:
+                ai_msg = await llm_manager.call(msgs=analyze_message_list, show_status=True, status_text='Analyzing...', tools=[AnalyzeConversationTool])
+
+                if ai_msg.tool_calls:
+                    for tool_call in ai_msg.tool_calls.values():
+                        if tool_call.tool_name == AnalyzeConversationTool.get_name():
+                            return tool_call.tool_args_dict
+
+                console.print('[red]No tool call found in analysis response[/red]')
+                return None
+            else:
+                raise RuntimeError('LLM manager not initialized')
+
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            return None

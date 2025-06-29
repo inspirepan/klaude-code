@@ -3,12 +3,12 @@ from typing import TYPE_CHECKING, Generator
 
 from rich.abc import RichRenderable
 from rich.console import Group
+from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from rich.panel import Panel
 
-from ..prompt.commands import GIT_COMMIT_COMMAND, ANALYSE_RECENT_GTI_COMMIT_COMMAND
 from ..message import UserMessage
+from ..prompt.commands import ANALYSE_RECENT_GTI_COMMIT_COMMAND, GIT_COMMIT_COMMAND
 from ..tui import ColorStyle
 from ..user_input import Command, CommandHandleOutput, UserInput
 from ..user_questionary import user_select

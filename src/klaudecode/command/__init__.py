@@ -11,6 +11,7 @@ from .mac_setup_command import MacSetupCommand
 from .memory_input_mode import MemoryMode
 from .plan_input_mode import PlanMode
 from .rewrite_query_command import RewriteQueryCommand
+from .save_as_custom_command import SaveAsCustomCommandCommand
 from .status_command import StatusCommand
 from .theme_command import ThemeCommand
 
@@ -25,6 +26,7 @@ __all__ = [
     'InitCommand',
     'ThemeCommand',
     'CreateExampleCommand',
+    'SaveAsCustomCommandCommand',
     'PlanMode',
     'BashMode',
     'MemoryMode',
@@ -47,3 +49,4 @@ register_slash_command(ContinueCommand())
 register_slash_command(MacSetupCommand())
 register_slash_command(ThemeCommand())
 register_slash_command(CreateExampleCommand())
+register_slash_command(SaveAsCustomCommandCommand())

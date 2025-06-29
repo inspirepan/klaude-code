@@ -212,3 +212,24 @@ description: Create a git commit with context analysis
 Based on the above changes, create a single git commit with a descriptive message following conventional commit format.
 
 Additional instructions: $ARGUMENTS"""
+
+ANALYZE_FOR_COMMAND_SYSTEM_PROMPT = """You are Klaude Code, CLI for Claude.
+You are a helpful AI assistant tasked with analyzing conversations to create reusable commands."""
+
+ANALYZE_FOR_COMMAND_PROMPT = """Your task is to analyze the conversation history and extract a reusable command pattern that could be helpful for future similar tasks.
+
+Please analyze the conversation and extract:
+
+1. **Command Name**: A short, descriptive name for the command (lowercase, use underscores if needed)
+2. **Description**: A brief description of what this command does  
+3. **Command Content**: The actual content that would be sent to the AI when this command is used
+
+Guidelines for creating the command:
+- Focus on the main task or workflow pattern, not specific details
+- Use $ARGUMENTS as a placeholder where user input should be substituted
+- Use !`command` as a placeholder where bash command result should be substituted, like !`git status`
+- Make the command general enough to be reusable but specific enough to be useful
+- Include important context and constraints from the conversation
+- The command should capture the essence of what the user was trying to accomplish
+
+Use the analyze_conversation_for_command tool to provide your analysis."""
