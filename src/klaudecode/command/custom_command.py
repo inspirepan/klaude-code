@@ -63,21 +63,21 @@ class CustomCommand(RewriteQueryCommand):
 
                 output_parts = []
                 if result.stdout.strip():
-                    output_parts.append(f'stdout:\n{result.stdout.strip()}')
+                    output_parts.append(f'<stdout>\n{result.stdout.strip()}</stdout>')
                 if result.stderr.strip():
-                    output_parts.append(f'stderr:\n{result.stderr.strip()}')
+                    output_parts.append(f'<stderr>\n{result.stderr.strip()}</stderr>')
                 if result.returncode != 0:
-                    output_parts.append(f'exit code: {result.returncode}')
+                    output_parts.append(f'<exit_code>{result.returncode}</exit_code>')
 
                 if output_parts:
-                    return f'Command: `{command}`\n' + '\n'.join(output_parts)
+                    return f'<bash_result command="{command}">\n' + '\n'.join(output_parts) + '</bash_result>'
                 else:
-                    return f'Command: `{command}` (no output)'
+                    return f'<bash_result command="{command}"> (no output)</bash_result>'
 
             except subprocess.TimeoutExpired:
-                return f'Command: `{command}` (timeout after 30s)'
+                return f'<bash_result command="{command}"> (timeout after 30s)</bash_result>'
             except Exception as e:
-                return f'Command: `{command}` (error: {str(e)})'
+                return f'<bash_result command="{command}"> (error: {str(e)})</bash_result>'
 
         return re.sub(bash_pattern, execute_command, content)
 
