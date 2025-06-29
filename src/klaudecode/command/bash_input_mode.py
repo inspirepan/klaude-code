@@ -162,10 +162,10 @@ class BashMode(InputModeCommand):
                     display_text.append(partial_line)
 
                 if interrupted:
-                    display_text.append('\n[Process interrupted]', style=ColorStyle.WARNING.bold())
+                    display_text.append('\n[Process interrupted]', style=ColorStyle.WARNING)
                     error_lines.append('[Process interrupted]')
                 elif process.returncode != 0:
-                    display_text.append(f'\n[Exit code: {process.returncode}]', style=ColorStyle.ERROR.bold())
+                    display_text.append(f'\n[Exit code: {process.returncode}]', style=ColorStyle.ERROR)
 
                 live.update(render_suffix(display_text))
 
@@ -200,7 +200,7 @@ class BashMode(InputModeCommand):
         if stdout:
             yield render_suffix(stdout)
         if stderr:
-            yield render_suffix(Text(stderr, style=ColorStyle.ERROR.bold()))
+            yield render_suffix(Text(stderr, style=ColorStyle.ERROR))
 
     def get_content(self, user_msg: UserMessage) -> str:
         command = user_msg.content

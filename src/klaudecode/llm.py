@@ -69,13 +69,14 @@ class OpenAIProxy:
                 base_url=self.base_url,
                 api_key=self.api_key,
             )
-        self.extra_body.update(
-            {
-                'thinking': {
-                    'type': 'auto' if self.enable_thinking is None else ('enabled' if self.enable_thinking else 'disabled'),
+        if 'thinking' not in self.extra_body:
+            self.extra_body.update(
+                {
+                    'thinking': {
+                        'type': 'auto' if self.enable_thinking is None else ('enabled' if self.enable_thinking else 'disabled'),
+                    }
                 }
-            }
-        )
+            )
 
     async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
         completion = await self.client.chat.completions.create(
