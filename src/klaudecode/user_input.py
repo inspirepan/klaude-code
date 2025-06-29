@@ -286,7 +286,7 @@ class UserInputCompleter(Completer):
                 # If file completion fails, fall back to normal behavior
                 pass
             return
-            
+
         # Only do slash command completion in normal mode
         if self.input_session.current_input_mode.get_name() != NORMAL_MODE_NAME:
             return
@@ -294,10 +294,10 @@ class UserInputCompleter(Completer):
         # Original slash command completion - but only if text starts with /
         if not text.startswith('/') or cursor_position == 0:
             return
-            
+
         # Get command part (content after /)
         command_part = text[1:cursor_position] if cursor_position > 1 else ''
-        
+
         # If no space in the command part, we are still completing command name
         if ' ' not in command_part:
             for command_name, command in self.commands.items():
@@ -467,12 +467,13 @@ class InputSession:
             for key in binding_keys:
                 if not key:  # Skip empty keys
                     continue
-                    
+
                 # Create a proper closure with default arguments to avoid late binding
                 def make_binding(current_mode=mode, bind_key=key):
                     @self.kb.add(bind_key)
                     def _(event):
                         self._switch_mode_or_insert(event, current_mode.get_name(), bind_key)
+
                     return _
 
                 make_binding()

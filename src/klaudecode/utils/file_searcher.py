@@ -58,27 +58,28 @@ class FileSearcher:
     @classmethod
     def search_files_fuzzy(cls, keyword: str, path: str = '.') -> list[str]:
         """Search for files with fuzzy matching for user input completion
-        
+
         This method is designed for @file completion in user input.
         It searches for files whose names contain the keyword, not just start with it.
         """
         if not keyword:
             # If no keyword, return all files
             return cls.search_files('*', path)
-        
+
         files = []
-        
+
         # Try multiple patterns for fuzzy matching
         patterns = [
-            f'*{keyword}*',      # Contains keyword anywhere
-            f'{keyword}*',       # Starts with keyword  
-            f'*{keyword}*.py',   # Python files containing keyword
-            f'*{keyword}*.js',   # JS files containing keyword
-            f'*{keyword}*.ts',   # TS files containing keyword
+            f'*{keyword}*',  # Contains keyword anywhere
+            f'{keyword}*',  # Starts with keyword
+            f'*{keyword}*.py',  # Python files containing keyword
+            f'*{keyword}*.js',  # JS files containing keyword
+            f'*{keyword}*.ts',  # TS files containing keyword
+            f'*{keyword}*.go',  # Go files containing keyword
         ]
-        
+
         seen_files = set()
-        
+
         for pattern in patterns:
             try:
                 pattern_files = cls.search_files(pattern, path)
@@ -88,32 +89,32 @@ class FileSearcher:
                         seen_files.add(file_path)
             except Exception:
                 continue
-        
+
         # Sort by relevance: exact matches first, then by modification time
         def relevance_key(file_path: str) -> tuple:
             filename = Path(file_path).name.lower()
             keyword_lower = keyword.lower()
-            
+
             # Priority 1: Exact filename match
             if filename == keyword_lower:
                 return (0, filename)
-            
+
             # Priority 2: Filename starts with keyword
             if filename.startswith(keyword_lower):
                 return (1, filename)
-            
+
             # Priority 3: Filename contains keyword
             if keyword_lower in filename:
                 return (2, filename)
-            
+
             # Priority 4: Path contains keyword
             return (3, file_path.lower())
-        
+
         try:
             files.sort(key=relevance_key)
         except OSError:
             files.sort()
-        
+
         return files
 
     @classmethod
@@ -140,7 +141,7 @@ class FileSearcher:
     def _build_find_command(cls, pattern: str, path: str) -> list[str]:
         args = ['find', path, '-type', 'f']
         args.extend(['-maxdepth', str(DEFAULT_MAX_DEPTH)])
-        
+
         # Use -name for simple patterns, -path for complex patterns
         if '/' in pattern:
             # For patterns with paths like "src/*.py", use -path
@@ -173,7 +174,7 @@ class FileSearcher:
     def _python_glob_search(cls, pattern: str, path: str) -> list[str]:
         try:
             search_path = Path(path) if path != '.' else Path.cwd()
-            
+
             # Construct the full glob pattern
             if pattern.startswith('/'):
                 # Absolute pattern
@@ -181,23 +182,23 @@ class FileSearcher:
             else:
                 # Relative pattern
                 glob_pattern = str(search_path / pattern)
-            
+
             # Use glob with recursive=True to handle ** patterns
             matches = python_glob.glob(glob_pattern, recursive=True)
-            
+
             # Filter out directories and apply ignore patterns
             filtered_matches = []
             for match in matches:
                 match_path = Path(match)
-                
+
                 # Only include files, not directories
                 if not match_path.is_file():
                     continue
-                
+
                 # Skip hidden files and directories
                 if any(part.startswith('.') for part in match_path.parts):
                     continue
-                
+
                 # Skip ignored patterns
                 should_ignore = False
                 for ignore_pattern in DEFAULT_IGNORE_PATTERNS:
@@ -211,10 +212,10 @@ class FileSearcher:
                         if ignore_pattern in match_path.parts:
                             should_ignore = True
                             break
-                
+
                 if not should_ignore:
                     filtered_matches.append(str(match_path))
-            
+
             return sorted(filtered_matches)
 
         except Exception:
