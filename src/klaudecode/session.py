@@ -13,7 +13,7 @@ from rich.text import Text
 from .llm import LLMManager
 from .message import AIMessage, BasicMessage, SpecialUserMessageTypeEnum, SystemMessage, ToolMessage, UserMessage
 from .prompt.commands import ANALYZE_FOR_COMMAND_PROMPT, ANALYZE_FOR_COMMAND_SYSTEM_PROMPT, COMACT_SYSTEM_PROMPT, COMPACT_COMMAND, COMPACT_MSG_PREFIX
-from .tools.analyse_conversation_result import AnalyzeConversationTool
+from .tools.command_pattern_result import CommandPatternResultTool
 from .tools.todo import TodoList
 from .tui import ColorStyle, console
 from .utils.file_utils import FileTracker
@@ -485,14 +485,14 @@ class Session(BaseModel):
 
         try:
             if llm_manager:
-                ai_msg = await llm_manager.call(msgs=analyze_message_list, show_status=True, status_text='Analyzing...', tools=[AnalyzeConversationTool])
+                ai_msg = await llm_manager.call(msgs=analyze_message_list, show_status=True, status_text='Patterning...', tools=[CommandPatternResultTool])
 
                 if ai_msg.tool_calls:
                     for tool_call in ai_msg.tool_calls.values():
-                        if tool_call.tool_name == AnalyzeConversationTool.get_name():
+                        if tool_call.tool_name == CommandPatternResultTool.get_name():
                             return tool_call.tool_args_dict
 
-                console.print('[red]No tool call found in analysis response[/red]')
+                console.print('No tool call found in analysis response', style=ColorStyle.ERROR.value)
                 return None
             else:
                 raise RuntimeError('LLM manager not initialized')

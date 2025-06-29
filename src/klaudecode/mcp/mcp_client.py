@@ -36,7 +36,7 @@ class MCPClient:
 
         for server_name, server_config in config.mcpServers.items():
             try:
-                console.print(Text.from_markup(f'Connecting to MCP server: [bold cyan]{server_name}[/bold cyan]'))
+                console.print(Text.assemble('Connecting to MCP server: ', (server_name, ColorStyle.INFO.bold())))
                 server_params = StdioServerParameters(command=server_config.command, args=server_config.args or [], env=server_config.env or {})
                 client_transport = await asyncio.wait_for(self.exit_stack.enter_async_context(stdio_client(server_params)), timeout=10.0)
                 client_session = await asyncio.wait_for(self.exit_stack.enter_async_context(ClientSession(client_transport[0], client_transport[1])), timeout=5.0)
@@ -64,8 +64,8 @@ class MCPClient:
         if success_count > 0:
             sussess_server_names = ', '.join(sussess_servers)
             console.print(
-                Text.from_markup(
-                    f'Connected to {success_count}/{len(config.mcpServers)} MCP servers: [bold cyan]{sussess_server_names}[/bold cyan]', style=ColorStyle.SUCCESS.value
+                Text.assemble(
+                    f'Connected to {success_count}/{len(config.mcpServers)} MCP servers: ', (sussess_server_names, ColorStyle.INFO.bold()), style=ColorStyle.SUCCESS.value
                 )
             )
         self._initialized = True

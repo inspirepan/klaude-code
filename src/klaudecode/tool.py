@@ -369,7 +369,7 @@ TOOL_CALL_STATUS_TEXT_DICT = {
     'Glob': ['Searching', 'Looking', 'Finding', 'Matching', 'Collecting', 'Gathering', 'Harvesting'],
     'Bash': ['Executing', 'Running', 'Processing', 'Computing', 'Launching', 'Invoking', 'Commanding'],
     'ExitPlanMode': ['Planning', 'Thinking', 'Strategizing'],
-    'AnalyzeConversationResult': ['Analyzing'],
+    'CommandPatternResult': ['Patterning'],
 }
 
 

@@ -85,7 +85,7 @@ class Agent(Tool):
                 import traceback
 
                 traceback.print_exc()
-                console.print(f'[yellow]Warning: Failed to load custom commands: {e}[/yellow]')
+                console.print(f'Warning: Failed to load custom commands: {e}', style=ColorStyle.WARNING.value)
 
     async def chat_interactive(self, first_message: str = None):
         self._initialize_llm()
