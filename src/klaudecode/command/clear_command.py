@@ -20,7 +20,7 @@ class ClearCommand(Command):
     async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
         command_handle_output = await super().handle(agent, user_input)
         command_handle_output.user_msg.removed = True
-        command_handle_output.user_msg.append_extra_data('cleared', True)
+        command_handle_output.user_msg.set_extra_data('cleared', True)
         agent.session.clear_conversation_history()
         return command_handle_output
 

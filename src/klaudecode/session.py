@@ -57,6 +57,10 @@ class MessageHistory(BaseModel):
         """Get all messages that need to be saved (NEW)."""
         return [(i, msg) for i, msg in enumerate(self.messages) if self.storage_states.get(i, MessageStorageState()).status == MessageStorageStatus.NEW]
 
+    def reset_storage_states(self) -> None:
+        for i in range(len(self.messages)):
+            self.storage_states[i] = MessageStorageState(status=MessageStorageStatus.NEW, line_number=i + 1, file_path=None)
+
     def get_last_message(self, role: Literal['user', 'assistant', 'tool'] | None = None, filter_empty: bool = False) -> Optional[BasicMessage]:
         return next((msg for msg in reversed(self.messages) if (not role or msg.role == role) and (not filter_empty or msg)), None)
 
@@ -348,6 +352,22 @@ class Session(BaseModel):
         )
         return new_session
 
+    def _create_cleared_session(self, source: Literal['clear', 'compact']) -> 'Session':
+        """Create a new session containing only non-removed messages"""
+        # Filter out messages marked as removed
+        active_messages = [msg for msg in self.messages.messages if not msg.removed]
+
+        # Create new session
+        new_session = Session(
+            work_dir=self.work_dir,
+            messages=active_messages,
+            todo_list=self.todo_list,
+            file_tracker=self.file_tracker,
+            source=source,
+        )
+
+        return new_session
+
     @classmethod
     def load_session_list(cls, work_dir: Path = Path.cwd()) -> List[dict]:
         """Load a list of session metadata from the specified directory."""
@@ -393,10 +413,26 @@ class Session(BaseModel):
         return cls.load(latest_session['id'], work_dir)
 
     def clear_conversation_history(self):
+        """Clear conversation history by creating a new session for real cleanup"""
+        # First mark non-system messages as removed (for filtering)
         for msg in self.messages:
             if msg.role == 'system':
                 continue
             msg.removed = True
+
+        # Save old session
+        self.save()
+
+        # Create cleared session
+        cleared_session = self._create_cleared_session('clear')
+
+        # Replace current session attributes with new session data
+        self.session_id = cleared_session.session_id
+        self.messages = cleared_session.messages
+        self.source = cleared_session.source
+
+        # Reset message storage states since this is a brand new session
+        self.messages.reset_storage_states()
 
     async def compact_conversation_history(self, instructions: str = '', show_status: bool = True, llm_manager: Optional[LLMManager] = None):
         non_sys_msgs = [msg for msg in self.messages if msg.role != 'system'].copy()
@@ -412,9 +448,29 @@ class Session(BaseModel):
             else:
                 raise RuntimeError('LLM manager not initialized')
 
-            self.clear_conversation_history()
+            # First mark non-system messages as removed (for filtering)
+            for msg in self.messages:
+                if msg.role == 'system':
+                    continue
+                msg.removed = True
+
+            # Create compact result message
             user_msg = UserMessage(content=COMPACT_MSG_PREFIX + ai_msg.content, user_msg_type=SpecialUserMessageTypeEnum.COMPACT_RESULT.value)
             console.print(user_msg)
+
+            # Append compact result to old session
             self.append_message(user_msg)
+
+            # Create compact session
+            compacted_session = self._create_cleared_session('compact')
+
+            # Replace current session attributes with new session data
+            self.session_id = compacted_session.session_id
+            self.messages = compacted_session.messages
+            self.source = compacted_session.source
+
+            # Reset message storage states since this is a brand new session
+            self.messages.reset_storage_states()
+
         except (KeyboardInterrupt, asyncio.CancelledError):
             pass
