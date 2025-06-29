@@ -3,6 +3,8 @@ from .clear_command import ClearCommand
 from .compact_command import CompactCommand
 from .continue_command import ContinueCommand
 from .cost_command import CostCommand
+from .custom_command import CustomCommand
+from .custom_command_manager import CustomCommandManager, custom_command_manager
 from .init_command import InitCommand
 from .mac_setup_command import MacSetupCommand
 from .memory_input_mode import MemoryMode
@@ -28,6 +30,9 @@ __all__ = [
     'PlanMode',
     'BashMode',
     'MemoryMode',
+    'CustomCommand',
+    'CustomCommandManager',
+    'custom_command_manager',
 ]
 
 from ..user_input import register_input_mode, register_slash_command

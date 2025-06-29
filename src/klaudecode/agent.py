@@ -1,6 +1,6 @@
 import asyncio
-import os
 import threading
+from pathlib import Path
 from typing import Annotated, List, Optional
 
 from anthropic import AnthropicError
@@ -11,6 +11,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from . import command  # noqa: F401 # import user_command to trigger command registration
+from .command import custom_command_manager
 from .config import ConfigModel
 from .llm import LLMManager
 from .mcp.mcp_tool import MCPManager
@@ -74,6 +75,16 @@ class Agent(Tool):
         self.enable_plan_mode_reminder = enable_plan_mode_reminder
         self.llm_manager: Optional[LLMManager] = None
         self._interrupt_flag = threading.Event()  # Global interrupt flag for this agent
+
+        # Initialize custom commands
+        try:
+            custom_command_manager.discover_and_register_commands(session.work_dir)
+        except Exception as e:
+            if self.print_switch:
+                import traceback
+
+                traceback.print_exc()
+                console.print(f'[yellow]Warning: Failed to load custom commands: {e}[/yellow]')
 
     async def chat_interactive(self, first_message: str = None):
         self._initialize_llm()
@@ -378,7 +389,7 @@ class Agent(Tool):
                         instance.tool_result().append_extra_data('tool_calls', tool_call.model_dump())
 
         session = Session(
-            work_dir=os.getcwd(),
+            work_dir=Path.cwd(),
             messages=[SystemMessage(content=get_subagent_system_prompt(work_dir=instance.parent_agent.session.work_dir, model_name=instance.parent_agent.config.model_name.value))],
             append_message_hook=subagent_append_message_hook,
             source='subagent',

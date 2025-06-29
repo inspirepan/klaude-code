@@ -248,7 +248,7 @@ class UserInputHandler:
             if parts:
                 command_part = parts[0]
                 remaining_text = parts[1] if len(parts) > 1 else ''
-                # Find matching enum
+                # Find matching command
                 if command_part in _SLASH_COMMANDS:
                     return command_part, remaining_text
                 if command_part in _INPUT_MODES:
