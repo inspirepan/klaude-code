@@ -100,7 +100,7 @@ class MultiEditTool(Tool):
         # Validation 5: Comprehensive validation of all edits
         validation_result = _validate_all_edits(args.edits, original_content)
         if not validation_result.valid:
-            instance.tool_result().set_error_msg(f'{validation_result.error}. {ERROR_NOT_APPLIED}')
+            instance.tool_result().set_error_msg(f'{validation_result.error} {ERROR_NOT_APPLIED}')
             return
 
         backup_path = None
@@ -122,7 +122,7 @@ class MultiEditTool(Tool):
                 if not single_validation.valid:
                     if backup_path:
                         restore_backup(args.file_path, backup_path)
-                    instance.tool_result().set_error_msg(f'Edit {i + 1} failed: {single_validation.error}. {ERROR_NOT_APPLIED}')
+                    instance.tool_result().set_error_msg(f'Edit {i + 1} failed: {single_validation.error} {ERROR_NOT_APPLIED}')
                     return
 
                 # Apply edit to working copy
@@ -142,7 +142,7 @@ class MultiEditTool(Tool):
             if error_msg:
                 if backup_path:
                     restore_backup(args.file_path, backup_path)
-                instance.tool_result().set_error_msg(f'Failed to write file: {error_msg}. {ERROR_NOT_APPLIED}')
+                instance.tool_result().set_error_msg(f'Failed to write file: {error_msg} {ERROR_NOT_APPLIED}')
                 return
 
             # Update tracking
@@ -173,7 +173,7 @@ class MultiEditTool(Tool):
                     restore_backup(args.file_path, backup_path)
                 except Exception:
                     pass
-            instance.tool_result().set_error_msg(f'MultiEdit aborted: {str(e)}. {ERROR_NOT_APPLIED}')
+            instance.tool_result().set_error_msg(f'MultiEdit aborted: {str(e)} {ERROR_NOT_APPLIED}')
 
 
 def _validate_all_edits(edits: List[EditOperation], original_content: str) -> ValidationResult:

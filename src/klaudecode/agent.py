@@ -109,19 +109,6 @@ class Agent(Tool):
             if self.mcp_manager:
                 await self.mcp_manager.shutdown()
 
-    async def _auto_compact_conversation(self, tools: Optional[List[Tool]] = None):
-        """Check token count and compact conversation history if necessary"""
-        messages_tokens = sum(msg.tokens for msg in self.session.messages)
-        tools_tokens = sum(tool.tokens() for tool in (tools or self.tools))
-        total_tokens = messages_tokens + tools_tokens
-        if not self.config or not self.config.context_window_threshold:
-            return
-        if total_tokens > self.config.context_window_threshold.value * TOKEN_WARNING_THRESHOLD:
-            clear_last_line()
-            console.print(Text(f'Notice: total_tokens: {total_tokens}, context_window_threshold: {self.config.context_window_threshold.value}\n', style=ColorStyle.WARNING.value))
-        if total_tokens > self.config.context_window_threshold.value:
-            await self.session.compact_conversation_history(show_status=self.print_switch, llm_manager=self.llm_manager)
-
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
         try:
             self._handle_claudemd_reminder()
@@ -277,6 +264,19 @@ class Agent(Tool):
             self.llm_manager = LLMManager()
         self.llm_manager.initialize_from_config(self.config)
 
+    async def _auto_compact_conversation(self, tools: Optional[List[Tool]] = None):
+        """Check token count and compact conversation history if necessary"""
+        messages_tokens = sum(msg.tokens for msg in self.session.messages)
+        tools_tokens = sum(tool.tokens() for tool in (tools or self.tools))
+        total_tokens = messages_tokens + tools_tokens
+        if not self.config or not self.config.context_window_threshold:
+            return
+        if total_tokens > self.config.context_window_threshold.value * TOKEN_WARNING_THRESHOLD:
+            clear_last_line()
+            console.print(Text(f'Notice: total_tokens: {total_tokens}, context_window_threshold: {self.config.context_window_threshold.value}\n', style=ColorStyle.WARNING.value))
+        if total_tokens > self.config.context_window_threshold.value:
+            await self.session.compact_conversation_history(show_status=self.print_switch, llm_manager=self.llm_manager)
+
     async def headless_run(self, user_input_text: str, print_trace: bool = False):
         self._initialize_llm()
         # Initialize MCP
@@ -349,8 +349,8 @@ class Agent(Tool):
         """Update ToolHandler's tool dictionary"""
         self.tool_handler.tool_dict = {tool.name: tool for tool in tools} if tools else {}
 
-    # Implement SubAgent
-    # ------------------
+    # Implement Agent as tool
+    # ------------------------------------------------------
     name = 'Task'
     desc = TASK_TOOL_DESC
     parallelable: bool = True
@@ -427,7 +427,6 @@ class Agent(Tool):
                 finally:
                     asyncio.set_event_loop(None)
                     # Don't close loop explicitly to avoid cleanup issues
-
                     # Force garbage collection to trigger any delayed HTTP client cleanup
                     import gc
 
@@ -454,14 +453,6 @@ def render_agent_args(tool_call: ToolCall, is_suffix: bool = False):
         ' → ',
         tool_call.tool_args_dict.get('prompt', ''),
     )
-    # yield Padding.indent(
-    #     Group(
-    #         Rule(style=ColorStyle.SEPARATOR.value),
-    #         Text(tool_call.tool_args_dict.get('prompt', '')),
-    #         Rule(style=ColorStyle.AGENT_BORDER.value),
-    #     ),
-    #     level=2,
-    # )
 
 
 def render_agent_result(tool_msg: ToolMessage):
