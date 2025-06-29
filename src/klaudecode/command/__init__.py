@@ -1,19 +1,19 @@
-from .bash_input_mode import BashMode
-from .clear_command import ClearCommand
-from .compact_command import CompactCommand
-from .continue_command import ContinueCommand
-from .cost_command import CostCommand
-from .create_example_command import CreateExampleCommand
+from .input_mode_bash import BashMode
+from .command_clear import ClearCommand
+from .command_compact import CompactCommand
+from .command_continue import ContinueCommand
+from .command_cost import CostCommand
+from .command_create_example_custom_command import CreateExampleCommand
 from .custom_command import CustomCommand
 from .custom_command_manager import CustomCommandManager, custom_command_manager
-from .init_command import InitCommand
-from .mac_setup_command import MacSetupCommand
-from .memory_input_mode import MemoryMode
-from .plan_input_mode import PlanMode
+from .command_init import InitCommand
+from .command_mac_setup import MacSetupCommand
+from .input_mode_memory import MemoryMode
+from .input_mode_plan import PlanMode
 from .rewrite_query_command import RewriteQueryCommand
-from .save_as_custom_command import SaveAsCustomCommandCommand
-from .status_command import StatusCommand
-from .theme_command import ThemeCommand
+from .command_save_as_custom_command import SaveAsCustomCommandCommand
+from .command_status import StatusCommand
+from .command_theme import ThemeCommand
 
 __all__ = [
     'StatusCommand',
