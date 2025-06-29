@@ -349,8 +349,7 @@ def render_hello() -> RenderResult:
             'type * to start plan mode\n'
             'type @ to mention a file\n'
             'run /init to analyse your codebase\n'
-            'run [bold]klaude --continue[/bold] or [bold]klaude --resume[/bold] to resume a conversation\n'
-            'run klaude mcp edit to setup MCP, klaude --mcp to enable MCP',
+            'run [bold]klaude --continue[/bold] or [bold]klaude --resume[/bold] to resume a conversation\n',
             mark='※ Tips:',
             style=ColorStyle.MUTED,
             mark_style=ColorStyle.MUTED,

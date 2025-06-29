@@ -462,6 +462,8 @@ def render_agent_result(tool_msg: ToolMessage):
             tool_call = ToolCall(**subagent_tool_call_dcit)
             for item in tool_call.get_suffix_renderable():
                 yield render_suffix(item)
+        count = len(tool_calls)
+        yield render_suffix(f'({count} tool use{"" if count == 1 else "s"})')
     if tool_msg.content:
         yield render_suffix(Panel.fit(render_markdown(tool_msg.content), border_style=ColorStyle.AGENT_BORDER))
 
