@@ -1,4 +1,3 @@
-import os
 from typing import Annotated, List, NamedTuple, Tuple
 
 from pydantic import BaseModel, Field
@@ -15,6 +14,7 @@ from ..utils.file_utils import (
     create_backup,
     generate_diff_lines,
     generate_snippet_from_diff,
+    get_relative_path_for_display,
     read_file_content,
     render_diff_lines,
     replace_string_in_content,
@@ -232,11 +232,7 @@ def render_multi_edit_args(tool_call: ToolCall, is_suffix: bool = False):
     edits = tool_call.tool_args_dict.get('edits', [])
 
     # Convert absolute path to relative path
-    try:
-        relative_path = os.path.relpath(file_path, os.getcwd())
-        display_path = relative_path if len(relative_path) < len(file_path) else file_path
-    except (ValueError, OSError):
-        display_path = file_path
+    display_path = get_relative_path_for_display(file_path)
 
     tool_call_msg = Text.assemble(
         ('Update', ColorStyle.HIGHLIGHT.bold() if not is_suffix else 'bold'),

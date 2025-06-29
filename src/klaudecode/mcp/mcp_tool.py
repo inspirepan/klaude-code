@@ -106,14 +106,10 @@ class MCPToolWrapper(Tool):
                         result = future.result(timeout=cls.timeout)
                 else:
                     # Use the existing loop
-                    result = loop.run_until_complete(
-                        asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=cls.timeout)
-                    )
+                    result = loop.run_until_complete(asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=cls.timeout))
             except RuntimeError:
                 # No event loop in current thread, create a new one
-                result = asyncio.run(
-                    asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=cls.timeout)
-                )
+                result = asyncio.run(asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=cls.timeout))
 
             # Set result
             cls._process_result(result, instance)
@@ -124,9 +120,7 @@ class MCPToolWrapper(Tool):
     @classmethod
     def _sync_mcp_call(cls, args_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Synchronous wrapper for MCP tool call"""
-        return asyncio.run(
-            asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=cls.timeout)
-        )
+        return asyncio.run(asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=cls.timeout))
 
     @classmethod
     async def invoke_async(cls, tool_call: ToolCall, instance: 'ToolInstance'):
@@ -136,10 +130,7 @@ class MCPToolWrapper(Tool):
             args_dict = json.loads(tool_call.tool_args)
 
             # Call MCP tool directly with proper timeout handling
-            result = await asyncio.wait_for(
-                cls._call_mcp_tool_async(args_dict),
-                timeout=cls.timeout
-            )
+            result = await asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=cls.timeout)
 
             # Set result
             cls._process_result(result, instance)

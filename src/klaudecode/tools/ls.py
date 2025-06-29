@@ -1,4 +1,3 @@
-import os
 from typing import Annotated, List, Optional
 
 from pydantic import BaseModel, Field
@@ -8,7 +7,7 @@ from ..message import ToolCall, ToolMessage, register_tool_call_renderer, regist
 from ..prompt.tools import LS_TOOL_DESC, LS_TOOL_RESULT_REMINDER
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from ..utils.file_utils import get_directory_structure
+from ..utils.file_utils import get_directory_structure, get_relative_path_for_display
 
 
 class LsTool(Tool):
@@ -40,11 +39,7 @@ def render_ls_args(tool_call: ToolCall, is_suffix: bool = False):
 
     path = tool_call.tool_args_dict.get('path', '')
     # Convert absolute path to relative path
-    try:
-        relative_path = os.path.relpath(path, os.getcwd())
-        display_path = relative_path if len(relative_path) < len(path) else path
-    except (ValueError, OSError):
-        display_path = path
+    display_path = get_relative_path_for_display(path)
 
     tool_call_msg = Text.assemble(
         ('List', ColorStyle.HIGHLIGHT.bold() if not is_suffix else 'bold'),

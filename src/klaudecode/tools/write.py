@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from typing import Annotated
 
 from pydantic import BaseModel, Field
@@ -9,7 +9,7 @@ from ..message import ToolCall, ToolMessage, register_tool_call_renderer, regist
 from ..prompt.tools import WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from ..utils.file_utils import cleanup_backup, create_backup, ensure_directory_exists, restore_backup, write_file_content
+from ..utils.file_utils import cleanup_backup, create_backup, ensure_directory_exists, get_relative_path_for_display, restore_backup, write_file_content
 
 """
 - Safety mechanism requiring existing files to be read first
@@ -31,7 +31,7 @@ class WriteTool(Tool):
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         args: 'WriteTool.Input' = cls.parse_input_args(tool_call)
 
-        file_exists = os.path.exists(args.file_path)
+        file_exists = Path(args.file_path).exists()
         backup_path = None
 
         try:
@@ -99,11 +99,7 @@ def render_write_args(tool_call: ToolCall, is_suffix: bool = False):
     file_path = tool_call.tool_args_dict.get('file_path', '')
 
     # Convert absolute path to relative path
-    try:
-        relative_path = os.path.relpath(file_path, os.getcwd())
-        display_path = relative_path if len(relative_path) < len(file_path) else file_path
-    except (ValueError, OSError):
-        display_path = file_path
+    display_path = get_relative_path_for_display(file_path)
 
     tool_call_msg = Text.assemble(
         (tool_call.tool_name, ColorStyle.HIGHLIGHT.bold() if not is_suffix else 'bold'),

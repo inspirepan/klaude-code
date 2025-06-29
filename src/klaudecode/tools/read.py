@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from typing import Annotated, Optional
 
 from pydantic import BaseModel, Field
@@ -9,7 +9,7 @@ from ..message import ToolCall, ToolMessage, count_tokens, register_tool_call_re
 from ..prompt.tools import READ_TOOL_DESC, READ_TOOL_EMPTY_REMINDER, READ_TOOL_RESULT_REMINDER
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from ..utils.file_utils import FileTracker, read_file_content, read_file_lines_partial, validate_file_exists
+from ..utils.file_utils import FileTracker, get_relative_path_for_display, read_file_content, read_file_lines_partial, validate_file_exists
 
 """
 - Flexible reading with offset and line limit support
@@ -83,7 +83,7 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
     # Check file size limit only when no offset/limit is provided (reading entire file)
     if offset is None and limit is None:
         try:
-            file_size = os.path.getsize(file_path)
+            file_size = Path(file_path).stat().st_size
             max_size_bytes = READ_MAX_FILE_SIZE_KB * 1024
             if file_size > max_size_bytes:
                 result.success = False
@@ -205,11 +205,7 @@ def render_read_args(tool_call: ToolCall, is_suffix: bool = False):
 
     # Convert absolute path to relative path
     file_path = tool_call.tool_args_dict.get('file_path', '')
-    try:
-        relative_path = os.path.relpath(file_path, os.getcwd())
-        display_path = relative_path if len(relative_path) < len(file_path) else file_path
-    except (ValueError, OSError):
-        display_path = file_path
+    display_path = get_relative_path_for_display(file_path)
 
     tool_call_msg = Text.assemble(
         (tool_call.tool_name, ColorStyle.HIGHLIGHT.bold() if not is_suffix else 'bold'),

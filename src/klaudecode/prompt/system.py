@@ -1,6 +1,6 @@
-import os
 import platform
 from datetime import datetime
+from pathlib import Path
 
 from ..utils.file_utils import get_directory_structure
 
@@ -212,7 +212,7 @@ def _get_directory_structure_context(workdir: str):
         return ''
 
 
-def _get_env_instruction(work_dir: str = os.getcwd(), model_name: str = 'Unknown Model') -> str:
+def _get_env_instruction(work_dir: Path = Path.cwd(), model_name: str = 'Unknown Model') -> str:
     system = platform.system().lower()
     if system == 'darwin':
         platform_name = 'macos'
@@ -224,7 +224,7 @@ def _get_env_instruction(work_dir: str = os.getcwd(), model_name: str = 'Unknown
         platform_name = system
 
     os_version = f'{platform.system()} {platform.release()}'
-    is_git_repo = os.path.exists(os.path.join(work_dir, '.git'))
+    is_git_repo = work_dir.joinpath('.git').exists()
 
     return ENV_INSTRUCTION.format(
         cwd=work_dir,
@@ -236,11 +236,11 @@ def _get_env_instruction(work_dir: str = os.getcwd(), model_name: str = 'Unknown
     )
 
 
-def get_system_prompt_dynamic_part(work_dir: str = os.getcwd(), model_name: str = 'Unknown Model') -> str:
+def get_system_prompt_dynamic_part(work_dir: Path = Path.cwd(), model_name: str = 'Unknown Model') -> str:
     """
     Get the second part of the system prompt
     """
-    is_git_repo = os.path.exists(os.path.join(work_dir, '.git'))
+    is_git_repo = work_dir.joinpath('.git').exists()
     return (
         _get_env_instruction(work_dir=work_dir, model_name=model_name)
         + '\n\n'
@@ -264,7 +264,7 @@ You are an agent for Klaude Code, a CLI for Claude. Given the user's message, yo
 """
 
 
-def get_subagent_system_prompt(work_dir: str = os.getcwd(), model_name: str = 'Unknown Model') -> str:
+def get_subagent_system_prompt(work_dir: Path = Path.cwd(), model_name: str = 'Unknown Model') -> str:
     return (
         SUB_AGENT_SYSTEM_PROMPT + '\n\n' + _get_env_instruction(work_dir=work_dir, model_name=model_name) + '\n\n' + CODEBASE_INSTRUCTION
         # + '\n\n'

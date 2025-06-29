@@ -1,7 +1,7 @@
-import os
 import re
 import sys
 from enum import Enum
+from pathlib import Path
 from typing import Literal, Optional, Union
 
 from rich import box
@@ -335,7 +335,7 @@ def render_hello() -> RenderResult:
             '',
             '[italic]/status for your current setup[/italic]',
             '',
-            Text('cwd: {}'.format(os.getcwd())),
+            Text('cwd: {}'.format(Path.cwd())),
         ),
     )
     return Group(

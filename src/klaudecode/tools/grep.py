@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import re
 import shutil
 import subprocess
@@ -11,7 +11,7 @@ from ..message import ToolCall, ToolMessage, register_tool_call_renderer, regist
 from ..prompt.tools import GREP_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from ..utils.file_utils import DEFAULT_IGNORE_PATTERNS
+from ..utils.file_utils import DEFAULT_IGNORE_PATTERNS, get_relative_path_for_display
 
 DEFAULT_MAX_MATCHES_PER_FILE = 10
 DEFAULT_MAX_RESULTS = 100  # Maximum total results to show
@@ -39,7 +39,7 @@ class GrepTool(Tool):
             return
 
         # Validate path
-        if not os.path.exists(args.path):
+        if not Path(args.path).exists():
             instance.tool_result().set_error_msg(f"Path '{args.path}' does not exist")
             return
 
@@ -110,7 +110,7 @@ class GrepTool(Tool):
     def _execute_search_command(cls, command: list[str]) -> tuple[str, str, int]:
         """Execute search command and return stdout, stderr, and return code"""
         try:
-            result = subprocess.run(command, capture_output=True, text=True, timeout=DEFAULT_TIMEOUT, cwd=os.getcwd())
+            result = subprocess.run(command, capture_output=True, text=True, timeout=DEFAULT_TIMEOUT, cwd=Path.cwd())
             return result.stdout, result.stderr, result.returncode
         except subprocess.TimeoutExpired:
             return '', f'Search timed out after {DEFAULT_TIMEOUT} seconds', 1
@@ -211,12 +211,8 @@ def render_grep_args(tool_call: ToolCall, is_suffix: bool = False):
 
     # Convert absolute path to relative path, but only if it's not the default '.'
     if path != '.':
-        try:
-            relative_path = os.path.relpath(path, os.getcwd())
-            display_path = relative_path if len(relative_path) < len(path) else path
-            path_info = f' in {display_path}'
-        except (ValueError, OSError):
-            path_info = f' in {path}'
+        display_path = get_relative_path_for_display(path)
+        path_info = f' in {display_path}'
     else:
         path_info = ''
 

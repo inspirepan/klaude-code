@@ -1,6 +1,5 @@
 import asyncio
 import json
-import os
 import time
 import uuid
 from datetime import datetime
@@ -8,7 +7,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 from rich.text import Text
 
 from .llm import LLMManager
@@ -103,15 +102,19 @@ class Session(BaseModel):
     messages: MessageHistory = Field(default_factory=MessageHistory)
     todo_list: TodoList = Field(default_factory=TodoList)
     file_tracker: FileTracker = Field(default_factory=FileTracker)
-    work_dir: str
+    work_dir: Path
     source: Literal['user', 'subagent'] = 'user'
     session_id: str = ''
     append_message_hook: Optional[Callable] = None
     title_msg: str = ''
 
+    @field_serializer('work_dir')
+    def serialize_work_dir(self, work_dir: Path) -> str:
+        return str(work_dir)
+
     def __init__(
         self,
-        work_dir: str,
+        work_dir: Path,
         messages: Optional[List[BasicMessage]] = None,
         append_message_hook: Optional[Callable] = None,
         todo_list: Optional[TodoList] = None,
@@ -184,7 +187,7 @@ class Session(BaseModel):
             # Save metadata (lightweight for fast listing)
             metadata = {
                 'id': self.session_id,
-                'work_dir': self.work_dir,
+                'work_dir': str(self.work_dir),
                 'created_at': getattr(self, '_created_at', current_time),
                 'updated_at': current_time,
                 'message_count': len(self.messages),
@@ -270,7 +273,7 @@ class Session(BaseModel):
                     f.writelines(lines)
 
     @classmethod
-    def load(cls, session_id: str, work_dir: str = os.getcwd()) -> Optional['Session']:
+    def load(cls, session_id: str, work_dir: Path = Path.cwd()) -> Optional['Session']:
         """Load session from local files"""
 
         try:
@@ -340,7 +343,7 @@ class Session(BaseModel):
             else:
                 file_tracker = FileTracker()
 
-            session = cls(work_dir=metadata['work_dir'], messages=messages, todo_list=todo_list, file_tracker=file_tracker)
+            session = cls(work_dir=Path(metadata['work_dir']), messages=messages, todo_list=todo_list, file_tracker=file_tracker)
             session.session_id = metadata['id']
             session._created_at = metadata.get('created_at')
             session.title_msg = metadata.get('title_msg', '')
@@ -370,7 +373,7 @@ class Session(BaseModel):
         return new_session
 
     @classmethod
-    def load_session_list(cls, work_dir: str = os.getcwd()) -> List[dict]:
+    def load_session_list(cls, work_dir: Path = Path.cwd()) -> List[dict]:
         """Load a list of session metadata from the specified directory."""
         try:
             session_dir = cls(work_dir=work_dir)._get_session_dir()
@@ -405,7 +408,7 @@ class Session(BaseModel):
             return []
 
     @classmethod
-    def get_latest_session(cls, work_dir: str = os.getcwd()) -> Optional['Session']:
+    def get_latest_session(cls, work_dir: Path = Path.cwd()) -> Optional['Session']:
         """Get the most recent session for the current working directory."""
         sessions = cls.load_session_list(work_dir)
         if not sessions:

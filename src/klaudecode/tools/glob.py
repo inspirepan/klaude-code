@@ -1,7 +1,7 @@
 import glob as python_glob
-import os
 import shutil
 import subprocess
+from pathlib import Path
 from typing import Annotated, Optional
 
 from pydantic import BaseModel, Field
@@ -11,7 +11,7 @@ from ..message import ToolCall, ToolMessage, register_tool_call_renderer, regist
 from ..prompt.tools import GLOB_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from ..utils.file_utils import DEFAULT_IGNORE_PATTERNS
+from ..utils.file_utils import DEFAULT_IGNORE_PATTERNS, get_relative_path_for_display
 
 DEFAULT_MAX_DEPTH = 10
 DEFAULT_MAX_FILES = 100
@@ -45,7 +45,7 @@ class GlobTool(Tool):
             return
 
         # Validate path
-        if not os.path.exists(args.path):
+        if not Path(args.path).exists():
             instance.tool_result().set_error_msg(f"Path '{args.path}' does not exist")
             return
 
@@ -119,7 +119,7 @@ class GlobTool(Tool):
     def _execute_command(cls, command: list[str]) -> tuple[str, str, int]:
         """Execute command and return stdout, stderr, and return code"""
         try:
-            result = subprocess.run(command, capture_output=True, text=True, timeout=DEFAULT_TIMEOUT, cwd=os.getcwd())
+            result = subprocess.run(command, capture_output=True, text=True, timeout=DEFAULT_TIMEOUT, cwd=Path.cwd())
             return result.stdout, result.stderr, result.returncode
         except subprocess.TimeoutExpired:
             return '', f'Search timed out after {DEFAULT_TIMEOUT} seconds', 1
@@ -132,13 +132,13 @@ class GlobTool(Tool):
         try:
             # Construct full pattern
             if path != '.':
-                full_pattern = os.path.join(path, pattern)
+                full_pattern = Path(path) / pattern
             else:
                 full_pattern = pattern
 
             # Add recursive search if pattern doesn't already include it
             if '**' not in full_pattern and '/' in pattern:
-                full_pattern = os.path.join(path, '**', pattern)
+                full_pattern = Path(path) / '**' / pattern
 
             # Get all matches
             matches = python_glob.glob(full_pattern, recursive=True)
@@ -147,11 +147,11 @@ class GlobTool(Tool):
             filtered_matches = []
             for match in matches:
                 try:
-                    if not os.path.exists(match) or not os.path.isfile(match):
+                    if not Path(match).exists() or not Path(match).is_file():
                         continue
 
                     # Skip hidden files
-                    if os.path.basename(match).startswith('.'):
+                    if Path(match).name.startswith('.'):
                         continue
 
                     # Check ignore patterns
@@ -210,7 +210,7 @@ class GlobTool(Tool):
 
         # Sort by modification time (as specified in tool description)
         try:
-            files.sort(key=lambda f: os.path.getmtime(f), reverse=True)
+            files.sort(key=lambda f: Path(f).stat().st_mtime, reverse=True)
         except OSError:
             # If we can't get modification time, just use alphabetical sort
             files.sort()
@@ -259,12 +259,8 @@ def render_glob_args(tool_call: ToolCall, is_suffix: bool = False):
 
     # Convert absolute path to relative path, but only if it's not the default '.'
     if path != '.':
-        try:
-            relative_path = os.path.relpath(path, os.getcwd())
-            display_path = relative_path if len(relative_path) < len(path) else path
-            path_info = f' in {display_path}'
-        except (ValueError, OSError):
-            path_info = f' in {path}'
+        display_path = get_relative_path_for_display(path)
+        path_info = f' in {display_path}'
     else:
         path_info = ''
 

@@ -1,5 +1,5 @@
 import asyncio
-import os
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -28,10 +28,10 @@ async def main_async(ctx: typer.Context):
     if ctx.obj['prompt']:
         # Headless mode
         session = Session(
-            os.getcwd(),
+            Path.cwd(),
             messages=[
                 SystemMessage(content=STATIC_SYSTEM_PROMPT, cached=True),
-                SystemMessage(content=get_system_prompt_dynamic_part(os.getcwd(), ctx.obj['config'].model_name)),
+                SystemMessage(content=get_system_prompt_dynamic_part(Path.cwd(), ctx.obj['config'].model_name)),
             ],
         )
         agent = get_main_agent(session, config=ctx.obj['config'], enable_mcp=ctx.obj['mcp'])
@@ -42,15 +42,15 @@ async def main_async(ctx: typer.Context):
         return
 
     if ctx.obj['continue_latest']:
-        session = Session.get_latest_session(os.getcwd())
+        session = Session.get_latest_session(Path.cwd())
         if not session:
-            console.print(Text(f'No session found in {os.getcwd()}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'No session found in {Path.cwd()}', style=ColorStyle.ERROR.value))
             return
         session = session.create_new_session()
     elif ctx.obj['resume']:
-        sessions = Session.load_session_list(os.getcwd())
+        sessions = Session.load_session_list(Path.cwd())
         if not sessions or len(sessions) == 0:
-            console.print(Text(f'No session found in {os.getcwd()}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'No session found in {Path.cwd()}', style=ColorStyle.ERROR.value))
             return
         options = []
         for idx, session in enumerate(sessions):
@@ -73,10 +73,10 @@ async def main_async(ctx: typer.Context):
         session = Session.load(sessions[idx].get('id'))
     else:
         session = Session(
-            os.getcwd(),
+            Path.cwd(),
             messages=[
                 SystemMessage(content=STATIC_SYSTEM_PROMPT, cached=True),
-                SystemMessage(content=get_system_prompt_dynamic_part(os.getcwd(), ctx.obj['config'].model_name)),
+                SystemMessage(content=get_system_prompt_dynamic_part(Path.cwd(), ctx.obj['config'].model_name)),
             ],
         )
     agent = get_main_agent(session, config=ctx.obj['config'], enable_mcp=ctx.obj['mcp'])
