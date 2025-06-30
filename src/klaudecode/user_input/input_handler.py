@@ -29,7 +29,7 @@ class UserInputHandler:
 
         if user_msg is not None:
             self._handle_language_reminder(user_msg)
-            self.agent.append_message(user_msg)
+            self.agent.session.append_message(user_msg)
             if print_msg:
                 console.print(user_msg)
             elif command_handle_output.need_render_suffix:

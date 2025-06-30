@@ -21,7 +21,7 @@ class CompactCommand(Command):
         command_handle_output = await super().handle(agent, user_input)
         command_handle_output.user_msg.removed = True
         console.print()
-        agent.append_message(command_handle_output.user_msg)
+        agent.session.append_message(command_handle_output.user_msg)
         await agent.session.compact_conversation_history(instructions=user_input.cleaned_input, show_status=True, llm_manager=agent.llm_manager)
         return command_handle_output
 

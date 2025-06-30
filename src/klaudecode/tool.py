@@ -352,7 +352,7 @@ class ToolHandler:
                     await monitor_task
                 except asyncio.CancelledError:
                     pass
-            self.agent.append_message(*(ti.tool_result() for ti in tool_instances))
+            self.agent.session.append_message(*(ti.tool_result() for ti in tool_instances))
             if interrupted:
                 raise asyncio.CancelledError
 

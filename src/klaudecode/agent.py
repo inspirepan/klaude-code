@@ -145,7 +145,7 @@ class Agent(Tool):
                     interrupt_check=self._should_interrupt,
                 )
 
-                self.append_message(ai_msg)
+                self.session.append_message(ai_msg)
                 if ai_msg.finish_reason == 'stop':
                     # Cannot directly use this AI response's content as result,
                     # because Claude might execute a tool call (e.g. TodoWrite) at the end and return empty content
@@ -180,12 +180,6 @@ class Agent(Tool):
             console.print(render_message(max_step_msg, mark_style=ColorStyle.INFO.value))
             console.print()
         return max_step_msg
-
-    def append_message(self, *msgs: BasicMessage, print_msg=False):
-        self.session.append_message(*msgs)
-        if self.print_switch and print_msg:
-            for msg in msgs:
-                console.print(msg)
 
     def _handle_claudemd_reminder(self):
         reminder = get_context_reminder(self.session.work_dir)
@@ -245,7 +239,7 @@ class Agent(Tool):
         tool_msg = ToolMessage(tool_call_id=exit_plan_call.id, tool_call_cache=exit_plan_call, content=APPROVE_MSG if approved else REJECT_MSG)
         tool_msg.set_extra_data('approved', approved)
         console.print(*tool_msg.get_suffix_renderable())
-        self.append_message(tool_msg)
+        self.session.append_message(tool_msg)
         return approved
 
     def _handle_interruption(self):
@@ -262,8 +256,10 @@ class Agent(Tool):
                 pass
 
         # Add interrupted message
+        user_msg = UserMessage(content=INTERRUPTED_MSG, user_msg_type=SpecialUserMessageTypeEnum.INTERRUPTED.value)
         console.print()
-        self.append_message(UserMessage(content=INTERRUPTED_MSG, user_msg_type=SpecialUserMessageTypeEnum.INTERRUPTED.value), print_msg=True)
+        console.print(user_msg)
+        self.session.append_message(user_msg)
         return INTERRUPTED_MSG
 
     def _should_interrupt(self) -> bool:
@@ -403,7 +399,7 @@ class Agent(Tool):
         agent = cls(session, availiable_tools=cls.get_subagent_tools(), print_switch=False, config=instance.parent_agent.config)
         # Initialize LLM manager for subagent
         agent._initialize_llm()
-        agent.append_message(UserMessage(content=args.prompt))
+        agent.session.append_message(UserMessage(content=args.prompt))
 
         # Use asyncio.run with proper isolation and error suppression
         import asyncio
