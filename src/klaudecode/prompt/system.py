@@ -198,7 +198,7 @@ assistant: Clients are marked as failed in the `connectToServer` function in src
 """
 
 
-def _get_directory_structure_context(workdir: str):
+def _get_directory_structure_context(workdir: Path):
     try:
         DIRECTORY_STRUCTURE_MAX_CHARS = 40000
         repo_map, truncated, _ = get_directory_structure(workdir, max_chars=DIRECTORY_STRUCTURE_MAX_CHARS, max_depth=4)

@@ -73,7 +73,7 @@ class AnthropicProxy(LLMProxyBase):
         timeout: float = 20.0,
         interrupt_check: Optional[callable] = None,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
-        stream_status = StreamStatus(tokens=sum(msg.tokens for msg in msgs if msg))
+        stream_status = StreamStatus(phase='upload', tokens=sum(msg.tokens for msg in msgs if msg))
         yield (stream_status, AIMessage(content=''))
 
         system_msgs, other_msgs = self.convert_to_anthropic(msgs)
@@ -109,7 +109,6 @@ class AnthropicProxy(LLMProxyBase):
         content_blocks = {}
         tool_json_fragments = {}
         tool_call_tokens = 0
-        stream_status.phase = 'content'
 
         async for event in stream:
             # Check for interruption at the start of each event

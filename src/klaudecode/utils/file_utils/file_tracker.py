@@ -1,5 +1,5 @@
-import os
 from enum import Enum
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 from pydantic import BaseModel, Field
@@ -31,7 +31,7 @@ class FileTracker(BaseModel):
             file_path: Path to the file to track
         """
         try:
-            stat = os.stat(file_path)
+            stat = Path(file_path).stat()
             self.tracking[file_path] = FileStatus(mtime=stat.st_mtime, size=stat.st_size)
         except OSError:
             pass
@@ -49,7 +49,7 @@ class FileTracker(BaseModel):
             return CheckModifiedResult.NOT_TRACKED
 
         try:
-            stat = os.stat(file_path)
+            stat = Path(file_path).stat()
             tracked_status = self.tracking[file_path]
 
             if stat.st_mtime != tracked_status.mtime or stat.st_size != tracked_status.size:

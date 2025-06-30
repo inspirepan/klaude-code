@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from typing import Tuple
 
 # Error messages
@@ -18,9 +18,9 @@ def validate_file_exists(file_path: str) -> Tuple[bool, str]:
     Returns:
         Tuple of (is_valid, error_message)
     """
-    if not os.path.exists(file_path):
+    if not Path(file_path).exists():
         return False, FILE_NOT_EXIST_ERROR_MSG
-    if not os.path.isfile(file_path):
+    if not Path(file_path).is_file():
         return False, FILE_NOT_A_FILE_ERROR_MSG
     return True, ''
 
@@ -31,6 +31,6 @@ def ensure_directory_exists(file_path: str) -> None:
     Args:
         file_path: File path whose parent directory should exist
     """
-    directory = os.path.dirname(file_path)
+    directory = Path(file_path).parent
     if directory:
-        os.makedirs(directory, exist_ok=True)
+        directory.mkdir(parents=True, exist_ok=True)

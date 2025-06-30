@@ -357,18 +357,21 @@ class ToolHandler:
                 raise asyncio.CancelledError
 
 
+UPDATE_STATUS_TEXTS = ['Updating', 'Modifying', 'Changing', 'Refactoring', 'Transforming', 'Rewriting', 'Refining', 'Polishing', 'Tweaking', 'Adjusting', 'Fixing']
+TODO_STATUS_TEXTS = ['Planning', 'Organizing', 'Structuring', 'Brainstorming', 'Strategizing', 'Outlining', 'Tracking']
+
 TOOL_CALL_STATUS_TEXT_DICT = {
-    'MultiEdit': ['Updating', 'Modifying', 'Changing', 'Refactoring', 'Transforming', 'Rewriting', 'Polishing'],
-    'Edit': ['Updating', 'Modifying', 'Changing', 'Tweaking', 'Adjusting', 'Refining', 'Fixing'],
+    'MultiEdit': UPDATE_STATUS_TEXTS,
+    'Edit': UPDATE_STATUS_TEXTS,
     'Read': ['Exploring', 'Reading', 'Scanning', 'Analyzing', 'Inspecting', 'Examining', 'Studying'],
-    'Write': ['Writing', 'Creating', 'Adding', 'Crafting', 'Composing', 'Building', 'Generating'],
-    'TodoWrite': ['Planning', 'Organizing', 'Structuring', 'Brainstorming', 'Strategizing', 'Outlining'],
-    'TodoRead': ['Planning', 'Organizing', 'Structuring', 'Reviewing', 'Checking', 'Assessing', 'Tracking'],
+    'Write': ['Writing', 'Creating', 'Crafting', 'Composing', 'Generating'],
+    'TodoWrite': TODO_STATUS_TEXTS,
+    'TodoRead': TODO_STATUS_TEXTS,
     'LS': ['Exploring', 'Scanning', 'Browsing', 'Investigating', 'Surveying', 'Discovering', 'Wandering'],
     'Grep': ['Searching', 'Looking', 'Finding', 'Hunting', 'Tracking', 'Filtering', 'Digging'],
     'Glob': ['Searching', 'Looking', 'Finding', 'Matching', 'Collecting', 'Gathering', 'Harvesting'],
     'Bash': ['Executing', 'Running', 'Processing', 'Computing', 'Launching', 'Invoking', 'Commanding'],
-    'ExitPlanMode': ['Planning', 'Thinking', 'Strategizing'],
+    'ExitPlanMode': ['Planning'],
     'CommandPatternResult': ['Patterning'],
 }
 

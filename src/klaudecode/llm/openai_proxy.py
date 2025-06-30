@@ -95,7 +95,7 @@ class OpenAIProxy(LLMProxyBase):
         timeout: float = 20.0,
         interrupt_check: Optional[callable] = None,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
-        stream_status = StreamStatus(tokens=sum(msg.tokens for msg in msgs if msg))
+        stream_status = StreamStatus(phase='upload', tokens=sum(msg.tokens for msg in msgs if msg))
         yield (stream_status, AIMessage(content=''))
 
         stream = await asyncio.wait_for(
@@ -118,7 +118,6 @@ class OpenAIProxy(LLMProxyBase):
         completion_tokens = 0
         prompt_tokens = 0
         total_tokens = 0
-        stream_status.phase = 'content'
         async for chunk in stream:
             # Check for interruption at the start of each chunk
             if interrupt_check and interrupt_check():
