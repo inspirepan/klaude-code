@@ -6,6 +6,7 @@ if TYPE_CHECKING:
     from .agent import Agent
 
 from prompt_toolkit import PromptSession
+from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
@@ -416,21 +417,6 @@ class InputSession:
         self.history = FileHistory(str(history_file))
         self.user_input_completer = UserInputCompleter(self)
 
-        # Create key bindings
-        self.kb = KeyBindings()
-        self._setup_key_bindings()
-
-        # Create session
-        self.session = PromptSession(
-            message=self._dyn_prompt,
-            key_bindings=self.kb,
-            history=self.history,
-            placeholder=self._dyn_placeholder,
-            completer=self.user_input_completer,
-            style=self.current_input_mode.get_style(),
-        )
-        self.buf = self.session.default_buffer
-
     def _dyn_prompt(self):
         return self.current_input_mode.get_prompt()
 
@@ -446,17 +432,7 @@ class InputSession:
             event.app.style = None
         event.app.invalidate()
 
-    def _switch_mode_or_insert(self, event, mode_name: str, char: str):
-        """Switch to mode if at line start, otherwise insert character"""
-        # Check if cursor is at the beginning of current line
-        document = self.buf.document
-        current_line_start_pos = document.cursor_position + document.get_start_of_line_position()
-        if self.buf.cursor_position == current_line_start_pos:
-            self._switch_mode(event, mode_name)
-            return
-        self.buf.insert_text(char)
-
-    def _setup_key_bindings(self):
+    def _setup_key_bindings(self, buf: Buffer, kb: KeyBindings):
         for mode in _INPUT_MODES.values():
             binding_keys = []
             if hasattr(mode, 'binding_keys'):
@@ -470,31 +446,36 @@ class InputSession:
 
                 # Create a proper closure with default arguments to avoid late binding
                 def make_binding(current_mode=mode, bind_key=key):
-                    @self.kb.add(bind_key)
+                    @kb.add(bind_key)
                     def _(event):
-                        self._switch_mode_or_insert(event, current_mode.get_name(), bind_key)
+                        document = buf.document
+                        current_line_start_pos = document.cursor_position + document.get_start_of_line_position()
+                        if buf.cursor_position == current_line_start_pos:
+                            self._switch_mode(event, current_mode.get_name())
+                            return
+                        buf.insert_text(bind_key)
 
                     return _
 
                 make_binding()
 
-        @self.kb.add('backspace')
+        @kb.add('backspace')
         def _(event):
             # Check if cursor is at the beginning of current line
-            document = self.buf.document
+            document = buf.document
             current_line_start_pos = document.cursor_position + document.get_start_of_line_position()
-            if self.buf.cursor_position == current_line_start_pos:
+            if buf.cursor_position == current_line_start_pos:
                 self._switch_mode(event, NORMAL_MODE_NAME)
                 return
-            self.buf.delete_before_cursor()
+            buf.delete_before_cursor()
 
-        @self.kb.add('c-u')
+        @kb.add('c-u')
         def _(event):
             """Clear the entire buffer with ctrl+u (Unix standard)"""
-            self.buf.text = ''
-            self.buf.cursor_position = 0
+            buf.text = ''
+            buf.cursor_position = 0
 
-        @self.kb.add('enter')
+        @kb.add('enter')
         def _(event):
             """
             Check if the current line ends with a backslash.
@@ -514,26 +495,35 @@ class InputSession:
                 # accept_action, which records the entry in FileHistory.
                 buffer.validate_and_handle()
 
-    def _switch_to_next_mode(self):
+    def _get_session(self):
+        kb = KeyBindings()
+        session = PromptSession(
+            message=self._dyn_prompt,
+            key_bindings=kb,
+            history=self.history,
+            placeholder=self._dyn_placeholder,
+            completer=self.user_input_completer,
+            style=self.current_input_mode.get_style(),
+        )
+        self._setup_key_bindings(session.default_buffer, kb)
+        return session
+
+    def _switch_to_next_input_mode(self):
         next_mode_name = self.current_input_mode.get_next_mode_name()
         if next_mode_name not in _INPUT_MODES:
             return
         self.current_input_mode = _INPUT_MODES[next_mode_name]
-        # Update session style for next prompt
-        style = self.current_input_mode.get_style()
-        if hasattr(self.session, 'app') and self.session.app:
-            self.session.app.style = style or None
 
     def prompt(self) -> UserInput:
-        input_text = self.session.prompt()
+        input_text = self._get_session().prompt()
         if self.current_input_mode.get_name() != NORMAL_MODE_NAME:
             input_text = f'/{self.current_input_mode.get_name()} {input_text}'
-        self._switch_to_next_mode()
+        self._switch_to_next_input_mode()
         return input_text
 
     async def prompt_async(self) -> UserInput:
-        input_text = await self.session.prompt_async()
+        input_text = await self._get_session().prompt_async()
         if self.current_input_mode.get_name() != NORMAL_MODE_NAME:
             input_text = f'/{self.current_input_mode.get_name()} {input_text}'
-        self._switch_to_next_mode()
+        self._switch_to_next_input_mode()
         return input_text

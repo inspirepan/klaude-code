@@ -41,13 +41,8 @@ class MemoryMode(InputModeCommand):
             return command_handle_output
 
         options = ['Project memory          Checked in at ./CLAUDE.md', 'User memory             Saved in ~/.claude/CLAUDE.md']
-        try:
-            choice = await user_select(options, 'Where should this memory be saved?')
-        except (KeyboardInterrupt, asyncio.CancelledError):
-            command_handle_output.user_msg.set_extra_data('result', 'Cancelled by user')
-            command_handle_output.user_msg.set_extra_data('status', 'cancelled')
-            command_handle_output.need_agent_run = False
-            return command_handle_output
+
+        choice = await user_select(options, 'Where should this memory be saved?')
 
         if choice is None:
             command_handle_output.user_msg.set_extra_data('result', 'Cancelled by user')

@@ -26,11 +26,7 @@ class MemoryCommand(Command):
 
         options = ['Project memory          ./CLAUDE.md', 'User memory             ~/.claude/CLAUDE.md']
 
-        try:
-            selected_idx = await user_select(options, 'Which memory file to open?')
-        except Exception as e:
-            command_handle_output.user_msg.set_extra_data('memory_error', f'Selection failed: {str(e)}')
-            return command_handle_output
+        selected_idx = await user_select(options, 'Which memory file to open?')
 
         if selected_idx is None:
             command_handle_output.user_msg.set_extra_data('memory_cancelled', True)

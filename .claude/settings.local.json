@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ruff check:*)"
+      "Bash(ruff check:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }
