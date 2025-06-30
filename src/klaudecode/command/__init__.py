@@ -2,11 +2,11 @@ from .command_clear import ClearCommand
 from .command_compact import CompactCommand
 from .command_continue import ContinueCommand
 from .command_cost import CostCommand
-from .command_create_example_custom_command import CreateExampleCommand
+from .command_example_custom_command import ExampleCustomCommand
 from .command_init import InitCommand
 from .command_mac_setup import MacSetupCommand
 from .command_memory import MemoryCommand
-from .command_save_as_custom_command import SaveAsCustomCommandCommand
+from .command_save_custom_command import SaveCustomCommandCommand
 from .command_status import StatusCommand
 from .command_theme import ThemeCommand
 from .custom_command import CustomCommand
@@ -27,8 +27,8 @@ __all__ = [
     'MemoryCommand',
     'InitCommand',
     'ThemeCommand',
-    'CreateExampleCommand',
-    'SaveAsCustomCommandCommand',
+    'ExampleCustomCommand',
+    'SaveCustomCommandCommand',
     'PlanMode',
     'BashMode',
     'MemoryMode',
@@ -51,5 +51,5 @@ register_slash_command(ContinueCommand())
 # register_slash_command(CostCommand())
 register_slash_command(MacSetupCommand())
 register_slash_command(ThemeCommand())
-register_slash_command(CreateExampleCommand())
-register_slash_command(SaveAsCustomCommandCommand())
+register_slash_command(ExampleCustomCommand())
+register_slash_command(SaveCustomCommandCommand())

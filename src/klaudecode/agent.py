@@ -255,7 +255,7 @@ class Agent(Tool):
 
         # Clean up any live displays
         asyncio.create_task(asyncio.sleep(0.1))
-        if hasattr(console.console, '_live'):
+        if hasattr(console.console, '_live') and console.console._live:
             try:
                 console.console._live.stop()
             except Exception as e:

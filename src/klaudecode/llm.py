@@ -85,7 +85,6 @@ def get_upload_status_text(seed: Optional[int] = None) -> str:
 NON_RETRY_EXCEPTIONS = (
     KeyboardInterrupt,
     asyncio.CancelledError,
-    asyncio.TimeoutError,
     openai.APIStatusError,
     anthropic.APIStatusError,
     openai.AuthenticationError,

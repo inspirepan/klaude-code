@@ -16,9 +16,9 @@ if TYPE_CHECKING:
     from ..agent import Agent
 
 
-class CreateExampleCommand(Command):
+class ExampleCustomCommand(Command):
     def get_name(self) -> str:
-        return 'create_example_custom_command'
+        return 'example_custom_command'
 
     def get_command_desc(self) -> str:
         return 'Create some example custom commands'

@@ -16,12 +16,12 @@ if TYPE_CHECKING:
     from ..agent import Agent
 
 
-class SaveAsCustomCommandCommand(Command):
+class SaveCustomCommandCommand(Command):
     def get_name(self) -> str:
-        return 'save_as_custom_command'
+        return 'save_custom_command'
 
     def get_command_desc(self) -> str:
-        return 'Analyze current conversation and save as a reusable custom command'
+        return 'Analyze current conversation pattern and save a reusable custom command'
 
     async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
         command_handle_output = await super().handle(agent, user_input)
