@@ -66,29 +66,8 @@ class FileSearcher:
             # If no keyword, return all files
             return cls.search_files('*', path)
 
-        files = []
-
-        # Try multiple patterns for fuzzy matching
-        patterns = [
-            f'*{keyword}*',  # Contains keyword anywhere
-            f'{keyword}*',  # Starts with keyword
-            f'*{keyword}*.py',  # Python files containing keyword
-            f'*{keyword}*.js',  # JS files containing keyword
-            f'*{keyword}*.ts',  # TS files containing keyword
-            f'*{keyword}*.go',  # Go files containing keyword
-        ]
-
-        seen_files = set()
-
-        for pattern in patterns:
-            try:
-                pattern_files = cls.search_files(pattern, path)
-                for file_path in pattern_files:
-                    if file_path not in seen_files:
-                        files.append(file_path)
-                        seen_files.add(file_path)
-            except Exception:
-                continue
+        pattern_files = cls.search_files(f'*{keyword}*', path)
+        files = list(set(pattern_files))
 
         # Sort by relevance: exact matches first, then by modification time
         def relevance_key(file_path: str) -> tuple:
