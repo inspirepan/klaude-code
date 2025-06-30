@@ -2,136 +2,113 @@
 
 This file provides guidance to Klaude Code (claude.ai/code) when working with code in this repository.
 
+## Project Overview
+
+Klaude Code is a Python CLI tool that provides an interactive coding assistant powered by Claude AI. It features both interactive chat mode and headless automation mode, with persistent sessions and extensive tool integration.
+
 ## Development Commands
 
-### Build and Install
+### Environment Setup
 ```bash
 # Install dependencies
 uv sync
 
-# Install in development mode
+# Install in development mode  
 uv pip install -e .
-
-# Run the CLI in development
-klaude
 ```
 
 ### Code Quality
 ```bash
-# Format code (ruff is configured for line-length 180, Python 3.13+)
-isort src/ && ruff format src/
-
 # Lint code
-ruff check src/
+ruff check --fix src/
 
-# Run all quality checks
-isort src/ && ruff format src/ && ruff check src/
-```
-
-### Package Management
-```bash
-# Build package
-uv build
-
-# Upload to PyPI
-twine upload dist/*
+# Format and lint together
+isort src/ && ruff format src/
 ```
 
 ### Testing
-This project currently does not have a formal test suite. When adding tests, follow standard Python testing patterns.
+There are no automated tests in this repository. Test functionality manually using:
+```bash
+# Test basic functionality
+klaude --print "hello world"
 
-## Architecture Overview
+# Test interactive mode
+klaude
+```
 
-Klaude Code is a CLI tool that provides an AI coding assistant powered by Claude. The architecture follows a modular design:
+## Architecture
 
 ### Core Components
 
-**Entry Point & CLI (`cli.py`)**
-- Typer-based command interface with subcommands for config and MCP management
-- Supports interactive mode, headless mode, and session continuation
-- Handles both synchronous CLI operations and asynchronous agent execution
+- **CLI Entry Point** (`cli.py`): Typer-based command interface with subcommands for config and MCP management
+- **Agent System** (`agent.py`): Orchestrates AI interactions, tool execution, and conversation flow
+- **Session Management** (`session.py`): Handles persistent conversation history with JSONL storage
+- **Tool Framework** (`tool.py`): Base class and execution framework for all tools
+- **LLM Integration** (`llm/`): Abstracts multiple LLM providers (Anthropic, OpenAI) with unified interface
+- **Message System** (`message/`): Type-safe message handling with tool calls and results
 
-**Agent System (`agent.py`)**
-- `Agent` class serves as the main orchestrator and implements the `Tool` interface for sub-agents
-- Manages conversation flow, tool execution, and interrupt handling
-- Supports both interactive chat and headless execution modes
-- Includes specialized `CodeSearchTaskTool` for read-only code analysis
-- Handles plan mode activation/deactivation and user confirmations
+### Tool System
 
-**Session Management (`session.py`)**
-- `Session` class manages conversation history, metadata, and persistence
-- Uses JSONL format for incremental message storage with proper state tracking
-- Integrates `TodoList` and `FileTracker` for task and file change management
-- Supports session resumption and conversation compacting
+Tools inherit from `Tool` base class and define:
+- Input parameters via Pydantic models
+- Execution logic in `call()` method
+- Automatic JSON schema generation for LLM function calling
+- Parallel execution support (configurable per tool)
 
-**Tool System (`tool.py`)**
-- Base `Tool` class with JSON schema generation for LLM function calling
-- `ToolHandler` manages parallel and sequential tool execution with interrupt support
-- `ToolInstance` provides runtime state management and cancellation capabilities
-- Automatic timeout handling and error recovery
-
-**LLM Integration (`llm.py`)**
-- Abstracted LLM client supporting both OpenAI and Anthropic APIs
-- Configurable model parameters, token limits, and thinking mode
-- Handles streaming responses and tool calling protocols
-
-### Tool Organization
-
-**Core Tools (`tools/`)**
+Available tools:
 - File operations: `ReadTool`, `WriteTool`, `EditTool`, `MultiEditTool`
-- System integration: `BashTool`, `LsTool`
-- Code search: `GrepTool`, `GlobTool`
+- Code search: `GrepTool`, `GlobTool`, `LsTool`
+- System integration: `BashTool` (with proper path quoting)
 - Task management: `TodoWriteTool`, `TodoReadTool`
-- Special: `ExitPlanModeTool` for plan mode workflow
+- Planning: `ExitPlanModeTool`
 
-**MCP Integration (`mcp/`)**
-- Model Context Protocol support for extending tool capabilities
-- `MCPManager` handles server connections and tool discovery
-- `MCPTool` wraps external MCP tools for seamless integration
+### Session Persistence
 
-### Input and User Interface
+Sessions are stored as JSONL files in `.klaude/sessions/` with:
+- Incremental message storage
+- File change tracking
+- Session metadata (title, message count, timestamps)
+- Context window management with automatic compaction
 
-**User Input (`user_input.py`)**
-- `InputSession` handles different input modes (normal, bash, plan, memory)
-- `UserInputHandler` processes special prefixes and command routing
-- Integration with file auto-completion and command execution
+### Configuration System
 
-**Terminal UI (`tui.py`)**
-- Rich-based console interface with theming support
-- Message rendering with syntax highlighting and formatting
-- Live status updates and interactive elements
+Three-tier configuration with priority:
+1. CLI arguments (highest)
+2. Environment variables
+3. Config file `~/.klaude/config.json`
 
-### Key Design Patterns
+Supports multiple LLM providers and deployment types (standard, Azure).
 
-**Message Flow**
-- Messages flow through: UserInput → Agent → LLM → Tools → ToolHandler → Agent
-- Each message type (`UserMessage`, `AIMessage`, `ToolMessage`, `SystemMessage`) has specific rendering and storage behavior
-- Session persistence uses incremental JSONL storage for efficiency
+### Input Modes
 
-**Tool Execution**
-- Tools can be parallelable or sequential
-- Interrupt handling at multiple levels (tool, handler, agent)
-- Automatic schema generation from Pydantic models for LLM function calling
+Special input prefixes in interactive mode:
+- `!` - Bash mode (direct command execution)
+- `*` - Plan mode (structured planning interface)
+- `#` - Memory mode (session context management)
+- `@filename` - File reference with auto-completion
 
-**Configuration Management**
-- Global config in `~/.klaude/config.json`
-- MCP config in `~/.klaude/mcp_config.json`
-- Project-specific sessions in `.klaude/sessions/`
+### MCP Integration
 
-## File Structure Patterns
+Model Context Protocol support for external tools:
+- Configuration in `~/.klaude/mcp.json`
+- Dynamic tool discovery and registration
+- Async client management
 
-- `command/`: Slash commands for interactive mode
-- `prompt/`: System prompts and templating
-- `tools/`: Individual tool implementations
-- `utils/`: Utility functions for file operations, string processing
-- `mcp/`: Model Context Protocol integration
+## Key Design Patterns
 
-## Special Notes
+1. **Async-First**: All core operations use async/await for better concurrency
+2. **Pydantic Models**: Type-safe data structures throughout
+3. **Rich UI**: Terminal UI with themes, formatting, and progress indicators
+4. **Tool Parallelization**: Tools can run concurrently when marked as parallelable
+5. **Error Recovery**: Graceful handling of API errors and interruptions
+6. **Context Management**: Automatic token counting and conversation compaction
 
-- The project uses Python 3.13+ and modern async/await patterns throughout
-- Tool calling uses both OpenAI and Anthropic function calling formats
-- Session files use JSONL format for append-only message storage
-- The agent can spawn sub-agents for complex tasks while maintaining proper isolation
-- Plan mode provides a special workflow for task planning and approval
-- Code formatting uses ruff with 180 character line length and single quote style
-- Entry point is defined as `klaude = "klaudecode.cli:app"` in pyproject.toml
+## Important Notes
+
+- Minimum Python 3.13 required
+- Uses `uv` as primary package manager
+- No traditional test suite - relies on manual testing
+- Rich terminal UI with theming support
+- Supports both Claude and OpenAI models
+- Session files use JSONL format for streaming
+- File operations include external change detection
