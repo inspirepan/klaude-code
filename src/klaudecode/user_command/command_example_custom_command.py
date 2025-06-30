@@ -9,8 +9,7 @@ from rich.text import Text
 from ..message import UserMessage
 from ..prompt.commands import ANALYSE_RECENT_GTI_COMMIT_COMMAND, GIT_COMMIT_COMMAND
 from ..tui import ColorStyle, render_grid
-from ..user_input import Command, CommandHandleOutput, UserInput
-from ..user_questionary import user_select
+from ..user_input import Command, CommandHandleOutput, UserInput, user_select
 
 if TYPE_CHECKING:
     from ..agent import Agent

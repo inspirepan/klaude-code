@@ -3,7 +3,7 @@ from typing import Optional
 
 from InquirerPy import get_style, inquirer
 
-from .tui import clear_last_line, get_inquirer_style
+from ..tui import clear_last_line, get_inquirer_style
 
 
 async def user_select(options: list[str], title: str = None) -> Optional[int]:

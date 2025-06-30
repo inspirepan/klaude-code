@@ -10,8 +10,7 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
-from . import command  # noqa: F401 # import user_command to trigger command registration
-from .command import custom_command_manager
+from . import user_command  # noqa: F401 # import user_command to trigger command registration
 from .config import ConfigModel
 from .llm import LLMManager
 from .mcp.mcp_tool import MCPManager
@@ -36,8 +35,8 @@ from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, ExitPlanModeTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
 from .tools.read import execute_read
 from .tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, render_grid, render_hello, render_markdown, render_message, render_status, render_suffix
-from .user_input import _INPUT_MODES, NORMAL_MODE_NAME, InputSession, UserInputHandler
-from .user_questionary import user_select
+from .user_command import custom_command_manager
+from .user_input import _INPUT_MODES, NORMAL_MODE_NAME, InputSession, UserInputHandler, user_select
 
 DEFAULT_MAX_STEPS = 80
 INTERACTIVE_MAX_STEPS = 100

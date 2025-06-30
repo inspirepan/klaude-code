@@ -8,8 +8,7 @@ from rich.text import Text
 
 from ..message import UserMessage
 from ..tui import ColorStyle, console, render_grid, render_suffix
-from ..user_input import Command, CommandHandleOutput, UserInput
-from ..user_questionary import user_select
+from ..user_input import Command, CommandHandleOutput, UserInput, user_select
 from ..utils.str_utils import sanitize_filename
 
 if TYPE_CHECKING:

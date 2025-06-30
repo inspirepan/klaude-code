@@ -6,8 +6,7 @@ from rich.abc import RichRenderable
 
 from ..message import UserMessage
 from ..tui import render_suffix
-from ..user_input import Command, CommandHandleOutput, UserInput
-from ..user_questionary import user_select
+from ..user_input import Command, CommandHandleOutput, UserInput, user_select
 
 if TYPE_CHECKING:
     from ..agent import Agent
