@@ -16,6 +16,8 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
+from .utils.str_utils import normalize_tabs
+
 
 class ColorStyle(str, Enum):
     # AI and user interaction
@@ -216,7 +218,7 @@ def render_grid(item: List[List[Union[str, RichRenderable]]], padding: Tuple[int
     if not item:
         return ''
     column_count = len(item[0])
-    grid = Table.grid(padding=padding)
+    grid = Table.grid(padding=padding, expand=True)
     for _ in range(column_count):
         grid.add_column(overflow='fold')
     for row in item:
@@ -257,6 +259,7 @@ def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Gro
 
     while i < len(lines):
         line = lines[i]
+        line = normalize_tabs(line)
 
         # Check for table start
         if line.strip().startswith('|') and line.strip().endswith('|'):

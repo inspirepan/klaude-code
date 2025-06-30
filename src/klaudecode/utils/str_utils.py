@@ -48,3 +48,7 @@ def format_relative_time(timestamp):
         return f'{minutes}m ago'
     else:
         return 'just now'
+
+
+def normalize_tabs(text: str, tab_size: int = 4) -> str:
+    return text.replace('\t', ' ' * tab_size)

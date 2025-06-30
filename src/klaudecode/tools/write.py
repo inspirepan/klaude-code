@@ -9,6 +9,7 @@ from ..prompt.tools import WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_grid, render_suffix
 from ..utils.file_utils import cleanup_backup, create_backup, ensure_directory_exists, get_relative_path_for_display, restore_backup, write_file_content
+from ..utils.str_utils import normalize_tabs
 
 """
 - Safety mechanism requiring existing files to be read first
@@ -115,7 +116,8 @@ def render_write_result(tool_msg: ToolMessage):
 
     if preview_lines:
         width = max(len(str(preview_lines[-1][0])) if preview_lines else 3, 3)
-        table = render_grid([[f'{line_num:>{width}}', Text(line_content)] for line_num, line_content in preview_lines], padding=(0, 2))
+        table = render_grid([[f'{line_num:>{width}}', Text(normalize_tabs(line_content))] for line_num, line_content in preview_lines], padding=(0, 2))
+        table.columns[0].justify = 'right'
         table.add_row('…' if total_lines > len(preview_lines) else '', f'Written [bold]{total_lines}[/bold] lines')
 
         yield render_suffix(table)
