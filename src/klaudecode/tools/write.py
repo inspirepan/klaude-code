@@ -114,7 +114,7 @@ def render_write_result(tool_msg: ToolMessage):
     total_lines = tool_msg.get_extra_data('total_lines', 0)
 
     if preview_lines:
-        width = len(str(preview_lines[-1][0])) if preview_lines else 1
+        width = max(len(str(preview_lines[-1][0])) if preview_lines else 3, 3)
         table = render_grid([[f'{line_num:>{width}}', Text(line_content)] for line_num, line_content in preview_lines], padding=(0, 2))
         table.add_row('…' if total_lines > len(preview_lines) else '', f'Written [bold]{total_lines}[/bold] lines')
 

@@ -11,6 +11,7 @@ from .file_operations import (
     restore_backup,
     write_file_content,
 )
+from .file_searcher import FileSearcher
 from .file_tracker import CheckModifiedResult, FileStatus, FileTracker
 from .file_validation import (
     EDIT_OLD_STRING_NEW_STRING_IDENTICAL_ERROR_MSG,
@@ -21,7 +22,6 @@ from .file_validation import (
     ensure_directory_exists,
     validate_file_exists,
 )
-from .file_searcher import FileSearcher
 
 # Re-export all functionality for backward compatibility
 __all__ = [

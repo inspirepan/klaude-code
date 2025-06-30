@@ -1,0 +1,126 @@
+from typing import List, Literal, Optional
+
+from anthropic.types import MessageParam
+from openai.types.chat import ChatCompletionMessageParam
+from pydantic import Field
+
+from ..tui import ColorStyle, render_suffix, truncate_middle_text
+from .base import BasicMessage
+from .tool_call import ToolCall
+
+INTERRUPTED_MSG = 'Interrupted by user'
+TRUNCATE_CHARS = 40100
+TRUNCATE_POSTFIX = '... (truncated at 40100 characters)'
+
+
+class ToolMessage(BasicMessage):
+    role: Literal['tool'] = 'tool'
+    tool_call_id: str
+    tool_call_cache: ToolCall = Field(exclude=True)
+    error_msg: Optional[str] = None
+    system_reminders: Optional[List[str]] = None
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    @property
+    def tool_call(self) -> ToolCall:
+        return self.tool_call_cache
+
+    def get_content(self):
+        content_text = self.content
+        if len(content_text) > TRUNCATE_CHARS:
+            content_text = content_text[:TRUNCATE_CHARS] + '\n' + TRUNCATE_POSTFIX
+        if self.tool_call.status == 'canceled':
+            content_text += '\n' + INTERRUPTED_MSG
+        elif self.tool_call.status == 'error':
+            content_text += '\nError: ' + self.error_msg
+        content_list = [
+            {
+                'type': 'text',
+                'text': content_text if content_text else '<system-reminder>Tool ran without output or errors</system-reminder>',
+            }
+        ]
+        if self.system_reminders:
+            for reminder in self.system_reminders:
+                content_list.append(
+                    {
+                        'type': 'text',
+                        'text': reminder,
+                    }
+                )
+        return content_list
+
+    def to_openai(self) -> ChatCompletionMessageParam:
+        return {
+            'role': 'tool',
+            'content': self.get_content(),
+            'tool_call_id': self.tool_call.id,
+        }
+
+    def to_anthropic(self) -> MessageParam:
+        return MessageParam(
+            role='user',
+            content=[
+                {
+                    'type': 'tool_result',
+                    'content': self.get_content(),
+                    'tool_use_id': self.tool_call.id,
+                    'is_error': self.tool_call.status == 'error',
+                }
+            ],
+        )
+
+    def get_suffix_renderable(self):
+        from .registry import _TOOL_RESULT_RENDERERS
+
+        if self.tool_call.tool_name in _TOOL_RESULT_RENDERERS:
+            for item in _TOOL_RESULT_RENDERERS[self.tool_call.tool_name](self):
+                yield item
+        else:
+            if self.content:
+                yield render_suffix(
+                    truncate_middle_text(self.content) if isinstance(self.content, str) else self.content,
+                    style=ColorStyle.ERROR.value if self.tool_call.status == 'error' else None,
+                )
+            elif self.tool_call.status == 'success':
+                yield render_suffix('(No content)')
+
+        if self.tool_call.status == 'canceled':
+            yield render_suffix(INTERRUPTED_MSG, style=ColorStyle.WARNING.value)
+        elif self.tool_call.status == 'error':
+            yield render_suffix(self.error_msg, style=ColorStyle.ERROR.value)
+        yield ''
+
+    def __rich_console__(self, console, options):
+        yield self.tool_call
+        for item in self.get_suffix_renderable():
+            yield item
+
+    def __bool__(self):
+        return not self.removed and bool(self.get_content())
+
+    def set_content(self, content: str):
+        if self.tool_call.status == 'canceled':
+            return
+        self.content = content
+
+    def set_error_msg(self, error_msg: str):
+        self.error_msg = error_msg
+        self.tool_call.status = 'error'
+
+    def set_extra_data(self, key: str, value: object):
+        if self.tool_call.status == 'canceled':
+            return
+        super().set_extra_data(key, value)
+
+    def append_extra_data(self, key: str, value: object):
+        if self.tool_call.status == 'canceled':
+            return
+        super().append_extra_data(key, value)
+
+    def append_post_system_reminder(self, reminder: str):
+        if not self.system_reminders:
+            self.system_reminders = [reminder]
+        else:
+            self.system_reminders.append(reminder)

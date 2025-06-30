@@ -223,7 +223,7 @@ def render_read_content(tool_msg: ToolMessage):
     truncated = tool_msg.get_extra_data('truncated', False)
 
     if brief_list:
-        width = len(str(brief_list[-1][0]))
+        width = max(len(str(brief_list[-1][0])) if brief_list else 3, 3)
         table = render_grid([[f'{line_num:>{width}}', Text(line_content)] for line_num, line_content in brief_list], padding=(0, 2))
         # Build read info with Rich Text for styling
         read_text = Text()

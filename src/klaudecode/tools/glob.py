@@ -8,8 +8,7 @@ from ..message import ToolCall, ToolMessage, register_tool_call_renderer, regist
 from ..prompt.tools import GLOB_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from ..utils.file_utils import FileSearcher
-from ..utils.file_utils import get_relative_path_for_display
+from ..utils.file_utils import FileSearcher, get_relative_path_for_display
 
 DEFAULT_MAX_FILES = 100
 

@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING, Generator
 from rich.abc import RichRenderable
 from rich.text import Text
 
-from ..message import UserMessage, render_message, render_suffix
-from ..tui import ColorStyle, get_prompt_toolkit_color
+from ..message import UserMessage
+from ..tui import ColorStyle, get_prompt_toolkit_color, render_message, render_suffix
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput
 from ..user_questionary import user_select
 
