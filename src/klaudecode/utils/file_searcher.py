@@ -28,12 +28,12 @@ class FileSearcher:
     def search_files(cls, pattern: str, path: str) -> List[str]:
         files = []
 
-        # if cls._has_fd():
-        #     command = cls._build_fd_command(pattern, path)
-        #     stdout, stderr, return_code = cls._execute_command(command)
+        if cls._has_fd():
+            command = cls._build_fd_command(pattern, path)
+            stdout, stderr, return_code = cls._execute_command(command)
 
-        #     if return_code == 0 and stdout.strip():
-        #         files = [line.strip() for line in stdout.strip().split('\n') if line.strip()]
+            if return_code == 0 and stdout.strip():
+                files = [line.strip() for line in stdout.strip().split('\n') if line.strip()]
 
         if not files and cls._has_find():
             command = cls._build_find_command(pattern, path)
