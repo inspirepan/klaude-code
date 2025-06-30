@@ -259,7 +259,7 @@ class Agent(Tool):
             try:
                 console.console._live.stop()
             except Exception as e:
-                console.print(f"Error stopping live display: {e}")
+                console.print(f'Error stopping live display: {e}')
                 pass
 
         # Add interrupted message

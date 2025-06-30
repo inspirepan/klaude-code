@@ -1,5 +1,6 @@
 import asyncio
 from typing import Optional
+
 from InquirerPy import get_style, inquirer
 
 from .tui import clear_last_line, get_inquirer_style
