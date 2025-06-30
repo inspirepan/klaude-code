@@ -176,7 +176,7 @@ class FileSearcher:
             # Filter out directories and apply ignore patterns
             filtered_matches = []
             ignore_patterns = get_effective_ignore_patterns()
-            
+
             for match in matches:
                 match_path = Path(match)
 
@@ -207,10 +207,10 @@ class FileSearcher:
     def _should_ignore_file(cls, file_path: Path, ignore_pattern: str) -> bool:
         """Check if file should be ignored based on gitignore-style pattern."""
         import fnmatch
-        
+
         file_str = str(file_path)
         relative_path = str(file_path.relative_to(Path.cwd())) if file_path.is_absolute() else file_str
-        
+
         # Handle directory patterns ending with /
         if ignore_pattern.endswith('/'):
             # Check if any parent directory matches
@@ -218,16 +218,14 @@ class FileSearcher:
                 if fnmatch.fnmatch(parent.name, ignore_pattern.rstrip('/')):
                     return True
             return False
-        
+
         # Handle file extension patterns like *.py[oc]
         if ignore_pattern.startswith('*.'):
             return fnmatch.fnmatch(file_path.name, ignore_pattern)
-        
+
         # Handle patterns with wildcards
         if '*' in ignore_pattern or '?' in ignore_pattern or '[' in ignore_pattern:
             return fnmatch.fnmatch(relative_path, ignore_pattern) or fnmatch.fnmatch(file_path.name, ignore_pattern)
-        
+
         # Handle exact matches
-        return (ignore_pattern in file_path.parts or 
-                ignore_pattern == file_path.name or
-                relative_path == ignore_pattern)
+        return ignore_pattern in file_path.parts or ignore_pattern == file_path.name or relative_path == ignore_pattern

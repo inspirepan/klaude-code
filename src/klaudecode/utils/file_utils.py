@@ -91,18 +91,18 @@ DEFAULT_IGNORE_PATTERNS = [
 
 def parse_gitignore(gitignore_path: str) -> List[str]:
     """Parse .gitignore file and return list of ignore patterns.
-    
+
     Args:
         gitignore_path: Path to .gitignore file
-        
+
     Returns:
         List of ignore patterns
     """
     patterns = []
-    
+
     if not os.path.exists(gitignore_path):
         return patterns
-        
+
     try:
         with open(gitignore_path, 'r', encoding='utf-8') as f:
             for line in f:
@@ -113,28 +113,28 @@ def parse_gitignore(gitignore_path: str) -> List[str]:
                     patterns.append(line)
     except Exception:
         pass
-        
+
     return patterns
 
 
 def get_effective_ignore_patterns(additional_patterns: Optional[List[str]] = None) -> List[str]:
     """Get effective ignore patterns by combining defaults with .gitignore.
-    
+
     Args:
         additional_patterns: Additional patterns to include
-        
+
     Returns:
         Combined list of ignore patterns
     """
     patterns = DEFAULT_IGNORE_PATTERNS.copy()
-    
+
     gitignore_path = os.path.join(os.getcwd(), '.gitignore')
     gitignore_patterns = parse_gitignore(gitignore_path)
     patterns.extend(gitignore_patterns)
-    
+
     if additional_patterns:
         patterns.extend(additional_patterns)
-        
+
     return patterns
 
 
