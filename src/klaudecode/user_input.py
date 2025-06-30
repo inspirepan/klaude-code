@@ -19,7 +19,7 @@ from rich.text import Text
 from .message import UserMessage, register_user_msg_content_func, register_user_msg_renderer, register_user_msg_suffix_renderer
 from .prompt.reminder import LANGUAGE_REMINDER
 from .tui import ColorStyle, console, get_prompt_toolkit_color, get_prompt_toolkit_style, render_message
-from .utils.file_searcher import FileSearcher
+from .utils.file_utils import FileSearcher
 
 """
 Command: When users press /, it prompts slash command completion

@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional
 
-from .file_utils import get_effective_ignore_patterns
+from .directory_utils import get_effective_ignore_patterns
 
 DEFAULT_MAX_DEPTH = 10
 DEFAULT_TIMEOUT = 30

@@ -1,0 +1,36 @@
+import os
+from typing import Tuple
+
+# Error messages
+FILE_NOT_READ_ERROR_MSG = 'File has not been read yet. Read it first before writing to it.'
+FILE_MODIFIED_ERROR_MSG = 'File has been modified externally. Either by user or a linter. Read it first before writing to it.'
+FILE_NOT_EXIST_ERROR_MSG = 'File does not exist.'
+FILE_NOT_A_FILE_ERROR_MSG = 'EISDIR: illegal operation on a directory.'
+EDIT_OLD_STRING_NEW_STRING_IDENTICAL_ERROR_MSG = 'No changes to make: old_string and new_string are exactly the same.'
+
+
+def validate_file_exists(file_path: str) -> Tuple[bool, str]:
+    """Validate that file exists and is a regular file.
+
+    Args:
+        file_path: Path to validate
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not os.path.exists(file_path):
+        return False, FILE_NOT_EXIST_ERROR_MSG
+    if not os.path.isfile(file_path):
+        return False, FILE_NOT_A_FILE_ERROR_MSG
+    return True, ''
+
+
+def ensure_directory_exists(file_path: str) -> None:
+    """Ensure parent directory of file path exists.
+
+    Args:
+        file_path: File path whose parent directory should exist
+    """
+    directory = os.path.dirname(file_path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)

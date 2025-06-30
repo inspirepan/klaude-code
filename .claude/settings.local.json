@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(ruff check:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(isort:*)",
+      "Bash(ruff format:*)",
+      "Bash(uv run:*)"
     ],
     "deny": []
   }
