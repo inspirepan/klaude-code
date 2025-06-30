@@ -8,7 +8,7 @@ from rich.text import Text
 
 from ..message import AIMessage, BasicMessage
 from ..tool import Tool, get_tool_call_status_text
-from ..tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, render_status
+from ..tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, render_status, render_suffix
 from .anthropic_proxy import AnthropicProxy
 from .llm_proxy_base import DEFAULT_RETRIES, DEFAULT_RETRY_BACKOFF_BASE, LLMProxyBase
 from .openai_proxy import OpenAIProxy
@@ -87,6 +87,7 @@ class LLMProxy:
             spinner_style=ColorStyle.AI_MESSAGE.value,
         ) as status:
             async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout, interrupt_check):
+                ai_message: AIMessage
                 if stream_status.phase == 'tool_call':
                     indicator = '⚒'
                     if stream_status.tool_names:
@@ -150,8 +151,10 @@ class LLMProxy:
                     if attempt == 0:
                         clear_last_line()
                     console.print(
-                        f'Retry {attempt + 1}/{self.max_retries}: call {self.client.model_name} failed - {str(e)}, waiting {delay:.1f}s',
-                        style=ColorStyle.ERROR.value,
+                        render_suffix(
+                            f'Retry {attempt + 1}/{self.max_retries}: call {self.client.model_name} failed - {str(e)}, waiting {delay:.1f}s',
+                            style=ColorStyle.ERROR.value,
+                        )
                     )
                     with render_status(f'Waiting {delay:.1f}s...'):
                         await asyncio.sleep(delay)
@@ -162,8 +165,10 @@ class LLMProxy:
                     console.print()
         clear_last_line()
         console.print(
-            f'Final failure: call {self.client.model_name} failed after {self.max_retries} retries - {last_exception}',
-            style=ColorStyle.ERROR.value,
+            render_suffix(
+                f'Final failure: call {self.client.model_name} failed after {self.max_retries} retries - {last_exception}',
+                style=ColorStyle.ERROR.value,
+            )
         )
         console.print()
         raise last_exception
