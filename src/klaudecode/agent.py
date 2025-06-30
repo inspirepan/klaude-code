@@ -258,7 +258,8 @@ class Agent(Tool):
         if hasattr(console.console, '_live'):
             try:
                 console.console._live.stop()
-            except BaseException:
+            except Exception as e:
+                console.print(f"Error stopping live display: {e}")
                 pass
 
         # Add interrupted message

@@ -190,22 +190,19 @@ class OpenAIProxy:
         stream_status = StreamStatus(tokens=sum(msg.tokens for msg in msgs if msg))
         yield (stream_status, AIMessage(content=''))
 
-        try:
-            stream = await asyncio.wait_for(
-                self.client.chat.completions.create(
-                    model=self.model_name,
-                    messages=[msg.to_openai() for msg in msgs if msg],
-                    tools=[tool.openai_schema() for tool in tools] if tools else None,
-                    extra_headers=self.extra_header,
-                    max_tokens=self.max_tokens,
-                    extra_body=self.extra_body,
-                    stream=True,
-                ),
-                timeout=timeout,
-            )
-        except asyncio.TimeoutError:
-            # Convert timeout to cancellation for consistency
-            raise asyncio.CancelledError('Request timed out')
+
+        stream = await asyncio.wait_for(
+            self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[msg.to_openai() for msg in msgs if msg],
+                tools=[tool.openai_schema() for tool in tools] if tools else None,
+                extra_headers=self.extra_header,
+                max_tokens=self.max_tokens,
+                extra_body=self.extra_body,
+                stream=True,
+            ),
+            timeout=timeout,
+        )
 
         content = ''
         thinking_content = ''
@@ -623,7 +620,7 @@ class LLMProxy:
                     # Clean up any status display
                     if show_status:
                         clear_last_line()
-                raise
+                raise e
             except Exception as e:
                 last_exception = e
                 delay = self.backoff_base * (2**attempt)

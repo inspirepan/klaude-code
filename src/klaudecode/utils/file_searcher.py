@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional
 
-from .file_utils import DEFAULT_IGNORE_PATTERNS
+from .file_utils import get_effective_ignore_patterns
 
 DEFAULT_MAX_DEPTH = 10
 DEFAULT_TIMEOUT = 30
@@ -28,12 +28,12 @@ class FileSearcher:
     def search_files(cls, pattern: str, path: str) -> List[str]:
         files = []
 
-        if cls._has_fd():
-            command = cls._build_fd_command(pattern, path)
-            stdout, stderr, return_code = cls._execute_command(command)
+        # if cls._has_fd():
+        #     command = cls._build_fd_command(pattern, path)
+        #     stdout, stderr, return_code = cls._execute_command(command)
 
-            if return_code == 0 and stdout.strip():
-                files = [line.strip() for line in stdout.strip().split('\n') if line.strip()]
+        #     if return_code == 0 and stdout.strip():
+        #         files = [line.strip() for line in stdout.strip().split('\n') if line.strip()]
 
         if not files and cls._has_find():
             command = cls._build_find_command(pattern, path)
@@ -106,10 +106,11 @@ class FileSearcher:
 
     @classmethod
     def _build_fd_command(cls, pattern: str, path: str) -> list[str]:
-        args = ['fd', '--type', 'f', '--glob', '--hidden', '--no-ignore']
+        args = ['fd', '--type', 'f', '--glob']
         args.extend(['--max-depth', str(DEFAULT_MAX_DEPTH)])
 
-        for ignore_pattern in DEFAULT_IGNORE_PATTERNS:
+        ignore_patterns = get_effective_ignore_patterns()
+        for ignore_pattern in ignore_patterns:
             args.extend(['--exclude', ignore_pattern])
 
         args.extend(['--exclude', '.*'])
@@ -129,12 +130,19 @@ class FileSearcher:
             # For simple patterns like "*.py", use -name
             args.extend(['-name', pattern])
 
+        # Exclude hidden files and directories
         args.extend(['!', '-name', '.*'])
+        args.extend(['!', '-path', '*/.*'])
 
-        for ignore_pattern in DEFAULT_IGNORE_PATTERNS:
+        ignore_patterns = get_effective_ignore_patterns()
+        for ignore_pattern in ignore_patterns:
             if ignore_pattern.startswith('*.'):
                 args.extend(['!', '-name', ignore_pattern])
+            elif ignore_pattern.endswith('/'):
+                args.extend(['!', '-path', f'*/{ignore_pattern.rstrip("/")}/*'])
             else:
+                # Handle both files and directories
+                args.extend(['!', '-name', ignore_pattern])
                 args.extend(['!', '-path', f'*/{ignore_pattern}/*'])
 
         return args
@@ -167,6 +175,8 @@ class FileSearcher:
 
             # Filter out directories and apply ignore patterns
             filtered_matches = []
+            ignore_patterns = get_effective_ignore_patterns()
+            
             for match in matches:
                 match_path = Path(match)
 
@@ -180,17 +190,10 @@ class FileSearcher:
 
                 # Skip ignored patterns
                 should_ignore = False
-                for ignore_pattern in DEFAULT_IGNORE_PATTERNS:
-                    if ignore_pattern.startswith('*.'):
-                        # File extension pattern
-                        if match_path.name.endswith(ignore_pattern[1:]):
-                            should_ignore = True
-                            break
-                    else:
-                        # Directory pattern
-                        if ignore_pattern in match_path.parts:
-                            should_ignore = True
-                            break
+                for ignore_pattern in ignore_patterns:
+                    if cls._should_ignore_file(match_path, ignore_pattern):
+                        should_ignore = True
+                        break
 
                 if not should_ignore:
                     filtered_matches.append(str(match_path))
@@ -199,3 +202,32 @@ class FileSearcher:
 
         except Exception:
             return []
+
+    @classmethod
+    def _should_ignore_file(cls, file_path: Path, ignore_pattern: str) -> bool:
+        """Check if file should be ignored based on gitignore-style pattern."""
+        import fnmatch
+        
+        file_str = str(file_path)
+        relative_path = str(file_path.relative_to(Path.cwd())) if file_path.is_absolute() else file_str
+        
+        # Handle directory patterns ending with /
+        if ignore_pattern.endswith('/'):
+            # Check if any parent directory matches
+            for parent in file_path.parents:
+                if fnmatch.fnmatch(parent.name, ignore_pattern.rstrip('/')):
+                    return True
+            return False
+        
+        # Handle file extension patterns like *.py[oc]
+        if ignore_pattern.startswith('*.'):
+            return fnmatch.fnmatch(file_path.name, ignore_pattern)
+        
+        # Handle patterns with wildcards
+        if '*' in ignore_pattern or '?' in ignore_pattern or '[' in ignore_pattern:
+            return fnmatch.fnmatch(relative_path, ignore_pattern) or fnmatch.fnmatch(file_path.name, ignore_pattern)
+        
+        # Handle exact matches
+        return (ignore_pattern in file_path.parts or 
+                ignore_pattern == file_path.name or
+                relative_path == ignore_pattern)
