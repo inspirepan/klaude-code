@@ -173,7 +173,7 @@ class NormalMode(InputModeCommand):
 
     async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
         command_handle_output = await super().handle(agent, user_input)
-        command_handle_output.need_agent_run = True
+        command_handle_output.need_agent_run = bool(command_handle_output.user_msg.content)
         return command_handle_output
 
 
