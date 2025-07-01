@@ -25,7 +25,6 @@ class SaveCustomCommandCommand(Command):
     async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
         command_handle_output = await super().handle(agent, user_input)
 
-        console.print()
         analysis_result = await agent.session.analyze_conversation_for_command(llm_manager=agent.llm_manager)
 
         if not analysis_result:
@@ -40,7 +39,6 @@ class SaveCustomCommandCommand(Command):
         if not command_name:
             command_name = 'untitled_command'
 
-        console.print()
         console.print(
             Panel.fit(
                 Group(
@@ -65,8 +63,6 @@ class SaveCustomCommandCommand(Command):
                 border_style=ColorStyle.AGENT_BORDER.value,
             )
         )
-        console.print()
-
         options = ['Save as project command (.claude/commands/)', 'Save as user command (~/.claude/commands/)', 'Reject this command']
 
         selected_idx = await user_select(options, 'What would you like to do?')

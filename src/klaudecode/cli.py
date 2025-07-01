@@ -147,13 +147,19 @@ app.add_typer(config_app, name='config')
 
 
 @config_app.command('show')
-def config_show(ctx: typer.Context):
+def config_show():
+    """
+    Show global configuration
+    """
     config_manager = ConfigManager.setup()
     console.print(config_manager)
 
 
 @config_app.command('edit')
 def config_edit():
+    """
+    Init or edit global configuration file
+    """
     from .config import GlobalConfigSource
 
     GlobalConfigSource.edit_config_file()
@@ -187,7 +193,7 @@ def mcp_show():
 
 @mcp_app.command('edit')
 def mcp_edit():
-    """Edit MCP configuration file"""
+    """Init or edit MCP configuration file"""
     from .mcp.mcp_config import MCPConfigManager
 
     config_manager = MCPConfigManager()
