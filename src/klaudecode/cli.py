@@ -79,7 +79,29 @@ async def main_async(ctx: typer.Context):
                 SystemMessage(content=get_system_prompt_dynamic_part(Path.cwd(), ctx.obj['config'].model_name)),
             ],
         )
-    console.print(render_hello())
+    basic_tips = [
+        'type \\ followed by [main]Enter[/main] to insert newlines',
+        'type / to choose slash command',
+        'type ! to run bash command',
+        'type # to memorize',
+        'type * to start plan mode',
+        'type @ to mention a file',
+    ]
+    tips = []
+
+    if (Path.cwd() / '.klaude' / 'sessions').exists():
+        import random
+
+        tips.append(random.choice(basic_tips))
+        tips.append('run [main]klaude --continue[/main] or [main]klaude --resume[/main] to resume a conversation')
+    else:
+        tips.extend(basic_tips)
+    if not (Path.cwd() / 'CLAUDE.md').exists():
+        tips.append('run [main]/init[/main] to analyse your codebase')
+    if (Path.cwd() / '.klaude' / 'mcp.json').exists():
+        tips.append('run [main]klaude --mcp[/main] or [main]/mcp[/main] to enable MCP tools')
+
+    console.print(render_hello(tips))
     agent = await get_main_agent(session, config=ctx.obj['config'], enable_mcp=ctx.obj['mcp'])
     try:
         await agent.chat_interactive()

@@ -5,8 +5,8 @@ from rich.text import Text
 
 from ..mcp.mcp_config import MCPConfigManager
 from ..message import UserMessage
-from ..user_input import Command, CommandHandleOutput, UserInput
 from ..tui import ColorStyle, console, render_suffix
+from ..user_input import Command, CommandHandleOutput, UserInput
 
 if TYPE_CHECKING:
     from ..agent import Agent

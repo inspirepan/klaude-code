@@ -75,7 +75,10 @@ class MessageHistory(BaseModel):
         from .tui import console
 
         for msg in self.messages:
+            if msg.role == 'system':
+                continue
             console.print(msg)
+            console.print('')
 
     def copy(self):
         return self.messages.copy()

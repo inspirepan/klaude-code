@@ -23,6 +23,13 @@ from ..utils.file_utils import (
     write_file_content,
 )
 
+"""
+- Atomic batch editing with sequential operation processing
+- Comprehensive validation and conflict detection across edits
+- Smart simulation engine for pre-validation of edit sequences
+- Complete rollback mechanism with backup and recovery
+"""
+
 ERROR_NOT_APPLIED = 'Failed to apply edit.'
 
 

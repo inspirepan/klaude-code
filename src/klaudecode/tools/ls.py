@@ -9,6 +9,13 @@ from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
 from ..utils.file_utils import get_directory_structure, get_relative_path_for_display
 
+"""
+- Hierarchical directory listing with customizable ignore patterns
+- Rich tree visualization of file and folder structures
+- Path count statistics and size-aware content truncation
+- Hidden file filtering and gitignore-style pattern support
+"""
+
 
 class LsTool(Tool):
     name = 'LS'

@@ -12,7 +12,10 @@ from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
 
 """
-Session-level To-Do
+- Session-persistent task management with status tracking
+- Priority levels and progress indicators with rich visual feedback
+- JSON-based storage format for seamless serialization
+- Real-time completion notifications and state change detection
 """
 
 

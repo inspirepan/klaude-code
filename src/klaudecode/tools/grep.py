@@ -13,6 +13,13 @@ from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
 from ..utils.file_utils import DEFAULT_IGNORE_PATTERNS, get_relative_path_for_display
 
+"""
+- High-performance content search using ripgrep or fallback grep
+- Regex pattern validation and syntax error handling
+- Smart result truncation with refinement suggestions
+- File type filtering and configurable match limits per file
+"""
+
 DEFAULT_MAX_MATCHES_PER_FILE = 10
 DEFAULT_MAX_RESULTS = 100  # Maximum total results to show
 DEFAULT_TIMEOUT = 30

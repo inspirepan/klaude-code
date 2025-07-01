@@ -70,7 +70,6 @@ class UserMessage(BasicMessage):
                 yield item
         for item in self.get_suffix_renderable():
             yield item
-        yield ''
 
     def get_suffix_renderable(self):
         from .registry import _USER_MSG_SUFFIX_RENDERERS

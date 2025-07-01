@@ -40,8 +40,9 @@ class SystemMessage(BasicMessage):
     def to_anthropic(self) -> TextBlockParam:
         return self.get_anthropic_content()
 
-    def __rich__(self):
-        return ''
+    def __rich_console__(self, console, options):
+        return
+        yield
 
     def __bool__(self):
         return bool(self.content)

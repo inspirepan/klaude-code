@@ -19,6 +19,13 @@ from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle
 from ..utils.bash_utils import BashUtils
 
+"""
+- Cross-platform command execution with real-time output streaming
+- Advanced security validation and dangerous command blocking
+- Interactive prompt detection and timeout management
+- Process tree cleanup and signal handling for graceful termination
+"""
+
 
 class BashTool(Tool):
     name = 'Bash'

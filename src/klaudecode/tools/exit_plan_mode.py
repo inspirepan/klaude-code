@@ -10,6 +10,13 @@ from ..prompt.plan_mode import APPROVE_HINT, EXIT_PLAN_MODE_TOOL_DESC, EXIT_PLAN
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_markdown, render_suffix
 
+"""
+- Interactive plan approval workflow with rich UI rendering
+- Markdown-formatted plan display with syntax highlighting
+- User approval/rejection handling and visual feedback
+- Special tool handler bypass for agent-level interception
+"""
+
 
 class ExitPlanModeTool(Tool):
     name = 'ExitPlanMode'

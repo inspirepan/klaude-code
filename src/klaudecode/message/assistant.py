@@ -74,12 +74,10 @@ class AIMessage(BasicMessage):
                 style='italic',
                 render_text=True,
             )
-            yield ''
 
     def get_content_renderable(self):
         if self.content:
             yield render_message(render_markdown(self.content, style=ColorStyle.AI_MESSAGE.value), mark_style=ColorStyle.AI_MESSAGE, style=ColorStyle.AI_MESSAGE, render_text=True)
-            yield ''
 
     def __bool__(self):
         return not self.removed and (bool(self.content) or bool(self.thinking_content) or bool(self.tool_calls))

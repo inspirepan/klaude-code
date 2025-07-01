@@ -34,7 +34,7 @@ from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, ExitPlanModeTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
 from .tools.read import execute_read
-from .tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, render_grid, render_markdown, render_message, render_status, render_suffix
+from .tui import INTERRUPT_TIP, ColorStyle, console, render_grid, render_markdown, render_message, render_status, render_suffix
 from .user_command import custom_command_manager
 from .user_input import _INPUT_MODES, NORMAL_MODE_NAME, InputSession, UserInputHandler, user_select
 
@@ -88,6 +88,7 @@ class Agent(Tool):
         self._initialize_llm()
 
         self.session.messages.print_all_message()  # For continue and resume scene.
+
         epoch = 0
         try:
             while True:
@@ -101,7 +102,6 @@ class Agent(Tool):
                 if user_input_text.strip().lower() in QUIT_COMMAND:
                     break
                 need_agent_run = await self.user_input_handler.handle(user_input_text, print_msg=bool(first_message))
-                console.print()
                 if need_agent_run:
                     await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self._get_all_tools())
                 else:
@@ -153,25 +153,20 @@ class Agent(Tool):
                     await self.tool_handler.handle(ai_msg)
 
         except (OpenAIError, AnthropicError) as e:
-            clear_last_line()
             console.print(render_suffix(f'LLM error: {str(e)}', style=ColorStyle.ERROR.value))
-            console.print()
             return f'LLM error: {str(e)}'
         except (KeyboardInterrupt, asyncio.CancelledError):
             # Clear any live displays before handling interruption
             return self._handle_interruption()
         except Exception as e:
-            clear_last_line()
             import traceback
 
             traceback.print_exc()
             console.print(render_suffix(f'Error: {str(e)}', style=ColorStyle.ERROR.value))
-            console.print()
             return f'Error: {str(e)}'
         max_step_msg = f'Max steps {max_steps} reached'
         if self.print_switch:
             console.print(render_message(max_step_msg, mark_style=ColorStyle.INFO.value))
-            console.print()
         return max_step_msg
 
     def _handle_claudemd_reminder(self):
@@ -250,7 +245,6 @@ class Agent(Tool):
 
         # Add interrupted message
         user_msg = UserMessage(content=INTERRUPTED_MSG, user_msg_type=SpecialUserMessageTypeEnum.INTERRUPTED.value)
-        console.print()
         console.print(user_msg)
         self.session.append_message(user_msg)
         return INTERRUPTED_MSG
@@ -276,7 +270,6 @@ class Agent(Tool):
         if not self.config or not self.config.context_window_threshold:
             return
         if total_tokens > self.config.context_window_threshold.value * TOKEN_WARNING_THRESHOLD:
-            clear_last_line()
             console.print(Text(f'Notice: total_tokens: {total_tokens}, context_window_threshold: {self.config.context_window_threshold.value}\n', style=ColorStyle.WARNING.value))
         if total_tokens > self.config.context_window_threshold.value * COMPACT_THRESHOLD:
             await self.session.compact_conversation_history(show_status=self.print_switch, llm_manager=self.llm_manager)

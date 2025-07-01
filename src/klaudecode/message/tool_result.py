@@ -90,7 +90,6 @@ class ToolMessage(BasicMessage):
             yield render_suffix(INTERRUPTED_MSG, style=ColorStyle.WARNING.value)
         elif self.tool_call.status == 'error':
             yield render_suffix(self.error_msg, style=ColorStyle.ERROR.value)
-        yield ''
 
     def __rich_console__(self, console, options):
         yield self.tool_call

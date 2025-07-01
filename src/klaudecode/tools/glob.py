@@ -10,6 +10,13 @@ from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
 from ..utils.file_utils import FileSearcher, get_relative_path_for_display
 
+"""
+- Advanced glob pattern matching with recursive directory support
+- Pattern validation and syntax error prevention
+- Intelligent result filtering and path optimization
+- Performance-tuned file discovery with smart truncation
+"""
+
 DEFAULT_MAX_FILES = 100
 
 GLOB_TRUNCATED_SUGGESTION = '(Results are truncated. Consider using a more specific path or pattern.)'

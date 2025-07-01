@@ -6,7 +6,7 @@ from typing import List, Literal, Optional, Tuple, Union
 
 from rich import box
 from rich.abc import RichRenderable
-from rich.console import Console, Group, RenderResult
+from rich.console import Console, Group, RenderableType, RenderResult
 from rich.markup import escape
 from rich.panel import Panel
 from rich.rule import Rule
@@ -177,8 +177,29 @@ console = ConsoleProxy()
 INTERRUPT_TIP = ' Press ctrl+c to interrupt  '
 
 
+class PaddingStatus(Status):
+    def __init__(
+        self,
+        status: RenderableType,
+        *,
+        console: Optional[Console] = None,
+        spinner: str = 'dots',
+        spinner_style: str = '',
+        speed: float = 1.0,
+        refresh_per_second: float = 12.5,
+    ):
+        super().__init__(status, console=console, spinner=spinner, spinner_style=spinner_style, speed=speed, refresh_per_second=refresh_per_second)
+
+    @property
+    def renderable(self) -> Group:
+        return Group(
+            '',
+            super().renderable,
+        )
+
+
 def render_status(status: str, spinner: str = 'dots', spinner_style: str = ''):
-    return Status(Text.assemble(status, (INTERRUPT_TIP, ColorStyle.MUTED.value)), console=console.console, spinner=spinner, spinner_style=spinner_style)
+    return PaddingStatus(Text.assemble(status, (INTERRUPT_TIP, ColorStyle.MUTED.value)), console=console.console, spinner=spinner, spinner_style=spinner_style)
 
 
 def render_message(
@@ -339,7 +360,7 @@ def _parse_markdown_table(lines: list[str], start_index: int, style: Optional[Un
     return {'table': table, 'end_index': i}
 
 
-def render_hello() -> RenderResult:
+def render_hello(tips: list[str]) -> RenderResult:
     grid_data = [
         [
             Text('✻', style=ColorStyle.AI_MESSAGE),
@@ -353,24 +374,19 @@ def render_hello() -> RenderResult:
         ]
     ]
     table = render_grid(grid_data)
+
     return Group(
         Panel.fit(table, border_style=ColorStyle.AI_MESSAGE),
         '',
         render_message(
-            'type \\ followed by [bold]Enter[/bold] to insert newlines\n'
-            'type / to choose slash command\n'
-            'type ! to run bash command\n'
-            'type # to memorize\n'
-            'type * to start plan mode\n'
-            'type @ to mention a file\n'
-            'run /init to analyse your codebase\n'
-            'run [bold]klaude --continue[/bold] or [bold]klaude --resume[/bold] to resume a conversation\n',
+            '\n'.join(tips),
             mark='※ Tips:',
             style=ColorStyle.MUTED,
             mark_style=ColorStyle.MUTED,
             mark_width=6,
             render_text=True,
         ),
+        '',
     )
 
 

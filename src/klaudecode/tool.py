@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from pydantic import BaseModel
-from rich.columns import Columns
+from rich.console import Group
 from rich.live import Live
 from rich.text import Text
 
@@ -332,11 +332,14 @@ class ToolHandler:
                 except Exception as e:
                     print(str(e))
                 with Live(refresh_per_second=10, console=console.console) as live:
+                    live_group = []
+                    for ti in tool_instances:
+                        live_group.append('')
+                        live_group.append(ti.tool_result())
                     while any(ti.is_running() for ti in tool_instances) and not interrupted:
-                        tool_results = [ti.tool_result() for ti in tool_instances]
-                        live.update(Columns([*tool_results, status]))
+                        live.update(Group(*live_group, status))
                         await asyncio.sleep(0.1)
-                    live.update(Columns([ti.tool_result() for ti in tool_instances]))
+                    live.update(Group(*live_group))
 
             await asyncio.gather(*tasks, return_exceptions=True)
 

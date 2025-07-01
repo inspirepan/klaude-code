@@ -5,6 +5,7 @@ from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 
+from ..tui import console
 from .input_completer import UserInputCompleter
 from .input_mode import _INPUT_MODES, NORMAL_MODE_NAME, InputModeCommand
 
@@ -106,6 +107,7 @@ class InputSession:
         self.current_input_mode = _INPUT_MODES[next_mode_name]
 
     def prompt(self):
+        console.print()
         input_text = self._get_session().prompt()
         if self.current_input_mode.get_name() != NORMAL_MODE_NAME:
             input_text = f'/{self.current_input_mode.get_name()} {input_text}'
@@ -113,6 +115,7 @@ class InputSession:
         return input_text
 
     async def prompt_async(self):
+        console.print()
         input_text = await self._get_session().prompt_async()
         if self.current_input_mode.get_name() != NORMAL_MODE_NAME:
             input_text = f'/{self.current_input_mode.get_name()} {input_text}'
