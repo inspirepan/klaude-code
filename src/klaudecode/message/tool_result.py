@@ -75,8 +75,7 @@ class ToolMessage(BasicMessage):
         from .registry import _TOOL_RESULT_RENDERERS
 
         if self.tool_call.tool_name in _TOOL_RESULT_RENDERERS:
-            for item in _TOOL_RESULT_RENDERERS[self.tool_call.tool_name](self):
-                yield item
+            yield from _TOOL_RESULT_RENDERERS[self.tool_call.tool_name](self)
         else:
             if self.content:
                 yield render_suffix(

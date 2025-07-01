@@ -82,7 +82,6 @@ class ToolCall(BaseModel):
         from .registry import _TOOL_CALL_RENDERERS
 
         if self.tool_name in _TOOL_CALL_RENDERERS:
-            for item in _TOOL_CALL_RENDERERS[self.tool_name](self, is_suffix=True):
-                yield item
+            yield from _TOOL_CALL_RENDERERS[self.tool_name](self, is_suffix=True)
         else:
             yield Text.assemble((ToolCall.get_display_tool_name(self.tool_name), 'bold'), '(', ToolCall.get_display_tool_args(self.tool_args_dict), ')')

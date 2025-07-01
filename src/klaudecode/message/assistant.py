@@ -62,10 +62,8 @@ class AIMessage(BasicMessage):
         )
 
     def __rich_console__(self, console, options):
-        for item in self.get_thinking_renderable():
-            yield item
-        for item in self.get_content_renderable():
-            yield item
+        yield from self.get_thinking_renderable()
+        yield from self.get_content_renderable()
 
     def get_thinking_renderable(self):
         if self.thinking_content:

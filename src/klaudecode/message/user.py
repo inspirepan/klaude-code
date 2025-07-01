@@ -66,17 +66,14 @@ class UserMessage(BasicMessage):
         if not self.user_msg_type or self.user_msg_type not in _USER_MSG_RENDERERS:
             yield render_message(Text(self.content), mark='>')
         else:
-            for item in _USER_MSG_RENDERERS[self.user_msg_type](self):
-                yield item
-        for item in self.get_suffix_renderable():
-            yield item
+            yield from _USER_MSG_RENDERERS[self.user_msg_type](self)
+        yield from self.get_suffix_renderable()
 
     def get_suffix_renderable(self):
         from .registry import _USER_MSG_SUFFIX_RENDERERS
 
         if self.user_msg_type and self.user_msg_type in _USER_MSG_SUFFIX_RENDERERS:
-            for item in _USER_MSG_SUFFIX_RENDERERS[self.user_msg_type](self):
-                yield item
+            yield from _USER_MSG_SUFFIX_RENDERERS[self.user_msg_type](self)
         if self.get_extra_data('error_msgs'):
             for error in self.get_extra_data('error_msgs'):
                 yield render_suffix(error, style=ColorStyle.ERROR)
