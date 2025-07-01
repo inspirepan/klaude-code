@@ -14,6 +14,8 @@ from rich.text import Text
 from .message import AIMessage, ToolCall, ToolMessage, count_tokens
 from .tui import ColorStyle, console, render_status
 
+from .utils.exception import format_exception
+
 if TYPE_CHECKING:
     from .agent import Agent
 
@@ -204,11 +206,7 @@ class ToolInstance:
             self._is_completed = True
             raise
         except Exception as e:
-            import traceback
-
-            from .utils.exception import format_exception_brief
-
-            self.tool_msg.set_error_msg(format_exception_brief(e) + '\n' + traceback.format_exc())
+            self.tool_msg.set_error_msg(format_exception(e))
             self._is_completed = True
         finally:
             self._is_running = False
@@ -319,22 +317,21 @@ class ToolHandler:
                 try:
                     # Generate status text based on number of tools
                     if len(tool_calls) == 1:
-                        status_text = Text.assemble('Executing ', (ToolCall.get_display_tool_name(tool_calls[0].tool_name), ColorStyle.HIGHLIGHT.bold()), '...')
+                        status_text = Text.assemble('Executing ', (ToolCall.get_display_tool_name(tool_calls[0].tool_name), ColorStyle.HIGHLIGHT.bold), '...')
                     else:
                         tool_counts = {}
                         for tc in tool_calls:
                             tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
                         tool_names = [
-                            Text.assemble((ToolCall.get_display_tool_name(name), ColorStyle.HIGHLIGHT.bold()), '*' + str(count) if count > 1 else '', ' ')
+                            Text.assemble((ToolCall.get_display_tool_name(name), ColorStyle.HIGHLIGHT.bold), '*' + str(count) if count > 1 else '', ' ')
                             for name, count in tool_counts.items()
                         ]
                         status_text = Text.assemble('Executing ', *tool_names, '...')
 
                     status = render_status(status_text)
                 except Exception as e:
-                    from .utils.exception import format_exception_brief
-
-                    console.print(format_exception_brief(e))
+                    console.print(format_exception(e), style=ColorStyle.ERROR)
+                    raise e
                 with Live(refresh_per_second=10, console=console.console) as live:
                     live_group = []
                     for ti in tool_instances:

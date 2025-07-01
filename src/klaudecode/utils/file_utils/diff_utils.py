@@ -92,17 +92,17 @@ def generate_char_level_diff(old_line: str, new_line: str) -> Tuple[Text, Text]:
         new_segment = new_line[j1:j2]
 
         if tag == 'equal':
-            old_text.append(old_segment, style=ColorStyle.DIFF_REMOVED_LINE.value)
-            new_text.append(new_segment, style=ColorStyle.DIFF_ADDED_LINE.value)
+            old_text.append(old_segment, style=ColorStyle.DIFF_REMOVED_LINE)
+            new_text.append(new_segment, style=ColorStyle.DIFF_ADDED_LINE)
         elif tag == 'delete':
-            old_text.append(old_segment, style=ColorStyle.DIFF_REMOVED_CHAR.value)
+            old_text.append(old_segment, style=ColorStyle.DIFF_REMOVED_CHAR)
             # No corresponding text in new line
         elif tag == 'insert':
             # No corresponding text in old line
-            new_text.append(new_segment, style=ColorStyle.DIFF_ADDED_CHAR.value)
+            new_text.append(new_segment, style=ColorStyle.DIFF_ADDED_CHAR)
         elif tag == 'replace':
-            old_text.append(old_segment, style=ColorStyle.DIFF_REMOVED_CHAR.value)
-            new_text.append(new_segment, style=ColorStyle.DIFF_ADDED_CHAR.value)
+            old_text.append(old_segment, style=ColorStyle.DIFF_REMOVED_CHAR)
+            new_text.append(new_segment, style=ColorStyle.DIFF_ADDED_CHAR)
 
     return old_text, new_text
 
@@ -129,9 +129,9 @@ def render_diff_lines(diff_lines: List[str]) -> Group:
     grid.add_column(overflow='fold')
 
     add_line_symbol = Text('+ ')
-    add_line_symbol.stylize(ColorStyle.DIFF_ADDED_LINE.value)
+    add_line_symbol.stylize(ColorStyle.DIFF_ADDED_LINE)
     remove_line_symbol = Text('- ')
-    remove_line_symbol.stylize(ColorStyle.DIFF_REMOVED_LINE.value)
+    remove_line_symbol.stylize(ColorStyle.DIFF_REMOVED_LINE)
     context_line_symbol = Text('  ')
 
     def _is_single_line_change(start_idx: int) -> bool:
@@ -187,9 +187,9 @@ def render_diff_lines(diff_lines: List[str]) -> Group:
                 else:
                     # Use simple line-level styling for consecutive changes
                     old_text = Text(normalize_tabs(removed_line))
-                    old_text.stylize(ColorStyle.DIFF_REMOVED_LINE.value)
+                    old_text.stylize(ColorStyle.DIFF_REMOVED_LINE)
                     new_text = Text(normalize_tabs(added_line))
-                    new_text.stylize(ColorStyle.DIFF_ADDED_LINE.value)
+                    new_text.stylize(ColorStyle.DIFF_ADDED_LINE)
                     grid.add_row(Text(f'{old_line_num:{width}d} '), remove_line_symbol, old_text)
                     grid.add_row(Text(f'{new_line_num:{width}d} '), add_line_symbol, new_text)
 
@@ -199,7 +199,7 @@ def render_diff_lines(diff_lines: List[str]) -> Group:
             else:
                 # Pure removal
                 text = Text(normalize_tabs(removed_line))
-                text.stylize(ColorStyle.DIFF_REMOVED_LINE.value)
+                text.stylize(ColorStyle.DIFF_REMOVED_LINE)
                 grid.add_row(Text(f'{old_line_num:{width}d} '), remove_line_symbol, text)
                 old_line_num += 1
                 i += 1
@@ -207,14 +207,14 @@ def render_diff_lines(diff_lines: List[str]) -> Group:
             # Pure addition (not part of a modification pair)
             added_line = line[1:].strip('\n\r')
             text = Text(normalize_tabs(added_line))
-            text.stylize(ColorStyle.DIFF_ADDED_LINE.value)
+            text.stylize(ColorStyle.DIFF_ADDED_LINE)
             grid.add_row(Text(f'{new_line_num:{width}d} '), add_line_symbol, text)
             new_line_num += 1
             i += 1
         elif line.startswith(' '):
             context_line = line[1:].strip('\n\r')
             text = Text(normalize_tabs(context_line))
-            text.stylize(ColorStyle.CONTEXT_LINE.value)
+            text.stylize(ColorStyle.CONTEXT_LINE)
             grid.add_row(Text(f'{new_line_num:{width}d} '), context_line_symbol, text)
             old_line_num += 1
             new_line_num += 1

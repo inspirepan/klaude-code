@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, List, Optional
 import yaml
 
 from ..user_input import UserInput
-from ..utils.exception import format_exception_brief
+from ..utils.exception import format_exception
 from .query_rewrite_command import QueryRewriteCommand
 
 if TYPE_CHECKING:
@@ -119,7 +119,7 @@ class CustomCommand(QueryRewriteCommand):
             with open(file_path, 'r', encoding='utf-8') as f:
                 file_content = f.read()
         except Exception as e:
-            raise ValueError(f'Failed to read command file {file_path}: {format_exception_brief(e)}')
+            raise ValueError(f'Failed to read command file {file_path}: {format_exception(e)}')
 
         # Parse YAML frontmatter
         frontmatter = {}

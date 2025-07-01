@@ -38,7 +38,7 @@ from .tools.read import execute_read
 from .tui import INTERRUPT_TIP, ColorStyle, console, render_grid, render_markdown, render_message, render_status, render_suffix
 from .user_command import custom_command_manager
 from .user_input import _INPUT_MODES, NORMAL_MODE_NAME, InputSession, UserInputHandler, user_select
-from .utils.exception import format_exception_brief
+from .utils.exception import format_exception
 
 DEFAULT_MAX_STEPS = 80
 INTERACTIVE_MAX_STEPS = 100
@@ -87,7 +87,7 @@ class Agent(Tool):
                 import traceback
 
                 traceback.print_exc()
-                console.print(f'Warning: Failed to load custom commands: {format_exception_brief(e)}', style=ColorStyle.WARNING.value)
+                console.print(f'Warning: Failed to load custom commands: {format_exception(e)}', style=ColorStyle.WARNING)
 
     def print_usage(self):
         console.print()
@@ -163,8 +163,8 @@ class Agent(Tool):
                     await self.tool_handler.handle(ai_msg)
 
         except (OpenAIError, AnthropicError) as e:
-            console.print(render_suffix(f'LLM error: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
-            return f'LLM error: {format_exception_brief(e)}'
+            console.print(render_suffix(f'LLM error: {format_exception(e)}', style=ColorStyle.ERROR))
+            return f'LLM error: {format_exception(e)}'
         except (KeyboardInterrupt, asyncio.CancelledError):
             # Clear any live displays before handling interruption
             return self._handle_interruption()
@@ -172,11 +172,11 @@ class Agent(Tool):
             import traceback
 
             traceback.print_exc()
-            console.print(render_suffix(f'Error: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
-            return f'Error: {format_exception_brief(e)}'
+            console.print(render_suffix(f'Error: {format_exception(e)}', style=ColorStyle.ERROR))
+            return f'Error: {format_exception(e)}'
         max_step_msg = f'Max steps {max_steps} reached'
         if self.print_switch:
-            console.print(render_message(max_step_msg, mark_style=ColorStyle.INFO.value))
+            console.print(render_message(max_step_msg, mark_style=ColorStyle.INFO))
         return max_step_msg
 
     def _handle_claudemd_reminder(self):
@@ -250,7 +250,7 @@ class Agent(Tool):
             try:
                 console.console._live.stop()
             except Exception as e:
-                console.print(f'Error stopping live display: {format_exception_brief(e)}')
+                console.print(f'Error stopping live display: {format_exception(e)}')
                 pass
 
         # Add interrupted message
@@ -280,7 +280,7 @@ class Agent(Tool):
         if not self.config or not self.config.context_window_threshold:
             return
         if total_tokens > self.config.context_window_threshold.value * TOKEN_WARNING_THRESHOLD:
-            console.print(Text(f'Notice: total_tokens: {total_tokens}, context_window_threshold: {self.config.context_window_threshold.value}\n', style=ColorStyle.WARNING.value))
+            console.print(Text(f'Notice: total_tokens: {total_tokens}, context_window_threshold: {self.config.context_window_threshold.value}\n', style=ColorStyle.WARNING))
         if total_tokens > self.config.context_window_threshold.value * COMPACT_THRESHOLD:
             await self.session.compact_conversation_history(show_status=self.print_switch, llm_manager=self.llm_manager)
 
@@ -420,7 +420,7 @@ class Agent(Tool):
                 asyncio.set_event_loop(loop)
                 result = loop.run_until_complete(agent.run(max_steps=DEFAULT_MAX_STEPS, parent_tool_instance=instance, tools=cls.get_subagent_tools()))
             except Exception as e:
-                result = f'SubAgent error: {format_exception_brief(e)}'
+                result = f'SubAgent error: {format_exception(e)}'
             finally:
                 try:
                     # Suppress any remaining tasks
@@ -453,9 +453,9 @@ class CodeSearchTaskTool(Agent):
 
 def render_agent_args(tool_call: ToolCall, is_suffix: bool = False):
     yield Text.assemble(
-        (tool_call.tool_name, ColorStyle.HIGHLIGHT.bold()),
+        (tool_call.tool_name, ColorStyle.HIGHLIGHT.bold),
         '(',
-        (tool_call.tool_args_dict.get('description', ''), ColorStyle.HIGHLIGHT.bold()),
+        (tool_call.tool_args_dict.get('description', ''), ColorStyle.HIGHLIGHT.bold),
         ')',
         ' → ',
         tool_call.tool_args_dict.get('prompt', ''),

@@ -12,7 +12,7 @@ from rich.table import Table
 from rich.text import Text
 
 from .tui import ColorStyle, console
-from .utils.exception import format_exception_brief
+from .utils.exception import format_exception
 
 
 def parse_json_string(value: Union[Dict, str]) -> Dict:
@@ -23,7 +23,7 @@ def parse_json_string(value: Union[Dict, str]) -> Dict:
         try:
             return json.loads(value)
         except (json.JSONDecodeError, TypeError):
-            console.print(Text(f'Warning: Invalid JSON string, using empty dict: {value}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'Warning: Invalid JSON string, using empty dict: {value}', style=ColorStyle.ERROR))
             return {}
     return {}
 
@@ -124,16 +124,16 @@ class ConfigModel(BaseModel):
         for key, display_name in config_items:
             config_value = getattr(self, key, None)
             if config_value and config_value.value is not None:
-                status = Text('✓', style=ColorStyle.SUCCESS.value)
+                status = Text('✓', style=ColorStyle.SUCCESS)
                 value = str(config_value.value)
                 source = f'from {config_value.source}'
             else:
-                status = Text('✗', style=ColorStyle.ERROR.bold())
-                value = Text('Not Set', style=ColorStyle.ERROR.value)
+                status = Text('✗', style=ColorStyle.ERROR.bold)
+                value = Text('Not Set', style=ColorStyle.ERROR)
                 source = ''
             table.add_row(
                 status,
-                Text(display_name, style=ColorStyle.INFO.value),
+                Text(display_name, style=ColorStyle.INFO),
                 value,
                 source,
             )
@@ -263,7 +263,7 @@ class GlobalConfigSource(ConfigSource):
                 filtered_data = {k: v for k, v in config_data.items() if k in valid_fields}
                 self.config_model = ConfigModel(source='config', **filtered_data)
         except (json.JSONDecodeError, IOError) as e:
-            console.print(Text(f'Warning: Failed to load config: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'Warning: Failed to load config: {format_exception(e)}', style=ColorStyle.ERROR))
             self.config_model = ConfigModel(source='config')
 
     @classmethod
@@ -271,13 +271,13 @@ class GlobalConfigSource(ConfigSource):
         """Open the configuration file in the default editor"""
         config_path = cls.get_config_path()
         if config_path.exists():
-            console.print(Text(f'Opening config file: {str(config_path)}', style=ColorStyle.SUCCESS.value))
+            console.print(Text(f'Opening config file: {str(config_path)}', style=ColorStyle.SUCCESS))
             import sys
 
             editor = os.getenv('EDITOR', 'vi' if sys.platform != 'darwin' else 'open')
             os.system(f'{editor} {config_path}')
         else:
-            console.print(Text('Config file not found', style=ColorStyle.ERROR.value))
+            console.print(Text('Config file not found', style=ColorStyle.ERROR))
 
     @classmethod
     def create_example_config(cls, config_path: Path = None):
@@ -302,11 +302,11 @@ class GlobalConfigSource(ConfigSource):
             config_path.parent.mkdir(parents=True, exist_ok=True)
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(example_config, f, indent=2, ensure_ascii=False)
-            console.print(Text(f'Example config file created at: {config_path}', style=ColorStyle.SUCCESS.value))
+            console.print(Text(f'Example config file created at: {config_path}', style=ColorStyle.SUCCESS))
             console.print(Text('Please edit the file and set your actual API key.'))
             return True
         except (IOError, OSError) as e:
-            console.print(Text(f'Error: Failed to create config file: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'Error: Failed to create config file: {format_exception(e)}', style=ColorStyle.ERROR))
             return False
 
     @classmethod
@@ -372,7 +372,7 @@ class ConfigManager:
         api_key_config = self._merged_config_model.api_key
 
         if not api_key_config or not api_key_config.value or api_key_config.source == 'default':
-            console.print(Text('Error: API key not set', style=ColorStyle.ERROR.value))
+            console.print(Text('Error: API key not set', style=ColorStyle.ERROR))
             console.print('Please set your API key using one of the following methods:')
             console.print('  1. Command line: --api-key YOUR_API_KEY')
             console.print('  2. Environment: export API_KEY=YOUR_API_KEY')
@@ -385,8 +385,8 @@ class ConfigManager:
 
     def __rich__(self):
         return Group(
-            Text(f' config path: {GlobalConfigSource.get_config_path()}', style=ColorStyle.HIGHLIGHT.value),
-            Panel.fit(self.get_config_model(), box=box.ROUNDED, border_style=ColorStyle.SEPARATOR.value),
+            Text(f' config path: {GlobalConfigSource.get_config_path()}', style=ColorStyle.HIGHLIGHT),
+            Panel.fit(self.get_config_model(), box=box.ROUNDED, border_style=ColorStyle.SEPARATOR),
         )
 
     def get(self, key: str) -> Optional[Union[str, bool, int]]:

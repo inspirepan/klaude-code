@@ -208,7 +208,7 @@ def render_read_args(tool_call: ToolCall, is_suffix: bool = False):
     display_path = get_relative_path_for_display(file_path)
 
     tool_call_msg = Text.assemble(
-        (tool_call.tool_name, ColorStyle.HIGHLIGHT.bold() if not is_suffix else 'bold'),
+        (tool_call.tool_name, ColorStyle.HIGHLIGHT.bold if not is_suffix else 'bold'),
         '(',
         display_path,
         line_range,
@@ -234,7 +234,7 @@ def render_read_content(tool_msg: ToolMessage):
         read_text.append(' lines')
 
         if actual_range and truncated:
-            read_text.append(f' (truncated to line {actual_range})', style=ColorStyle.WARNING.value)
+            read_text.append(f' (truncated to line {actual_range})', style=ColorStyle.WARNING)
 
         table.add_row('…', read_text)
         yield render_suffix(table)

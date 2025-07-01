@@ -23,6 +23,7 @@ class ColorStyle(str, Enum):
     # AI and user interaction
     AI_MESSAGE = 'ai_message'
     AI_THINKING = 'ai_thinking'
+    CLAUDE = 'claude'
     # For status indicators
     ERROR = 'error'
     SUCCESS = 'success'
@@ -46,8 +47,7 @@ class ColorStyle(str, Enum):
     # Prompt toolkit colors
     INPUT_PLACEHOLDER = 'input_placeholder'
     COMPLETION_MENU = 'completion_menu'
-    COMPLETION_SELECTED_FG = 'completion_selected_fg'
-    COMPLETION_SELECTED_BG = 'completion_selected_bg'
+    COMPLETION_SELECTED = 'completion_selected'
     # Input mode colors
     BASH_MODE = 'bash_mode'
     MEMORY_MODE = 'memory_mode'
@@ -55,12 +55,15 @@ class ColorStyle(str, Enum):
     # Markdown
     H2 = 'h1'
 
+    @property
     def bold(self) -> Style:
         return console.console.get_style(self.value) + Style(bold=True)
 
+    @property
     def italic(self) -> Style:
         return console.console.get_style(self.value) + Style(italic=True)
 
+    @property
     def bold_italic(self) -> Style:
         return console.console.get_style(self.value) + Style(bold=True, italic=True)
 
@@ -76,6 +79,7 @@ light_theme = Theme(
         # AI and user interaction
         ColorStyle.AI_MESSAGE: 'rgb(181,105,72)',
         ColorStyle.AI_THINKING: 'rgb(62,99,153)',
+        ColorStyle.CLAUDE: 'rgb(214,119,86)',
         # Status indicators
         ColorStyle.ERROR: 'rgb(158,57,66)',
         ColorStyle.SUCCESS: 'rgb(65,120,64)',
@@ -100,8 +104,7 @@ light_theme = Theme(
         # Prompt toolkit
         ColorStyle.INPUT_PLACEHOLDER: 'rgb(136,139,139)',
         ColorStyle.COMPLETION_MENU: 'rgb(154,154,154)',
-        ColorStyle.COMPLETION_SELECTED_FG: 'rgb(74,74,74)',
-        ColorStyle.COMPLETION_SELECTED_BG: 'rgb(170,221,255)',
+        ColorStyle.COMPLETION_SELECTED: 'rgb(88,105,247)',
         # Input mode colors
         ColorStyle.BASH_MODE: 'rgb(234,51,134)',
         ColorStyle.MEMORY_MODE: 'rgb(109,104,218)',
@@ -116,6 +119,7 @@ dark_theme = Theme(
         # AI and user interaction
         ColorStyle.AI_MESSAGE: 'rgb(201,125,92)',
         ColorStyle.AI_THINKING: 'rgb(180,204,245)',
+        ColorStyle.CLAUDE: 'rgb(214,119,86)',
         # Status indicators
         ColorStyle.ERROR: 'rgb(237,118,129)',
         ColorStyle.SUCCESS: 'rgb(107,184,109)',
@@ -140,8 +144,7 @@ dark_theme = Theme(
         # Prompt toolkit
         ColorStyle.INPUT_PLACEHOLDER: 'rgb(151,153,153)',
         ColorStyle.COMPLETION_MENU: 'rgb(154,154,154)',
-        ColorStyle.COMPLETION_SELECTED_FG: 'rgb(74,74,74)',
-        ColorStyle.COMPLETION_SELECTED_BG: 'rgb(170,221,255)',
+        ColorStyle.COMPLETION_SELECTED: 'rgb(177,185,249)',
         # Input mode colors
         ColorStyle.BASH_MODE: 'rgb(255,102,170)',
         ColorStyle.MEMORY_MODE: 'rgb(200,205,255)',
@@ -154,14 +157,14 @@ dark_theme = Theme(
 
 class ConsoleProxy:
     def __init__(self):
-        self.console = Console(theme=light_theme, style=ColorStyle.MAIN.value)
+        self.console = Console(theme=light_theme, style=ColorStyle.MAIN)
         self.silent = False
 
     def set_theme(self, theme_name: str):
         if theme_name == 'dark':
-            self.console = Console(theme=dark_theme, style=ColorStyle.MAIN.value)
+            self.console = Console(theme=dark_theme, style=ColorStyle.MAIN)
         else:
-            self.console = Console(theme=light_theme, style=ColorStyle.MAIN.value)
+            self.console = Console(theme=light_theme, style=ColorStyle.MAIN)
 
     def print(self, *args, **kwargs):
         if not self.silent:
@@ -187,7 +190,7 @@ class PaddingStatus(Status):
 
 
 def render_status(status: str, spinner: str = 'dots', spinner_style: str = ''):
-    return PaddingStatus(Text.assemble(status, (INTERRUPT_TIP, ColorStyle.MUTED.value)), console=console.console, spinner=spinner, spinner_style=spinner_style)
+    return PaddingStatus(Text.assemble(status, (INTERRUPT_TIP, ColorStyle.MUTED)), console=console.console, spinner=spinner, spinner_style=spinner_style)
 
 
 def render_message(
@@ -204,9 +207,9 @@ def render_message(
     table.add_column(width=mark_width, no_wrap=True)
     table.add_column(overflow='fold')
     if status == 'error':
-        mark = Text(mark, style=ColorStyle.ERROR.value)
+        mark = Text(mark, style=ColorStyle.ERROR)
     elif status == 'canceled':
-        mark = Text(mark, style=ColorStyle.WARNING.value)
+        mark = Text(mark, style=ColorStyle.WARNING)
     elif status == 'processing':
         mark = Text('○', style=mark_style)
     else:
@@ -289,14 +292,14 @@ def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Gro
             header_match = re.match(r'^(#+)\s+(.+)', stripped)
             if header_match:
                 hashes, title = header_match.groups()
-                line = Text.from_markup(f'{hashes} [bold]{title}[/bold]', style=style if len(hashes) > 2 else ColorStyle.H2.value)
+                line = Text.from_markup(f'{hashes} [bold]{title}[/bold]', style=style if len(hashes) > 2 else ColorStyle.H2)
             else:
                 line = Text.from_markup(line, style=style + Style(bold=True))
         elif line.strip().startswith('>'):
             quote_content = re.sub(r'^(\s*)>\s?', r'\1', line)
             line = Text.from_markup(f'[muted]▌ {quote_content}[/muted]', style=style)
         elif line.strip() == '---':
-            line = Rule(style=ColorStyle.SEPARATOR.value)
+            line = Rule(style=ColorStyle.SEPARATOR)
         else:
             # Handle list items with proper indentation
             list_match = re.match(r'^(\s*)([*\-+]|\d+\.)\s+(.+)', line)
@@ -377,7 +380,7 @@ def build_hello_tips() -> List[str]:
 def render_hello() -> RenderResult:
     grid_data = [
         [
-            Text('✻', style=ColorStyle.AI_MESSAGE),
+            Text('✻', style=ColorStyle.CLAUDE),
             Group(
                 'Welcome to [bold]Klaude Code[/bold]!',
                 '',
@@ -390,7 +393,7 @@ def render_hello() -> RenderResult:
     table = render_grid(grid_data)
 
     return Group(
-        Panel.fit(table, border_style=ColorStyle.AI_MESSAGE),
+        Panel.fit(table, border_style=ColorStyle.CLAUDE),
         '',
         render_message(
             '\n'.join(build_hello_tips()),
@@ -404,7 +407,7 @@ def render_hello() -> RenderResult:
     )
 
 
-def truncate_middle_text(text: str, max_lines: int = 30) -> RichRenderable:
+def truncate_middle_text(text: str, max_lines: int = 50) -> RichRenderable:
     lines = text.splitlines()
 
     if len(lines) <= max_lines + 5:
@@ -454,12 +457,12 @@ def get_prompt_toolkit_style() -> dict:
     return {
         'completion-menu': 'bg:default',
         'completion-menu.border': 'bg:default',
-        'completion-menu.completion': f'bg:default fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_MENU)}',
-        'completion-menu.completion.current': f'bg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED_FG)} fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED_BG)}',
         'scrollbar.background': 'bg:default',
         'scrollbar.button': 'bg:default',
+        'completion-menu.completion': f'bg:default fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_MENU)}',
         'completion-menu.meta.completion': f'bg:default fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_MENU)}',
-        'completion-menu.meta.completion.current': f'bg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED_BG)} fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED_FG)}',
+        'completion-menu.completion.current': f'noreverse bg:default fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED)}',
+        'completion-menu.meta.completion.current': f'bg:default fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED)}',
     }
 
 
@@ -467,5 +470,5 @@ def get_inquirer_style() -> dict:
     """Get InquirerPy style dict based on current theme"""
     return {
         'question': f'bold {get_prompt_toolkit_color(ColorStyle.HIGHLIGHT)}',
-        'pointer': f'fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED_FG)} bg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED_BG)}',
+        'pointer': f'fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED)} bg:default',
     }

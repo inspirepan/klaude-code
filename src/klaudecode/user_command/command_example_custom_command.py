@@ -69,14 +69,14 @@ class ExampleCustomCommand(Command):
         if git_commit_file and recent_analysis_file:
             yield Panel.fit(
                 Group(
-                    Text.assemble(('✓ ', ColorStyle.SUCCESS.bold()), (f'Example commands created in {scope} scope:', ColorStyle.SUCCESS), (' (restart to use)', ColorStyle.MUTED)),
+                    Text.assemble(('✓ ', ColorStyle.SUCCESS.bold), (f'Example commands created in {scope} scope:', ColorStyle.SUCCESS), (' (restart to use)', ColorStyle.MUTED)),
                     '',
                     render_grid(
                         [
-                            [Text('/create_git_commit ', style=ColorStyle.SUCCESS.bold()), Text(git_commit_file)],
-                            [Text('/analyse_recent_git_commit ', style=ColorStyle.SUCCESS.bold()), Text(recent_analysis_file)],
+                            [Text('/create_git_commit ', style=ColorStyle.SUCCESS.bold), Text(git_commit_file)],
+                            [Text('/analyse_recent_git_commit ', style=ColorStyle.SUCCESS.bold), Text(recent_analysis_file)],
                         ]
                     ),
                 ),
-                border_style=ColorStyle.SUCCESS.value,
+                border_style=ColorStyle.SUCCESS,
             )

@@ -102,7 +102,7 @@ def render_write_args(tool_call: ToolCall, is_suffix: bool = False):
     display_path = get_relative_path_for_display(file_path)
 
     tool_call_msg = Text.assemble(
-        (tool_call.tool_name, ColorStyle.HIGHLIGHT.bold() if not is_suffix else 'bold'),
+        (tool_call.tool_name, ColorStyle.HIGHLIGHT.bold if not is_suffix else 'bold'),
         '(',
         display_path,
         ')',

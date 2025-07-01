@@ -81,15 +81,15 @@ class ToolMessage(BasicMessage):
             if self.content:
                 yield render_suffix(
                     truncate_middle_text(self.content) if isinstance(self.content, str) else self.content,
-                    style=ColorStyle.ERROR.value if self.tool_call.status == 'error' else None,
+                    style=ColorStyle.ERROR if self.tool_call.status == 'error' else None,
                 )
             elif self.tool_call.status == 'success':
                 yield render_suffix('(No content)')
 
         if self.tool_call.status == 'canceled':
-            yield render_suffix(INTERRUPTED_MSG, style=ColorStyle.WARNING.value)
+            yield render_suffix(INTERRUPTED_MSG, style=ColorStyle.WARNING)
         elif self.tool_call.status == 'error':
-            yield render_suffix(self.error_msg, style=ColorStyle.ERROR.value)
+            yield render_suffix(self.error_msg, style=ColorStyle.ERROR)
 
     def __rich_console__(self, console, options):
         yield self.tool_call

@@ -83,8 +83,8 @@ class MemoryMode(InputModeCommand):
 
         if result:
             if status == 'success':
-                yield render_suffix(Text(result, style=ColorStyle.MEMORY_MODE.value))
+                yield render_suffix(Text(result, style=ColorStyle.MEMORY_MODE))
             elif status == 'error':
-                yield render_suffix(Text(result, style=ColorStyle.ERROR.bold()))
+                yield render_suffix(Text(result, style=ColorStyle.ERROR.bold))
             else:
                 yield render_suffix(result)

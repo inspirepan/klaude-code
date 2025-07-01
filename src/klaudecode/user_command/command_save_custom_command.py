@@ -9,7 +9,7 @@ from rich.text import Text
 from ..message import UserMessage
 from ..tui import ColorStyle, console, render_grid, render_suffix
 from ..user_input import Command, CommandHandleOutput, UserInput, user_select
-from ..utils.exception import format_exception_brief
+from ..utils.exception import format_exception
 from ..utils.str_utils import sanitize_filename
 
 if TYPE_CHECKING:
@@ -29,7 +29,7 @@ class SaveCustomCommandCommand(Command):
         analysis_result = await agent.session.analyze_conversation_for_command(llm_manager=agent.llm_manager)
 
         if not analysis_result:
-            console.print('Failed to analyze conversation for command creation', style=ColorStyle.ERROR.value)
+            console.print('Failed to analyze conversation for command creation', style=ColorStyle.ERROR)
             return command_handle_output
 
         command_name = analysis_result.get('command_name', 'untitled_command')
@@ -43,25 +43,25 @@ class SaveCustomCommandCommand(Command):
         console.print(
             Panel.fit(
                 Group(
-                    Text('Generated Command:', ColorStyle.HIGHLIGHT.bold()),
+                    Text('Generated Command:', ColorStyle.HIGHLIGHT.bold),
                     render_grid(
                         [
                             [
-                                Text('Name:', ColorStyle.INFO.bold()),
+                                Text('Name:', ColorStyle.INFO.bold),
                                 Text(command_name),
                             ],
                             [
-                                Text('Description:', ColorStyle.INFO.bold()),
+                                Text('Description:', ColorStyle.INFO.bold),
                                 Text(description),
                             ],
                             [
-                                Text('Content:', ColorStyle.INFO.bold()),
+                                Text('Content:', ColorStyle.INFO.bold),
                                 Text(content),
                             ],
                         ]
                     ),
                 ),
-                border_style=ColorStyle.AGENT_BORDER.value,
+                border_style=ColorStyle.AGENT_BORDER,
             )
         )
         options = ['Save as project command (.claude/commands/)', 'Save as user command (~/.claude/commands/)', 'Reject this command']
@@ -100,7 +100,7 @@ description: {description}
             command_handle_output.user_msg.set_extra_data('command_saved', {'name': command_name, 'path': str(command_file), 'scope': scope})
 
         except Exception as e:
-            console.print(f'Failed to save command: {format_exception_brief(e)}', style=ColorStyle.ERROR.value)
+            console.print(f'Failed to save command: {format_exception(e)}', style=ColorStyle.ERROR)
 
         return command_handle_output
 
@@ -115,7 +115,7 @@ description: {description}
                     f'{command_saved["scope"]}',
                     ' command at ',
                     f'{command_saved["path"]}',
-                    style=ColorStyle.SUCCESS.value,
+                    style=ColorStyle.SUCCESS,
                 )
             )
         else:

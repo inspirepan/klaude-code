@@ -70,13 +70,13 @@ class ToolCall(BaseModel):
         if self.tool_name in _TOOL_CALL_RENDERERS:
             for i, item in enumerate(_TOOL_CALL_RENDERERS[self.tool_name](self)):
                 if i == 0:
-                    yield render_message(item, mark_style=ColorStyle.SUCCESS.value, status=self.status)
+                    yield render_message(item, mark_style=ColorStyle.SUCCESS, status=self.status)
                 else:
                     yield item
         else:
             tool_name = ToolCall.get_display_tool_name(self.tool_name)
-            msg = Text.assemble((tool_name, ColorStyle.HIGHLIGHT.bold()), '(', ToolCall.get_display_tool_args(self.tool_args_dict), ')')
-            yield render_message(msg, mark_style=ColorStyle.SUCCESS.value, status=self.status)
+            msg = Text.assemble((tool_name, ColorStyle.HIGHLIGHT.bold), '(', ToolCall.get_display_tool_args(self.tool_args_dict), ')')
+            yield render_message(msg, mark_style=ColorStyle.SUCCESS, status=self.status)
 
     def get_suffix_renderable(self):
         from .registry import _TOOL_CALL_RENDERERS

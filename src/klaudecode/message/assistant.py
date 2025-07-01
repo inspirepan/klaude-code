@@ -70,14 +70,14 @@ class AIMessage(BasicMessage):
     def get_thinking_renderable(self):
         if self.thinking_content:
             yield render_message(
-                Text('Thinking...', style=ColorStyle.AI_THINKING.value),
+                Text('Thinking...', style=ColorStyle.AI_THINKING),
                 mark='✻',
-                mark_style=ColorStyle.AI_THINKING.value,
+                mark_style=ColorStyle.AI_THINKING,
                 style='italic',
             )
             yield ''
             yield render_message(
-                Text(self.thinking_content, style=ColorStyle.AI_THINKING.value),
+                Text(self.thinking_content, style=ColorStyle.AI_THINKING),
                 mark='',
                 style='italic',
                 render_text=True,
@@ -85,7 +85,7 @@ class AIMessage(BasicMessage):
 
     def get_content_renderable(self):
         if self.content:
-            yield render_message(render_markdown(self.content, style=ColorStyle.AI_MESSAGE.value), mark_style=ColorStyle.AI_MESSAGE, style=ColorStyle.AI_MESSAGE, render_text=True)
+            yield render_message(render_markdown(self.content, style=ColorStyle.AI_MESSAGE), mark_style=ColorStyle.AI_MESSAGE, style=ColorStyle.AI_MESSAGE, render_text=True)
 
     def __bool__(self):
         return not self.removed and (bool(self.content) or bool(self.thinking_content) or bool(self.tool_calls))
@@ -123,7 +123,7 @@ class AgentUsage(BaseModel):
         from rich.console import Group
 
         yield Group(
-            Text(f'Total LLM calls:     {self.total_llm_calls:<10}', style=ColorStyle.MUTED.value),
-            Text(f'Total input tokens:  {self.total_input_tokens:<10}', style=ColorStyle.MUTED.value),
-            Text(f'Total output tokens: {self.total_output_tokens:<10}', style=ColorStyle.MUTED.value),
+            Text(f'Total LLM calls:     {self.total_llm_calls:<10}', style=ColorStyle.MUTED),
+            Text(f'Total input tokens:  {self.total_input_tokens:<10}', style=ColorStyle.MUTED),
+            Text(f'Total output tokens: {self.total_output_tokens:<10}', style=ColorStyle.MUTED),
         )

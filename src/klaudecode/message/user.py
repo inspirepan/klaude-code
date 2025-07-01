@@ -79,7 +79,7 @@ class UserMessage(BasicMessage):
                 yield item
         if self.get_extra_data('error_msgs'):
             for error in self.get_extra_data('error_msgs'):
-                yield render_suffix(error, style=ColorStyle.ERROR.value)
+                yield render_suffix(error, style=ColorStyle.ERROR)
 
     def __bool__(self):
         return not self.removed and bool(self.content)
@@ -101,12 +101,12 @@ INTERRUPTED_MSG = 'Interrupted by user'
 
 
 def interrupted_renderer(user_msg: 'UserMessage'):
-    yield render_message(INTERRUPTED_MSG, style=ColorStyle.ERROR.value, mark='>', mark_style=ColorStyle.ERROR.value)
+    yield render_message(INTERRUPTED_MSG, style=ColorStyle.ERROR, mark='>', mark_style=ColorStyle.ERROR)
 
 
 def compact_renderer(user_msg: 'UserMessage'):
-    yield Rule(title=Text('Previous Conversation Compacted', ColorStyle.HIGHLIGHT.bold()), characters='=', style=ColorStyle.HIGHLIGHT.value)
-    yield render_message(user_msg.content, mark='✻', mark_style=ColorStyle.AI_THINKING.value, style=ColorStyle.AI_THINKING.italic(), render_text=True)
+    yield Rule(title=Text('Previous Conversation Compacted', ColorStyle.HIGHLIGHT.bold), characters='=', style=ColorStyle.HIGHLIGHT)
+    yield render_message(user_msg.content, mark='✻', mark_style=ColorStyle.AI_THINKING, style=ColorStyle.AI_THINKING.italic, render_text=True)
 
 
 def initialize_default_renderers():

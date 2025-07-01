@@ -37,7 +37,7 @@ class ExitPlanModeTool(Tool):
 
 
 def render_exit_plan_mode_args(tool_call: ToolCall, is_suffix: bool = False):
-    yield Text("Here is Claude's plan:", ColorStyle.HIGHLIGHT.bold())
+    yield Text("Here is Claude's plan:", ColorStyle.HIGHLIGHT.bold)
     yield Padding.indent(
         Panel.fit(render_markdown(tool_call.tool_args_dict['plan']), border_style=ColorStyle.AGENT_BORDER),
         level=2,
@@ -46,7 +46,7 @@ def render_exit_plan_mode_args(tool_call: ToolCall, is_suffix: bool = False):
 
 def render_exit_plan_mode_content(tool_msg: ToolMessage):
     approved = tool_msg.get_extra_data('approved', False)
-    yield render_suffix(APPROVE_HINT if approved else REJECT_HINT, style=ColorStyle.SUCCESS.value if approved else ColorStyle.ERROR.value)
+    yield render_suffix(APPROVE_HINT if approved else REJECT_HINT, style=ColorStyle.SUCCESS if approved else ColorStyle.ERROR)
 
 
 register_tool_call_renderer('ExitPlanMode', render_exit_plan_mode_args)

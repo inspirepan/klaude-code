@@ -116,9 +116,9 @@ def render_glob_args(tool_call: ToolCall, is_suffix: bool = False):
         path_info = ''
 
     tool_call_msg = Text.assemble(
-        ('Glob', ColorStyle.HIGHLIGHT.bold() if not is_suffix else 'bold'),
+        ('Glob', ColorStyle.HIGHLIGHT.bold if not is_suffix else 'bold'),
         '(',
-        (pattern, ColorStyle.INLINE_CODE.value),
+        (pattern, ColorStyle.INLINE_CODE),
         path_info,
         ')',
     )
@@ -135,7 +135,7 @@ def render_glob_content(tool_msg: ToolMessage):
     count_text.append(' files')
 
     if truncated:
-        count_text.append(f' (truncated to {DEFAULT_MAX_FILES} files)', style=ColorStyle.WARNING.value)
+        count_text.append(f' (truncated to {DEFAULT_MAX_FILES} files)', style=ColorStyle.WARNING)
 
     yield render_suffix(count_text)
 

@@ -11,7 +11,7 @@ from .prompt.system import STATIC_SYSTEM_PROMPT, get_system_prompt_dynamic_part
 from .session import Session
 from .tui import ColorStyle, Text, console, render_hello
 from .user_input import user_select
-from .utils.exception import format_exception_brief
+from .utils.exception import format_exception
 from .utils.str_utils import format_relative_time
 
 app = typer.Typer(help='Coding Agent CLI', add_completion=False)
@@ -30,14 +30,14 @@ async def get_session(ctx: typer.Context) -> Optional[Session]:
         # --continue
         session = Session.get_latest_session(Path.cwd())
         if not session:
-            console.print(Text(f'No session found in {Path.cwd()}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'No session found in {Path.cwd()}', style=ColorStyle.ERROR))
             return None
         session = session.create_new_session()
     elif ctx.obj['resume']:
         # --resume
         sessions = Session.load_session_list(Path.cwd())
         if not sessions or len(sessions) == 0:
-            console.print(Text(f'No session found in {Path.cwd()}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'No session found in {Path.cwd()}', style=ColorStyle.ERROR))
             return None
         options = []
         for idx, session in enumerate(sessions):
@@ -83,7 +83,7 @@ async def main_async(ctx: typer.Context):
         # Show token usage statistics
         console.print()
         agent.print_usage()
-        console.print(Text('\nBye!', style=ColorStyle.AI_MESSAGE.value))
+        console.print(Text('\nBye!', style=ColorStyle.CLAUDE))
 
 
 @app.callback(invoke_without_command=True)
@@ -132,7 +132,7 @@ def main(
                 extra_body=extra_body,
             )
         except ValueError as e:
-            console.print(Text(f'Error: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'Error: {format_exception(e)}', style=ColorStyle.ERROR))
             raise typer.Exit(code=1)
 
         ctx.obj['prompt'] = prompt
@@ -185,7 +185,7 @@ def mcp_show():
             await mcp_manager.initialize()
             console.print(mcp_manager)
         except Exception as e:
-            console.print(Text(f'Error connecting to MCP servers: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'Error connecting to MCP servers: {format_exception(e)}', style=ColorStyle.ERROR))
         finally:
             await mcp_manager.shutdown()
 
@@ -209,9 +209,9 @@ def version_command():
 
     try:
         pkg_version = version('klaude-code')
-        console.print(Text(f'klaude-code {pkg_version}', style=ColorStyle.SUCCESS.value))
+        console.print(Text(f'klaude-code {pkg_version}', style=ColorStyle.SUCCESS))
     except Exception:
-        console.print(Text('klaude-code (development)', style=ColorStyle.SUCCESS.value))
+        console.print(Text('klaude-code (development)', style=ColorStyle.SUCCESS))
 
 
 @app.command('update')
@@ -220,13 +220,13 @@ def update_command():
     import subprocess
     import sys
 
-    console.print(Text('Updating klaude-code...', style=ColorStyle.INFO.value))
+    console.print(Text('Updating klaude-code...', style=ColorStyle.INFO))
 
     try:
         # Try uv first (recommended)
         result = subprocess.run(['uv', 'tool', 'upgrade', 'klaude-code'], capture_output=True, text=True)
         if result.returncode == 0:
-            console.print(Text('✓ Updated successfully with uv', style=ColorStyle.SUCCESS.value))
+            console.print(Text('✓ Updated successfully with uv', style=ColorStyle.SUCCESS))
             return
     except FileNotFoundError:
         pass
@@ -235,8 +235,8 @@ def update_command():
         # Fallback to pip
         result = subprocess.run([sys.executable, '-m', 'pip', 'install', '--upgrade', 'klaude-code'], capture_output=True, text=True)
         if result.returncode == 0:
-            console.print(Text('✓ Updated successfully with pip', style=ColorStyle.SUCCESS.value))
+            console.print(Text('✓ Updated successfully with pip', style=ColorStyle.SUCCESS))
         else:
-            console.print(Text(f'✗ Update failed: {result.stderr}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'✗ Update failed: {result.stderr}', style=ColorStyle.ERROR))
     except Exception as e:
-        console.print(Text(f'✗ Update failed: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
+        console.print(Text(f'✗ Update failed: {format_exception(e)}', style=ColorStyle.ERROR))

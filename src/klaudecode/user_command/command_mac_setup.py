@@ -88,8 +88,8 @@ class MacSetupCommand(Command):
 
         if not setup_data.get('success', False):
             # Show error
-            error_text = Text(f'✗ {setup_data.get("error", "Unknown error")}', style=ColorStyle.ERROR.value)
-            yield Panel.fit(error_text, title='Mac Setup Failed', border_style=ColorStyle.ERROR.value)
+            error_text = Text(f'✗ {setup_data.get("error", "Unknown error")}', style=ColorStyle.ERROR)
+            yield Panel.fit(error_text, title='Mac Setup Failed', border_style=ColorStyle.ERROR)
             return
 
         # Show results
@@ -104,21 +104,21 @@ class MacSetupCommand(Command):
 
             if status == 'already_installed':
                 status_text = Text.assemble(
-                    (f'✓ {tool}', ColorStyle.SUCCESS.bold()),
-                    (f' ({desc}) - Already installed', ColorStyle.MUTED.value),
-                    (f' - {version}', ColorStyle.MUTED.value),
+                    (f'✓ {tool}', ColorStyle.SUCCESS.bold),
+                    (f' ({desc}) - Already installed', ColorStyle.MUTED),
+                    (f' - {version}', ColorStyle.MUTED),
                 )
             elif status == 'installed':
                 status_text = Text.assemble(
-                    (f'✓ {tool}', ColorStyle.SUCCESS.bold()),
-                    (f' ({desc}) - Successfully installed', ColorStyle.MUTED.value),
-                    (f' - {version}', ColorStyle.MUTED.value),
+                    (f'✓ {tool}', ColorStyle.SUCCESS.bold),
+                    (f' ({desc}) - Successfully installed', ColorStyle.MUTED),
+                    (f' - {version}', ColorStyle.MUTED),
                 )
             else:  # failed
                 status_text = Text.assemble(
-                    (f'✗ {tool}', ColorStyle.ERROR.bold()),
-                    (f' ({desc}) - Failed', ColorStyle.MUTED.value),
-                    (f': {result.get("error", "")}', ColorStyle.ERROR.value),
+                    (f'✗ {tool}', ColorStyle.ERROR.bold),
+                    (f' ({desc}) - Failed', ColorStyle.MUTED),
+                    (f': {result.get("error", "")}', ColorStyle.ERROR),
                 )
 
             result_items.append(status_text)
@@ -126,5 +126,5 @@ class MacSetupCommand(Command):
         if result_items:
             yield Panel.fit(
                 Group(*result_items),
-                border_style=ColorStyle.SUCCESS.value if all(r['status'] in ['already_installed', 'installed'] for r in results) else ColorStyle.WARNING.value,
+                border_style=ColorStyle.SUCCESS if all(r['status'] in ['already_installed', 'installed'] for r in results) else ColorStyle.WARNING,
             )

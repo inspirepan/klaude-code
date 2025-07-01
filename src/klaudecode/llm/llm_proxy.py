@@ -106,7 +106,7 @@ class RetryWrapper(LLMClientWrapper):
         console.print(
             render_suffix(
                 f'Retry {attempt + 1}/{self.max_retries}: {self.client.model_name} failed - {exception_str}, waiting {delay:.1f}s',
-                style=ColorStyle.ERROR.value,
+                style=ColorStyle.ERROR,
             )
         )
         await asyncio.sleep(delay)
@@ -116,7 +116,7 @@ class RetryWrapper(LLMClientWrapper):
         console.print(
             render_suffix(
                 f'Final failure: {self.client.model_name} failed after {self.max_retries} retries - {exception_str}',
-                style=ColorStyle.ERROR.value,
+                style=ColorStyle.ERROR,
             )
         )
 
@@ -154,8 +154,8 @@ class StatusWrapper(LLMClientWrapper):
 
         current_status_text = upload_status_text
         with render_status(
-            Text(current_status_text.ljust(STATUS_TEXT_LENGTH), style=ColorStyle.AI_MESSAGE.value),
-            spinner_style=ColorStyle.AI_MESSAGE.value,
+            Text(current_status_text.ljust(STATUS_TEXT_LENGTH), style=ColorStyle.CLAUDE),
+            spinner_style=ColorStyle.CLAUDE,
         ) as status:
             async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout, interrupt_check):
                 ai_message: AIMessage
@@ -174,11 +174,11 @@ class StatusWrapper(LLMClientWrapper):
 
                 status.update(
                     Text.assemble(
-                        Text(current_status_text.ljust(STATUS_TEXT_LENGTH), style=ColorStyle.AI_MESSAGE.value),
-                        (f' {indicator} {stream_status.tokens} tokens', ColorStyle.SUCCESS.value),
-                        (INTERRUPT_TIP, ColorStyle.MUTED.value),
+                        Text(current_status_text.ljust(STATUS_TEXT_LENGTH), style=ColorStyle.CLAUDE),
+                        (f' {indicator} {stream_status.tokens} tokens', ColorStyle.SUCCESS),
+                        (INTERRUPT_TIP, ColorStyle.MUTED),
                     ),
-                    spinner_style=ColorStyle.AI_MESSAGE.value,
+                    spinner_style=ColorStyle.CLAUDE,
                 )
 
                 if stream_status.phase == 'tool_call' and not print_content_flag and ai_message.content:

@@ -68,8 +68,8 @@ class MCPCommand(Command):
         if mcp_servers:
             status_text.append(f'MCP servers ({len(mcp_servers)}): ')
             server_names = list(mcp_servers.keys())
-            status_text.append(', '.join(server_names), style=ColorStyle.INFO.bold())
+            status_text.append(', '.join(server_names), style=ColorStyle.INFO.bold)
         else:
-            status_text.append('No servers configured', style=ColorStyle.INFO.bold())
+            status_text.append('No servers configured', style=ColorStyle.INFO.bold)
 
         yield render_suffix(status_text)

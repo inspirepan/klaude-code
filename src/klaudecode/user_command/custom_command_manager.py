@@ -1,8 +1,9 @@
 from pathlib import Path
 from typing import Dict, List
 
+from ..tui import ColorStyle, console
 from ..user_input import register_slash_command
-from ..utils.exception import format_exception_brief
+from ..utils.exception import format_exception
 from .custom_command import CustomCommand
 
 
@@ -63,11 +64,11 @@ class CustomCommandManager:
                         self.user_commands[command_name] = command
 
                 except Exception as e:
-                    print(f'Error loading command from {md_file}: {format_exception_brief(e)}')
+                    console.print(f'Error loading command from {md_file}: {format_exception(e)}', style=ColorStyle.ERROR)
                     continue
 
         except Exception as e:
-            print(f'Error scanning commands directory {commands_dir}: {format_exception_brief(e)}')
+            console.print(f'Error scanning commands directory {commands_dir}: {format_exception(e)}', style=ColorStyle.ERROR)
 
     def _register_all(self):
         """Register all discovered commands with the system following priority: system > project > user"""
@@ -77,7 +78,7 @@ class CustomCommandManager:
                 register_slash_command(command)
                 self.registered_commands.append(command_name)
             except Exception as e:
-                print(f'Error registering user command {command_name}: {format_exception_brief(e)}')
+                console.print(f'Error registering user command {command_name}: {format_exception(e)}', style=ColorStyle.ERROR)
 
         # Register project commands (higher priority - will override user commands)
         for command_name, command in self.project_commands.items():
@@ -86,7 +87,7 @@ class CustomCommandManager:
                 if command_name not in self.registered_commands:
                     self.registered_commands.append(command_name)
             except Exception as e:
-                print(f'Error registering project command {command_name}: {format_exception_brief(e)}')
+                console.print(f'Error registering project command {command_name}: {format_exception(e)}', style=ColorStyle.ERROR)
 
     def _unregister_all(self):
         """Unregister all previously registered custom commands"""

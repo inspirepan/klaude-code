@@ -93,11 +93,11 @@ def render_todo_dict(todo: dict, new_completed: bool = False):
     content = todo['content']
     status = todo.get('status', 'pending')
     if status == 'completed' and new_completed:
-        return Text.from_markup(f'☒ [s]{content}[/s]', style=ColorStyle.TODO_COMPLETED.value)
+        return Text.from_markup(f'☒ [s]{content}[/s]', style=ColorStyle.TODO_COMPLETED)
     elif status == 'completed':
-        return Text.from_markup(f'☒ [s]{content}[/s]', style=ColorStyle.MUTED.value)
+        return Text.from_markup(f'☒ [s]{content}[/s]', style=ColorStyle.MUTED)
     elif status == 'in_progress':
-        return Text.from_markup(f'☐ [bold]{content}[/bold]', style=ColorStyle.TODO_IN_PROGRESS.value)
+        return Text.from_markup(f'☐ [bold]{content}[/bold]', style=ColorStyle.TODO_IN_PROGRESS)
     else:
         return f'☐ {content}'
 
@@ -126,11 +126,11 @@ def render_todo_write_name(tool_call: ToolCall, is_suffix: bool = False):
         else:
             yield Text('Update Todos', style='bold')
         return
-    yield Text('Update Todos', ColorStyle.HIGHLIGHT.bold())
+    yield Text('Update Todos', ColorStyle.HIGHLIGHT.bold)
 
 
 def render_todo_read_name(tool_call: ToolCall, is_suffix: bool = False):
-    yield Text('Read Todos', ColorStyle.HIGHLIGHT.bold() if not is_suffix else 'bold')
+    yield Text('Read Todos', ColorStyle.HIGHLIGHT.bold if not is_suffix else 'bold')
 
 
 register_tool_result_renderer('TodoRead', render_todo_read_result)
