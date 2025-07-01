@@ -39,17 +39,17 @@ class MCPCommand(Command):
             mcp_manager_status = agent.mcp_manager.is_initialized()
         status_text = Text()
         if init_success:
-            status_text.append('MCP Manager: ', style='cyan')
-            status_text.append('✓ Initialized', style='green')
+            status_text.append('MCP Manager: ')
+            status_text.append('✓ Initialized', style=ColorStyle.SUCCESS)
         else:
-            status_text.append('MCP Manager: ', style='cyan')
-            status_text.append('✗ Failed', style='red')
+            status_text.append('MCP Manager: ')
+            status_text.append('✗ Failed', style=ColorStyle.ERROR)
         if mcp_manager_status is not None:
-            status_text.append(' | Status: ', style='cyan')
+            status_text.append(' | Status: ')
             if mcp_manager_status:
-                status_text.append('Running', style='green')
+                status_text.append('Running', style=ColorStyle.SUCCESS)
             else:
-                status_text.append('Not running', style='yellow')
+                status_text.append('Not running', style=ColorStyle.WARNING)
         console.print(render_suffix(status_text))
         return command_handle_output
 
@@ -66,10 +66,10 @@ class MCPCommand(Command):
         # Show configured servers
         mcp_servers = mcp_config_dict.get('mcpServers', {})
         if mcp_servers:
-            status_text.append(f'Configured servers ({len(mcp_servers)}): ', style=ColorStyle.SUCCESS)
+            status_text.append(f'MCP servers ({len(mcp_servers)}): ')
             server_names = list(mcp_servers.keys())
-            status_text.append(', '.join(server_names), style=ColorStyle.INFO)
+            status_text.append(', '.join(server_names), style=ColorStyle.INFO.bold())
         else:
-            status_text.append('No servers configured', style=ColorStyle.INFO)
+            status_text.append('No servers configured', style=ColorStyle.INFO.bold())
 
         yield render_suffix(status_text)
