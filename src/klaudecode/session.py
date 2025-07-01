@@ -16,6 +16,7 @@ from .prompt.commands import ANALYZE_FOR_COMMAND_PROMPT, ANALYZE_FOR_COMMAND_SYS
 from .tools.command_pattern_result import CommandPatternResultTool
 from .tools.todo import TodoList
 from .tui import ColorStyle, console
+from .utils.exception import format_exception_brief
 from .utils.file_utils import FileTracker
 from .utils.str_utils import sanitize_filename
 
@@ -212,7 +213,7 @@ class Session(BaseModel):
             self._save_messages_jsonl(messages_file)
 
         except Exception as e:
-            console.print(Text(f'Failed to save session - error: {e}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'Failed to save session - error: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
 
     def _save_messages_jsonl(self, messages_file: Path) -> None:
         """Save messages to JSONL file with incremental updates."""
@@ -312,7 +313,7 @@ class Session(BaseModel):
                             raise ValueError(f'Tool call {tool_call_id} not found')
                         messages.append(ToolMessage(**msg_data))
                 except json.JSONDecodeError as e:
-                    console.print(Text(f'Warning: Failed to parse message line {line_num}: {e}', style=ColorStyle.WARNING.value))
+                    console.print(Text(f'Warning: Failed to parse message line {line_num}: {format_exception_brief(e)}', style=ColorStyle.WARNING.value))
                     continue
 
             todo_list_data = metadata.get('todo_list', [])
@@ -344,7 +345,7 @@ class Session(BaseModel):
             return session
 
         except Exception as e:
-            console.print(Text(f'Failed to load session {session_id}: {e}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'Failed to load session {session_id}: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
             return None
 
     def create_new_session(self) -> 'Session':
@@ -398,13 +399,13 @@ class Session(BaseModel):
                         }
                     )
                 except Exception as e:
-                    console.print(Text(f'Warning: Failed to read metadata file {metadata_file}: {e}', style=ColorStyle.WARNING.value))
+                    console.print(Text(f'Warning: Failed to read metadata file {metadata_file}: {format_exception_brief(e)}', style=ColorStyle.WARNING.value))
                     continue
             sessions.sort(key=lambda x: x.get('updated_at', 0), reverse=True)
             return sessions
 
         except Exception as e:
-            console.print(Text(f'Failed to list sessions: {e}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'Failed to list sessions: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
             return []
 
     @classmethod

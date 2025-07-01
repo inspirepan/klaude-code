@@ -206,7 +206,9 @@ class ToolInstance:
         except Exception as e:
             import traceback
 
-            self.tool_msg.set_error_msg(str(e) + '\n' + traceback.format_exc())
+            from .utils.exception import format_exception_brief
+
+            self.tool_msg.set_error_msg(format_exception_brief(e) + '\n' + traceback.format_exc())
             self._is_completed = True
         finally:
             self._is_running = False
@@ -330,7 +332,9 @@ class ToolHandler:
 
                     status = render_status(status_text)
                 except Exception as e:
-                    print(str(e))
+                    from .utils.exception import format_exception_brief
+
+                    console.print(format_exception_brief(e))
                 with Live(refresh_per_second=10, console=console.console) as live:
                     live_group = []
                     for ti in tool_instances:

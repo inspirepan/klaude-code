@@ -10,6 +10,7 @@ from rich.table import Table
 from ..message import ToolCall
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, console, render_grid
+from ..utils.exception import format_exception_brief
 from .mcp_client import MCPClient
 
 
@@ -190,7 +191,7 @@ class MCPManager:
                     wrapper_class = MCPToolWrapper.create_from_mcp_tool(tool_info, self.mcp_client)
                     self.mcp_tools[wrapper_class.name] = wrapper_class
                 except Exception as e:
-                    console.print(Text(f'Failed to create wrapper for MCP tool {tool_info["name"]}: {e}', style=ColorStyle.ERROR.value))
+                    console.print(Text(f'Failed to create wrapper for MCP tool {tool_info["name"]}: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
 
         self._initialized = success
         return success

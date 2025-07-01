@@ -22,7 +22,6 @@ def count_tokens(text: str) -> int:
     return len(_get_encoder().encode(text))
 
 
-
 class BasicMessage(BaseModel):
     role: str
     content: str = ''

@@ -2,8 +2,8 @@ from typing import Dict, List, Literal, Optional
 
 from anthropic.types import ContentBlock, MessageParam
 from openai.types.chat import ChatCompletionMessageParam
-from rich.text import Text
 from pydantic import BaseModel
+from rich.text import Text
 
 from ..tui import ColorStyle, render_markdown, render_message
 from .base import BasicMessage

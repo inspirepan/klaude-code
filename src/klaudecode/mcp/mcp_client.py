@@ -6,6 +6,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 from ..tui import ColorStyle, Text, console
+from ..utils.exception import format_exception_brief
 from .mcp_config import MCPConfigManager
 
 
@@ -59,7 +60,7 @@ class MCPClient:
                 console.print(Text(f'Timeout connecting to MCP server {server_name}', style=ColorStyle.ERROR.value))
                 continue
             except Exception as e:
-                console.print(Text(f'Failed to connect to MCP server {server_name}: {e}', style=ColorStyle.ERROR.value))
+                console.print(Text(f'Failed to connect to MCP server {server_name}: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
                 continue
         if success_count > 0:
             sussess_server_names = ', '.join(sussess_servers)
@@ -121,4 +122,4 @@ class MCPClient:
         except asyncio.TimeoutError:
             raise RuntimeError(f'MCP tool {tool_name} timed out after 30 seconds')
         except Exception as e:
-            raise RuntimeError(f'Error calling MCP tool {tool_name}: {e}')
+            raise RuntimeError(f'Error calling MCP tool {tool_name}: {format_exception_brief(e)}')

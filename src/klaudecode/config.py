@@ -12,6 +12,7 @@ from rich.table import Table
 from rich.text import Text
 
 from .tui import ColorStyle, console
+from .utils.exception import format_exception_brief
 
 
 def parse_json_string(value: Union[Dict, str]) -> Dict:
@@ -262,7 +263,7 @@ class GlobalConfigSource(ConfigSource):
                 filtered_data = {k: v for k, v in config_data.items() if k in valid_fields}
                 self.config_model = ConfigModel(source='config', **filtered_data)
         except (json.JSONDecodeError, IOError) as e:
-            console.print(Text(f'Warning: Failed to load config: {e}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'Warning: Failed to load config: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
             self.config_model = ConfigModel(source='config')
 
     @classmethod
@@ -305,7 +306,7 @@ class GlobalConfigSource(ConfigSource):
             console.print(Text('Please edit the file and set your actual API key.'))
             return True
         except (IOError, OSError) as e:
-            console.print(Text(f'Error: Failed to create config file: {e}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'Error: Failed to create config file: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
             return False
 
     @classmethod

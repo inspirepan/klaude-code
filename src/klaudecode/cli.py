@@ -11,6 +11,7 @@ from .prompt.system import STATIC_SYSTEM_PROMPT, get_system_prompt_dynamic_part
 from .session import Session
 from .tui import ColorStyle, Text, console, render_hello
 from .user_input import user_select
+from .utils.exception import format_exception_brief
 from .utils.str_utils import format_relative_time
 
 app = typer.Typer(help='Coding Agent CLI', add_completion=False)
@@ -131,7 +132,7 @@ def main(
                 extra_body=extra_body,
             )
         except ValueError as e:
-            console.print(Text(f'Error: {e}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'Error: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
             raise typer.Exit(code=1)
 
         ctx.obj['prompt'] = prompt
@@ -184,7 +185,7 @@ def mcp_show():
             await mcp_manager.initialize()
             console.print(mcp_manager)
         except Exception as e:
-            console.print(Text(f'Error connecting to MCP servers: {e}', style=ColorStyle.ERROR.value))
+            console.print(Text(f'Error connecting to MCP servers: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
         finally:
             await mcp_manager.shutdown()
 
@@ -238,4 +239,4 @@ def update_command():
         else:
             console.print(Text(f'✗ Update failed: {result.stderr}', style=ColorStyle.ERROR.value))
     except Exception as e:
-        console.print(Text(f'✗ Update failed: {e}', style=ColorStyle.ERROR.value))
+        console.print(Text(f'✗ Update failed: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))

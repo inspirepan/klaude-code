@@ -16,9 +16,9 @@ from .llm import LLMManager
 from .mcp.mcp_tool import MCPManager
 from .message import (
     INTERRUPTED_MSG,
+    AgentUsage,
     AIMessage,
     BasicMessage,
-    AgentUsage,
     SpecialUserMessageTypeEnum,
     SystemMessage,
     ToolCall,
@@ -38,6 +38,7 @@ from .tools.read import execute_read
 from .tui import INTERRUPT_TIP, ColorStyle, console, render_grid, render_markdown, render_message, render_status, render_suffix
 from .user_command import custom_command_manager
 from .user_input import _INPUT_MODES, NORMAL_MODE_NAME, InputSession, UserInputHandler, user_select
+from .utils.exception import format_exception_brief
 
 DEFAULT_MAX_STEPS = 80
 INTERACTIVE_MAX_STEPS = 100
@@ -86,7 +87,7 @@ class Agent(Tool):
                 import traceback
 
                 traceback.print_exc()
-                console.print(f'Warning: Failed to load custom commands: {e}', style=ColorStyle.WARNING.value)
+                console.print(f'Warning: Failed to load custom commands: {format_exception_brief(e)}', style=ColorStyle.WARNING.value)
 
     def print_usage(self):
         console.print()
@@ -162,8 +163,8 @@ class Agent(Tool):
                     await self.tool_handler.handle(ai_msg)
 
         except (OpenAIError, AnthropicError) as e:
-            console.print(render_suffix(f'LLM error: {str(e)}', style=ColorStyle.ERROR.value))
-            return f'LLM error: {str(e)}'
+            console.print(render_suffix(f'LLM error: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
+            return f'LLM error: {format_exception_brief(e)}'
         except (KeyboardInterrupt, asyncio.CancelledError):
             # Clear any live displays before handling interruption
             return self._handle_interruption()
@@ -171,8 +172,8 @@ class Agent(Tool):
             import traceback
 
             traceback.print_exc()
-            console.print(render_suffix(f'Error: {str(e)}', style=ColorStyle.ERROR.value))
-            return f'Error: {str(e)}'
+            console.print(render_suffix(f'Error: {format_exception_brief(e)}', style=ColorStyle.ERROR.value))
+            return f'Error: {format_exception_brief(e)}'
         max_step_msg = f'Max steps {max_steps} reached'
         if self.print_switch:
             console.print(render_message(max_step_msg, mark_style=ColorStyle.INFO.value))
@@ -249,7 +250,7 @@ class Agent(Tool):
             try:
                 console.console._live.stop()
             except Exception as e:
-                console.print(f'Error stopping live display: {e}')
+                console.print(f'Error stopping live display: {format_exception_brief(e)}')
                 pass
 
         # Add interrupted message
@@ -419,7 +420,7 @@ class Agent(Tool):
                 asyncio.set_event_loop(loop)
                 result = loop.run_until_complete(agent.run(max_steps=DEFAULT_MAX_STEPS, parent_tool_instance=instance, tools=cls.get_subagent_tools()))
             except Exception as e:
-                result = f'SubAgent error: {str(e)}'
+                result = f'SubAgent error: {format_exception_brief(e)}'
             finally:
                 try:
                     # Suppress any remaining tasks

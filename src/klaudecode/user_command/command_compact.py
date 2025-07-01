@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Generator
 from rich.abc import RichRenderable
 
 from ..message import UserMessage
-from ..tui import console
 from ..user_input import Command, CommandHandleOutput, UserInput
 
 if TYPE_CHECKING:
@@ -20,7 +19,6 @@ class CompactCommand(Command):
     async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
         command_handle_output = await super().handle(agent, user_input)
         command_handle_output.user_msg.removed = True
-        console.print()
         agent.session.append_message(command_handle_output.user_msg)
         await agent.session.compact_conversation_history(instructions=user_input.cleaned_input, show_status=True, llm_manager=agent.llm_manager)
         return command_handle_output
