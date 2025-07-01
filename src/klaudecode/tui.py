@@ -178,18 +178,6 @@ INTERRUPT_TIP = ' Press ctrl+c to interrupt  '
 
 
 class PaddingStatus(Status):
-    def __init__(
-        self,
-        status: RenderableType,
-        *,
-        console: Optional[Console] = None,
-        spinner: str = 'dots',
-        spinner_style: str = '',
-        speed: float = 1.0,
-        refresh_per_second: float = 12.5,
-    ):
-        super().__init__(status, console=console, spinner=spinner, spinner_style=spinner_style, speed=speed, refresh_per_second=refresh_per_second)
-
     @property
     def renderable(self) -> Group:
         return Group(
