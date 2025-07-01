@@ -9,7 +9,7 @@ from .config import ConfigManager, ConfigModel
 from .message import SystemMessage
 from .prompt.system import STATIC_SYSTEM_PROMPT, get_system_prompt_dynamic_part
 from .session import Session
-from .tui import ColorStyle, Text, console
+from .tui import ColorStyle, Text, console, render_hello
 from .user_input import user_select
 from .utils.str_utils import format_relative_time
 
@@ -34,7 +34,7 @@ async def main_async(ctx: typer.Context):
                 SystemMessage(content=get_system_prompt_dynamic_part(Path.cwd(), ctx.obj['config'].model_name)),
             ],
         )
-        agent = get_main_agent(session, config=ctx.obj['config'], enable_mcp=ctx.obj['mcp'])
+        agent = await get_main_agent(session, config=ctx.obj['config'], enable_mcp=ctx.obj['mcp'])
         try:
             await agent.headless_run(ctx.obj['prompt'])
         except KeyboardInterrupt:
@@ -79,7 +79,8 @@ async def main_async(ctx: typer.Context):
                 SystemMessage(content=get_system_prompt_dynamic_part(Path.cwd(), ctx.obj['config'].model_name)),
             ],
         )
-    agent = get_main_agent(session, config=ctx.obj['config'], enable_mcp=ctx.obj['mcp'])
+    console.print(render_hello())
+    agent = await get_main_agent(session, config=ctx.obj['config'], enable_mcp=ctx.obj['mcp'])
     try:
         await agent.chat_interactive()
     except KeyboardInterrupt:

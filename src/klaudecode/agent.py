@@ -34,7 +34,7 @@ from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, ExitPlanModeTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
 from .tools.read import execute_read
-from .tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, render_grid, render_hello, render_markdown, render_message, render_status, render_suffix
+from .tui import INTERRUPT_TIP, ColorStyle, clear_last_line, console, render_grid, render_markdown, render_message, render_status, render_suffix
 from .user_command import custom_command_manager
 from .user_input import _INPUT_MODES, NORMAL_MODE_NAME, InputSession, UserInputHandler, user_select
 
@@ -58,7 +58,6 @@ class Agent(Tool):
         label: Optional[str] = None,
         availiable_tools: Optional[List[Tool]] = None,
         print_switch: bool = True,
-        enable_mcp: bool = True,
         enable_plan_mode_reminder: bool = True,
     ):
         self.session: Session = session
@@ -69,7 +68,6 @@ class Agent(Tool):
         self.availiable_tools = availiable_tools
         self.user_input_handler = UserInputHandler(self)
         self.tool_handler = ToolHandler(self, self.availiable_tools or [], show_live=print_switch)
-        self.enable_mcp = enable_mcp
         self.mcp_manager: Optional[MCPManager] = None
         self.plan_mode_activated: bool = False
         self.enable_plan_mode_reminder = enable_plan_mode_reminder
@@ -88,11 +86,6 @@ class Agent(Tool):
 
     async def chat_interactive(self, first_message: str = None):
         self._initialize_llm()
-        console.print(render_hello())
-
-        # Initialize MCP
-        if self.enable_mcp:
-            await self._initialize_mcp()
 
         self.session.messages.print_all_message()  # For continue and resume scene.
         epoch = 0
@@ -290,9 +283,6 @@ class Agent(Tool):
 
     async def headless_run(self, user_input_text: str, print_trace: bool = False):
         self._initialize_llm()
-        # Initialize MCP
-        if self.enable_mcp:
-            await self._initialize_mcp()
 
         try:
             # Clear any previous interrupt state
@@ -341,11 +331,12 @@ class Agent(Tool):
             if self.mcp_manager:
                 await self.mcp_manager.shutdown()
 
-    async def _initialize_mcp(self):
+    async def initialize_mcp(self) -> bool:
         """Initialize MCP manager"""
         if self.mcp_manager is None:
             self.mcp_manager = MCPManager(self.session.work_dir)
-            await self.mcp_manager.initialize()
+            return await self.mcp_manager.initialize()
+        return True
 
     def _get_all_tools(self) -> List[Tool]:
         """Get all available tools including MCP tools"""
@@ -487,5 +478,8 @@ register_tool_call_renderer('CodeSearchTask', render_agent_args)
 register_tool_result_renderer('CodeSearchTask', render_agent_result)
 
 
-def get_main_agent(session: Session, config: ConfigModel, enable_mcp: bool = False) -> Agent:
-    return Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent, CodeSearchTaskTool], enable_mcp=enable_mcp)
+async def get_main_agent(session: Session, config: ConfigModel, enable_mcp: bool = False) -> Agent:
+    agent = Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent, CodeSearchTaskTool])
+    if enable_mcp:
+        await agent.initialize_mcp()
+    return agent

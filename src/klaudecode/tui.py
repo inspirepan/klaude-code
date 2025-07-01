@@ -371,7 +371,6 @@ def render_hello() -> RenderResult:
             mark_width=6,
             render_text=True,
         ),
-        '',
     )
 
 

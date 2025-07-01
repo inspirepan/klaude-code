@@ -1,0 +1,75 @@
+from typing import TYPE_CHECKING, Generator
+
+from rich.abc import RichRenderable
+from rich.text import Text
+
+from ..mcp.mcp_config import MCPConfigManager
+from ..message import UserMessage
+from ..user_input import Command, CommandHandleOutput, UserInput
+from ..tui import ColorStyle, console, render_suffix
+
+if TYPE_CHECKING:
+    from ..agent import Agent
+
+
+class MCPCommand(Command):
+    def get_name(self) -> str:
+        return 'mcp'
+
+    def get_command_desc(self) -> str:
+        return 'Initialize MCP servers'
+
+    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent, user_input)
+
+        # Initialize MCP manager
+        init_success = await agent.initialize_mcp()
+
+        # Load MCP configuration
+        config_manager = MCPConfigManager(agent.session.work_dir)
+        mcp_config = config_manager.load_config()
+
+        # Store data for rendering (convert to dict for JSON serialization)
+        command_handle_output.user_msg.set_extra_data('mcp_init_success', init_success)
+        command_handle_output.user_msg.set_extra_data('mcp_config', mcp_config.model_dump() if mcp_config else {})
+
+        # Store manager status instead of the object itself to avoid serialization issues
+        mcp_manager_status = None
+        if agent.mcp_manager and hasattr(agent.mcp_manager, 'is_initialized'):
+            mcp_manager_status = agent.mcp_manager.is_initialized()
+        status_text = Text()
+        if init_success:
+            status_text.append('MCP Manager: ', style='cyan')
+            status_text.append('✓ Initialized', style='green')
+        else:
+            status_text.append('MCP Manager: ', style='cyan')
+            status_text.append('✗ Failed', style='red')
+        if mcp_manager_status is not None:
+            status_text.append(' | Status: ', style='cyan')
+            if mcp_manager_status:
+                status_text.append('Running', style='green')
+            else:
+                status_text.append('Not running', style='yellow')
+        console.print(render_suffix(status_text))
+        return command_handle_output
+
+    def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
+        init_success = user_msg.get_extra_data('mcp_init_success')
+        mcp_config_dict = user_msg.get_extra_data('mcp_config')
+
+        if init_success is None or mcp_config_dict is None:
+            return
+
+        # Simple status display
+        status_text = Text()
+
+        # Show configured servers
+        mcp_servers = mcp_config_dict.get('mcpServers', {})
+        if mcp_servers:
+            status_text.append(f'Configured servers ({len(mcp_servers)}): ', style=ColorStyle.SUCCESS)
+            server_names = list(mcp_servers.keys())
+            status_text.append(', '.join(server_names), style=ColorStyle.INFO)
+        else:
+            status_text.append('No servers configured', style=ColorStyle.INFO)
+
+        yield render_suffix(status_text)
