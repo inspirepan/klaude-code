@@ -6,7 +6,6 @@ from typing import Annotated, List, Optional
 from anthropic import AnthropicError
 from openai import OpenAIError
 from pydantic import BaseModel, Field
-from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
@@ -35,7 +34,7 @@ from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
 from .tools import BashTool, EditTool, ExitPlanModeTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
 from .tools.read import execute_read
-from .tui import INTERRUPT_TIP, ColorStyle, console, render_grid, render_markdown, render_message, render_status, render_suffix
+from .tui import INTERRUPT_TIP, ColorStyle, console, render_dot_status, render_markdown, render_message, render_suffix
 from .user_command import custom_command_manager
 from .user_input import _INPUT_MODES, NORMAL_MODE_NAME, InputSession, UserInputHandler, user_select
 from .utils.exception import format_exception
@@ -298,7 +297,7 @@ class Agent(Tool):
             if print_trace:
                 await self.run(tools=self._get_all_tools())
                 return
-            status = render_status('Running...')
+            status = render_dot_status('Running')
             status.start()
             running = True
 
@@ -306,13 +305,10 @@ class Agent(Tool):
                 while running:
                     tool_msg_count = len([msg for msg in self.session.messages if msg.role == 'tool'])
                     status.update(
-                        Group(
-                            f'Running... ([bold]{tool_msg_count}[/bold] tool uses)',
-                            '',
-                            render_grid([['details:', Text(str(self.session._get_messages_file_path()), style=ColorStyle.MUTED)]]),
-                            '',
-                            Text(INTERRUPT_TIP[1:], style=ColorStyle.MUTED),
-                        )
+                        description=Text.assemble(
+                            f'([bold]{tool_msg_count}[/bold] tool uses) ',
+                            (INTERRUPT_TIP, ColorStyle.MUTED),
+                        ),
                     )
                     await asyncio.sleep(0.1)
 

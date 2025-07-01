@@ -8,12 +8,12 @@ import openai
 from rich.text import Text
 
 from ..message import AIMessage, BasicMessage
-from ..tool import Tool, get_tool_call_status_text
-from ..tui import INTERRUPT_TIP, ColorStyle, console, render_status, render_suffix
+from ..tool import Tool
+from ..tui import ColorStyle, console, render_dot_status, render_suffix, INTERRUPT_TIP
 from .anthropic_proxy import AnthropicProxy
 from .llm_proxy_base import DEFAULT_RETRIES, DEFAULT_RETRY_BACKOFF_BASE, LLMProxyBase
 from .openai_proxy import OpenAIProxy
-from .stream_status import STATUS_TEXT_LENGTH, StreamStatus, get_content_status_text, get_reasoning_status_text, get_upload_status_text
+from .stream_status import StreamStatus, get_content_status_text, get_reasoning_status_text, get_tool_call_status_text, get_upload_status_text, text_status_str
 
 NON_RETRY_EXCEPTIONS = (
     KeyboardInterrupt,
@@ -125,7 +125,7 @@ class StatusWrapper(LLMClientWrapper):
     """Wrapper that adds status display to LLM calls"""
 
     async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
-        with render_status(get_content_status_text().ljust(STATUS_TEXT_LENGTH)):
+        with render_dot_status(status=get_content_status_text(), spinner_style=ColorStyle.CLAUDE, dots_style=ColorStyle.CLAUDE):
             ai_message = await self.client.call(msgs, tools)
         console.print()
         console.print(ai_message)
@@ -141,9 +141,9 @@ class StatusWrapper(LLMClientWrapper):
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         status_text_seed = int(time.time() * 1000) % 10000
         if status_text:
-            reasoning_status_text = status_text
-            content_status_text = status_text
-            upload_status_text = status_text
+            reasoning_status_text = text_status_str(status_text)
+            content_status_text = text_status_str(status_text)
+            upload_status_text = text_status_str(status_text)
         else:
             reasoning_status_text = get_reasoning_status_text(status_text_seed)
             content_status_text = get_content_status_text(status_text_seed)
@@ -153,9 +153,11 @@ class StatusWrapper(LLMClientWrapper):
         print_thinking_flag = False
 
         current_status_text = upload_status_text
-        with render_status(
-            Text(current_status_text.ljust(STATUS_TEXT_LENGTH), style=ColorStyle.CLAUDE),
+
+        with render_dot_status(
+            current_status_text,
             spinner_style=ColorStyle.CLAUDE,
+            dots_style=ColorStyle.CLAUDE,
         ) as status:
             async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout, interrupt_check):
                 ai_message: AIMessage
@@ -173,12 +175,11 @@ class StatusWrapper(LLMClientWrapper):
                     current_status_text = content_status_text
 
                 status.update(
-                    Text.assemble(
-                        Text(current_status_text.ljust(STATUS_TEXT_LENGTH), style=ColorStyle.CLAUDE),
+                    status=current_status_text,
+                    description=Text.assemble(
                         (f' {indicator} {stream_status.tokens} tokens', ColorStyle.SUCCESS),
                         (INTERRUPT_TIP, ColorStyle.MUTED),
                     ),
-                    spinner_style=ColorStyle.CLAUDE,
                 )
 
                 if stream_status.phase == 'tool_call' and not print_content_flag and ai_message.content:

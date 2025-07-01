@@ -12,8 +12,7 @@ from rich.live import Live
 from rich.text import Text
 
 from .message import AIMessage, ToolCall, ToolMessage, count_tokens
-from .tui import ColorStyle, console, render_status
-
+from .tui import ColorStyle, console, render_dot_status
 from .utils.exception import format_exception
 
 if TYPE_CHECKING:
@@ -317,7 +316,7 @@ class ToolHandler:
                 try:
                     # Generate status text based on number of tools
                     if len(tool_calls) == 1:
-                        status_text = Text.assemble('Executing ', (ToolCall.get_display_tool_name(tool_calls[0].tool_name), ColorStyle.HIGHLIGHT.bold), '...')
+                        status_text = Text.assemble('Executing ', (ToolCall.get_display_tool_name(tool_calls[0].tool_name), ColorStyle.HIGHLIGHT.bold))
                     else:
                         tool_counts = {}
                         for tc in tool_calls:
@@ -326,9 +325,9 @@ class ToolHandler:
                             Text.assemble((ToolCall.get_display_tool_name(name), ColorStyle.HIGHLIGHT.bold), '*' + str(count) if count > 1 else '', ' ')
                             for name, count in tool_counts.items()
                         ]
-                        status_text = Text.assemble('Executing ', *tool_names, '...')
+                        status_text = Text.assemble('Executing ', *tool_names)
 
-                    status = render_status(status_text)
+                    status = render_dot_status(status=status_text)
                 except Exception as e:
                     console.print(format_exception(e), style=ColorStyle.ERROR)
                     raise e
@@ -359,40 +358,3 @@ class ToolHandler:
             self.agent.session.append_message(*(ti.tool_result() for ti in tool_instances))
             if interrupted:
                 raise asyncio.CancelledError
-
-
-UPDATE_STATUS_TEXTS = ['Updating', 'Modifying', 'Changing', 'Refactoring', 'Transforming', 'Rewriting', 'Refining', 'Polishing', 'Tweaking', 'Adjusting', 'Fixing']
-TODO_STATUS_TEXTS = ['Planning', 'Organizing', 'Structuring', 'Brainstorming', 'Strategizing', 'Outlining', 'Tracking']
-
-TOOL_CALL_STATUS_TEXT_DICT = {
-    'MultiEdit': UPDATE_STATUS_TEXTS,
-    'Edit': UPDATE_STATUS_TEXTS,
-    'Read': ['Exploring', 'Reading', 'Scanning', 'Analyzing', 'Inspecting', 'Examining', 'Studying'],
-    'Write': ['Writing', 'Creating', 'Crafting', 'Composing', 'Generating'],
-    'TodoWrite': TODO_STATUS_TEXTS,
-    'TodoRead': TODO_STATUS_TEXTS,
-    'LS': ['Exploring', 'Scanning', 'Browsing', 'Investigating', 'Surveying', 'Discovering', 'Wandering'],
-    'Grep': ['Searching', 'Looking', 'Finding', 'Hunting', 'Tracking', 'Filtering', 'Digging'],
-    'Glob': ['Searching', 'Looking', 'Finding', 'Matching', 'Collecting', 'Gathering', 'Harvesting'],
-    'Bash': ['Executing', 'Running', 'Processing', 'Computing', 'Launching', 'Invoking', 'Commanding'],
-    'ExitPlanMode': ['Planning'],
-    'CommandPatternResult': ['Patterning'],
-}
-
-
-def get_tool_call_status_text(tool_name: str, seed: Optional[int] = None) -> str:
-    """
-    Write -> Writing
-    """
-    if seed is not None:
-        import random
-
-        random.seed(seed)
-
-    if tool_name in TOOL_CALL_STATUS_TEXT_DICT:
-        return random.choice(TOOL_CALL_STATUS_TEXT_DICT[tool_name]) + '...'
-    if tool_name.startswith('mcp__'):
-        return 'Executing...'
-    if tool_name.endswith('e'):
-        return f'{tool_name[:-1]}ing...'
-    return f'{tool_name}ing...'

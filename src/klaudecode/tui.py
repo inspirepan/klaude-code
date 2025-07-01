@@ -2,15 +2,18 @@ import re
 import sys
 from enum import Enum
 from pathlib import Path
-from typing import List, Literal, Optional, Tuple, Union
+from types import TracebackType
+from typing import List, Literal, Optional, Tuple, Type, Union
 
 from rich import box
 from rich.abc import RichRenderable
-from rich.console import Console, Group, RenderResult
+from rich.columns import Columns
+from rich.console import Console, Group, RenderableType, RenderResult, StyleType
+from rich.live import Live
 from rich.markup import escape
 from rich.panel import Panel
 from rich.rule import Rule
-from rich.status import Status
+from rich.spinner import Spinner
 from rich.style import Style
 from rich.table import Table
 from rich.text import Text
@@ -177,20 +180,7 @@ class ConsoleProxy:
 console = ConsoleProxy()
 
 
-INTERRUPT_TIP = ' Press ctrl+c to interrupt  '
-
-
-class PaddingStatus(Status):
-    @property
-    def renderable(self) -> Group:
-        return Group(
-            '',
-            super().renderable,
-        )
-
-
-def render_status(status: str, spinner: str = 'dots', spinner_style: str = ''):
-    return PaddingStatus(Text.assemble(status, (INTERRUPT_TIP, ColorStyle.MUTED)), console=console.console, spinner=spinner, spinner_style=spinner_style)
+INTERRUPT_TIP = '  press ctrl+c to interrupt  '
 
 
 def render_message(
@@ -472,3 +462,116 @@ def get_inquirer_style() -> dict:
         'question': f'bold {get_prompt_toolkit_color(ColorStyle.HIGHLIGHT)}',
         'pointer': f'fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED)} bg:default',
     }
+
+
+class DotsStatus:
+    def __init__(
+        self,
+        status: RenderableType,
+        description: Optional[RenderableType] = None,
+        *,
+        console: Console = Console(),
+        spinner: str = 'dots',
+        spinner_style: StyleType = None,
+        dots_style: StyleType = None,
+        refresh_per_second: int = 10,
+        width: int = 10,
+    ):
+        self.status = status
+        self.description = description
+        self.spinner = spinner
+        self.spinner_style = spinner_style
+        self.dots_style = dots_style
+        self.refresh_per_second = refresh_per_second
+        self.width = width
+        self._live = Live(
+            self.renderable,
+            console=console,
+            refresh_per_second=self.refresh_per_second,
+            transient=True,
+        )
+
+    def update(
+        self,
+        *,
+        status: Optional[RenderableType] = None,
+        description: Optional[RenderableType] = None,
+        spinner: Optional[str] = None,
+        spinner_style: Optional[StyleType] = None,
+        dots_style: Optional[StyleType] = None,
+    ):
+        if status:
+            self.status = status
+        if description:
+            self.description = description
+        if spinner:
+            self.spinner = spinner
+        if spinner_style:
+            self.spinner_style = spinner_style
+        if dots_style:
+            self.dots_style = dots_style
+        self._live.update(self.renderable, refresh=True)
+
+    @property
+    def renderable(self) -> Columns:
+        spacing = max(self.width - len(self.status) + 1, 1)
+        return Group(
+            '',
+            Columns(
+                [
+                    Spinner(name=self.spinner, style=self.spinner_style),
+                    ' ',
+                    self.status,
+                    Spinner(name='simpleDots', style=self.dots_style, speed=2),
+                    ' ' * spacing,
+                    self.description,
+                ],
+                padding=(0, 0),
+            ),
+        )
+
+    def start(self) -> None:
+        """Start the status animation."""
+        self._live.start()
+
+    def stop(self) -> None:
+        """Stop the spinner animation."""
+        self._live.stop()
+
+    def __rich__(self) -> RenderableType:
+        return self.renderable
+
+    def __enter__(self) -> 'DotsStatus':
+        self.start()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        self.stop()
+
+
+def render_dot_status(
+    status: str,
+    description: Optional[str] = None,
+    spinner: str = 'dots',
+    spinner_style: StyleType = None,
+    dots_style: StyleType = None,
+    width: int = 10,
+):
+    if description:
+        desc_text = Text.assemble(description, (INTERRUPT_TIP, ColorStyle.MUTED))
+    else:
+        desc_text = Text(INTERRUPT_TIP, style=ColorStyle.MUTED)
+    return DotsStatus(
+        status=status,
+        description=desc_text,
+        console=console.console,
+        spinner=spinner,
+        spinner_style=spinner_style,
+        dots_style=dots_style,
+        width=width,
+    )
