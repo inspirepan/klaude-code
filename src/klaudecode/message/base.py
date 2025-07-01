@@ -22,17 +22,11 @@ def count_tokens(text: str) -> int:
     return len(_get_encoder().encode(text))
 
 
-class CompletionUsage(BaseModel):
-    completion_tokens: int
-    prompt_tokens: int
-    total_tokens: int
-
 
 class BasicMessage(BaseModel):
     role: str
     content: str = ''
     removed: bool = False
-    usage: Optional[CompletionUsage] = None
     extra_data: Optional[dict] = None
 
     def get_content(self):

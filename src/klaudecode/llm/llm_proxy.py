@@ -102,7 +102,7 @@ class RetryWrapper(LLMClientWrapper):
 
     async def _handle_retry(self, attempt: int, exception: Exception):
         delay = self.backoff_base * (2**attempt)
-        exception_str = f'{exception.__class__.__name__ if hasattr(exception, "__class__") else type(exception).__name__}: {str(exception)}'
+        exception_str = f'{exception.__class__.__name__ if hasattr(exception, "__class__") else type(exception).__name__} {str(exception)}'
         console.print(
             render_suffix(
                 f'Retry {attempt + 1}/{self.max_retries}: {self.client.model_name} failed - {exception_str}, waiting {delay:.1f}s',
@@ -112,7 +112,7 @@ class RetryWrapper(LLMClientWrapper):
         await asyncio.sleep(delay)
 
     def _handle_final_failure(self, exception: Exception):
-        exception_str = f'{exception.__class__.__name__ if hasattr(exception, "__class__") else type(exception).__name__}: {str(exception)}'
+        exception_str = f'{exception.__class__.__name__ if hasattr(exception, "__class__") else type(exception).__name__} {str(exception)}'
         console.print(
             render_suffix(
                 f'Final failure: {self.client.model_name} failed after {self.max_retries} retries - {exception_str}',

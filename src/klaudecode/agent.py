@@ -18,6 +18,7 @@ from .message import (
     INTERRUPTED_MSG,
     AIMessage,
     BasicMessage,
+    AgentUsage,
     SpecialUserMessageTypeEnum,
     SystemMessage,
     ToolCall,
@@ -74,6 +75,9 @@ class Agent(Tool):
         self.llm_manager: Optional[LLMManager] = None
         self._interrupt_flag = threading.Event()  # Global interrupt flag for this agent
 
+        # Usage tracking
+        self.usage = AgentUsage()
+
         # Initialize custom commands
         try:
             custom_command_manager.discover_and_register_commands(session.work_dir)
@@ -83,6 +87,10 @@ class Agent(Tool):
 
                 traceback.print_exc()
                 console.print(f'Warning: Failed to load custom commands: {e}', style=ColorStyle.WARNING.value)
+
+    def print_usage(self):
+        console.print()
+        console.print(self.usage)
 
     async def chat_interactive(self, first_message: str = None):
         self._initialize_llm()
@@ -137,7 +145,8 @@ class Agent(Tool):
                     show_status=self.print_switch,
                     interrupt_check=self._should_interrupt,
                 )
-
+                ai_msg: AIMessage
+                self.usage.update(ai_msg)
                 self.session.append_message(ai_msg)
                 if ai_msg.finish_reason == 'stop':
                     # Cannot directly use this AI response's content as result,

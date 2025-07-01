@@ -24,52 +24,35 @@ def setup_config(**kwargs) -> ConfigModel:
     return config_model
 
 
-async def main_async(ctx: typer.Context):
-    if ctx.obj['prompt']:
-        # Headless mode
-        session = Session(
-            Path.cwd(),
-            messages=[
-                SystemMessage(content=STATIC_SYSTEM_PROMPT, cached=True),
-                SystemMessage(content=get_system_prompt_dynamic_part(Path.cwd(), ctx.obj['config'].model_name)),
-            ],
-        )
-        agent = await get_main_agent(session, config=ctx.obj['config'], enable_mcp=ctx.obj['mcp'])
-        try:
-            await agent.headless_run(ctx.obj['prompt'])
-        except KeyboardInterrupt:
-            pass
-        return
-
+async def get_session(ctx: typer.Context) -> Optional[Session]:
     if ctx.obj['continue_latest']:
+        # --continue
         session = Session.get_latest_session(Path.cwd())
         if not session:
             console.print(Text(f'No session found in {Path.cwd()}', style=ColorStyle.ERROR.value))
-            return
+            return None
         session = session.create_new_session()
     elif ctx.obj['resume']:
+        # --resume
         sessions = Session.load_session_list(Path.cwd())
         if not sessions or len(sessions) == 0:
             console.print(Text(f'No session found in {Path.cwd()}', style=ColorStyle.ERROR.value))
-            return
+            return None
         options = []
         for idx, session in enumerate(sessions):
             title_msg = session.get('title_msg', '')[:20]
             message_count = session.get('message_count', 0)
             modified_at = format_relative_time(session.get('updated_at'))
             created_at = format_relative_time(session.get('created_at'))
-
             option = f'{idx + 1:3}.{modified_at:>10}{created_at:>9}{message_count:>12}  {title_msg:<20}'
             options.append(option)
-
         header = f'{" " * 4}{"Modified":>10}{"Created":>9}{"# Messages":>12}  Title'
-
         idx = await user_select(
             options,
             title=header,
         )
         if idx is None:
-            return
+            return None
         session = Session.load(sessions[idx].get('id'))
     else:
         session = Session(
@@ -79,35 +62,26 @@ async def main_async(ctx: typer.Context):
                 SystemMessage(content=get_system_prompt_dynamic_part(Path.cwd(), ctx.obj['config'].model_name)),
             ],
         )
-    basic_tips = [
-        'type \\ followed by [main]Enter[/main] to insert newlines',
-        'type / to choose slash command',
-        'type ! to run bash command',
-        'type # to memorize',
-        'type * to start plan mode',
-        'type @ to mention a file',
-    ]
-    tips = []
+    return session
 
-    if (Path.cwd() / '.klaude' / 'sessions').exists():
-        import random
 
-        tips.append(random.choice(basic_tips))
-        tips.append('run [main]klaude --continue[/main] or [main]klaude --resume[/main] to resume a conversation')
-    else:
-        tips.extend(basic_tips)
-    if not (Path.cwd() / 'CLAUDE.md').exists():
-        tips.append('run [main]/init[/main] to analyse your codebase')
-    if (Path.cwd() / '.klaude' / 'mcp.json').exists():
-        tips.append('run [main]klaude --mcp[/main] or [main]/mcp[/main] to enable MCP tools')
-
-    console.print(render_hello(tips))
-    agent = await get_main_agent(session, config=ctx.obj['config'], enable_mcp=ctx.obj['mcp'])
+async def main_async(ctx: typer.Context):
+    session = await get_session(ctx)
+    if not session:
+        return
+    console.print(render_hello())
     try:
-        await agent.chat_interactive()
+        agent = await get_main_agent(session, config=ctx.obj['config'], enable_mcp=ctx.obj['mcp'])
+        if ctx.obj['prompt']:
+            await agent.headless_run(ctx.obj['prompt'])
+        else:
+            await agent.chat_interactive()
     except KeyboardInterrupt:
         pass
     finally:
+        # Show token usage statistics
+        console.print()
+        agent.print_usage()
         console.print(Text('\nBye!', style=ColorStyle.AI_MESSAGE.value))
 
 

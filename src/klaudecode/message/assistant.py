@@ -3,10 +3,17 @@ from typing import Dict, List, Literal, Optional
 from anthropic.types import ContentBlock, MessageParam
 from openai.types.chat import ChatCompletionMessageParam
 from rich.text import Text
+from pydantic import BaseModel
 
 from ..tui import ColorStyle, render_markdown, render_message
 from .base import BasicMessage
 from .tool_call import ToolCall
+
+
+class CompletionUsage(BaseModel):
+    completion_tokens: int
+    prompt_tokens: int
+    total_tokens: int
 
 
 class AIMessage(BasicMessage):
@@ -15,6 +22,7 @@ class AIMessage(BasicMessage):
     thinking_content: Optional[str] = None
     thinking_signature: Optional[str] = None
     finish_reason: Literal['stop', 'length', 'tool_calls', 'content_filter', 'function_call'] = 'stop'
+    usage: Optional[CompletionUsage] = None
 
     def get_content(self):
         content: List[ContentBlock] = []
@@ -83,6 +91,9 @@ class AIMessage(BasicMessage):
         return not self.removed and (bool(self.content) or bool(self.thinking_content) or bool(self.tool_calls))
 
     def merge(self, other: 'AIMessage') -> 'AIMessage':
+        """
+        # For message continuation, not currently used
+        """
         self.content += other.content
         self.finish_reason = other.finish_reason
         self.tool_calls = other.tool_calls
@@ -95,3 +106,24 @@ class AIMessage(BasicMessage):
             self.usage.total_tokens += other.usage.total_tokens
         self.tool_calls.update(other.tool_calls)
         return self
+
+
+class AgentUsage(BaseModel):
+    total_llm_calls: int = 0
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+
+    def update(self, ai_message: AIMessage):
+        self.total_llm_calls += 1
+        if ai_message.usage:
+            self.total_input_tokens += ai_message.usage.prompt_tokens
+            self.total_output_tokens += ai_message.usage.completion_tokens
+
+    def __rich_console__(self, console, options):
+        from rich.console import Group
+
+        yield Group(
+            Text(f'Total LLM calls:     {self.total_llm_calls:<10}', style=ColorStyle.MUTED.value),
+            Text(f'Total input tokens:  {self.total_input_tokens:<10}', style=ColorStyle.MUTED.value),
+            Text(f'Total output tokens: {self.total_output_tokens:<10}', style=ColorStyle.MUTED.value),
+        )
