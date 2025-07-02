@@ -20,7 +20,6 @@ class InputSession:
             history_file.parent.mkdir(parents=True, exist_ok=True)
             history_file.touch()
         self.history = FileHistory(str(history_file))
-        self.user_input_completer = UserInputCompleter(self)
 
     def _dyn_prompt(self):
         return self.current_input_mode.get_prompt()
@@ -94,7 +93,10 @@ class InputSession:
             key_bindings=kb,
             history=self.history,
             placeholder=self._dyn_placeholder,
-            completer=self.user_input_completer,
+            completer=UserInputCompleter(
+                enable_file_completion_callabck=lambda: self.current_input_mode.get_name() in [NORMAL_MODE_NAME, 'plan'],
+                enable_command_callabck=lambda: self.current_input_mode.get_name() == NORMAL_MODE_NAME,
+            ),
             style=self.current_input_mode.get_style(),
         )
         self._setup_key_bindings(session.default_buffer, kb)

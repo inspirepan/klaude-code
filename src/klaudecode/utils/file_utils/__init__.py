@@ -11,7 +11,7 @@ from .file_operations import (
     restore_backup,
     write_file_content,
 )
-from .file_searcher import FileSearcher
+from .file_glob import FileGlob
 from .file_tracker import CheckModifiedResult, FileStatus, FileTracker
 from .file_validation import (
     EDIT_OLD_STRING_NEW_STRING_IDENTICAL_ERROR_MSG,
@@ -39,7 +39,7 @@ __all__ = [
     'CheckModifiedResult',
     'FileTracker',
     'TreeNode',
-    'FileSearcher',
+    'FileGlob',
     # Functions - File operations
     'get_relative_path_for_display',
     'read_file_content',

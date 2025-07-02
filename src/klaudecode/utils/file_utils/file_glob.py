@@ -4,13 +4,16 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional
 
-from .directory_utils import get_effective_ignore_patterns
-
 DEFAULT_MAX_DEPTH = 10
 DEFAULT_TIMEOUT = 30
 
 
-class FileSearcher:
+class FileGlob:
+    """
+    Skip hidden files and directories.
+    Do NOT skip .gitignore
+    """
+
     @classmethod
     def validate_glob_pattern(cls, pattern: str) -> Optional[str]:
         try:
@@ -33,14 +36,7 @@ class FileSearcher:
             stdout, stderr, return_code = cls._execute_command(command)
 
             if return_code == 0 and stdout.strip():
-                files = [line.strip() for line in stdout.strip().split('\n') if line.strip()]
-
-        if not files and cls._has_find():
-            command = cls._build_find_command(pattern, path)
-            stdout, stderr, return_code = cls._execute_command(command)
-
-            if return_code == 0 and stdout.strip():
-                files = [line.strip() for line in stdout.strip().split('\n') if line.strip()]
+                files = [cls.truncate_fd_path(line) for line in stdout.strip().split('\n') if line.strip()]
 
         if not files:
             files = cls._python_glob_search(pattern, path)
@@ -52,48 +48,7 @@ class FileSearcher:
             files.sort(key=lambda f: Path(f).stat().st_mtime, reverse=True)
         except OSError:
             files.sort()
-
-        return files
-
-    @classmethod
-    def search_files_fuzzy(cls, keyword: str, path: str = '.') -> list[str]:
-        """Search for files with fuzzy matching for user input completion
-
-        This method is designed for @file completion in user input.
-        It searches for files whose names contain the keyword, not just start with it.
-        """
-        if not keyword:
-            # If no keyword, return all files
-            return cls.search_files('*', path)
-
-        pattern_files = cls.search_files(f'*{keyword}*', path)
-        files = list(set(pattern_files))
-
-        # Sort by relevance: exact matches first, then by modification time
-        def relevance_key(file_path: str) -> tuple:
-            filename = Path(file_path).name.lower()
-            keyword_lower = keyword.lower()
-
-            # Priority 1: Exact filename match
-            if filename == keyword_lower:
-                return (0, filename)
-
-            # Priority 2: Filename starts with keyword
-            if filename.startswith(keyword_lower):
-                return (1, filename)
-
-            # Priority 3: Filename contains keyword
-            if keyword_lower in filename:
-                return (2, filename)
-
-            # Priority 4: Path contains keyword
-            return (3, file_path.lower())
-
-        try:
-            files.sort(key=relevance_key)
-        except OSError:
-            files.sort()
-
+        print('len:', len(files))
         return files
 
     @classmethod
@@ -101,50 +56,11 @@ class FileSearcher:
         return shutil.which('fd') is not None
 
     @classmethod
-    def _has_find(cls) -> bool:
-        return shutil.which('find') is not None
-
-    @classmethod
     def _build_fd_command(cls, pattern: str, path: str) -> list[str]:
-        args = ['fd', '--type', 'f', '--glob']
+        args = ['fd', '--type', 'f', '--glob', '--no-ignore', '-a']
         args.extend(['--max-depth', str(DEFAULT_MAX_DEPTH)])
-
-        ignore_patterns = get_effective_ignore_patterns()
-        for ignore_pattern in ignore_patterns:
-            args.extend(['--exclude', ignore_pattern])
-
         args.extend(['--exclude', '.*'])
         args.extend([pattern, path])
-        return args
-
-    @classmethod
-    def _build_find_command(cls, pattern: str, path: str) -> list[str]:
-        args = ['find', path, '-type', 'f']
-        args.extend(['-maxdepth', str(DEFAULT_MAX_DEPTH)])
-
-        # Use -name for simple patterns, -path for complex patterns
-        if '/' in pattern:
-            # For patterns with paths like "src/*.py", use -path
-            args.extend(['-path', f'*{pattern}'])
-        else:
-            # For simple patterns like "*.py", use -name
-            args.extend(['-name', pattern])
-
-        # Exclude hidden files and directories
-        args.extend(['!', '-name', '.*'])
-        args.extend(['!', '-path', '*/.*'])
-
-        ignore_patterns = get_effective_ignore_patterns()
-        for ignore_pattern in ignore_patterns:
-            if ignore_pattern.startswith('*.'):
-                args.extend(['!', '-name', ignore_pattern])
-            elif ignore_pattern.endswith('/'):
-                args.extend(['!', '-path', f'*/{ignore_pattern.rstrip("/")}/*'])
-            else:
-                # Handle both files and directories
-                args.extend(['!', '-name', ignore_pattern])
-                args.extend(['!', '-path', f'*/{ignore_pattern}/*'])
-
         return args
 
     @classmethod
@@ -156,6 +72,13 @@ class FileSearcher:
             return '', f'Search timed out after {DEFAULT_TIMEOUT} seconds', 1
         except Exception as e:
             return '', f'Command execution failed: {str(e)}', 1
+
+    @classmethod
+    def truncate_fd_path(cls, path: str) -> str:
+        path = path.strip()
+        if path.startswith('./'):
+            path = path[2:]
+        return path
 
     @classmethod
     def _python_glob_search(cls, pattern: str, path: str) -> list[str]:
@@ -175,7 +98,6 @@ class FileSearcher:
 
             # Filter out directories and apply ignore patterns
             filtered_matches = []
-            ignore_patterns = get_effective_ignore_patterns()
 
             for match in matches:
                 match_path = Path(match)
@@ -189,14 +111,7 @@ class FileSearcher:
                     continue
 
                 # Skip ignored patterns
-                should_ignore = False
-                for ignore_pattern in ignore_patterns:
-                    if cls._should_ignore_file(match_path, ignore_pattern):
-                        should_ignore = True
-                        break
-
-                if not should_ignore:
-                    filtered_matches.append(str(match_path))
+                filtered_matches.append(str(match_path))
 
             return sorted(filtered_matches)
 

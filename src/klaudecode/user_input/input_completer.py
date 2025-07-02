@@ -1,33 +1,42 @@
-from pathlib import Path
-from typing import Dict
+import shutil
+import subprocess
+
+from typing import Callable, Dict, List, Optional
 
 from prompt_toolkit.completion import Completer, Completion
 
-from ..utils.file_utils import FileSearcher
+from ..utils.file_utils.directory_utils import get_effective_ignore_patterns
 from .input_command import _SLASH_COMMANDS, Command
-from .input_mode import NORMAL_MODE_NAME
+
+DEFAULT_MAX_DEPTH = 10
 
 
 class UserInputCompleter(Completer):
     """Custom user input completer"""
 
-    def __init__(self, input_session):
+    def __init__(self, enable_file_completion_callabck: Callable[[], bool], enable_command_callabck: Callable[[], bool]):
         self.commands: Dict[str, Command] = _SLASH_COMMANDS
-        self.input_session = input_session
+        self.enable_file_completion_callabck = enable_file_completion_callabck
+        self.enable_command_callabck = enable_command_callabck
+        self._file_cache: Optional[List[str]] = None
+        self._initialize_file_cache()
+        self._file_cache.sort()
+        print('\n'.join(self._file_cache))
+        print(len(self._file_cache))
 
     def get_completions(self, document, _complete_event):
         text = document.text
         cursor_position = document.cursor_position
 
         at_match = self._find_at_file_pattern(text, cursor_position)
-        if at_match:
+        if at_match and self.enable_file_completion_callabck():
             try:
                 yield from self._get_file_completions(at_match)
             except Exception:
                 pass
             return
 
-        if self.input_session.current_input_mode.get_name() != NORMAL_MODE_NAME:
+        if not self.enable_command_callabck():
             return
 
         if not text.startswith('/') or cursor_position == 0:
@@ -49,87 +58,70 @@ class UserInputCompleter(Completer):
         for i in range(cursor_position - 1, -1, -1):
             if text[i] == '@':
                 file_prefix = text[i + 1 : cursor_position]
-                if file_prefix.startswith('/') or any(c in file_prefix for c in ['/', '\\']):
-                    return None
                 return {'at_position': i, 'prefix': file_prefix, 'start_position': i + 1 - cursor_position}
             elif text[i].isspace():
                 break
+        return None
+
+    def _initialize_file_cache(self):
+        """Initialize file cache using fd or find command"""
+        try:
+            self._file_cache = self._get_files_from_commands()
+        except Exception:
+            self._file_cache = []
+
+    def _get_files_from_commands(self) -> List[str]:
+        """Get file list using fd or find command"""
+        ignore_patterns = get_effective_ignore_patterns()
+
+        files = self._try_fd_command(ignore_patterns)
+        if files is not None:
+            return files
+
+        return []
+
+    def _try_fd_command(self, ignore_patterns: List[str]) -> Optional[List[str]]:
+        """Try using fd command"""
+        try:
+            if not shutil.which('fd'):
+                return None
+            args = ['fd', '.']
+            args.extend(['-maxdepth', str(DEFAULT_MAX_DEPTH)])
+            # Add ignore patterns
+            for pattern in ignore_patterns:
+                args.extend(['--exclude', pattern])
+            args.extend(['--exclude', '.*'])
+
+            result = subprocess.run(args, capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                files = []
+                for line in result.stdout.strip().split('\n'):
+                    if line:
+                        files.append(line)
+                return files
+        except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError):
+            pass
         return None
 
     def _get_file_completions(self, at_match):
         prefix = at_match['prefix']
         start_position = at_match['start_position']
 
-        if not prefix or prefix.startswith('/') or any(c in prefix for c in ['/', '\\']):
+        if not self._file_cache:
             return
 
-        workdir = self.input_session.workdir
+        # Filter files based on prefix
+        matching_files = []
+        for file_path in self._file_cache:
+            if prefix in file_path:
+                matching_files.append(file_path)
 
-        if prefix:
-            prefix_path = Path(prefix)
-            if prefix_path.is_absolute():
-                return
-            else:
-                search_dir = workdir / prefix_path.parent if prefix_path.parent != Path('.') else workdir
-                name_prefix = prefix_path.name
-        else:
-            search_dir = workdir
-            name_prefix = ''
+        # Sort: directories first, then files
+        matching_files.sort(key=lambda x: (not x.endswith('/'), x))
 
-        if not search_dir.exists() or not search_dir.is_dir():
-            return
-
-        matches = []
-        try:
-            files = FileSearcher.search_files_fuzzy(name_prefix or '', str(search_dir))
-
-            for file_path in files:
-                try:
-                    relative_path = Path(file_path).relative_to(workdir)
-                    path_str = str(relative_path)
-                except ValueError:
-                    relative_path = Path(file_path)
-                    path_str = str(file_path)
-
-                if name_prefix:
-                    path_str_lower = path_str.lower()
-                    name_prefix_lower = name_prefix.lower()
-
-                    if name_prefix_lower not in path_str_lower:
-                        continue
-
-                matches.append({'path': relative_path, 'name': relative_path.name})
-        except (OSError, PermissionError):
-            return
-
-        def sort_key(match):
-            path_str = str(match['path']).lower()
-            name = match['name'].lower()
-            prefix_lower = name_prefix.lower() if name_prefix else ''
-
-            if not prefix_lower:
-                return (0, name)
-
-            if name.startswith(prefix_lower):
-                return (0, name)
-
-            if prefix_lower in name:
-                return (1, name)
-
-            if path_str.startswith(prefix_lower):
-                return (2, path_str)
-
-            return (3, path_str)
-
-        matches.sort(key=sort_key)
-
-        matches = matches[:10]
-
-        for match in matches:
-            path_str = str(match['path'])
-
+        for file_path in matching_files:
             yield Completion(
-                path_str,
+                file_path,
                 start_position=start_position,
-                display=path_str,
+                display=file_path,
             )

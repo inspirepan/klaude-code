@@ -8,7 +8,7 @@ from ..message import ToolCall, ToolMessage, register_tool_call_renderer, regist
 from ..prompt.tools import GLOB_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
-from ..utils.file_utils import FileSearcher, get_relative_path_for_display
+from ..utils.file_utils import FileGlob, get_relative_path_for_display
 
 """
 - Advanced glob pattern matching with recursive directory support
@@ -41,7 +41,7 @@ class GlobTool(Tool):
         args: 'GlobTool.Input' = cls.parse_input_args(tool_call)
 
         # Validate glob pattern
-        error_msg = FileSearcher.validate_glob_pattern(args.pattern)
+        error_msg = FileGlob.validate_glob_pattern(args.pattern)
         if error_msg:
             instance.tool_result().set_error_msg(error_msg)
             return
@@ -63,8 +63,7 @@ class GlobTool(Tool):
     @classmethod
     def _execute_glob_search(cls, pattern: str, path: str) -> tuple[str, int, bool]:
         """Execute glob search and return formatted results with truncation info"""
-        files = FileSearcher.search_files(pattern, path)
-
+        files = FileGlob.search_files(pattern, path)
         if not files:
             return 'No files found matching the pattern', 0, False
 
@@ -101,7 +100,7 @@ class GlobTool(Tool):
             suggestions.append("Use recursive patterns for subdirectories (e.g., '**/*.js')")
 
         suggestion_text = 'Consider: ' + ' or '.join(suggestions) if suggestions else 'Use more specific glob patterns'
-        return f'Too many files ({total_files} total). {suggestion_text}'
+        return f'(Too many files. {suggestion_text})'
 
 
 def render_glob_args(tool_call: ToolCall, is_suffix: bool = False):

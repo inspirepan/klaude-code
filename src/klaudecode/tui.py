@@ -522,7 +522,7 @@ class DotsStatus:
                     Spinner(name=self.spinner, style=self.spinner_style),
                     ' ',
                     self.status,
-                    Spinner(name='simpleDots', style=self.dots_style, speed=2),
+                    Spinner(name='simpleDots', style=self.dots_style, speed=1),
                     ' ' * spacing,
                     self.description,
                 ],
