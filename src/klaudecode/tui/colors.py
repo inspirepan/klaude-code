@@ -111,7 +111,7 @@ light_theme = Theme(
 dark_theme = Theme(
     {
         # AI and user interaction
-        ColorStyle.AI_MESSAGE: 'rgb(201,125,92)',
+        ColorStyle.AI_MESSAGE: 'rgb(214,119,86)',
         ColorStyle.AI_THINKING: 'rgb(180,204,245)',
         ColorStyle.CLAUDE: 'rgb(214,119,86)',
         # Status indicators
@@ -144,6 +144,6 @@ dark_theme = Theme(
         ColorStyle.MEMORY_MODE: 'rgb(200,205,255)',
         ColorStyle.PLAN_MODE: 'rgb(126,184,185)',
         # Markdown
-        ColorStyle.H2: 'rgb(221,145,112)',
+        ColorStyle.H2: 'rgb(241,155,122)',
     }
 )

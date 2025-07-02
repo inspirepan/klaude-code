@@ -35,6 +35,7 @@ class ToolMessage(BasicMessage):
             content_text += '\n' + INTERRUPTED_MSG
         elif self.tool_call.status == 'error':
             content_text += '\nError: ' + self.error_msg
+
         content_list = [
             {
                 'type': 'text',

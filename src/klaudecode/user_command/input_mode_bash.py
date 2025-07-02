@@ -143,7 +143,7 @@ class BashMode(InputModeCommand):
                                             os.killpg(os.getpgid(process.pid), signal.SIGTERM)
                                         except Exception:
                                             pass
-                                        return '\n'.join(output_lines), '[Process interrupted]'
+                                        return '\n'.join(output_lines), '(Process interrupted)'
 
                                     output_lines.append(line)
                                     display_text.append(line + '\n')
@@ -162,10 +162,10 @@ class BashMode(InputModeCommand):
                     display_text.append(partial_line)
 
                 if interrupted:
-                    display_text.append('\n[Process interrupted]', style=ColorStyle.WARNING)
-                    error_lines.append('[Process interrupted]')
+                    display_text.append('\n(Process interrupted)', style=ColorStyle.WARNING)
+                    error_lines.append('(Process interrupted)')
                 elif process.returncode != 0:
-                    display_text.append(f'\n[Exit code: {process.returncode}]', style=ColorStyle.ERROR)
+                    display_text.append(f'\n(Exit code: {process.returncode})', style=ColorStyle.ERROR)
 
                 live.update(render_suffix(display_text))
 

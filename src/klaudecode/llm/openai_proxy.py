@@ -97,7 +97,6 @@ class OpenAIProxy(LLMProxyBase):
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         stream_status = StreamStatus(phase='upload', tokens=sum(msg.tokens for msg in msgs if msg))
         yield (stream_status, AIMessage(content=''))
-
         stream = await asyncio.wait_for(
             self.client.chat.completions.create(
                 model=self.model_name,
@@ -138,11 +137,13 @@ class OpenAIProxy(LLMProxyBase):
                 if choice.finish_reason:
                     finish_reason = choice.finish_reason
                     stream_status.phase = 'completed'
+
             if chunk.usage:
                 usage: CompletionUsage = chunk.usage
                 prompt_tokens = usage.prompt_tokens
-                completion_tokens = usage.completion_tokens
                 total_tokens = usage.total_tokens
+            if chunk.usage and chunk.usage.completion_tokens:
+                completion_tokens = usage.completion_tokens
             else:
                 completion_tokens = count_tokens(content) + count_tokens(thinking_content) + tool_call_chunk_accumulator.count_tokens()
 

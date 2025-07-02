@@ -42,7 +42,7 @@ class TodoList(RootModel[List[Todo]]):
 
 class TodoWriteTool(Tool):
     name = 'TodoWrite'
-    description = TODO_WRITE_TOOL_DESC
+    desc = TODO_WRITE_TOOL_DESC
     parallelable: bool = True
 
     class Input(BaseModel):
@@ -73,7 +73,7 @@ class TodoWriteTool(Tool):
 
 class TodoReadTool(Tool):
     name = 'TodoRead'
-    description = TODO_READ_TOOL_DESC
+    desc = TODO_READ_TOOL_DESC
 
     class Input(BaseModel):
         pass

@@ -20,7 +20,7 @@ from ..tui import ColorStyle, render_markdown, render_suffix
 
 class ExitPlanModeTool(Tool):
     name = 'ExitPlanMode'
-    description = EXIT_PLAN_MODE_TOOL_DESC
+    desc = EXIT_PLAN_MODE_TOOL_DESC
     parallelable: bool = False
 
     class Input(BaseModel):

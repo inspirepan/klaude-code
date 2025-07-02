@@ -72,10 +72,8 @@ class RetryWrapper(LLMClientWrapper):
                 raise e
             except Exception as e:
                 last_exception = e
-                if attempt < self.max_retries - 1:
+                if attempt < self.max_retries:
                     await self._handle_retry(attempt, e)
-
-        self._handle_final_failure(last_exception)
         raise last_exception
 
     async def stream_call(
@@ -95,10 +93,8 @@ class RetryWrapper(LLMClientWrapper):
                 raise e
             except Exception as e:
                 last_exception = e
-                if attempt < self.max_retries - 1:
+                if attempt < self.max_retries:
                     await self._handle_retry(attempt, e)
-
-        self._handle_final_failure(last_exception)
         raise last_exception
 
     async def _handle_retry(self, attempt: int, exception: Exception):
@@ -153,11 +149,7 @@ class StatusWrapper(LLMClientWrapper):
 
         current_status_text = upload_status_text
 
-        with render_dot_status(
-            current_status_text,
-            spinner_style=ColorStyle.CLAUDE,
-            dots_style=ColorStyle.CLAUDE,
-        ) as status:
+        with render_dot_status(current_status_text, spinner_style=ColorStyle.CLAUDE, dots_style=ColorStyle.CLAUDE, width=8) as status:
             async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout, interrupt_check):
                 ai_message: AIMessage
                 if stream_status.phase == 'tool_call':
