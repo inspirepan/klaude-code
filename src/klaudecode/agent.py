@@ -413,6 +413,8 @@ class Agent(Tool):
                 loop.set_exception_handler(exception_handler)
                 asyncio.set_event_loop(loop)
                 result = loop.run_until_complete(agent.run(max_steps=DEFAULT_MAX_STEPS, parent_tool_instance=instance, tools=cls.get_subagent_tools()))
+                # Update parent agent usage with subagent usage
+                instance.parent_agent.usage.update_with_usage(agent.usage)
             except Exception as e:
                 result = f'SubAgent error: {format_exception(e)}'
             finally:

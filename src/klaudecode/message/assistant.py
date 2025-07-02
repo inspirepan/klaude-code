@@ -117,6 +117,11 @@ class AgentUsage(BaseModel):
             self.total_input_tokens += ai_message.usage.prompt_tokens
             self.total_output_tokens += ai_message.usage.completion_tokens
 
+    def update_with_usage(self, other_usage: 'AgentUsage'):
+        self.total_llm_calls += other_usage.total_llm_calls
+        self.total_input_tokens += other_usage.total_input_tokens
+        self.total_output_tokens += other_usage.total_output_tokens
+
     def __rich_console__(self, console, options):
         from rich.console import Group
 
