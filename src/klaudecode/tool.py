@@ -316,7 +316,7 @@ class ToolHandler:
                 try:
                     # Generate status text based on number of tools
                     if len(tool_calls) == 1:
-                        status_text = Text.assemble('Executing ', (ToolCall.get_display_tool_name(tool_calls[0].tool_name), ColorStyle.HIGHLIGHT.bold))
+                        status_text = Text.assemble('Executing ', (ToolCall.get_display_tool_name(tool_calls[0].tool_name), ColorStyle.HIGHLIGHT.bold), ' ')
                     else:
                         tool_counts = {}
                         for tc in tool_calls:
@@ -328,20 +328,19 @@ class ToolHandler:
                         status_text = Text.assemble('Executing ', *tool_names)
 
                     status = render_dot_status(status=status_text)
+                    with Live(refresh_per_second=10, console=console.console) as live:
+                        live_group = []
+                        for ti in tool_instances:
+                            live_group.append('')
+                            live_group.append(ti.tool_result())
+                        while any(ti.is_running() for ti in tool_instances) and not interrupted:
+                            live.update(Group(*live_group, status))
+                            await asyncio.sleep(0.1)
+                        live.update(Group(*live_group))
+                    await asyncio.gather(*tasks, return_exceptions=True)
                 except Exception as e:
                     console.print(format_exception(e), style=ColorStyle.ERROR)
                     raise e
-                with Live(refresh_per_second=10, console=console.console) as live:
-                    live_group = []
-                    for ti in tool_instances:
-                        live_group.append('')
-                        live_group.append(ti.tool_result())
-                    while any(ti.is_running() for ti in tool_instances) and not interrupted:
-                        live.update(Group(*live_group, status))
-                        await asyncio.sleep(0.1)
-                    live.update(Group(*live_group))
-
-            await asyncio.gather(*tasks, return_exceptions=True)
 
         finally:
             if signal_handler_added:

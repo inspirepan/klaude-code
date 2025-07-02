@@ -1,5 +1,16 @@
 from .diff_utils import generate_char_level_diff, generate_diff_lines, generate_snippet_from_diff, render_diff_lines
-from .directory_utils import DEFAULT_IGNORE_PATTERNS, DEFAULT_MAX_CHARS, INDENT_SIZE, TreeNode, DirectoryTreeBuilder, GitIgnoreParser, get_directory_structure, get_effective_ignore_patterns, parse_gitignore
+from .directory_utils import (
+    DEFAULT_IGNORE_PATTERNS,
+    DEFAULT_MAX_CHARS,
+    INDENT_SIZE,
+    DirectoryTreeBuilder,
+    GitIgnoreParser,
+    TreeNode,
+    get_directory_structure,
+    get_effective_ignore_patterns,
+    parse_gitignore,
+)
+from .file_glob import FileGlob
 from .file_operations import (
     cleanup_backup,
     count_occurrences,
@@ -11,7 +22,6 @@ from .file_operations import (
     restore_backup,
     write_file_content,
 )
-from .file_glob import FileGlob
 from .file_tracker import CheckModifiedResult, FileStatus, FileTracker
 from .file_validation import (
     EDIT_OLD_STRING_NEW_STRING_IDENTICAL_ERROR_MSG,

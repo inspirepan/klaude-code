@@ -6,6 +6,7 @@ from rich.text import Text
 
 from ..tui import ColorStyle
 
+
 class StreamStatus(BaseModel):
     phase: Literal['upload', 'think', 'content', 'tool_call', 'completed'] = 'upload'
     tokens: int = 0
@@ -98,12 +99,11 @@ def get_tool_call_status_text(tool_name: str, seed: Optional[int] = None) -> Tex
     """
     if seed is not None:
         random.seed(seed)
-
     if tool_name in TOOL_CALL_STATUS_TEXT_DICT:
         status_str = random.choice(TOOL_CALL_STATUS_TEXT_DICT[tool_name])
-    if tool_name.startswith('mcp__'):
+    elif tool_name.startswith('mcp__'):
         status_str = 'Executing'
-    if tool_name.endswith('e'):
+    elif tool_name.endswith('e'):
         status_str = f'{tool_name[:-1]}ing'
     else:
         status_str = f'{tool_name}ing'

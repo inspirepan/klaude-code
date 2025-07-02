@@ -1,6 +1,5 @@
 import shutil
 import subprocess
-
 from typing import Callable, Dict, List, Optional
 
 from prompt_toolkit.completion import Completer, Completion

@@ -70,20 +70,21 @@ async def main_async(ctx: typer.Context):
     session = await get_session(ctx)
     if not session:
         return
-    console.print(render_hello())
+    agent = await get_main_agent(session, config=ctx.obj['config'], enable_mcp=ctx.obj['mcp'])
     try:
-        agent = await get_main_agent(session, config=ctx.obj['config'], enable_mcp=ctx.obj['mcp'])
         if ctx.obj['prompt']:
             await agent.headless_run(ctx.obj['prompt'])
         else:
-            await agent.chat_interactive()
+            console.print(render_hello())
+            try:
+                await agent.chat_interactive()
+            finally:
+                # Show token usage statistics
+                console.print()
+                agent.print_usage()
+                console.print(Text('\nBye!', style=ColorStyle.CLAUDE))
     except KeyboardInterrupt:
         pass
-    finally:
-        # Show token usage statistics
-        console.print()
-        agent.print_usage()
-        console.print(Text('\nBye!', style=ColorStyle.CLAUDE))
 
 
 @app.callback(invoke_without_command=True)

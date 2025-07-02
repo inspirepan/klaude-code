@@ -9,7 +9,7 @@ from rich.text import Text
 
 from ..message import AIMessage, BasicMessage
 from ..tool import Tool
-from ..tui import ColorStyle, console, render_dot_status, render_suffix, INTERRUPT_TIP
+from ..tui import INTERRUPT_TIP, ColorStyle, console, render_dot_status, render_suffix
 from ..utils.exception import format_exception
 from .anthropic_proxy import AnthropicProxy
 from .llm_proxy_base import DEFAULT_RETRIES, DEFAULT_RETRY_BACKOFF_BASE, LLMProxyBase

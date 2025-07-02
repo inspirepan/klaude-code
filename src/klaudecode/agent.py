@@ -1,5 +1,6 @@
 import asyncio
 import threading
+import traceback
 from pathlib import Path
 from typing import Annotated, List, Optional
 
@@ -83,8 +84,6 @@ class Agent(Tool):
             custom_command_manager.discover_and_register_commands(session.work_dir)
         except Exception as e:
             if self.print_switch:
-                import traceback
-
                 traceback.print_exc()
                 console.print(f'Warning: Failed to load custom commands: {format_exception(e)}', style=ColorStyle.WARNING)
 
@@ -168,8 +167,6 @@ class Agent(Tool):
             # Clear any live displays before handling interruption
             return self._handle_interruption()
         except Exception as e:
-            import traceback
-
             traceback.print_exc()
             console.print(render_suffix(f'Error: {format_exception(e)}', style=ColorStyle.ERROR))
             return f'Error: {format_exception(e)}'
@@ -306,7 +303,7 @@ class Agent(Tool):
                     tool_msg_count = len([msg for msg in self.session.messages if msg.role == 'tool'])
                     status.update(
                         description=Text.assemble(
-                            f'([bold]{tool_msg_count}[/bold] tool uses) ',
+                            Text.from_markup(f'([bold]{tool_msg_count}[/bold] tool uses) '),
                             (INTERRUPT_TIP, ColorStyle.MUTED),
                         ),
                     )
