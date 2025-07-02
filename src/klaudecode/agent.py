@@ -251,6 +251,7 @@ class Agent(Tool):
 
         # Add interrupted message
         user_msg = UserMessage(content=INTERRUPTED_MSG, user_msg_type=SpecialUserMessageTypeEnum.INTERRUPTED.value)
+        console.print()
         console.print(user_msg)
         self.session.append_message(user_msg)
         return INTERRUPTED_MSG
