@@ -317,8 +317,7 @@ Usage:
 - Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
 """
 
-BASH_TOOL_DESC = """
-Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
+BASH_TOOL_DESC = """Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
 
 Before executing the command, please follow these steps:
 
@@ -431,8 +430,7 @@ Important:
 
 """
 
-GREP_TOOL_DESC = """
-- Fast content search tool that works with any codebase size
+GREP_TOOL_DESC = """- Fast content search tool that works with any codebase size
 - Searches file contents using regular expressions
 - Supports full regex syntax (eg. "log.*Error", "function\\s+\\w+", etc.)
 - Filter files by pattern with the include parameter (eg. ".js", ".{ts,tsx}")
