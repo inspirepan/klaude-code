@@ -5,7 +5,7 @@ from typing import Callable, Dict, List, Optional
 
 from prompt_toolkit.completion import Completer, Completion
 
-from ..utils.file_utils.directory_utils import get_effective_ignore_patterns
+from ..utils.file_utils.directory_utils import DirectoryTreeBuilder, get_effective_ignore_patterns
 from .input_command import _SLASH_COMMANDS, Command
 
 DEFAULT_MAX_DEPTH = 10
@@ -21,8 +21,6 @@ class UserInputCompleter(Completer):
         self._file_cache: Optional[List[str]] = None
         self._initialize_file_cache()
         self._file_cache.sort()
-        print('\n'.join(self._file_cache))
-        print(len(self._file_cache))
 
     def get_completions(self, document, _complete_event):
         text = document.text
@@ -66,32 +64,28 @@ class UserInputCompleter(Completer):
     def _initialize_file_cache(self):
         """Initialize file cache using fd or find command"""
         try:
-            self._file_cache = self._get_files_from_commands()
+            self._file_cache = self._get_files()
         except Exception:
             self._file_cache = []
 
-    def _get_files_from_commands(self) -> List[str]:
+    def _get_files(self) -> List[str]:
         """Get file list using fd or find command"""
-        ignore_patterns = get_effective_ignore_patterns()
-
-        files = self._try_fd_command(ignore_patterns)
+        files = self._try_fd_command()
         if files is not None:
             return files
+        files = self._get_directory_structure_lines()
+        return files
 
-        return []
-
-    def _try_fd_command(self, ignore_patterns: List[str]) -> Optional[List[str]]:
+    def _try_fd_command(self) -> Optional[List[str]]:
         """Try using fd command"""
         try:
             if not shutil.which('fd'):
                 return None
             args = ['fd', '.']
-            args.extend(['-maxdepth', str(DEFAULT_MAX_DEPTH)])
+            args.extend(['--maxdepth', str(DEFAULT_MAX_DEPTH)])
             # Add ignore patterns
-            for pattern in ignore_patterns:
+            for pattern in get_effective_ignore_patterns():
                 args.extend(['--exclude', pattern])
-            args.extend(['--exclude', '.*'])
-
             result = subprocess.run(args, capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
                 files = []
@@ -103,6 +97,12 @@ class UserInputCompleter(Completer):
             pass
         return None
 
+    def _get_directory_structure_lines(
+        self,
+    ) -> List[str]:
+        builder = DirectoryTreeBuilder(max_chars=0, max_depth=10)
+        return builder.get_file_list('.')
+
     def _get_file_completions(self, at_match):
         prefix = at_match['prefix']
         start_position = at_match['start_position']
@@ -111,11 +111,7 @@ class UserInputCompleter(Completer):
             return
 
         # Filter files based on prefix
-        matching_files = []
-        for file_path in self._file_cache:
-            if prefix in file_path:
-                matching_files.append(file_path)
-
+        matching_files = list(filter(lambda x: prefix in x and x != '.', self._file_cache))
         # Sort: directories first, then files
         matching_files.sort(key=lambda x: (not x.endswith('/'), x))
 

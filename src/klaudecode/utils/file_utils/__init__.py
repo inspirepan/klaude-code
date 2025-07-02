@@ -1,5 +1,5 @@
 from .diff_utils import generate_char_level_diff, generate_diff_lines, generate_snippet_from_diff, render_diff_lines
-from .directory_utils import DEFAULT_IGNORE_PATTERNS, DEFAULT_MAX_CHARS, INDENT_SIZE, TreeNode, get_directory_structure, get_effective_ignore_patterns, parse_gitignore
+from .directory_utils import DEFAULT_IGNORE_PATTERNS, DEFAULT_MAX_CHARS, INDENT_SIZE, TreeNode, DirectoryTreeBuilder, GitIgnoreParser, get_directory_structure, get_effective_ignore_patterns, parse_gitignore
 from .file_operations import (
     cleanup_backup,
     count_occurrences,
@@ -39,6 +39,8 @@ __all__ = [
     'CheckModifiedResult',
     'FileTracker',
     'TreeNode',
+    'DirectoryTreeBuilder',
+    'GitIgnoreParser',
     'FileGlob',
     # Functions - File operations
     'get_relative_path_for_display',

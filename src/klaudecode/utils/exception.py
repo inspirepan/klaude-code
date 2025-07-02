@@ -9,6 +9,6 @@ def format_exception(e: Exception) -> str:
         Brief exception description
     """
     exception_type = type(e).__name__
-    exception_msg = '(' + str(e).strip() + ')' if str(e).strip() else ''
+    exception_msg = ' (' + str(e).strip() + ')' if str(e).strip() else ''
 
-    return f'{exception_type} {exception_msg}'
+    return f'{exception_type}{exception_msg}'

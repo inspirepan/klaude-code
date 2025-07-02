@@ -48,7 +48,6 @@ class FileGlob:
             files.sort(key=lambda f: Path(f).stat().st_mtime, reverse=True)
         except OSError:
             files.sort()
-        print('len:', len(files))
         return files
 
     @classmethod

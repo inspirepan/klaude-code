@@ -69,54 +69,58 @@ DEFAULT_IGNORE_PATTERNS = [
 ]
 
 
-def parse_gitignore(gitignore_path: Union[str, Path]) -> List[str]:
-    """Parse .gitignore file and return list of ignore patterns.
+class GitIgnoreParser:
+    """Handles parsing and management of .gitignore patterns."""
 
-    Args:
-        gitignore_path: Path to .gitignore file
+    @staticmethod
+    def parse_gitignore(gitignore_path: Union[str, Path]) -> List[str]:
+        """Parse .gitignore file and return list of ignore patterns.
 
-    Returns:
-        List of ignore patterns
-    """
-    patterns = []
-    gitignore = Path(gitignore_path)
+        Args:
+            gitignore_path: Path to .gitignore file
 
-    if not gitignore.exists():
+        Returns:
+            List of ignore patterns
+        """
+        patterns = []
+        gitignore = Path(gitignore_path)
+
+        if not gitignore.exists():
+            return patterns
+
+        try:
+            with gitignore.open('r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        if line.startswith('!'):
+                            continue
+                        patterns.append(line)
+        except Exception:
+            pass
+
         return patterns
 
-    try:
-        with gitignore.open('r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#'):
-                    if line.startswith('!'):
-                        continue
-                    patterns.append(line)
-    except Exception:
-        pass
+    @classmethod
+    def get_effective_ignore_patterns(cls, additional_patterns: Optional[List[str]] = None) -> List[str]:
+        """Get effective ignore patterns by combining defaults with .gitignore.
 
-    return patterns
+        Args:
+            additional_patterns: Additional patterns to include
 
+        Returns:
+            Combined list of ignore patterns
+        """
+        patterns = DEFAULT_IGNORE_PATTERNS.copy()
 
-def get_effective_ignore_patterns(additional_patterns: Optional[List[str]] = None) -> List[str]:
-    """Get effective ignore patterns by combining defaults with .gitignore.
+        gitignore_path = Path.cwd() / '.gitignore'
+        gitignore_patterns = cls.parse_gitignore(gitignore_path)
+        patterns.extend(gitignore_patterns)
 
-    Args:
-        additional_patterns: Additional patterns to include
+        if additional_patterns:
+            patterns.extend(additional_patterns)
 
-    Returns:
-        Combined list of ignore patterns
-    """
-    patterns = DEFAULT_IGNORE_PATTERNS.copy()
-
-    gitignore_path = Path.cwd() / '.gitignore'
-    gitignore_patterns = parse_gitignore(gitignore_path)
-    patterns.extend(gitignore_patterns)
-
-    if additional_patterns:
-        patterns.extend(additional_patterns)
-
-    return patterns
+        return patterns
 
 
 class TreeNode:
@@ -130,139 +134,214 @@ class TreeNode:
         self.children: List['TreeNode'] = []
 
 
-def _should_ignore_path(item_path: Path, item_name: str, ignore_patterns: List[str], show_hidden: bool) -> bool:
-    """Check if a path should be ignored based on patterns and settings.
+class DirectoryTreeBuilder:
+    """Builds and formats directory tree structures."""
 
-    Args:
-        item_path: Full path to the item
-        item_name: Name of the item
-        ignore_patterns: List of patterns to ignore
-        show_hidden: Whether to show hidden files
+    def __init__(self, max_chars: int = DEFAULT_MAX_CHARS, max_depth: Optional[int] = None, show_hidden: bool = False, additional_ignore_patterns: Optional[List[str]] = None):
+        self.max_chars = max_chars
+        self.max_depth = max_depth
+        self.show_hidden = show_hidden
+        self.ignore_patterns = GitIgnoreParser.get_effective_ignore_patterns(additional_ignore_patterns)
 
-    Returns:
-        True if path should be ignored
-    """
-    if not show_hidden and item_name.startswith('.') and item_name not in ['.', '..']:
-        return True
+    def should_ignore_path(self, item_path: Path, item_name: str) -> bool:
+        """Check if a path should be ignored based on patterns and settings.
 
-    for pattern in ignore_patterns:
-        if pattern.endswith('/'):
-            if fnmatch.fnmatch(item_name + '/', pattern) or fnmatch.fnmatch(str(item_path) + '/', pattern):
-                return True
-        else:
-            if fnmatch.fnmatch(item_name, pattern) or fnmatch.fnmatch(str(item_path), pattern):
-                return True
-    return False
+        Args:
+            item_path: Full path to the item
+            item_name: Name of the item
 
+        Returns:
+            True if path should be ignored
+        """
+        if not self.show_hidden and item_name.startswith('.') and item_name not in ['.', '..']:
+            return True
 
-def _build_directory_tree(root_path: Union[str, Path], ignore_patterns: List[str], max_chars: int, max_depth: Optional[int], show_hidden: bool) -> Tuple[TreeNode, int, bool]:
-    """Build directory tree using breadth-first traversal.
+        for pattern in self.ignore_patterns:
+            if pattern.endswith('/'):
+                if fnmatch.fnmatch(item_name + '/', pattern) or fnmatch.fnmatch(str(item_path) + '/', pattern):
+                    return True
+            else:
+                if fnmatch.fnmatch(item_name, pattern) or fnmatch.fnmatch(str(item_path), pattern):
+                    return True
+        return False
 
-    Args:
-        root_path: Root directory path
-        ignore_patterns: Patterns to ignore
-        max_chars: Maximum character limit
-        max_depth: Maximum depth
-        show_hidden: Whether to show hidden files
+    def build_tree(self, root_path: Union[str, Path]) -> Tuple[TreeNode, int, bool]:
+        """Build directory tree using breadth-first traversal.
 
-    Returns:
-        Tuple of (root_node, path_count, truncated)
-    """
-    root_dir = Path(root_path)
-    root = TreeNode(root_dir.name or str(root_dir), root_dir, True, 0)
-    queue = deque([root])
-    path_count = 0
-    char_budget = max_chars if max_chars > 0 else float('inf')
-    truncated = False
+        Args:
+            root_path: Root directory path
 
-    while queue and char_budget > 0:
-        current_node = queue.popleft()
+        Returns:
+            Tuple of (root_node, path_count, truncated)
+        """
+        root_dir = Path(root_path)
+        root = TreeNode(root_dir.name or str(root_dir), root_dir, True, 0)
+        queue = deque([root])
+        path_count = 0
+        char_budget = self.max_chars if self.max_chars > 0 else float('inf')
+        truncated = False
 
-        if max_depth is not None and current_node.depth >= max_depth:
-            continue
+        while queue and char_budget > 0:
+            current_node = queue.popleft()
 
-        if not current_node.is_dir:
-            continue
-
-        try:
-            items = [item.name for item in current_node.path.iterdir()]
-        except (PermissionError, OSError):
-            continue
-
-        dirs = []
-        files = []
-
-        for item in items:
-            item_path = current_node.path / item
-
-            if _should_ignore_path(item_path, item, ignore_patterns, show_hidden):
+            if self.max_depth is not None and current_node.depth >= self.max_depth:
                 continue
 
-            if item_path.is_dir():
-                dirs.append(item)
-            else:
-                files.append(item)
+            if not current_node.is_dir:
+                continue
 
-        dirs.sort()
-        files.sort()
+            try:
+                items = [item.name for item in current_node.path.iterdir()]
+            except (PermissionError, OSError):
+                continue
 
-        for item in dirs + files:
-            item_path = current_node.path / item
-            is_dir = item_path.is_dir()
-            child_node = TreeNode(item, item_path, is_dir, current_node.depth + 1)
-            current_node.children.append(child_node)
-            path_count += 1
+            dirs = []
+            files = []
 
-            estimated_chars = (child_node.depth * INDENT_SIZE) + len(child_node.name) + 3
-            if char_budget - estimated_chars <= 0:
-                truncated = True
+            for item in items:
+                item_path = current_node.path / item
+
+                if self.should_ignore_path(item_path, item):
+                    continue
+
+                if item_path.is_dir():
+                    dirs.append(item)
+                else:
+                    files.append(item)
+
+            dirs.sort()
+            files.sort()
+
+            for item in dirs + files:
+                item_path = current_node.path / item
+                is_dir = item_path.is_dir()
+                child_node = TreeNode(item, item_path, is_dir, current_node.depth + 1)
+                current_node.children.append(child_node)
+                path_count += 1
+
+                estimated_chars = (child_node.depth * INDENT_SIZE) + len(child_node.name) + 3
+                if char_budget - estimated_chars <= 0:
+                    truncated = True
+                    break
+                char_budget -= estimated_chars
+
+                if is_dir:
+                    queue.append(child_node)
+
+            if truncated:
                 break
-            char_budget -= estimated_chars
 
-            if is_dir:
-                queue.append(child_node)
+        return root, path_count, truncated
+
+    @staticmethod
+    def build_indent_lines(node: TreeNode) -> List[str]:
+        """Format tree node and its children into display lines.
+
+        Args:
+            node: Tree node to format
+
+        Returns:
+            List of formatted lines
+        """
+        lines = []
+
+        def traverse(current_node: TreeNode):
+            if current_node.depth == 0:
+                display_name = str(current_node.path) + '/' if current_node.is_dir else str(current_node.path)
+                lines.append(f'- {display_name}')
+            else:
+                indent = '  ' * current_node.depth
+                display_name = current_node.name + '/' if current_node.is_dir else current_node.name
+                lines.append(f'{indent}- {display_name}')
+
+            for child in current_node.children:
+                traverse(child)
+
+        traverse(node)
+        return lines
+
+    def get_directory_structure(self, path: Union[str, Path]) -> Tuple[str, bool, int]:
+        """Generate a text representation of directory structure.
+
+        Uses breadth-first traversal to build tree structure, then formats output
+        in depth-first manner for better readability.
+
+        Args:
+            path: Directory path to analyze
+
+        Returns:
+            Tuple[str, bool, int]: (content, truncated, path_count)
+            - content: Formatted directory tree text
+            - truncated: Whether truncated due to character limit
+            - path_count: Number of path items included
+        """
+        dir_path = Path(path)
+
+        if not dir_path.exists():
+            return f'Path does not exist: {dir_path}', False, 0
+
+        if not dir_path.is_dir():
+            return f'Path is not a directory: {dir_path}', False, 0
+
+        root_node, path_count, truncated = self.build_tree(dir_path)
+        lines = self.build_indent_lines(root_node)
+        content = '\n'.join(lines)
 
         if truncated:
-            break
+            content += f'\n... (truncated at {self.max_chars} characters, use LS tool with specific paths to explore more)'
 
-    return root, path_count, truncated
+        return content, truncated, path_count
+
+    def get_file_list(self, dir_path: Union[str, Path]) -> List[str]:
+        """
+        Get absolute file and dir paths from directory tree.
+        Args:
+            dir_path: Directory path to analyze
+
+        Returns:
+            List of absolute file and dir paths
+        """
+        dir_path = Path(dir_path)
+
+        if not dir_path.exists():
+            return []
+
+        if not dir_path.is_dir():
+            return []
+
+        root_node, _, _ = self.build_tree(dir_path)
+        lines = []
+
+        def traverse(current_node: TreeNode):
+            lines.append(str(current_node.path))
+            for child in current_node.children:
+                traverse(child)
+
+        traverse(root_node)
+        return lines
 
 
-def _format_tree_node(node: TreeNode) -> List[str]:
-    """Format tree node and its children into display lines.
+# Backward compatibility functions
+def parse_gitignore(gitignore_path: Union[str, Path]) -> List[str]:
+    """Parse .gitignore file and return list of ignore patterns.
 
-    Args:
-        node: Tree node to format
-
-    Returns:
-        List of formatted lines
+    DEPRECATED: Use GitIgnoreParser.parse_gitignore() instead.
     """
-    lines = []
+    return GitIgnoreParser.parse_gitignore(gitignore_path)
 
-    def traverse(current_node: TreeNode):
-        if current_node.depth == 0:
-            display_name = str(current_node.path) + '/' if current_node.is_dir else str(current_node.path)
-            lines.append(f'- {display_name}')
-        else:
-            indent = '  ' * current_node.depth
-            display_name = current_node.name + '/' if current_node.is_dir else current_node.name
-            lines.append(f'{indent}- {display_name}')
 
-        for child in current_node.children:
-            traverse(child)
+def get_effective_ignore_patterns(additional_patterns: Optional[List[str]] = None) -> List[str]:
+    """Get effective ignore patterns by combining defaults with .gitignore.
 
-    traverse(node)
-    return lines
+    DEPRECATED: Use GitIgnoreParser.get_effective_ignore_patterns() instead.
+    """
+    return GitIgnoreParser.get_effective_ignore_patterns(additional_patterns)
 
 
 def get_directory_structure(
     path: Union[str, Path], ignore_pattern: Optional[List[str]] = None, max_chars: int = DEFAULT_MAX_CHARS, max_depth: Optional[int] = None, show_hidden: bool = False
 ) -> Tuple[str, bool, int]:
     """Generate a text representation of directory structure.
-
-    Uses breadth-first traversal to build tree structure, then formats output
-    in depth-first manner for better readability.
-
     Args:
         path: Directory path to analyze
         ignore_pattern: Additional ignore patterns list (optional)
@@ -276,22 +355,5 @@ def get_directory_structure(
         - truncated: Whether truncated due to character limit
         - path_count: Number of path items included
     """
-    dir_path = Path(path)
-
-    if not dir_path.exists():
-        return f'Path does not exist: {dir_path}', False, 0
-
-    if not dir_path.is_dir():
-        return f'Path is not a directory: {dir_path}', False, 0
-
-    all_ignore_patterns = get_effective_ignore_patterns(ignore_pattern)
-
-    root_node, path_count, truncated = _build_directory_tree(dir_path, all_ignore_patterns, max_chars, max_depth, show_hidden)
-
-    lines = _format_tree_node(root_node)
-    content = '\n'.join(lines)
-
-    if truncated:
-        content += f'\n... (truncated at {max_chars} characters, use LS tool with specific paths to explore more)'
-
-    return content, truncated, path_count
+    builder = DirectoryTreeBuilder(max_chars=max_chars, max_depth=max_depth, show_hidden=show_hidden, additional_ignore_patterns=ignore_pattern)
+    return builder.get_directory_structure(path)
