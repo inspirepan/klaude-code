@@ -11,6 +11,8 @@ from ..tool import Tool
 from .llm_proxy_base import LLMProxyBase
 from .stream_status import StreamStatus
 
+TEMPERATURE = 1
+
 
 class OpenAIProxy(LLMProxyBase):
     def __init__(
@@ -61,7 +63,7 @@ class OpenAIProxy(LLMProxyBase):
             extra_headers=self.extra_header,
             extra_body=self.extra_body,
             max_tokens=self.max_tokens,
-            temperature=1,
+            temperature=TEMPERATURE,
         )
         message = completion.choices[0].message
         tokens_used = None
@@ -107,7 +109,7 @@ class OpenAIProxy(LLMProxyBase):
                 max_tokens=self.max_tokens,
                 extra_body=self.extra_body,
                 stream=True,
-                temperature=1,
+                temperature=TEMPERATURE,
             ),
             timeout=timeout,
         )

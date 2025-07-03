@@ -1,7 +1,7 @@
 import asyncio
 import threading
 import traceback
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from anthropic import AnthropicError
 from openai import OpenAIError
@@ -15,7 +15,7 @@ from .message import INTERRUPTED_MSG, AgentUsage, AIMessage, SpecialUserMessageT
 from .prompt.plan_mode import APPROVE_MSG, PLAN_MODE_REMINDER, REJECT_MSG
 from .prompt.reminder import EMPTY_TODO_REMINDER, FILE_DELETED_EXTERNAL_REMINDER, FILE_MODIFIED_EXTERNAL_REMINDER, get_context_reminder
 from .session import Session
-from .tool import Tool, ToolHandler, ToolInstance
+from .tool import Tool, ToolHandler
 from .tools import BASIC_TOOLS, ExitPlanModeTool, TodoWriteTool
 from .tools.read import execute_read
 from .tools.task import TaskToolMixin
@@ -98,13 +98,13 @@ class Agent(TaskToolMixin, Tool):
             if self.mcp_manager:
                 await self.mcp_manager.shutdown()
 
-    async def run(self, max_steps: int = DEFAULT_MAX_STEPS, parent_tool_instance: Optional['ToolInstance'] = None, tools: Optional[List[Tool]] = None):
+    async def run(self, max_steps: int = DEFAULT_MAX_STEPS, check_interrupt: Callable[[], bool] = None, tools: Optional[List[Tool]] = None):
         try:
             self._handle_claudemd_reminder()
             self._handle_empty_todo_reminder()
             for _ in range(max_steps):
                 # Check if task was canceled (for subagent execution)
-                if parent_tool_instance and parent_tool_instance.tool_result().tool_call.status == 'canceled':
+                if check_interrupt and check_interrupt():
                     return INTERRUPTED_MSG
 
                 # Check token count and compact if necessary

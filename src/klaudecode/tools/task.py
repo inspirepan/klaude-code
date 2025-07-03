@@ -2,7 +2,7 @@ import asyncio
 import gc
 import warnings
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from pydantic import BaseModel, Field
 from rich.panel import Panel
@@ -18,6 +18,9 @@ from ..utils.exception import format_exception
 from . import BASIC_TOOLS
 
 DEFAULT_MAX_STEPS = 80
+
+if TYPE_CHECKING:
+    from ..agent import Agent
 
 
 class TaskToolMixin:
@@ -55,7 +58,7 @@ class TaskToolMixin:
             append_message_hook=subagent_append_message_hook,
             source='subagent',
         )
-        agent = cls(session, availiable_tools=cls.get_subagent_tools(), print_switch=False, config=instance.parent_agent.config)
+        agent: 'Agent' = cls(session, availiable_tools=cls.get_subagent_tools(), print_switch=False, config=instance.parent_agent.config)
         # Initialize LLM manager for subagent
         agent._initialize_llm()
         agent.session.append_message(UserMessage(content=args.prompt))
@@ -79,7 +82,9 @@ class TaskToolMixin:
                 loop = asyncio.new_event_loop()
                 loop.set_exception_handler(exception_handler)
                 asyncio.set_event_loop(loop)
-                result = loop.run_until_complete(agent.run(max_steps=DEFAULT_MAX_STEPS, parent_tool_instance=instance, tools=cls.get_subagent_tools()))
+                result = loop.run_until_complete(
+                    agent.run(max_steps=DEFAULT_MAX_STEPS, check_interrupt=lambda: instance.tool_result().tool_call.status == 'canceled', tools=cls.get_subagent_tools())
+                )
                 # Update parent agent usage with subagent usage
                 instance.parent_agent.usage.update_with_usage(agent.usage)
             except Exception as e:

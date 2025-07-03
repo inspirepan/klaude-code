@@ -37,7 +37,6 @@ class SessionOperations:
         session.messages = cleared_session.messages
         session.source = cleared_session.source
         session.reset_create_at()
-        session.title_msg = ''
 
         # Reset message storage states since this is a brand new session
         session.messages.reset_storage_states()
