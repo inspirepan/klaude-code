@@ -2,113 +2,70 @@
 
 This file provides guidance to Klaude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+## Build and Development Commands
 
-Klaude Code is a Python CLI tool that provides an interactive coding assistant powered by Claude AI. It features both interactive chat mode and headless automation mode, with persistent sessions and extensive tool integration.
-
-## Development Commands
-
-### Environment Setup
+### Install Dependencies
 ```bash
-# Install dependencies
+# Install with uv (recommended)
 uv sync
 
-# Install in development mode  
+# Install in development mode
 uv pip install -e .
 ```
 
-### Code Quality
+### Code Quality Commands
 ```bash
-# Lint code
-ruff check --fix src/
-
-# Format and lint together
+# Format code
 isort src/ && ruff format src/
+
+# Run linter
+ruff check src/ --fix
 ```
 
-### Testing
-There are no automated tests in this repository. Test functionality manually using:
-```bash
-# Test basic functionality
-klaude --print "hello world"
+### Development Tips
+- Python 3.13+ is required
+- Use `uv` package manager for dependency management
+- Ruff is configured with line-length 180 and single quotes
 
-# Test interactive mode
-klaude
-```
-
-## Architecture
+## Architecture Overview
 
 ### Core Components
 
-- **CLI Entry Point** (`cli.py`): Typer-based command interface with subcommands for config and MCP management
-- **Agent System** (`agent.py`): Orchestrates AI interactions, tool execution, and conversation flow
-- **Session Management** (`session.py`): Handles persistent conversation history with JSONL storage
-- **Tool Framework** (`tool.py`): Base class and execution framework for all tools
-- **LLM Integration** (`llm/`): Abstracts multiple LLM providers (Anthropic, OpenAI) with unified interface
-- **Message System** (`message/`): Type-safe message handling with tool calls and results
+1. **Session Management** (`session.py`)
+   - Manages persistent conversation history with JSONL storage
+   - Tracks message states and implements automatic compaction
+   - Handles todo list persistence and file tracking
 
-### Tool System
+2. **Agent System** (`agent.py`)
+   - Central orchestrator that coordinates LLM, tools, and user interaction
+   - Manages interrupt handling and usage tracking
+   - Supports both interactive and headless modes
 
-Tools inherit from `Tool` base class and define:
-- Input parameters via Pydantic models
-- Execution logic in `call()` method
-- Automatic JSON schema generation for LLM function calling
-- Parallel execution support (configurable per tool)
+3. **Tool Framework** (`tool.py` and `tools/`)
+   - Base `Tool` class with automatic JSON schema generation
+   - Tools implement `call()` method for execution logic
+   - Tool results can have custom renderers via decorators
 
-Available tools:
-- File operations: `ReadTool`, `WriteTool`, `EditTool`, `MultiEditTool`
-- Code search: `GrepTool`, `GlobTool`, `LsTool`
-- System integration: `BashTool` (with proper path quoting)
-- Task management: `TodoWriteTool`, `TodoReadTool`
-- Planning: `ExitPlanModeTool`
+4. **LLM Integration** (`llm/`)
+   - Proxy pattern for multiple providers (Anthropic, OpenAI, Azure)
+   - Streaming support with status tracking
+   - Configurable via global config or command-line overrides
 
-### Session Persistence
+5. **Message System** (`message/`)
+   - Type-safe message classes for all roles (user, assistant, tool, system)
+   - Registry pattern for custom rendering based on message type
+   - Special handling for tool calls and results
 
-Sessions are stored as JSONL files in `.klaude/sessions/` with:
-- Incremental message storage
-- File change tracking
-- Session metadata (title, message count, timestamps)
-- Context window management with automatic compaction
+### Key Design Patterns
 
-### Configuration System
+- **Interrupt Handling**: Global interrupt flag pattern with graceful cleanup
+- **Streaming**: AsyncIterator pattern for real-time LLM responses
+- **Tool Discovery**: Dynamic tool registration based on available imports
+- **Message Rendering**: Visitor pattern for customizable output formatting
 
-Three-tier configuration with priority:
-1. CLI arguments (highest)
-2. Environment variables
-3. Config file `~/.klaude/config.json`
+### Important Conventions
 
-Supports multiple LLM providers and deployment types (standard, Azure).
-
-### Input Modes
-
-Special input prefixes in interactive mode:
-- `!` - Bash mode (direct command execution)
-- `*` - Plan mode (structured planning interface)
-- `#` - Memory mode (session context management)
-- `@filename` - File reference with auto-completion
-
-### MCP Integration
-
-Model Context Protocol support for external tools:
-- Configuration in `~/.klaude/mcp.json`
-- Dynamic tool discovery and registration
-- Async client management
-
-## Key Design Patterns
-
-1. **Async-First**: All core operations use async/await for better concurrency
-2. **Pydantic Models**: Type-safe data structures throughout
-3. **Rich UI**: Terminal UI with themes, formatting, and progress indicators
-4. **Tool Parallelization**: Tools can run concurrently when marked as parallelable
-5. **Error Recovery**: Graceful handling of API errors and interruptions
-6. **Context Management**: Automatic token counting and conversation compaction
-
-## Important Notes
-
-- Minimum Python 3.13 required
-- Uses `uv` as primary package manager
-- No traditional test suite - relies on manual testing
-- Rich terminal UI with theming support
-- Supports both Claude and OpenAI models
-- Session files use JSONL format for streaming
-- File operations include external change detection
+- All file paths in tools must be absolute, not relative
+- Tool parameters use Pydantic models for validation
+- Messages are stored incrementally in JSONL format
+- Custom commands are discovered from `.klaude/commands/` directory

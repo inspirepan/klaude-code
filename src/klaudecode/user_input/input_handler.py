@@ -28,7 +28,7 @@ class UserInputHandler:
         user_msg = command_handle_output.user_msg
 
         if user_msg is not None:
-            self._handle_language_reminder(user_msg)
+            # self._handle_language_reminder(user_msg)
             self.agent.session.append_message(user_msg)
             if print_msg:
                 console.print(user_msg)

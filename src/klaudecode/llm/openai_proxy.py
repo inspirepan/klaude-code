@@ -61,6 +61,7 @@ class OpenAIProxy(LLMProxyBase):
             extra_headers=self.extra_header,
             extra_body=self.extra_body,
             max_tokens=self.max_tokens,
+            temperature=1,
         )
         message = completion.choices[0].message
         tokens_used = None
@@ -106,6 +107,7 @@ class OpenAIProxy(LLMProxyBase):
                 max_tokens=self.max_tokens,
                 extra_body=self.extra_body,
                 stream=True,
+                temperature=1,
             ),
             timeout=timeout,
         )

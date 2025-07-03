@@ -39,6 +39,7 @@ class AnthropicProxy(LLMProxyBase):
             system=system_msgs,
             extra_headers=self.extra_header,
             extra_body=self.extra_body,
+            temperature=1,
         )
         thinking_block = next((block for block in resp.content if block.type == 'thinking'), None)
         tool_use_blocks = [block for block in resp.content if block.type == 'tool_use']
@@ -92,6 +93,7 @@ class AnthropicProxy(LLMProxyBase):
                     extra_headers=self.extra_header,
                     extra_body=self.extra_body,
                     stream=True,
+                    temperature=1,
                 ),
                 timeout=timeout,
             )
