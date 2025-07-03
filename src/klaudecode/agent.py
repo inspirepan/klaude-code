@@ -88,6 +88,9 @@ class Agent(TaskToolMixin, Tool):
                     break
                 need_agent_run = await self.user_input_handler.handle(user_input_text, print_msg=bool(first_message))
                 if need_agent_run:
+                    if epoch == 0:
+                        self._handle_claudemd_reminder()
+                        self._handle_empty_todo_reminder()
                     await self.run(max_steps=DEFAULT_MAX_STEPS, tools=self._get_all_tools())
                 else:
                     self.session.save()
@@ -100,8 +103,6 @@ class Agent(TaskToolMixin, Tool):
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, check_interrupt: Callable[[], bool] = None, tools: Optional[List[Tool]] = None):
         try:
-            self._handle_claudemd_reminder()
-            self._handle_empty_todo_reminder()
             usage_token_count = 0
             for _ in range(max_steps):
                 # Check if task was canceled (for subagent execution)
