@@ -102,13 +102,14 @@ class Agent(TaskToolMixin, Tool):
         try:
             self._handle_claudemd_reminder()
             self._handle_empty_todo_reminder()
+            usage_token_count = 0
             for _ in range(max_steps):
                 # Check if task was canceled (for subagent execution)
                 if check_interrupt and check_interrupt():
                     return INTERRUPTED_MSG
 
                 # Check token count and compact if necessary
-                await self._auto_compact_conversation(tools)
+                await self._auto_compact_conversation(tools, usage_token_count)
 
                 if self.enable_plan_mode_reminder:
                     self._handle_plan_mode_reminder()
@@ -123,6 +124,8 @@ class Agent(TaskToolMixin, Tool):
                     interrupt_check=self._should_interrupt,
                 )
                 ai_msg: AIMessage
+                if ai_msg.usage:
+                    usage_token_count = (ai_msg.usage.prompt_tokens or 0) + (ai_msg.usage.completion_tokens or 0)
                 self.usage.update(ai_msg)
                 self.session.append_message(ai_msg)
                 if ai_msg.finish_reason == 'stop':
@@ -247,15 +250,25 @@ class Agent(TaskToolMixin, Tool):
             self.llm_manager = LLMManager()
         self.llm_manager.initialize_from_config(self.config)
 
-    async def _auto_compact_conversation(self, tools: Optional[List[Tool]] = None):
+    async def _auto_compact_conversation(self, tools: Optional[List[Tool]] = None, usage_token_count: int = 0):
         """Check token count and compact conversation history if necessary"""
-        messages_tokens = sum(msg.tokens for msg in self.session.messages if msg)
-        tools_tokens = sum(tool.tokens() for tool in (tools or self.tools))
-        total_tokens = messages_tokens + tools_tokens
         if not self.config or not self.config.context_window_threshold:
             return
+        total_tokens = 0
+        if usage_token_count > 0:
+            total_tokens = usage_token_count
+        else:
+            messages_tokens = sum(msg.tokens for msg in self.session.messages if msg)
+            tools_tokens = sum(tool.tokens() for tool in (tools or self.tools))
+            total_tokens = messages_tokens + tools_tokens
+        total_tokens += self.config.max_tokens.value
         if total_tokens > self.config.context_window_threshold.value * TOKEN_WARNING_THRESHOLD:
-            console.print(Text(f'Notice: total_tokens: {total_tokens}, context_window_threshold: {self.config.context_window_threshold.value}\n', style=ColorStyle.WARNING))
+            console.print(
+                Text(
+                    f'Notice: total tokens: {total_tokens}, threshold: {self.config.context_window_threshold.value}',
+                    style=ColorStyle.WARNING,
+                )
+            )
         if total_tokens > self.config.context_window_threshold.value * COMPACT_THRESHOLD:
             await self.session.compact_conversation_history(show_status=self.print_switch, llm_manager=self.llm_manager)
 

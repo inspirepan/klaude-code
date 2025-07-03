@@ -46,11 +46,13 @@ class BasicMessage(BaseModel):
                     elif item.get('type') == 'thinking':
                         total_text += item.get('thinking', '')
                     elif item.get('type') == 'tool_use':
-                        tool_name = item.get('name', '')
-                        tool_input = json.dumps(item.get('input', {})) if item.get('input') else ''
-                        total_text += f'{tool_name}({tool_input})'
+                        # Count the full JSON structure that gets sent to API
+                        total_text += json.dumps(item)
                 elif isinstance(item, str):
                     total_text += item
+
+        # Add role overhead (approximation)
+        total_text = f'{self.role}: {total_text}'
 
         return count_tokens(total_text)
 

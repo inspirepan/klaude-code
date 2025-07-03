@@ -98,7 +98,7 @@ class OpenAIProxy(LLMProxyBase):
         timeout: float = 20.0,
         interrupt_check: Optional[callable] = None,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
-        stream_status = StreamStatus(phase='upload', tokens=sum(msg.tokens for msg in msgs if msg))
+        stream_status = StreamStatus(phase='upload')
         yield (stream_status, AIMessage(content=''))
         stream = await asyncio.wait_for(
             self.client.chat.completions.create(

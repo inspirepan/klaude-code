@@ -25,6 +25,42 @@ class AIMessage(BasicMessage):
     usage: Optional[CompletionUsage] = None
 
     def get_content(self):
+        """
+        only used for token calculation
+        """
+        content: List[ContentBlock] = []
+        if self.thinking_content:
+            content.append(
+                {
+                    'type': 'thinking',
+                    'thinking': self.thinking_content,
+                    'signature': self.thinking_signature,
+                }
+            )
+        if self.content:
+            content.append(
+                {
+                    'type': 'text',
+                    'text': self.content,
+                }
+            )
+        if self.tool_calls:
+            for tc in self.tool_calls.values():
+                content.append(
+                    {
+                        'type': 'text',
+                        'text': tc.tool_args,
+                    }
+                )
+        return content
+
+    def to_openai(self) -> ChatCompletionMessageParam:
+        result = {'role': 'assistant', 'content': self.content}
+        if self.tool_calls:
+            result['tool_calls'] = [tc.to_openai() for tc in self.tool_calls.values()]
+        return result
+
+    def to_anthropic(self) -> MessageParam:
         content: List[ContentBlock] = []
         if self.thinking_content:
             content.append(
@@ -44,21 +80,9 @@ class AIMessage(BasicMessage):
         if self.tool_calls:
             for tc in self.tool_calls.values():
                 content.append(tc.to_anthropic())
-        return content
-
-    def get_openai_content(self):
-        result = {'role': 'assistant', 'content': self.content}
-        if self.tool_calls:
-            result['tool_calls'] = [tc.to_openai() for tc in self.tool_calls.values()]
-        return result
-
-    def to_openai(self) -> ChatCompletionMessageParam:
-        return self.get_openai_content()
-
-    def to_anthropic(self) -> MessageParam:
         return MessageParam(
             role='assistant',
-            content=self.get_content(),
+            content=content,
         )
 
     def __rich_console__(self, console, options):

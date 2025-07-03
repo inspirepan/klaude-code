@@ -164,14 +164,15 @@ class StatusWrapper(LLMClientWrapper):
                 elif stream_status.phase == 'think':
                     indicator = '✻'
                     current_status_text = reasoning_status_text
-                else:
+                elif stream_status.phase == 'content':
                     indicator = '↓'
                     current_status_text = content_status_text
 
                 status.update(
                     status=current_status_text,
                     description=Text.assemble(
-                        (f' {indicator} {stream_status.tokens} tokens', ColorStyle.SUCCESS),
+                        (f' {indicator}', ColorStyle.SUCCESS),
+                        (f' {stream_status.tokens} tokens' if stream_status.tokens else '', ColorStyle.SUCCESS),
                         (INTERRUPT_TIP, ColorStyle.MUTED),
                     ),
                 )
