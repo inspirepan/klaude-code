@@ -196,7 +196,7 @@ uv pip install -e .
 
 ```bash
 # Format code
-isort src/ && ruff format src/
+ruff format src/
 
 # Lint code
 ruff check src/

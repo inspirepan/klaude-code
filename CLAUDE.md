@@ -16,7 +16,7 @@ uv pip install -e .
 ### Code Quality Commands
 ```bash
 # Format code
-isort src/ && ruff format src/
+ruff format src/
 
 # Run linter
 ruff check src/ --fix

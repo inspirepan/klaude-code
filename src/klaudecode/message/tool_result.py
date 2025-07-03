@@ -94,8 +94,7 @@ class ToolMessage(BasicMessage):
 
     def __rich_console__(self, console, options):
         yield self.tool_call
-        for item in self.get_suffix_renderable():
-            yield item
+        yield from self.get_suffix_renderable()
 
     def __bool__(self):
         return not self.removed and bool(self.get_content())

@@ -12,19 +12,7 @@ except ImportError:
 
 
 def get_all_tools():
-    from . import (
-        BashTool,
-        TodoReadTool,
-        TodoWriteTool,
-        EditTool,
-        ExitPlanModeTool,
-        MultiEditTool,
-        ReadTool,
-        WriteTool,
-        LsTool,
-        GrepTool,
-        GlobTool,
-    )
+    from . import BashTool, EditTool, ExitPlanModeTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
 
     return [
         BashTool,
