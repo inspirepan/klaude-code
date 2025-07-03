@@ -51,13 +51,29 @@ class Tool(ABC):
 
     @classmethod
     def get_parameters(cls) -> Dict[str, Any]:
+        """Get tool parameters schema."""
         if hasattr(cls, 'parameters'):
             return cls.parameters
 
-        if hasattr(cls, 'Input') and issubclass(cls.Input, BaseModel):
-            schema = cls.Input.model_json_schema()
-            return cls._resolve_schema_refs(schema)
+        if cls._has_input_model():
+            return cls._get_parameters_from_input_model()
 
+        return cls._get_default_parameters()
+
+    @classmethod
+    def _has_input_model(cls) -> bool:
+        """Check if the tool has an Input model."""
+        return hasattr(cls, 'Input') and issubclass(cls.Input, BaseModel)
+
+    @classmethod
+    def _get_parameters_from_input_model(cls) -> Dict[str, Any]:
+        """Extract parameters from the Input model."""
+        schema = cls.Input.model_json_schema()
+        return cls._resolve_schema_refs(schema)
+
+    @classmethod
+    def _get_default_parameters(cls) -> Dict[str, Any]:
+        """Return default empty parameters schema."""
         return {'type': 'object', 'properties': {}, 'required': []}
 
     @classmethod
@@ -74,34 +90,42 @@ class Tool(ABC):
 
     @classmethod
     def _resolve_schema_refs(cls, schema: Dict[str, Any]) -> Dict[str, Any]:
-        def resolve_refs(obj, defs_map):
-            if isinstance(obj, dict):
-                if '$ref' in obj:
-                    ref_path = obj['$ref']
-                    if ref_path.startswith('#/$defs/'):
-                        def_name = ref_path.split('/')[-1]
-                        if def_name in defs_map:
-                            resolved = defs_map[def_name].copy()
-                            return resolve_refs(resolved, defs_map)
-                    return obj
-                else:
-                    return {k: resolve_refs(v, defs_map) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [resolve_refs(item, defs_map) for item in obj]
-            else:
-                return obj
-
+        """Resolve JSON schema references ($ref) in the schema."""
         defs = schema.get('$defs', {})
 
         result = {
             'type': 'object',
-            'properties': resolve_refs(schema.get('properties', {}), defs),
+            'properties': cls._resolve_refs_in_object(schema.get('properties', {}), defs),
             'required': schema.get('required', []),
             'additionalProperties': False,
             '$schema': 'http://json-schema.org/draft-07/schema#',
         }
 
         return result
+
+    @classmethod
+    def _resolve_refs_in_object(cls, obj: Any, defs_map: Dict[str, Any]) -> Any:
+        """Recursively resolve references in an object."""
+        if isinstance(obj, dict):
+            if '$ref' in obj:
+                return cls._resolve_single_ref(obj, defs_map)
+            else:
+                return {k: cls._resolve_refs_in_object(v, defs_map) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [cls._resolve_refs_in_object(item, defs_map) for item in obj]
+        else:
+            return obj
+
+    @classmethod
+    def _resolve_single_ref(cls, ref_obj: Dict[str, Any], defs_map: Dict[str, Any]) -> Any:
+        """Resolve a single $ref object."""
+        ref_path = ref_obj['$ref']
+        if ref_path.startswith('#/$defs/'):
+            def_name = ref_path.split('/')[-1]
+            if def_name in defs_map:
+                resolved = defs_map[def_name].copy()
+                return cls._resolve_refs_in_object(resolved, defs_map)
+        return ref_obj
 
     @classmethod
     def openai_schema(cls) -> Dict[str, Any]:
@@ -279,78 +303,27 @@ class ToolHandler:
             return
 
         tool_instances = [self.tool_dict[tc.tool_name].create_instance(tc, self.agent) for tc in tool_calls]
-        tasks = [await ti.start_async() for ti in tool_instances]
+        tasks = await self._start_tool_tasks(tool_instances)
 
         interrupted = False
         signal_handler_added = False
-
-        def signal_handler(*args):
-            nonlocal interrupted
-            interrupted = True
-            self._global_interrupt.set()  # Set global interrupt flag
-            for ti in tool_instances:
-                ti.cancel()
-
-        # Backup interrupt checking for scenarios where signal handler fails
-        async def interrupt_monitor():
-            while not interrupted and any(ti.is_running() for ti in tool_instances):
-                try:
-                    # Check if any external interrupt mechanism triggered
-                    if hasattr(self.agent, '_should_interrupt') and self.agent._should_interrupt():
-                        signal_handler()
-                        break
-                    await asyncio.sleep(0.05)  # Check every 50ms
-                except asyncio.CancelledError:
-                    break
+        interrupt_handler = InterruptHandler(tool_instances, self)
 
         try:
             monitor_task = None
-            try:
-                loop = asyncio.get_event_loop()
-                loop.add_signal_handler(signal.SIGINT, signal_handler)
-                signal_handler_added = True
-            except (ValueError, NotImplementedError, OSError, RuntimeError):
-                # Signal handling not available in this context (e.g., subthread)
-                # Start backup interrupt monitoring
-                monitor_task = asyncio.create_task(interrupt_monitor())
+            signal_handler_added = interrupt_handler.setup_signal_handler()
+            if not signal_handler_added:
+                monitor_task = asyncio.create_task(interrupt_handler.interrupt_monitor())
 
             if self.show_live:
-                try:
-                    # Generate status text based on number of tools
-                    if len(tool_calls) == 1:
-                        status_text = Text.assemble('Executing ', (ToolCall.get_display_tool_name(tool_calls[0].tool_name), ColorStyle.HIGHLIGHT.bold), ' ')
-                    else:
-                        tool_counts = {}
-                        for tc in tool_calls:
-                            tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
-                        tool_names = [
-                            Text.assemble((ToolCall.get_display_tool_name(name), ColorStyle.HIGHLIGHT.bold), '*' + str(count) if count > 1 else '', ' ')
-                            for name, count in tool_counts.items()
-                        ]
-                        status_text = Text.assemble('Executing ', *tool_names)
-
-                    status = render_dot_status(status=status_text)
-                    with Live(refresh_per_second=10, console=console.console) as live:
-                        live_group = []
-                        for ti in tool_instances:
-                            live_group.append('')
-                            live_group.append(ti.tool_result())
-                        while any(ti.is_running() for ti in tool_instances) and not interrupted:
-                            live.update(Group(*live_group, status))
-                            await asyncio.sleep(0.1)
-                        live.update(Group(*live_group))
-                except Exception as e:
-                    console.print(format_exception(e), style=ColorStyle.ERROR)
-                    raise e
+                await self._execute_with_live_display(tool_instances, tool_calls, interrupt_handler)
 
             await asyncio.gather(*tasks, return_exceptions=True)
+            interrupted = interrupt_handler.interrupted
 
         finally:
             if signal_handler_added:
-                try:
-                    loop.remove_signal_handler(signal.SIGINT)
-                except (ValueError, NotImplementedError, OSError):
-                    pass
+                interrupt_handler.cleanup_signal_handler()
             if monitor_task:
                 monitor_task.cancel()
                 try:
@@ -360,3 +333,91 @@ class ToolHandler:
             self.agent.session.append_message(*(ti.tool_result() for ti in tool_instances))
             if interrupted:
                 raise asyncio.CancelledError
+
+    async def _start_tool_tasks(self, tool_instances: List[ToolInstance]) -> List[asyncio.Task]:
+        """Start async tasks for all tool instances."""
+        return [await ti.start_async() for ti in tool_instances]
+
+    async def _execute_with_live_display(self, tool_instances: List[ToolInstance], tool_calls: List[ToolCall], interrupt_handler: 'InterruptHandler'):
+        """Execute tools with live status display."""
+        try:
+            status_text = self._generate_status_text(tool_calls)
+            status = render_dot_status(status=status_text)
+
+            with Live(refresh_per_second=10, console=console.console) as live:
+                live_group = self._create_live_group(tool_instances)
+                while any(ti.is_running() for ti in tool_instances) and not interrupt_handler.interrupted:
+                    live.update(Group(*live_group, status))
+                    await asyncio.sleep(0.1)
+                live.update(Group(*live_group))
+        except Exception as e:
+            console.print(format_exception(e), style=ColorStyle.ERROR)
+            raise e
+
+    def _generate_status_text(self, tool_calls: List[ToolCall]) -> Text:
+        """Generate status text for tool execution."""
+        if len(tool_calls) == 1:
+            return Text.assemble('Executing ', (ToolCall.get_display_tool_name(tool_calls[0].tool_name), ColorStyle.HIGHLIGHT.bold), ' ')
+        else:
+            tool_counts = {}
+            for tc in tool_calls:
+                tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
+            tool_names = [
+                Text.assemble((ToolCall.get_display_tool_name(name), ColorStyle.HIGHLIGHT.bold), '*' + str(count) if count > 1 else '', ' ') for name, count in tool_counts.items()
+            ]
+            return Text.assemble('Executing ', *tool_names)
+
+    def _create_live_group(self, tool_instances: List[ToolInstance]) -> list:
+        """Create the live group for display."""
+        live_group = []
+        for ti in tool_instances:
+            live_group.append('')
+            live_group.append(ti.tool_result())
+        return live_group
+
+
+class InterruptHandler:
+    """Handles interrupt logic for tool execution."""
+
+    def __init__(self, tool_instances: List[ToolInstance], tool_handler: ToolHandler):
+        self.tool_instances = tool_instances
+        self.tool_handler = tool_handler
+        self.interrupted = False
+        self._signal_handler_added = False
+
+    def signal_handler(self, *args):
+        """Handle interrupt signal."""
+        self.interrupted = True
+        self.tool_handler._global_interrupt.set()
+        for ti in self.tool_instances:
+            ti.cancel()
+
+    def setup_signal_handler(self) -> bool:
+        """Setup signal handler for SIGINT."""
+        try:
+            loop = asyncio.get_event_loop()
+            loop.add_signal_handler(signal.SIGINT, self.signal_handler)
+            self._signal_handler_added = True
+            return True
+        except (ValueError, NotImplementedError, OSError, RuntimeError):
+            return False
+
+    def cleanup_signal_handler(self):
+        """Remove signal handler."""
+        if self._signal_handler_added:
+            try:
+                loop = asyncio.get_event_loop()
+                loop.remove_signal_handler(signal.SIGINT)
+            except (ValueError, NotImplementedError, OSError):
+                pass
+
+    async def interrupt_monitor(self):
+        """Monitor for interrupts when signal handler is not available."""
+        while not self.interrupted and any(ti.is_running() for ti in self.tool_instances):
+            try:
+                if hasattr(self.tool_handler.agent, '_should_interrupt') and self.tool_handler.agent._should_interrupt():
+                    self.signal_handler()
+                    break
+                await asyncio.sleep(0.05)
+            except asyncio.CancelledError:
+                break
