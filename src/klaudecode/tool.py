@@ -339,10 +339,11 @@ class ToolHandler:
                             live.update(Group(*live_group, status))
                             await asyncio.sleep(0.1)
                         live.update(Group(*live_group))
-                    await asyncio.gather(*tasks, return_exceptions=True)
                 except Exception as e:
                     console.print(format_exception(e), style=ColorStyle.ERROR)
                     raise e
+
+            await asyncio.gather(*tasks, return_exceptions=True)
 
         finally:
             if signal_handler_added:
