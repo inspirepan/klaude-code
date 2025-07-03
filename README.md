@@ -1,220 +1,283 @@
 # Klaude Code
 
-A powerful coding agent CLI that brings Claude AI's coding capabilities directly to your terminal. Klaude Code provides an interactive assistant for software development tasks with persistent sessions, tool integration, and both interactive and headless modes.
+Klaude Code is a powerful CLI tool that provides an AI-powered coding assistant. It offers an interactive interface to Claude (and OpenAI models) with advanced coding capabilities including file manipulation, code editing, task automation, and more.
 
 ## Features
 
-- **Interactive Chat Mode**: Natural conversation interface for coding assistance
-- **Headless Mode**: Direct command execution for automation and scripting
-- **Persistent Sessions**: Resume conversations across multiple sessions
-- **Rich Tool Integration**: File operations, code search, bash execution, and more
-- **Todo Management**: Built-in task tracking and planning
-- **Code-Aware**: Understands project structure and follows existing conventions
+- **Interactive AI Assistant**: Chat with Claude or GPT models for coding help
+- **File Operations**: Read, write, edit, and search files with precision
+- **Code Refactoring**: Multi-file edits, pattern replacement, and automated refactoring
+- **Shell Integration**: Execute bash commands directly within the chat
+- **Task Management**: Built-in todo list for tracking coding tasks
+- **Session Persistence**: Resume conversations and maintain context across sessions
+- **MCP Support**: Extend functionality with Model Context Protocol servers
+- **Custom Commands**: Create reusable command patterns for common workflows
 
-## Installation
+## Quick Start
 
-### Requirements
-- Python 3.13 or higher
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
-
-### Install from PyPI (Recommended)
+### Installation
 
 ```bash
-# Install with uv (recommended)
-uv tool install klaude-code
-
-# Or install with pip
+# Install with pip
 pip install klaude-code
+
+# Or install with uv (recommended)
+uv tool install klaude-code
 ```
 
-### Install from Source
+### Basic Usage
 
 ```bash
-# Clone the repository
-git clone https://github.com/inspirepan/klaude-code.git
-cd klaude-code
+# Start interactive mode
+klaude
 
-# Install dependencies with uv (recommended)
-uv sync
+# Run a single command (headless mode)
+klaude --prompt "Fix the type errors in src/main.py"
 
-# Install in development mode
-uv tool install -e .
+# Resume your last session
+klaude --continue
+
+# Choose from previous sessions
+klaude --resume
+```
+
+### Configuration
+
+Configure your API keys and preferences:
+
+```bash
+# Edit configuration
+klaude config edit
+
+# View current configuration
+klaude config show
 ```
 
 ## Usage
 
-### Quick Start
+### Interactive Commands
 
-```bash
-# Interactive mode
-klaude
+Once in interactive mode, you can use various slash commands:
 
-# Headless mode (run once and exit)
-klaude --print "Fix the type errors in src/main.py"
+- `/status` - Show current configuration and model info
+- `/clear` - Clear conversation history
+- `/compact` - Compact conversation to free up context
+- `/cost` - Show token usage and costs
+- `/theme` - Switch between light/dark themes
+- `/init` - Create a CLAUDE.md file for project-specific instructions
+- `/memory` - Manage project/user memory
+- `/save_custom_command` - Save conversation as reusable command
 
-# Continue previous session
-klaude --continue
+### Input Modes
 
-# Enable MCP (Model Context Protocol) support
-klaude --mcp
+Special prefixes activate different input modes:
+
+- **Bash Mode** (`!`): Execute shell commands
+  ```
+  ! git status
+  ! npm test
+  ```
+
+- **Plan Mode** (`*`): Enter planning interface for complex tasks
+  ```
+  * design the authentication system
+  ```
+
+- **Memory Mode** (`#`): Save instructions to memory
+  ```
+  # always use TypeScript strict mode
+  ```
+
+- **File Reference** (`@`): Reference files with auto-completion
+  ```
+  @src/main.py fix the syntax errors
+  ```
+
+### Custom Commands
+
+Create reusable command patterns in:
+- Project commands: `.claude/commands/`
+- Global commands: `~/.claude/commands/`
+
+Example custom command (`create_git_commit.md`):
+```markdown
+---
+description: Create a git commit with context analysis
+---
+
+## Context
+- Current git status: !`git status`
+- Current git diff: !`git diff HEAD`
+
+## Your task
+Create a single git commit with a descriptive message.
+
+Additional instructions: $ARGUMENTS
 ```
 
-### Interactive Mode
-
-Start an interactive coding session:
-
-```bash
-klaude
-```
-
-This opens a chat interface where you can ask for help with coding tasks, request code changes, debug issues, and more.
-
-#### Slash Commands
-
-In interactive mode, use these slash commands for quick actions:
-
-```bash
-/status      # Show current configuration and model info
-/clear       # Clear current chat history
-/compact     # Compact conversation and freeup context window
-/theme       # Switch between light and dark themes
-/init        # Initialize project CLAUDE.md
-```
-
-#### Input Modes
-
-Prefix your input with special characters for different modes:
-
-```bash
-!            # Bash mode - execute bash commands directly
-             # Example: ! ls -la
-             # Example: ! git status
-             
-*            # Plan mode - enter planning interface
-             # Example: * plan the user authentication feature
-             # Example: * design the database schema
-
-#            # Memory mode - access session memory and context
-             # Example: # do not add comments
-             # Example: # do not use emoji
-
-@filename    # File reference with auto-completion
-             # Example: @src/main.py to reference a file
-             # Example: @package.json to reference package file
-```
-
-### Headless Mode
-
-Execute a single prompt and exit:
-
-```bash
-klaude --print "Fix the type errors in src/main.py"
-```
-
-Useful for automation and scripting:
-
-```bash
-# Run tests and fix errors
-klaude --print "run tests and fix any failing tests"
-```
-
-### Continue Previous Session
-
-Resume your latest session:
-
-```bash
-klaude --continue
-```
-
-### Command Line Options
-
-#### Main Options
-
-- `-p, --print <prompt>`: Run in headless mode with the given prompt
-- `-r, --resume`: Choose from previous sessions to resume
-- `-c, --continue`: Continue the latest session
-- `--mcp`: Enable Model Context Protocol support
-
-#### Model Configuration
-
-- `--api-key <key>`: Override API key from config
-- `--model <name>`: Override model name from config
-- `--base-url <url>`: Override base URL from config
-- `--max-tokens <num>`: Override max tokens from config
-- `--model-azure`: Use Azure OpenAI model
-- `--extra-header <header>`: Add extra HTTP header
-- `--thinking`: Enable Claude Extended Thinking capability (Anthropic API only)
-
-#### Subcommands
-
-```bash
-# Configuration management
-klaude config show    # Show current configuration
-klaude config edit    # Edit configuration file
-
-# MCP (Model Context Protocol) management
-klaude mcp show       # Show MCP configuration and available tools
-klaude mcp edit       # Edit MCP configuration file
-```
-
-
-## Configuration
-
-Klaude Code uses configuration files to manage settings like API keys and model preferences. Configuration is automatically loaded from global user settings: `~/.klaude/config.json`.
-
-Init and edit your configuration via:
-
-
-```bash
-klaude config edit
-```
-
+Use it as: `/create_git_commit add error handling`
 
 ## Available Tools
 
-Klaude Code comes with a comprehensive set of tools for software development:
+Klaude Code provides a comprehensive set of tools:
 
-- **File Operations**: Read, write, edit, and search files
-- **Code Search**: Grep, glob patterns, and intelligent code search
-- **System Integration**: Bash command execution with proper quoting
-- **Project Management**: Todo lists and task tracking
-- **Multi-file Operations**: Batch edits and operations
+### File Operations
+- **Read**: Read file contents with line numbers
+- **Write**: Create or overwrite files
+- **Edit**: Make precise edits to specific lines
+- **MultiEdit**: Batch multiple edits to a single file
 
-## Development
+### Search Tools
+- **Grep**: Search file contents using regex patterns
+- **Glob**: Find files by name patterns
+- **LS**: List directory contents
 
-### Setup Development Environment
+### System Tools
+- **Bash**: Execute shell commands with timeout support
+- **TodoWrite/TodoRead**: Manage task lists
+- **Task**: Spawn sub-agents for complex operations
 
-```bash
-# Install dependencies
-uv sync
-
-# Install in development mode
-uv pip install -e .
-```
-
-### Code Quality
+### Usage Examples
 
 ```bash
-# Format code
-ruff format src/
+# Refactor code
+> refactor the authentication module to use JWT tokens
 
-# Lint code
-ruff check src/
+# Fix failing tests
+> ! npm test
+> fix the failing tests
+
+# Search and replace
+> rename all instances of getUserData to fetchUserData
+
+# Create a new feature
+> implement user profile management with CRUD operations
 ```
 
-## Architecture
+## Session Management
 
-Klaude Code is built with a modular architecture:
+Sessions are automatically saved and can be resumed:
 
-- **CLI Entry Point** (`cli.py`): Typer-based command interface
-- **Session Management** (`session.py`): Persistent conversation history
-- **Agent System** (`agent.py`): Core AI agent orchestration
-- **Tool System** (`tool.py`): Extensible tool framework
-- **LLM Integration** (`llm.py`): Claude API integration
+```bash
+# Start a new session
+klaude
+> implement user authentication
 
-### Tool Development
+# Later, continue the same session
+klaude --continue
+> add password reset functionality
+```
 
-Tools inherit from the base `Tool` class and define:
-- Input parameters via Pydantic models
-- Execution logic in the `call()` method
-- Automatic JSON schema generation for LLM function calling
+Sessions store:
+- Complete message history
+- Todo lists and their states
+- File tracking information
+- Working directory context
+
+## Debugging
+
+### Session Inspection
+
+Sessions are stored in `.klaude/sessions/` with human-readable formats:
+
+1. **Metadata files** (`*.metadata.*.json`): Session info, todo lists, file tracking
+2. **Message files** (`*.messages.*.jsonl`): Complete conversation history
+
+### Viewing Sessions
+
+```bash
+# List all sessions with metadata
+klaude --resume
+
+# Manually inspect session files
+cd .klaude/sessions/
+cat *.metadata.*.json | jq .
+```
+
+### Session File Structure
+
+Metadata includes:
+- Session ID and timestamps
+- Working directory
+- Message count
+- Todo list with status
+- Tracked file modifications
+
+Messages are stored in JSONL format with:
+- Role (user/assistant/tool)
+- Content and tool calls
+- Timestamps and metadata
+
+## Requirements
+
+- Python 3.13 or higher
+- API key for Claude (Anthropic) or OpenAI
+- Unix-like environment (macOS, Linux, WSL)
+
+### Python Dependencies
+
+Core dependencies include:
+- `anthropic` - Claude API client
+- `openai` - OpenAI API client
+- `typer` - CLI framework
+- `rich` - Terminal formatting
+- `pydantic` - Data validation
+- `prompt-toolkit` - Input handling
+
+## Model Context Protocol (MCP)
+
+Enable MCP servers for extended functionality:
+
+```bash
+# Start with MCP enabled
+klaude --mcp
+
+# Configure MCP servers
+klaude mcp edit
+```
+
+MCP allows integration with external tools and services beyond the built-in toolset.
+
+## Tips and Best Practices
+
+1. **Use Plan Mode** for complex tasks: `* plan the refactoring approach`
+2. **Track Changes**: The AI automatically tracks file modifications
+3. **Session Management**: Use `--continue` to maintain context across work sessions
+4. **Custom Commands**: Create project-specific commands for repetitive tasks
+5. **Context Window**: Use `/compact` when conversations get too long
+6. **Cost Tracking**: Monitor usage with `/cost` command
+
+## Command Line Options
+
+```bash
+klaude [OPTIONS] [PROMPT]
+
+Options:
+  --continue, -c              Continue from the latest session
+  --resume, -r               Resume from a session
+  --prompt, -p               Run in headless mode
+  --model TEXT              Override the configured model
+  --api-key TEXT             API key
+  --api-key-env TEXT         Environment variable for API key
+  --mcp                      Enable Model Context Protocol
+  --theme [light|dark]       Color theme
+  --compact-mode             Minimal output mode
+```
+
+## Project Structure
+
+```
+.klaude/
+├── config.json          # Global configuration
+├── mcp_servers.json     # MCP server configs
+├── commands/            # Custom commands
+├── memory/              # Saved instructions
+└── sessions/            # Conversation history
+```
+
+## Getting Help
+
+- Use `/status` to check your configuration
+- Run `klaude --help` for command options
+- Check session files in `.klaude/sessions/` for debugging
+- Create project-specific instructions in `CLAUDE.md`
