@@ -37,6 +37,7 @@ class SessionOperations:
         session.messages = cleared_session.messages
         session.source = cleared_session.source
         session.reset_create_at()
+        session.title_msg = ''
 
         # Reset message storage states since this is a brand new session
         session.messages.reset_storage_states()
@@ -53,7 +54,7 @@ class SessionOperations:
 
         try:
             if llm_manager:
-                ai_msg = await llm_manager.call(msgs=CompactMessageList, show_status=show_status, status_text='Compacting')
+                ai_msg = await llm_manager.call(msgs=CompactMessageList, show_status=show_status, show_result=False, status_text='Compacting', tools=[CommandPatternResultTool])
             else:
                 raise RuntimeError('LLM manager not initialized')
 
@@ -95,7 +96,7 @@ class SessionOperations:
 
         try:
             if llm_manager:
-                ai_msg = await llm_manager.call(msgs=analyze_message_list, show_status=True, status_text='Patterning', tools=[CommandPatternResultTool])
+                ai_msg = await llm_manager.call(msgs=analyze_message_list, show_status=True, show_result=False, status_text='Patterning', tools=[CommandPatternResultTool])
 
                 if ai_msg.tool_calls:
                     for tool_call in ai_msg.tool_calls.values():

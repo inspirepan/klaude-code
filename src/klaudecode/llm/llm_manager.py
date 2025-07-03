@@ -61,10 +61,20 @@ class LLMManager:
         use_streaming: bool = True,
         timeout: float = 20.0,
         interrupt_check: Optional[callable] = None,
+        show_result: bool = True,
     ) -> AIMessage:
         """Unified LLM call interface"""
         client = self.get_client()
-        return await client.call_with_retry(msgs, tools, show_status, use_streaming, status_text, timeout, interrupt_check)
+        return await client.call(
+            msgs,
+            tools,
+            show_status=show_status,
+            use_streaming=use_streaming,
+            status_text=status_text,
+            timeout=timeout,
+            interrupt_check=interrupt_check,
+            show_result=show_result,
+        )
 
     async def cleanup_thread(self, thread_id: Optional[int] = None):
         """Clean up client for specific thread (or current thread)"""

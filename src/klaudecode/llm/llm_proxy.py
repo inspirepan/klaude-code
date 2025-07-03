@@ -82,7 +82,7 @@ class RetryWrapper(LLMClientWrapper):
         tools: Optional[List[Tool]] = None,
         timeout: float = 20.0,
         interrupt_check: Optional[callable] = None,
-    ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
+    ) -> AsyncGenerator[AIMessage, None]:
         last_exception = None
         for attempt in range(self.max_retries):
             try:
@@ -119,11 +119,13 @@ class RetryWrapper(LLMClientWrapper):
 class StatusWrapper(LLMClientWrapper):
     """Wrapper that adds status display to LLM calls"""
 
-    async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
+    async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None, show_result: bool = True) -> AIMessage:
         with render_dot_status(status=get_content_status_text(), spinner_style=ColorStyle.CLAUDE, dots_style=ColorStyle.CLAUDE):
             ai_message = await self.client.call(msgs, tools)
-        console.print()
-        console.print(ai_message)
+
+        if show_result:
+            console.print()
+            console.print(ai_message)
         return ai_message
 
     async def stream_call(
@@ -133,7 +135,8 @@ class StatusWrapper(LLMClientWrapper):
         timeout: float = 20.0,
         interrupt_check: Optional[callable] = None,
         status_text: Optional[str] = None,
-    ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
+        show_result: bool = True,
+    ) -> AsyncGenerator[AIMessage, None]:
         status_text_seed = int(time.time() * 1000) % 10000
         if status_text:
             reasoning_status_text = text_status_str(status_text)
@@ -173,18 +176,18 @@ class StatusWrapper(LLMClientWrapper):
                     ),
                 )
 
-                if stream_status.phase == 'tool_call' and not print_content_flag and ai_message.content:
+                if show_result and stream_status.phase == 'tool_call' and not print_content_flag and ai_message.content:
                     console.print()
                     console.print(*ai_message.get_content_renderable())
                     print_content_flag = True
-                if stream_status.phase in ['content', 'tool_call'] and not print_thinking_flag and ai_message.thinking_content:
+                if show_result and stream_status.phase in ['content', 'tool_call'] and not print_thinking_flag and ai_message.thinking_content:
                     console.print()
                     console.print(*ai_message.get_thinking_renderable())
                     print_thinking_flag = True
 
-                yield stream_status, ai_message
+                yield ai_message
 
-        if not print_content_flag and ai_message and ai_message.content:
+        if show_result and not print_content_flag and ai_message and ai_message.content:
             console.print()
             console.print(*ai_message.get_content_renderable())
 
@@ -215,11 +218,12 @@ class LLMProxy:
     def model_name(self) -> str:
         return self.client.model_name
 
-    async def call_with_retry(
+    async def call(
         self,
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
         show_status: bool = True,
+        show_result: bool = True,
         use_streaming: bool = True,
         status_text: Optional[str] = None,
         timeout: float = 20.0,
@@ -229,10 +233,12 @@ class LLMProxy:
             return await self.client.call(msgs, tools)
 
         if not use_streaming:
-            return await StatusWrapper(self.client).call(msgs, tools)
+            return await StatusWrapper(self.client).call(msgs, tools, show_result=show_result)
 
         ai_message = None
-        async for stream_status, ai_message in StatusWrapper(self.client).stream_call(msgs, tools, timeout, interrupt_check, status_text):
+        async for ai_message in StatusWrapper(self.client).stream_call(
+            msgs, tools, timeout=timeout, interrupt_check=interrupt_check, status_text=status_text, show_result=show_result
+        ):
             pass
 
         return ai_message
