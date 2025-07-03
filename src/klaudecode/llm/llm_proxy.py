@@ -160,7 +160,7 @@ class StatusWrapper(LLMClientWrapper):
                     if stream_status.tool_names:
                         current_status_text = get_tool_call_status_text(stream_status.tool_names[-1], status_text_seed)
                 elif stream_status.phase == 'upload':
-                    indicator = '↑'
+                    indicator = ''
                 elif stream_status.phase == 'think':
                     indicator = '✻'
                     current_status_text = reasoning_status_text
@@ -171,7 +171,7 @@ class StatusWrapper(LLMClientWrapper):
                 status.update(
                     status=current_status_text,
                     description=Text.assemble(
-                        (f' {indicator}', ColorStyle.SUCCESS),
+                        (f'{indicator}', ColorStyle.SUCCESS),
                         (f' {stream_status.tokens} tokens' if stream_status.tokens else '', ColorStyle.SUCCESS),
                         (INTERRUPT_TIP, ColorStyle.MUTED),
                     ),

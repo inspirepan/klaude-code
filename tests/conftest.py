@@ -1,7 +1,8 @@
-import pytest
-import tempfile
 import sys
+import tempfile
 from pathlib import Path
+
+import pytest
 
 # Add the src directory to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
@@ -18,4 +19,5 @@ def temp_dir():
 def mock_agent(temp_dir):
     """Create a mock agent for testing."""
     from tests.base import MockAgent
+
     return MockAgent(temp_dir)

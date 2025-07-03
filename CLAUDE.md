@@ -22,10 +22,32 @@ ruff format src/
 ruff check src/ --fix
 ```
 
+### Testing
+```bash
+# First time setup: create virtual environment
+uv venv
+
+# Activate virtual environment (needed every time)
+source .venv/bin/activate
+
+# Install dependencies (only needed once or when dependencies change)
+uv sync
+
+# Run all tests
+python -m pytest tests/ -v
+
+# Run specific test file
+python -m pytest tests/tools/test_read.py -v
+
+# Run with coverage
+python -m pytest tests/ --cov=src/klaudecode --cov-report=html
+```
+
 ### Development Tips
 - Python 3.13+ is required
 - Use `uv` package manager for dependency management
 - Ruff is configured with line-length 180 and single quotes
+- Always run tests in a virtual environment to ensure proper dependency isolation
 
 ## Architecture Overview
 
