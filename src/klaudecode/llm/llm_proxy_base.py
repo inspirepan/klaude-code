@@ -7,6 +7,11 @@ from .stream_status import StreamStatus
 DEFAULT_RETRIES = 3
 DEFAULT_RETRY_BACKOFF_BASE = 0.5
 
+BASE_EXTRA_HEADER = {
+    # 'anthropic-beta': 'claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14',
+    'anthropic-beta': 'claude-code-20250219',
+}
+
 
 class LLMProxyBase:
     """Base class for LLM proxy implementations"""
@@ -14,6 +19,7 @@ class LLMProxyBase:
     def __init__(self, model_name: str, max_tokens: int, extra_header: dict, extra_body: dict):
         self.model_name = model_name
         self.max_tokens = max_tokens
+        extra_header.update(BASE_EXTRA_HEADER)
         self.extra_header = extra_header
         self.extra_body = extra_body
 

@@ -33,7 +33,7 @@ class ToolMessage(BasicMessage):
         if len(content_text) > TRUNCATE_CHARS:
             content_text = content_text[:TRUNCATE_CHARS] + '\n' + TRUNCATE_POSTFIX
         if self.tool_call.status == 'canceled':
-            content_text += INTERRUPTED_CONTENT
+            content_text = INTERRUPTED_CONTENT
         elif self.tool_call.status == 'error':
             content_text += '\nError: ' + self.error_msg
 
