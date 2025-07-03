@@ -13,6 +13,10 @@ from .read import ReadTool
 from .todo import TodoReadTool, TodoWriteTool
 from .write import WriteTool
 
+# Tool collections
+BASIC_TOOLS = [LsTool, GrepTool, GlobTool, ReadTool, EditTool, MultiEditTool, WriteTool, BashTool, TodoWriteTool, TodoReadTool, ExitPlanModeTool]
+READ_ONLY_TOOLS = [LsTool, GrepTool, GlobTool, ReadTool, TodoWriteTool, TodoReadTool]
+
 __all__ = [
     'BashTool',
     'TodoReadTool',
@@ -25,4 +29,6 @@ __all__ = [
     'LsTool',
     'GrepTool',
     'GlobTool',
+    'BASIC_TOOLS',
+    'READ_ONLY_TOOLS',
 ]

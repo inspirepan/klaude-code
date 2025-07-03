@@ -97,6 +97,8 @@ class Tool(ABC):
             'type': 'object',
             'properties': resolve_refs(schema.get('properties', {}), defs),
             'required': schema.get('required', []),
+            'additionalProperties': False,
+            '$schema': 'http://json-schema.org/draft-07/schema#',
         }
 
         return result

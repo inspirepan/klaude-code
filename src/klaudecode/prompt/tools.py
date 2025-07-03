@@ -21,27 +21,6 @@ Usage notes:
 5. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent
 """
 
-CODE_SEARCH_TASK_TOOL_DESC = """Intelligently search your codebase with an agent that has access to: LS, Grep, Glob, Read.
-The agent acts like your personal search assistant.
-It's ideal for complex, multi-step search tasks where you need to find code based on functionality or concepts rather than exact matches.
-
-# WHEN TO USE THIS TOOL:
-- When searching for high-level concepts like "how do we check for authentication headers?" or "where do we do error handling in the file watcher?"
-- When you need to combine multiple search techniques to find the right code
-- When looking for connections between different parts of the codebase
-- When searching for keywords like "config" or "logger" that need contextual filtering
-
-# WHEN NOT TO USE THIS TOOL:
-- When you know the exact file path - use read_file directly
-- When looking for specific symbols or exact strings - use glob or Grep
-- When you need to create, modify files, or run terminal commands
-
-# USAGE GUIDELINES:
-1. Launch multiple agents concurrently for better performance
-2. Be specific in your query - include exact terminology, expected file locations, or code patterns
-3. Use the query as if you were talking to another engineer. Bad: "logger impl" Good: "where is the logger implemented, we're trying to find out how to log to files"
-4. Make sure to formulate the query in such a way that the agent knows when it's done or has found the result."""
-
 TODO_WRITE_TOOL_DESC = """Use this tool to create and manage a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
 It also helps the user understand the progress of the task and overall progress of their requests.
 

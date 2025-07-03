@@ -449,7 +449,7 @@ class Session(BaseModel):
 
         try:
             if llm_manager:
-                ai_msg = await llm_manager.call(msgs=CompactMessageList, show_status=show_status, status_text='Compacting...')
+                ai_msg = await llm_manager.call(msgs=CompactMessageList, show_status=show_status, status_text='Compacting')
             else:
                 raise RuntimeError('LLM manager not initialized')
 
@@ -489,7 +489,7 @@ class Session(BaseModel):
 
         try:
             if llm_manager:
-                ai_msg = await llm_manager.call(msgs=analyze_message_list, show_status=True, status_text='Patterning...', tools=[CommandPatternResultTool])
+                ai_msg = await llm_manager.call(msgs=analyze_message_list, show_status=True, status_text='Patterning', tools=[CommandPatternResultTool])
 
                 if ai_msg.tool_calls:
                     for tool_call in ai_msg.tool_calls.values():

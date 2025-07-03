@@ -1,13 +1,10 @@
 import asyncio
 import threading
 import traceback
-from pathlib import Path
-from typing import Annotated, List, Optional
+from typing import List, Optional
 
 from anthropic import AnthropicError
 from openai import OpenAIError
-from pydantic import BaseModel, Field
-from rich.panel import Panel
 from rich.text import Text
 
 from . import user_command  # noqa: F401 # import user_command to trigger command registration
@@ -18,41 +15,30 @@ from .message import (
     INTERRUPTED_MSG,
     AgentUsage,
     AIMessage,
-    BasicMessage,
     SpecialUserMessageTypeEnum,
-    SystemMessage,
     ToolCall,
     ToolMessage,
     UserMessage,
-    register_tool_call_renderer,
-    register_tool_result_renderer,
 )
 from .prompt.plan_mode import APPROVE_MSG, PLAN_MODE_REMINDER, REJECT_MSG
 from .prompt.reminder import EMPTY_TODO_REMINDER, FILE_DELETED_EXTERNAL_REMINDER, FILE_MODIFIED_EXTERNAL_REMINDER, get_context_reminder
-from .prompt.system import get_subagent_system_prompt
-from .prompt.tools import CODE_SEARCH_TASK_TOOL_DESC, TASK_TOOL_DESC
 from .session import Session
 from .tool import Tool, ToolHandler, ToolInstance
-from .tools import BashTool, EditTool, ExitPlanModeTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
+from .tools import BASIC_TOOLS, ExitPlanModeTool, TodoWriteTool
 from .tools.read import execute_read
-from .tui import INTERRUPT_TIP, ColorStyle, console, render_dot_status, render_markdown, render_message, render_suffix
+from .tools.task import TaskToolMixin
+from .tui import INTERRUPT_TIP, ColorStyle, console, render_dot_status, render_message, render_suffix
 from .user_command import custom_command_manager
 from .user_input import _INPUT_MODES, NORMAL_MODE_NAME, InputSession, UserInputHandler, user_select
 from .utils.exception import format_exception
 
-DEFAULT_MAX_STEPS = 80
-INTERACTIVE_MAX_STEPS = 100
+DEFAULT_MAX_STEPS = 100
 TOKEN_WARNING_THRESHOLD = 0.85
 COMPACT_THRESHOLD = 0.9
-TODO_SUGGESTION_LENGTH_THRESHOLD = 40
-
-BASIC_TOOLS = [LsTool, GrepTool, GlobTool, ReadTool, EditTool, MultiEditTool, WriteTool, BashTool, TodoWriteTool, TodoReadTool, ExitPlanModeTool]
-READ_ONLY_TOOLS = [LsTool, GrepTool, GlobTool, ReadTool, TodoWriteTool, TodoReadTool]
-
 QUIT_COMMAND = ['quit', 'exit']
 
 
-class Agent(Tool):
+class Agent(TaskToolMixin, Tool):
     def __init__(
         self,
         session: Session,
@@ -110,7 +96,7 @@ class Agent(Tool):
                     break
                 need_agent_run = await self.user_input_handler.handle(user_input_text, print_msg=bool(first_message))
                 if need_agent_run:
-                    await self.run(max_steps=INTERACTIVE_MAX_STEPS, tools=self._get_all_tools())
+                    await self.run(max_steps=DEFAULT_MAX_STEPS, tools=self._get_all_tools())
                 else:
                     self.session.save()
                 epoch += 1
@@ -350,135 +336,9 @@ class Agent(Tool):
         """Update ToolHandler's tool dictionary"""
         self.tool_handler.tool_dict = {tool.name: tool for tool in tools} if tools else {}
 
-    # Implement Agent as tool
-    # ------------------------------------------------------
-    name = 'Task'
-    desc = TASK_TOOL_DESC
-    parallelable: bool = True
-
-    class Input(BaseModel):
-        description: Annotated[str, Field(description='A short (3-5 word) description of the task')] = None
-        prompt: Annotated[str, Field(description='The task for the agent to perform')]
-
-    @classmethod
-    def get_subagent_tools(cls):
-        return BASIC_TOOLS
-
-    @classmethod
-    def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
-        args: 'Agent.Input' = cls.parse_input_args(tool_call)
-
-        def subagent_append_message_hook(*msgs: BasicMessage) -> None:
-            if not msgs:
-                return
-            for msg in msgs:
-                if not isinstance(msg, AIMessage):
-                    continue
-                if msg.tool_calls:
-                    for tool_call in msg.tool_calls.values():
-                        instance.tool_result().append_extra_data('tool_calls', tool_call.model_dump())
-
-        session = Session(
-            work_dir=Path.cwd(),
-            messages=[SystemMessage(content=get_subagent_system_prompt(work_dir=instance.parent_agent.session.work_dir, model_name=instance.parent_agent.config.model_name.value))],
-            append_message_hook=subagent_append_message_hook,
-            source='subagent',
-        )
-        agent = cls(session, availiable_tools=cls.get_subagent_tools(), print_switch=False, config=instance.parent_agent.config)
-        # Initialize LLM manager for subagent
-        agent._initialize_llm()
-        agent.session.append_message(UserMessage(content=args.prompt))
-
-        # Use asyncio.run with proper isolation and error suppression
-        import asyncio
-        import warnings
-
-        # Temporarily suppress ResourceWarnings and RuntimeErrors from HTTP cleanup
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', ResourceWarning)
-            warnings.simplefilter('ignore', RuntimeWarning)
-
-            # Set custom exception handler to suppress cleanup errors
-            def exception_handler(loop, context):
-                # Ignore "Event loop is closed" and similar cleanup errors
-                if 'Event loop is closed' in str(context.get('exception', '')):
-                    return
-                if 'aclose' in str(context.get('exception', '')):
-                    return
-                # Log other exceptions normally
-                loop.default_exception_handler(context)
-
-            try:
-                loop = asyncio.new_event_loop()
-                loop.set_exception_handler(exception_handler)
-                asyncio.set_event_loop(loop)
-                result = loop.run_until_complete(agent.run(max_steps=DEFAULT_MAX_STEPS, parent_tool_instance=instance, tools=cls.get_subagent_tools()))
-                # Update parent agent usage with subagent usage
-                instance.parent_agent.usage.update_with_usage(agent.usage)
-            except Exception as e:
-                result = f'SubAgent error: {format_exception(e)}'
-            finally:
-                try:
-                    # Suppress any remaining tasks
-                    pending = asyncio.all_tasks(loop)
-                    for task in pending:
-                        task.cancel()
-                    if pending:
-                        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                except Exception:
-                    pass
-                finally:
-                    asyncio.set_event_loop(None)
-                    # Don't close loop explicitly to avoid cleanup issues
-                    # Force garbage collection to trigger any delayed HTTP client cleanup
-                    import gc
-
-                    gc.collect()
-
-        instance.tool_result().set_content((result or '').strip())
-
-
-class CodeSearchTaskTool(Agent):
-    name = 'CodeSearchTask'
-    desc = CODE_SEARCH_TASK_TOOL_DESC
-
-    @classmethod
-    def get_subagent_tools(cls):
-        return READ_ONLY_TOOLS
-
-
-def render_agent_args(tool_call: ToolCall, is_suffix: bool = False):
-    yield Text.assemble(
-        (tool_call.tool_name, ColorStyle.HIGHLIGHT.bold),
-        '(',
-        (tool_call.tool_args_dict.get('description', ''), ColorStyle.HIGHLIGHT.bold),
-        ')',
-        ' → ',
-        tool_call.tool_args_dict.get('prompt', ''),
-    )
-
-
-def render_agent_result(tool_msg: ToolMessage):
-    tool_calls = tool_msg.get_extra_data('tool_calls')
-    if tool_calls:
-        for subagent_tool_call_dcit in tool_calls:
-            tool_call = ToolCall(**subagent_tool_call_dcit)
-            for item in tool_call.get_suffix_renderable():
-                yield render_suffix(item)
-        count = len(tool_calls)
-        yield render_suffix(f'({count} tool use{"" if count == 1 else "s"})')
-    if tool_msg.content:
-        yield render_suffix(Panel.fit(render_markdown(tool_msg.content), border_style=ColorStyle.AGENT_BORDER))
-
-
-register_tool_call_renderer('Task', render_agent_args)
-register_tool_result_renderer('Task', render_agent_result)
-register_tool_call_renderer('CodeSearchTask', render_agent_args)
-register_tool_result_renderer('CodeSearchTask', render_agent_result)
-
 
 async def get_main_agent(session: Session, config: ConfigModel, enable_mcp: bool = False) -> Agent:
-    agent = Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent, CodeSearchTaskTool])
+    agent = Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent])
     if enable_mcp:
         await agent.initialize_mcp()
     return agent
