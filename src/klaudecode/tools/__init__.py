@@ -15,8 +15,9 @@ from .undo_edit import UndoEditTool
 from .write import WriteTool
 
 # Tool collections
-BASIC_TOOLS = [LsTool, GrepTool, GlobTool, ReadTool, EditTool, MultiEditTool, WriteTool, UndoEditTool, BashTool, TodoWriteTool, TodoReadTool, ExitPlanModeTool]
-READ_ONLY_TOOLS = [LsTool, GrepTool, GlobTool, ReadTool, TodoWriteTool, TodoReadTool]
+
+BASIC_TOOLS = [BashTool, GlobTool, GrepTool, LsTool, ExitPlanModeTool, ReadTool, EditTool, MultiEditTool, WriteTool, UndoEditTool, TodoReadTool, TodoWriteTool]
+READ_ONLY_TOOLS = [GlobTool, GrepTool, LsTool, ReadTool, TodoWriteTool, TodoReadTool]
 
 __all__ = [
     'BashTool',

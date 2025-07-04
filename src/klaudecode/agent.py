@@ -353,7 +353,7 @@ class Agent(TaskToolMixin, Tool):
 
 
 async def get_main_agent(session: Session, config: ConfigModel, enable_mcp: bool = False) -> Agent:
-    agent = Agent(session, config, availiable_tools=BASIC_TOOLS + [Agent])
+    agent = Agent(session, config, availiable_tools=[Agent] + BASIC_TOOLS)
     if enable_mcp:
         await agent.initialize_mcp()
     return agent
