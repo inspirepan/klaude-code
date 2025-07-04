@@ -78,13 +78,12 @@ async def main_async(ctx: typer.Context):
         else:
             width, _ = shutil.get_terminal_size()
             show_logo = not (Path.cwd() / '.klaude' / 'sessions').exists() and width >= 49  # MIN LENGTH REQUIRED FOR LOGO
-            show_logo = True
             console.print(render_hello(show_info=not show_logo))
             if show_logo:
                 console.print()
                 console.print(render_logo('KLAUDE', ColorStyle.CLAUDE))
                 console.print(render_logo('CODE', ColorStyle.CLAUDE))
-                console.print()
+            console.print()
             console.print(render_tips())
             try:
                 await agent.chat_interactive()

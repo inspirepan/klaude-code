@@ -201,7 +201,7 @@ assistant: Clients are marked as failed in the `connectToServer` function in src
 def _get_directory_structure_context(workdir: Path):
     try:
         DIRECTORY_STRUCTURE_MAX_CHARS = 40000
-        repo_map, truncated, _ = get_directory_structure(workdir, max_chars=DIRECTORY_STRUCTURE_MAX_CHARS, max_depth=5)
+        repo_map, truncated, _ = get_directory_structure(workdir, max_chars=DIRECTORY_STRUCTURE_MAX_CHARS, max_depth=10)
         if truncated:
             return f"""directoryStructure: There are more than {DIRECTORY_STRUCTURE_MAX_CHARS} characters in the repository (ie. either there are lots of files, or there are many long filenames). Use the LS tool (passing a specific path), Bash tool, and other tools to explore nested directories. The first {DIRECTORY_STRUCTURE_MAX_CHARS} characters are included below:
 {repo_map}"""
