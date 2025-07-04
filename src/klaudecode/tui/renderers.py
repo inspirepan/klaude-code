@@ -14,6 +14,7 @@ from rich.text import Text
 
 from ..utils.str_utils import normalize_tabs
 from .colors import ColorStyle
+from .logo import generate_box_drawing_text
 
 
 def render_message(
@@ -200,33 +201,41 @@ def build_hello_tips() -> List[str]:
     return tips
 
 
-def render_hello() -> RenderResult:
-    grid_data = [
-        [
-            Text('✻', style=ColorStyle.CLAUDE),
-            Group(
-                'Welcome to [bold]Klaude Code[/bold]!',
-                '',
-                '[italic]/status for your current setup[/italic]',
-                '',
-                Text('cwd: {}'.format(Path.cwd())),
-            ),
+def render_hello(show_info: bool = True) -> RenderResult:
+    if show_info:
+        grid_data = [
+            [
+                Text('✻', style=ColorStyle.CLAUDE),
+                Group(
+                    'Welcome to [bold]Klaude Code[/bold]!',
+                    '',
+                    '[italic]/status for your current setup[/italic]',
+                    '',
+                    Text('cwd: {}'.format(Path.cwd())),
+                ),
+            ]
         ]
-    ]
+    else:
+        grid_data = [
+            [
+                Text('✻', style=ColorStyle.CLAUDE),
+                Group(
+                    'Welcome to [bold]Klaude Code[/bold]!',
+                ),
+            ]
+        ]
     table = render_grid(grid_data)
+    return Panel.fit(table, border_style=ColorStyle.CLAUDE)
 
-    return Group(
-        Panel.fit(table, border_style=ColorStyle.CLAUDE),
-        '',
-        render_message(
-            '\n'.join(build_hello_tips()),
-            mark='※ Tips:',
-            style=ColorStyle.MUTED,
-            mark_style=ColorStyle.MUTED,
-            mark_width=6,
-            render_text=True,
-        ),
-        '',
+
+def render_tips() -> RenderResult:
+    return render_message(
+        '\n'.join(build_hello_tips()),
+        mark='※ Tips:',
+        style=ColorStyle.MUTED,
+        mark_style=ColorStyle.MUTED,
+        mark_width=6,
+        render_text=True,
     )
 
 
@@ -249,3 +258,35 @@ def truncate_middle_text(text: str, max_lines: int = 50) -> RichRenderable:
         Text('···', style=ColorStyle.MUTED),
         tail_content,
     )
+
+
+def render_logo(text: str, color_style: Optional[Union[ColorStyle, str, Style]] = None) -> RichRenderable:
+    """
+    Render ASCII art logo with optional color style.
+
+    Args:
+        text: Text to render as ASCII art
+        color_style: ColorStyle enum value, style string, or Rich Style object
+
+    Returns:
+        Rich renderable object (Group) with styled ASCII art
+    """
+    # Generate ASCII art lines
+    lines = generate_box_drawing_text(text)
+
+    # Create Text objects for each line with appropriate style
+    text_lines = []
+    for line in lines:
+        if color_style:
+            if isinstance(color_style, ColorStyle):
+                # Use ColorStyle enum value
+                text_lines.append(Text(line, style=color_style.value))
+            else:
+                # Use string style name or Style object directly
+                text_lines.append(Text(line, style=color_style))
+        else:
+            # No style specified
+            text_lines.append(Text(line))
+
+    # Return as Group to handle multiple lines properly
+    return Group(*text_lines)

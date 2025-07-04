@@ -1,5 +1,6 @@
 import asyncio
 from pathlib import Path
+import shutil
 from typing import Optional
 
 import typer
@@ -9,7 +10,7 @@ from .config import ConfigManager, ConfigModel
 from .message import SystemMessage
 from .prompt.system import STATIC_SYSTEM_PROMPT, get_system_prompt_dynamic_part
 from .session import Session
-from .tui import ColorStyle, Text, console, render_hello
+from .tui import ColorStyle, Text, console, render_hello, render_logo, render_tips
 from .user_input import user_select
 from .utils.exception import format_exception
 from .utils.str_utils import format_relative_time
@@ -75,7 +76,16 @@ async def main_async(ctx: typer.Context):
         if ctx.obj['prompt']:
             await agent.headless_run(ctx.obj['prompt'])
         else:
-            console.print(render_hello())
+            width, _ = shutil.get_terminal_size()
+            show_logo = not (Path.cwd() / '.klaude' / 'sessions').exists() and width >= 49  # MIN LENGTH REQUIRED FOR LOGO
+            show_logo = True
+            console.print(render_hello(show_info=not show_logo))
+            if show_logo:
+                console.print()
+                console.print(render_logo('KLAUDE', ColorStyle.CLAUDE))
+                console.print(render_logo('CODE', ColorStyle.CLAUDE))
+                console.print()
+            console.print(render_tips())
             try:
                 await agent.chat_interactive()
             finally:
