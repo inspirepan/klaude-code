@@ -199,9 +199,9 @@ def render_read_args(tool_call: ToolCall, is_suffix: bool = False):
     limit = tool_call.tool_args_dict.get('limit', 0)
     line_range = ''
     if offset and limit:
-        line_range = f' [{offset}:{offset + limit - 1}]'
+        line_range = f' {offset}-{offset + limit - 1}'
     elif offset:
-        line_range = f' [{offset}:]'
+        line_range = f' {offset}-'
 
     # Convert absolute path to relative path
     file_path = tool_call.tool_args_dict.get('file_path', '')

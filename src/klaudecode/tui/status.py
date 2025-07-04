@@ -10,7 +10,7 @@ from rich.text import Text
 from .colors import ColorStyle
 from .console import console
 
-INTERRUPT_TIP = '  press ctrl+c to interrupt  '
+INTERRUPT_TIP = ' (ctrl+c to interrupt)'
 
 
 class DotsStatus:

@@ -180,7 +180,7 @@ def build_hello_tips() -> List[str]:
         'type \\ followed by [main]Enter[/main] to insert newlines',
         'type / to choose slash command',
         'type ! to run bash command',
-        'type # to memorize',
+        'Want Claude to remember something? Hit # to add preferences, tools, and instructions to Claude\'s memory',
         'type * to start plan mode',
         'type @ to mention a file',
     ]
