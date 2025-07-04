@@ -240,13 +240,9 @@ def get_system_prompt_dynamic_part(work_dir: Path = Path.cwd(), model_name: str 
     """
     Get the second part of the system prompt
     """
-    is_git_repo = work_dir.joinpath('.git').exists()
     return (
-        _get_env_instruction(work_dir=work_dir, model_name=model_name)
-        + '\n\n'
-        + CODEBASE_INSTRUCTION
-        + '\n\n'
-        + (_get_directory_structure_context(work_dir) if is_git_repo else '')
+        _get_env_instruction(work_dir=work_dir, model_name=model_name) + '\n\n' + CODEBASE_INSTRUCTION + '\n\n'
+        # + (_get_directory_structure_context(work_dir) if work_dir.joinpath('.git').exists() else '')
     )
 
 

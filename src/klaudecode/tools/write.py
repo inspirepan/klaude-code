@@ -8,7 +8,7 @@ from ..message import ToolCall, ToolMessage, register_tool_call_renderer, regist
 from ..prompt.tools import WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_grid, render_suffix
-from ..utils.file_utils import cleanup_backup, create_backup, ensure_directory_exists, get_relative_path_for_display, restore_backup, write_file_content
+from ..utils.file_utils import create_backup, ensure_directory_exists, get_relative_path_for_display, restore_backup, write_file_content
 from ..utils.str_utils import normalize_tabs
 
 """
@@ -65,6 +65,11 @@ class WriteTool(Tool):
             # Update tracking with new content
             instance.parent_agent.session.file_tracker.track(args.file_path)
 
+            # Record edit history for undo functionality
+            if backup_path:
+                operation_summary = f'Wrote {len(args.content)} characters to file'
+                instance.parent_agent.session.file_tracker.record_edit(args.file_path, backup_path, 'Write', operation_summary)
+
             # Extract preview lines for display
             lines = args.content.splitlines()
             preview_lines = []
@@ -80,9 +85,7 @@ class WriteTool(Tool):
             instance.tool_result().set_extra_data('preview_lines', preview_lines)
             instance.tool_result().set_extra_data('total_lines', len(lines))
 
-            # Clean up backup on success
-            if backup_path:
-                cleanup_backup(backup_path)
+            # Don't clean up backup - keep it for undo functionality
 
         except Exception as e:
             # Restore from backup if something went wrong

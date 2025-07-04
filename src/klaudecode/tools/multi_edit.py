@@ -9,7 +9,6 @@ from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_suffix
 from ..utils.file_utils import (
     EDIT_OLD_STRING_NEW_STRING_IDENTICAL_ERROR_MSG,
-    cleanup_backup,
     count_occurrences,
     create_backup,
     generate_diff_lines,
@@ -155,6 +154,11 @@ class MultiEditTool(Tool):
             # Update tracking
             instance.parent_agent.session.file_tracker.track(args.file_path)
 
+            # Record edit history for undo functionality
+            if backup_path:
+                operation_summary = f'Applied {len(args.edits)} edits'
+                instance.parent_agent.session.file_tracker.record_edit(args.file_path, backup_path, 'MultiEdit', operation_summary)
+
             # Generate diff and snippet
             diff_lines = generate_diff_lines(original_content, working_content)
             snippet = generate_snippet_from_diff(diff_lines)
@@ -169,9 +173,7 @@ class MultiEditTool(Tool):
             instance.tool_result().set_content(result)
             instance.tool_result().set_extra_data('diff_lines', diff_lines)
 
-            # Clean up backup on success
-            if backup_path:
-                cleanup_backup(backup_path)
+            # Don't clean up backup - keep it for undo functionality
 
         except Exception as e:
             # Restore from backup if something went wrong

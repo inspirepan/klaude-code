@@ -12,6 +12,7 @@ from .directory_utils import (
 )
 from .file_glob import FileGlob
 from .file_operations import (
+    cleanup_all_backups,
     cleanup_backup,
     count_occurrences,
     create_backup,
@@ -22,7 +23,7 @@ from .file_operations import (
     restore_backup,
     write_file_content,
 )
-from .file_tracker import CheckModifiedResult, FileStatus, FileTracker
+from .file_tracker import CheckModifiedResult, EditHistoryEntry, FileStatus, FileTracker
 from .file_validation import (
     EDIT_OLD_STRING_NEW_STRING_IDENTICAL_ERROR_MSG,
     FILE_MODIFIED_ERROR_MSG,
@@ -47,6 +48,7 @@ __all__ = [
     # Classes
     'FileStatus',
     'CheckModifiedResult',
+    'EditHistoryEntry',
     'FileTracker',
     'TreeNode',
     'DirectoryTreeBuilder',
@@ -62,6 +64,7 @@ __all__ = [
     'create_backup',
     'restore_backup',
     'cleanup_backup',
+    'cleanup_all_backups',
     # Functions - Validation
     'validate_file_exists',
     'ensure_directory_exists',

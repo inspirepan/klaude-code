@@ -11,10 +11,11 @@ from .ls import LsTool
 from .multi_edit import MultiEditTool
 from .read import ReadTool
 from .todo import TodoReadTool, TodoWriteTool
+from .undo_edit import UndoEditTool
 from .write import WriteTool
 
 # Tool collections
-BASIC_TOOLS = [LsTool, GrepTool, GlobTool, ReadTool, EditTool, MultiEditTool, WriteTool, BashTool, TodoWriteTool, TodoReadTool, ExitPlanModeTool]
+BASIC_TOOLS = [LsTool, GrepTool, GlobTool, ReadTool, EditTool, MultiEditTool, WriteTool, UndoEditTool, BashTool, TodoWriteTool, TodoReadTool, ExitPlanModeTool]
 READ_ONLY_TOOLS = [LsTool, GrepTool, GlobTool, ReadTool, TodoWriteTool, TodoReadTool]
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
     'ExitPlanModeTool',
     'MultiEditTool',
     'ReadTool',
+    'UndoEditTool',
     'WriteTool',
     'LsTool',
     'GrepTool',

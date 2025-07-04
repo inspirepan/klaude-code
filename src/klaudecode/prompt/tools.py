@@ -296,6 +296,12 @@ Usage:
 - Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
 """
 
+UNDO_EDIT_TOOL_DESC = """Undo the last edit made to a file.
+
+This command reverts the most recent edit made to the specified file.
+It will restore the file to its state before the last edit was made.
+"""
+
 BASH_TOOL_DESC = """Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
 
 Before executing the command, please follow these steps:

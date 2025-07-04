@@ -23,6 +23,7 @@ from .tui import INTERRUPT_TIP, ColorStyle, console, render_dot_status, render_m
 from .user_command import custom_command_manager
 from .user_input import _INPUT_MODES, NORMAL_MODE_NAME, InputSession, UserInputHandler, user_select
 from .utils.exception import format_exception
+from .utils.file_utils import cleanup_all_backups
 
 DEFAULT_MAX_STEPS = 100
 TOKEN_WARNING_THRESHOLD = 0.85
@@ -35,28 +36,32 @@ class Agent(TaskToolMixin, Tool):
         self,
         session: Session,
         config: Optional[ConfigModel] = None,
-        label: Optional[str] = None,
         availiable_tools: Optional[List[Tool]] = None,
         print_switch: bool = True,
         enable_plan_mode_reminder: bool = True,
     ):
         self.session: Session = session
-        self.label = label
-        self.input_session = InputSession(session.work_dir)
-        self.print_switch = print_switch
         self.config: Optional[ConfigModel] = config
+        self.llm_manager: Optional[LLMManager] = None
+        self.print_switch = print_switch
+
+        # Plan Mode
+        self.enable_plan_mode_reminder = enable_plan_mode_reminder
+        self.plan_mode_activated: bool = False
+
+        # Tools
         self.availiable_tools = availiable_tools
-        self.user_input_handler = UserInputHandler(self)
         self.tool_handler = ToolHandler(self, self.availiable_tools or [], show_live=print_switch)
         self.mcp_manager: Optional[MCPManager] = None
-        self.plan_mode_activated: bool = False
-        self.enable_plan_mode_reminder = enable_plan_mode_reminder
-        self.llm_manager: Optional[LLMManager] = None
+
         self._interrupt_flag = threading.Event()  # Global interrupt flag for this agent
 
         # Usage tracking
         self.usage = AgentUsage()
 
+        # User Input
+        self.input_session = InputSession(session.work_dir)
+        self.user_input_handler = UserInputHandler(self)
         # Initialize custom commands
         try:
             custom_command_manager.discover_and_register_commands(session.work_dir)
@@ -64,10 +69,6 @@ class Agent(TaskToolMixin, Tool):
             if self.print_switch:
                 traceback.print_exc()
                 console.print(f'Warning: Failed to load custom commands: {format_exception(e)}', style=ColorStyle.WARNING)
-
-    def print_usage(self):
-        console.print()
-        console.print(self.usage)
 
     async def chat_interactive(self, first_message: str = None):
         self._initialize_llm()
@@ -100,6 +101,8 @@ class Agent(TaskToolMixin, Tool):
             # Clean up MCP resources
             if self.mcp_manager:
                 await self.mcp_manager.shutdown()
+            # Clean up backup files
+            cleanup_all_backups()
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, check_interrupt: Callable[[], bool] = None, tools: Optional[List[Tool]] = None):
         try:
@@ -319,6 +322,8 @@ class Agent(TaskToolMixin, Tool):
             # Clean up MCP resources
             if self.mcp_manager:
                 await self.mcp_manager.shutdown()
+            # Clean up backup files
+            cleanup_all_backups()
 
     async def initialize_mcp(self) -> bool:
         """Initialize MCP manager"""
@@ -341,6 +346,10 @@ class Agent(TaskToolMixin, Tool):
     def _update_tool_handler_tools(self, tools: List[Tool]):
         """Update ToolHandler's tool dictionary"""
         self.tool_handler.tool_dict = {tool.name: tool for tool in tools} if tools else {}
+
+    def print_usage(self):
+        console.print()
+        console.print(self.usage)
 
 
 async def get_main_agent(session: Session, config: ConfigModel, enable_mcp: bool = False) -> Agent:
