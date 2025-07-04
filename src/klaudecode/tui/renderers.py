@@ -153,7 +153,7 @@ def _parse_markdown_table(lines: list[str], start_index: int, style: Optional[Un
     headers = [Text(cell.strip(), style=style) for cell in header_line.split('|')[1:-1]]
 
     # Create table
-    table = Table(show_header=True, header_style='bold', box=box.SQUARE, show_lines=True, style=style)
+    table = Table(show_header=True, header_style='bold', box=box.SQUARE, show_lines=True, style=style, border_style=ColorStyle.SEPARATOR)
     for header in headers:
         table.add_column(header)
 

@@ -16,6 +16,7 @@ class AnthropicProxy(LLMProxyBase):
     def __init__(
         self,
         model_name: str,
+        base_url: str,
         api_key: str,
         max_tokens: int,
         enable_thinking: bool,
@@ -23,9 +24,8 @@ class AnthropicProxy(LLMProxyBase):
         extra_body: dict,
     ):
         super().__init__(model_name, max_tokens, extra_header, extra_body)
-        self.api_key = api_key
         self.enable_thinking = enable_thinking
-        self.client = anthropic.AsyncAnthropic(api_key=self.api_key)
+        self.client = anthropic.AsyncAnthropic(api_key=api_key, base_url=base_url)
 
     async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
         system_msgs, other_msgs = self.convert_to_anthropic(msgs)

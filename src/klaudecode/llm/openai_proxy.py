@@ -28,23 +28,19 @@ class OpenAIProxy(LLMProxyBase):
         enable_thinking: Optional[bool] = None,
     ):
         super().__init__(model_name, max_tokens, extra_header, extra_body)
-        self.base_url = base_url
-        self.api_key = api_key
-        self.model_azure = model_azure
-        self.api_version = api_version
         self.enable_thinking = enable_thinking
         self.extra_body = extra_body.copy() if extra_body else {}
 
         if model_azure:
             self.client = openai.AsyncAzureOpenAI(
-                azure_endpoint=self.base_url,
-                api_version=self.api_version,
-                api_key=self.api_key,
+                azure_endpoint=base_url,
+                api_version=api_version,
+                api_key=api_key,
             )
         else:
             self.client = openai.AsyncOpenAI(
-                base_url=self.base_url,
-                api_key=self.api_key,
+                base_url=base_url,
+                api_key=api_key,
             )
         if 'thinking' not in self.extra_body:
             self.extra_body.update(
