@@ -165,8 +165,8 @@ def create_backup(file_path: str) -> str:
     Raises:
         Exception: If backup creation fails
     """
-    import time
     import hashlib
+    import time
 
     # Create .klaude/backup directory if it doesn't exist
     backup_dir = Path.cwd() / '.klaude' / 'backup'

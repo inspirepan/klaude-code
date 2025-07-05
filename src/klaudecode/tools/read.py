@@ -1,10 +1,12 @@
+import base64
+import mimetypes
 from pathlib import Path
 from typing import Annotated, Optional
 
 from pydantic import BaseModel, Field
 from rich.text import Text
 
-from ..message import ToolCall, ToolMessage, count_tokens, register_tool_call_renderer, register_tool_result_renderer
+from ..message import Attachment, ToolCall, ToolMessage, count_tokens, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import READ_TOOL_DESC, READ_TOOL_EMPTY_REMINDER, READ_TOOL_RESULT_REMINDER
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_grid, render_suffix
@@ -26,16 +28,15 @@ READ_MAX_TOKENS = 25000
 READ_SIZE_LIMIT_ERROR_MSG = 'File content ({size:.1f}KB) exceeds maximum allowed size ({max_size}KB). Please use offset and limit parameters to read specific portions of the file, or use the GrepTool to search for specific content.'
 READ_TOKEN_LIMIT_ERROR_MSG = 'File content ({tokens} tokens) exceeds maximum allowed tokens ({max_tokens}). Please use offset and limit parameters to read specific portions of the file, or use the GrepTool to search for specific content.'
 
+READ_MAX_IMAGE_SIZE_KB = 2048
+READ_IMAGE_SIZE_LIMIT_ERROR_MSG = 'Image ({size:.1f}KB) exceeds maximum allowed size ({max_size}KB).'
+# Image file extensions
+IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg'}
 
-class ReadResult:
-    def __init__(self):
-        self.success = True
-        self.error_msg = None
-        self.content = None
-        self.read_line_count = 0
-        self.brief = []
-        self.actual_range = None
-        self.truncated = False
+
+class ReadResult(Attachment):
+    success: bool = True
+    error_msg: Optional[str] = None
 
 
 def truncate_content(numbered_lines, line_limit: int, line_char_limit: int):
@@ -68,8 +69,77 @@ def truncate_content(numbered_lines, line_limit: int, line_char_limit: int):
     return truncated_lines, 0
 
 
+def is_image_file(file_path: str) -> bool:
+    """Check if the file is an image based on its extension."""
+    path = Path(file_path)
+    return path.suffix.lower() in IMAGE_EXTENSIONS
+
+
+def read_image_as_base64(file_path: str) -> tuple[str, str]:
+    """Read an image file and return base64 encoded content and media type."""
+    try:
+        with open(file_path, 'rb') as f:
+            image_data = f.read()
+
+        # Get media type
+        media_type, _ = mimetypes.guess_type(file_path)
+        if not media_type:
+            # Default media types for common image formats
+            suffix = Path(file_path).suffix.lower()
+            media_type_map = {
+                '.png': 'image/png',
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.gif': 'image/gif',
+                '.bmp': 'image/bmp',
+                '.webp': 'image/webp',
+                '.svg': 'image/svg+xml',
+            }
+            media_type = media_type_map.get(suffix, 'image/png')
+
+        # Encode to base64
+        base64_content = base64.b64encode(image_data).decode('utf-8')
+        return base64_content, media_type
+    except Exception as e:
+        raise IOError(f'Failed to read image file: {str(e)}')
+
+
+def execute_read_image(file_path: str) -> ReadResult:
+    result = ReadResult(type='image', path=file_path)
+    try:
+        # Check file size limit
+        file_size = Path(file_path).stat().st_size
+        max_size_bytes = READ_MAX_IMAGE_SIZE_KB * 1024
+        if file_size > max_size_bytes:
+            result.success = False
+            size_kb = file_size / 1024
+            result.error_msg = READ_IMAGE_SIZE_LIMIT_ERROR_MSG.format(size=size_kb, max_size=READ_MAX_IMAGE_SIZE_KB)
+            return result
+
+        # Read image as base64
+        base64_content, media_type = read_image_as_base64(file_path)
+
+        # Set result for image
+        result.content = base64_content
+        result.media_type = media_type
+
+        # Convert to appropriate unit
+        if file_size < 1024:
+            result.size_str = f'{file_size}B'
+        elif file_size < 1024 * 1024:
+            result.size_str = f'{file_size / 1024:.1f}KB'
+        else:
+            result.size_str = f'{file_size / (1024 * 1024):.1f}MB'
+        return result
+
+    except Exception as e:
+        result.success = False
+        result.error_msg = str(e)
+        return result
+
+
 def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[int] = None, tracker: FileTracker = None) -> ReadResult:
-    result = ReadResult()
+    result = ReadResult(path=file_path)
 
     # Validate file exists
     is_valid, error_msg = validate_file_exists(file_path)
@@ -79,6 +149,10 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
         result.success = False
         result.error_msg = error_msg
         return result
+
+    # Check if file is an image
+    if is_image_file(file_path):
+        return execute_read_image(file_path)
 
     # Check file size limit only when no offset/limit is provided (reading entire file)
     if offset is None and limit is None:
@@ -148,9 +222,9 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
         if len(truncated_numbered_lines) > 0:
             # If truncated, show range of what's actually shown
             actual_end_line = truncated_numbered_lines[-1][0]
-            result.actual_range = f'{start_line}:{actual_end_line}'
+            result.actual_range_str = f'{start_line}-{actual_end_line}'
         else:
-            result.actual_range = f'{start_line}:{end_line}'
+            result.actual_range_str = f'{start_line}-{end_line}'
 
     formatted_content = ''
     formatted_content = '\n'.join([f'{line_num}→{line_content}' for line_num, line_content in truncated_numbered_lines])
@@ -161,7 +235,7 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
     formatted_content += READ_TOOL_RESULT_REMINDER
 
     result.content = formatted_content
-    result.read_line_count = len(numbered_lines)
+    result.line_count = len(numbered_lines)
     result.brief = truncated_numbered_lines[:5]
 
     return result
@@ -187,11 +261,18 @@ class ReadTool(Tool):
             instance.tool_result().set_error_msg(result.error_msg)
             return
 
-        instance.tool_result().set_content(result.content)
-        instance.tool_result().set_extra_data('read_line_count', result.read_line_count)
-        instance.tool_result().set_extra_data('brief', result.brief)
-        instance.tool_result().set_extra_data('actual_range', result.actual_range)
-        instance.tool_result().set_extra_data('truncated', result.truncated)
+        # Check if this is an image file
+        if result.type == 'image':
+            instance.tool_result().append_attachment(result)
+            # Set content to indicate image was read
+            instance.tool_result().set_content(f'Successfully read image file: {args.file_path}')
+        else:
+            # Regular text file handling
+            instance.tool_result().set_content(result.content)
+            instance.tool_result().set_extra_data('read_line_count', result.line_count)
+            instance.tool_result().set_extra_data('brief', result.brief)
+            instance.tool_result().set_extra_data('actual_range', result.actual_range_str)
+            instance.tool_result().set_extra_data('truncated', result.truncated)
 
 
 def render_read_args(tool_call: ToolCall, is_suffix: bool = False):
@@ -218,6 +299,12 @@ def render_read_args(tool_call: ToolCall, is_suffix: bool = False):
 
 
 def render_read_content(tool_msg: ToolMessage):
+    if tool_msg.attachments and tool_msg.attachments[0].type == 'image':
+        # For images, show file size
+        file_size_str = tool_msg.attachments[0].size_str
+        yield render_suffix(f'Read image ({file_size_str})')
+        return
+
     read_line_count = tool_msg.get_extra_data('read_line_count', 0)
     brief_list = tool_msg.get_extra_data('brief', [])
     actual_range = tool_msg.get_extra_data('actual_range', None)

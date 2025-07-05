@@ -3,25 +3,17 @@ from typing import List, Literal, Optional
 
 from anthropic.types import MessageParam
 from openai.types.chat import ChatCompletionMessageParam
-from pydantic import BaseModel
 from rich.rule import Rule
 from rich.text import Text
 
 from ..tui import ColorStyle, render_message, render_suffix
-from .base import BasicMessage
 from ..utils.file_utils import get_relative_path_for_display
+from .base import BasicMessage
 
 
 class SpecialUserMessageTypeEnum(Enum):
     INTERRUPTED = 'interrupted'
     COMPACT_RESULT = 'compact_result'
-
-
-class FileAttachment(BaseModel):
-    path: str
-    content: str
-    line_count: int
-    is_directory: bool = False
 
 
 class UserMessage(BasicMessage):
@@ -30,7 +22,6 @@ class UserMessage(BasicMessage):
     post_system_reminders: Optional[List[str]] = None
     user_msg_type: Optional[str] = None
     user_raw_input: Optional[str] = None
-    attachments: Optional[List[FileAttachment]] = None
 
     def get_content(self):
         from .registry import _USER_MSG_CONTENT_FUNCS
@@ -59,16 +50,7 @@ class UserMessage(BasicMessage):
         # Add attachments as separate content items
         if self.attachments:
             for attachment in self.attachments:
-                tool_name = 'LS' if attachment.is_directory else 'Read'
-                attachment_text = (
-                    f'Called the {tool_name} tool with the following input: {{"file_path":"{attachment.path}"}}\n\nResult of calling the {tool_name} tool: "{attachment.content}"'
-                )
-                content_list.append(
-                    {
-                        'type': 'text',
-                        'text': attachment_text,
-                    }
-                )
+                content_list.append(attachment.get_content())
 
         if self.post_system_reminders:
             for reminder in self.post_system_reminders:
@@ -106,10 +88,11 @@ class UserMessage(BasicMessage):
             for attachment in self.attachments:
                 display_path = get_relative_path_for_display(attachment.path)
 
-                if attachment.is_directory:
+                if attachment.type == 'directory':
                     attachment_text = Text.assemble('Listed directory ', (display_path, 'bold'))
+                elif attachment.type == 'image':
+                    attachment_text = Text.assemble('Read image ', (display_path, 'bold'), f' ({attachment.size_str})')
                 else:
-                    # For files, show "Read" and use "lines"
                     attachment_text = Text.assemble('Read ', (display_path, 'bold'), f' ({attachment.line_count} lines)')
                 yield render_suffix(attachment_text)
 

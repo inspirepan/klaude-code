@@ -152,7 +152,7 @@ class StatusWrapper(LLMClientWrapper):
 
         current_status_text = upload_status_text
 
-        with render_dot_status(current_status_text, spinner_style=ColorStyle.CLAUDE, dots_style=ColorStyle.CLAUDE, width=8) as status:
+        with render_dot_status(current_status_text, spinner_style=ColorStyle.CLAUDE, dots_style=ColorStyle.CLAUDE) as status:
             async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout, interrupt_check):
                 ai_message: AIMessage
                 if stream_status.phase == 'tool_call':

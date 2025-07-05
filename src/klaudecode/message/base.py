@@ -1,5 +1,5 @@
 import json
-from typing import Optional
+from typing import List, Literal, Optional, Tuple
 
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel
@@ -22,11 +22,40 @@ def count_tokens(text: str) -> int:
     return len(_get_encoder().encode(text))
 
 
+class Attachment(BaseModel):
+    type: Literal['text', 'image', 'directory'] = 'text'
+    path: str
+    content: str = ''
+    is_directory: bool = False
+    # Text file
+    line_count: int = 0
+    brief: List[Tuple[int, str]] = []  # line_number, line_content for UI display
+    actual_range_str: str = ''  # actual range of the file for UI display
+    truncated: bool = False
+
+    # Image
+    media_type: Optional[str] = None
+    size_str: str = ''
+
+    def get_content(self):
+        if self.type == 'image':
+            return {'type': 'image', 'source': {'type': 'base64', 'data': self.content, 'media_type': self.media_type}}
+        elif self.type == 'directory':
+            attachment_text = f'''Called the LS tool with the following input: {{"path":"{self.path}"}}
+Result of calling the LS tool: "{self.content}"'''
+            return {'type': 'text', 'text': attachment_text}
+        else:
+            attachment_text = f'''Called the Read tool with the following input: {{"file_path":"{self.path}"}}
+Result of calling the Read tool: "{self.content}"'''
+            return {'type': 'text', 'text': attachment_text}
+
+
 class BasicMessage(BaseModel):
     role: str
     content: str = ''
     removed: bool = False
     extra_data: Optional[dict] = None
+    attachments: Optional[List[Attachment]] = None
 
     def get_content(self):
         return [{'type': 'text', 'text': self.content}]
@@ -80,3 +109,8 @@ class BasicMessage(BaseModel):
         if key not in self.extra_data:
             return default
         return self.extra_data[key]
+
+    def append_attachment(self, attachment: Attachment):
+        if not self.attachments:
+            self.attachments = []
+        self.attachments.append(attachment)

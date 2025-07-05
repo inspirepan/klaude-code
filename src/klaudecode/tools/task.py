@@ -128,7 +128,7 @@ def render_agent_result(tool_msg: ToolMessage):
         count = len(tool_calls)
         yield render_suffix(f'({count} tool use{"" if count == 1 else "s"})')
     if tool_msg.content:
-        yield render_suffix(Panel.fit(render_markdown(tool_msg.content), border_style=ColorStyle.AGENT_BORDER, width=120))
+        yield render_suffix(Panel.fit(render_markdown(tool_msg.content), border_style=ColorStyle.AGENT_BORDER, width=80))
 
 
 # Register renderers

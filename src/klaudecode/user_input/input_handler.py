@@ -5,8 +5,7 @@ from typing import TYPE_CHECKING, List, Tuple
 if TYPE_CHECKING:
     from ..agent import Agent
 
-from ..message import UserMessage
-from ..message.user import FileAttachment
+from ..message import Attachment, UserMessage
 from ..prompt.reminder import LANGUAGE_REMINDER
 from ..prompt.tools import LS_TOOL_RESULT_REMINDER
 from ..tools.read import execute_read
@@ -20,7 +19,7 @@ class UserInputHandler:
     def __init__(self, agent: 'Agent'):
         self.agent = agent
 
-    def _parse_at_files(self, text: str) -> List[FileAttachment]:
+    def _parse_at_files(self, text: str) -> List[Attachment]:
         """Parse @filepath patterns and return file attachments."""
         attachments = []
         pattern = r'@([^\s]+)'  # Match @ followed by non-whitespace characters
@@ -50,25 +49,18 @@ class UserInputHandler:
             if is_directory:
                 # Handle directory
                 try:
-                    dir_result, _, path_count = get_directory_structure(abs_path, None, max_chars=40000, show_hidden=False)
+                    dir_result, _, _ = get_directory_structure(abs_path, None, max_chars=40000, show_hidden=False)
                     if dir_result:
                         # Add LS_TOOL_RESULT_REMINDER like the LS tool does
                         content = dir_result + '\n\n' + LS_TOOL_RESULT_REMINDER
-                        attachment = FileAttachment(
-                            path=abs_path,
-                            content=content,
-                            line_count=path_count,
-                            is_directory=True,
-                        )
-                        attachments.append(attachment)
+                        attachments.append(Attachment(type='directory', path=abs_path, content=content))
                 except Exception:
                     continue
             else:
                 # Handle file
                 result = execute_read(abs_path)
                 if result.success:
-                    attachment = FileAttachment(path=abs_path, content=result.content, line_count=result.read_line_count)
-                    attachments.append(attachment)
+                    attachments.append(result)
         return attachments
 
     async def handle(self, user_input_text: str, print_msg: bool = True) -> bool:

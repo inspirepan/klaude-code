@@ -24,7 +24,7 @@ class DotsStatus:
         spinner_style: StyleType = None,
         dots_style: StyleType = None,
         refresh_per_second: int = 10,
-        width: int = 10,
+        width: int = None,
     ):
         self.status = status
         self.description = description
@@ -63,7 +63,7 @@ class DotsStatus:
 
     @property
     def renderable(self) -> Columns:
-        spacing = max(self.width - len(self.status) + 1, 1)
+        spacing = max(self.width - len(self.status) + 1 if self.width else 1, 1)
         return Group(
             '',
             Columns(
@@ -109,7 +109,7 @@ def render_dot_status(
     spinner: str = 'dots',
     spinner_style: StyleType = None,
     dots_style: StyleType = None,
-    width: int = 10,
+    width: int = None,
 ):
     if description:
         desc_text = Text.assemble(description, (INTERRUPT_TIP, ColorStyle.MUTED))

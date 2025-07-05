@@ -1,5 +1,5 @@
-from typing import Annotated
 from pathlib import Path
+from typing import Annotated
 
 from pydantic import BaseModel, Field
 from rich.text import Text
