@@ -1,11 +1,17 @@
-from typing import TYPE_CHECKING, Tuple
+import re
+from pathlib import Path
+from typing import TYPE_CHECKING, List, Tuple
 
 if TYPE_CHECKING:
     from ..agent import Agent
 
 from ..message import UserMessage
+from ..message.user import FileAttachment
 from ..prompt.reminder import LANGUAGE_REMINDER
+from ..prompt.tools import LS_TOOL_RESULT_REMINDER
+from ..tools.read import execute_read
 from ..tui import console
+from ..utils.file_utils import get_directory_structure
 from .input_command import _SLASH_COMMANDS, UserInput
 from .input_mode import _INPUT_MODES, NORMAL_MODE_NAME, NormalMode
 
@@ -14,7 +20,61 @@ class UserInputHandler:
     def __init__(self, agent: 'Agent'):
         self.agent = agent
 
+    def _parse_at_files(self, text: str) -> List[FileAttachment]:
+        """Parse @filepath patterns and return file attachments."""
+        attachments = []
+        pattern = r'@([^\s]+)'  # Match @ followed by non-whitespace characters
+
+        # Find all matches first
+        matches = list(re.finditer(pattern, text))
+
+        for match in matches:
+            file_path = match.group(1)
+
+            # Try to resolve the file path
+            abs_path = None
+            if file_path.startswith('/'):
+                # Absolute path
+                abs_path = file_path
+            else:
+                # Relative path - try to resolve from current directory
+                try:
+                    abs_path = str(Path.cwd() / file_path)
+                except Exception:
+                    # If resolution fails, skip this @file reference
+                    continue
+
+            # Check if it's a directory (ends with / or is an existing directory)
+            is_directory = file_path.endswith('/') or (Path(abs_path).exists() and Path(abs_path).is_dir())
+
+            if is_directory:
+                # Handle directory
+                try:
+                    dir_result, _, path_count = get_directory_structure(abs_path, None, max_chars=40000, show_hidden=False)
+                    if dir_result:
+                        # Add LS_TOOL_RESULT_REMINDER like the LS tool does
+                        content = dir_result + '\n\n' + LS_TOOL_RESULT_REMINDER
+                        attachment = FileAttachment(
+                            path=abs_path,
+                            content=content,
+                            line_count=path_count,
+                            is_directory=True,
+                        )
+                        attachments.append(attachment)
+                except Exception:
+                    continue
+            else:
+                # Handle file
+                result = execute_read(abs_path)
+                if result.success:
+                    attachment = FileAttachment(path=abs_path, content=result.content, line_count=result.read_line_count)
+                    attachments.append(attachment)
+        return attachments
+
     async def handle(self, user_input_text: str, print_msg: bool = True) -> bool:
+        # Parse @file references first
+        attachments = self._parse_at_files(user_input_text)
+
         command_name, cleaned_input = self._parse_command(user_input_text)
         command = _INPUT_MODES.get(command_name, _SLASH_COMMANDS.get(command_name, NormalMode()))
         command_handle_output = await command.handle(
@@ -28,6 +88,10 @@ class UserInputHandler:
         user_msg = command_handle_output.user_msg
 
         if user_msg is not None:
+            # Add attachments to the user message
+            if attachments:
+                user_msg.attachments = attachments
+
             # self._handle_language_reminder(user_msg)
             self.agent.session.append_message(user_msg)
             if print_msg:
