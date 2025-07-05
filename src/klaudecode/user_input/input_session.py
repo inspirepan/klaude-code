@@ -179,8 +179,12 @@ class InputSession:
         @kb.add('enter')
         def _(event):
             buffer = event.current_buffer
-            if buffer.text.endswith('\\'):
+            cursor_pos = buffer.cursor_position
+            # Check if there's a backslash immediately before cursor
+            if cursor_pos > 0 and buffer.text[cursor_pos - 1] == '\\':
+                # Delete the backslash
                 buffer.delete_before_cursor()
+                # Insert newline
                 buffer.insert_text('\n')
             else:
                 buffer.validate_and_handle()

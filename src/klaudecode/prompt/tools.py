@@ -298,6 +298,7 @@ Usage:
 - ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
 - NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
 - Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
+- If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task.
 """
 
 UNDO_EDIT_TOOL_DESC = """Undo the last edit made to a file.
