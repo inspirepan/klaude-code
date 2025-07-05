@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from ..tui import ColorStyle, console
 from ..user_input import register_slash_command
@@ -13,6 +13,16 @@ class CustomCommandManager:
         self.user_commands: Dict[str, CustomCommand] = {}
         self.registered_commands: List[str] = []
 
+    @classmethod
+    def user_commands_dir(cls) -> Path:
+        return Path.home() / '.claude' / 'commands'
+
+    @classmethod
+    def project_commands_dir(cls, workdir: Optional[Path] = None) -> Path:
+        if workdir is None:
+            workdir = Path.cwd()
+        return workdir / '.claude' / 'commands'
+
     def discover_and_register_commands(self, workdir: Path = None):
         """Discover and register all custom commands"""
         if workdir is None:
@@ -22,12 +32,12 @@ class CustomCommandManager:
         self._unregister_all()
 
         # Discover project commands
-        project_commands_dir = workdir / '.claude' / 'commands'
+        project_commands_dir = CustomCommandManager.project_commands_dir(workdir)
         if project_commands_dir.exists():
             self._discover_commands(project_commands_dir, 'project')
 
         # Discover user commands
-        user_commands_dir = Path.home() / '.claude' / 'commands'
+        user_commands_dir = CustomCommandManager.user_commands_dir()
         if user_commands_dir.exists():
             self._discover_commands(user_commands_dir, 'user')
 

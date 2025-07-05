@@ -12,6 +12,7 @@ Klaude Code is a powerful CLI tool that provides an AI-powered coding assistant.
 - **Session Persistence**: Resume conversations and maintain context across sessions
 - **MCP Support**: Extend functionality with Model Context Protocol servers
 - **Custom Commands**: Create reusable command patterns for common workflows
+- **Image Support**: View and analyze images with multimodal AI capabilities
 
 ## Quick Start
 
@@ -93,6 +94,12 @@ Special prefixes activate different input modes:
   @src/main.py fix the syntax errors
   ```
 
+- **Image Reference**: Paste images with Ctrl+V or reference image files
+  ```
+  [Image #1] what's in this screenshot?
+  @path/to/image.png explain this diagram
+  ```
+
 ### Custom Commands
 
 Create reusable command patterns in:
@@ -122,7 +129,7 @@ Use it as: `/create_git_commit add error handling`
 Klaude Code provides a comprehensive set of tools:
 
 ### File Operations
-- **Read**: Read file contents with line numbers
+- **Read**: Read file contents with line numbers and view images
 - **Write**: Create or overwrite files
 - **Edit**: Make precise edits to specific lines
 - **MultiEdit**: Batch multiple edits to a single file
@@ -152,6 +159,10 @@ Klaude Code provides a comprehensive set of tools:
 
 # Create a new feature
 > implement user profile management with CRUD operations
+
+# Analyze images
+> @screenshot.png what UI components are shown here?
+> [paste image with Ctrl+V] explain this error message
 ```
 
 ## Session Management
@@ -223,6 +234,8 @@ Core dependencies include:
 - `rich` - Terminal formatting
 - `pydantic` - Data validation
 - `prompt-toolkit` - Input handling
+- `pillow` - Image processing
+- `pyperclip` - Clipboard operations
 
 ## Model Context Protocol (MCP)
 
@@ -246,6 +259,8 @@ MCP allows integration with external tools and services beyond the built-in tool
 4. **Custom Commands**: Create project-specific commands for repetitive tasks
 5. **Context Window**: Use `/compact` when conversations get too long
 6. **Cost Tracking**: Monitor usage with `/cost` command
+7. **Image Analysis**: Copy screenshots to clipboard and paste with Ctrl+V for instant analysis
+8. **Multimodal Workflows**: Combine code and visual elements for comprehensive development
 
 ## Command Line Options
 

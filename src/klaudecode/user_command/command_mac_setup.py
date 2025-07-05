@@ -23,6 +23,10 @@ class MacSetupCommand(Command):
     def get_command_desc(self) -> str:
         return 'Install fd, rg (ripgrep) using Homebrew on macOS for optimal performance'
 
+    @classmethod
+    def need_mac_setup(cls) -> bool:
+        return platform.system() == 'Darwin' and shutil.which('brew') and (not shutil.which('fd') or not shutil.which('rg'))
+
     async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
         command_handle_output = await super().handle(agent, user_input)
         # Check if running on macOS

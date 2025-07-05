@@ -54,6 +54,8 @@ register_slash_command(CompactCommand())
 # register_slash_command(ContinueCommand())
 register_slash_command(CostCommand())
 register_slash_command(ThemeCommand())
-register_slash_command(MacSetupCommand())
-register_slash_command(ExampleCustomCommand())
+if MacSetupCommand.need_mac_setup():
+    register_slash_command(MacSetupCommand())
+if not ExampleCustomCommand.already_has_custom_command():
+    register_slash_command(ExampleCustomCommand())
 register_slash_command(SaveCustomCommandCommand())

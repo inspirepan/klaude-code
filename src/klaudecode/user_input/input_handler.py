@@ -45,7 +45,7 @@ class UserInputHandler:
                         # Create an attachment for clipboard image with base64 content
                         attachment = Attachment(
                             type='image',
-                            path=f'clipboard_image_{image_id}',
+                            path=f'Image #{image_id}',
                             content=paste_item.content,  # Store as base64
                             media_type='image/png',
                         )

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Literal, Optional
 
 from ..llm import LLMManager
 from ..message import SpecialUserMessageTypeEnum, SystemMessage, UserMessage
-from ..prompt.commands import ANALYZE_FOR_COMMAND_PROMPT, ANALYZE_FOR_COMMAND_SYSTEM_PROMPT, COMACT_SYSTEM_PROMPT, COMPACT_COMMAND, COMPACT_MSG_PREFIX
+from ..prompt.commands import ANALYZE_COMMAND_PATTERN_PROMPT, ANALYZE_COMMAND_PATTERN_SYSTEM_PROMPT, COMACT_SYSTEM_PROMPT, COMPACT_COMMAND, COMPACT_MSG_PREFIX
 from ..tools.command_pattern_result import CommandPatternResultTool
 from ..tui import ColorStyle, console
 from .message_history import MessageHistory
@@ -90,7 +90,7 @@ class SessionOperations:
         non_sys_msgs = [msg for msg in session.messages if msg.role != 'system'].copy()
 
         analyze_message_list = MessageHistory(
-            messages=[SystemMessage(content=ANALYZE_FOR_COMMAND_SYSTEM_PROMPT)] + non_sys_msgs + [UserMessage(content=ANALYZE_FOR_COMMAND_PROMPT)]
+            messages=[SystemMessage(content=ANALYZE_COMMAND_PATTERN_SYSTEM_PROMPT)] + non_sys_msgs + [UserMessage(content=ANALYZE_COMMAND_PATTERN_PROMPT)]
         )
 
         try:
