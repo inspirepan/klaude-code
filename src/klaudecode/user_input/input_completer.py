@@ -109,14 +109,46 @@ class UserInputCompleter(Completer):
         if not self._file_cache:
             return
 
-        # Filter files based on prefix
-        matching_files = list(filter(lambda x: prefix in x and x != '.', self._file_cache))
-        # Sort: directories first, then files
-        matching_files.sort(key=lambda x: (not x.endswith('/'), x))
+        # Filter and score files based on prefix match quality
+        scored_files = []
+        for file_path in self._file_cache:
+            if file_path == '.' or prefix not in file_path:
+                continue
 
-        for file_path in matching_files:
+            filename = file_path.split('/')[-1]
+            score = self._calculate_match_score(filename, file_path, prefix)
+            if score > 0:
+                scored_files.append((score, file_path))
+
+        # Sort by score (higher is better), then by path
+        scored_files.sort(key=lambda x: (-x[0], x[1]))
+
+        for _, file_path in scored_files:
             yield Completion(
                 file_path,
                 start_position=start_position,
                 display=file_path,
             )
+
+    def _calculate_match_score(self, filename, file_path, prefix):
+        """Calculate match score for file completion ranking"""
+        if not prefix:
+            return 1
+
+        # Exact filename match (highest priority)
+        if filename == prefix:
+            return 1000
+
+        # Filename starts with prefix (high priority)
+        if filename.startswith(prefix):
+            return 800
+
+        # Filename contains prefix (medium priority)
+        if prefix in filename:
+            return 600
+
+        # Path contains prefix (lower priority)
+        if prefix in file_path:
+            return 400
+
+        return 0

@@ -12,6 +12,7 @@ from ..utils.str_utils import get_inserted_text
 from .input_completer import UserInputCompleter
 from .input_mode import _INPUT_MODES, NORMAL_MODE_NAME, InputModeCommand
 
+
 class InputSession:
     def __init__(self, workdir: str = None):
         self.current_input_mode: InputModeCommand = _INPUT_MODES[NORMAL_MODE_NAME]
@@ -38,14 +39,12 @@ class InputSession:
             event.app.style = None
         event.app.invalidate()
 
-
-
     def _setup_buffer_handlers(self, buf: Buffer):
         """Setup buffer event handlers including text change detection."""
         previous_text = ''
         timer = None
 
-        def check_for_image_path():
+        def handle_inserted_text():
             nonlocal previous_text
             current_text = buf.text
 
@@ -69,7 +68,7 @@ class InputSession:
                 timer.cancel()
 
             # Schedule a new check after a short delay (50ms)
-            timer = threading.Timer(0.05, check_for_image_path)
+            timer = threading.Timer(0.05, handle_inserted_text)
             timer.start()
 
         # Attach the handler
