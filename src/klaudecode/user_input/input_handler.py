@@ -16,8 +16,44 @@ from .input_mode import _INPUT_MODES, NORMAL_MODE_NAME, NormalMode
 
 
 class UserInputHandler:
-    def __init__(self, agent: 'Agent'):
+    def __init__(self, agent: 'Agent', input_session=None):
         self.agent = agent
+        self.input_session = input_session
+
+    def _parse_image_refs(self, text: str) -> List[Attachment]:
+        """Parse [Image #N] patterns and return image attachments from paste dict."""
+        attachments = []
+        if not self.input_session:
+            return attachments
+
+        pattern = r'\[Image #(\d+)\]'  # Match [Image #N] pattern
+        matches = list(re.finditer(pattern, text))
+
+        for match in matches:
+            image_id = match.group(1)
+            if image_id in self.input_session.paste_dict:
+                paste_item = self.input_session.paste_dict[image_id]
+
+                if paste_item.type == 'file':
+                    # Handle file-based image
+                    result = execute_read(paste_item.path, tracker=self.agent.session.file_tracker)
+                    if result.success:
+                        attachments.append(result)
+                elif paste_item.type == 'clipboard':
+                    # Handle clipboard-based image (base64)
+                    try:
+                        # Create an attachment for clipboard image with base64 content
+                        attachment = Attachment(
+                            type='image',
+                            path=f'clipboard_image_{image_id}',
+                            content=paste_item.content,  # Store as base64
+                            media_type='image/png',
+                        )
+                        attachments.append(attachment)
+                    except Exception:
+                        continue
+
+        return attachments
 
     def _parse_at_files(self, text: str) -> List[Attachment]:
         """Parse @filepath patterns and return file attachments."""
@@ -67,8 +103,14 @@ class UserInputHandler:
         return attachments
 
     async def handle(self, user_input_text: str, print_msg: bool = True) -> bool:
-        # Parse @file references first
-        attachments = self._parse_at_files(user_input_text)
+        # Parse [Image #N] references first
+        image_attachments = self._parse_image_refs(user_input_text)
+
+        # Parse @file references
+        file_attachments = self._parse_at_files(user_input_text)
+
+        # Combine all attachments
+        attachments = image_attachments + file_attachments
 
         command_name, cleaned_input = self._parse_command(user_input_text)
         command = _INPUT_MODES.get(command_name, _SLASH_COMMANDS.get(command_name, NormalMode()))

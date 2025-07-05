@@ -77,9 +77,10 @@ async def main_async(ctx: typer.Context):
             await agent.headless_run(ctx.obj['prompt'])
         else:
             width, _ = shutil.get_terminal_size()
-            show_logo = not (Path.cwd() / '.klaude' / 'sessions').exists() and width >= 49  # MIN LENGTH REQUIRED FOR LOGO
-            console.print(render_hello(show_info=not show_logo))
-            if show_logo:
+            has_session = (Path.cwd() / '.klaude' / 'sessions').exists()
+            auto_show_logo = not has_session
+            console.print(render_hello(show_info=not auto_show_logo))
+            if (auto_show_logo or ctx.obj['logo']) and width >= 49:  # MIN LENGTH REQUIRED FOR LOGO
                 console.print()
                 console.print(render_logo('KLAUDE', ColorStyle.CLAUDE))
                 console.print(render_logo('CODE', ColorStyle.CLAUDE))
@@ -126,6 +127,7 @@ def main(
     extra_header: Optional[str] = typer.Option(None, '--extra-header', help='Override extra header from config (JSON string)'),
     extra_body: Optional[str] = typer.Option(None, '--extra-body', help='Override extra body from config (JSON string)'),
     mcp: bool = typer.Option(False, '--mcp', help='Enable MCP (Model Context Protocol) tools'),
+    logo: bool = typer.Option(False, '--logo', help='Show logo'),
 ):
     ctx.ensure_object(dict)
     if ctx.invoked_subcommand is None:
@@ -150,6 +152,7 @@ def main(
         ctx.obj['continue_latest'] = continue_latest
         ctx.obj['mcp'] = mcp
         ctx.obj['config'] = config_model
+        ctx.obj['logo'] = logo
         asyncio.run(main_async(ctx))
 
 

@@ -61,7 +61,7 @@ class Agent(TaskToolMixin, Tool):
 
         # User Input
         self.input_session = InputSession(session.work_dir)
-        self.user_input_handler = UserInputHandler(self)
+        self.user_input_handler = UserInputHandler(self, self.input_session)
         # Initialize custom commands
         try:
             custom_command_manager.discover_and_register_commands(session.work_dir)

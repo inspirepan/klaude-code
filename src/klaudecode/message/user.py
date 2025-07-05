@@ -91,7 +91,7 @@ class UserMessage(BasicMessage):
                 if attachment.type == 'directory':
                     attachment_text = Text.assemble('Listed directory ', (display_path, 'bold'))
                 elif attachment.type == 'image':
-                    attachment_text = Text.assemble('Read image ', (display_path, 'bold'), f' ({attachment.size_str})')
+                    attachment_text = Text.assemble('Read image ', (display_path, 'bold'), f' ({attachment.size_str})' if attachment.size_str else '')
                 else:
                     attachment_text = Text.assemble('Read ', (display_path, 'bold'), f' ({attachment.line_count} lines)')
                 yield render_suffix(attachment_text)

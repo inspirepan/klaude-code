@@ -1,6 +1,9 @@
+import base64
 import threading
 from pathlib import Path
+from typing import Dict
 
+import pyperclip
 from prompt_toolkit import PromptSession
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.history import FileHistory
@@ -13,16 +16,29 @@ from .input_completer import UserInputCompleter
 from .input_mode import _INPUT_MODES, NORMAL_MODE_NAME, InputModeCommand
 
 
+class PasteItem:
+    def __init__(self, type: str, path: str = None, content: str = None):
+        self.type = type
+        self.path = path
+        self.content = content
+
+
 class InputSession:
     def __init__(self, workdir: str = None):
         self.current_input_mode: InputModeCommand = _INPUT_MODES[NORMAL_MODE_NAME]
         self.workdir = Path(workdir) if workdir else Path.cwd()
+        self.paste_dict: Dict[str, PasteItem] = {}
+        self.paste_counter = 0
 
         history_file = self.workdir / '.klaude' / 'input_history.txt'
         if not history_file.exists():
             history_file.parent.mkdir(parents=True, exist_ok=True)
             history_file.touch()
         self.history = FileHistory(str(history_file))
+
+    def _get_next_image_id(self) -> str:
+        self.paste_counter += 1
+        return str(self.paste_counter)
 
     def _dyn_prompt(self):
         return self.current_input_mode.get_prompt()
@@ -54,8 +70,12 @@ class InputSession:
                 inserted_text = get_inserted_text(previous_text, current_text)
                 # Check if inserted text is an image path
                 if inserted_text and is_image_path(inserted_text):
-                    # Replace the inserted text with [Image: @{filepath}] format
-                    new_text = f'[ Image: @{inserted_text.strip()} ]'
+                    # Generate next image ID and store in paste dict
+                    image_id = self._get_next_image_id()
+                    self.paste_dict[image_id] = PasteItem(type='file', path=inserted_text.strip())
+
+                    # Replace the inserted text with [Image #N] format
+                    new_text = f'[Image #{image_id}]'
                     buf.text = current_text.replace(inserted_text, new_text)
                     buf.cursor_position = len(buf.text)
 
@@ -114,6 +134,47 @@ class InputSession:
             """Clear the entire buffer with ctrl+u (Unix standard)"""
             buf.text = ''
             buf.cursor_position = 0
+
+        @kb.add('c-v')
+        def _(event):
+            """Handle Ctrl+V paste with image detection"""
+            try:
+                # Try to get image from clipboard first
+                from PIL import ImageGrab
+
+                clipboard_image = ImageGrab.grabclipboard()
+
+                if clipboard_image is not None:
+                    # Convert image to base64
+                    import io
+
+                    img_buffer = io.BytesIO()
+                    clipboard_image.save(img_buffer, format='PNG')
+                    img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+
+                    # Generate next image ID and store in paste dict
+                    image_id = self._get_next_image_id()
+                    self.paste_dict[image_id] = PasteItem(type='clipboard', content=img_base64)
+
+                    # Insert the image reference
+                    image_text = f'[Image #{image_id}]'
+                    buf.insert_text(image_text)
+                else:
+                    # Fall back to regular text paste
+                    try:
+                        text = pyperclip.paste()
+                        if text:
+                            buf.insert_text(text)
+                    except Exception:
+                        pass
+            except Exception:
+                # If image grabbing fails, try regular text paste
+                try:
+                    text = pyperclip.paste()
+                    if text:
+                        buf.insert_text(text)
+                except Exception:
+                    pass
 
         @kb.add('enter')
         def _(event):
