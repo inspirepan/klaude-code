@@ -1,3 +1,4 @@
+import threading
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
@@ -6,9 +7,10 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 
 from ..tui import console
+from ..utils.file_utils import is_image_path
+from ..utils.str_utils import get_inserted_text
 from .input_completer import UserInputCompleter
 from .input_mode import _INPUT_MODES, NORMAL_MODE_NAME, InputModeCommand
-
 
 class InputSession:
     def __init__(self, workdir: str = None):
@@ -35,6 +37,43 @@ class InputSession:
         else:
             event.app.style = None
         event.app.invalidate()
+
+
+
+    def _setup_buffer_handlers(self, buf: Buffer):
+        """Setup buffer event handlers including text change detection."""
+        previous_text = ''
+        timer = None
+
+        def check_for_image_path():
+            nonlocal previous_text
+            current_text = buf.text
+
+            # Check if text was inserted (not deleted)
+            if len(current_text) > len(previous_text):
+                # Get the newly inserted text
+                inserted_text = get_inserted_text(previous_text, current_text)
+                # Check if inserted text is an image path
+                if inserted_text and is_image_path(inserted_text):
+                    # Replace the inserted text with [Image: @{filepath}] format
+                    new_text = f'[ Image: @{inserted_text.strip()} ]'
+                    buf.text = current_text.replace(inserted_text, new_text)
+                    buf.cursor_position = len(buf.text)
+
+            previous_text = buf.text
+
+        def on_text_changed(_):
+            nonlocal timer
+            # Cancel any pending timer
+            if timer:
+                timer.cancel()
+
+            # Schedule a new check after a short delay (50ms)
+            timer = threading.Timer(0.05, check_for_image_path)
+            timer.start()
+
+        # Attach the handler
+        buf.on_text_changed += on_text_changed
 
     def _setup_key_bindings(self, buf: Buffer, kb: KeyBindings):
         for mode in _INPUT_MODES.values():
@@ -100,6 +139,7 @@ class InputSession:
             style=self.current_input_mode.get_style(),
         )
         self._setup_key_bindings(session.default_buffer, kb)
+        self._setup_buffer_handlers(session.default_buffer)
         return session
 
     def _switch_to_next_input_mode(self):

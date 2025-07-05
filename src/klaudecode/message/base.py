@@ -39,15 +39,18 @@ class Attachment(BaseModel):
 
     def get_content(self):
         if self.type == 'image':
-            return {'type': 'image', 'source': {'type': 'base64', 'data': self.content, 'media_type': self.media_type}}
+            return [
+                {'type': 'text', 'text': f'Following is the image from file: {self.path}, you DO NOT need to call Read tool again.'},
+                {'type': 'image', 'source': {'type': 'base64', 'data': self.content, 'media_type': self.media_type}},
+            ]
         elif self.type == 'directory':
             attachment_text = f'''Called the LS tool with the following input: {{"path":"{self.path}"}}
 Result of calling the LS tool: "{self.content}"'''
-            return {'type': 'text', 'text': attachment_text}
+            return [{'type': 'text', 'text': attachment_text}]
         else:
             attachment_text = f'''Called the Read tool with the following input: {{"file_path":"{self.path}"}}
 Result of calling the Read tool: "{self.content}"'''
-            return {'type': 'text', 'text': attachment_text}
+            return [{'type': 'text', 'text': attachment_text}]
 
 
 class BasicMessage(BaseModel):

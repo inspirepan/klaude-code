@@ -46,7 +46,7 @@ class ToolMessage(BasicMessage):
         # Add attachments as separate content items
         if self.attachments:
             for attachment in self.attachments:
-                content_list.append(attachment.get_content())
+                content_list.extend(attachment.get_content())
 
         if self.system_reminders:
             for reminder in self.system_reminders:

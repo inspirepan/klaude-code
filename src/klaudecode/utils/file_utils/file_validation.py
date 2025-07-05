@@ -9,6 +9,23 @@ FILE_NOT_A_FILE_ERROR_MSG = 'EISDIR: illegal operation on a directory.'
 EDIT_OLD_STRING_NEW_STRING_IDENTICAL_ERROR_MSG = 'No changes to make: old_string and new_string are exactly the same.'
 
 
+IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg'}
+
+
+def is_image_path(text: str) -> bool:
+    """Check if text is a valid image file path."""
+    try:
+        path = Path(text.strip())
+        # Check if it's a valid path and has image extension
+        if path.suffix.lower() in IMAGE_EXTENSIONS:
+            # Check if file exists
+            if path.exists() and path.is_file():
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def validate_file_exists(file_path: str) -> Tuple[bool, str]:
     """Validate that file exists and is a regular file.
 

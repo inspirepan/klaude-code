@@ -1,5 +1,5 @@
 from .assistant import AgentUsage, AIMessage, CompletionUsage
-from .base import BasicMessage, Attachment, count_tokens
+from .base import Attachment, BasicMessage, count_tokens
 from .registry import register_tool_call_renderer, register_tool_result_renderer, register_user_msg_content_func, register_user_msg_renderer, register_user_msg_suffix_renderer
 from .system import SystemMessage
 from .tool_call import ToolCall

@@ -10,7 +10,7 @@ from ..message import Attachment, ToolCall, ToolMessage, count_tokens, register_
 from ..prompt.tools import READ_TOOL_DESC, READ_TOOL_EMPTY_REMINDER, READ_TOOL_RESULT_REMINDER
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, render_grid, render_suffix
-from ..utils.file_utils import FileTracker, get_relative_path_for_display, read_file_content, read_file_lines_partial, validate_file_exists
+from ..utils.file_utils import FileTracker, get_relative_path_for_display, is_image_path, read_file_content, read_file_lines_partial, validate_file_exists
 from ..utils.str_utils import normalize_tabs
 
 """
@@ -30,8 +30,6 @@ READ_TOKEN_LIMIT_ERROR_MSG = 'File content ({tokens} tokens) exceeds maximum all
 
 READ_MAX_IMAGE_SIZE_KB = 2048
 READ_IMAGE_SIZE_LIMIT_ERROR_MSG = 'Image ({size:.1f}KB) exceeds maximum allowed size ({max_size}KB).'
-# Image file extensions
-IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg'}
 
 
 class ReadResult(Attachment):
@@ -67,12 +65,6 @@ def truncate_content(numbered_lines, line_limit: int, line_char_limit: int):
         truncated_lines.append((line_num, processed_line_content))
 
     return truncated_lines, 0
-
-
-def is_image_file(file_path: str) -> bool:
-    """Check if the file is an image based on its extension."""
-    path = Path(file_path)
-    return path.suffix.lower() in IMAGE_EXTENSIONS
 
 
 def read_image_as_base64(file_path: str) -> tuple[str, str]:
@@ -151,7 +143,7 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
         return result
 
     # Check if file is an image
-    if is_image_file(file_path):
+    if is_image_path(file_path):
         return execute_read_image(file_path)
 
     # Check file size limit only when no offset/limit is provided (reading entire file)

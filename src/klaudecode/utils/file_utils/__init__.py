@@ -32,6 +32,7 @@ from .file_validation import (
     FILE_NOT_READ_ERROR_MSG,
     ensure_directory_exists,
     validate_file_exists,
+    is_image_path,
 )
 
 # Re-export all functionality for backward compatibility
@@ -68,6 +69,7 @@ __all__ = [
     # Functions - Validation
     'validate_file_exists',
     'ensure_directory_exists',
+    'is_image_path',
     # Functions - Diff operations
     'generate_diff_lines',
     'generate_snippet_from_diff',

@@ -43,8 +43,11 @@ class UserInputHandler:
                     # If resolution fails, skip this @file reference
                     continue
 
+            if not Path(abs_path).exists():
+                continue
+
             # Check if it's a directory (ends with / or is an existing directory)
-            is_directory = file_path.endswith('/') or (Path(abs_path).exists() and Path(abs_path).is_dir())
+            is_directory = file_path.endswith('/') or Path(abs_path).is_dir()
 
             if is_directory:
                 # Handle directory
@@ -58,7 +61,7 @@ class UserInputHandler:
                     continue
             else:
                 # Handle file
-                result = execute_read(abs_path)
+                result = execute_read(abs_path, tracker=self.agent.session.file_tracker)
                 if result.success:
                     attachments.append(result)
         return attachments

@@ -52,3 +52,35 @@ def format_relative_time(timestamp):
 
 def normalize_tabs(text: str, tab_size: int = 4) -> str:
     return text.replace('\t', ' ' * tab_size)
+
+
+def get_inserted_text(old_text: str, new_text: str) -> str:
+    """Get the inserted text from old_text to new_text.
+
+    Compare two strings to find the inserted part. Supports insertion in the middle of strings.
+
+    Args:
+        old_text: Original text
+        new_text: New text
+
+    Returns:
+        The inserted text part
+    """
+    if len(new_text) <= len(old_text):
+        return ''
+
+    prefix_len = 0
+    for i in range(min(len(old_text), len(new_text))):
+        if old_text[i] == new_text[i]:
+            prefix_len += 1
+        else:
+            break
+
+    suffix_len = 0
+    for i in range(1, min(len(old_text) - prefix_len, len(new_text) - prefix_len) + 1):
+        if old_text[-i] == new_text[-i]:
+            suffix_len += 1
+        else:
+            break
+
+    return new_text[prefix_len : len(new_text) - suffix_len]
