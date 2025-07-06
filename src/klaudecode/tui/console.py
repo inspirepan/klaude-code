@@ -10,7 +10,6 @@ class ConsoleProxy:
 
     def set_theme(self, theme_name: str):
         if theme_name == 'dark':
-            print('set dark theme')
             self.console = Console(theme=dark_theme, style=ColorStyle.MAIN)
         else:
             self.console = Console(theme=light_theme, style=ColorStyle.MAIN)
