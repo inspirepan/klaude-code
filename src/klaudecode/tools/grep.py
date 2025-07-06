@@ -2,7 +2,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 from pydantic import BaseModel, Field
 from rich.text import Text
@@ -33,7 +33,7 @@ class GrepTool(Tool):
     class Input(BaseModel):
         pattern: Annotated[str, Field(description='The regular expression pattern to search for in file contents')]
         path: Annotated[str, Field(description='The directory to search in. Defaults to the current working directory.')] = '.'
-        include: Annotated[Optional[str], Field(description='File pattern to include in the search (e.g. "*.js", "*.{ts,tsx}")')] = None
+        include: Annotated[str, Field(description='File pattern to include in the search (e.g. "*.js", "*.{ts,tsx}")')] = ''
 
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
@@ -60,11 +60,11 @@ class GrepTool(Tool):
             instance.tool_result().set_error_msg(f'Search failed: {str(e)}')
 
     @classmethod
-    def _validate_regex(cls, pattern: str) -> Optional[str]:
+    def _validate_regex(cls, pattern: str) -> str:
         """Validate regex pattern and return error message if invalid"""
         try:
             re.compile(pattern)
-            return None
+            return ''
         except re.error as e:
             return f'Invalid regex pattern: {str(e)}'
 
@@ -74,7 +74,7 @@ class GrepTool(Tool):
         return shutil.which('rg') is not None
 
     @classmethod
-    def _build_ripgrep_command(cls, pattern: str, path: str, include_pattern: Optional[str] = None) -> list[str]:
+    def _build_ripgrep_command(cls, pattern: str, path: str, include_pattern: str = '') -> list[str]:
         """Build ripgrep command with optimized arguments"""
         args = [
             'rg',
@@ -101,7 +101,7 @@ class GrepTool(Tool):
         return args
 
     @classmethod
-    def _build_grep_command(cls, pattern: str, path: str, include_pattern: Optional[str] = None) -> list[str]:
+    def _build_grep_command(cls, pattern: str, path: str, include_pattern: str = '') -> list[str]:
         """Build standard grep command as fallback"""
         args = ['grep', '-rn']  # recursive, line numbers
 
@@ -125,7 +125,7 @@ class GrepTool(Tool):
             return '', f'Command execution failed: {str(e)}', 1
 
     @classmethod
-    def _execute_search(cls, pattern: str, path: str, include_pattern: Optional[str] = None) -> tuple[str, int, bool]:
+    def _execute_search(cls, pattern: str, path: str, include_pattern: str = '') -> tuple[str, int, bool]:
         """Execute search and return formatted results with truncation info"""
         # Choose search tool
         use_ripgrep = cls._has_ripgrep()
@@ -192,7 +192,7 @@ class GrepTool(Tool):
         return '\n'.join(result_lines), match_count, truncated
 
     @classmethod
-    def _get_refinement_suggestion(cls, pattern: str, path: str, include_pattern: Optional[str], total_matches: int) -> str:
+    def _get_refinement_suggestion(cls, pattern: str, path: str, include_pattern: str, total_matches: int) -> str:
         """Generate suggestion for refining search pattern"""
         suggestions = []
 

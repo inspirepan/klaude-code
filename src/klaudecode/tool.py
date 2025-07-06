@@ -82,6 +82,7 @@ class Tool(ABC):
         desc_tokens = count_tokens(cls.get_desc())
 
         # Convert parameters to JSON string and count tokens
+        # TODO: calc cache
         params = cls.get_parameters()
         params_text = json.dumps(params, ensure_ascii=False)
         params_tokens = count_tokens(params_text)
@@ -98,7 +99,6 @@ class Tool(ABC):
             'properties': cls._resolve_refs_in_object(schema.get('properties', {}), defs),
             'required': schema.get('required', []),
             'additionalProperties': False,
-            '$schema': 'http://json-schema.org/draft-07/schema#',
         }
 
         return result

@@ -1,7 +1,7 @@
 import base64
 import mimetypes
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 from pydantic import BaseModel, Field
 from rich.text import Text
@@ -34,7 +34,7 @@ READ_IMAGE_SIZE_LIMIT_ERROR_MSG = 'Image ({size:.1f}KB) exceeds maximum allowed 
 
 class ReadResult(Attachment):
     success: bool = True
-    error_msg: Optional[str] = None
+    error_msg: str = ''
 
 
 def truncate_content(numbered_lines, line_limit: int, line_char_limit: int):
@@ -130,7 +130,7 @@ def execute_read_image(file_path: str) -> ReadResult:
         return result
 
 
-def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[int] = None, tracker: FileTracker = None) -> ReadResult:
+def execute_read(file_path: str, offset: int = 0, limit: int = 0, tracker: FileTracker = None) -> ReadResult:
     result = ReadResult(path=file_path)
 
     # Validate file exists
@@ -147,7 +147,7 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
         return execute_read_image(file_path)
 
     # Check file size limit only when no offset/limit is provided (reading entire file)
-    if offset is None and limit is None:
+    if offset == 0 and limit == 0:
         try:
             file_size = Path(file_path).stat().st_size
             max_size_bytes = READ_MAX_FILE_SIZE_KB * 1024
@@ -162,8 +162,8 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
             return result
 
     # Read file content - use partial reading if offset/limit provided
-    if offset is not None or limit is not None:
-        lines, warning = read_file_lines_partial(file_path, offset, limit)
+    if offset > 0 or limit > 0:
+        lines, warning = read_file_lines_partial(file_path, offset if offset > 0 else None, limit if limit > 0 else None)
         if not lines and warning:
             result.success = False
             result.error_msg = warning
@@ -186,9 +186,9 @@ def execute_read(file_path: str, offset: Optional[int] = None, limit: Optional[i
         return result
 
     # Build list of (line_number, content) tuples
-    if offset is not None or limit is not None:
+    if offset > 0 or limit > 0:
         # For partial reads, we already have the lines we need
-        start_line_num = offset if offset is not None else 1
+        start_line_num = offset if offset > 0 else 1
         numbered_lines = [(start_line_num + i, line) for i, line in enumerate(lines)]
     else:
         # For full file reads, handle offset/limit on the loaded content
@@ -240,8 +240,8 @@ class ReadTool(Tool):
 
     class Input(BaseModel):
         file_path: Annotated[str, Field(description='The absolute path to the file to read')]
-        offset: Annotated[Optional[int], Field(description='The line number to start reading from. Only provide if the file is too large to read at once')] = None
-        limit: Annotated[Optional[int], Field(description='The number of lines to read. Only provide if the file is too large to read at once.')] = None
+        offset: Annotated[int, Field(description='The line number to start reading from. Only provide if the file is too large to read at once')] = 0
+        limit: Annotated[int, Field(description='The number of lines to read. Only provide if the file is too large to read at once.')] = 0
 
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
@@ -271,9 +271,9 @@ def render_read_args(tool_call: ToolCall, is_suffix: bool = False):
     offset = tool_call.tool_args_dict.get('offset', 0)
     limit = tool_call.tool_args_dict.get('limit', 0)
     line_range = ''
-    if offset and limit:
+    if offset > 0 and limit > 0:
         line_range = f' {offset}-{offset + limit - 1}'
-    elif offset:
+    elif offset > 0:
         line_range = f' {offset}-'
 
     # Convert absolute path to relative path

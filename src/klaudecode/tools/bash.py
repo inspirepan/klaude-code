@@ -5,7 +5,7 @@ import signal
 import subprocess
 import sys
 import time
-from typing import Annotated, Callable, Optional, Set
+from typing import Annotated, Callable, Set
 
 from pydantic import BaseModel, Field
 from rich.console import Group
@@ -35,15 +35,12 @@ class BashTool(Tool):
     class Input(BaseModel):
         command: Annotated[str, Field(description='The command to execute')]
         description: Annotated[
-            Optional[str],
+            str,
             Field(
                 description="Clear, concise description of what this command does in 5-10 words. Examples: Input: ls Output: Lists files in current directory Input: git status Output: Shows working tree status Input: npm install Output: Installs package dependencies Input: mkdir foo Output: Creates directory 'foo'"
             ),
-        ] = None
-        timeout: Annotated[
-            Optional[int],
-            Field(description='Optional timeout in milliseconds (max 600000)'),
-        ] = None
+        ] = ''
+        timeout: Annotated[int, Field(description='Optional timeout in milliseconds (max 600000)')] = 0
 
     # Dangerous commands that should be blocked
     DANGEROUS_COMMANDS: Set[str] = {
@@ -100,7 +97,7 @@ class BashTool(Tool):
             instance.tool_result().append_post_system_reminder(validation_msg)
 
         # Set timeout
-        timeout_ms = args.timeout or cls.DEFAULT_TIMEOUT
+        timeout_ms = args.timeout if args.timeout > 0 else cls.DEFAULT_TIMEOUT
         if timeout_ms > cls.MAX_TIMEOUT:
             timeout_ms = cls.MAX_TIMEOUT
         timeout_seconds = timeout_ms / 1000.0

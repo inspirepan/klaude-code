@@ -1,4 +1,4 @@
-from typing import Annotated, List, Optional
+from typing import Annotated, List
 
 from pydantic import BaseModel, Field
 from rich.text import Text
@@ -24,7 +24,7 @@ class LsTool(Tool):
 
     class Input(BaseModel):
         path: Annotated[str, Field(description='The absolute path to the directory to list (must be absolute, not relative)')]
-        ignore: Annotated[Optional[List[str]], Field(description='List of glob patterns to ignore')] = None
+        ignore: Annotated[List[str], Field(description='List of glob patterns to ignore')] = []
 
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
