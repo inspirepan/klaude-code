@@ -60,7 +60,6 @@ class MessageHistory(BaseModel):
     def print_all_message(self):
         from ..tui import console
 
-        console.print()
         for msg in self.messages:
             if msg.role == 'system':
                 continue
