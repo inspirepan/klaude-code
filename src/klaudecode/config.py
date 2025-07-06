@@ -6,12 +6,12 @@ from typing import Dict, Generic, List, Optional, TypeVar, Union
 
 from pydantic import BaseModel
 from rich import box
-from rich.console import Group
+from rich.console import Group, Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from .tui import ColorStyle, console
+from .tui import ColorStyle, console, render_grid
 from .utils.exception import format_exception
 
 
@@ -370,14 +370,16 @@ class ConfigManager:
     def _validate_api_key(self):
         """Validate that API key is provided and not from default source"""
         api_key_config = self._merged_config_model.api_key
-
         if not api_key_config or not api_key_config.value or api_key_config.source == 'default':
-            console.print(Text('Error: API key not set', style=ColorStyle.ERROR))
-            console.print('Please set your API key using one of the following methods:')
-            console.print('  1. Command line: --api-key YOUR_API_KEY')
-            console.print('  2. Environment: export API_KEY=YOUR_API_KEY')
-            console.print("  3. Config file: Run 'klaude config edit' to init & set it")
-            raise ValueError('API key not set')
+            console.print(Text('Error: API key not set', style='red bold'))
+            console.print()
+            console.print(Text('Please set your API key using one of the following methods:'))
+            console.print(Text('- Command line: --api-key YOUR_API_KEY'))
+            console.print(Text('- Environment: export API_KEY=YOUR_API_KEY'))
+            console.print(Text("- Config file: Run 'klaude config edit' to configure"))
+            import sys
+
+            sys.exit(1)
 
     def get_config_model(self) -> ConfigModel:
         """Get merged configuration model from all sources"""

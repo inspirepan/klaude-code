@@ -80,7 +80,7 @@ light_theme = Theme(
         ColorStyle.WARNING: 'rgb(143,110,44)',
         ColorStyle.INFO: 'rgb(62,99,153)',
         ColorStyle.HIGHLIGHT: 'rgb(0,3,3)',
-        ColorStyle.MAIN: 'rgb(102,102,102)',
+        ColorStyle.MAIN: 'bright_black',
         ColorStyle.MUTED: 'rgb(136,139,139)',
         ColorStyle.SEPARATOR: 'rgb(200,200,200)',
         # Todo
@@ -120,7 +120,7 @@ dark_theme = Theme(
         ColorStyle.WARNING: 'rgb(143,110,44)',
         ColorStyle.INFO: 'rgb(180,204,245)',
         ColorStyle.HIGHLIGHT: 'rgb(255,255,255)',
-        ColorStyle.MAIN: 'rgb(210,210,210)',
+        ColorStyle.MAIN: 'bright_black',
         ColorStyle.MUTED: 'rgb(151,153,153)',
         ColorStyle.SEPARATOR: 'rgb(50,50,50)',
         # Todo

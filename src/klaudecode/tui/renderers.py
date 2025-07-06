@@ -54,7 +54,7 @@ def render_grid(item: List[List[Union[str, RichRenderable]]], padding: Tuple[int
     if not item:
         return ''
     column_count = len(item[0])
-    grid = Table.grid(padding=padding, expand=True)
+    grid = Table.grid(padding=padding)
     for _ in range(column_count):
         grid.add_column(overflow='fold')
     for row in item:
