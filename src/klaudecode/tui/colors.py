@@ -75,8 +75,8 @@ light_theme = Theme(
         ColorStyle.AI_THINKING: 'rgb(136,139,139)',
         ColorStyle.CLAUDE: 'rgb(214,119,86)',
         # Status indicators
-        ColorStyle.ERROR: 'rgb(158,57,66)',
-        ColorStyle.SUCCESS: 'rgb(65,120,64)',
+        ColorStyle.ERROR: 'red',
+        ColorStyle.SUCCESS: 'green',
         ColorStyle.WARNING: 'rgb(143,110,44)',
         ColorStyle.INFO: 'rgb(62,99,153)',
         ColorStyle.HIGHLIGHT: 'rgb(0,3,3)',
@@ -115,8 +115,8 @@ dark_theme = Theme(
         ColorStyle.AI_THINKING: 'rgb(151,153,153)',
         ColorStyle.CLAUDE: 'rgb(214,119,86)',
         # Status indicators
-        ColorStyle.ERROR: 'rgb(237,118,129)',
-        ColorStyle.SUCCESS: 'rgb(107,184,109)',
+        ColorStyle.ERROR: 'red',
+        ColorStyle.SUCCESS: 'green',
         ColorStyle.WARNING: 'rgb(143,110,44)',
         ColorStyle.INFO: 'rgb(180,204,245)',
         ColorStyle.HIGHLIGHT: 'rgb(255,255,255)',

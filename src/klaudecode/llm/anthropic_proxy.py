@@ -4,7 +4,7 @@ from typing import AsyncGenerator, List, Literal, Optional, Tuple
 import anthropic
 from anthropic.types import MessageParam, RawMessageStreamEvent, StopReason, TextBlockParam
 
-from ..message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, count_tokens
+from ..message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, UserMessage, count_tokens
 from ..tool import Tool
 from .llm_proxy_base import LLMProxyBase
 from .stream_status import StreamStatus
@@ -13,6 +13,20 @@ TEMPERATURE = 1
 
 
 class AnthropicProxy(LLMProxyBase):
+    def get_think_budget(self, msgs: List[BasicMessage]) -> int:
+        """Determine think budget based on user message keywords"""
+        budget = 2000
+        if msgs and isinstance(msgs[-1], UserMessage):
+            content = msgs[-1].content.lower()
+            if any(keyword in content for keyword in ['think harder', 'think intensely', 'think longer', 'think really hard', 'think super hard', 'think very hard', 'ultrathink']):
+                budget = 31999
+            elif any(keyword in content for keyword in ['think about it', 'think a lot', 'think deeply', 'think hard', 'think more', 'megathink']):
+                budget = 10000
+            elif 'think' in content:
+                budget = 4000
+        budget = min(self.max_tokens - 1000, budget)
+        return budget
+
     def __init__(
         self,
         model_name: str,
@@ -36,6 +50,8 @@ class AnthropicProxy(LLMProxyBase):
         yield (stream_status, AIMessage(content=''))
 
         system_msgs, other_msgs = self.convert_to_anthropic(msgs)
+        budget_tokens = self.get_think_budget(msgs)
+
         try:
             self._current_request_task = asyncio.create_task(
                 self.client.messages.create(
@@ -43,7 +59,7 @@ class AnthropicProxy(LLMProxyBase):
                     max_tokens=self.max_tokens,
                     thinking={
                         'type': 'enabled' if self.enable_thinking else 'disabled',
-                        'budget_tokens': 2000,
+                        'budget_tokens': budget_tokens,
                     },
                     tools=[tool.anthropic_schema() for tool in tools] if tools else None,
                     messages=other_msgs,
