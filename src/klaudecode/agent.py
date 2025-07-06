@@ -35,7 +35,7 @@ class Agent(TaskToolMixin, Tool):
         self,
         session: Session,
         config: Optional[ConfigModel] = None,
-        availiable_tools: Optional[List[Tool]] = None,
+        available_tools: Optional[List[Tool]] = None,
         print_switch: bool = True,
         enable_plan_mode_reminder: bool = True,
     ):
@@ -49,9 +49,11 @@ class Agent(TaskToolMixin, Tool):
         self.plan_mode_activated: bool = False
 
         # Tools
-        self.availiable_tools = availiable_tools
-        self.tool_handler = ToolHandler(self, self.availiable_tools or [], show_live=print_switch)
+        self.available_tools = available_tools
+        self.tool_handler = ToolHandler(self, self.available_tools or [], show_live=print_switch)
         self.mcp_manager: Optional[MCPManager] = None
+        self._cached_all_tools: Optional[List[Tool]] = None
+        self._tools_cache_dirty: bool = True
 
         # Usage tracking
         self.usage = AgentUsage()
@@ -100,54 +102,83 @@ class Agent(TaskToolMixin, Tool):
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, check_cancel: Callable[[], bool] = None, tools: Optional[List[Tool]] = None):
         try:
-            usage_token_count = 0
-            for _ in range(max_steps):
-                # Check if task was canceled (for subagent execution)
-                if check_cancel and check_cancel():
-                    return INTERRUPTED_MSG
-
-                # Check token count and compact if necessary
-                await self._auto_compact_conversation(tools, usage_token_count)
-
-                if self.enable_plan_mode_reminder:
-                    self._handle_plan_mode_reminder()
-                self._handle_file_external_modified_reminder()
-
-                self.session.save()
-
-                ai_msg = await self.llm_manager.call(
-                    msgs=self.session.messages,
-                    tools=tools,
-                    show_status=self.print_switch,
-                )
-                ai_msg: AIMessage
-                if ai_msg.usage:
-                    usage_token_count = (ai_msg.usage.prompt_tokens or 0) + (ai_msg.usage.completion_tokens or 0)
-                self.usage.update(ai_msg)
-                self.session.append_message(ai_msg)
-                if ai_msg.finish_reason == 'stop':
-                    # Cannot directly use this AI response's content as result,
-                    # because Claude might execute a tool call (e.g. TodoWrite) at the end and return empty content
-                    last_ai_msg = self.session.messages.get_last_message(role='assistant', filter_empty=True)
-                    self.session.save()
-                    return last_ai_msg.content if last_ai_msg else ''
-                if ai_msg.finish_reason == 'tool_calls' and len(ai_msg.tool_calls) > 0:
-                    if not await self._handle_exit_plan_mode(ai_msg.tool_calls):
-                        return 'Plan mode maintained, awaiting further instructions.'
-                    # Update tool handler with MCP tools
-                    self._update_tool_handler_tools(tools)
-                    await self.tool_handler.handle(ai_msg)
-
+            return await self._execute_run_loop(max_steps, check_cancel, tools)
         except (OpenAIError, AnthropicError) as e:
-            console.print(render_suffix(f'LLM error: {format_exception(e)}', style=ColorStyle.ERROR))
-            return f'LLM error: {format_exception(e)}'
+            return self._handle_llm_error(e)
         except (KeyboardInterrupt, asyncio.CancelledError):
-            # Clear any live displays before handling interruption
             return self._handle_interruption()
         except Exception as e:
-            traceback.print_exc()
-            console.print(render_suffix(f'Error: {format_exception(e)}', style=ColorStyle.ERROR))
-            return f'Error: {format_exception(e)}'
+            return self._handle_general_error(e)
+
+    async def _execute_run_loop(self, max_steps: int, check_cancel: Callable[[], bool], tools: Optional[List[Tool]]):
+        usage_token_count = 0
+        for _ in range(max_steps):
+            if check_cancel and check_cancel():
+                return INTERRUPTED_MSG
+
+            await self._prepare_iteration(tools, usage_token_count)
+
+            ai_msg, usage_token_count = await self._process_llm_call(tools)
+
+            result = await self._handle_ai_response(ai_msg, tools)
+            if result is not None:
+                return result
+
+        return self._handle_max_steps_reached(max_steps)
+
+    async def _prepare_iteration(self, tools: Optional[List[Tool]], usage_token_count: int):
+        await self._auto_compact_conversation(tools, usage_token_count)
+
+        if self.enable_plan_mode_reminder:
+            self._handle_plan_mode_reminder()
+
+        self._handle_file_external_modified_reminder()
+
+        self.session.save()
+
+    async def _process_llm_call(self, tools: Optional[List[Tool]]):
+        ai_msg = await self.llm_manager.call(
+            msgs=self.session.messages,
+            tools=tools,
+            show_status=self.print_switch,
+        )
+
+        usage_token_count = 0
+        if ai_msg.usage:
+            usage_token_count = (ai_msg.usage.prompt_tokens or 0) + (ai_msg.usage.completion_tokens or 0)
+
+        self.usage.update(ai_msg)
+        self.session.append_message(ai_msg)
+
+        return ai_msg, usage_token_count
+
+    async def _handle_ai_response(self, ai_msg: AIMessage, tools: Optional[List[Tool]]):
+        if ai_msg.finish_reason == 'stop':
+            last_ai_msg = self.session.messages.get_last_message(role='assistant', filter_empty=True)
+            self.session.save()
+            return last_ai_msg.content if last_ai_msg else ''
+
+        if ai_msg.finish_reason == 'tool_calls' and len(ai_msg.tool_calls) > 0:
+            if not await self._handle_exit_plan_mode(ai_msg.tool_calls):
+                return 'Plan mode maintained, awaiting further instructions.'
+
+            self._update_tool_handler_tools(tools)
+            await self.tool_handler.handle(ai_msg)
+
+        return None
+
+    def _handle_llm_error(self, e: Exception):
+        error_msg = f'LLM error: {format_exception(e)}'
+        console.print(render_suffix(error_msg, style=ColorStyle.ERROR))
+        return error_msg
+
+    def _handle_general_error(self, e: Exception):
+        traceback.print_exc()
+        error_msg = f'Error: {format_exception(e)}'
+        console.print(render_suffix(error_msg, style=ColorStyle.ERROR))
+        return error_msg
+
+    def _handle_max_steps_reached(self, max_steps: int):
         max_step_msg = f'Max steps {max_steps} reached'
         if self.print_switch:
             console.print(render_message(max_step_msg, mark_style=ColorStyle.INFO))
@@ -160,7 +191,7 @@ class Agent(TaskToolMixin, Tool):
             last_user_msg.append_pre_system_reminder(reminder)
 
     def _handle_empty_todo_reminder(self):
-        if TodoWriteTool in self.availiable_tools:
+        if TodoWriteTool in self.available_tools:
             last_msg = self.session.messages.get_last_message(filter_empty=True)
             if last_msg and isinstance(last_msg, (UserMessage, ToolMessage)):
                 last_msg.append_post_system_reminder(EMPTY_TODO_REMINDER)
@@ -244,12 +275,11 @@ class Agent(TaskToolMixin, Tool):
         if usage_token_count > 0:
             total_tokens = usage_token_count
         else:
-            messages_tokens = sum(msg.tokens for msg in self.session.messages if msg)
+            total_tokens = sum(msg.tokens for msg in self.session.messages if msg)
             if tools:
-                tools_tokens = sum(tool.tokens() for tool in tools)
+                total_tokens += sum(tool.tokens() for tool in tools)
             else:
-                tools_tokens = sum(tool.tokens() for tool in self.tools)
-            total_tokens = messages_tokens + tools_tokens
+                total_tokens += sum(tool.tokens() for tool in self.tools)
         total_tokens += self.config.max_tokens.value
         if total_tokens > self.config.context_window_threshold.value * TOKEN_WARNING_THRESHOLD:
             console.print(
@@ -317,18 +347,24 @@ class Agent(TaskToolMixin, Tool):
         """Initialize MCP manager"""
         if self.mcp_manager is None:
             self.mcp_manager = MCPManager(self.session.work_dir)
-            return await self.mcp_manager.initialize()
+            result = await self.mcp_manager.initialize()
+            self._tools_cache_dirty = True
+            return result
         return True
 
     def _get_all_tools(self) -> List[Tool]:
-        """Get all available tools including MCP tools"""
-        tools = self.availiable_tools.copy() if self.availiable_tools else []
+        """Get all available tools including MCP tools with caching"""
+        if not self._tools_cache_dirty and self._cached_all_tools is not None:
+            return self._cached_all_tools
 
-        # Add MCP tools
+        tools = list(self.available_tools) if self.available_tools else []
+
         if self.mcp_manager and self.mcp_manager.is_initialized():
             mcp_tools = self.mcp_manager.get_mcp_tools()
             tools.extend(mcp_tools)
 
+        self._cached_all_tools = tools
+        self._tools_cache_dirty = False
         return tools
 
     def _update_tool_handler_tools(self, tools: List[Tool]):
@@ -341,7 +377,7 @@ class Agent(TaskToolMixin, Tool):
 
 
 async def get_main_agent(session: Session, config: ConfigModel, enable_mcp: bool = False) -> Agent:
-    agent = Agent(session, config, availiable_tools=[Agent] + BASIC_TOOLS)
+    agent = Agent(session, config, available_tools=[Agent] + BASIC_TOOLS)
     if enable_mcp:
         await agent.initialize_mcp()
     return agent

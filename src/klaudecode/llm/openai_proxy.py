@@ -3,7 +3,7 @@ from typing import AsyncGenerator, Dict, List, Optional, Tuple
 
 import openai
 from openai.types.chat import ChatCompletionMessageToolCall
-from openai.types.chat.chat_completion_chunk import Choice, ChoiceDeltaToolCall
+from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
 from openai.types.chat.chat_completion_message_tool_call import Function
 
 from ..message import AIMessage, BasicMessage, CompletionUsage, ToolCall, count_tokens
@@ -60,6 +60,24 @@ class OpenAIProxy(LLMProxyBase):
         stream_status = StreamStatus(phase='upload')
         yield (stream_status, AIMessage(content=''))
 
+        stream = await self._create_stream(msgs, tools, timeout)
+        ai_message = AIMessage()
+        tool_call_chunk_accumulator = self.OpenAIToolCallChunkAccumulator()
+
+        prompt_tokens = completion_tokens = total_tokens = 0
+
+        async for chunk in stream:
+            if asyncio.current_task().cancelled():
+                raise asyncio.CancelledError('Stream cancelled')
+            prompt_tokens, completion_tokens, total_tokens = self._process_chunk(
+                chunk, stream_status, ai_message, tool_call_chunk_accumulator, prompt_tokens, completion_tokens, total_tokens
+            )
+            yield (stream_status, ai_message)
+
+        self._finalize_message(ai_message, tool_call_chunk_accumulator, prompt_tokens, completion_tokens, total_tokens)
+        yield (stream_status, ai_message)
+
+    async def _create_stream(self, msgs: List[BasicMessage], tools: Optional[List[Tool]], timeout: float):
         self._current_request_task = asyncio.create_task(
             self.client.chat.completions.create(
                 model=self.model_name,
@@ -74,54 +92,54 @@ class OpenAIProxy(LLMProxyBase):
         )
 
         try:
-            stream = await asyncio.wait_for(self._current_request_task, timeout=timeout)
+            return await asyncio.wait_for(self._current_request_task, timeout=timeout)
         finally:
             self._current_request_task = None
 
-        ai_message = AIMessage()
-        tool_call_chunk_accumulator = self.OpenAIToolCallChunkAccumulator()
-        completion_tokens = prompt_tokens = total_tokens = 0
-        async for chunk in stream:
-            # Check for cancellation at the beginning of each iteration
-            if asyncio.current_task().cancelled():
-                raise asyncio.CancelledError('Stream cancelled')
+    def _process_chunk(self, chunk, stream_status, ai_message, tool_call_chunk_accumulator, prompt_tokens, completion_tokens, total_tokens) -> Tuple[int, int, int]:
+        if chunk.choices:
+            self._handle_choice_delta(chunk.choices[0], stream_status, ai_message, tool_call_chunk_accumulator)
 
-            if chunk.choices:
-                choice: Choice = chunk.choices[0]
-                if choice.delta.content:
-                    stream_status.phase = 'content'
-                    ai_message.content += choice.delta.content
-                if hasattr(choice.delta, 'reasoning_content') and choice.delta.reasoning_content:
-                    stream_status.phase = 'think'
-                    ai_message.thinking_content += choice.delta.reasoning_content
-                if choice.delta.tool_calls:
-                    stream_status.phase = 'tool_call'
-                    tool_call_chunk_accumulator.add_chunks(choice.delta.tool_calls)
-                    stream_status.tool_names.extend([tc.function.name for tc in choice.delta.tool_calls if tc and tc.function and tc.function.name])
-                if choice.finish_reason:
-                    ai_message.finish_reason = choice.finish_reason
-                    stream_status.phase = 'completed'
+        if chunk.usage:
+            prompt_tokens, total_tokens = chunk.usage.prompt_tokens, chunk.usage.total_tokens
 
-            if chunk.usage:
-                usage: CompletionUsage = chunk.usage
-                prompt_tokens = usage.prompt_tokens
-                total_tokens = usage.total_tokens
-            if chunk.usage and chunk.usage.completion_tokens:
-                completion_tokens = usage.completion_tokens
-            else:
-                completion_tokens = ai_message.tokens + tool_call_chunk_accumulator.count_tokens()
+        completion_tokens = self._calculate_completion_tokens(chunk, ai_message, tool_call_chunk_accumulator, completion_tokens)
 
-            stream_status.tokens = completion_tokens
-            yield (stream_status, ai_message)
+        stream_status.tokens = completion_tokens
 
+        return prompt_tokens, completion_tokens, total_tokens
+
+    def _handle_choice_delta(self, choice, stream_status, ai_message, tool_call_chunk_accumulator):
+        if choice.delta.content:
+            stream_status.phase = 'content'
+            ai_message.content += choice.delta.content
+
+        if hasattr(choice.delta, 'reasoning_content') and choice.delta.reasoning_content:
+            stream_status.phase = 'think'
+            ai_message.thinking_content += choice.delta.reasoning_content
+
+        if choice.delta.tool_calls:
+            stream_status.phase = 'tool_call'
+            tool_call_chunk_accumulator.add_chunks(choice.delta.tool_calls)
+            stream_status.tool_names.extend([tc.function.name for tc in choice.delta.tool_calls if tc and tc.function and tc.function.name])
+
+        if choice.finish_reason:
+            ai_message.finish_reason = choice.finish_reason
+            stream_status.phase = 'completed'
+
+    def _calculate_completion_tokens(self, chunk, ai_message, tool_call_chunk_accumulator, current_tokens) -> int:
+        if chunk.usage and chunk.usage.completion_tokens:
+            return chunk.usage.completion_tokens
+        else:
+            return ai_message.tokens + tool_call_chunk_accumulator.count_tokens()
+
+    def _finalize_message(self, ai_message, tool_call_chunk_accumulator, prompt_tokens, completion_tokens, total_tokens):
         ai_message.tool_calls = tool_call_chunk_accumulator.get_tool_call_msg_dict()
         ai_message.usage = CompletionUsage(
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
         )
-
-        yield (stream_status, ai_message)
 
     class OpenAIToolCallChunkAccumulator:
         def __init__(self):

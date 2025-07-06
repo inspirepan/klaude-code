@@ -2,7 +2,7 @@ import asyncio
 from typing import AsyncGenerator, List, Literal, Optional, Tuple
 
 import anthropic
-from anthropic.types import MessageParam, RawMessageStreamEvent, StopReason, TextBlockParam
+from anthropic.types import MessageParam, StopReason, TextBlockParam
 
 from ..message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, UserMessage, count_tokens
 from ..tool import Tool
@@ -60,6 +60,25 @@ class AnthropicProxy(LLMProxyBase):
         stream_status = StreamStatus(phase='upload')
         yield (stream_status, AIMessage(content=''))
 
+        stream = await self._create_stream(msgs, tools, timeout)
+        ai_message = AIMessage()
+        state = StreamState()
+
+        async for event in stream:
+            if asyncio.current_task().cancelled():
+                raise asyncio.CancelledError('Stream cancelled')
+
+            need_estimate = self._process_stream_event(event, stream_status, ai_message, state)
+
+            if need_estimate:
+                stream_status.tokens = self._estimate_tokens(ai_message, state)
+
+            yield (stream_status, ai_message)
+
+        self._finalize_message(ai_message, state)
+        yield (stream_status, ai_message)
+
+    async def _create_stream(self, msgs: List[BasicMessage], tools: Optional[List[Tool]], timeout: float):
         system_msgs, other_msgs = self.convert_to_anthropic(msgs)
         budget_tokens = self.get_think_budget(msgs)
 
@@ -83,87 +102,92 @@ class AnthropicProxy(LLMProxyBase):
             )
 
             try:
-                stream = await asyncio.wait_for(self._current_request_task, timeout=timeout)
+                return await asyncio.wait_for(self._current_request_task, timeout=timeout)
             finally:
                 self._current_request_task = None
         except asyncio.TimeoutError:
-            # Convert timeout to cancellation for consistency
             raise asyncio.CancelledError('Request timed out')
 
-        ai_message = AIMessage()
+    def _process_stream_event(self, event, stream_status, ai_message, state) -> bool:
+        need_estimate = True
 
-        state: StreamState = StreamState()
+        if event.type == 'message_start':
+            self._handle_message_start(event, state)
+        elif event.type == 'content_block_start':
+            self._handle_content_block_start(event, stream_status, ai_message, state)
+        elif event.type == 'content_block_delta':
+            self._handle_content_block_delta(event, ai_message, state)
+        elif event.type == 'content_block_stop':
+            self._handle_content_block_stop(event, state)
+        elif event.type == 'message_delta':
+            need_estimate = self._handle_message_delta(event, stream_status, ai_message, state)
+        elif event.type == 'message_stop':
+            pass
 
-        async for event in stream:
-            event: RawMessageStreamEvent
+        return need_estimate
 
-            # Check for cancellation at the beginning of each iteration
-            if asyncio.current_task().cancelled():
-                raise asyncio.CancelledError('Stream cancelled')
+    def _handle_message_start(self, event, state):
+        state.input_tokens = event.message.usage.input_tokens
+        state.output_tokens = event.message.usage.output_tokens
 
-            need_estimate = True
-            if event.type == 'message_start':
-                state.input_tokens = event.message.usage.input_tokens
-                state.output_tokens = event.message.usage.output_tokens
-            elif event.type == 'content_block_start':
-                state.content_blocks[event.index] = event.content_block
-                if event.content_block.type == 'thinking':
-                    stream_status.phase = 'think'
-                    ai_message.thinking_signature = getattr(event.content_block, 'signature', '')
-                elif event.content_block.type == 'tool_use':
-                    stream_status.phase = 'tool_call'
-                    # Initialize JSON fragment accumulator for tool use blocks
-                    state.tool_json_fragments[event.index] = ''
-                    if event.content_block.name:
-                        stream_status.tool_names.append(event.content_block.name)
-                else:
-                    stream_status.phase = 'content'
-            elif event.type == 'content_block_delta':
-                if event.delta.type == 'text_delta':
-                    ai_message.content += event.delta.text
-                elif event.delta.type == 'thinking_delta':
-                    ai_message.thinking_content += event.delta.thinking
-                elif event.delta.type == 'signature_delta':
-                    ai_message.thinking_signature += event.delta.signature
-                elif event.delta.type == 'input_json_delta':
-                    # Accumulate JSON fragments for tool inputs
-                    if event.index in state.tool_json_fragments:
-                        state.tool_json_fragments[event.index] += event.delta.partial_json
-            elif event.type == 'content_block_stop':
-                # Use the tracked content block
-                block = state.content_blocks.get(event.index)
-                if block and block.type == 'tool_use':
-                    # Get accumulated JSON fragments
-                    json_str = state.tool_json_fragments.get(event.index, '{}')
-                    state.tool_calls[block.id] = ToolCall(
-                        id=block.id,
-                        tool_name=block.name,
-                        tool_args=json_str,
-                    )
-            elif event.type == 'message_delta':
-                if hasattr(event.delta, 'stop_reason') and event.delta.stop_reason:
-                    ai_message.finish_reason = self.convert_stop_reason(event.delta.stop_reason)
-                    stream_status.phase = 'completed'
-                if hasattr(event, 'usage') and event.usage:
-                    state.output_tokens = event.usage.output_tokens
-                    stream_status.tokens = state.output_tokens
-                    need_estimate = False
-            elif event.type == 'message_stop':
-                pass
+    def _handle_content_block_start(self, event, stream_status, ai_message, state):
+        state.content_blocks[event.index] = event.content_block
+        if event.content_block.type == 'thinking':
+            stream_status.phase = 'think'
+            ai_message.thinking_signature = getattr(event.content_block, 'signature', '')
+        elif event.content_block.type == 'tool_use':
+            stream_status.phase = 'tool_call'
+            state.tool_json_fragments[event.index] = ''
+            if event.content_block.name:
+                stream_status.tool_names.append(event.content_block.name)
+        else:
+            stream_status.phase = 'content'
 
-            if need_estimate:
-                estimated_tokens = ai_message.tokens
-                for json_str in state.tool_json_fragments.values():
-                    estimated_tokens += count_tokens(json_str)
-                stream_status.tokens = estimated_tokens
-            yield (stream_status, ai_message)
+    def _handle_content_block_delta(self, event, ai_message, state):
+        if event.delta.type == 'text_delta':
+            ai_message.content += event.delta.text
+        elif event.delta.type == 'thinking_delta':
+            ai_message.thinking_content += event.delta.thinking
+        elif event.delta.type == 'signature_delta':
+            ai_message.thinking_signature += event.delta.signature
+        elif event.delta.type == 'input_json_delta':
+            if event.index in state.tool_json_fragments:
+                state.tool_json_fragments[event.index] += event.delta.partial_json
+
+    def _handle_content_block_stop(self, event, state):
+        block = state.content_blocks.get(event.index)
+        if block and block.type == 'tool_use':
+            json_str = state.tool_json_fragments.get(event.index, '{}')
+            state.tool_calls[block.id] = ToolCall(
+                id=block.id,
+                tool_name=block.name,
+                tool_args=json_str,
+            )
+
+    def _handle_message_delta(self, event, stream_status, ai_message, state) -> bool:
+        need_estimate = True
+        if hasattr(event.delta, 'stop_reason') and event.delta.stop_reason:
+            ai_message.finish_reason = self.convert_stop_reason(event.delta.stop_reason)
+            stream_status.phase = 'completed'
+        if hasattr(event, 'usage') and event.usage:
+            state.output_tokens = event.usage.output_tokens
+            stream_status.tokens = state.output_tokens
+            need_estimate = False
+        return need_estimate
+
+    def _estimate_tokens(self, ai_message, state) -> int:
+        estimated_tokens = ai_message.tokens
+        for json_str in state.tool_json_fragments.values():
+            estimated_tokens += count_tokens(json_str)
+        return estimated_tokens
+
+    def _finalize_message(self, ai_message, state):
         ai_message.tool_calls = state.tool_calls
         ai_message.usage = CompletionUsage(
             completion_tokens=state.output_tokens,
             prompt_tokens=state.input_tokens,
             total_tokens=state.input_tokens + state.output_tokens,
         )
-        yield (stream_status, ai_message)
 
     @staticmethod
     def convert_to_anthropic(

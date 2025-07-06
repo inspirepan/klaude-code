@@ -58,7 +58,7 @@ class TaskToolMixin:
             source='subagent',
         )
         session.set_append_message_hook(subagent_append_message_hook)
-        agent: 'Agent' = cls(session, availiable_tools=cls.get_subagent_tools(), print_switch=False, config=instance.parent_agent.config)
+        agent: 'Agent' = cls(session, available_tools=cls.get_subagent_tools(), print_switch=False, config=instance.parent_agent.config)
         # Initialize LLM manager for subagent
         agent._initialize_llm()
         agent.session.append_message(UserMessage(content=args.prompt))

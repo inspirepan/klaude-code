@@ -120,7 +120,6 @@ class AIMessage(BasicMessage):
         """
         self.content += other.content
         self.finish_reason = other.finish_reason
-        self.tool_calls = other.tool_calls
         self.thinking_content += other.thinking_content
         self.thinking_signature += other.thinking_signature
         if self.usage and other.usage:
