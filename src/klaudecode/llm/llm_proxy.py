@@ -41,10 +41,6 @@ class LLMClientWrapper(ABC):
         return self.client.model_name
 
     @abstractmethod
-    async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
-        pass
-
-    @abstractmethod
     async def stream_call(
         self,
         msgs: List[BasicMessage],
@@ -62,25 +58,12 @@ class RetryWrapper(LLMClientWrapper):
         self.max_retries = max_retries
         self.backoff_base = backoff_base
 
-    async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
-        last_exception = None
-        for attempt in range(self.max_retries):
-            try:
-                return await self.client.call(msgs, tools)
-            except NON_RETRY_EXCEPTIONS as e:
-                raise e
-            except Exception as e:
-                last_exception = e
-                if attempt < self.max_retries:
-                    await self._handle_retry(attempt, e)
-        raise last_exception
-
     async def stream_call(
         self,
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
         timeout: float = 20.0,
-    ) -> AsyncGenerator[AIMessage, None]:
+    ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         last_exception = None
         for attempt in range(self.max_retries):
             try:
@@ -92,39 +75,19 @@ class RetryWrapper(LLMClientWrapper):
             except Exception as e:
                 last_exception = e
                 if attempt < self.max_retries:
-                    await self._handle_retry(attempt, e)
+                    delay = self.backoff_base * (2**attempt)
+                    console.print(
+                        render_suffix(
+                            f'{format_exception(last_exception)} · Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{self.max_retries})',
+                            style=ColorStyle.ERROR,
+                        )
+                    )
+                    await asyncio.sleep(delay)
         raise last_exception
-
-    async def _handle_retry(self, attempt: int, exception: Exception):
-        delay = self.backoff_base * (2**attempt)
-        console.print(
-            render_suffix(
-                f'{format_exception(exception)} · Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{self.max_retries})',
-                style=ColorStyle.ERROR,
-            )
-        )
-        await asyncio.sleep(delay)
-
-    def _handle_final_failure(self, exception: Exception):
-        console.print(
-            render_suffix(
-                format_exception(exception),
-                style=ColorStyle.ERROR,
-            )
-        )
 
 
 class StatusWrapper(LLMClientWrapper):
     """Wrapper that adds status display to LLM calls"""
-
-    async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None, show_result: bool = True) -> AIMessage:
-        with render_dot_status(status=get_content_status_text(), spinner_style=ColorStyle.CLAUDE, dots_style=ColorStyle.CLAUDE):
-            ai_message = await self.client.call(msgs, tools)
-
-        if show_result:
-            console.print()
-            console.print(ai_message)
-        return ai_message
 
     async def stream_call(
         self,
@@ -133,7 +96,7 @@ class StatusWrapper(LLMClientWrapper):
         timeout: float = 20.0,
         status_text: Optional[str] = None,
         show_result: bool = True,
-    ) -> AsyncGenerator[AIMessage, None]:
+    ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         status_text_seed = int(time.time() * 1000) % 10000
         if status_text:
             reasoning_status_text = text_status_str(status_text)
@@ -183,7 +146,7 @@ class StatusWrapper(LLMClientWrapper):
                     console.print(*ai_message.get_thinking_renderable())
                     print_thinking_flag = True
 
-                yield ai_message
+                yield stream_status, ai_message
 
         if show_result and not print_content_flag and ai_message and ai_message.content:
             console.print()
@@ -222,18 +185,14 @@ class LLMProxy:
         tools: Optional[List[Tool]] = None,
         show_status: bool = True,
         show_result: bool = True,
-        use_streaming: bool = True,
         status_text: Optional[str] = None,
         timeout: float = 20.0,
     ) -> AIMessage:
         if not show_status:
-            return await self.client.call(msgs, tools)
+            async for _, ai_message in self.client.stream_call(msgs, tools, timeout=timeout):
+                pass
+            return ai_message
 
-        if not use_streaming:
-            return await StatusWrapper(self.client).call(msgs, tools, show_result=show_result)
-
-        ai_message = None
-        async for ai_message in StatusWrapper(self.client).stream_call(msgs, tools, timeout=timeout, status_text=status_text, show_result=show_result):
+        async for _, ai_message in StatusWrapper(self.client).stream_call(msgs, tools, timeout=timeout, status_text=status_text, show_result=show_result):
             pass
-
         return ai_message

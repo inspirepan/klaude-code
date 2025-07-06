@@ -51,42 +51,6 @@ class OpenAIProxy(LLMProxyBase):
                 }
             )
 
-    async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
-        completion = await self.client.chat.completions.create(
-            model=self.model_name,
-            messages=[msg.to_openai() for msg in msgs if msg],
-            tools=[tool.openai_schema() for tool in tools] if tools else None,
-            extra_headers=self.extra_header,
-            extra_body=self.extra_body,
-            max_tokens=self.max_tokens,
-            temperature=TEMPERATURE,
-        )
-        message = completion.choices[0].message
-        tokens_used = None
-        if completion.usage:
-            tokens_used = CompletionUsage(
-                completion_tokens=completion.usage.completion_tokens,
-                prompt_tokens=completion.usage.prompt_tokens,
-                total_tokens=completion.usage.total_tokens,
-            )
-        tool_calls = {}
-        if message.tool_calls:
-            tool_calls = {
-                raw_tc.id: ToolCall(
-                    id=raw_tc.id,
-                    tool_name=raw_tc.function.name,
-                    tool_args=raw_tc.function.arguments,
-                )
-                for raw_tc in message.tool_calls
-            }
-        return AIMessage(
-            content=message.content,
-            tool_calls=tool_calls,
-            thinking_content=message.reasoning_content if hasattr(message, 'reasoning_content') else '',
-            usage=tokens_used,
-            finish_reason=completion.choices[0].finish_reason,
-        )
-
     async def stream_call(
         self,
         msgs: List[BasicMessage],

@@ -27,48 +27,6 @@ class AnthropicProxy(LLMProxyBase):
         self.enable_thinking = enable_thinking
         self.client = anthropic.AsyncAnthropic(api_key=api_key, base_url=base_url)
 
-    async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
-        system_msgs, other_msgs = self.convert_to_anthropic(msgs)
-        resp = await self.client.messages.create(
-            model=self.model_name,
-            max_tokens=self.max_tokens,
-            thinking={
-                'type': 'enabled' if self.enable_thinking else 'disabled',
-                'budget_tokens': 2000,
-            },
-            tools=[tool.anthropic_schema() for tool in tools] if tools else None,
-            messages=other_msgs,
-            system=system_msgs,
-            extra_headers=self.extra_header,
-            extra_body=self.extra_body,
-            temperature=TEMPERATURE,
-        )
-        thinking_block = next((block for block in resp.content if block.type == 'thinking'), None)
-        tool_use_blocks = [block for block in resp.content if block.type == 'tool_use']
-        text_blocks = [block for block in resp.content if block.type != 'tool_use' and block.type != 'thinking']
-        tool_calls = {
-            tool_use.id: ToolCall(
-                id=tool_use.id,
-                tool_name=tool_use.name,
-                tool_args_dict=tool_use.input,
-            )
-            for tool_use in tool_use_blocks
-        }
-        result = AIMessage(
-            content='\n'.join([block.text for block in text_blocks]),
-            thinking_content=thinking_block.thinking if thinking_block else '',
-            thinking_signature=thinking_block.signature if thinking_block else '',
-            tool_calls=tool_calls,
-            finish_reason=self.convert_stop_reason(resp.stop_reason),
-            usage=CompletionUsage(
-                # TODO: cached prompt token
-                completion_tokens=resp.usage.output_tokens,
-                prompt_tokens=resp.usage.input_tokens,
-                total_tokens=resp.usage.input_tokens + resp.usage.output_tokens,
-            ),
-        )
-        return result
-
     async def stream_call(
         self,
         msgs: List[BasicMessage],

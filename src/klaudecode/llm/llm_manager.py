@@ -62,7 +62,6 @@ class LLMManager:
         tools: Optional[List[Tool]] = None,
         show_status: bool = True,
         status_text: Optional[str] = None,
-        use_streaming: bool = True,
         timeout: float = 20.0,
         show_result: bool = True,
     ) -> AIMessage:
@@ -75,7 +74,6 @@ class LLMManager:
                 msgs,
                 tools,
                 show_status=show_status,
-                use_streaming=use_streaming,
                 status_text=status_text,
                 timeout=timeout,
                 show_result=show_result,

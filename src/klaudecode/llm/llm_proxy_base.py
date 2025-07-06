@@ -23,10 +23,6 @@ class LLMProxyBase:
         self.extra_header = extra_header
         self.extra_body = extra_body
 
-    async def call(self, msgs: List[BasicMessage], tools: Optional[List[Tool]] = None) -> AIMessage:
-        """Make a non-streaming call to the LLM"""
-        raise NotImplementedError
-
     async def stream_call(
         self,
         msgs: List[BasicMessage],
