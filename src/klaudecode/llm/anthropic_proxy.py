@@ -37,7 +37,7 @@ class AnthropicProxy(LLMProxyBase):
 
         system_msgs, other_msgs = self.convert_to_anthropic(msgs)
         try:
-            stream = await asyncio.wait_for(
+            self._current_request_task = asyncio.create_task(
                 self.client.messages.create(
                     model=self.model_name,
                     max_tokens=self.max_tokens,
@@ -52,9 +52,13 @@ class AnthropicProxy(LLMProxyBase):
                     extra_body=self.extra_body,
                     stream=True,
                     temperature=TEMPERATURE,
-                ),
-                timeout=timeout,
+                )
             )
+
+            try:
+                stream = await asyncio.wait_for(self._current_request_task, timeout=timeout)
+            finally:
+                self._current_request_task = None
         except asyncio.TimeoutError:
             # Convert timeout to cancellation for consistency
             raise asyncio.CancelledError('Request timed out')

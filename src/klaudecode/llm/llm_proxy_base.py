@@ -22,6 +22,7 @@ class LLMProxyBase:
         extra_header.update(BASE_EXTRA_HEADER)
         self.extra_header = extra_header
         self.extra_body = extra_body
+        self._current_request_task = None
 
     async def stream_call(
         self,
@@ -31,3 +32,8 @@ class LLMProxyBase:
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         """Make a streaming call to the LLM"""
         raise NotImplementedError
+
+    def cancel(self):
+        """Cancel the current request"""
+        if self._current_request_task and not self._current_request_task.done():
+            self._current_request_task.cancel()

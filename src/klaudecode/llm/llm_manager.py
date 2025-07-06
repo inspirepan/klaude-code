@@ -89,6 +89,8 @@ class LLMManager:
 
         def signal_handler(signum, frame):
             self._interrupt_flag.set()
+            # Cancel the current LLM request at the proxy level
+            client.cancel()
             call_task.cancel()
 
         try:

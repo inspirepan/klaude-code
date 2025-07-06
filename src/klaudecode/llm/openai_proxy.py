@@ -60,7 +60,7 @@ class OpenAIProxy(LLMProxyBase):
         stream_status = StreamStatus(phase='upload')
         yield (stream_status, AIMessage(content=''))
 
-        stream = await asyncio.wait_for(
+        self._current_request_task = asyncio.create_task(
             self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[msg.to_openai() for msg in msgs if msg],
@@ -70,9 +70,13 @@ class OpenAIProxy(LLMProxyBase):
                 extra_body=self.extra_body,
                 stream=True,
                 temperature=TEMPERATURE,
-            ),
-            timeout=timeout,
+            )
         )
+
+        try:
+            stream = await asyncio.wait_for(self._current_request_task, timeout=timeout)
+        finally:
+            self._current_request_task = None
 
         ai_message = AIMessage()
         tool_call_chunk_accumulator = self.OpenAIToolCallChunkAccumulator()

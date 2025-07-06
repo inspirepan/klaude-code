@@ -175,6 +175,15 @@ class LLMProxy:
     def model_name(self) -> str:
         return self.client.model_name
 
+    def cancel(self):
+        """Cancel the current request"""
+        # Find the base client and cancel it
+        current_client = self.client
+        while hasattr(current_client, 'client'):
+            current_client = current_client.client
+        if hasattr(current_client, 'cancel'):
+            current_client.cancel()
+
     async def call(
         self,
         msgs: List[BasicMessage],
