@@ -34,13 +34,21 @@ source .venv/bin/activate
 uv sync
 
 # Run all tests
-python -m pytest tests/ -v
+uv run python -m pytest tests/ -v
+
+# Alternative test runner (also available)
+uv run python tests/run_tests.py
 
 # Run specific test file
-python -m pytest tests/tools/test_read.py -v
+uv run python -m pytest tests/tools/test_read.py -v
+
+# Run specific test category
+uv run python tests/run_tests.py tools
 
 # Run with coverage
-python -m pytest tests/ --cov=src/klaudecode --cov-report=html
+uv run python -m pytest tests/ --cov=src/klaudecode --cov-report=html
+# Or using the test runner
+uv run python tests/run_tests.py --cov
 ```
 
 ### Development Tips
@@ -48,6 +56,8 @@ python -m pytest tests/ --cov=src/klaudecode --cov-report=html
 - Use `uv` package manager for dependency management
 - Ruff is configured with line-length 180 and single quotes
 - Always run tests in a virtual environment to ensure proper dependency isolation
+- The main package is `klaudecode` under `src/`
+- Entry point is `klaudecode.cli:app` defined in pyproject.toml
 
 ## Architecture Overview
 

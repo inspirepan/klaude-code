@@ -110,7 +110,7 @@ class AIMessage(BasicMessage):
             yield render_message(render_markdown(self.content, style=ColorStyle.AI_MESSAGE), mark_style=ColorStyle.AI_MESSAGE, style=ColorStyle.AI_MESSAGE, render_text=True)
 
     def __bool__(self):
-        return not self.removed and (bool(self.content) or bool(self.thinking_content) or bool(self.tool_calls))
+        return not self.removed and (bool(self.content.strip()) or bool(self.thinking_content.strip()) or bool(self.tool_calls))
 
     def merge(self, other: 'AIMessage') -> 'AIMessage':
         """

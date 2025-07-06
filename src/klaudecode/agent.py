@@ -138,7 +138,7 @@ class Agent(TaskToolMixin, Tool):
                     last_ai_msg = self.session.messages.get_last_message(role='assistant', filter_empty=True)
                     self.session.save()
                     return last_ai_msg.content if last_ai_msg else ''
-                if ai_msg.finish_reason == 'tool_calls' or len(ai_msg.tool_calls) > 0:
+                if ai_msg.finish_reason == 'tool_calls' and len(ai_msg.tool_calls) > 0:
                     if not await self._handle_exit_plan_mode(ai_msg.tool_calls):
                         return 'Plan mode maintained, awaiting further instructions.'
                     # Update tool handler with MCP tools
