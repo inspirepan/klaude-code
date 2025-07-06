@@ -2,7 +2,6 @@
 
 from unittest.mock import patch
 
-
 from klaudecode.tools import MultiEditTool as MultiEdit
 from tests.base import BaseToolTest
 
