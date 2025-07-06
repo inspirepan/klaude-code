@@ -277,9 +277,14 @@ class Agent(TaskToolMixin, Tool):
             async def update_status():
                 while running:
                     tool_msg_count = len([msg for msg in self.session.messages if msg.role == 'tool'])
+                    last_msg = self.session.messages.get_last_message(filter_empty=True, role='assistant')
+                    status_text = ''
+                    if last_msg and isinstance(last_msg, AIMessage) and last_msg.content.strip():
+                        status_text = last_msg.content[:100]
                     status.update(
                         description=Text.assemble(
                             Text.from_markup(f'([bold]{tool_msg_count}[/bold] tool uses) '),
+                            Text(status_text, style=ColorStyle.CLAUDE),
                             (INTERRUPT_TIP, ColorStyle.MUTED),
                         ),
                     )
