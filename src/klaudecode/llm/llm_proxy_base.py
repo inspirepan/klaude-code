@@ -32,7 +32,6 @@ class LLMProxyBase:
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
         timeout: float = 20.0,
-        interrupt_check: Optional[callable] = None,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         """Make a streaming call to the LLM"""
         raise NotImplementedError

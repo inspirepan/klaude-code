@@ -83,7 +83,7 @@ class TaskToolMixin:
                 loop.set_exception_handler(exception_handler)
                 asyncio.set_event_loop(loop)
                 result = loop.run_until_complete(
-                    agent.run(max_steps=DEFAULT_MAX_STEPS, check_interrupt=lambda: instance.tool_result().tool_call.status == 'canceled', tools=cls.get_subagent_tools())
+                    agent.run(max_steps=DEFAULT_MAX_STEPS, check_cancel=lambda: instance.tool_result().tool_call.status == 'canceled', tools=cls.get_subagent_tools())
                 )
                 # Update parent agent usage with subagent usage
                 instance.parent_agent.usage.update_with_usage(agent.usage)

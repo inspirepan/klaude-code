@@ -1,5 +1,4 @@
 import asyncio
-import threading
 import traceback
 from typing import Callable, List, Optional
 
@@ -54,8 +53,6 @@ class Agent(TaskToolMixin, Tool):
         self.tool_handler = ToolHandler(self, self.availiable_tools or [], show_live=print_switch)
         self.mcp_manager: Optional[MCPManager] = None
 
-        self._interrupt_flag = threading.Event()  # Global interrupt flag for this agent
-
         # Usage tracking
         self.usage = AgentUsage()
 
@@ -78,9 +75,6 @@ class Agent(TaskToolMixin, Tool):
         epoch = 0
         try:
             while True:
-                # Clear interrupt flag at the start of each interaction
-                self._clear_interrupt()
-
                 if epoch == 0 and first_message:
                     user_input_text = first_message
                 else:
@@ -104,12 +98,12 @@ class Agent(TaskToolMixin, Tool):
             # Clean up backup files
             cleanup_all_backups()
 
-    async def run(self, max_steps: int = DEFAULT_MAX_STEPS, check_interrupt: Callable[[], bool] = None, tools: Optional[List[Tool]] = None):
+    async def run(self, max_steps: int = DEFAULT_MAX_STEPS, check_cancel: Callable[[], bool] = None, tools: Optional[List[Tool]] = None):
         try:
             usage_token_count = 0
             for _ in range(max_steps):
                 # Check if task was canceled (for subagent execution)
-                if check_interrupt and check_interrupt():
+                if check_cancel and check_cancel():
                     return INTERRUPTED_MSG
 
                 # Check token count and compact if necessary
@@ -125,7 +119,6 @@ class Agent(TaskToolMixin, Tool):
                     msgs=self.session.messages,
                     tools=tools,
                     show_status=self.print_switch,
-                    interrupt_check=self._should_interrupt,
                 )
                 ai_msg: AIMessage
                 if ai_msg.usage:
@@ -222,9 +215,6 @@ class Agent(TaskToolMixin, Tool):
         return approved
 
     def _handle_interruption(self):
-        # Set the interrupt flag
-        self._interrupt_flag.set()
-
         # Clean up any live displays
         asyncio.create_task(asyncio.sleep(0.1))
         if hasattr(console.console, '_live') and console.console._live:
@@ -240,14 +230,6 @@ class Agent(TaskToolMixin, Tool):
         console.print(user_msg)
         self.session.append_message(user_msg)
         return INTERRUPTED_MSG
-
-    def _should_interrupt(self) -> bool:
-        """Check if the agent should be interrupted"""
-        return self._interrupt_flag.is_set()
-
-    def _clear_interrupt(self):
-        """Clear the interrupt flag (for testing or reset)"""
-        self._interrupt_flag.clear()
 
     def _initialize_llm(self):
         if not self.llm_manager:
@@ -280,8 +262,6 @@ class Agent(TaskToolMixin, Tool):
         self._initialize_llm()
 
         try:
-            # Clear any previous interrupt state
-            self._clear_interrupt()
             need_agent_run = await self.user_input_handler.handle(user_input_text, print_msg=False)
             if not need_agent_run:
                 return

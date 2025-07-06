@@ -50,7 +50,6 @@ class LLMClientWrapper(ABC):
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
         timeout: float = 20.0,
-        interrupt_check: Optional[callable] = None,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         pass
 
@@ -81,12 +80,11 @@ class RetryWrapper(LLMClientWrapper):
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
         timeout: float = 20.0,
-        interrupt_check: Optional[callable] = None,
     ) -> AsyncGenerator[AIMessage, None]:
         last_exception = None
         for attempt in range(self.max_retries):
             try:
-                async for item in self.client.stream_call(msgs, tools, timeout, interrupt_check):
+                async for item in self.client.stream_call(msgs, tools, timeout):
                     yield item
                 return
             except NON_RETRY_EXCEPTIONS as e:
@@ -133,7 +131,6 @@ class StatusWrapper(LLMClientWrapper):
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
         timeout: float = 20.0,
-        interrupt_check: Optional[callable] = None,
         status_text: Optional[str] = None,
         show_result: bool = True,
     ) -> AsyncGenerator[AIMessage, None]:
@@ -153,7 +150,7 @@ class StatusWrapper(LLMClientWrapper):
         current_status_text = upload_status_text
 
         with render_dot_status(current_status_text, spinner_style=ColorStyle.CLAUDE, dots_style=ColorStyle.CLAUDE) as status:
-            async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout, interrupt_check):
+            async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout):
                 ai_message: AIMessage
                 if stream_status.phase == 'tool_call':
                     indicator = '⚒'
@@ -228,7 +225,6 @@ class LLMProxy:
         use_streaming: bool = True,
         status_text: Optional[str] = None,
         timeout: float = 20.0,
-        interrupt_check: Optional[callable] = None,
     ) -> AIMessage:
         if not show_status:
             return await self.client.call(msgs, tools)
@@ -237,9 +233,7 @@ class LLMProxy:
             return await StatusWrapper(self.client).call(msgs, tools, show_result=show_result)
 
         ai_message = None
-        async for ai_message in StatusWrapper(self.client).stream_call(
-            msgs, tools, timeout=timeout, interrupt_check=interrupt_check, status_text=status_text, show_result=show_result
-        ):
+        async for ai_message in StatusWrapper(self.client).stream_call(msgs, tools, timeout=timeout, status_text=status_text, show_result=show_result):
             pass
 
         return ai_message

@@ -125,7 +125,7 @@ class UserInputCompleter(Completer):
 
         for _, file_path in scored_files:
             yield Completion(
-                file_path,
+                file_path + ' ',  # Add space for UserInputHandler._parse_at_files
                 start_position=start_position,
                 display=file_path,
             )

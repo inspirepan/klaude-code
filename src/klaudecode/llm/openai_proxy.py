@@ -92,7 +92,6 @@ class OpenAIProxy(LLMProxyBase):
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
         timeout: float = 20.0,
-        interrupt_check: Optional[callable] = None,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         stream_status = StreamStatus(phase='upload')
         yield (stream_status, AIMessage(content=''))
@@ -118,9 +117,9 @@ class OpenAIProxy(LLMProxyBase):
         prompt_tokens = 0
         total_tokens = 0
         async for chunk in stream:
-            # Check for interruption at the start of each chunk
-            if interrupt_check and interrupt_check():
-                raise asyncio.CancelledError('Stream interrupted by user')
+            # Check for cancellation at the beginning of each iteration
+            if asyncio.current_task().cancelled():
+                raise asyncio.CancelledError('Stream cancelled')
 
             if chunk.choices:
                 choice: Choice = chunk.choices[0]

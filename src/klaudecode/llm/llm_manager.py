@@ -1,3 +1,5 @@
+import asyncio
+import signal
 import threading
 from typing import List, Optional
 
@@ -13,6 +15,8 @@ class LLMManager:
         self.client_pool = {}  # {thread_id: LLMProxy}
         self.config_cache = None  # Current configuration
         self._lock = threading.Lock()
+        self._interrupt_flag = threading.Event()  # Global interrupt flag
+        self._active_tasks = set()  # Track active LLM tasks
 
     def initialize_from_config(self, config):
         """Initialize LLM manager from ConfigModel"""
@@ -60,21 +64,60 @@ class LLMManager:
         status_text: Optional[str] = None,
         use_streaming: bool = True,
         timeout: float = 20.0,
-        interrupt_check: Optional[callable] = None,
         show_result: bool = True,
     ) -> AIMessage:
-        """Unified LLM call interface"""
+        """Unified LLM call interface with interrupt handling"""
         client = self.get_client()
-        return await client.call(
-            msgs,
-            tools,
-            show_status=show_status,
-            use_streaming=use_streaming,
-            status_text=status_text,
-            timeout=timeout,
-            interrupt_check=interrupt_check,
-            show_result=show_result,
+
+        # Create a task for the LLM call
+        call_task = asyncio.create_task(
+            client.call(
+                msgs,
+                tools,
+                show_status=show_status,
+                use_streaming=use_streaming,
+                status_text=status_text,
+                timeout=timeout,
+                show_result=show_result,
+            )
         )
+
+        # Track the active task
+        self._active_tasks.add(call_task)
+
+        # Set up interrupt handler
+        interrupt_handler_added = False
+        original_handler = None
+
+        def signal_handler(signum, frame):
+            self._interrupt_flag.set()
+            call_task.cancel()
+
+        try:
+            # Try to add signal handler
+            try:
+                original_handler = signal.signal(signal.SIGINT, signal_handler)
+                interrupt_handler_added = True
+            except (ValueError, OSError):
+                # Signal handling not available in this thread
+                pass
+
+            # Wait for the task to complete or be interrupted
+            try:
+                result = await call_task
+                return result
+            except asyncio.CancelledError:
+                # Check if it was our interrupt
+                if self._interrupt_flag.is_set():
+                    self._interrupt_flag.clear()
+                    raise asyncio.CancelledError('LLM call interrupted by SIGINT')
+                raise
+
+        finally:
+            # Cleanup
+            self._active_tasks.discard(call_task)
+            if interrupt_handler_added and original_handler is not None:
+                signal.signal(signal.SIGINT, original_handler)
 
     async def cleanup_thread(self, thread_id: Optional[int] = None):
         """Clean up client for specific thread (or current thread)"""
@@ -97,5 +140,19 @@ class LLMManager:
     def reset(self):
         """Reset all clients and configuration"""
         with self._lock:
+            # Cancel all active tasks
+            for task in self._active_tasks:
+                if not task.done():
+                    task.cancel()
+            self._active_tasks.clear()
+
             self.client_pool.clear()
             self.config_cache = None
+            self._interrupt_flag.clear()
+
+    def interrupt_all(self):
+        """Interrupt all active LLM calls"""
+        self._interrupt_flag.set()
+        for task in self._active_tasks:
+            if not task.done():
+                task.cancel()

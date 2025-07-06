@@ -46,7 +46,6 @@ class SessionOperations:
         """Compact conversation history using LLM to summarize."""
         non_sys_msgs = [msg for msg in session.messages if msg.role != 'system'].copy()
         additional_instructions = '\nAdditional Instructions:\n' + instructions if instructions else ''
-        # TODO: Maybe add some tool call results? Check CC
         CompactMessageList = MessageHistory(
             messages=[SystemMessage(content=COMACT_SYSTEM_PROMPT)] + non_sys_msgs + [UserMessage(content=COMPACT_COMMAND + additional_instructions)]
         )

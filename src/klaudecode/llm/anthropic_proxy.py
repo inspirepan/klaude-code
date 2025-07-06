@@ -74,7 +74,6 @@ class AnthropicProxy(LLMProxyBase):
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
         timeout: float = 20.0,
-        interrupt_check: Optional[callable] = None,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         stream_status = StreamStatus(phase='upload')
         yield (stream_status, AIMessage(content=''))
@@ -115,11 +114,12 @@ class AnthropicProxy(LLMProxyBase):
         tool_call_tokens = 0
 
         async for event in stream:
-            # Check for interruption at the start of each event
-            if interrupt_check and interrupt_check():
-                raise asyncio.CancelledError('Stream interrupted by user')
-
             event: RawMessageStreamEvent
+
+            # Check for cancellation at the beginning of each iteration
+            if asyncio.current_task().cancelled():
+                raise asyncio.CancelledError('Stream cancelled')
+
             need_estimate = True
             if event.type == 'message_start':
                 input_tokens = event.message.usage.input_tokens
