@@ -1,4 +1,5 @@
 import re
+import shlex
 
 
 class BashUtils:
@@ -90,7 +91,9 @@ class BashUtils:
 
         timeout_str = f'{timeout_seconds:.0f}s'
         if needs_bash_wrapper:
-            return f"timeout {timeout_str} bash -c '{command}'"
+            # Use shlex.quote to properly escape the command for bash -c
+            escaped_command = shlex.quote(command)
+            return f"timeout {timeout_str} bash -c {escaped_command}"
         else:
             return f'timeout {timeout_str} {command}'
 
