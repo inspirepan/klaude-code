@@ -19,8 +19,8 @@ class CompletionUsage(BaseModel):
 class AIMessage(BasicMessage):
     role: Literal['assistant'] = 'assistant'
     tool_calls: Dict[str, ToolCall] = {}
-    thinking_content: Optional[str] = None
-    thinking_signature: Optional[str] = None
+    thinking_content: str = ''
+    thinking_signature: str = ''
     finish_reason: Literal['stop', 'length', 'tool_calls', 'content_filter', 'function_call'] = 'stop'
     usage: Optional[CompletionUsage] = None
 
@@ -87,21 +87,20 @@ class AIMessage(BasicMessage):
 
     def __rich_console__(self, console, options):
         yield from self.get_thinking_renderable()
+        yield ''
         yield from self.get_content_renderable()
 
     def get_thinking_renderable(self):
         if self.thinking_content:
             yield render_message(
-                Text('Thinking...', style=ColorStyle.AI_THINKING),
+                Text('Thinking...', style=ColorStyle.AI_THINKING.italic),
                 mark='✻',
                 mark_style=ColorStyle.AI_THINKING,
-                style='italic',
             )
             yield ''
             yield render_message(
-                Text(self.thinking_content, style=ColorStyle.AI_THINKING),
+                Text(self.thinking_content, style=ColorStyle.AI_THINKING.italic),
                 mark='',
-                style='italic',
                 render_text=True,
             )
 
@@ -110,7 +109,10 @@ class AIMessage(BasicMessage):
             yield render_message(render_markdown(self.content, style=ColorStyle.AI_MESSAGE), mark_style=ColorStyle.AI_MESSAGE, style=ColorStyle.AI_MESSAGE, render_text=True)
 
     def __bool__(self):
-        return not self.removed and (bool(self.content.strip()) or bool(self.thinking_content.strip()) or bool(self.tool_calls))
+        has_content = (self.content is not None) and len(self.content.strip()) > 0
+        has_thinking = (self.thinking_content is not None) and len(self.thinking_content.strip()) > 0
+        has_tool_calls = (self.tool_calls is not None) and len(self.tool_calls) > 0
+        return not self.removed and (has_content or has_thinking or has_tool_calls)
 
     def merge(self, other: 'AIMessage') -> 'AIMessage':
         """
@@ -119,9 +121,8 @@ class AIMessage(BasicMessage):
         self.content += other.content
         self.finish_reason = other.finish_reason
         self.tool_calls = other.tool_calls
-        if other.thinking_content:
-            self.thinking_content = other.thinking_content
-            self.thinking_signature = other.thinking_signature
+        self.thinking_content += other.thinking_content
+        self.thinking_signature += other.thinking_signature
         if self.usage and other.usage:
             self.usage.completion_tokens += other.usage.completion_tokens
             self.usage.prompt_tokens += other.usage.prompt_tokens

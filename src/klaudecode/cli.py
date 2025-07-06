@@ -22,6 +22,7 @@ def setup_config(**kwargs) -> ConfigModel:
     config_manager = ConfigManager.setup(**kwargs)
     config_model = config_manager.get_config_model()
     if hasattr(config_model, 'theme') and config_model.theme:
+        print('set theme', config_model.theme.value)
         console.set_theme(config_model.theme.value)
     return config_model
 

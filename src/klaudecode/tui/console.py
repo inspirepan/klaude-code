@@ -5,11 +5,12 @@ from .colors import ColorStyle, dark_theme, light_theme
 
 class ConsoleProxy:
     def __init__(self):
-        self.console = Console(theme=light_theme, style=ColorStyle.MAIN)
+        self.console = Console(theme=dark_theme, style=ColorStyle.MAIN)
         self.silent = False
 
     def set_theme(self, theme_name: str):
         if theme_name == 'dark':
+            print('set dark theme')
             self.console = Console(theme=dark_theme, style=ColorStyle.MAIN)
         else:
             self.console = Console(theme=light_theme, style=ColorStyle.MAIN)

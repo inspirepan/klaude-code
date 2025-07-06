@@ -24,7 +24,6 @@ class DotsStatus:
         spinner_style: StyleType = None,
         dots_style: StyleType = None,
         refresh_per_second: int = 10,
-        width: int = None,
     ):
         self.status = status
         self.description = description
@@ -32,7 +31,6 @@ class DotsStatus:
         self.spinner_style = spinner_style
         self.dots_style = dots_style
         self.refresh_per_second = refresh_per_second
-        self.width = width
         self._live = Live(
             self.renderable,
             console=console,
@@ -63,7 +61,6 @@ class DotsStatus:
 
     @property
     def renderable(self) -> Columns:
-        spacing = max(self.width - len(self.status) + 1 if self.width else 1, 1)
         return Group(
             '',
             Columns(
@@ -72,7 +69,7 @@ class DotsStatus:
                     ' ',
                     self.status,
                     Spinner(name='simpleDots', style=self.dots_style, speed=1),
-                    ' ' * spacing,
+                    ' ',
                     self.description,
                 ],
                 padding=(0, 0),
@@ -109,7 +106,6 @@ def render_dot_status(
     spinner: str = 'dots',
     spinner_style: StyleType = None,
     dots_style: StyleType = None,
-    width: int = None,
 ):
     if description:
         desc_text = Text.assemble(description, (INTERRUPT_TIP, ColorStyle.MUTED))
@@ -122,5 +118,4 @@ def render_dot_status(
         spinner=spinner,
         spinner_style=spinner_style,
         dots_style=dots_style,
-        width=width,
     )

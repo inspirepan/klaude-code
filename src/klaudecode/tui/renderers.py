@@ -175,32 +175,6 @@ def _parse_markdown_table(lines: list[str], start_index: int, style: Optional[Un
     return {'table': table, 'end_index': i}
 
 
-def build_hello_tips() -> List[str]:
-    basic_tips = [
-        'type \\ followed by [main]Enter[/main] to insert newlines',
-        'type / to choose slash command',
-        'type ! to run bash command',
-        "Want Claude to remember something? Hit # to add preferences, tools, and instructions to Claude's memory",
-        'type * to start plan mode',
-        'type @ to mention a file',
-    ]
-    tips = []
-
-    if (Path.cwd() / '.klaude' / 'sessions').exists():
-        import random
-
-        tips.append(random.choice(basic_tips))
-        tips.append('run [main]klaude --continue[/main] or [main]klaude --resume[/main] to resume a conversation')
-    else:
-        tips.extend(basic_tips)
-    if not (Path.cwd() / 'CLAUDE.md').exists():
-        tips.append('run [main]/init[/main] to analyse your codebase')
-    if (Path.cwd() / '.klaude' / 'mcp.json').exists():
-        tips.append('run [main]klaude --mcp[/main] or [main]/mcp[/main] to enable MCP tools')
-
-    return tips
-
-
 def render_hello(show_info: bool = True) -> RenderResult:
     if show_info:
         grid_data = [
@@ -228,9 +202,35 @@ def render_hello(show_info: bool = True) -> RenderResult:
     return Panel.fit(table, border_style=ColorStyle.CLAUDE)
 
 
+def build_tips() -> List[str]:
+    basic_tips = [
+        'type \\ followed by [main]Enter[/main] to insert newlines',
+        'type / to choose slash command',
+        'type ! to run bash command',
+        "Want Claude to remember something? Hit # to add preferences, tools, and instructions to Claude's memory",
+        'type * to start plan mode',
+        'type @ to mention a file',
+    ]
+    tips = []
+
+    if (Path.cwd() / '.klaude' / 'sessions').exists():
+        import random
+
+        tips.append(random.choice(basic_tips))
+        tips.append('run [main]klaude --continue[/main] or [main]klaude --resume[/main] to resume a conversation')
+    else:
+        tips.extend(basic_tips)
+    if not (Path.cwd() / 'CLAUDE.md').exists():
+        tips.append('run [main]/init[/main] to analyse your codebase')
+    if (Path.cwd() / '.klaude' / 'mcp.json').exists():
+        tips.append('run [main]klaude --mcp[/main] or [main]/mcp[/main] to enable MCP tools')
+
+    return tips
+
+
 def render_tips() -> RenderResult:
     return render_message(
-        '\n'.join(build_hello_tips()),
+        '\n'.join(build_tips()),
         mark='※ Tips:',
         style=ColorStyle.MUTED,
         mark_style=ColorStyle.MUTED,

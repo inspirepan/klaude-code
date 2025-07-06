@@ -78,7 +78,7 @@ class RetryWrapper(LLMClientWrapper):
                     delay = self.backoff_base * (2**attempt)
                     console.print(
                         render_suffix(
-                            f'{format_exception(last_exception)} · Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{self.max_retries})',
+                            f'{format_exception(last_exception, show_traceback=True)} · Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{self.max_retries})',
                             style=ColorStyle.ERROR,
                         )
                     )
@@ -165,7 +165,7 @@ class LLMProxy:
         backoff_base=DEFAULT_RETRY_BACKOFF_BASE,
     ):
         if base_url == 'https://api.anthropic.com/v1/':
-            base_client = AnthropicProxy(model_name, base_url, api_key, max_tokens, enable_thinking, extra_header, extra_body)
+            base_client = AnthropicProxy(model_name, api_key, max_tokens, enable_thinking, extra_header, extra_body)
         else:
             base_client = OpenAIProxy(model_name, base_url, api_key, model_azure, max_tokens, extra_header, extra_body, api_version, enable_thinking)
 

@@ -59,6 +59,7 @@ class OpenAIProxy(LLMProxyBase):
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         stream_status = StreamStatus(phase='upload')
         yield (stream_status, AIMessage(content=''))
+
         stream = await asyncio.wait_for(
             self.client.chat.completions.create(
                 model=self.model_name,
@@ -73,13 +74,9 @@ class OpenAIProxy(LLMProxyBase):
             timeout=timeout,
         )
 
-        content = ''
-        thinking_content = ''
+        ai_message = AIMessage()
         tool_call_chunk_accumulator = self.OpenAIToolCallChunkAccumulator()
-        finish_reason = 'stop'
-        completion_tokens = 0
-        prompt_tokens = 0
-        total_tokens = 0
+        completion_tokens = prompt_tokens = total_tokens = 0
         async for chunk in stream:
             # Check for cancellation at the beginning of each iteration
             if asyncio.current_task().cancelled():
@@ -89,16 +86,16 @@ class OpenAIProxy(LLMProxyBase):
                 choice: Choice = chunk.choices[0]
                 if choice.delta.content:
                     stream_status.phase = 'content'
-                    content += choice.delta.content
+                    ai_message.content += choice.delta.content
                 if hasattr(choice.delta, 'reasoning_content') and choice.delta.reasoning_content:
                     stream_status.phase = 'think'
-                    thinking_content += choice.delta.reasoning_content
+                    ai_message.thinking_content += choice.delta.reasoning_content
                 if choice.delta.tool_calls:
                     stream_status.phase = 'tool_call'
                     tool_call_chunk_accumulator.add_chunks(choice.delta.tool_calls)
                     stream_status.tool_names.extend([tc.function.name for tc in choice.delta.tool_calls if tc and tc.function and tc.function.name])
                 if choice.finish_reason:
-                    finish_reason = choice.finish_reason
+                    ai_message.finish_reason = choice.finish_reason
                     stream_status.phase = 'completed'
 
             if chunk.usage:
@@ -108,34 +105,19 @@ class OpenAIProxy(LLMProxyBase):
             if chunk.usage and chunk.usage.completion_tokens:
                 completion_tokens = usage.completion_tokens
             else:
-                completion_tokens = count_tokens(content) + count_tokens(thinking_content) + tool_call_chunk_accumulator.count_tokens()
+                completion_tokens = ai_message.tokens + tool_call_chunk_accumulator.count_tokens()
 
             stream_status.tokens = completion_tokens
-            yield (
-                stream_status,
-                AIMessage(
-                    content=content,
-                    thinking_content=thinking_content,
-                    finish_reason=finish_reason,
-                ),
-            )
+            yield (stream_status, ai_message)
 
-        tokens_used = CompletionUsage(
+        ai_message.tool_calls = tool_call_chunk_accumulator.get_tool_call_msg_dict()
+        ai_message.usage = CompletionUsage(
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
         )
 
-        yield (
-            stream_status,
-            AIMessage(
-                content=content,
-                tool_calls=tool_call_chunk_accumulator.get_tool_call_msg_dict(),
-                thinking_content=thinking_content,
-                usage=tokens_used,
-                finish_reason=finish_reason,
-            ),
-        )
+        yield (stream_status, ai_message)
 
     class OpenAIToolCallChunkAccumulator:
         def __init__(self):

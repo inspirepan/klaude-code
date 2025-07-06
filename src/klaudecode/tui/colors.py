@@ -72,7 +72,7 @@ light_theme = Theme(
     {
         # AI and user interaction
         ColorStyle.AI_MESSAGE: 'rgb(181,105,72)',
-        ColorStyle.AI_THINKING: 'rgb(62,99,153)',
+        ColorStyle.AI_THINKING: 'rgb(136,139,139)',
         ColorStyle.CLAUDE: 'rgb(214,119,86)',
         # Status indicators
         ColorStyle.ERROR: 'rgb(158,57,66)',
@@ -112,7 +112,7 @@ dark_theme = Theme(
     {
         # AI and user interaction
         ColorStyle.AI_MESSAGE: 'rgb(214,119,86)',
-        ColorStyle.AI_THINKING: 'rgb(180,204,245)',
+        ColorStyle.AI_THINKING: 'rgb(151,153,153)',
         ColorStyle.CLAUDE: 'rgb(214,119,86)',
         # Status indicators
         ColorStyle.ERROR: 'rgb(237,118,129)',

@@ -101,7 +101,8 @@ class UserMessage(BasicMessage):
                 yield render_suffix(error, style=ColorStyle.ERROR)
 
     def __bool__(self):
-        return not self.removed and bool(self.content)
+        has_content = (self.content is not None) and len(self.content.strip()) > 0
+        return not self.removed and has_content
 
     def append_pre_system_reminder(self, reminder: str):
         if not self.pre_system_reminders:
@@ -125,7 +126,7 @@ def interrupted_renderer(user_msg: 'UserMessage'):
 
 def compact_renderer(user_msg: 'UserMessage'):
     yield Rule(title=Text('Previous Conversation Compacted', ColorStyle.HIGHLIGHT.bold), characters='=', style=ColorStyle.HIGHLIGHT)
-    yield render_message(user_msg.content, mark='✻', mark_style=ColorStyle.AI_THINKING, style=ColorStyle.AI_THINKING.italic, render_text=True)
+    yield render_message(user_msg.content, mark='✻', mark_style=ColorStyle.INFO, style=ColorStyle.INFO, render_text=True)
 
 
 def initialize_default_renderers():
