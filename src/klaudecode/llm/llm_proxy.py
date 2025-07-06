@@ -137,20 +137,16 @@ class StatusWrapper(LLMClientWrapper):
                     ),
                 )
 
-                if show_result and stream_status.phase == 'tool_call' and not print_content_flag and ai_message.content:
+                if show_result and stream_status.phase in ['tool_call', 'completed'] and not print_content_flag and ai_message.content:
                     console.print()
                     console.print(*ai_message.get_content_renderable())
                     print_content_flag = True
-                if show_result and stream_status.phase in ['content', 'tool_call'] and not print_thinking_flag and ai_message.thinking_content:
+                if show_result and stream_status.phase in ['content', 'tool_call', 'completed'] and not print_thinking_flag and ai_message.thinking_content:
                     console.print()
                     console.print(*ai_message.get_thinking_renderable())
                     print_thinking_flag = True
 
                 yield stream_status, ai_message
-
-        if show_result and not print_content_flag and ai_message and ai_message.content:
-            console.print()
-            console.print(*ai_message.get_content_renderable())
 
 
 class LLMProxy:
