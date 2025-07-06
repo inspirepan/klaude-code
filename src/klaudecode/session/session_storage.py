@@ -27,7 +27,7 @@ class SessionStorage:
     @staticmethod
     def get_formatted_filename_prefix(session: 'Session') -> str:
         """Generate formatted filename prefix with datetime and title."""
-        created_at = getattr(session, '_created_at', time.time())
+        created_at = session.created_at
         dt = datetime.fromtimestamp(created_at)
         datetime_str = dt.strftime('%Y_%m%d_%H%M%S')
         title = sanitize_filename(session.title_msg, max_length=40)
@@ -76,15 +76,11 @@ class SessionStorage:
             messages_file = cls.get_messages_file_path(session)
             current_time = time.time()
 
-            # Set created_at if not exists
-            if not hasattr(session, '_created_at'):
-                session._created_at = current_time
-
             # Save metadata (lightweight for fast listing)
             metadata = {
                 'id': session.session_id,
                 'work_dir': str(session.work_dir),
-                'created_at': getattr(session, '_created_at', current_time),
+                'created_at': session.created_at,
                 'updated_at': current_time,
                 'message_count': len(session.messages),
                 'todo_list': session.todo_list.model_dump(),
@@ -221,7 +217,7 @@ class SessionStorage:
 
             session = Session(work_dir=Path(metadata['work_dir']), messages=messages, todo_list=todo_list, file_tracker=file_tracker)
             session.session_id = metadata['id']
-            session._created_at = metadata.get('created_at')
+            session.created_at = metadata.get('created_at', session.created_at)
             session.title_msg = metadata.get('title_msg', '')
 
             # Initialize storage states for loaded messages

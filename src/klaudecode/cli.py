@@ -42,7 +42,7 @@ async def get_session(ctx: typer.Context) -> Optional[Session]:
             return None
         options = []
         for idx, session in enumerate(sessions):
-            title_msg = session.get('title_msg', '')[:100]
+            title_msg = session.get('title_msg', '')[:100].replace('\n', ' ')
             message_count = session.get('message_count', 0)
             modified_at = format_relative_time(session.get('updated_at'))
             created_at = format_relative_time(session.get('created_at'))
@@ -58,7 +58,7 @@ async def get_session(ctx: typer.Context) -> Optional[Session]:
         session = Session.load(sessions[idx].get('id'))
     else:
         session = Session(
-            Path.cwd(),
+            work_dir=Path.cwd(),
             messages=[
                 SystemMessage(content=STATIC_SYSTEM_PROMPT, cached=True),
                 SystemMessage(content=get_system_prompt_dynamic_part(Path.cwd(), ctx.obj['config'].model_name)),

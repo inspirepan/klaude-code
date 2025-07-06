@@ -55,9 +55,9 @@ class TaskToolMixin:
         session = Session(
             work_dir=Path.cwd(),
             messages=[SystemMessage(content=get_subagent_system_prompt(work_dir=instance.parent_agent.session.work_dir, model_name=instance.parent_agent.config.model_name.value))],
-            append_message_hook=subagent_append_message_hook,
             source='subagent',
         )
+        session.set_append_message_hook(subagent_append_message_hook)
         agent: 'Agent' = cls(session, availiable_tools=cls.get_subagent_tools(), print_switch=False, config=instance.parent_agent.config)
         # Initialize LLM manager for subagent
         agent._initialize_llm()

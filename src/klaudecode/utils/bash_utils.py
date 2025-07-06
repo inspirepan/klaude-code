@@ -93,7 +93,7 @@ class BashUtils:
         if needs_bash_wrapper:
             # Use shlex.quote to properly escape the command for bash -c
             escaped_command = shlex.quote(command)
-            return f"timeout {timeout_str} bash -c {escaped_command}"
+            return f'timeout {timeout_str} bash -c {escaped_command}'
         else:
             return f'timeout {timeout_str} {command}'
 

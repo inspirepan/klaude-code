@@ -1,5 +1,5 @@
 import asyncio
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Optional
 
 from ..llm import LLMManager
 from ..message import SpecialUserMessageTypeEnum, SystemMessage, UserMessage
@@ -30,7 +30,7 @@ class SessionOperations:
         SessionStorage.save(session)
 
         # Create cleared session
-        cleared_session = SessionOperations._create_cleared_session(session, 'clear')
+        cleared_session = session._create_session_from_template(filter_removed=True, source='clear')
 
         # Replace current session attributes with new session data
         session.session_id = cleared_session.session_id
@@ -70,7 +70,7 @@ class SessionOperations:
             session.append_message(user_msg)
 
             # Create compact session
-            compacted_session = SessionOperations._create_cleared_session(session, 'compact')
+            compacted_session = session._create_session_from_template(filter_removed=True, source='compact')
 
             # Replace current session attributes with new session data
             session.session_id = compacted_session.session_id
@@ -108,22 +108,3 @@ class SessionOperations:
 
         except (KeyboardInterrupt, asyncio.CancelledError):
             return None
-
-    @staticmethod
-    def _create_cleared_session(session: 'Session', source: Literal['clear', 'compact']) -> 'Session':
-        """Create a new session containing only non-removed messages"""
-        from .session import Session
-
-        # Filter out messages marked as removed
-        active_messages = [msg for msg in session.messages.messages if not msg.removed]
-
-        # Create new session
-        new_session = Session(
-            work_dir=session.work_dir,
-            messages=active_messages,
-            todo_list=session.todo_list,
-            file_tracker=session.file_tracker,
-            source=source,
-        )
-
-        return new_session

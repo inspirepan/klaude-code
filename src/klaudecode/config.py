@@ -6,12 +6,12 @@ from typing import Dict, Generic, List, Optional, TypeVar, Union
 
 from pydantic import BaseModel
 from rich import box
-from rich.console import Console, Group
+from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from .tui import ColorStyle, console, render_grid
+from .tui import ColorStyle, console
 from .utils.exception import format_exception
 
 

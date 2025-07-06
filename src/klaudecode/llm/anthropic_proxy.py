@@ -12,6 +12,17 @@ from .stream_status import StreamStatus
 TEMPERATURE = 1
 
 
+class StreamState:
+    __slots__ = ['tool_calls', 'input_tokens', 'output_tokens', 'content_blocks', 'tool_json_fragments']
+
+    def __init__(self):
+        self.tool_calls = {}
+        self.input_tokens = 0
+        self.output_tokens = 0
+        self.content_blocks = {}
+        self.tool_json_fragments = {}
+
+
 class AnthropicProxy(LLMProxyBase):
     def get_think_budget(self, msgs: List[BasicMessage]) -> int:
         """Determine think budget based on user message keywords"""
@@ -80,10 +91,8 @@ class AnthropicProxy(LLMProxyBase):
             raise asyncio.CancelledError('Request timed out')
 
         ai_message = AIMessage()
-        tool_calls = {}
-        input_tokens = output_tokens = 0
-        content_blocks = {}
-        tool_json_fragments = {}
+
+        state: StreamState = StreamState()
 
         async for event in stream:
             event: RawMessageStreamEvent
@@ -94,17 +103,17 @@ class AnthropicProxy(LLMProxyBase):
 
             need_estimate = True
             if event.type == 'message_start':
-                input_tokens = event.message.usage.input_tokens
-                output_tokens = event.message.usage.output_tokens
+                state.input_tokens = event.message.usage.input_tokens
+                state.output_tokens = event.message.usage.output_tokens
             elif event.type == 'content_block_start':
-                content_blocks[event.index] = event.content_block
+                state.content_blocks[event.index] = event.content_block
                 if event.content_block.type == 'thinking':
                     stream_status.phase = 'think'
                     ai_message.thinking_signature = getattr(event.content_block, 'signature', '')
                 elif event.content_block.type == 'tool_use':
                     stream_status.phase = 'tool_call'
                     # Initialize JSON fragment accumulator for tool use blocks
-                    tool_json_fragments[event.index] = ''
+                    state.tool_json_fragments[event.index] = ''
                     if event.content_block.name:
                         stream_status.tool_names.append(event.content_block.name)
                 else:
@@ -118,15 +127,15 @@ class AnthropicProxy(LLMProxyBase):
                     ai_message.thinking_signature += event.delta.signature
                 elif event.delta.type == 'input_json_delta':
                     # Accumulate JSON fragments for tool inputs
-                    if event.index in tool_json_fragments:
-                        tool_json_fragments[event.index] += event.delta.partial_json
+                    if event.index in state.tool_json_fragments:
+                        state.tool_json_fragments[event.index] += event.delta.partial_json
             elif event.type == 'content_block_stop':
                 # Use the tracked content block
-                block = content_blocks.get(event.index)
+                block = state.content_blocks.get(event.index)
                 if block and block.type == 'tool_use':
                     # Get accumulated JSON fragments
-                    json_str = tool_json_fragments.get(event.index, '{}')
-                    tool_calls[block.id] = ToolCall(
+                    json_str = state.tool_json_fragments.get(event.index, '{}')
+                    state.tool_calls[block.id] = ToolCall(
                         id=block.id,
                         tool_name=block.name,
                         tool_args=json_str,
@@ -136,23 +145,23 @@ class AnthropicProxy(LLMProxyBase):
                     ai_message.finish_reason = self.convert_stop_reason(event.delta.stop_reason)
                     stream_status.phase = 'completed'
                 if hasattr(event, 'usage') and event.usage:
-                    output_tokens = event.usage.output_tokens
-                    stream_status.tokens = output_tokens
+                    state.output_tokens = event.usage.output_tokens
+                    stream_status.tokens = state.output_tokens
                     need_estimate = False
             elif event.type == 'message_stop':
                 pass
 
             if need_estimate:
                 estimated_tokens = ai_message.tokens
-                for json_str in tool_json_fragments.values():
+                for json_str in state.tool_json_fragments.values():
                     estimated_tokens += count_tokens(json_str)
                 stream_status.tokens = estimated_tokens
             yield (stream_status, ai_message)
-        ai_message.tool_calls = tool_calls
+        ai_message.tool_calls = state.tool_calls
         ai_message.usage = CompletionUsage(
-            completion_tokens=output_tokens,
-            prompt_tokens=input_tokens,
-            total_tokens=input_tokens + output_tokens,
+            completion_tokens=state.output_tokens,
+            prompt_tokens=state.input_tokens,
+            total_tokens=state.input_tokens + state.output_tokens,
         )
         yield (stream_status, ai_message)
 

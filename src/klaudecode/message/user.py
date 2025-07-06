@@ -27,15 +27,18 @@ class UserMessage(BasicMessage):
         from .registry import _USER_MSG_CONTENT_FUNCS
 
         content_list = []
-        if self.pre_system_reminders:
-            for reminder in self.pre_system_reminders:
-                content_list.append(
-                    {
-                        'type': 'text',
-                        'text': reminder,
-                    }
-                )
 
+        # Add pre-system reminders
+        if self.pre_system_reminders:
+            content_list.extend(
+                {
+                    'type': 'text',
+                    'text': reminder,
+                }
+                for reminder in self.pre_system_reminders
+            )
+
+        # Add main content
         main_content = self.content
         if self.user_msg_type and self.user_msg_type in _USER_MSG_CONTENT_FUNCS:
             main_content = _USER_MSG_CONTENT_FUNCS[self.user_msg_type](self)
@@ -52,14 +55,15 @@ class UserMessage(BasicMessage):
             for attachment in self.attachments:
                 content_list.extend(attachment.get_content())
 
+        # Add post-system reminders
         if self.post_system_reminders:
-            for reminder in self.post_system_reminders:
-                content_list.append(
-                    {
-                        'type': 'text',
-                        'text': reminder,
-                    }
-                )
+            content_list.extend(
+                {
+                    'type': 'text',
+                    'text': reminder,
+                }
+                for reminder in self.post_system_reminders
+            )
         return content_list
 
     def to_openai(self) -> ChatCompletionMessageParam:

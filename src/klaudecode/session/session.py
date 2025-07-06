@@ -1,5 +1,6 @@
 import time
 import uuid
+import weakref
 from pathlib import Path
 from typing import Callable, List, Literal, Optional
 
@@ -22,38 +23,50 @@ class Session(BaseModel):
     file_tracker: FileTracker = Field(default_factory=FileTracker)
     work_dir: Path
     source: Literal['user', 'subagent', 'clear', 'compact'] = 'user'
-    session_id: str = ''
+    session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    created_at: float = Field(default_factory=time.time)
     append_message_hook: Optional[Callable] = None
     title_msg: str = ''
+
+    def __init__(self, **data):
+        # Handle messages parameter - convert list to MessageHistory if needed
+        if 'messages' in data and isinstance(data['messages'], list):
+            data['messages'] = MessageHistory(messages=data['messages'])
+
+        super().__init__(**data)
+        self._hook_weakref: Optional[weakref.ReferenceType] = None
 
     @field_serializer('work_dir')
     def serialize_work_dir(self, work_dir: Path) -> str:
         return str(work_dir)
 
-    def __init__(
-        self,
-        work_dir: Path,
-        messages: Optional[List[BasicMessage]] = None,
-        append_message_hook: Optional[Callable] = None,
-        todo_list: Optional[TodoList] = None,
-        file_tracker: Optional[FileTracker] = None,
-        source: Literal['user', 'subagent', 'clear', 'compact'] = 'user',
-    ) -> None:
-        super().__init__(
-            work_dir=work_dir,
-            messages=MessageHistory(messages=messages or []),
-            session_id=str(uuid.uuid4()),
-            append_message_hook=append_message_hook,
-            todo_list=todo_list or TodoList(),
-            file_tracker=file_tracker or FileTracker(),
-            source=source,
-        )
-
     def append_message(self, *msgs: BasicMessage) -> None:
         """Add messages to the session."""
         self.messages.append_message(*msgs)
-        if self.append_message_hook:
-            self.append_message_hook(*msgs)
+        if self._hook_weakref:
+            try:
+                # Get the actual callback from weakref
+                hook = self._hook_weakref()
+                if hook is not None:
+                    hook(*msgs)
+                else:
+                    # Callback was garbage collected, clear the reference
+                    self._hook_weakref = None
+                    self.append_message_hook = None
+            except Exception as e:
+                # Log the exception but don't let it break the message appending
+                import logging
+
+                logging.warning(f'Exception in append_message_hook: {e}')
+
+    def set_append_message_hook(self, hook: Optional[Callable] = None) -> None:
+        """Set the append message hook with automatic weakref conversion."""
+        if hook is not None:
+            self.append_message_hook = hook
+            self._hook_weakref = weakref.ref(hook)
+        else:
+            self.append_message_hook = None
+            self._hook_weakref = None
 
     def save(self) -> None:
         """Save session to local files."""
@@ -61,16 +74,29 @@ class Session(BaseModel):
 
     def reset_create_at(self):
         current_time = time.time()
-        self._created_at = current_time
+        self.created_at = current_time
+
+    def _create_session_from_template(self, filter_removed: bool = False, source: Optional[Literal['user', 'subagent', 'clear', 'compact']] = None) -> 'Session':
+        """Create a new session based on this session's template with optional filtering and source."""
+        if filter_removed:
+            messages = [msg for msg in self.messages.messages if not msg.removed]
+        else:
+            messages = self.messages.messages
+
+        kwargs = {
+            'work_dir': self.work_dir,
+            'messages': messages,
+            'todo_list': self.todo_list,
+            'file_tracker': self.file_tracker,
+        }
+
+        if source is not None:
+            kwargs['source'] = source
+
+        return Session(**kwargs)
 
     def create_new_session(self) -> 'Session':
-        new_session = Session(
-            work_dir=self.work_dir,
-            messages=self.messages.messages,
-            todo_list=self.todo_list,
-            file_tracker=self.file_tracker,
-        )
-        return new_session
+        return self._create_session_from_template()
 
     def clear_conversation_history(self):
         """Clear conversation history by creating a new session for real cleanup"""

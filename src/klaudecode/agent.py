@@ -245,7 +245,10 @@ class Agent(TaskToolMixin, Tool):
             total_tokens = usage_token_count
         else:
             messages_tokens = sum(msg.tokens for msg in self.session.messages if msg)
-            tools_tokens = sum(tool.tokens() for tool in (tools or self.tools))
+            if tools:
+                tools_tokens = sum(tool.tokens() for tool in tools)
+            else:
+                tools_tokens = sum(tool.tokens() for tool in self.tools)
             total_tokens = messages_tokens + tools_tokens
         total_tokens += self.config.max_tokens.value
         if total_tokens > self.config.context_window_threshold.value * TOKEN_WARNING_THRESHOLD:
@@ -276,7 +279,7 @@ class Agent(TaskToolMixin, Tool):
 
             async def update_status():
                 while running:
-                    tool_msg_count = len([msg for msg in self.session.messages if msg.role == 'tool'])
+                    tool_msg_count = sum(1 for msg in self.session.messages if msg.role == 'tool')
                     last_msg = self.session.messages.get_last_message(filter_empty=True, role='assistant')
                     status_text = ''
                     if last_msg and isinstance(last_msg, AIMessage) and last_msg.content.strip():
