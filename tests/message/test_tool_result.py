@@ -1,8 +1,8 @@
 from unittest.mock import patch
 
-from klaudecode.message.tool_result import ToolMessage, INTERRUPTED_CONTENT, TRUNCATE_CHARS, TRUNCATE_POSTFIX
-from klaudecode.message.tool_call import ToolCall
 from klaudecode.message.base import Attachment
+from klaudecode.message.tool_call import ToolCall
+from klaudecode.message.tool_result import INTERRUPTED_CONTENT, TRUNCATE_CHARS, TRUNCATE_POSTFIX, ToolMessage
 
 
 class TestToolMessage:

@@ -23,7 +23,13 @@ class UserMessage(BasicMessage):
     user_msg_type: Optional[str] = None
     user_raw_input: Optional[str] = None
 
+    _openai_cache: Optional[dict] = None
+    _anthropic_cache: Optional[dict] = None
+
     def get_content(self):
+        if self._content_cache is not None:
+            return self._content_cache
+
         from .registry import _USER_MSG_CONTENT_FUNCS
 
         content_list = []
@@ -64,13 +70,25 @@ class UserMessage(BasicMessage):
                 }
                 for reminder in self.post_system_reminders
             )
+
+        self._content_cache = content_list
         return content_list
 
     def to_openai(self) -> ChatCompletionMessageParam:
-        return {'role': 'user', 'content': self.get_content()}
+        if self._openai_cache is not None:
+            return self._openai_cache
+
+        result = {'role': 'user', 'content': self.get_content()}
+        self._openai_cache = result
+        return result
 
     def to_anthropic(self) -> MessageParam:
-        return MessageParam(role='user', content=self.get_content())
+        if self._anthropic_cache is not None:
+            return self._anthropic_cache
+
+        result = MessageParam(role='user', content=self.get_content())
+        self._anthropic_cache = result
+        return result
 
     def __rich_console__(self, console, options):
         from .registry import _USER_MSG_RENDERERS
@@ -113,12 +131,20 @@ class UserMessage(BasicMessage):
             self.pre_system_reminders = [reminder]
         else:
             self.pre_system_reminders.append(reminder)
+        self._invalidate_cache()
 
     def append_post_system_reminder(self, reminder: str):
         if not self.post_system_reminders:
             self.post_system_reminders = [reminder]
         else:
             self.post_system_reminders.append(reminder)
+        self._invalidate_cache()
+
+    def _invalidate_cache(self):
+        """Invalidate all caches when message is modified"""
+        super()._invalidate_cache()
+        self._openai_cache = None
+        self._anthropic_cache = None
 
 
 INTERRUPTED_MSG = 'Interrupted by user'

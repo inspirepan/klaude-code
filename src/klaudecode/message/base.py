@@ -1,21 +1,22 @@
 import json
+import weakref
+from functools import lru_cache
 from typing import List, Literal, Optional, Tuple
 
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel
 
-_encoder = None
+_encoder_cache = weakref.WeakValueDictionary()
 
 
+@lru_cache(maxsize=1)
 def _get_encoder():
-    global _encoder
-    if _encoder is None:
-        import tiktoken
+    import tiktoken
 
-        _encoder = tiktoken.encoding_for_model('gpt-4')
-    return _encoder
+    return tiktoken.encoding_for_model('gpt-4')
 
 
+@lru_cache(maxsize=512)
 def count_tokens(text: str) -> int:
     if not text:
         return 0
@@ -37,23 +38,31 @@ class Attachment(BaseModel):
     media_type: Optional[str] = None
     size_str: str = ''
 
+    _content_cache: Optional[List] = None
+
     def get_content(self):
+        if self._content_cache is not None:
+            return self._content_cache
+
         if self.type == 'image':
             if self.path:
-                return [
+                content = [
                     {'type': 'text', 'text': f'Following is the image from file: {self.path}, you DO NOT need to call Read tool again.'},
                     {'type': 'image', 'source': {'type': 'base64', 'data': self.content, 'media_type': self.media_type}},
                 ]
             else:
-                return [{'type': 'image', 'source': {'type': 'base64', 'data': self.content, 'media_type': self.media_type}}]
+                content = [{'type': 'image', 'source': {'type': 'base64', 'data': self.content, 'media_type': self.media_type}}]
         elif self.type == 'directory':
             attachment_text = f'''Called the LS tool with the following input: {{"path":"{self.path}"}}
 Result of calling the LS tool: "{self.content}"'''
-            return [{'type': 'text', 'text': attachment_text}]
+            content = [{'type': 'text', 'text': attachment_text}]
         else:
             attachment_text = f'''Called the Read tool with the following input: {{"file_path":"{self.path}"}}
 Result of calling the Read tool: "{self.content}"'''
-            return [{'type': 'text', 'text': attachment_text}]
+            content = [{'type': 'text', 'text': attachment_text}]
+
+        self._content_cache = content
+        return content
 
 
 class BasicMessage(BaseModel):
@@ -63,11 +72,22 @@ class BasicMessage(BaseModel):
     extra_data: Optional[dict] = None
     attachments: Optional[List[Attachment]] = None
 
+    _content_cache: Optional[List] = None
+    _tokens_cache: Optional[int] = None
+
     def get_content(self):
-        return [{'type': 'text', 'text': self.content}]
+        if self._content_cache is not None:
+            return self._content_cache
+
+        content = [{'type': 'text', 'text': self.content}]
+        self._content_cache = content
+        return content
 
     @property
     def tokens(self) -> int:
+        if self._tokens_cache is not None:
+            return self._tokens_cache
+
         content_list = self.get_content()
         total_text = ''
 
@@ -89,7 +109,8 @@ class BasicMessage(BaseModel):
         # Add role overhead (approximation)
         total_text = f'{self.role}: {total_text}'
 
-        return count_tokens(total_text)
+        self._tokens_cache = count_tokens(total_text)
+        return self._tokens_cache
 
     def to_openai(self) -> ChatCompletionMessageParam:
         raise NotImplementedError
@@ -100,14 +121,23 @@ class BasicMessage(BaseModel):
     def set_extra_data(self, key: str, value: object):
         if not self.extra_data:
             self.extra_data = {}
+        # Limit extra_data size to prevent memory leaks
+        if len(self.extra_data) > 100:
+            oldest_key = next(iter(self.extra_data))
+            del self.extra_data[oldest_key]
         self.extra_data[key] = value
+        self._invalidate_cache()
 
     def append_extra_data(self, key: str, value: object):
         if not self.extra_data:
             self.extra_data = {}
         if key not in self.extra_data:
             self.extra_data[key] = []
+        # Limit list size to prevent memory leaks
+        if isinstance(self.extra_data[key], list) and len(self.extra_data[key]) > 50:
+            self.extra_data[key] = self.extra_data[key][-25:]  # Keep last 25 items
         self.extra_data[key].append(value)
+        self._invalidate_cache()
 
     def get_extra_data(self, key: str, default: object = None) -> object:
         if not self.extra_data:
@@ -119,4 +149,13 @@ class BasicMessage(BaseModel):
     def append_attachment(self, attachment: Attachment):
         if not self.attachments:
             self.attachments = []
+        # Limit attachment size to prevent memory issues
+        if len(self.attachments) > 20:
+            self.attachments = self.attachments[-10:]  # Keep last 10 attachments
         self.attachments.append(attachment)
+        self._invalidate_cache()
+
+    def _invalidate_cache(self):
+        """Invalidate cached content and tokens when message is modified"""
+        self._content_cache = None
+        self._tokens_cache = None

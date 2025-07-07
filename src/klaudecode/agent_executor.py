@@ -22,6 +22,7 @@ TOKEN_WARNING_THRESHOLD = 0.85
 COMPACT_THRESHOLD = 0.9
 DEFAULT_MAX_STEPS = 100
 
+
 class AgentExecutor(TaskToolMixin, Tool):
     """
     AgentExecutor contains the core execution logic for running LLM conversations and tool handling.

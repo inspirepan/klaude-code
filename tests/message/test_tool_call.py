@@ -132,7 +132,7 @@ class TestToolCall:
     def test_rich_console_with_custom_renderer(self, mock_renderers):
         def mock_renderer(tc):
             return ['Custom rendered tool call']
-        
+
         mock_renderers.__getitem__.return_value = mock_renderer
         mock_renderers.__contains__.return_value = True
 
@@ -156,7 +156,7 @@ class TestToolCall:
     def test_get_suffix_renderable_with_custom_renderer(self, mock_renderers):
         def mock_renderer(tc, is_suffix=False):
             return ['Custom suffix'] if is_suffix else ['Normal']
-        
+
         mock_renderers.__getitem__.return_value = mock_renderer
         mock_renderers.__contains__.return_value = True
 

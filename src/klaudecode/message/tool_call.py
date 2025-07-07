@@ -1,5 +1,5 @@
 import json
-from functools import cached_property
+from functools import cached_property, lru_cache
 from typing import Literal
 
 from anthropic.types import ToolUseBlockParam
@@ -16,9 +16,18 @@ class ToolCall(BaseModel):
     tool_args_dict: dict = {}
     status: Literal['processing', 'success', 'error', 'canceled'] = 'processing'
 
+    _tool_args_cache: str = None
+    _tokens_cache: int = None
+    _openai_cache: dict = None
+    _anthropic_cache: dict = None
+
     @cached_property
     def tool_args(self) -> str:
-        return json.dumps(self.tool_args_dict, ensure_ascii=False) if self.tool_args_dict else ''
+        if self._tool_args_cache is not None:
+            return self._tool_args_cache
+        result = json.dumps(self.tool_args_dict, ensure_ascii=False) if self.tool_args_dict else ''
+        self._tool_args_cache = result
+        return result
 
     def __init__(self, **data):
         if 'tool_args' in data and not data.get('tool_args_dict'):
@@ -29,15 +38,22 @@ class ToolCall(BaseModel):
                 except (json.JSONDecodeError, TypeError):
                     data['tool_args_dict'] = {}
         super().__init__(**data)
+        self._invalidate_cache()
 
     @property
     def tokens(self) -> int:
+        if self._tokens_cache is not None:
+            return self._tokens_cache
         func_tokens = count_tokens(self.tool_name)
         args_tokens = count_tokens(self.tool_args)
-        return func_tokens + args_tokens
+        self._tokens_cache = func_tokens + args_tokens
+        return self._tokens_cache
 
     def to_openai(self):
-        return {
+        if self._openai_cache is not None:
+            return self._openai_cache
+
+        result = {
             'id': self.id,
             'type': 'function',
             'function': {
@@ -45,16 +61,24 @@ class ToolCall(BaseModel):
                 'arguments': self.tool_args,
             },
         }
+        self._openai_cache = result
+        return result
 
     def to_anthropic(self) -> ToolUseBlockParam:
-        return {
+        if self._anthropic_cache is not None:
+            return self._anthropic_cache
+
+        result = {
             'id': self.id,
             'type': 'tool_use',
             'name': self.tool_name,
             'input': self.tool_args_dict,
         }
+        self._anthropic_cache = result
+        return result
 
     @staticmethod
+    @lru_cache(maxsize=256)
     def get_display_tool_name(tool_name: str) -> str:
         if tool_name.startswith('mcp__'):
             return tool_name[5:] + '(MCP)'
@@ -63,6 +87,13 @@ class ToolCall(BaseModel):
     @staticmethod
     def get_display_tool_args(tool_args_dict: dict) -> Text:
         return Text.from_markup(', '.join([f'[b]{k}[/b]={v}' for k, v in tool_args_dict.items()]))
+
+    def _invalidate_cache(self):
+        """Invalidate all caches when tool call data changes"""
+        self._tool_args_cache = None
+        self._tokens_cache = None
+        self._openai_cache = None
+        self._anthropic_cache = None
 
     def __rich_console__(self, console, options):
         from .registry import _TOOL_CALL_RENDERERS

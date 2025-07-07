@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
-from klaudecode.message.user import UserMessage, SpecialUserMessageTypeEnum, INTERRUPTED_MSG, interrupted_renderer, compact_renderer, initialize_default_renderers
 from klaudecode.message.base import Attachment
+from klaudecode.message.user import INTERRUPTED_MSG, SpecialUserMessageTypeEnum, UserMessage, compact_renderer, initialize_default_renderers, interrupted_renderer
 
 
 class TestSpecialUserMessageTypeEnum:

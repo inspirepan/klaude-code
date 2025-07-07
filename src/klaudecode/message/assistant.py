@@ -24,10 +24,16 @@ class AIMessage(BasicMessage):
     finish_reason: Literal['stop', 'length', 'tool_calls', 'content_filter', 'function_call'] = 'stop'
     usage: Optional[CompletionUsage] = None
 
+    _openai_cache: Optional[dict] = None
+    _anthropic_cache: Optional[dict] = None
+
     def get_content(self):
         """
         only used for token calculation
         """
+        if self._content_cache is not None:
+            return self._content_cache
+
         content: List[ContentBlock] = []
         if self.thinking_content:
             content.append(
@@ -52,15 +58,25 @@ class AIMessage(BasicMessage):
                         'text': tc.tool_args,
                     }
                 )
+
+        self._content_cache = content
         return content
 
     def to_openai(self) -> ChatCompletionMessageParam:
+        if self._openai_cache is not None:
+            return self._openai_cache
+
         result = {'role': 'assistant', 'content': self.content}
         if self.tool_calls:
             result['tool_calls'] = [tc.to_openai() for tc in self.tool_calls.values()]
+
+        self._openai_cache = result
         return result
 
     def to_anthropic(self) -> MessageParam:
+        if self._anthropic_cache is not None:
+            return self._anthropic_cache
+
         content: List[ContentBlock] = []
         if self.thinking_content:
             content.append(
@@ -80,10 +96,13 @@ class AIMessage(BasicMessage):
         if self.tool_calls:
             for tc in self.tool_calls.values():
                 content.append(tc.to_anthropic())
-        return MessageParam(
+
+        result = MessageParam(
             role='assistant',
             content=content,
         )
+        self._anthropic_cache = result
+        return result
 
     def __rich_console__(self, console, options):
         yield from self.get_thinking_renderable()
@@ -127,7 +146,14 @@ class AIMessage(BasicMessage):
             self.usage.prompt_tokens += other.usage.prompt_tokens
             self.usage.total_tokens += other.usage.total_tokens
         self.tool_calls.update(other.tool_calls)
+        self._invalidate_cache()
         return self
+
+    def _invalidate_cache(self):
+        """Invalidate all caches when message is modified"""
+        super()._invalidate_cache()
+        self._openai_cache = None
+        self._anthropic_cache = None
 
 
 class AgentUsage(BaseModel):

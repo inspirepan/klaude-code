@@ -1,5 +1,4 @@
-
-from klaudecode.message.assistant import AIMessage, CompletionUsage, AgentUsage
+from klaudecode.message.assistant import AgentUsage, AIMessage, CompletionUsage
 from klaudecode.message.tool_call import ToolCall
 
 
