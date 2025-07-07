@@ -129,7 +129,7 @@ class AnthropicProxy(LLMProxyBase):
             need_estimate = self._handle_message_delta(event, stream_status, ai_message, state)
         elif event.type == 'message_stop':
             pass
-
+        ai_message._invalidate_cache()
         return need_estimate
 
     def _handle_message_start(self, event, state):
@@ -194,6 +194,7 @@ class AnthropicProxy(LLMProxyBase):
             prompt_tokens=state.input_tokens,
             total_tokens=state.input_tokens + state.output_tokens,
         )
+        ai_message._invalidate_cache()
 
     @staticmethod
     def convert_to_anthropic(

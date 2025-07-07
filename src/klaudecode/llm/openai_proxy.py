@@ -133,6 +133,8 @@ class OpenAIProxy(LLMProxyBase):
             ai_message.finish_reason = choice.finish_reason
             stream_status.phase = 'completed'
 
+        ai_message._invalidate_cache()
+
     def _calculate_completion_tokens(self, chunk, ai_message, tool_call_chunk_accumulator, current_tokens) -> int:
         if chunk.usage and chunk.usage.completion_tokens:
             return chunk.usage.completion_tokens
@@ -146,6 +148,7 @@ class OpenAIProxy(LLMProxyBase):
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
         )
+        ai_message._invalidate_cache()
 
     class OpenAIToolCallChunkAccumulator:
         def __init__(self):
