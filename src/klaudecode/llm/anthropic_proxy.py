@@ -1,8 +1,8 @@
 import asyncio
-from typing import AsyncGenerator, List, Literal, Optional, Tuple
+from typing import Any, AsyncGenerator, Dict, List, Literal, Optional, Tuple
 
 import anthropic
-from anthropic.types import MessageParam, StopReason, TextBlockParam
+from anthropic.types import RawMessageStreamEvent, MessageParam, StopReason, TextBlockParam
 
 from ..message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, UserMessage, count_tokens
 from ..tool import Tool
@@ -15,12 +15,12 @@ TEMPERATURE = 1
 class StreamState:
     __slots__ = ['tool_calls', 'input_tokens', 'output_tokens', 'content_blocks', 'tool_json_fragments']
 
-    def __init__(self):
-        self.tool_calls = {}
-        self.input_tokens = 0
-        self.output_tokens = 0
-        self.content_blocks = {}
-        self.tool_json_fragments = {}
+    def __init__(self) -> None:
+        self.tool_calls: Dict[str, ToolCall] = {}
+        self.input_tokens: int = 0
+        self.output_tokens: int = 0
+        self.content_blocks: Dict[int, Any] = {}
+        self.tool_json_fragments: Dict[int, str] = {}
 
 
 class AnthropicProxy(LLMProxyBase):
@@ -44,9 +44,9 @@ class AnthropicProxy(LLMProxyBase):
         api_key: str,
         max_tokens: int,
         enable_thinking: bool,
-        extra_header: dict,
-        extra_body: dict,
-    ):
+        extra_header: Dict[str, Any],
+        extra_body: Dict[str, Any],
+    ) -> None:
         super().__init__(model_name, max_tokens, extra_header, extra_body)
         self.enable_thinking = enable_thinking
         self.client = anthropic.AsyncAnthropic(api_key=api_key)
@@ -69,9 +69,9 @@ class AnthropicProxy(LLMProxyBase):
             self._current_request_task = asyncio.current_task()
 
             async for event in stream:
+                event: RawMessageStreamEvent
                 if asyncio.current_task().cancelled():
                     raise asyncio.CancelledError('Stream cancelled')
-
                 need_estimate = self._process_stream_event(event, stream_status, ai_message, state)
 
                 if need_estimate:
@@ -84,7 +84,7 @@ class AnthropicProxy(LLMProxyBase):
         self._finalize_message(ai_message, state)
         yield (stream_status, ai_message)
 
-    async def _create_stream(self, msgs: List[BasicMessage], tools: Optional[List[Tool]], timeout: float):
+    async def _create_stream(self, msgs: List[BasicMessage], tools: Optional[List[Tool]], timeout: float) -> AsyncGenerator[RawMessageStreamEvent, None]:
         system_msgs, other_msgs = self.convert_to_anthropic(msgs)
         budget_tokens = self.get_think_budget(msgs)
 
@@ -114,7 +114,7 @@ class AnthropicProxy(LLMProxyBase):
         except asyncio.TimeoutError:
             raise asyncio.CancelledError('Request timed out')
 
-    def _process_stream_event(self, event, stream_status, ai_message, state) -> bool:
+    def _process_stream_event(self, event: RawMessageStreamEvent, stream_status: StreamStatus, ai_message: AIMessage, state: StreamState) -> bool:
         need_estimate = True
 
         if event.type == 'message_start':
@@ -132,11 +132,11 @@ class AnthropicProxy(LLMProxyBase):
         ai_message._invalidate_cache()
         return need_estimate
 
-    def _handle_message_start(self, event, state):
+    def _handle_message_start(self, event: RawMessageStreamEvent, state: StreamState) -> None:
         state.input_tokens = event.message.usage.input_tokens
         state.output_tokens = event.message.usage.output_tokens
 
-    def _handle_content_block_start(self, event, stream_status, ai_message, state):
+    def _handle_content_block_start(self, event: RawMessageStreamEvent, stream_status: StreamStatus, ai_message: AIMessage, state: StreamState) -> None:
         state.content_blocks[event.index] = event.content_block
         if event.content_block.type == 'thinking':
             stream_status.phase = 'think'
@@ -149,7 +149,7 @@ class AnthropicProxy(LLMProxyBase):
         else:
             stream_status.phase = 'content'
 
-    def _handle_content_block_delta(self, event, ai_message, state):
+    def _handle_content_block_delta(self, event: RawMessageStreamEvent, ai_message: AIMessage, state: StreamState) -> None:
         if event.delta.type == 'text_delta':
             ai_message.content += event.delta.text
         elif event.delta.type == 'thinking_delta':
@@ -160,7 +160,7 @@ class AnthropicProxy(LLMProxyBase):
             if event.index in state.tool_json_fragments:
                 state.tool_json_fragments[event.index] += event.delta.partial_json
 
-    def _handle_content_block_stop(self, event, state):
+    def _handle_content_block_stop(self, event: RawMessageStreamEvent, state: StreamState) -> None:
         block = state.content_blocks.get(event.index)
         if block and block.type == 'tool_use':
             json_str = state.tool_json_fragments.get(event.index, '{}')
@@ -170,7 +170,7 @@ class AnthropicProxy(LLMProxyBase):
                 tool_args=json_str,
             )
 
-    def _handle_message_delta(self, event, stream_status, ai_message, state) -> bool:
+    def _handle_message_delta(self, event: RawMessageStreamEvent, stream_status: StreamStatus, ai_message: AIMessage, state: StreamState) -> bool:
         need_estimate = True
         if hasattr(event.delta, 'stop_reason') and event.delta.stop_reason:
             ai_message.finish_reason = self.convert_stop_reason(event.delta.stop_reason)
@@ -181,13 +181,13 @@ class AnthropicProxy(LLMProxyBase):
             need_estimate = False
         return need_estimate
 
-    def _estimate_tokens(self, ai_message, state) -> int:
+    def _estimate_tokens(self, ai_message: AIMessage, state: StreamState) -> int:
         estimated_tokens = ai_message.tokens
         for json_str in state.tool_json_fragments.values():
             estimated_tokens += count_tokens(json_str)
         return estimated_tokens
 
-    def _finalize_message(self, ai_message, state):
+    def _finalize_message(self, ai_message: AIMessage, state: StreamState) -> None:
         ai_message.tool_calls = state.tool_calls
         ai_message.usage = CompletionUsage(
             completion_tokens=state.output_tokens,
