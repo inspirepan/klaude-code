@@ -1,6 +1,7 @@
 """Tests for BashUtils class"""
 
 import unittest.mock
+
 from klaudecode.utils.bash_utils import BashUtils
 
 
@@ -13,22 +14,22 @@ class TestBashUtils:
                 # Simple command with single quotes
                 {
                     'command': "echo 'Hello World'",
-                    'expected_contains': ["echo 'Hello World'", "timeout"],
+                    'expected_contains': ["echo 'Hello World'", 'timeout'],
                 },
                 # Python command with nested quotes
                 {
                     'command': 'python -c "print(\'Success\')"',
-                    'expected_contains': ['python -c "print(\'Success\')"', "timeout"],
+                    'expected_contains': ['python -c "print(\'Success\')"', 'timeout'],
                 },
                 # Complex command with quotes that needs bash wrapper
                 {
                     'command': "echo 'test' | cat",
-                    'expected_contains': ['bash -c', 'echo', 'test', 'cat', "timeout"],
+                    'expected_contains': ['bash -c', 'echo', 'test', 'cat', 'timeout'],
                 },
                 # Command with unicode in quotes
                 {
                     'command': 'python -c "print(\'成功\')"',
-                    'expected_contains': ['python -c "print(\'成功\')"', "timeout"],
+                    'expected_contains': ['python -c "print(\'成功\')"', 'timeout'],
                 },
             ]
 
@@ -114,7 +115,7 @@ class TestBashUtils:
             # Simple command
             result = BashUtils.preprocess_command('echo test', 5.0)
             assert result == 'timeout 5s echo test'
-            
+
             # Complex command needing bash wrapper
             result = BashUtils.preprocess_command('echo test | cat', 10.0)
             assert result.startswith('timeout 10s bash -c')
@@ -127,7 +128,7 @@ class TestBashUtils:
             result = BashUtils.preprocess_command('echo test', 5.0)
             assert result == 'echo test'
             assert 'timeout' not in result
-            
+
             # Complex command needing bash wrapper
             result = BashUtils.preprocess_command('echo test | cat', 10.0)
             assert result.startswith('bash -c')

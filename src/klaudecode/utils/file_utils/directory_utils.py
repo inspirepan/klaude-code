@@ -8,6 +8,8 @@ DEFAULT_MAX_CHARS = 40000
 INDENT_SIZE = 2
 
 DEFAULT_IGNORE_PATTERNS = [
+    'Applications',
+    'Library',
     'node_modules',
     '.git',
     '.svn',
@@ -307,7 +309,10 @@ class DirectoryTreeBuilder:
         lines = []
 
         def traverse(current_node: TreeNode):
-            lines.append(str(current_node.path))
+            path_str = str(current_node.path)
+            if current_node.is_dir and not path_str.endswith('/'):
+                path_str += '/'
+            lines.append(path_str)
             for child in current_node.children:
                 traverse(child)
 

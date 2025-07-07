@@ -120,7 +120,7 @@ dark_theme = Theme(
         ColorStyle.WARNING: 'rgb(143,110,44)',
         ColorStyle.INFO: 'rgb(180,204,245)',
         ColorStyle.HIGHLIGHT: 'rgb(255,255,255)',
-        ColorStyle.MAIN: 'bright_black',
+        ColorStyle.MAIN: 'white',
         ColorStyle.MUTED: 'rgb(151,153,153)',
         ColorStyle.SEPARATOR: 'rgb(50,50,50)',
         # Todo
