@@ -116,7 +116,7 @@ class TaskToolMixin:
 def render_task_args(tool_call: ToolCall, is_suffix: bool = False):
     yield Columns(
         [
-            Text.assemble((tool_call.tool_name, ColorStyle.HIGHLIGHT.bold), '(', (tool_call.tool_args_dict.get('description', ''), ColorStyle.HIGHLIGHT.bold), ')', ' → '),
+            Text.assemble((tool_call.tool_name, ColorStyle.TOOL_NAME.bold), '(', (tool_call.tool_args_dict.get('description', ''), ColorStyle.TOOL_NAME.bold), ')', ' → '),
             Text(tool_call.tool_args_dict.get('prompt', '')),
         ]
     )

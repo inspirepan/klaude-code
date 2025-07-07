@@ -8,9 +8,7 @@ import time
 from typing import Annotated, Callable, Set
 
 from pydantic import BaseModel, Field
-from rich.console import Group
-from rich.padding import Padding
-from rich.rule import Rule
+from rich.columns import Columns
 from rich.text import Text
 
 from ..message import ToolCall, register_tool_call_renderer
@@ -388,20 +386,21 @@ class BashTool(Tool):
 
 
 def render_bash_args(tool_call: ToolCall, is_suffix: bool = False):
-    description = tool_call.tool_args_dict.get('description', '')
     command = tool_call.tool_args_dict.get('command', '')
     if is_suffix:
         yield Text.assemble(('Bash', 'bold'), '(', command, ')')
         return
-    yield Text.assemble(('Bash', ColorStyle.HIGHLIGHT.bold), '(', description, ')')
-    yield Padding.indent(
-        Group(
-            Rule(style=ColorStyle.SEPARATOR),
-            Text(command, style=ColorStyle.HIGHLIGHT),
-            Rule(style=ColorStyle.SEPARATOR),
-        ),
-        level=2,
-    )
+
+    description = tool_call.tool_args_dict.get('description', '')
+
+    is_multiline = '\n' in command
+    is_long = len(command) > 20
+
+    if is_multiline or is_long:
+        yield Columns([Text.assemble(('Bash', ColorStyle.TOOL_NAME.bold), '(', description, ') → '), Text(command)])
+    else:
+        yield Columns([Text.assemble(('Bash', ColorStyle.TOOL_NAME.bold)), Text.assemble('(', Text(command), ')')], padding=(0, 0))
 
 
 register_tool_call_renderer('Bash', render_bash_args)
+#

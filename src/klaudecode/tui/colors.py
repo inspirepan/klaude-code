@@ -21,6 +21,7 @@ class ColorStyle(str, Enum):
     TODO_COMPLETED = 'todo_completed'
     TODO_IN_PROGRESS = 'todo_in_progress'
     # Tools and agents
+    TOOL_NAME = 'tool_name'
     AGENT_BORDER = 'agent_border'
     # Code
     DIFF_REMOVED_LINE = 'diff_removed_line'
@@ -87,13 +88,14 @@ light_theme = Theme(
         ColorStyle.TODO_COMPLETED: 'rgb(65,120,64)',
         ColorStyle.TODO_IN_PROGRESS: 'rgb(62,99,153)',
         # Tools and agents
+        ColorStyle.TOOL_NAME: 'rgb(66,66,66)',
         ColorStyle.AGENT_BORDER: 'rgb(175,192,217)',
         # Code
         ColorStyle.DIFF_REMOVED_LINE: 'rgb(0,0,0) on rgb(255,168,180)',
         ColorStyle.DIFF_ADDED_LINE: 'rgb(0,0,0) on rgb(105,219,124)',
         ColorStyle.DIFF_REMOVED_CHAR: 'rgb(0,0,0) on rgb(239,109,119)',
         ColorStyle.DIFF_ADDED_CHAR: 'rgb(0,0,0) on rgb(57,177,78)',
-        ColorStyle.CONTEXT_LINE: 'rgb(0,0,0)',
+        ColorStyle.CONTEXT_LINE: 'rgb(96,96,96)',
         ColorStyle.INLINE_CODE: 'rgb(109,104,218)',
         # Prompt toolkit
         ColorStyle.INPUT_PLACEHOLDER: 'rgb(136,139,139)',
@@ -127,13 +129,14 @@ dark_theme = Theme(
         ColorStyle.TODO_COMPLETED: 'rgb(107,184,109)',
         ColorStyle.TODO_IN_PROGRESS: 'rgb(150,204,235)',
         # Tools and agents
+        ColorStyle.TOOL_NAME: 'rgb(230,230,230)',
         ColorStyle.AGENT_BORDER: 'rgb(125,142,177)',
         # Code
         ColorStyle.DIFF_REMOVED_LINE: 'rgb(255,255,255) on rgb(112,47,55)',
         ColorStyle.DIFF_ADDED_LINE: 'rgb(255,255,255) on rgb(49,91,48)',
         ColorStyle.DIFF_REMOVED_CHAR: 'rgb(255,255,255) on rgb(167,95,107)',
         ColorStyle.DIFF_ADDED_CHAR: 'rgb(255,255,255) on rgb(88,164,102)',
-        ColorStyle.CONTEXT_LINE: 'rgb(255,255,255)',
+        ColorStyle.CONTEXT_LINE: 'rgb(200,200,200)',
         ColorStyle.INLINE_CODE: 'rgb(180,184,245)',
         # Prompt toolkit
         ColorStyle.INPUT_PLACEHOLDER: 'rgb(134,134,134)',
