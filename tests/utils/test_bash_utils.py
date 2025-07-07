@@ -1,38 +1,41 @@
 """Tests for BashUtils class"""
 
+import unittest.mock
 from klaudecode.utils.bash_utils import BashUtils
 
 
 class TestBashUtils:
     def test_preprocess_command_with_quotes(self):
         """Test that commands with quotes are properly escaped"""
-        test_cases = [
-            # Simple command with single quotes
-            {
-                'command': "echo 'Hello World'",
-                'expected_contains': ["echo 'Hello World'"],
-            },
-            # Python command with nested quotes
-            {
-                'command': 'python -c "print(\'Success\')"',
-                'expected_contains': ['python -c "print(\'Success\')"'],
-            },
-            # Complex command with quotes that needs bash wrapper
-            {
-                'command': "echo 'test' | cat",
-                'expected_contains': ['bash -c', 'echo', 'test', 'cat'],
-            },
-            # Command with unicode in quotes
-            {
-                'command': 'python -c "print(\'成功\')"',
-                'expected_contains': ['python -c "print(\'成功\')"'],
-            },
-        ]
+        # Mock timeout availability to make tests predictable
+        with unittest.mock.patch.object(BashUtils, '_has_timeout_command', return_value=True):
+            test_cases = [
+                # Simple command with single quotes
+                {
+                    'command': "echo 'Hello World'",
+                    'expected_contains': ["echo 'Hello World'", "timeout"],
+                },
+                # Python command with nested quotes
+                {
+                    'command': 'python -c "print(\'Success\')"',
+                    'expected_contains': ['python -c "print(\'Success\')"', "timeout"],
+                },
+                # Complex command with quotes that needs bash wrapper
+                {
+                    'command': "echo 'test' | cat",
+                    'expected_contains': ['bash -c', 'echo', 'test', 'cat', "timeout"],
+                },
+                # Command with unicode in quotes
+                {
+                    'command': 'python -c "print(\'成功\')"',
+                    'expected_contains': ['python -c "print(\'成功\')"', "timeout"],
+                },
+            ]
 
-        for case in test_cases:
-            result = BashUtils.preprocess_command(case['command'])
-            for expected in case['expected_contains']:
-                assert expected in result, f"Expected '{expected}' in result '{result}'"
+            for case in test_cases:
+                result = BashUtils.preprocess_command(case['command'])
+                for expected in case['expected_contains']:
+                    assert expected in result, f"Expected '{expected}' in result '{result}'"
 
     def test_needs_bash_wrapper(self):
         """Test detection of commands that need bash wrapper"""
@@ -94,3 +97,39 @@ class TestBashUtils:
 
         for text in non_interactive:
             assert not BashUtils.detect_interactive_prompt(text), f"'{text}' should NOT be detected as interactive"
+
+    def test_has_timeout_command(self):
+        """Test detection of timeout command availability"""
+        # Test when timeout is available
+        with unittest.mock.patch('shutil.which', return_value='/usr/bin/timeout'):
+            assert BashUtils._has_timeout_command() is True
+
+        # Test when timeout is not available
+        with unittest.mock.patch('shutil.which', return_value=None):
+            assert BashUtils._has_timeout_command() is False
+
+    def test_preprocess_command_with_timeout_available(self):
+        """Test command preprocessing when timeout is available"""
+        with unittest.mock.patch.object(BashUtils, '_has_timeout_command', return_value=True):
+            # Simple command
+            result = BashUtils.preprocess_command('echo test', 5.0)
+            assert result == 'timeout 5s echo test'
+            
+            # Complex command needing bash wrapper
+            result = BashUtils.preprocess_command('echo test | cat', 10.0)
+            assert result.startswith('timeout 10s bash -c')
+            assert 'echo test | cat' in result
+
+    def test_preprocess_command_without_timeout(self):
+        """Test command preprocessing when timeout is not available"""
+        with unittest.mock.patch.object(BashUtils, '_has_timeout_command', return_value=False):
+            # Simple command
+            result = BashUtils.preprocess_command('echo test', 5.0)
+            assert result == 'echo test'
+            assert 'timeout' not in result
+            
+            # Complex command needing bash wrapper
+            result = BashUtils.preprocess_command('echo test | cat', 10.0)
+            assert result.startswith('bash -c')
+            assert 'echo test | cat' in result
+            assert 'timeout' not in result

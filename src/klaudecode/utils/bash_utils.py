@@ -1,5 +1,6 @@
 import re
 import shlex
+import shutil
 
 
 class BashUtils:
@@ -89,13 +90,27 @@ class BashUtils:
         # Check if command needs bash -c wrapping by detecting complex shell syntax
         needs_bash_wrapper = cls._needs_bash_wrapper(command)
 
-        timeout_str = f'{timeout_seconds:.0f}s'
-        if needs_bash_wrapper:
-            # Use shlex.quote to properly escape the command for bash -c
-            escaped_command = shlex.quote(command)
-            return f'timeout {timeout_str} bash -c {escaped_command}'
+        # Check if timeout command is available
+        if cls._has_timeout_command():
+            timeout_str = f'{timeout_seconds:.0f}s'
+            if needs_bash_wrapper:
+                # Use shlex.quote to properly escape the command for bash -c
+                escaped_command = shlex.quote(command)
+                return f'timeout {timeout_str} bash -c {escaped_command}'
+            else:
+                return f'timeout {timeout_str} {command}'
         else:
-            return f'timeout {timeout_str} {command}'
+            # If timeout is not available, return command as-is (timeout will be handled by Python)
+            if needs_bash_wrapper:
+                escaped_command = shlex.quote(command)
+                return f'bash -c {escaped_command}'
+            else:
+                return command
+
+    @classmethod
+    def _has_timeout_command(cls) -> bool:
+        """Check if the timeout command is available on the system"""
+        return shutil.which('timeout') is not None
 
     @classmethod
     def strip_ansi_codes(cls, data: str) -> str:
