@@ -61,7 +61,7 @@ async def get_session(ctx: typer.Context) -> Optional[Session]:
             work_dir=Path.cwd(),
             messages=[
                 SystemMessage(content=STATIC_SYSTEM_PROMPT, cached=True),
-                SystemMessage(content=get_system_prompt_dynamic_part(Path.cwd(), ctx.obj['config'].model_name)),
+                SystemMessage(content=get_system_prompt_dynamic_part(Path.cwd(), ctx.obj['config'].model_name.value)),
             ],
         )
     return session
@@ -113,6 +113,7 @@ def main(
         '--continue',
         help='Continue from the latest session in current directory',
     ),
+    config: Optional[str] = typer.Option(None, '--config', help='Path to configuration file'),
     api_key: Optional[str] = typer.Option(None, '--api-key', help='Override API key from config'),
     model: Optional[str] = typer.Option(None, '--model', help='Override model name from config'),
     base_url: Optional[str] = typer.Option(None, '--base-url', help='Override base URL from config'),
@@ -142,6 +143,7 @@ def main(
                 api_version=api_version,
                 extra_header=extra_header,
                 extra_body=extra_body,
+                config_file=config,
             )
         except ValueError as e:
             console.print(Text(f'Error: {format_exception(e)}', style=ColorStyle.ERROR))

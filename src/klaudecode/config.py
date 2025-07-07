@@ -318,6 +318,34 @@ class GlobalConfigSource(ConfigSource):
         cls.open_config_file()
 
 
+class FileConfigSource(ConfigSource):
+    """Configuration from CLI specified file"""
+
+    def __init__(self, config_file: str):
+        super().__init__('--config')
+        self.config_file = config_file
+        self._load_config()
+
+    def _load_config(self):
+        """Load configuration file into config model"""
+        config_path = Path(self.config_file)
+        if not config_path.exists():
+            console.print(Text(f'Warning: Config file not found: {config_path}', style=ColorStyle.ERROR))
+            self.config_model = ConfigModel(source='--config')
+            return
+
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config_data = json.load(f)
+                # Filter only valid ConfigModel fields
+                valid_fields = {k for k in ConfigModel.model_fields.keys()}
+                filtered_data = {k: v for k, v in config_data.items() if k in valid_fields}
+                self.config_model = ConfigModel(source='--config', **filtered_data)
+        except (json.JSONDecodeError, IOError) as e:
+            console.print(Text(f'Warning: Failed to load config file {config_path}: {format_exception(e)}', style=ColorStyle.ERROR))
+            self.config_model = ConfigModel(source='--config')
+
+
 class DefaultConfigSource(ConfigSource):
     """Default configuration"""
 
@@ -413,19 +441,29 @@ class ConfigManager:
         extra_body: Optional[str] = None,
         enable_thinking: Optional[bool] = None,
         api_version: Optional[str] = None,
+        config_file: Optional[str] = None,
     ) -> 'ConfigManager':
         """Create a ConfigManager with all configuration sources
 
         Args:
             CLI arguments that will be passed to ArgConfigSource
+            config_file: Path to configuration file specified via CLI
 
         Returns:
-            ConfigManager with sources in priority order: Default < Config File < Environment < CLI Args
+            ConfigManager with sources in priority order: Default < Global Config < Environment < CLI Config < CLI Args
         """
         sources = [
             DefaultConfigSource(),
             GlobalConfigSource(),
             EnvConfigSource(),
+        ]
+
+        # Add CLI specified config file if provided
+        if config_file:
+            sources.append(FileConfigSource(config_file))
+
+        # CLI arguments have the highest priority
+        sources.append(
             ArgConfigSource(
                 api_key=api_key,
                 model_name=model_name,
@@ -437,7 +475,7 @@ class ConfigManager:
                 extra_body=extra_body,
                 enable_thinking=enable_thinking,
                 api_version=api_version,
-            ),
-        ]
+            )
+        )
 
         return cls(sources)
