@@ -1,5 +1,4 @@
 import asyncio
-import traceback
 from typing import Callable, List, Optional
 
 from anthropic import AnthropicError
@@ -104,8 +103,7 @@ class AgentExecutor(TaskToolMixin, Tool):
         return error_msg
 
     def _handle_general_error(self, e: Exception):
-        traceback.print_exc()
-        error_msg = f'Error: {format_exception(e)}'
+        error_msg = f'Error: {format_exception(e, show_traceback=True)}'
         console.print(render_suffix(error_msg, style=ColorStyle.ERROR))
         return error_msg
 

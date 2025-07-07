@@ -1,5 +1,4 @@
 import asyncio
-import traceback
 
 from rich.text import Text
 
@@ -39,8 +38,7 @@ class Agent:
             custom_command_manager.discover_and_register_commands(agent_state.session.work_dir)
         except Exception as e:
             if agent_state.print_switch:
-                traceback.print_exc()
-                console.print(f'Warning: Failed to load custom commands: {format_exception(e)}', style=ColorStyle.WARNING)
+                console.print(f'Warning: Failed to load custom commands: {format_exception(e, show_traceback=True)}', style=ColorStyle.WARNING)
 
     async def chat_interactive(self, first_message: str = None):
         self.agent_state.initialize_llm()

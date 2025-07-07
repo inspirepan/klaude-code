@@ -181,14 +181,12 @@ class TestAgentExecutor:
         with (
             patch('klaudecode.agent_executor.console') as mock_console,
             patch('klaudecode.agent_executor.format_exception') as mock_format,
-            patch('traceback.print_exc') as mock_traceback,
         ):
             mock_format.return_value = 'Formatted error'
 
             result = agent_executor._handle_general_error(error)
 
             mock_console.print.assert_called()
-            mock_traceback.assert_called_once()
             assert 'Formatted error' in result
 
     @pytest.mark.asyncio
