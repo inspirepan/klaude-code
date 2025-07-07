@@ -1,11 +1,6 @@
-from typing import TYPE_CHECKING
-
 from ..prompt.commands import INIT_COMMAND
 from ..user_input import UserInput
 from .query_rewrite_command import QueryRewriteCommand
-
-if TYPE_CHECKING:
-    pass
 
 
 class InitCommand(QueryRewriteCommand):

@@ -1,19 +1,17 @@
 from pathlib import Path
-from typing import TYPE_CHECKING, Generator
+from typing import Generator
 
 from rich.abc import RichRenderable
 from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
+from ..agent_state import AgentState
 from ..message import UserMessage
 from ..tui import ColorStyle, console, render_grid, render_suffix
 from ..user_input import Command, CommandHandleOutput, UserInput, user_select
 from ..utils.exception import format_exception
 from ..utils.str_utils import sanitize_filename
-
-if TYPE_CHECKING:
-    from ..agent import Agent
 
 
 class SaveCustomCommandCommand(Command):
@@ -23,10 +21,10 @@ class SaveCustomCommandCommand(Command):
     def get_command_desc(self) -> str:
         return 'Analyze current conversation pattern and save a reusable custom command'
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
-        command_handle_output = await super().handle(agent, user_input)
+    async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent_state, user_input)
 
-        analysis_result = await agent.session.analyze_conversation_for_command(llm_manager=agent.llm_manager)
+        analysis_result = await agent_state.session.analyze_conversation_for_command(llm_manager=agent_state.llm_manager)
 
         if not analysis_result:
             console.print('Failed to analyze conversation for command creation', style=ColorStyle.ERROR)

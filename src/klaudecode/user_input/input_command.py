@@ -1,13 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generator, Optional
-
-if TYPE_CHECKING:
-    from ..agent import Agent
+from typing import Generator, Optional
 
 from pydantic import BaseModel
 from rich.abc import RichRenderable
 from rich.text import Text
 
+from ..agent_state import AgentState
 from ..message import UserMessage, register_user_msg_content_func, register_user_msg_renderer, register_user_msg_suffix_renderer
 from ..tui import render_message
 
@@ -33,7 +31,7 @@ class Command(ABC):
     def get_command_desc(self) -> str:
         raise NotImplementedError
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
+    async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
         return CommandHandleOutput(
             user_msg=UserMessage(
                 content=user_input.cleaned_input,

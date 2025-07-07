@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from rich.panel import Panel
 from rich.text import Text
 
+from ..agent_state import AgentState
 from ..message import AIMessage, BasicMessage, SystemMessage, ToolCall, ToolMessage, UserMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.system import get_subagent_system_prompt
 from ..prompt.tools import TASK_TOOL_DESC
@@ -20,7 +21,7 @@ from . import BASIC_TOOLS
 DEFAULT_MAX_STEPS = 80
 
 if TYPE_CHECKING:
-    from ..agent import Agent
+    from ..agent_executor import AgentExecutor
 
 
 class TaskToolMixin:
@@ -52,16 +53,17 @@ class TaskToolMixin:
                     for tool_call in msg.tool_calls.values():
                         instance.tool_result().append_extra_data('tool_calls', tool_call.model_dump())
 
-        session = Session(
+        sub_agent_session = Session(
             work_dir=Path.cwd(),
-            messages=[SystemMessage(content=get_subagent_system_prompt(work_dir=instance.parent_agent.session.work_dir, model_name=instance.parent_agent.config.model_name.value))],
+            messages=[SystemMessage(content=get_subagent_system_prompt(work_dir=instance.agent_state.session.work_dir, model_name=instance.agent_state.config.model_name.value))],
             source='subagent',
         )
-        session.set_append_message_hook(subagent_append_message_hook)
-        agent: 'Agent' = cls(session, available_tools=cls.get_subagent_tools(), print_switch=False, config=instance.parent_agent.config)
+        sub_agent_session.set_append_message_hook(subagent_append_message_hook)
+        sub_agent_state: 'AgentState' = AgentState(sub_agent_session, config=instance.agent_state.config, available_tools=cls.get_subagent_tools(), print_switch=False)
+        sub_agent: 'AgentExecutor' = cls(sub_agent_state)
         # Initialize LLM manager for subagent
-        agent._initialize_llm()
-        agent.session.append_message(UserMessage(content=args.prompt))
+        sub_agent.agent_state.initialize_llm()
+        sub_agent.agent_state.session.append_message(UserMessage(content=args.prompt))
 
         # Use asyncio.run with proper isolation and error suppression
         with warnings.catch_warnings():
@@ -83,10 +85,10 @@ class TaskToolMixin:
                 loop.set_exception_handler(exception_handler)
                 asyncio.set_event_loop(loop)
                 result = loop.run_until_complete(
-                    agent.run(max_steps=DEFAULT_MAX_STEPS, check_cancel=lambda: instance.tool_result().tool_call.status == 'canceled', tools=cls.get_subagent_tools())
+                    sub_agent.run(max_steps=DEFAULT_MAX_STEPS, check_cancel=lambda: instance.tool_result().tool_call.status == 'canceled', tools=cls.get_subagent_tools())
                 )
                 # Update parent agent usage with subagent usage
-                instance.parent_agent.usage.update_with_usage(agent.usage)
+                instance.agent_state.usage.update_with_usage(sub_agent.agent_state.usage)
             except Exception as e:
                 result = f'SubAgent error: {format_exception(e)}'
             finally:

@@ -1,6 +1,5 @@
 """Tests for BashUtils class"""
 
-import pytest
 from klaudecode.utils.bash_utils import BashUtils
 
 
@@ -10,8 +9,8 @@ class TestBashUtils:
         test_cases = [
             # Simple command with single quotes
             {
-                'command': 'echo \'Hello World\'',
-                'expected_contains': ['echo \'Hello World\''],
+                'command': "echo 'Hello World'",
+                'expected_contains': ["echo 'Hello World'"],
             },
             # Python command with nested quotes
             {
@@ -20,7 +19,7 @@ class TestBashUtils:
             },
             # Complex command with quotes that needs bash wrapper
             {
-                'command': 'echo \'test\' | cat',
+                'command': "echo 'test' | cat",
                 'expected_contains': ['bash -c', 'echo', 'test', 'cat'],
             },
             # Command with unicode in quotes

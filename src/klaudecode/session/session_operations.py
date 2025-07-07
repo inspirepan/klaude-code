@@ -52,7 +52,7 @@ class SessionOperations:
 
         try:
             if llm_manager:
-                ai_msg = await llm_manager.call(msgs=CompactMessageList, show_status=show_status, show_result=False, status_text='Compacting', tools=[CommandPatternResultTool])
+                ai_msg = await llm_manager.call(msgs=CompactMessageList, show_status=show_status, show_result=False, status_text='Compacting')
             else:
                 raise RuntimeError('LLM manager not initialized')
 

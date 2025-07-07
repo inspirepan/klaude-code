@@ -1,19 +1,17 @@
 import platform
 import shutil
 import subprocess
-from typing import TYPE_CHECKING, Generator
+from typing import Generator
 
 from rich.abc import RichRenderable
 from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
+from ..agent_state import AgentState
 from ..message import UserMessage
 from ..tui import ColorStyle
 from ..user_input import Command, CommandHandleOutput, UserInput
-
-if TYPE_CHECKING:
-    from ..agent import Agent
 
 
 class MacSetupCommand(Command):
@@ -27,8 +25,8 @@ class MacSetupCommand(Command):
     def need_mac_setup(cls) -> bool:
         return platform.system() == 'Darwin' and shutil.which('brew') and (not shutil.which('fd') or not shutil.which('rg'))
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
-        command_handle_output = await super().handle(agent, user_input)
+    async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent_state, user_input)
         # Check if running on macOS
         if platform.system() != 'Darwin':
             command_handle_output.user_msg.set_extra_data('setup_result', {'success': False, 'error': 'This command is only available on macOS'})

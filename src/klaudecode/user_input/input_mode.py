@@ -1,12 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from ..agent import Agent
 
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style
 
+from ..agent_state import AgentState
 from ..message import register_user_msg_content_func, register_user_msg_renderer, register_user_msg_suffix_renderer
 from ..tui import ColorStyle, get_prompt_toolkit_color, get_prompt_toolkit_style
 from .input_command import Command, CommandHandleOutput, UserInput
@@ -32,8 +29,8 @@ class InputModeCommand(Command, ABC):
     def get_next_mode_name(self) -> str:
         return NORMAL_MODE_NAME
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
-        return await super().handle(agent, user_input)
+    async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
+        return await super().handle(agent_state, user_input)
 
     def get_command_desc(self) -> str:
         return f'Input mode: {self.get_name()}'
@@ -78,8 +75,8 @@ class NormalMode(InputModeCommand):
     def binding_key(self) -> str:
         return ''
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
-        command_handle_output = await super().handle(agent, user_input)
+    async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent_state, user_input)
         command_handle_output.need_agent_run = bool(command_handle_output.user_msg.content)
         return command_handle_output
 

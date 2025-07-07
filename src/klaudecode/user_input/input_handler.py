@@ -1,10 +1,8 @@
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Tuple
+from typing import List, Tuple
 
-if TYPE_CHECKING:
-    from ..agent import Agent
-
+from ..agent_state import AgentState
 from ..message import Attachment, UserMessage
 from ..prompt.reminder import LANGUAGE_REMINDER
 from ..prompt.tools import LS_TOOL_RESULT_REMINDER
@@ -16,8 +14,8 @@ from .input_mode import _INPUT_MODES, NORMAL_MODE_NAME, NormalMode
 
 
 class UserInputHandler:
-    def __init__(self, agent: 'Agent', input_session=None):
-        self.agent = agent
+    def __init__(self, agent_state: 'AgentState', input_session=None):
+        self.agent_state = agent_state
         self.input_session = input_session
 
     def _parse_image_refs(self, text: str) -> List[Attachment]:
@@ -36,7 +34,7 @@ class UserInputHandler:
 
                 if paste_item.type == 'file':
                     # Handle file-based image
-                    result = execute_read(paste_item.path, tracker=self.agent.session.file_tracker)
+                    result = execute_read(paste_item.path, tracker=self.agent_state.session.file_tracker)
                     if result.success:
                         attachments.append(result)
                 elif paste_item.type == 'clipboard':
@@ -97,7 +95,7 @@ class UserInputHandler:
                     continue
             else:
                 # Handle file
-                result = execute_read(abs_path, tracker=self.agent.session.file_tracker)
+                result = execute_read(abs_path, tracker=self.agent_state.session.file_tracker)
                 if result.success:
                     attachments.append(result)
         return attachments
@@ -115,7 +113,7 @@ class UserInputHandler:
         command_name, cleaned_input = self._parse_command(user_input_text)
         command = _INPUT_MODES.get(command_name, _SLASH_COMMANDS.get(command_name, NormalMode()))
         command_handle_output = await command.handle(
-            self.agent,
+            self.agent_state,
             UserInput(
                 command_name=command_name or NORMAL_MODE_NAME,
                 cleaned_input=cleaned_input,
@@ -130,7 +128,7 @@ class UserInputHandler:
                 user_msg.attachments = attachments
 
             # self._handle_language_reminder(user_msg)
-            self.agent.session.append_message(user_msg)
+            self.agent_state.session.append_message(user_msg)
             if print_msg:
                 console.print(user_msg)
             elif command_handle_output.need_render_suffix:
@@ -156,6 +154,6 @@ class UserInputHandler:
         return '', text
 
     def _handle_language_reminder(self, user_msg: UserMessage):
-        if len(self.agent.session.messages) > 2:
+        if len(self.agent_state.session.messages) > 2:
             return
         user_msg.append_post_system_reminder(LANGUAGE_REMINDER)

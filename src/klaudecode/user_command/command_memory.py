@@ -1,15 +1,13 @@
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Generator
+from typing import Generator
 
 from rich.abc import RichRenderable
 
+from ..agent_state import AgentState
 from ..message import UserMessage
 from ..tui import render_suffix
 from ..user_input import Command, CommandHandleOutput, UserInput, user_select
-
-if TYPE_CHECKING:
-    from ..agent import Agent
 
 
 class MemoryCommand(Command):
@@ -19,8 +17,8 @@ class MemoryCommand(Command):
     def get_command_desc(self) -> str:
         return 'Edit Claude memory files'
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
-        command_handle_output = await super().handle(agent, user_input)
+    async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent_state, user_input)
         command_handle_output.user_msg.removed = True
 
         options = ['Project memory          ./CLAUDE.md', 'User memory             ~/.claude/CLAUDE.md']

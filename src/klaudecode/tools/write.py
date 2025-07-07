@@ -37,7 +37,7 @@ class WriteTool(Tool):
         try:
             # If file exists, it must have been read first (safety check)
             if file_exists:
-                is_valid, error_msg = instance.parent_agent.session.file_tracker.validate_track(args.file_path)
+                is_valid, error_msg = instance.agent_state.session.file_tracker.validate_track(args.file_path)
                 if not is_valid:
                     instance.tool_result().set_error_msg(error_msg)
                     return
@@ -63,12 +63,12 @@ class WriteTool(Tool):
                 return
 
             # Update tracking with new content
-            instance.parent_agent.session.file_tracker.track(args.file_path)
+            instance.agent_state.session.file_tracker.track(args.file_path)
 
             # Record edit history for undo functionality
             if backup_path:
                 operation_summary = f'Wrote {len(args.content)} characters to file'
-                instance.parent_agent.session.file_tracker.record_edit(args.file_path, backup_path, 'Write', operation_summary)
+                instance.agent_state.session.file_tracker.record_edit(args.file_path, backup_path, 'Write', operation_summary)
 
             # Extract preview lines for display
             lines = args.content.splitlines()

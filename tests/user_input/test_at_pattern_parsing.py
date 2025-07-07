@@ -51,13 +51,8 @@ class TestAtPatternParsing:
 
         # Mock successful file read - use ReadResult from tools.read
         from klaudecode.tools.read import ReadResult
-        mock_read_result = ReadResult(
-            path='test.txt',
-            content='file content',
-            line_count=10,
-            success=True,
-            is_directory=False
-        )
+
+        mock_read_result = ReadResult(path='test.txt', content='file content', line_count=10, success=True, is_directory=False)
         mock_execute_read.return_value = mock_read_result
 
         # Test parsing a file
@@ -101,13 +96,8 @@ class TestAtPatternParsing:
         """Test parsing multiple @ references."""
         # Mock file read
         from klaudecode.tools.read import ReadResult
-        mock_read_result = ReadResult(
-            path='file1.txt',
-            content='file content',
-            line_count=10,
-            success=True,
-            is_directory=False
-        )
+
+        mock_read_result = ReadResult(path='file1.txt', content='file content', line_count=10, success=True, is_directory=False)
         mock_execute_read.return_value = mock_read_result
 
         # Mock directory listing
@@ -134,11 +124,8 @@ class TestAtPatternParsing:
         """Test handling of failed file reads."""
         # Mock failed file read
         from klaudecode.tools.read import ReadResult
-        mock_read_result = ReadResult(
-            path='nonexistent.txt',
-            success=False,
-            error_msg='File not found'
-        )
+
+        mock_read_result = ReadResult(path='nonexistent.txt', success=False, error_msg='File not found')
         mock_execute_read.return_value = mock_read_result
 
         with patch('pathlib.Path.exists', return_value=True):
@@ -153,16 +140,10 @@ class TestAtPatternParsing:
         """Test handling of absolute vs relative paths."""
         with patch('klaudecode.user_input.input_handler.execute_read') as mock_execute_read:
             from klaudecode.tools.read import ReadResult
-            
+
             def mock_read_side_effect(path, **kwargs):
-                return ReadResult(
-                    path=path,
-                    content='content',
-                    line_count=1,
-                    success=True,
-                    is_directory=False
-                )
-            
+                return ReadResult(path=path, content='content', line_count=1, success=True, is_directory=False)
+
             mock_execute_read.side_effect = mock_read_side_effect
 
             with patch('pathlib.Path.exists', return_value=True):
@@ -187,13 +168,8 @@ class TestAtPatternParsing:
         with patch('klaudecode.user_input.input_handler.execute_read') as mock_execute_read:
             # Mock the read result properly using ReadResult
             from klaudecode.tools.read import ReadResult
-            mock_read_result = ReadResult(
-                path='mocked_file.txt',
-                content='mocked content',
-                line_count=1,
-                success=True,
-                is_directory=False
-            )
+
+            mock_read_result = ReadResult(path='mocked_file.txt', content='mocked content', line_count=1, success=True, is_directory=False)
             mock_execute_read.return_value = mock_read_result
 
             with patch('klaudecode.user_input.input_handler.get_directory_structure') as mock_get_dir:

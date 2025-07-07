@@ -91,7 +91,7 @@ async def main_async(ctx: typer.Context):
             finally:
                 # Show token usage statistics
                 console.print()
-                agent.print_usage()
+                agent.agent_state.print_usage()
                 console.print(Text('\nBye!', style=ColorStyle.CLAUDE))
     except KeyboardInterrupt:
         pass

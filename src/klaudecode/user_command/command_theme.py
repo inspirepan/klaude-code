@@ -1,14 +1,12 @@
-from typing import TYPE_CHECKING, Generator
+from typing import Generator
 
 from rich.abc import RichRenderable
 
+from ..agent_state import AgentState
 from ..config import GlobalConfigSource
 from ..message import UserMessage
 from ..tui import console, render_suffix
 from ..user_input import Command, CommandHandleOutput, UserInput, user_select
-
-if TYPE_CHECKING:
-    from ..agent import Agent
 
 
 class ThemeCommand(Command):
@@ -18,8 +16,8 @@ class ThemeCommand(Command):
     def get_command_desc(self) -> str:
         return 'Switch color theme between light and dark'
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
-        command_handle_output = await super().handle(agent, user_input)
+    async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent_state, user_input)
         command_handle_output.user_msg.removed = True
 
         theme_options = ['light', 'dark']

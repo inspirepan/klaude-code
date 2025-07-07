@@ -77,12 +77,12 @@ class MultiEditTool(Tool):
         # Validation 2: File existence check
         is_valid, error_msg = validate_file_exists(args.file_path)
         if not is_valid:
-            instance.parent_agent.session.file_tracker.remove(args.file_path)
+            instance.agent_state.session.file_tracker.remove(args.file_path)
             instance.tool_result().set_error_msg(error_msg)
             return
 
         # Validation 3: Check tracked file state
-        is_valid, error_msg = instance.parent_agent.session.file_tracker.validate_track(args.file_path)
+        is_valid, error_msg = instance.agent_state.session.file_tracker.validate_track(args.file_path)
         if not is_valid:
             instance.tool_result().set_error_msg(error_msg)
             return
@@ -152,12 +152,12 @@ class MultiEditTool(Tool):
                 return
 
             # Update tracking
-            instance.parent_agent.session.file_tracker.track(args.file_path)
+            instance.agent_state.session.file_tracker.track(args.file_path)
 
             # Record edit history for undo functionality
             if backup_path:
                 operation_summary = f'Applied {len(args.edits)} edits'
-                instance.parent_agent.session.file_tracker.record_edit(args.file_path, backup_path, 'MultiEdit', operation_summary)
+                instance.agent_state.session.file_tracker.record_edit(args.file_path, backup_path, 'MultiEdit', operation_summary)
 
             # Generate diff and snippet
             diff_lines = generate_diff_lines(original_content, working_content)

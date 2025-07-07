@@ -247,7 +247,7 @@ class ReadTool(Tool):
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         args: 'ReadTool.Input' = cls.parse_input_args(tool_call)
 
-        result = execute_read(args.file_path, args.offset, args.limit, instance.parent_agent.session.file_tracker)
+        result = execute_read(args.file_path, args.offset, args.limit, instance.agent_state.session.file_tracker)
 
         if not result.success:
             instance.tool_result().set_error_msg(result.error_msg)

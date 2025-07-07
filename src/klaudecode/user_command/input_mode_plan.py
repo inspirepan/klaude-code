@@ -1,10 +1,7 @@
-from typing import TYPE_CHECKING
 
+from ..agent_state import AgentState
 from ..tui import ColorStyle, get_prompt_toolkit_color
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput
-
-if TYPE_CHECKING:
-    from ..agent import Agent
 
 
 class PlanMode(InputModeCommand):
@@ -26,8 +23,8 @@ class PlanMode(InputModeCommand):
     def binding_key(self) -> str:
         return '*'
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
-        command_handle_output = await super().handle(agent, user_input)
-        agent.plan_mode_activated = True
+    async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent_state, user_input)
+        agent_state.plan_mode_activated = True
         command_handle_output.need_agent_run = True
         return command_handle_output

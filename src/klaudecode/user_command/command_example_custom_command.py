@@ -1,18 +1,16 @@
-from typing import TYPE_CHECKING, Generator
+from typing import Generator
 
 from rich.abc import RichRenderable
 from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
+from ..agent_state import AgentState
 from ..message import UserMessage
 from ..prompt.commands import GIT_COMMIT_COMMAND
 from ..tui import ColorStyle, render_grid
 from ..user_input import Command, CommandHandleOutput, UserInput, user_select
 from .custom_command_manager import CustomCommandManager
-
-if TYPE_CHECKING:
-    from ..agent import Agent
 
 
 class ExampleCustomCommand(Command):
@@ -26,8 +24,8 @@ class ExampleCustomCommand(Command):
     def already_has_custom_command(cls) -> bool:
         return CustomCommandManager.project_commands_dir().exists() or CustomCommandManager.user_commands_dir().exists()
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
-        command_handle_output = await super().handle(agent, user_input)
+    async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent_state, user_input)
         command_handle_output.user_msg.removed = True
 
         scope_options = ['User commands (~/.claude/commands/)', 'Project commands (.claude/commands/)']
@@ -40,7 +38,7 @@ class ExampleCustomCommand(Command):
                 scope_info = 'user'
             else:
                 # Project commands
-                commands_dir = CustomCommandManager.project_commands_dir(agent.session.work_dir)
+                commands_dir = CustomCommandManager.project_commands_dir(agent_state.session.work_dir)
                 scope_info = 'project'
 
             # Create directory if it doesn't exist

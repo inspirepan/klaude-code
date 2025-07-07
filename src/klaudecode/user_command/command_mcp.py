@@ -1,15 +1,13 @@
-from typing import TYPE_CHECKING, Generator
+from typing import Generator
 
 from rich.abc import RichRenderable
 from rich.text import Text
 
+from ..agent_state import AgentState
 from ..mcp.mcp_config import MCPConfigManager
 from ..message import UserMessage
 from ..tui import ColorStyle, console, render_suffix
 from ..user_input import Command, CommandHandleOutput, UserInput
-
-if TYPE_CHECKING:
-    from ..agent import Agent
 
 
 class MCPCommand(Command):
@@ -19,14 +17,14 @@ class MCPCommand(Command):
     def get_command_desc(self) -> str:
         return 'Initialize MCP servers'
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
-        command_handle_output = await super().handle(agent, user_input)
+    async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent_state, user_input)
 
         # Initialize MCP manager
-        init_success = await agent.initialize_mcp()
+        init_success = await agent_state.initialize_mcp()
 
         # Load MCP configuration
-        config_manager = MCPConfigManager(agent.session.work_dir)
+        config_manager = MCPConfigManager(agent_state.session.work_dir)
         mcp_config = config_manager.load_config()
 
         # Store data for rendering (convert to dict for JSON serialization)
@@ -35,8 +33,8 @@ class MCPCommand(Command):
 
         # Store manager status instead of the object itself to avoid serialization issues
         mcp_manager_status = None
-        if agent.mcp_manager and hasattr(agent.mcp_manager, 'is_initialized'):
-            mcp_manager_status = agent.mcp_manager.is_initialized()
+        if agent_state.mcp_manager and hasattr(agent_state.mcp_manager, 'is_initialized'):
+            mcp_manager_status = agent_state.mcp_manager.is_initialized()
         status_text = Text()
         if init_success:
             status_text.append('MCP Manager: ')

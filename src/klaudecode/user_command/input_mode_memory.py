@@ -1,15 +1,13 @@
 from pathlib import Path
-from typing import TYPE_CHECKING, Generator
+from typing import Generator
 
 from rich.abc import RichRenderable
 from rich.text import Text
 
+from ..agent_state import AgentState
 from ..message import UserMessage
 from ..tui import ColorStyle, get_prompt_toolkit_color, render_message, render_suffix
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput, user_select
-
-if TYPE_CHECKING:
-    from ..agent import Agent
 
 
 class MemoryMode(InputModeCommand):
@@ -28,8 +26,8 @@ class MemoryMode(InputModeCommand):
     def binding_key(self) -> str:
         return '#'
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
-        command_handle_output = await super().handle(agent, user_input)
+    async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent_state, user_input)
         content = user_input.cleaned_input
 
         if not content.strip():
@@ -49,7 +47,7 @@ class MemoryMode(InputModeCommand):
             return command_handle_output
 
         if choice == 0:
-            claude_md_path = Path(agent.session.work_dir) / 'CLAUDE.md'
+            claude_md_path = Path(agent_state.session.work_dir) / 'CLAUDE.md'
             location = 'project'
         else:
             claude_md_path = Path.home() / '.claude' / 'CLAUDE.md'

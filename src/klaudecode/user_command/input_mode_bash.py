@@ -4,21 +4,19 @@ import pty
 import select
 import signal
 import subprocess
-from typing import TYPE_CHECKING, Generator
+from typing import Generator
 
 from rich.abc import RichRenderable
 from rich.live import Live
 from rich.text import Text
 
+from ..agent_state import AgentState
 from ..message import UserMessage
 from ..prompt.commands import BASH_INPUT_MODE_CONTENT
 from ..tools.bash import BashTool
 from ..tui import ColorStyle, console, get_prompt_toolkit_color, render_message, render_suffix
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput
 from ..utils.bash_utils import BashUtils
-
-if TYPE_CHECKING:
-    from ..agent import Agent
 
 
 class BashMode(InputModeCommand):
@@ -40,8 +38,8 @@ class BashMode(InputModeCommand):
     def binding_keys(self) -> list[str]:
         return ['!', '！']
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
-        command_handle_output = await super().handle(agent, user_input)
+    async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent_state, user_input)
         command = user_input.cleaned_input
 
         # Safety check

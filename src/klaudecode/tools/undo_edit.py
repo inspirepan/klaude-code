@@ -34,12 +34,12 @@ class UndoEditTool(Tool):
         # Validate file exists
         is_valid, error_msg = validate_file_exists(args.file_path)
         if not is_valid:
-            instance.parent_agent.session.file_tracker.remove(args.file_path)
+            instance.agent_state.session.file_tracker.remove(args.file_path)
             instance.tool_result().set_error_msg(error_msg)
             return
 
         # Get the last edit for this file
-        last_edit = instance.parent_agent.session.file_tracker.get_last_edit(args.file_path)
+        last_edit = instance.agent_state.session.file_tracker.get_last_edit(args.file_path)
         if not last_edit:
             instance.tool_result().set_error_msg(f"No edit history found for file '{args.file_path}'")
             return
@@ -66,10 +66,10 @@ class UndoEditTool(Tool):
             restore_backup(args.file_path, last_edit.backup_path)
 
             # Update tracking
-            instance.parent_agent.session.file_tracker.track(args.file_path)
+            instance.agent_state.session.file_tracker.track(args.file_path)
 
             # Remove this edit from history since it's been undone
-            instance.parent_agent.session.file_tracker.edit_history.remove(last_edit)
+            instance.agent_state.session.file_tracker.edit_history.remove(last_edit)
 
             # Generate diff and snippet
             diff_lines = generate_diff_lines(current_content, backup_content)

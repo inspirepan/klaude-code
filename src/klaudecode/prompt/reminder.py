@@ -4,15 +4,13 @@ CONTEXT_REMINDER_HEAD = """<system-reminder>As you answer the user's questions, 
 """
 
 
-CLAUDE_MD_REMINDER = """
-# claudeMd
+CLAUDE_MD_REMINDER = """# claudeMd
 Codebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.
 {claude_md}
 """
 
 
-CONTEXT_REMINDER_TAIL = """
-# important-instruction-reminders
+CONTEXT_REMINDER_TAIL = """# important-instruction-reminders
 Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.
 ALWAYS prefer editing an existing file to creating a new one.

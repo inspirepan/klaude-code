@@ -17,9 +17,6 @@ class MockAgent:
         self._interrupt_flag = Mock()
         self._interrupt_flag.is_set.return_value = False
 
-    def _should_interrupt(self) -> bool:
-        return False
-
 
 class BaseToolTest:
     """Base class for tool testing with temporary directory support."""

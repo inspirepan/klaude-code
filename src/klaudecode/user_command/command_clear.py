@@ -1,13 +1,11 @@
-from typing import TYPE_CHECKING, Generator
+from typing import Generator
 
 from rich.abc import RichRenderable
 
+from ..agent_state import AgentState
 from ..message import UserMessage
 from ..tui import render_suffix
 from ..user_input import Command, CommandHandleOutput, UserInput
-
-if TYPE_CHECKING:
-    from ..agent import Agent
 
 
 class ClearCommand(Command):
@@ -17,11 +15,11 @@ class ClearCommand(Command):
     def get_command_desc(self) -> str:
         return 'Clear conversation history and free up context'
 
-    async def handle(self, agent: 'Agent', user_input: UserInput) -> CommandHandleOutput:
-        command_handle_output = await super().handle(agent, user_input)
+    async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
+        command_handle_output = await super().handle(agent_state, user_input)
         command_handle_output.user_msg.removed = True
         command_handle_output.user_msg.set_extra_data('cleared', True)
-        agent.session.clear_conversation_history()
+        agent_state.session.clear_conversation_history()
         return command_handle_output
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:

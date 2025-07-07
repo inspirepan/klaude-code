@@ -1,16 +1,13 @@
 import re
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
+from typing import List, Optional
 
 import yaml
 
 from ..user_input import UserInput
 from ..utils.exception import format_exception
 from .query_rewrite_command import QueryRewriteCommand
-
-if TYPE_CHECKING:
-    pass
 
 
 class CustomCommand(QueryRewriteCommand):

@@ -16,7 +16,7 @@ from .tui import ColorStyle, console, render_dot_status
 from .utils.exception import format_exception
 
 if TYPE_CHECKING:
-    from .agent import Agent
+    from .agent_state import AgentState
 
 
 class ToolSchema:
@@ -255,8 +255,8 @@ class Tool(ABC):
         return json.dumps(cls.openai_schema())
 
     @classmethod
-    def create_instance(cls, tool_call: ToolCall, parent_agent: 'Agent') -> 'ToolInstance':
-        return ToolInstance(tool=cls, tool_call=tool_call, parent_agent=parent_agent)
+    def create_instance(cls, tool_call: ToolCall, agent_state: 'AgentState') -> 'ToolInstance':
+        return ToolInstance(tool=cls, tool_call=tool_call, agent_state=agent_state)
 
     @classmethod
     def parse_input_args(cls, tool_call: ToolCall) -> Optional[BaseModel]:
@@ -281,11 +281,11 @@ class ToolInstance:
     ToolInstance is the instance of a runtime tool call.
     """
 
-    def __init__(self, tool: type[Tool], tool_call: ToolCall, parent_agent: 'Agent'):
+    def __init__(self, tool: type[Tool], tool_call: ToolCall, agent_state: 'AgentState'):
         self.tool = tool
         self.tool_call = tool_call
         self.tool_msg: ToolMessage = ToolMessage(tool_call_id=tool_call.id, tool_call_cache=tool_call)
-        self.parent_agent: 'Agent' = parent_agent
+        self.agent_state: 'AgentState' = agent_state
 
         self._task: Optional[asyncio.Task] = None
         self._is_running = False
@@ -349,8 +349,8 @@ class ToolHandler:
     ToolHandler accepts a list of tool calls.
     """
 
-    def __init__(self, agent, tools: List[Tool], show_live: bool = True):
-        self.agent: 'Agent' = agent
+    def __init__(self, agent_state, tools: List[Tool], show_live: bool = True):
+        self.agent_state: 'AgentState' = agent_state
         self.tool_dict = {tool.name: tool for tool in tools} if tools else {}
         self.show_live = show_live
         self._global_interrupt = threading.Event()
@@ -391,7 +391,7 @@ class ToolHandler:
         if not tool_calls:
             return
 
-        tool_instances = [self.tool_dict[tc.tool_name].create_instance(tc, self.agent) for tc in tool_calls]
+        tool_instances = [self.tool_dict[tc.tool_name].create_instance(tc, self.agent_state) for tc in tool_calls]
         tasks = await self._start_tool_tasks(tool_instances)
 
         interrupted = False
@@ -419,7 +419,7 @@ class ToolHandler:
                     await monitor_task
                 except asyncio.CancelledError:
                     pass
-            self.agent.session.append_message(*(ti.tool_result() for ti in tool_instances))
+            self.agent_state.session.append_message(*(ti.tool_result() for ti in tool_instances))
             if interrupted:
                 raise asyncio.CancelledError
 
@@ -467,7 +467,7 @@ class InterruptHandler:
         """Monitor for interrupts when signal handler is not available."""
         while not self.interrupted and any(ti.is_running() for ti in self.tool_instances):
             try:
-                if hasattr(self.tool_handler.agent, '_should_interrupt') and self.tool_handler.agent._should_interrupt():
+                if hasattr(self.tool_handler.agent_state, '_should_interrupt') and self.tool_handler.agent_state._should_interrupt():
                     self.signal_handler()
                     break
                 await asyncio.sleep(0.05)
