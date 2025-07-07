@@ -1,3 +1,4 @@
+import threading
 import time
 import uuid
 import weakref
@@ -35,6 +36,7 @@ class Session(BaseModel):
 
         super().__init__(**data)
         self._hook_weakref: Optional[weakref.ReferenceType] = None
+        self._hook_lock = threading.RLock()
 
     @field_serializer('work_dir')
     def serialize_work_dir(self, work_dir: Path) -> str:
@@ -43,30 +45,32 @@ class Session(BaseModel):
     def append_message(self, *msgs: BasicMessage) -> None:
         """Add messages to the session."""
         self.messages.append_message(*msgs)
-        if self._hook_weakref:
-            try:
-                # Get the actual callback from weakref
-                hook = self._hook_weakref()
-                if hook is not None:
-                    hook(*msgs)
-                else:
-                    # Callback was garbage collected, clear the reference
-                    self._hook_weakref = None
-                    self.append_message_hook = None
-            except Exception as e:
-                # Log the exception but don't let it break the message appending
-                import logging
+        with self._hook_lock:
+            if self._hook_weakref:
+                try:
+                    # Get the actual callback from weakref
+                    hook = self._hook_weakref()
+                    if hook is not None:
+                        hook(*msgs)
+                    else:
+                        # Callback was garbage collected, clear the reference
+                        self._hook_weakref = None
+                        self.append_message_hook = None
+                except Exception as e:
+                    # Log the exception but don't let it break the message appending
+                    import logging
 
-                logging.warning(f'Exception in append_message_hook: {e}')
+                    logging.warning(f'Exception in append_message_hook: {e}')
 
     def set_append_message_hook(self, hook: Optional[Callable] = None) -> None:
         """Set the append message hook with automatic weakref conversion."""
-        if hook is not None:
-            self.append_message_hook = hook
-            self._hook_weakref = weakref.ref(hook)
-        else:
-            self.append_message_hook = None
-            self._hook_weakref = None
+        with self._hook_lock:
+            if hook is not None:
+                self.append_message_hook = hook
+                self._hook_weakref = weakref.ref(hook)
+            else:
+                self.append_message_hook = None
+                self._hook_weakref = None
 
     def save(self) -> None:
         """Save session to local files."""
