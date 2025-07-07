@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Annotated
 from pydantic import BaseModel, Field
 from rich.panel import Panel
 from rich.text import Text
+from rich import box
 
 from ..agent_state import AgentState
 from ..message import AIMessage, BasicMessage, SystemMessage, ToolCall, ToolMessage, UserMessage, register_tool_call_renderer, register_tool_result_renderer
@@ -30,6 +31,7 @@ class TaskToolMixin:
     name = 'Task'
     desc = TASK_TOOL_DESC
     parallelable: bool = True
+    timeout = 900
 
     class Input(BaseModel):
         description: Annotated[str, Field(description='A short (3-5 word) description of the task')]
@@ -110,7 +112,7 @@ class TaskToolMixin:
         instance.tool_result().set_content((result or '').strip())
 
 
-def render_agent_args(tool_call: ToolCall, is_suffix: bool = False):
+def render_task_args(tool_call: ToolCall, is_suffix: bool = False):
     yield Text.assemble(
         (tool_call.tool_name, ColorStyle.HIGHLIGHT.bold),
         '(',
@@ -121,18 +123,27 @@ def render_agent_args(tool_call: ToolCall, is_suffix: bool = False):
     )
 
 
-def render_agent_result(tool_msg: ToolMessage):
+def render_task_result(tool_msg: ToolMessage):
     tool_calls = tool_msg.get_extra_data('tool_calls')
     if tool_calls:
-        for subagent_tool_call_dcit in tool_calls:
+        count = len(tool_calls)
+
+        # Check if the tool_call is in processing state
+        display_calls = tool_calls
+        if tool_msg.tool_call.status == 'processing':
+            # Show only the last 3 tool calls with ... prefix if more than 3
+            if count > 3:
+                yield render_suffix('...')
+                display_calls = tool_calls[-3:]
+
+        for subagent_tool_call_dcit in display_calls:
             tool_call = ToolCall(**subagent_tool_call_dcit)
             yield from (render_suffix(item) for item in tool_call.get_suffix_renderable())
-        count = len(tool_calls)
         yield render_suffix(f'({count} tool use{"" if count == 1 else "s"})')
     if tool_msg.content:
-        yield render_suffix(Panel.fit(render_markdown(tool_msg.content), border_style=ColorStyle.AGENT_BORDER, width=80))
+        yield render_suffix(Panel.fit(render_markdown(tool_msg.content), border_style=ColorStyle.AGENT_BORDER, width=80, box=box.DOUBLE))
 
 
 # Register renderers
-register_tool_call_renderer('Task', render_agent_args)
-register_tool_result_renderer('Task', render_agent_result)
+register_tool_call_renderer('Task', render_task_args)
+register_tool_result_renderer('Task', render_task_result)

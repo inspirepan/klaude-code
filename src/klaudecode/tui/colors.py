@@ -87,7 +87,7 @@ light_theme = Theme(
         ColorStyle.TODO_COMPLETED: 'rgb(65,120,64)',
         ColorStyle.TODO_IN_PROGRESS: 'rgb(62,99,153)',
         # Tools and agents
-        ColorStyle.AGENT_BORDER: 'rgb(155,182,177)',
+        ColorStyle.AGENT_BORDER: 'rgb(175,192,217)',
         # Code
         ColorStyle.DIFF_REMOVED_LINE: 'rgb(0,0,0) on rgb(255,168,180)',
         ColorStyle.DIFF_ADDED_LINE: 'rgb(0,0,0) on rgb(105,219,124)',
@@ -128,7 +128,7 @@ dark_theme = Theme(
         ColorStyle.TODO_COMPLETED: 'rgb(107,184,109)',
         ColorStyle.TODO_IN_PROGRESS: 'rgb(150,204,235)',
         # Tools and agents
-        ColorStyle.AGENT_BORDER: 'rgb(155,182,177)',
+        ColorStyle.AGENT_BORDER: 'rgb(125,142,177)',
         # Code
         ColorStyle.DIFF_REMOVED_LINE: 'rgb(255,255,255) on rgb(112,47,55)',
         ColorStyle.DIFF_ADDED_LINE: 'rgb(255,255,255) on rgb(49,91,48)',
