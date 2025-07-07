@@ -118,11 +118,31 @@ def render_todo_write_result(tool_msg: ToolMessage):
 def render_todo_write_name(tool_call: ToolCall, is_suffix: bool = False):
     if is_suffix:
         in_progress_todos = []
+        pending_todos = []
+        all_completed = True
+        all_pending = True
         for todo in tool_call.tool_args_dict.get('todo_list', {}):
             if todo.get('status') == 'in_progress':
                 in_progress_todos.append(todo.get('content'))
+            if todo.get('status') != 'completed':
+                all_completed = False
+            if todo.get('status') == 'pending':
+                pending_todos.append(todo.get('content'))
+            if todo.get('status') != 'pending':
+                all_pending = False
+        if all_completed:
+            yield Text.assemble(('Update Todos', 'bold'), ('(All Completed)', ColorStyle.TODO_COMPLETED.bold))
+            return
+        if all_pending:
+            yield Text.assemble(('Update Todos', 'bold'))
+            for todo in pending_todos:
+                yield Text(f'☐ {todo}')
+            return
         if in_progress_todos:
-            yield Text.assemble(('Update Todos', 'bold'), '(', ', '.join(in_progress_todos), ')')
+            yield Text.assemble(('Update Todos', 'bold'))
+            for todo in in_progress_todos:
+                yield Text(f'☐ {todo}', style=ColorStyle.TODO_IN_PROGRESS.bold)
+            return
         else:
             yield Text('Update Todos', style='bold')
         return

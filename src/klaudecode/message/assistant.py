@@ -106,7 +106,6 @@ class AIMessage(BasicMessage):
 
     def __rich_console__(self, console, options):
         yield from self.get_thinking_renderable()
-        yield ''
         yield from self.get_content_renderable()
 
     def get_thinking_renderable(self):
@@ -122,6 +121,7 @@ class AIMessage(BasicMessage):
                 mark='',
                 render_text=True,
             )
+            yield ''
 
     def get_content_renderable(self):
         if self.content:

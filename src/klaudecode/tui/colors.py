@@ -75,12 +75,12 @@ light_theme = Theme(
         ColorStyle.AI_THINKING: 'rgb(136,139,139)',
         ColorStyle.CLAUDE: 'rgb(214,119,86)',
         # Status indicators
-        ColorStyle.ERROR: 'red',
-        ColorStyle.SUCCESS: 'green',
+        ColorStyle.ERROR: 'rgb(158,57,66)',
+        ColorStyle.SUCCESS: 'rgb(65,120,64)',
         ColorStyle.WARNING: 'rgb(143,110,44)',
         ColorStyle.INFO: 'rgb(62,99,153)',
         ColorStyle.HIGHLIGHT: 'rgb(0,3,3)',
-        ColorStyle.MAIN: 'bright_black',
+        ColorStyle.MAIN: 'rgb(96,96,96)',
         ColorStyle.MUTED: 'rgb(136,139,139)',
         ColorStyle.SEPARATOR: 'rgb(200,200,200)',
         # Todo
@@ -115,8 +115,8 @@ dark_theme = Theme(
         ColorStyle.AI_THINKING: 'rgb(151,153,153)',
         ColorStyle.CLAUDE: 'rgb(214,119,86)',
         # Status indicators
-        ColorStyle.ERROR: 'red',
-        ColorStyle.SUCCESS: 'green',
+        ColorStyle.ERROR: 'rgb(237,118,129)',
+        ColorStyle.SUCCESS: 'rgb(107,184,109)',
         ColorStyle.WARNING: 'rgb(143,110,44)',
         ColorStyle.INFO: 'rgb(180,204,245)',
         ColorStyle.HIGHLIGHT: 'rgb(255,255,255)',
@@ -136,12 +136,12 @@ dark_theme = Theme(
         ColorStyle.CONTEXT_LINE: 'rgb(255,255,255)',
         ColorStyle.INLINE_CODE: 'rgb(180,184,245)',
         # Prompt toolkit
-        ColorStyle.INPUT_PLACEHOLDER: 'rgb(151,153,153)',
-        ColorStyle.COMPLETION_MENU: 'rgb(154,154,154)',
-        ColorStyle.COMPLETION_SELECTED: 'rgb(177,185,249)',
+        ColorStyle.INPUT_PLACEHOLDER: 'rgb(134,134,134)',
+        ColorStyle.COMPLETION_MENU: 'rgb(134,134,134)',
+        ColorStyle.COMPLETION_SELECTED: 'rgb(175,185,254)',
         # Input mode colors
-        ColorStyle.BASH_MODE: 'rgb(255,102,170)',
-        ColorStyle.MEMORY_MODE: 'rgb(200,205,255)',
+        ColorStyle.BASH_MODE: 'rgb(255,75,180)',
+        ColorStyle.MEMORY_MODE: 'rgb(175,185,254)',
         ColorStyle.PLAN_MODE: 'rgb(126,184,185)',
         # Markdown
         ColorStyle.H2: 'rgb(241,155,122)',

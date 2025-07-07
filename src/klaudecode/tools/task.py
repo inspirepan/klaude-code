@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Annotated
 
 from pydantic import BaseModel, Field
 from rich import box
+from rich.columns import Columns
+from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
@@ -51,9 +53,8 @@ class TaskToolMixin:
             for msg in msgs:
                 if not isinstance(msg, AIMessage):
                     continue
-                if msg.tool_calls:
-                    for tool_call in msg.tool_calls.values():
-                        instance.tool_result().append_extra_data('tool_calls', tool_call.model_dump())
+                task_msg_data = {'content': msg.content, 'tool_calls': [tool_call.model_dump() for tool_call in msg.tool_calls.values()] if msg.tool_calls else []}
+                instance.tool_result().append_extra_data('task_msgs', task_msg_data)
 
         sub_agent_session = Session(
             work_dir=Path.cwd(),
@@ -113,35 +114,53 @@ class TaskToolMixin:
 
 
 def render_task_args(tool_call: ToolCall, is_suffix: bool = False):
-    yield Text.assemble(
-        (tool_call.tool_name, ColorStyle.HIGHLIGHT.bold),
-        '(',
-        (tool_call.tool_args_dict.get('description', ''), ColorStyle.HIGHLIGHT.bold),
-        ')',
-        ' → ',
-        tool_call.tool_args_dict.get('prompt', ''),
+    yield Columns(
+        [
+            Text.assemble((tool_call.tool_name, ColorStyle.HIGHLIGHT.bold), '(', (tool_call.tool_args_dict.get('description', ''), ColorStyle.HIGHLIGHT.bold), ')', ' → '),
+            Text(tool_call.tool_args_dict.get('prompt', '')),
+        ]
     )
 
 
 def render_task_result(tool_msg: ToolMessage):
-    tool_calls = tool_msg.get_extra_data('tool_calls')
-    if tool_calls:
-        count = len(tool_calls)
-
-        # Check if the tool_call is in processing state
-        display_calls = tool_calls
+    task_msgs = tool_msg.get_extra_data('task_msgs')
+    if task_msgs:
         if tool_msg.tool_call.status == 'processing':
-            # Show only the last 3 tool calls with ... prefix if more than 3
-            if count > 3:
-                yield render_suffix('...')
-                display_calls = tool_calls[-3:]
+            yield ''
+            group_list = []
+            # Show only the last task_msg's content and tool_calls
+            last_task_msg = task_msgs[-1]
 
-        for subagent_tool_call_dcit in display_calls:
-            tool_call = ToolCall(**subagent_tool_call_dcit)
-            yield from (render_suffix(item) for item in tool_call.get_suffix_renderable())
-        yield render_suffix(f'({count} tool use{"" if count == 1 else "s"})')
+            # Render last content if available
+            if last_task_msg.get('content') and last_task_msg['content'].strip():
+                group_list.append(Text(last_task_msg['content']))
+
+            # Count all tool calls and show last task_msg's tool calls
+            total_tool_calls = sum(len(task_msg.get('tool_calls', [])) for task_msg in task_msgs)
+            last_tool_calls = last_task_msg.get('tool_calls', [])
+            previous_tool_calls = total_tool_calls - len(last_tool_calls)
+
+            # Render last task_msg's tool calls
+            for tool_call_dict in last_tool_calls:
+                tool_call = ToolCall(**tool_call_dict)
+                group_list.extend(tool_call.get_suffix_renderable())
+
+            if previous_tool_calls > 0:
+                group_list.append(Text(f'+ {previous_tool_calls} more tool use{"" if previous_tool_calls == 1 else "s"}'))
+
+            yield render_suffix(Group(*group_list))
+        else:
+            for task_msg in task_msgs:
+                # Render tool calls
+                tool_calls = task_msg.get('tool_calls', [])
+                for tool_call_dict in tool_calls:
+                    tool_call = ToolCall(**tool_call_dict)
+                    yield render_suffix(Group(*tool_call.get_suffix_renderable()))
+
+    else:
+        yield render_suffix('Initializing...')
     if tool_msg.content:
-        yield render_suffix(Panel.fit(render_markdown(tool_msg.content), border_style=ColorStyle.AGENT_BORDER, width=80, box=box.DOUBLE))
+        yield render_suffix(Panel.fit(render_markdown(tool_msg.content), border_style=ColorStyle.SEPARATOR, width=80, box=box.ROUNDED))
 
 
 # Register renderers

@@ -38,8 +38,8 @@ def get_prompt_toolkit_style() -> dict:
         'scrollbar.button': 'bg:default',
         'completion-menu.completion': f'bg:default fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_MENU)}',
         'completion-menu.meta.completion': f'bg:default fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_MENU)}',
-        'completion-menu.completion.current': f'noreverse bg:default fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED)}',
-        'completion-menu.meta.completion.current': f'bg:default fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED)}',
+        'completion-menu.completion.current': f'noreverse bg:default fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED)} bold',
+        'completion-menu.meta.completion.current': f'bg:default fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED)} bold',
     }
 
 

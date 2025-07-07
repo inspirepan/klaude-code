@@ -128,6 +128,7 @@ def main(
     api_version: Optional[str] = typer.Option(None, '--api-version', help='Override API version from config'),
     extra_header: Optional[str] = typer.Option(None, '--extra-header', help='Override extra header from config (JSON string)'),
     extra_body: Optional[str] = typer.Option(None, '--extra-body', help='Override extra body from config (JSON string)'),
+    theme: Optional[str] = typer.Option(None, '--theme', help='Override theme from config (dark or light)'),
     mcp: bool = typer.Option(False, '--mcp', help='Enable MCP (Model Context Protocol) tools'),
     logo: bool = typer.Option(False, '--logo', help='Show logo'),
 ):
@@ -152,6 +153,7 @@ def main(
                 api_version=api_version,
                 extra_header=extra_header,
                 extra_body=extra_body,
+                theme=theme,
                 config_file=config,
             )
         except ValueError as e:

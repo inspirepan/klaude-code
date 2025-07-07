@@ -174,6 +174,7 @@ class ArgConfigSource(ConfigSource):
         extra_body: Optional[str] = None,
         enable_thinking: Optional[bool] = None,
         api_version: Optional[str] = None,
+        theme: Optional[str] = None,
     ):
         super().__init__('cli')
         # Parse JSON strings for extra_header and extra_body
@@ -192,6 +193,7 @@ class ArgConfigSource(ConfigSource):
             extra_body=parsed_extra_body,
             enable_thinking=enable_thinking,
             api_version=api_version,
+            theme=theme,
         )
 
 
@@ -211,6 +213,7 @@ class EnvConfigSource(ConfigSource):
             'extra_body': 'EXTRA_BODY',
             'enable_thinking': 'ENABLE_THINKING',
             'api_version': 'API_VERSION',
+            'theme': 'THEME',
         }
         self._load_env_config()
 
@@ -441,6 +444,7 @@ class ConfigManager:
         extra_body: Optional[str] = None,
         enable_thinking: Optional[bool] = None,
         api_version: Optional[str] = None,
+        theme: Optional[str] = None,
         config_file: Optional[str] = None,
     ) -> 'ConfigManager':
         """Create a ConfigManager with all configuration sources
@@ -475,6 +479,7 @@ class ConfigManager:
                 extra_body=extra_body,
                 enable_thinking=enable_thinking,
                 api_version=api_version,
+                theme=theme,
             )
         )
 

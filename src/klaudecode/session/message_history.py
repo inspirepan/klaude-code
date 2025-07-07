@@ -63,8 +63,11 @@ class MessageHistory(BaseModel):
         for msg in self.messages:
             if msg.role == 'system':
                 continue
-            console.print(msg)
+            if msg.role == 'assistant' and not msg.content and not msg.thinking_content:
+                continue
             console.print()
+            console.print(msg)
+        console.print()
 
     def copy(self):
         return self.messages.copy()
