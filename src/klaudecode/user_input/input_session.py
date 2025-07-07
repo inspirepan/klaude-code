@@ -206,18 +206,14 @@ class InputSession:
         self._setup_buffer_handlers(session.default_buffer)
         return session
 
-    def _switch_to_next_input_mode(self):
-        next_mode_name = self.current_input_mode.get_next_mode_name()
-        if next_mode_name not in _INPUT_MODES:
-            return
-        self.current_input_mode = _INPUT_MODES[next_mode_name]
+    def reset_normal_mode(self):
+        self.current_input_mode = _INPUT_MODES[NORMAL_MODE_NAME]
 
     def prompt(self):
         console.print()
         input_text = self._get_session().prompt()
         if self.current_input_mode.get_name() != NORMAL_MODE_NAME:
             input_text = f'/{self.current_input_mode.get_name()} {input_text}'
-        self._switch_to_next_input_mode()
         return input_text
 
     async def prompt_async(self):
@@ -225,5 +221,4 @@ class InputSession:
         input_text = await self._get_session().prompt_async()
         if self.current_input_mode.get_name() != NORMAL_MODE_NAME:
             input_text = f'/{self.current_input_mode.get_name()} {input_text}'
-        self._switch_to_next_input_mode()
         return input_text

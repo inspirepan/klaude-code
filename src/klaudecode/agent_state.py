@@ -20,7 +20,6 @@ class AgentState:
         config: Optional[ConfigModel] = None,
         available_tools: Optional[List[Tool]] = None,
         print_switch: bool = True,
-        enable_plan_mode_reminder: bool = True,
     ):
         # Core state
         self.session: Session = session
@@ -28,7 +27,6 @@ class AgentState:
         self.print_switch = print_switch
 
         # Plan Mode state
-        self.enable_plan_mode_reminder = enable_plan_mode_reminder
         self.plan_mode_activated: bool = False
 
         # Tools state
@@ -54,7 +52,7 @@ class AgentState:
         if self.mcp_manager is None:
             self.mcp_manager = MCPManager(self.session.work_dir)
             result = await self.mcp_manager.initialize()
-            self._tools_cache_dirty = True
+            self.invalidate_tools_cache()
             return result
         return True
 

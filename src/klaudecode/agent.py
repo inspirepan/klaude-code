@@ -1,13 +1,152 @@
+import asyncio
+import traceback
+
+from rich.text import Text
+
 from . import user_command  # noqa: F401 # import user_command to trigger command registration
 from .agent_executor import AgentExecutor
 from .agent_state import AgentState
 from .config import ConfigModel
+from .message import AIMessage, ToolMessage, UserMessage
+from .prompt.reminder import EMPTY_TODO_REMINDER, get_context_reminder
 from .session import Session
-from .tools import BASIC_TOOLS
+from .tools import BASIC_TOOLS, TodoWriteTool
+from .tui import INTERRUPT_TIP, ColorStyle, console, render_dot_status
+from .user_input import InputSession, UserInputHandler
+from .utils.exception import format_exception
+from .utils.file_utils import cleanup_all_backups
+
+DEFAULT_MAX_STEPS = 100
+QUIT_COMMAND = ['quit', 'exit']
 
 
-async def get_main_agent(session: Session, config: ConfigModel, enable_mcp: bool = False) -> AgentExecutor:
+class Agent:
+    """
+    Agent serves as the main entry point for agent interactions.
+    It handles chat_interactive and headless_run workflows.
+    """
+
+    def __init__(self, agent_state: AgentState):
+        self.agent_state = agent_state
+        self.agent_executor = AgentExecutor(agent_state)
+        self.input_session = InputSession(agent_state.session.work_dir)
+        self.user_input_handler = UserInputHandler(self.agent_state, self.input_session)
+
+        # Initialize custom commands
+        try:
+            from .user_command import custom_command_manager
+
+            custom_command_manager.discover_and_register_commands(agent_state.session.work_dir)
+        except Exception as e:
+            if agent_state.print_switch:
+                traceback.print_exc()
+                console.print(f'Warning: Failed to load custom commands: {format_exception(e)}', style=ColorStyle.WARNING)
+
+    async def chat_interactive(self, first_message: str = None):
+        self.agent_state.initialize_llm()
+        self.agent_state.session.messages.print_all_message()  # For continue and resume scene.
+
+        epoch = 0
+        try:
+            while True:
+                if not self.agent_state.plan_mode_activated:
+                    self.input_session.reset_normal_mode()
+
+                if epoch == 0 and first_message:
+                    user_input_text = first_message
+                else:
+                    user_input_text = await self.input_session.prompt_async()
+
+                if user_input_text.strip().lower() in QUIT_COMMAND:
+                    break
+
+                need_agent_run = await self.user_input_handler.handle(user_input_text, print_msg=bool(first_message))
+                if need_agent_run:
+                    if epoch == 0:
+                        self._handle_claudemd_reminder()
+                        self._handle_empty_todo_reminder()
+                    await self.agent_executor.run(max_steps=DEFAULT_MAX_STEPS, tools=self.agent_state.get_all_tools())
+                else:
+                    self.agent_state.session.save()
+                epoch += 1
+        finally:
+            self.agent_state.session.save()
+            # Clean up MCP resources
+            if self.agent_state.mcp_manager:
+                await self.agent_state.mcp_manager.shutdown()
+            # Clean up backup files
+            cleanup_all_backups()
+
+    async def headless_run(self, user_input_text: str):
+        self.agent_state.initialize_llm()
+
+        try:
+            need_agent_run = await self.user_input_handler.handle(user_input_text, print_msg=False)
+            if not need_agent_run:
+                return
+
+            self.agent_state.print_switch = False
+            self.agent_executor.tool_handler.show_live = False
+            self._handle_claudemd_reminder()
+            self._handle_empty_todo_reminder()
+
+            status = render_dot_status('Running')
+            status.start()
+            running = True
+
+            async def update_status():
+                while running:
+                    tool_msg_count = sum(1 for msg in self.agent_state.session.messages if msg.role == 'tool')
+                    last_msg = self.agent_state.session.messages.get_last_message(filter_empty=True, role='assistant')
+                    status_text = ''
+                    if last_msg and isinstance(last_msg, AIMessage) and last_msg.content.strip():
+                        status_text = last_msg.content[:100]
+                    status.update(
+                        description=Text.assemble(
+                            Text.from_markup(f'([bold]{tool_msg_count}[/bold] tool uses) '),
+                            Text(status_text, style=ColorStyle.CLAUDE),
+                            (INTERRUPT_TIP, ColorStyle.MUTED),
+                        ),
+                    )
+                    await asyncio.sleep(0.1)
+
+            update_task = asyncio.create_task(update_status())
+            try:
+                result = await self.agent_executor.run(tools=self.agent_state.get_all_tools())
+            finally:
+                running = False
+                status.stop()
+                update_task.cancel()
+                try:
+                    await update_task
+                except asyncio.CancelledError:
+                    pass
+            console.print(result)
+        finally:
+            self.agent_state.session.save()
+            # Clean up MCP resources
+            if self.agent_state.mcp_manager:
+                await self.agent_state.mcp_manager.shutdown()
+            # Clean up backup files
+            cleanup_all_backups()
+
+    def _handle_claudemd_reminder(self):
+        reminder = get_context_reminder(self.agent_state.session.work_dir)
+        last_user_msg = self.agent_state.session.messages.get_last_message(role='user')
+        if last_user_msg and isinstance(last_user_msg, UserMessage):
+            last_user_msg.append_pre_system_reminder(reminder)
+
+    def _handle_empty_todo_reminder(self):
+        if TodoWriteTool in self.agent_state.available_tools:
+            last_msg = self.agent_state.session.messages.get_last_message(filter_empty=True)
+            if last_msg and isinstance(last_msg, (UserMessage, ToolMessage)):
+                last_msg.append_post_system_reminder(EMPTY_TODO_REMINDER)
+
+
+async def get_main_agent(session: Session, config: ConfigModel, enable_mcp: bool = False) -> Agent:
+    from .agent_executor import AgentExecutor
+
     state = AgentState(session, config, available_tools=[AgentExecutor] + BASIC_TOOLS)
     if enable_mcp:
         await state.initialize_mcp()
-    return AgentExecutor(state)
+    return Agent(state)

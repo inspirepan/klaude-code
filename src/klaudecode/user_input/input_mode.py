@@ -26,9 +26,6 @@ class InputModeCommand(Command, ABC):
     def _get_placeholder(self) -> str:
         raise NotImplementedError
 
-    def get_next_mode_name(self) -> str:
-        return NORMAL_MODE_NAME
-
     async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
         return await super().handle(agent_state, user_input)
 
@@ -68,9 +65,6 @@ class NormalMode(InputModeCommand):
 
     def _get_placeholder(self) -> str:
         return 'type you query... type exit to quit.'
-
-    def get_next_mode_name(self) -> str:
-        return NORMAL_MODE_NAME
 
     def binding_key(self) -> str:
         return ''

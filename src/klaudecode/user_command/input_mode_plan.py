@@ -1,4 +1,3 @@
-
 from ..agent_state import AgentState
 from ..tui import ColorStyle, get_prompt_toolkit_color
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput
@@ -16,9 +15,6 @@ class PlanMode(InputModeCommand):
 
     def _get_placeholder(self) -> str:
         return 'plan mode on...'
-
-    def get_next_mode_name(self) -> str:
-        return 'plan'
 
     def binding_key(self) -> str:
         return '*'
