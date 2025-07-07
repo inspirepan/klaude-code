@@ -391,9 +391,9 @@ def render_bash_args(tool_call: ToolCall, is_suffix: bool = False):
     description = tool_call.tool_args_dict.get('description', '')
     command = tool_call.tool_args_dict.get('command', '')
     if is_suffix:
-        yield Text.assemble(('Bash', 'bold'), '(', (command, ColorStyle.HIGHLIGHT), ')')
+        yield Text.assemble(('Bash', 'bold'), '(', command, ')')
         return
-    yield Text.assemble(('Bash', ColorStyle.HIGHLIGHT.bold), '(', (description, ColorStyle.AI_MESSAGE), ')')
+    yield Text.assemble(('Bash', ColorStyle.HIGHLIGHT.bold), '(', description, ')')
     yield Padding.indent(
         Group(
             Rule(style=ColorStyle.SEPARATOR),

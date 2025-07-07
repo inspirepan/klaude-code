@@ -104,8 +104,7 @@ light_theme = Theme(
         ColorStyle.MEMORY_MODE: 'rgb(109,104,218)',
         ColorStyle.PLAN_MODE: 'rgb(43,100,101)',
         # Markdown
-        # ColorStyle.H2: 'rgb(181,75,52)',
-        ColorStyle.H2: 'rgb(0,3,3)',
+        ColorStyle.H2: 'rgb(181,75,52)',
     }
 )
 
@@ -145,7 +144,6 @@ dark_theme = Theme(
         ColorStyle.MEMORY_MODE: 'rgb(200,205,255)',
         ColorStyle.PLAN_MODE: 'rgb(126,184,185)',
         # Markdown
-        # ColorStyle.H2: 'rgb(241,155,122)',
-        ColorStyle.H2: 'rgb(255,255,255)',
+        ColorStyle.H2: 'rgb(241,155,122)',
     }
 )
