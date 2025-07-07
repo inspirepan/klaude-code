@@ -120,9 +120,9 @@ dark_theme = Theme(
         ColorStyle.WARNING: 'rgb(143,110,44)',
         ColorStyle.INFO: 'rgb(180,204,245)',
         ColorStyle.HIGHLIGHT: 'rgb(255,255,255)',
-        ColorStyle.MAIN: 'white',
+        ColorStyle.MAIN: 'rgb(200,200,200)',
         ColorStyle.MUTED: 'rgb(151,153,153)',
-        ColorStyle.SEPARATOR: 'rgb(50,50,50)',
+        ColorStyle.SEPARATOR: 'rgb(100,100,100)',
         # Todo
         ColorStyle.TODO_COMPLETED: 'rgb(107,184,109)',
         ColorStyle.TODO_IN_PROGRESS: 'rgb(150,204,235)',
