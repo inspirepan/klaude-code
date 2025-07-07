@@ -5,7 +5,6 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
-
 from klaudecode.message import AIMessage, SystemMessage, ToolMessage, UserMessage
 from klaudecode.session import Session
 from klaudecode.session.message_history import MessageStorageStatus
@@ -242,8 +241,6 @@ class TestSessionStorage:
         original_session = Session(work_dir=self.work_dir)
 
         # Create AI message with tool call
-        tool_call_data = {'id': 'call_123', 'type': 'function', 'function': {'name': 'test_tool', 'arguments': '{"arg": "value"}'}}
-
         from klaudecode.message.tool_call import ToolCall
 
         ai_msg = AIMessage(content='Using tool')

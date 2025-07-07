@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 from pydantic import BaseModel, Field
+from rich import box
 from rich.panel import Panel
 from rich.text import Text
-from rich import box
 
 from ..agent_state import AgentState
 from ..message import AIMessage, BasicMessage, SystemMessage, ToolCall, ToolMessage, UserMessage, register_tool_call_renderer, register_tool_result_renderer

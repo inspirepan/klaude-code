@@ -2,7 +2,7 @@ import asyncio
 from typing import Any, AsyncGenerator, Dict, List, Literal, Optional, Tuple
 
 import anthropic
-from anthropic.types import RawMessageStreamEvent, MessageParam, StopReason, TextBlockParam
+from anthropic.types import MessageParam, RawMessageStreamEvent, StopReason, TextBlockParam
 
 from ..message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, UserMessage, count_tokens
 from ..tool import Tool

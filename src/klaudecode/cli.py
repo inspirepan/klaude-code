@@ -1,5 +1,6 @@
 import asyncio
 import shutil
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -132,6 +133,14 @@ def main(
 ):
     ctx.ensure_object(dict)
     if ctx.invoked_subcommand is None:
+        # Check for piped input only if no prompt is provided via -p option
+        if prompt is None and not sys.stdin.isatty():
+            try:
+                prompt = sys.stdin.read().strip()
+            except KeyboardInterrupt:
+                # Handle Ctrl+C gracefully when reading from stdin
+                pass
+
         try:
             config_model = setup_config(
                 api_key=api_key,
