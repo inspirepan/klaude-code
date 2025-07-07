@@ -66,13 +66,19 @@ class OpenAIProxy(LLMProxyBase):
 
         prompt_tokens = completion_tokens = total_tokens = 0
 
-        async for chunk in stream:
-            if asyncio.current_task().cancelled():
-                raise asyncio.CancelledError('Stream cancelled')
-            prompt_tokens, completion_tokens, total_tokens = self._process_chunk(
-                chunk, stream_status, ai_message, tool_call_chunk_accumulator, prompt_tokens, completion_tokens, total_tokens
-            )
-            yield (stream_status, ai_message)
+        try:
+            # Set current task for immediate cancellation
+            self._current_request_task = asyncio.current_task()
+
+            async for chunk in stream:
+                if asyncio.current_task().cancelled():
+                    raise asyncio.CancelledError('Stream cancelled')
+                prompt_tokens, completion_tokens, total_tokens = self._process_chunk(
+                    chunk, stream_status, ai_message, tool_call_chunk_accumulator, prompt_tokens, completion_tokens, total_tokens
+                )
+                yield (stream_status, ai_message)
+        finally:
+            self._current_request_task = None
 
         self._finalize_message(ai_message, tool_call_chunk_accumulator, prompt_tokens, completion_tokens, total_tokens)
         yield (stream_status, ai_message)

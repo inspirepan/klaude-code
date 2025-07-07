@@ -64,16 +64,22 @@ class AnthropicProxy(LLMProxyBase):
         ai_message = AIMessage()
         state = StreamState()
 
-        async for event in stream:
-            if asyncio.current_task().cancelled():
-                raise asyncio.CancelledError('Stream cancelled')
+        try:
+            # Set current task for immediate cancellation
+            self._current_request_task = asyncio.current_task()
 
-            need_estimate = self._process_stream_event(event, stream_status, ai_message, state)
+            async for event in stream:
+                if asyncio.current_task().cancelled():
+                    raise asyncio.CancelledError('Stream cancelled')
 
-            if need_estimate:
-                stream_status.tokens = self._estimate_tokens(ai_message, state)
+                need_estimate = self._process_stream_event(event, stream_status, ai_message, state)
 
-            yield (stream_status, ai_message)
+                if need_estimate:
+                    stream_status.tokens = self._estimate_tokens(ai_message, state)
+
+                yield (stream_status, ai_message)
+        finally:
+            self._current_request_task = None
 
         self._finalize_message(ai_message, state)
         yield (stream_status, ai_message)

@@ -77,6 +77,41 @@ class Agent:
             # Clean up backup files
             cleanup_all_backups()
 
+    async def _headless_run_with_status_display(self):
+        """Run agent executor with real-time status display"""
+        status = render_dot_status('Running')
+        status.start()
+        running = True
+
+        async def update_status():
+            while running:
+                tool_msg_count = sum(1 for msg in self.agent_state.session.messages if msg.role == 'tool')
+                last_msg = self.agent_state.session.messages.get_last_message(filter_empty=True, role='assistant')
+                status_text = ''
+                if last_msg and isinstance(last_msg, AIMessage) and last_msg.content.strip():
+                    status_text = last_msg.content[:100]
+                status.update(
+                    description=Text.assemble(
+                        Text.from_markup(f'([bold]{tool_msg_count}[/bold] tool uses) '),
+                        Text(status_text, style=ColorStyle.CLAUDE),
+                        (INTERRUPT_TIP, ColorStyle.MUTED),
+                    ),
+                )
+                await asyncio.sleep(0.1)
+
+        update_task = asyncio.create_task(update_status())
+        try:
+            result = await self.agent_executor.run(tools=self.agent_state.get_all_tools())
+            return result
+        finally:
+            running = False
+            status.stop()
+            update_task.cancel()
+            try:
+                await update_task
+            except asyncio.CancelledError:
+                pass
+
     async def headless_run(self, user_input_text: str):
         self.agent_state.initialize_llm()
 
@@ -90,37 +125,7 @@ class Agent:
             self._handle_claudemd_reminder()
             self._handle_empty_todo_reminder()
 
-            status = render_dot_status('Running')
-            status.start()
-            running = True
-
-            async def update_status():
-                while running:
-                    tool_msg_count = sum(1 for msg in self.agent_state.session.messages if msg.role == 'tool')
-                    last_msg = self.agent_state.session.messages.get_last_message(filter_empty=True, role='assistant')
-                    status_text = ''
-                    if last_msg and isinstance(last_msg, AIMessage) and last_msg.content.strip():
-                        status_text = last_msg.content[:100]
-                    status.update(
-                        description=Text.assemble(
-                            Text.from_markup(f'([bold]{tool_msg_count}[/bold] tool uses) '),
-                            Text(status_text, style=ColorStyle.CLAUDE),
-                            (INTERRUPT_TIP, ColorStyle.MUTED),
-                        ),
-                    )
-                    await asyncio.sleep(0.1)
-
-            update_task = asyncio.create_task(update_status())
-            try:
-                result = await self.agent_executor.run(tools=self.agent_state.get_all_tools())
-            finally:
-                running = False
-                status.stop()
-                update_task.cancel()
-                try:
-                    await update_task
-                except asyncio.CancelledError:
-                    pass
+            result = await self._headless_run_with_status_display()
             console.print(result)
         finally:
             self.agent_state.session.save()
