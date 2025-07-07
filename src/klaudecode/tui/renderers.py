@@ -249,9 +249,9 @@ def truncate_middle_text(text: str, max_lines: int = 50) -> RichRenderable:
     tail_content = '\n'.join(lines[-tail_lines:])
     return Group(
         head_content,
-        Text('···', style=ColorStyle.MUTED),
-        Text.assemble('+ ', Text(str(middle_lines), style='bold'), ' lines', style=ColorStyle.MUTED),
-        Text('···', style=ColorStyle.MUTED),
+        Rule(style=ColorStyle.SEPARATOR, title='···'),
+        Text.assemble('+ ', Text(str(middle_lines), style='bold'), ' lines', style=ColorStyle.MUTED, justify='center'),
+        Rule(style=ColorStyle.SEPARATOR, title='···'),
         tail_content,
     )
 

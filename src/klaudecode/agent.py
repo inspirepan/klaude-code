@@ -101,7 +101,7 @@ class Agent:
 
         update_task = asyncio.create_task(update_status())
         try:
-            result = await self.agent_executor.run(tools=self.agent_state.get_all_tools())
+            result = await self.agent_executor.run(tools=self.agent_state.get_all_tools(), max_steps=DEFAULT_MAX_STEPS)
             return result
         finally:
             running = False

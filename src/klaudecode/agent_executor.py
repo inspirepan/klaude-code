@@ -20,7 +20,7 @@ from .utils.exception import format_exception
 
 TOKEN_WARNING_THRESHOLD = 0.85
 COMPACT_THRESHOLD = 0.9
-
+DEFAULT_MAX_STEPS = 100
 
 class AgentExecutor(TaskToolMixin, Tool):
     """
@@ -32,7 +32,7 @@ class AgentExecutor(TaskToolMixin, Tool):
         self.agent_state = agent_state
         self.tool_handler = ToolHandler(self.agent_state, self.agent_state.available_tools or [], show_live=agent_state.print_switch)
 
-    async def run(self, max_steps: int = 100, check_cancel: Callable[[], bool] = None, tools: Optional[List[Tool]] = None):
+    async def run(self, max_steps: int = DEFAULT_MAX_STEPS, check_cancel: Callable[[], bool] = None, tools: Optional[List[Tool]] = None):
         try:
             return await self._execute_run_loop(max_steps, check_cancel, tools)
         except (OpenAIError, AnthropicError) as e:
