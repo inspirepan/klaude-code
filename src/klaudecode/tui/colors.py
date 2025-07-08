@@ -96,14 +96,14 @@ light_theme = Theme(
         ColorStyle.DIFF_REMOVED_CHAR: 'rgb(0,0,0) on rgb(239,109,119)',
         ColorStyle.DIFF_ADDED_CHAR: 'rgb(0,0,0) on rgb(57,177,78)',
         ColorStyle.CONTEXT_LINE: 'rgb(96,96,96)',
-        ColorStyle.INLINE_CODE: 'rgb(109,104,218)',
+        ColorStyle.INLINE_CODE: 'rgb(88,105,247)',
         # Prompt toolkit
         ColorStyle.INPUT_PLACEHOLDER: 'rgb(136,139,139)',
         ColorStyle.COMPLETION_MENU: 'rgb(154,154,154)',
         ColorStyle.COMPLETION_SELECTED: 'rgb(88,105,247)',
         # Input mode colors
         ColorStyle.BASH_MODE: 'rgb(234,51,134)',
-        ColorStyle.MEMORY_MODE: 'rgb(109,104,218)',
+        ColorStyle.MEMORY_MODE: 'rgb(88,105,247)',
         ColorStyle.PLAN_MODE: 'rgb(43,100,101)',
         # Markdown
         ColorStyle.H2: 'rgb(181,75,52)',

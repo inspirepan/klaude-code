@@ -140,8 +140,7 @@ def render_todo_write_name(tool_call: ToolCall, is_suffix: bool = False):
         yield Text.assemble(('Update Todos', 'bold'))
         yield Padding.indent(Group(*(Text(f'☐ {todo}') for todo in pending_todos)), 2)
     elif in_progress_todos:
-        yield Text.assemble(('Update Todos', 'bold'))
-        yield Padding.indent(Group(*(Text(f'☐ {todo}', style=ColorStyle.TODO_IN_PROGRESS) for todo in in_progress_todos)), 2)
+        yield Text.assemble(('Update Todos', 'bold'), '(', (f'{", ".join(in_progress_todos)}', ColorStyle.TODO_IN_PROGRESS), ')')
     else:
         yield Text('Update Todos', ColorStyle.TOOL_NAME.bold)
 

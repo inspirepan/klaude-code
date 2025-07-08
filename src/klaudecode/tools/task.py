@@ -19,6 +19,7 @@ from ..session import Session
 from ..tool import ToolInstance
 from ..tui import ColorStyle, render_markdown, render_suffix
 from ..utils.exception import format_exception
+from ..utils.str_utils import truncate_char
 from . import BASIC_TOOLS
 
 DEFAULT_MAX_STEPS = 80
@@ -122,46 +123,77 @@ def render_task_args(tool_call: ToolCall, is_suffix: bool = False):
     )
 
 
+def _count_tool_calls(task_msgs: list) -> int:
+    """Count previous tool calls"""
+    total_tool_calls = sum(len(task_msg.get('tool_calls', [])) for task_msg in task_msgs)
+    last_tool_calls = len(task_msgs[-1].get('tool_calls', [])) if task_msgs else 0
+    previous_tool_calls = total_tool_calls - last_tool_calls
+    return previous_tool_calls
+
+
+def _render_tool_calls(tool_calls):
+    """Render tool calls to renderable elements using generator"""
+    for tool_call_dict in tool_calls:
+        tool_call = ToolCall(**tool_call_dict)
+        yield from tool_call.get_suffix_renderable()
+
+
+def _render_processing_status(task_msgs: list):
+    """Render task in processing status"""
+    msgs_to_show = []
+    for i in range(len(task_msgs) - 1, -1, -1):
+        msg = task_msgs[i]
+        msgs_to_show.append(msg)
+
+        if (msg.get('content') and msg['content'].strip()) or len(msgs_to_show) >= 3:
+            break
+
+    msgs_to_show.reverse()
+
+    def generate_elements():
+        for msg in msgs_to_show:
+            if msg.get('content') and msg['content'].strip():
+                yield Text(truncate_char(msg['content']))
+
+            tool_calls = msg.get('tool_calls', [])
+            if tool_calls:
+                yield from _render_tool_calls(tool_calls)
+
+        shown_msgs_count = len(msgs_to_show)
+        if shown_msgs_count < len(task_msgs):
+            remaining_tool_calls = sum(len(task_msgs[i].get('tool_calls', [])) for i in range(len(task_msgs) - shown_msgs_count))
+            if remaining_tool_calls > 0:
+                yield Text(f'+ {remaining_tool_calls} more tool use{"" if remaining_tool_calls == 1 else "s"}')
+
+    return render_suffix(Group(*generate_elements()))
+
+
+def _render_completed_status(content: str, task_msgs: list):
+    """Render task in completed status"""
+    # Use generator to avoid creating intermediate list
+    all_tool_calls = (tool_call for task_msg in task_msgs for tool_call in task_msg.get('tool_calls', []))
+
+    # Check if there are any tool calls by trying to get the first one
+    tool_call_gen = _render_tool_calls(all_tool_calls)
+    for tool_call in tool_call_gen:
+        yield render_suffix(tool_call)
+
+    if content:
+        yield render_suffix(Panel.fit(render_markdown(content, style=ColorStyle.AI_MESSAGE), border_style=ColorStyle.SEPARATOR, width=80, box=box.ROUNDED))
+
+
 def render_task_result(tool_msg: ToolMessage):
     task_msgs = tool_msg.get_extra_data('task_msgs')
+
     if task_msgs:
         if tool_msg.tool_call.status == 'processing':
-            group_list = []
-            # Show only the last task_msg's content and tool_calls
-            last_task_msg = task_msgs[-1]
-
-            # Render last content if available
-            if last_task_msg.get('content') and last_task_msg['content'].strip():
-                group_list.append(Text(last_task_msg['content']))
-
-            # Count all tool calls and show last task_msg's tool calls
-            total_tool_calls = sum(len(task_msg.get('tool_calls', [])) for task_msg in task_msgs)
-            last_tool_calls = last_task_msg.get('tool_calls', [])
-            previous_tool_calls = total_tool_calls - len(last_tool_calls)
-
-            # Render last task_msg's tool calls
-            for tool_call_dict in last_tool_calls:
-                tool_call = ToolCall(**tool_call_dict)
-                group_list.extend(tool_call.get_suffix_renderable())
-
-            if previous_tool_calls > 0:
-                group_list.append(Text(f'+ {previous_tool_calls} more tool use{"" if previous_tool_calls == 1 else "s"}'))
-
-            yield render_suffix(Group(*group_list))
+            yield _render_processing_status(task_msgs)
         elif tool_msg.tool_call.status == 'canceled':
             return
         else:
-            for task_msg in task_msgs:
-                # Render tool calls
-                tool_calls = task_msg.get('tool_calls', [])
-                for tool_call_dict in tool_calls:
-                    tool_call = ToolCall(**tool_call_dict)
-                    yield render_suffix(Group(*tool_call.get_suffix_renderable()))
-
+            yield from _render_completed_status(tool_msg.content, task_msgs)
     else:
         yield render_suffix('Initializing...')
-    if tool_msg.content:
-        yield render_suffix(Panel.fit(render_markdown(tool_msg.content), border_style=ColorStyle.SEPARATOR, width=80, box=box.ROUNDED))
 
 
 # Register renderers

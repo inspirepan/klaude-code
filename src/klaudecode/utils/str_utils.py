@@ -2,16 +2,15 @@ import re
 from typing import Optional
 
 
-def truncate_end_text(text: str, max_lines: int = 15) -> str:
-    lines = text.splitlines()
-
-    if len(lines) <= max_lines + 5:
+def truncate_char(text: str, max_chars: int = 100, show_remaining: bool = False) -> str:
+    if len(text) <= max_chars:
         return text
 
-    truncated_lines = lines[:max_lines]
-    remaining_lines = len(lines) - max_lines
-    truncated_content = '\n'.join(truncated_lines)
-    truncated_content += f'\n... + {remaining_lines} lines'
+    truncated_content = text[:max_chars]
+    if show_remaining:
+        truncated_content += f'... + {len(text) - max_chars} chars'
+    else:
+        truncated_content += '...'
     return truncated_content
 
 
