@@ -28,6 +28,8 @@ class Session(BaseModel):
     created_at: float = Field(default_factory=time.time)
     append_message_hook: Optional[Callable] = None
     title_msg: str = ''
+    _initial_message_count: int = 0
+    _incremental_message_count: int = 0
 
     def __init__(self, **data):
         # Handle messages parameter - convert list to MessageHistory if needed
@@ -38,6 +40,10 @@ class Session(BaseModel):
         self._hook_weakref: Optional[weakref.ReferenceType] = None
         self._hook_lock = threading.RLock()
 
+        # Initialize message count tracking
+        self._initial_message_count = len(self.messages.messages)
+        self._incremental_message_count = 0
+
     @field_serializer('work_dir')
     def serialize_work_dir(self, work_dir: Path) -> str:
         return str(work_dir)
@@ -45,6 +51,25 @@ class Session(BaseModel):
     def append_message(self, *msgs: BasicMessage) -> None:
         """Add messages to the session."""
         self.messages.append_message(*msgs)
+        # Track incremental message count
+        self._incremental_message_count += len(msgs)
+
+        # Update title_msg when the first new message is a user message
+        if self._incremental_message_count == 1 and len(msgs) == 1:
+            msg = msgs[0]
+            if hasattr(msg, 'role') and msg.role == 'user' and hasattr(msg, 'content'):
+                # Append new user message to existing title
+                content = msg.content
+                truncated_content = content[:50]
+                # Only add ellipsis if content was actually truncated
+                if len(content) > 50:
+                    truncated_content += '...'
+
+                if self.title_msg:
+                    self.title_msg = f'{self.title_msg}-RESUME-{truncated_content}'
+                else:
+                    self.title_msg = truncated_content
+
         with self._hook_lock:
             if self._hook_weakref:
                 try:
@@ -73,8 +98,10 @@ class Session(BaseModel):
                 self._hook_weakref = None
 
     def save(self) -> None:
-        """Save session to local files."""
-        SessionStorage.save(self)
+        """Save session to local files only if there are meaningful changes."""
+        # Only save if we have incremental messages beyond just loading the session
+        if self._incremental_message_count > 0:
+            SessionStorage.save(self)
 
     def reset_create_at(self):
         current_time = time.time()
@@ -92,6 +119,7 @@ class Session(BaseModel):
             'messages': messages,
             'todo_list': self.todo_list,
             'file_tracker': self.file_tracker,
+            'title_msg': self.title_msg,
         }
 
         if source is not None:
