@@ -9,6 +9,7 @@ from rich import box
 from rich.columns import Columns
 from rich.console import Group
 from rich.panel import Panel
+from rich.rule import Rule
 from rich.text import Text
 
 from ..agent_state import AgentState
@@ -118,17 +119,9 @@ def render_task_args(tool_call: ToolCall, is_suffix: bool = False):
     yield Columns(
         [
             Text.assemble((tool_call.tool_name, ColorStyle.TOOL_NAME.bold), '(', (tool_call.tool_args_dict.get('description', ''), ColorStyle.TOOL_NAME.bold), ')', ' →'),
-            Text(tool_call.tool_args_dict.get('prompt', ''), style=ColorStyle.TOOL_NAME),
+            Group(Text(tool_call.tool_args_dict.get('prompt', ''), style=ColorStyle.TOOL_NAME), Rule(style=ColorStyle.LINE, characters='╌')),
         ],
     )
-
-
-def _count_tool_calls(task_msgs: list) -> int:
-    """Count previous tool calls"""
-    total_tool_calls = sum(len(task_msg.get('tool_calls', [])) for task_msg in task_msgs)
-    last_tool_calls = len(task_msgs[-1].get('tool_calls', [])) if task_msgs else 0
-    previous_tool_calls = total_tool_calls - last_tool_calls
-    return previous_tool_calls
 
 
 def _render_tool_calls(tool_calls):
@@ -184,7 +177,6 @@ def _render_completed_status(content: str, task_msgs: list):
 
 def render_task_result(tool_msg: ToolMessage):
     task_msgs = tool_msg.get_extra_data('task_msgs')
-
     if task_msgs:
         if tool_msg.tool_call.status == 'processing':
             yield _render_processing_status(task_msgs)

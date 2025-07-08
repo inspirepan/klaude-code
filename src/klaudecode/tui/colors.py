@@ -74,6 +74,13 @@ class ColorStyle(str, Enum):
 
         return console.console.get_style(self.value) + Style(bold=True, italic=True)
 
+    @property
+    def style(self) -> Style:
+        # Import here to avoid circular import
+        from .console import console
+
+        return console.console.get_style(self.value)
+
     def __str__(self) -> str:
         return self.value
 

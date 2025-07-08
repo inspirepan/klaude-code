@@ -40,33 +40,34 @@ class Agent:
             if agent_state.print_switch:
                 console.print(f'Warning: Failed to load custom commands: {format_exception(e, show_traceback=True)}', style=ColorStyle.WARNING)
 
-    async def chat_interactive(self, first_message: str = None):
+    async def chat_interactive(self, initial_message: str = None):
         self.agent_state.initialize_llm()
         self.agent_state.session.messages.print_all_message()  # For continue and resume scene.
 
-        epoch = 0
+        # If resuming a session, this is not the agent's first run
+        agent_run_first_time = self.agent_state.session.messages.get_last_message('user', filter_empty=True) is None
         try:
             while True:
                 if not self.agent_state.plan_mode_activated:
                     self.input_session.reset_normal_mode()
 
-                if epoch == 0 and first_message:
-                    user_input_text = first_message
+                if agent_run_first_time and initial_message:
+                    user_input_text = initial_message
                 else:
                     user_input_text = await self.input_session.prompt_async()
 
                 if user_input_text.strip().lower() in QUIT_COMMAND:
                     break
 
-                need_agent_run = await self.user_input_handler.handle(user_input_text, print_msg=bool(first_message))
+                need_agent_run = await self.user_input_handler.handle(user_input_text, print_msg=bool(initial_message))
                 if need_agent_run:
-                    if epoch == 0:
+                    if agent_run_first_time:
                         self._handle_claudemd_reminder()
                         self._handle_empty_todo_reminder()
+                    agent_run_first_time = False
                     await self.agent_executor.run(max_steps=DEFAULT_MAX_STEPS, tools=self.agent_state.get_all_tools())
                 else:
                     self.agent_state.session.save()
-                epoch += 1
         finally:
             self.agent_state.session.save()
             # Clean up MCP resources
