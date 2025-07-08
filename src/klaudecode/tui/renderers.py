@@ -123,7 +123,7 @@ def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Gro
             quote_content = re.sub(r'^(\s*)>\s?', r'\1', line)
             line = Text.from_markup(f'[muted]▌ {quote_content}[/muted]', style=style)
         elif line.strip() == '---':
-            line = Rule(style=ColorStyle.SEPARATOR)
+            line = Rule(style=ColorStyle.LINE)
         else:
             # Handle list items with proper indentation
             list_match = re.match(r'^(\s*)([*\-+]|\d+\.)\s+(.+)', line)
@@ -153,7 +153,7 @@ def _parse_markdown_table(lines: list[str], start_index: int, style: Optional[Un
     headers = [Text(cell.strip(), style=style) for cell in header_line.split('|')[1:-1]]
 
     # Create table
-    table = Table(show_header=True, header_style='bold', box=box.SQUARE, show_lines=True, style=style, border_style=ColorStyle.SEPARATOR)
+    table = Table(show_header=True, header_style='bold', box=box.SQUARE, show_lines=True, style=style, border_style=ColorStyle.LINE)
     for header in headers:
         table.add_column(header)
 
@@ -249,9 +249,9 @@ def truncate_middle_text(text: str, max_lines: int = 50) -> RichRenderable:
     tail_content = '\n'.join(lines[-tail_lines:])
     return Group(
         head_content,
-        Rule(style=ColorStyle.SEPARATOR, title='···'),
+        Rule(style=ColorStyle.LINE, title='···'),
         Text.assemble('+ ', Text(str(middle_lines), style='bold'), ' lines', style=ColorStyle.HINT, justify='center'),
-        Rule(style=ColorStyle.SEPARATOR, title='···'),
+        Rule(style=ColorStyle.LINE, title='···'),
         tail_content,
     )
 

@@ -59,7 +59,7 @@ class SaveCustomCommandCommand(Command):
                         ]
                     ),
                 ),
-                border_style=ColorStyle.AGENT_BORDER,
+                border_style=ColorStyle.LINE,
             )
         )
         options = ['Save as project command (.claude/commands/)', 'Save as user command (~/.claude/commands/)', 'Reject this command']

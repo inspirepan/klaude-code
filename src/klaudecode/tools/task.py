@@ -179,7 +179,7 @@ def _render_completed_status(content: str, task_msgs: list):
         yield render_suffix(tool_call)
 
     if content:
-        yield render_suffix(Panel.fit(render_markdown(content, style=ColorStyle.AI_MESSAGE), border_style=ColorStyle.SEPARATOR, width=80, box=box.ROUNDED))
+        yield render_suffix(Panel.fit(render_markdown(content, style=ColorStyle.AI_CONTENT), border_style=ColorStyle.LINE, width=80, box=box.ROUNDED))
 
 
 def render_task_result(tool_msg: ToolMessage):

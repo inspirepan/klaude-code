@@ -39,7 +39,7 @@ class ExitPlanModeTool(Tool):
 def render_exit_plan_mode_args(tool_call: ToolCall, is_suffix: bool = False):
     yield Text("Here is Claude's plan:", ColorStyle.TOOL_NAME.bold)
     yield Padding.indent(
-        Panel.fit(render_markdown(tool_call.tool_args_dict['plan']), border_style=ColorStyle.AGENT_BORDER),
+        Panel.fit(render_markdown(tool_call.tool_args_dict['plan']), border_style=ColorStyle.LINE),
         level=2,
     )
 
