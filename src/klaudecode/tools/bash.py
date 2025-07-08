@@ -9,6 +9,9 @@ from typing import Annotated, Callable, Set
 
 from pydantic import BaseModel, Field
 from rich.columns import Columns
+from rich.console import Group
+from rich.padding import Padding
+from rich.rule import Rule
 from rich.text import Text
 
 from ..message import ToolCall, register_tool_call_renderer
@@ -397,7 +400,8 @@ def render_bash_args(tool_call: ToolCall, is_suffix: bool = False):
     is_long = len(command) > 20
 
     if is_multiline or is_long:
-        yield Columns([Text.assemble(('Bash', ColorStyle.TOOL_NAME.bold), '(', description, ') → '), Text(command)])
+        yield Text.assemble(('Bash', ColorStyle.TOOL_NAME.bold), '(', (description, ColorStyle.TOOL_NAME.bold), ') → ')
+        yield Padding.indent(Group(Rule(style=ColorStyle.LINE), Text(command), Rule(style=ColorStyle.LINE)), level=2)
     else:
         yield Columns([Text.assemble(('Bash', ColorStyle.TOOL_NAME.bold)), Text.assemble('(', Text(command), ')')], padding=(0, 0))
 

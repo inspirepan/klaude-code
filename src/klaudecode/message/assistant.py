@@ -125,7 +125,7 @@ class AIMessage(BasicMessage):
 
     def get_content_renderable(self):
         if self.content:
-            yield render_message(render_markdown(self.content, style=ColorStyle.AI_CONTENT), mark_style=ColorStyle.AI_CONTENT, style=ColorStyle.AI_CONTENT, render_text=True)
+            yield render_message(render_markdown(self.content, style=ColorStyle.AI_CONTENT), mark_style=ColorStyle.HIGHLIGHT, render_text=True)
 
     def __bool__(self):
         has_content = (self.content is not None) and len(self.content.strip()) > 0
