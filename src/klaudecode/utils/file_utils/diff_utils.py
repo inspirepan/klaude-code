@@ -3,6 +3,7 @@ import re
 from typing import List, Tuple
 
 from rich.console import Group
+from rich.padding import Padding
 from rich.table import Table
 from rich.text import Text
 
@@ -223,4 +224,4 @@ def render_diff_lines(diff_lines: List[str]) -> Group:
             grid.add_row('', '', Text(line))
             i += 1
 
-    return grid
+    return Padding.indent(grid, level=2)

@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from pydantic import BaseModel, Field
+from rich.console import Group
 from rich.text import Text
 
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
@@ -157,7 +158,50 @@ def render_edit_args(tool_call: ToolCall, is_suffix: bool = False):
 def render_edit_result(tool_msg: ToolMessage):
     diff_lines = tool_msg.get_extra_data('diff_lines')
     if diff_lines:
-        yield render_suffix(render_diff_lines(diff_lines))
+        # Calculate additions and removals
+        additions = sum(1 for line in diff_lines if line.startswith('+') and not line.startswith('+++'))
+        removals = sum(1 for line in diff_lines if line.startswith('-') and not line.startswith('---'))
+
+        # Get file path from tool content
+        content = tool_msg.content
+        file_path = ''
+        if content and 'has been updated' in content:
+            # Extract file path from content like "The file /path/to/file has been updated"
+            parts = content.split(' has been updated')
+            if parts:
+                file_part = parts[0].replace('The file ', '')
+                file_path = get_relative_path_for_display(file_part)
+
+        # Create summary line
+        summary_parts = []
+        if additions > 0:
+            summary_parts.append(f'{additions} addition{"s" if additions != 1 else ""}')
+        if removals > 0:
+            summary_parts.append(f'{removals} removal{"s" if removals != 1 else ""}')
+
+        renderables = []
+        if summary_parts and file_path:
+            # Create styled summary using Text.assemble
+            summary_text = Text.assemble(('Updated ', 'dim'), (file_path, 'bold dim'), (' with ', 'dim'))
+
+            for i, part in enumerate(summary_parts):
+                if i > 0:
+                    summary_text.append(' and ', style='dim')
+
+                # Extract number and text from part like "1 addition" or "2 removals"
+                words = part.split(' ', 1)
+                if len(words) == 2:
+                    number, text = words
+                    summary_text.append(number, style='bold dim')
+                    summary_text.append(f' {text}', style='dim')
+                else:
+                    summary_text.append(part, style='dim')
+
+            renderables.append(summary_text)
+
+        renderables.append(render_diff_lines(diff_lines))
+
+        yield render_suffix(Group(*renderables))
 
 
 register_tool_call_renderer('Edit', render_edit_args)

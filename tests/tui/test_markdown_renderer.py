@@ -1,7 +1,3 @@
-import pytest
-from rich.style import Style
-from rich.text import Text
-
 from klaudecode.tui.markdown_renderer import _process_inline_formatting, render_markdown
 
 
@@ -46,14 +42,13 @@ class TestInlineFormatting:
                 bold_span = span
             elif span.style.italic and not span.style.bold:
                 italic_span = span
-        
+
         assert bold_span is not None
         assert italic_span is not None
 
     def test_code_formatting(self):
         result = _process_inline_formatting('This has `code` text')
         assert len(result.spans) >= 1
-        code_span = result.spans[0]
         assert 'code' in str(result)
 
     def test_strikethrough_formatting(self):
@@ -72,7 +67,7 @@ class TestInlineFormatting:
         bold_italic_count = 0
         bold_only_count = 0
         italic_only_count = 0
-        
+
         for span in result.spans:
             if span.style.bold and span.style.italic:
                 bold_italic_count += 1
@@ -80,7 +75,7 @@ class TestInlineFormatting:
                 bold_only_count += 1
             elif span.style.italic and not span.style.bold:
                 italic_only_count += 1
-        
+
         assert bold_italic_count == 1
         assert bold_only_count == 1
         assert italic_only_count == 1
@@ -100,16 +95,16 @@ class TestMarkdownRenderer:
         assert result is not None
 
     def test_table_rendering(self):
-        table_text = '''| Header 1 | Header 2 |
+        table_text = """| Header 1 | Header 2 |
 |----------|----------|
-| Cell 1   | Cell 2   |'''
+| Cell 1   | Cell 2   |"""
         result = render_markdown(table_text)
         assert result is not None
 
     def test_mixed_content(self):
-        content = '''## Header
+        content = """## Header
 This is **bold** and *italic* text.
 - List item with ***bold italic***
-> Quote with `code`'''
+> Quote with `code`"""
         result = render_markdown(content)
         assert result is not None

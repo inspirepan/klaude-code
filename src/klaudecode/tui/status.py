@@ -4,9 +4,9 @@ from typing import Optional, Type
 from rich.columns import Columns
 from rich.console import Console, ConsoleOptions, Group, RenderableType, StyleType
 from rich.live import Live
+from rich.measure import Measurement
 from rich.spinner import Spinner
 from rich.text import Text
-from rich.measure import Measurement
 
 from .colors import ColorStyle
 from .console import console
