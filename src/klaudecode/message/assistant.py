@@ -176,7 +176,7 @@ class AgentUsage(BaseModel):
         from rich.console import Group
 
         yield Group(
-            Text(f'Total LLM calls:     {self.total_llm_calls:<10}', style=ColorStyle.MUTED),
-            Text(f'Total input tokens:  {self.total_input_tokens:<10}', style=ColorStyle.MUTED),
-            Text(f'Total output tokens: {self.total_output_tokens:<10}', style=ColorStyle.MUTED),
+            Text(f'Total LLM calls:     {self.total_llm_calls:<10}', style=ColorStyle.HINT),
+            Text(f'Total input tokens:  {self.total_input_tokens:<10}', style=ColorStyle.HINT),
+            Text(f'Total output tokens: {self.total_output_tokens:<10}', style=ColorStyle.HINT),
         )

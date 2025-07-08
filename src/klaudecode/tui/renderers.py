@@ -116,7 +116,7 @@ def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Gro
             header_match = re.match(r'^(#+)\s+(.+)', stripped)
             if header_match:
                 hashes, title = header_match.groups()
-                line = Text.from_markup(f'{hashes} [bold]{title}[/bold]', style=style if len(hashes) > 2 else ColorStyle.H2)
+                line = Text.from_markup(f'{hashes} [bold]{title}[/bold]', style=style if len(hashes) > 2 else ColorStyle.HEADER)
             else:
                 line = Text.from_markup(line, style=style + Style(bold=True))
         elif line.strip().startswith('>'):
@@ -228,8 +228,8 @@ def render_tips() -> RenderResult:
     return render_message(
         '\n'.join(get_tip()),
         mark='※ Tip:',
-        style=ColorStyle.MUTED,
-        mark_style=ColorStyle.MUTED,
+        style=ColorStyle.HINT,
+        mark_style=ColorStyle.HINT,
         mark_width=5,
         render_text=True,
     )
@@ -250,7 +250,7 @@ def truncate_middle_text(text: str, max_lines: int = 50) -> RichRenderable:
     return Group(
         head_content,
         Rule(style=ColorStyle.SEPARATOR, title='···'),
-        Text.assemble('+ ', Text(str(middle_lines), style='bold'), ' lines', style=ColorStyle.MUTED, justify='center'),
+        Text.assemble('+ ', Text(str(middle_lines), style='bold'), ' lines', style=ColorStyle.HINT, justify='center'),
         Rule(style=ColorStyle.SEPARATOR, title='···'),
         tail_content,
     )

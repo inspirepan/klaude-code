@@ -107,19 +107,19 @@ class MacSetupCommand(Command):
             if status == 'already_installed':
                 status_text = Text.assemble(
                     (f'✓ {tool}', ColorStyle.SUCCESS.bold),
-                    (f' ({desc}) - Already installed', ColorStyle.MUTED),
-                    (f' - {version}', ColorStyle.MUTED),
+                    (f' ({desc}) - Already installed', ColorStyle.HINT),
+                    (f' - {version}', ColorStyle.HINT),
                 )
             elif status == 'installed':
                 status_text = Text.assemble(
                     (f'✓ {tool}', ColorStyle.SUCCESS.bold),
-                    (f' ({desc}) - Successfully installed', ColorStyle.MUTED),
-                    (f' - {version}', ColorStyle.MUTED),
+                    (f' ({desc}) - Successfully installed', ColorStyle.HINT),
+                    (f' - {version}', ColorStyle.HINT),
                 )
             else:  # failed
                 status_text = Text.assemble(
                     (f'✗ {tool}', ColorStyle.ERROR.bold),
-                    (f' ({desc}) - Failed', ColorStyle.MUTED),
+                    (f' ({desc}) - Failed', ColorStyle.HINT),
                     (f': {result.get("error", "")}', ColorStyle.ERROR),
                 )
 

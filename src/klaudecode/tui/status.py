@@ -108,9 +108,9 @@ def render_dot_status(
     dots_style: StyleType = None,
 ):
     if description:
-        desc_text = Text.assemble(description, (INTERRUPT_TIP, ColorStyle.MUTED))
+        desc_text = Text.assemble(description, (INTERRUPT_TIP, ColorStyle.HINT))
     else:
-        desc_text = Text(INTERRUPT_TIP, style=ColorStyle.MUTED)
+        desc_text = Text(INTERRUPT_TIP, style=ColorStyle.HINT)
     return DotsStatus(
         status=status,
         description=desc_text,

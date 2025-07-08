@@ -62,7 +62,7 @@ class ExampleCustomCommand(Command):
         if git_commit_file:
             yield Panel.fit(
                 Group(
-                    Text.assemble(('✓ ', ColorStyle.SUCCESS.bold), (f'Example commands created in {scope} scope:', ColorStyle.SUCCESS), (' (restart to use)', ColorStyle.MUTED)),
+                    Text.assemble(('✓ ', ColorStyle.SUCCESS.bold), (f'Example commands created in {scope} scope:', ColorStyle.SUCCESS), (' (restart to use)', ColorStyle.HINT)),
                     '',
                     render_grid(
                         [

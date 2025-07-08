@@ -133,7 +133,7 @@ class StatusWrapper(LLMClientWrapper):
                     description=Text.assemble(
                         (f'{indicator}', ColorStyle.SUCCESS),
                         (f' {stream_status.tokens} tokens' if stream_status.tokens else '', ColorStyle.SUCCESS),
-                        (INTERRUPT_TIP, ColorStyle.MUTED),
+                        (INTERRUPT_TIP, ColorStyle.HINT),
                     ),
                 )
 

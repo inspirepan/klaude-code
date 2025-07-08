@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, auto
 
 from rich.style import Style
 from rich.theme import Theme
@@ -16,8 +16,9 @@ class ColorStyle(str, Enum):
     INFO = 'info'
     HIGHLIGHT = 'highlight'
     MAIN = 'main'
-    MUTED = 'muted'
+    HINT = 'muted'
     SEPARATOR = 'separator'
+    # Todos
     TODO_COMPLETED = 'todo_completed'
     TODO_IN_PROGRESS = 'todo_in_progress'
     # Tools and agents
@@ -39,7 +40,7 @@ class ColorStyle(str, Enum):
     MEMORY_MODE = 'memory_mode'
     PLAN_MODE = 'plan_mode'
     # Markdown
-    H2 = 'h1'
+    HEADER = 'header'
 
     @property
     def bold(self) -> Style:
@@ -69,84 +70,109 @@ class ColorStyle(str, Enum):
         return self.value
 
 
-light_theme = Theme(
-    {
-        # AI and user interaction
-        ColorStyle.AI_MESSAGE: 'rgb(181,105,72)',
-        ColorStyle.AI_THINKING: 'rgb(136,139,139)',
-        ColorStyle.CLAUDE: 'rgb(214,119,86)',
-        # Status indicators
-        ColorStyle.ERROR: 'rgb(158,57,66)',
-        ColorStyle.SUCCESS: 'rgb(65,120,64)',
-        ColorStyle.WARNING: 'rgb(143,110,44)',
-        ColorStyle.INFO: 'rgb(62,99,153)',
-        ColorStyle.HIGHLIGHT: 'rgb(0,3,3)',
-        ColorStyle.MAIN: 'rgb(96,96,96)',
-        ColorStyle.MUTED: 'rgb(136,139,139)',
-        ColorStyle.SEPARATOR: 'rgb(200,200,200)',
-        # Todo
-        ColorStyle.TODO_COMPLETED: 'rgb(65,120,64)',
-        ColorStyle.TODO_IN_PROGRESS: 'rgb(62,99,153)',
-        # Tools and agents
-        ColorStyle.TOOL_NAME: 'rgb(66,66,66)',
-        ColorStyle.AGENT_BORDER: 'rgb(175,192,217)',
-        # Code
-        ColorStyle.DIFF_REMOVED_LINE: 'rgb(0,0,0) on rgb(255,168,180)',
-        ColorStyle.DIFF_ADDED_LINE: 'rgb(0,0,0) on rgb(105,219,124)',
-        ColorStyle.DIFF_REMOVED_CHAR: 'rgb(0,0,0) on rgb(239,109,119)',
-        ColorStyle.DIFF_ADDED_CHAR: 'rgb(0,0,0) on rgb(57,177,78)',
-        ColorStyle.CONTEXT_LINE: 'rgb(96,96,96)',
-        ColorStyle.INLINE_CODE: 'rgb(88,105,247)',
-        # Prompt toolkit
-        ColorStyle.INPUT_PLACEHOLDER: 'rgb(136,139,139)',
-        ColorStyle.COMPLETION_MENU: 'rgb(154,154,154)',
-        ColorStyle.COMPLETION_SELECTED: 'rgb(88,105,247)',
-        # Input mode colors
-        ColorStyle.BASH_MODE: 'rgb(234,51,134)',
-        ColorStyle.MEMORY_MODE: 'rgb(88,105,247)',
-        ColorStyle.PLAN_MODE: 'rgb(43,100,101)',
-        # Markdown
-        ColorStyle.H2: 'rgb(181,75,52)',
-    }
-)
+class ThemeColorEnum(Enum):
+    CLAUDE = auto()
+    RED = auto()
+    GREEN = auto()
+    BLUE = auto()
+    YELLOW = auto()
+    PURPLE = auto()
+    CYAN = auto()
+    MAGENTA = auto()
+    DIFF_REMOVED_LINE = auto()
+    DIFF_ADDED_LINE = auto()
+    DIFF_REMOVED_CHAR = auto()
+    DIFF_ADDED_CHAR = auto()
+    TEXT_HIGHLIGHT = auto()
+    TEXT_PRIMARY = auto()
+    TEXT_SECONDARY = auto()
+    TEXT_TERTIARY = auto()
+    TEXT_QUATERNARY = auto()
 
-dark_theme = Theme(
-    {
-        # AI and user interaction
-        ColorStyle.AI_MESSAGE: 'rgb(214,119,86)',
-        ColorStyle.AI_THINKING: 'rgb(151,153,153)',
-        ColorStyle.CLAUDE: 'rgb(214,119,86)',
-        # Status indicators
-        ColorStyle.ERROR: 'rgb(237,118,129)',
-        ColorStyle.SUCCESS: 'rgb(107,184,109)',
-        ColorStyle.WARNING: 'rgb(143,110,44)',
-        ColorStyle.INFO: 'rgb(180,204,245)',
-        ColorStyle.HIGHLIGHT: 'rgb(255,255,255)',
-        ColorStyle.MAIN: 'rgb(200,200,200)',
-        ColorStyle.MUTED: 'rgb(151,153,153)',
-        ColorStyle.SEPARATOR: 'rgb(100,100,100)',
-        # Todo
-        ColorStyle.TODO_COMPLETED: 'rgb(107,184,109)',
-        ColorStyle.TODO_IN_PROGRESS: 'rgb(150,204,235)',
-        # Tools and agents
-        ColorStyle.TOOL_NAME: 'rgb(230,230,230)',
-        ColorStyle.AGENT_BORDER: 'rgb(125,142,177)',
-        # Code
-        ColorStyle.DIFF_REMOVED_LINE: 'rgb(255,255,255) on rgb(112,47,55)',
-        ColorStyle.DIFF_ADDED_LINE: 'rgb(255,255,255) on rgb(49,91,48)',
-        ColorStyle.DIFF_REMOVED_CHAR: 'rgb(255,255,255) on rgb(167,95,107)',
-        ColorStyle.DIFF_ADDED_CHAR: 'rgb(255,255,255) on rgb(88,164,102)',
-        ColorStyle.CONTEXT_LINE: 'rgb(200,200,200)',
-        ColorStyle.INLINE_CODE: 'rgb(180,184,245)',
-        # Prompt toolkit
-        ColorStyle.INPUT_PLACEHOLDER: 'rgb(134,134,134)',
-        ColorStyle.COMPLETION_MENU: 'rgb(134,134,134)',
-        ColorStyle.COMPLETION_SELECTED: 'rgb(175,185,254)',
-        # Input mode colors
-        ColorStyle.BASH_MODE: 'rgb(255,75,180)',
-        ColorStyle.MEMORY_MODE: 'rgb(175,185,254)',
-        ColorStyle.PLAN_MODE: 'rgb(126,184,185)',
-        # Markdown
-        ColorStyle.H2: 'rgb(241,155,122)',
-    }
-)
+
+light_theme_colors = {
+    ThemeColorEnum.CLAUDE: 'rgb(214,119,86)',
+    ThemeColorEnum.RED: 'rgb(158,57,66)',
+    ThemeColorEnum.GREEN: 'rgb(65,120,64)',
+    ThemeColorEnum.BLUE: 'rgb(56,120,183)',
+    ThemeColorEnum.YELLOW: 'rgb(143,110,44)',
+    ThemeColorEnum.PURPLE: 'rgb(88,105,247)',
+    ThemeColorEnum.CYAN: 'rgb(43,100,101)',
+    ThemeColorEnum.MAGENTA: 'rgb(234,51,134)',
+    ThemeColorEnum.DIFF_REMOVED_LINE: 'rgb(0,0,0) on rgb(255,168,180)',
+    ThemeColorEnum.DIFF_ADDED_LINE: 'rgb(0,0,0) on rgb(105,219,124)',
+    ThemeColorEnum.DIFF_REMOVED_CHAR: 'rgb(0,0,0) on rgb(239,109,119)',
+    ThemeColorEnum.DIFF_ADDED_CHAR: 'rgb(0,0,0) on rgb(57,177,78)',
+    ThemeColorEnum.TEXT_HIGHLIGHT: 'rgb(0,0,0)',
+    ThemeColorEnum.TEXT_PRIMARY: 'rgb(66,66,66)',
+    ThemeColorEnum.TEXT_SECONDARY: 'rgb(96,96,96)',
+    ThemeColorEnum.TEXT_TERTIARY: 'rgb(136,139,139)',
+    ThemeColorEnum.TEXT_QUATERNARY: 'rgb(200,200,200)',
+}
+
+dark_theme_colors = {
+    ThemeColorEnum.CLAUDE: 'rgb(214,119,86)',
+    ThemeColorEnum.RED: 'rgb(237,118,129)',
+    ThemeColorEnum.GREEN: 'rgb(107,184,109)',
+    ThemeColorEnum.BLUE: 'rgb(180,204,245)',
+    ThemeColorEnum.YELLOW: 'rgb(183,150,94)',
+    ThemeColorEnum.PURPLE: 'rgb(180,184,245)',
+    ThemeColorEnum.CYAN: 'rgb(126,184,185)',
+    ThemeColorEnum.MAGENTA: 'rgb(254,71,144)',
+    ThemeColorEnum.DIFF_REMOVED_LINE: 'rgb(255,255,255) on rgb(112,47,55)',
+    ThemeColorEnum.DIFF_ADDED_LINE: 'rgb(255,255,255) on rgb(49,91,48)',
+    ThemeColorEnum.DIFF_REMOVED_CHAR: 'rgb(255,255,255) on rgb(167,95,107)',
+    ThemeColorEnum.DIFF_ADDED_CHAR: 'rgb(255,255,255) on rgb(88,164,102)',
+    ThemeColorEnum.TEXT_HIGHLIGHT: 'rgb(255,255,255)',
+    ThemeColorEnum.TEXT_PRIMARY: 'rgb(230,230,230)',
+    ThemeColorEnum.TEXT_SECONDARY: 'rgb(200,200,200)',
+    ThemeColorEnum.TEXT_TERTIARY: 'rgb(151,153,153)',
+    ThemeColorEnum.TEXT_QUATERNARY: 'rgb(100,100,100)',
+}
+
+
+def get_theme(theme: str) -> Theme:
+    theme_colors = light_theme_colors if theme == 'light' else dark_theme_colors
+
+    return Theme(
+        {
+            # AI and user interaction
+            ColorStyle.AI_MESSAGE: theme_colors[ThemeColorEnum.TEXT_SECONDARY],
+            ColorStyle.AI_THINKING: theme_colors[ThemeColorEnum.TEXT_TERTIARY],
+            ColorStyle.CLAUDE: theme_colors[ThemeColorEnum.CLAUDE],
+            # Status indicators
+            ColorStyle.ERROR: theme_colors[ThemeColorEnum.RED],
+            ColorStyle.SUCCESS: theme_colors[ThemeColorEnum.GREEN],
+            ColorStyle.WARNING: theme_colors[ThemeColorEnum.YELLOW],
+            ColorStyle.INFO: theme_colors[ThemeColorEnum.BLUE],
+            # Text
+            ColorStyle.HIGHLIGHT: theme_colors[ThemeColorEnum.TEXT_HIGHLIGHT],
+            ColorStyle.MAIN: theme_colors[ThemeColorEnum.TEXT_SECONDARY],
+            ColorStyle.HINT: theme_colors[ThemeColorEnum.TEXT_TERTIARY],
+            # Todo
+            ColorStyle.TODO_COMPLETED: theme_colors[ThemeColorEnum.GREEN],
+            ColorStyle.TODO_IN_PROGRESS: theme_colors[ThemeColorEnum.BLUE],
+            # Tools
+            ColorStyle.TOOL_NAME: theme_colors[ThemeColorEnum.TEXT_PRIMARY],
+            # Border & Separator
+            ColorStyle.SEPARATOR: theme_colors[ThemeColorEnum.TEXT_QUATERNARY],
+            ColorStyle.AGENT_BORDER: theme_colors[ThemeColorEnum.TEXT_QUATERNARY],
+            # Code
+            ColorStyle.DIFF_REMOVED_LINE: theme_colors[ThemeColorEnum.DIFF_REMOVED_LINE],
+            ColorStyle.DIFF_ADDED_LINE: theme_colors[ThemeColorEnum.DIFF_ADDED_LINE],
+            ColorStyle.DIFF_REMOVED_CHAR: theme_colors[ThemeColorEnum.DIFF_REMOVED_CHAR],
+            ColorStyle.DIFF_ADDED_CHAR: theme_colors[ThemeColorEnum.DIFF_ADDED_CHAR],
+            ColorStyle.CONTEXT_LINE: theme_colors[ThemeColorEnum.TEXT_SECONDARY],
+            # Prompt toolkit
+            ColorStyle.INPUT_PLACEHOLDER: theme_colors[ThemeColorEnum.TEXT_TERTIARY],
+            ColorStyle.COMPLETION_MENU: theme_colors[ThemeColorEnum.TEXT_TERTIARY],
+            ColorStyle.COMPLETION_SELECTED: theme_colors[ThemeColorEnum.PURPLE],
+            # Input mode colors
+            ColorStyle.BASH_MODE: theme_colors[ThemeColorEnum.MAGENTA],
+            ColorStyle.MEMORY_MODE: theme_colors[ThemeColorEnum.PURPLE],
+            ColorStyle.PLAN_MODE: theme_colors[ThemeColorEnum.CYAN],
+            # Markdown
+            ColorStyle.INLINE_CODE: theme_colors[ThemeColorEnum.PURPLE],
+            ColorStyle.HEADER: theme_colors[ThemeColorEnum.TEXT_HIGHLIGHT],
+        }
+    )

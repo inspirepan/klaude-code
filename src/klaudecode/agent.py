@@ -92,7 +92,7 @@ class Agent:
                     description=Text.assemble(
                         Text.from_markup(f'([bold]{tool_msg_count}[/bold] tool uses) '),
                         Text(status_text, style=ColorStyle.CLAUDE),
-                        (INTERRUPT_TIP, ColorStyle.MUTED),
+                        (INTERRUPT_TIP, ColorStyle.HINT),
                     ),
                 )
                 await asyncio.sleep(0.1)
