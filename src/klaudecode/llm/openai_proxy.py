@@ -85,6 +85,7 @@ class OpenAIProxy(LLMProxyBase):
         yield (stream_status, ai_message)
 
     async def _create_stream(self, msgs: List[BasicMessage], tools: Optional[List[Tool]], timeout: float) -> AsyncGenerator[ChatCompletionChunk, None]:
+        # Create HTTP request task with immediate cancellation support
         self._current_request_task = asyncio.create_task(
             self.client.chat.completions.create(
                 model=self.model_name,
@@ -99,7 +100,18 @@ class OpenAIProxy(LLMProxyBase):
         )
 
         try:
-            return await asyncio.wait_for(self._current_request_task, timeout=timeout)
+            # Use shield to ensure proper cleanup even if cancelled
+            stream = await asyncio.shield(asyncio.wait_for(self._current_request_task, timeout=timeout))
+            return stream
+        except asyncio.CancelledError:
+            # Ensure the request task is properly cancelled
+            if self._current_request_task and not self._current_request_task.done():
+                self._current_request_task.cancel()
+                try:
+                    await self._current_request_task
+                except asyncio.CancelledError:
+                    pass
+            raise
         finally:
             self._current_request_task = None
 

@@ -67,23 +67,9 @@ class LLMManager:
     ) -> AIMessage:
         """Unified LLM call interface with interrupt handling"""
         client = self.get_client()
+        call_task = None
 
-        # Create a task for the LLM call
-        call_task = asyncio.create_task(
-            client.call(
-                msgs,
-                tools,
-                show_status=show_status,
-                status_text=status_text,
-                timeout=timeout,
-                show_result=show_result,
-            )
-        )
-
-        # Track the active task
-        self._active_tasks.add(call_task)
-
-        # Set up interrupt handler
+        # Set up interrupt handler first
         interrupt_handler_added = False
         original_handler = None
 
@@ -91,7 +77,8 @@ class LLMManager:
             self._interrupt_flag.set()
             # Cancel the current LLM request at the proxy level
             client.cancel()
-            call_task.cancel()
+            if call_task and not call_task.done():
+                call_task.cancel()
 
         try:
             # Try to add signal handler
@@ -101,6 +88,26 @@ class LLMManager:
             except (ValueError, OSError):
                 # Signal handling not available in this thread
                 pass
+
+            # Check if interrupt flag is already set
+            if self._interrupt_flag.is_set():
+                self._interrupt_flag.clear()
+                raise asyncio.CancelledError('LLM call interrupted by SIGINT')
+
+            # Create a task for the LLM call after setting up interrupt handling
+            call_task = asyncio.create_task(
+                client.call(
+                    msgs,
+                    tools,
+                    show_status=show_status,
+                    status_text=status_text,
+                    timeout=timeout,
+                    show_result=show_result,
+                )
+            )
+
+            # Track the active task
+            self._active_tasks.add(call_task)
 
             # Wait for the task to complete or be interrupted
             try:
@@ -115,7 +122,8 @@ class LLMManager:
 
         finally:
             # Cleanup
-            self._active_tasks.discard(call_task)
+            if call_task:
+                self._active_tasks.discard(call_task)
             if interrupt_handler_added and original_handler is not None:
                 signal.signal(signal.SIGINT, original_handler)
 

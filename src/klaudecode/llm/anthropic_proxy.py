@@ -89,6 +89,7 @@ class AnthropicProxy(LLMProxyBase):
         budget_tokens = self.get_think_budget(msgs)
 
         try:
+            # Create HTTP request task with immediate cancellation support
             self._current_request_task = asyncio.create_task(
                 self.client.messages.create(
                     model=self.model_name,
@@ -108,7 +109,18 @@ class AnthropicProxy(LLMProxyBase):
             )
 
             try:
-                return await asyncio.wait_for(self._current_request_task, timeout=timeout)
+                # Use shield to ensure proper cleanup even if cancelled
+                stream = await asyncio.shield(asyncio.wait_for(self._current_request_task, timeout=timeout))
+                return stream
+            except asyncio.CancelledError:
+                # Ensure the request task is properly cancelled
+                if self._current_request_task and not self._current_request_task.done():
+                    self._current_request_task.cancel()
+                    try:
+                        await self._current_request_task
+                    except asyncio.CancelledError:
+                        pass
+                raise
             finally:
                 self._current_request_task = None
         except asyncio.TimeoutError:
