@@ -13,6 +13,16 @@ def clear_last_line():
 def get_prompt_toolkit_color(color_style: ColorStyle) -> str:
     """Get hex color value for prompt-toolkit from theme"""
     style_value = console.console.get_style(color_style.value)
+
+    # Check if it's a direct ANSI color name
+    style_str = str(style_value)
+    basic_colors = ['white', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'black']
+    if style_str in basic_colors:
+        return f'ansi{style_str}'
+    elif style_str.startswith('bright_') and style_str[7:] in basic_colors:
+        color_name = style_str.replace('_', '')
+        return f'ansi{color_name}'
+
     if hasattr(style_value, 'color') and style_value.color:
         # Convert rich Color to hex
         if hasattr(style_value.color, 'triplet'):

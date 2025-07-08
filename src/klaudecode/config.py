@@ -43,7 +43,7 @@ DEFAULT_EXTRA_HEADER = {}
 DEFAULT_EXTRA_BODY = {}
 DEFAULT_ENABLE_THINKING = False
 DEFAULT_API_VERSION = '2024-03-01-preview'
-DEFAULT_THEME = 'dark'  # or 'light'
+DEFAULT_THEME = 'dark'  # Supported themes: 'light', 'dark', 'light_ansi', 'dark_ansi'
 
 T = TypeVar('T')
 

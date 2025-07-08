@@ -158,13 +158,13 @@ class ToolDisplayManager:
     def generate_status_text(tool_calls: List[ToolCall]) -> Text:
         """Generate status text for tool execution."""
         if len(tool_calls) == 1:
-            return Text.assemble('Executing ', (ToolCall.get_display_tool_name(tool_calls[0].tool_name), ColorStyle.HIGHLIGHT.bold), ' ')
+            return Text.assemble('Executing ', (ToolCall.get_display_tool_name(tool_calls[0].tool_name), ColorStyle.TOOL_NAME.bold), ' ')
         else:
             tool_counts = {}
             for tc in tool_calls:
                 tool_counts[tc.tool_name] = tool_counts.get(tc.tool_name, 0) + 1
             tool_names = [
-                Text.assemble((ToolCall.get_display_tool_name(name), ColorStyle.HIGHLIGHT.bold), '*' + str(count) if count > 1 else '', ' ') for name, count in tool_counts.items()
+                Text.assemble((ToolCall.get_display_tool_name(name), ColorStyle.TOOL_NAME.bold), '*' + str(count) if count > 1 else '', ' ') for name, count in tool_counts.items()
             ]
             return Text.assemble('Executing ', *tool_names)
 

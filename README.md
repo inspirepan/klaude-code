@@ -64,7 +64,7 @@ Once in interactive mode, you can use various slash commands:
 - `/clear` - Clear conversation history
 - `/compact` - Compact conversation to free up context
 - `/cost` - Show token usage and costs
-- `/theme` - Switch between light/dark themes
+- `/theme` - Switch between light, dark, light_ansi, and dark_ansi themes
 - `/init` - Create a CLAUDE.md file for project-specific instructions
 - `/memory` - Manage project/user memory
 - `/save_custom_command` - Save conversation as reusable command
@@ -275,7 +275,7 @@ Options:
   --api-key TEXT             API key
   --api-key-env TEXT         Environment variable for API key
   --mcp                      Enable Model Context Protocol
-  --theme [light|dark]       Color theme
+  --theme [light|dark|light_ansi|dark_ansi]       Color theme
   --compact-mode             Minimal output mode
 ```
 

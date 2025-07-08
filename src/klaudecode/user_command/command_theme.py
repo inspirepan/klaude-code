@@ -14,13 +14,13 @@ class ThemeCommand(Command):
         return 'theme'
 
     def get_command_desc(self) -> str:
-        return 'Switch color theme between light and dark'
+        return 'Switch color theme between light, dark, light_ansi, and dark_ansi'
 
     async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
         command_handle_output = await super().handle(agent_state, user_input)
         command_handle_output.user_msg.removed = True
 
-        theme_options = ['light', 'dark']
+        theme_options = ['light', 'dark', 'light_ansi', 'dark_ansi']
         selected_idx = await user_select(theme_options, 'Select theme:')
 
         if selected_idx is not None:

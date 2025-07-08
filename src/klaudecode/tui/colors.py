@@ -3,6 +3,14 @@ from enum import Enum, auto
 from rich.style import Style
 from rich.theme import Theme
 
+"""
+Color theme system supporting four themes:
+- light: RGB-based light theme with precise color definitions
+- dark: RGB-based dark theme with precise color definitions  
+- light_ansi: ANSI color fallback for light theme (for terminal compatibility)
+- dark_ansi: ANSI color fallback for dark theme (for terminal compatibility)
+"""
+
 
 class ColorStyle(str, Enum):
     # AI and user interaction
@@ -130,9 +138,59 @@ dark_theme_colors = {
     ThemeColorEnum.TEXT_QUATERNARY: 'rgb(100,100,100)',
 }
 
+light_ansi_theme_colors = {
+    ThemeColorEnum.CLAUDE: 'yellow',
+    ThemeColorEnum.RED: 'red',
+    ThemeColorEnum.GREEN: 'green',
+    ThemeColorEnum.BLUE: 'blue',
+    ThemeColorEnum.YELLOW: 'yellow',
+    ThemeColorEnum.PURPLE: 'magenta',
+    ThemeColorEnum.CYAN: 'cyan',
+    ThemeColorEnum.MAGENTA: 'magenta',
+    ThemeColorEnum.DIFF_REMOVED_LINE: 'black on bright_red',
+    ThemeColorEnum.DIFF_ADDED_LINE: 'black on bright_green',
+    ThemeColorEnum.DIFF_REMOVED_CHAR: 'black on red',
+    ThemeColorEnum.DIFF_ADDED_CHAR: 'black on green',
+    ThemeColorEnum.TEXT_HIGHLIGHT: 'white',
+    ThemeColorEnum.TEXT_PRIMARY: 'black',
+    ThemeColorEnum.TEXT_SECONDARY: 'bright_black',
+    ThemeColorEnum.TEXT_TERTIARY: 'bright_black',
+    ThemeColorEnum.TEXT_QUATERNARY: 'bright_black',
+}
+
+
+dark_ansi_theme_colors = {
+    ThemeColorEnum.CLAUDE: 'yellow',
+    ThemeColorEnum.RED: 'red',
+    ThemeColorEnum.GREEN: 'green',
+    ThemeColorEnum.BLUE: 'blue',
+    ThemeColorEnum.YELLOW: 'yellow',
+    ThemeColorEnum.PURPLE: 'magenta',
+    ThemeColorEnum.CYAN: 'cyan',
+    ThemeColorEnum.MAGENTA: 'magenta',
+    ThemeColorEnum.DIFF_REMOVED_LINE: 'black on bright_red',
+    ThemeColorEnum.DIFF_ADDED_LINE: 'black on bright_green',
+    ThemeColorEnum.DIFF_REMOVED_CHAR: 'black on red',
+    ThemeColorEnum.DIFF_ADDED_CHAR: 'black on green',
+    ThemeColorEnum.TEXT_HIGHLIGHT: 'white',
+    ThemeColorEnum.TEXT_PRIMARY: 'white',
+    ThemeColorEnum.TEXT_SECONDARY: 'white',
+    ThemeColorEnum.TEXT_TERTIARY: 'bright_black',
+    ThemeColorEnum.TEXT_QUATERNARY: 'bright_black',
+}
+
 
 def get_theme(theme: str) -> Theme:
-    theme_colors = light_theme_colors if theme == 'light' else dark_theme_colors
+    if theme == 'light':
+        theme_colors = light_theme_colors
+    elif theme == 'dark':
+        theme_colors = dark_theme_colors
+    elif theme == 'light_ansi':
+        theme_colors = light_ansi_theme_colors
+    elif theme == 'dark_ansi':
+        theme_colors = dark_ansi_theme_colors
+    else:
+        theme_colors = dark_theme_colors
 
     return Theme(
         {
