@@ -111,7 +111,7 @@ class UserMessage(BasicMessage):
                 display_path = get_relative_path_for_display(attachment.path)
 
                 if attachment.type == 'directory':
-                    attachment_text = Text.assemble('Listed directory ', (display_path, 'bold'))
+                    attachment_text = Text.assemble('Listed directory ', (display_path + '/', 'bold'))
                 elif attachment.type == 'image':
                     attachment_text = Text.assemble('Read image ', (display_path, 'bold'), f' ({attachment.size_str})' if attachment.size_str else '')
                 else:

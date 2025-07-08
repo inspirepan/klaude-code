@@ -33,7 +33,7 @@ def render_message(
     if status == 'error':
         mark = Text(mark, style=ColorStyle.ERROR)
     elif status == 'canceled':
-        mark = Text(mark, style=ColorStyle.WARNING)
+        mark = Text(mark, style=ColorStyle.ERROR)
     elif status == 'processing':
         mark = Text('○', style=mark_style)
     else:

@@ -91,9 +91,11 @@ class ToolMessage(BasicMessage):
                 )
             elif self.tool_call.status == 'success':
                 yield render_suffix('(No content)')
+            else:
+                yield render_suffix('Running...')
 
         if self.tool_call.status == 'canceled':
-            yield render_suffix(INTERRUPTED_MSG, style=ColorStyle.WARNING)
+            yield render_suffix(INTERRUPTED_MSG, style=ColorStyle.ERROR)
         elif self.tool_call.status == 'error':
             yield render_suffix(self.error_msg, style=ColorStyle.ERROR)
 

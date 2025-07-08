@@ -6,6 +6,7 @@ from typing import Dict
 import pyperclip
 from prompt_toolkit import PromptSession
 from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.cursor_shapes import CursorShape
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 
@@ -196,6 +197,7 @@ class InputSession:
             key_bindings=kb,
             history=self.history,
             placeholder=self._dyn_placeholder,
+            cursor=CursorShape.BEAM,
             completer=UserInputCompleter(
                 enable_file_completion_callabck=lambda: self.current_input_mode.get_name() in [NORMAL_MODE_NAME, 'plan'],
                 enable_command_callabck=lambda: self.current_input_mode.get_name() == NORMAL_MODE_NAME,

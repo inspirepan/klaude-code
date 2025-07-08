@@ -116,9 +116,9 @@ class TaskToolMixin:
 def render_task_args(tool_call: ToolCall, is_suffix: bool = False):
     yield Columns(
         [
-            Text.assemble((tool_call.tool_name, ColorStyle.TOOL_NAME.bold), '(', (tool_call.tool_args_dict.get('description', ''), ColorStyle.TOOL_NAME.bold), ')', ' → '),
-            Text(tool_call.tool_args_dict.get('prompt', '')),
-        ]
+            Text.assemble((tool_call.tool_name, ColorStyle.TOOL_NAME.bold), '(', (tool_call.tool_args_dict.get('description', ''), ColorStyle.TOOL_NAME.bold), ')', ' →'),
+            Text(tool_call.tool_args_dict.get('prompt', ''), style=ColorStyle.TOOL_NAME),
+        ],
     )
 
 
@@ -126,7 +126,6 @@ def render_task_result(tool_msg: ToolMessage):
     task_msgs = tool_msg.get_extra_data('task_msgs')
     if task_msgs:
         if tool_msg.tool_call.status == 'processing':
-            yield ''
             group_list = []
             # Show only the last task_msg's content and tool_calls
             last_task_msg = task_msgs[-1]
@@ -149,6 +148,8 @@ def render_task_result(tool_msg: ToolMessage):
                 group_list.append(Text(f'+ {previous_tool_calls} more tool use{"" if previous_tool_calls == 1 else "s"}'))
 
             yield render_suffix(Group(*group_list))
+        elif tool_msg.tool_call.status == 'canceled':
+            return
         else:
             for task_msg in task_msgs:
                 # Render tool calls
