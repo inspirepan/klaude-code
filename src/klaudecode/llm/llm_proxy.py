@@ -78,7 +78,7 @@ class RetryWrapper(LLMClientWrapper):
                     delay = self.backoff_base * (2**attempt)
                     console.print(
                         render_suffix(
-                            f'{format_exception(last_exception, show_traceback=True)} · Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{self.max_retries})',
+                            f'{format_exception(last_exception)} · Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{self.max_retries})',
                             style=ColorStyle.ERROR,
                         )
                     )

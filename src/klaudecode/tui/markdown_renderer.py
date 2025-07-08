@@ -21,7 +21,7 @@ def _process_inline_formatting(text: str, style: str = '') -> Text:
     pos = 0
 
     # Pattern for all inline formatting with named groups - order matters for precedence
-    pattern = r'(\*\*\*(?P<bold_italic>.*?)\*\*\*)|(\*\*(?P<bold>.*?)\*\*)|(__(?P<underscore_bold>.*?)__)|(_\*(?P<underscore_star_italic>[^*\n]+?)\*_)|(\*_(?P<star_underscore_italic>[^_\n]+?)_\*)|(\*(?P<italic>[^*\n]+?)\*)|(_(?P<underscore_italic>[^_\n]+?)_)|(`(?P<code>[^`\n]+?)`)|(\~\~(?P<strike>.*?)\~\~)'
+    pattern = r'(\*\*\*(?P<bold_italic>.*?)\*\*\*)|(\*\*(?P<bold>.*?)\*\*)|(\*(?P<italic>[^*\n]+?)\*)|(`(?P<code>[^`\n]+?)`)|(\~\~(?P<strike>.*?)\~\~)'
 
     for match in re.finditer(pattern, text):
         # Add text before the match
@@ -33,16 +33,8 @@ def _process_inline_formatting(text: str, style: str = '') -> Text:
             segments.append((match.group('bold_italic'), Style(bold=True, italic=True)))
         elif match.group('bold'):
             segments.append((match.group('bold'), Style(bold=True)))
-        elif match.group('underscore_bold'):
-            segments.append((match.group('underscore_bold'), Style(bold=True)))
-        elif match.group('underscore_star_italic'):
-            segments.append((match.group('underscore_star_italic'), Style(italic=True)))
-        elif match.group('star_underscore_italic'):
-            segments.append((match.group('star_underscore_italic'), Style(italic=True)))
         elif match.group('italic'):
             segments.append((match.group('italic'), Style(italic=True)))
-        elif match.group('underscore_italic'):
-            segments.append((match.group('underscore_italic'), Style(italic=True)))
         elif match.group('code'):
             segments.append((match.group('code'), ColorStyle.INLINE_CODE))
         elif match.group('strike'):

@@ -163,7 +163,7 @@ def _render_processing_status(task_msgs: list):
         if shown_msgs_count < len(task_msgs):
             remaining_tool_calls = sum(len(task_msgs[i].get('tool_calls', [])) for i in range(len(task_msgs) - shown_msgs_count))
             if remaining_tool_calls > 0:
-                yield Text(f'+ {remaining_tool_calls} more tool use{"" if remaining_tool_calls == 1 else "s"}')
+                yield Text(f'+ {remaining_tool_calls} more tool use{"" if remaining_tool_calls == 1 else "s"}', style=ColorStyle.TOOL_NAME)
 
     return render_suffix(Group(*generate_elements()))
 

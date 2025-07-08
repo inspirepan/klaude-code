@@ -103,7 +103,7 @@ class DotsStatus:
             Columns(
                 [
                     self.spinner,
-                    ' ',
+                    '  ',
                     self.status,
                     self.dots,
                     ' ',
