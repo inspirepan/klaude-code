@@ -3,6 +3,7 @@ from typing import List, Literal, Optional, Tuple, Union
 
 from rich.abc import RichRenderable
 from rich.console import Group, RenderResult
+from rich.padding import Padding
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.style import Style
@@ -178,4 +179,4 @@ def render_logo(text: str, color_style: Optional[Union[ColorStyle, str, Style]] 
             text_lines.append(Text(line))
 
     # Return as Group to handle multiple lines properly
-    return Group(*text_lines)
+    return Padding.indent(Group(*text_lines), 1)

@@ -37,7 +37,7 @@ class CustomSpinner:
         return Measurement.get(console, options, '✶')
 
 
-claudeFrames = [
+claude_frames = [
     '✶',
     '✻',
     '✽',
@@ -52,7 +52,7 @@ claudeFrames = [
 
 
 def get_claude_spinner(style: StyleType = None):
-    return CustomSpinner(claudeFrames, interval_ms=100, style=style)
+    return CustomSpinner(claude_frames, interval_ms=100, style=style)
 
 
 class DotsStatus:

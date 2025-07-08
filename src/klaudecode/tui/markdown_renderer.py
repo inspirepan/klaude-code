@@ -110,7 +110,7 @@ def _parse_markdown_table(lines: List[str], start_index: int, style: Optional[Un
     return {'table': table, 'end_index': i}
 
 
-def _process_header_line(line: str, style: Optional[Union[str, Style]] = None):
+def _process_header_line(line: str, style: Optional[Union[str, Style]] = None, line_number: int = 0):
     """Process markdown header lines (##, ###, etc.)"""
     stripped = line.strip()
     header_match = re.match(r'^(#+)\s+(.+)', stripped)
@@ -121,7 +121,10 @@ def _process_header_line(line: str, style: Optional[Union[str, Style]] = None):
     hashes, title = header_match.groups()
 
     if len(hashes) == 2:
-        return Group('', Text(title, ColorStyle.HEADER_2.bold), Rule(style=ColorStyle.LINE, characters='╌'))
+        if line_number == 0:
+            return Group(Text(title, ColorStyle.HEADER_2.bold), Rule(style=ColorStyle.LINE, characters='╌'))
+        else:
+            return Group('', Text(title, ColorStyle.HEADER_2.bold), Rule(style=ColorStyle.LINE, characters='╌'))
     elif len(hashes) == 3:
         return Text(title, ColorStyle.HEADER_3.bold)
     elif len(hashes) == 4:
@@ -195,7 +198,7 @@ def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Gro
 
         # Process different line types
         if line.strip().startswith('##'):
-            processed_line = _process_header_line(line, style)
+            processed_line = _process_header_line(line, style, i)
         elif line.strip().startswith('>'):
             processed_line = _process_quote_line(line, style)
         else:
