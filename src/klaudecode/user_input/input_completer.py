@@ -57,6 +57,9 @@ class UserInputCompleter(Completer):
                         display=f'/{command_name:15}',
                         display_meta=command.get_command_desc(),
                     )
+            if command_part in self.commands:
+                command = self.commands[command_part]
+                yield Completion('')
 
     def _find_at_file_pattern(self, text, cursor_position):
         for i in range(cursor_position - 1, -1, -1):
