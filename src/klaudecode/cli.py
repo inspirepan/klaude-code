@@ -70,19 +70,20 @@ async def get_session(ctx: typer.Context) -> Optional[Session]:
 
 async def main_async(ctx: typer.Context):
     # Check for updates at startup (only in interactive mode and if not disabled)
-    if not ctx.obj['prompt'] and not ctx.obj['no_update_check']:
-        from .updater import check_and_prompt_update
+    # TODO: silent update check and remind user the next startup
+    # if not ctx.obj['prompt'] and not ctx.obj['no_update_check']:
+    #     from .updater import check_and_prompt_update
 
-        # Run update check in background, don't block startup
-        try:
-            updated = await check_and_prompt_update()
-            if updated:
-                # If update was performed, exit to allow user to restart
-                console.print(Text('Please restart klaude to use the updated version.', style=ColorStyle.INFO))
-                return
-        except Exception:
-            # Silently ignore update check errors
-            pass
+    #     # Run update check in background, don't block startup
+    #     try:
+    #         updated = await check_and_prompt_update()
+    #         if updated:
+    #             # If update was performed, exit to allow user to restart
+    #             console.print(Text('Please restart klaude to use the updated version.', style=ColorStyle.INFO))
+    #             return
+    #     except Exception:
+    #         # Silently ignore update check errors
+    #         pass
 
     session = await get_session(ctx)
     if not session:

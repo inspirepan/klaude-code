@@ -1,3 +1,4 @@
+import os
 from types import TracebackType
 from typing import Optional, Type
 
@@ -51,7 +52,12 @@ claude_frames = [
 ]
 
 
-def get_claude_spinner(style: StyleType = None):
+_USE_BONUS_SPINNER = os.environ.get('TRANSIENCE') == '1'
+
+
+def get_spinner(style: StyleType = None):
+    if _USE_BONUS_SPINNER:
+        return Spinner(name='weather')
     return CustomSpinner(claude_frames, interval_ms=100, style=style)
 
 
@@ -68,7 +74,7 @@ class DotsStatus:
     ):
         self.status = status
         self.description = description
-        self.spinner = get_claude_spinner(style=spinner_style)
+        self.spinner = get_spinner(style=spinner_style)
         self.dots = Spinner(name='simpleDots', style=dots_style, speed=1)
         self.refresh_per_second = refresh_per_second
         self._live = Live(
@@ -91,7 +97,7 @@ class DotsStatus:
         if description:
             self.description = description
         if spinner_style:
-            self.spinner = get_claude_spinner(style=spinner_style)
+            self.spinner = get_spinner(style=spinner_style)
         if dots_style:
             self.dots = Spinner(name='simpleDots', style=dots_style, speed=1)
         self._live.update(self.renderable, refresh=True)
