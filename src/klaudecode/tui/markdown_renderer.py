@@ -20,8 +20,8 @@ def _process_inline_formatting(text: str, style: str = '') -> Text:
     segments = []
     pos = 0
 
-    # Pattern for all inline formatting with named groups
-    pattern = r'(\*\*(?P<bold>.*?)\*\*)|(\*(?P<italic>[^*\n]+?)\*)|(`(?P<code>[^`\n]+?)`)|(\~\~(?P<strike>.*?)\~\~)'
+    # Pattern for all inline formatting with named groups - order matters for precedence
+    pattern = r'(\*\*\*(?P<bold_italic>.*?)\*\*\*)|(\*\*(?P<bold>.*?)\*\*)|(__(?P<underscore_bold>.*?)__)|(_\*(?P<underscore_star_italic>[^*\n]+?)\*_)|(\*_(?P<star_underscore_italic>[^_\n]+?)_\*)|(\*(?P<italic>[^*\n]+?)\*)|(_(?P<underscore_italic>[^_\n]+?)_)|(`(?P<code>[^`\n]+?)`)|(\~\~(?P<strike>.*?)\~\~)'
 
     for match in re.finditer(pattern, text):
         # Add text before the match
@@ -29,10 +29,20 @@ def _process_inline_formatting(text: str, style: str = '') -> Text:
             segments.append((text[pos : match.start()]))
 
         # Add formatted text based on which group matched
-        if match.group('bold'):
+        if match.group('bold_italic'):
+            segments.append((match.group('bold_italic'), Style(bold=True, italic=True)))
+        elif match.group('bold'):
             segments.append((match.group('bold'), Style(bold=True)))
+        elif match.group('underscore_bold'):
+            segments.append((match.group('underscore_bold'), Style(bold=True)))
+        elif match.group('underscore_star_italic'):
+            segments.append((match.group('underscore_star_italic'), Style(italic=True)))
+        elif match.group('star_underscore_italic'):
+            segments.append((match.group('star_underscore_italic'), Style(italic=True)))
         elif match.group('italic'):
             segments.append((match.group('italic'), Style(italic=True)))
+        elif match.group('underscore_italic'):
+            segments.append((match.group('underscore_italic'), Style(italic=True)))
         elif match.group('code'):
             segments.append((match.group('code'), ColorStyle.INLINE_CODE))
         elif match.group('strike'):
@@ -116,21 +126,24 @@ def _process_header_line(line: str, style: Optional[Union[str, Style]] = None, l
     header_match = re.match(r'^(#+)\s+(.+)', stripped)
 
     if not header_match:
-        return Text.from_markup(line, style=style + Style(bold=True) if style else Style(bold=True))
+        processed_text = _process_inline_formatting(line)
+        processed_text.stylize(style + Style(bold=True) if style else Style(bold=True))
+        return processed_text
 
     hashes, title = header_match.groups()
-    print(hashes, title, line_number)
+
     if len(hashes) == 2:
+        title_text = _process_inline_formatting(title, ColorStyle.HEADER_2.bold)
         if line_number == 0:
-            return Group(Text(title, ColorStyle.HEADER_2.bold), Rule(style=ColorStyle.LINE, characters='╌'))
+            return Group(title_text, Rule(style=ColorStyle.LINE, characters='╌'))
         else:
-            return Group('', Text(title, ColorStyle.HEADER_2.bold), Rule(style=ColorStyle.LINE, characters='╌'))
+            return Group('', title_text, Rule(style=ColorStyle.LINE, characters='╌'))
     elif len(hashes) == 3:
-        return Text(title, ColorStyle.HEADER_3.bold)
+        return _process_inline_formatting(title, ColorStyle.HEADER_3.bold)
     elif len(hashes) == 4:
-        return Text(title, ColorStyle.HIGHLIGHT)
+        return _process_inline_formatting(title, ColorStyle.HIGHLIGHT)
     else:
-        return Text(title, 'bold')
+        return _process_inline_formatting(title, 'bold')
 
 
 def _process_quote_line(line: str, style: Optional[Union[str, Style]] = None):
@@ -177,7 +190,6 @@ def _process_regular_line(line: str, style: Optional[Union[str, Style]] = None):
 
 
 def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Group:
-    print(text)
     """Convert Markdown syntax to Rich Group"""
     if not text:
         return Group()
