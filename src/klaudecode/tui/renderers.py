@@ -129,10 +129,10 @@ def render_tips() -> RenderResult:
     )
 
 
-def truncate_middle_text(text: str, max_lines: int = 50) -> RichRenderable:
+def truncate_middle_text(text: str, max_lines: int = 50, buffer_threshold: int = 20) -> RichRenderable:
     lines = text.splitlines()
 
-    if len(lines) <= max_lines + 5:
+    if len(lines) <= max_lines + buffer_threshold:
         return text
 
     head_lines = max_lines // 2

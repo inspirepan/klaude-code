@@ -35,7 +35,7 @@ class CustomSpinner:
         return Text(frame_text, style=self.style)
 
     def __rich_measure__(self, console: 'Console', options: 'ConsoleOptions') -> Measurement:
-        return Measurement.get(console, options, '✶')
+        return Measurement.get(console, options, self.frames[0])
 
 
 claude_frames = [
@@ -51,13 +51,37 @@ claude_frames = [
     '✳',
 ]
 
+weather_frames = [
+    '☀️ ',
+    '☀️ ',
+    '☀️ ',
+    '🌤 ',
+    '⛅️ ',
+    '🌥 ',
+    '☁️ ',
+    '🌧 ',
+    '🌨 ',
+    '🌧 ',
+    '🌨 ',
+    '🌧 ',
+    '🌨 ',
+    '🌨 ',
+    '🌧 ',
+    '🌨 ',
+    '☁️ ',
+    '🌥 ',
+    '⛅️ ',
+    '🌤 ',
+    '☀️ ',
+    '☀️ ',
+]
 
 _USE_BONUS_SPINNER = os.environ.get('TRANSIENCE') == '1'
 
 
 def get_spinner(style: StyleType = None):
     if _USE_BONUS_SPINNER:
-        return Spinner(name='weather')
+        return CustomSpinner(weather_frames, interval_ms=100, style=style)
     return CustomSpinner(claude_frames, interval_ms=100, style=style)
 
 
