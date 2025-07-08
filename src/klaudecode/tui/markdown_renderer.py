@@ -121,7 +121,7 @@ def _process_header_line(line: str, style: Optional[Union[str, Style]] = None):
     hashes, title = header_match.groups()
 
     if len(hashes) == 2:
-        return Group('', Text(title, ColorStyle.HEADER_2.bold), Rule(style=ColorStyle.LINE, characters='┄'))
+        return Group('', Text(title, ColorStyle.HEADER_2.bold), Rule(style=ColorStyle.LINE, characters='╌'))
     elif len(hashes) == 3:
         return Text(title, ColorStyle.HEADER_3.bold)
     elif len(hashes) == 4:

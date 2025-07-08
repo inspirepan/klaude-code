@@ -97,20 +97,20 @@ def render_hello(show_info: bool = True) -> RenderResult:
 
 def get_tip(all_tips: bool = False) -> List[str]:
     tips = [
-        'type \\ followed by [main]Enter[/main] to insert newlines',
-        'type / to choose slash command',
-        'type ! to run bash command',
+        'Type \\ followed by [main]Enter[/main] to insert newlines',
+        'Type / to choose slash command',
+        'Type ! to run bash command',
         "Want Claude to remember something? Hit # to add preferences, tools, and instructions to Claude's memory",
-        'type * to start plan mode',
-        'type @ to mention a file',
+        'Type * to start plan mode',
+        'Type @ to mention a file',
     ]
 
     if (Path.cwd() / '.klaude' / 'sessions').exists():
-        tips.append('run [main]klaude --continue[/main] or [main]klaude --resume[/main] to resume a conversation')
+        tips.append('Run [main]klaude --continue[/main] or [main]klaude --resume[/main] to resume a conversation')
     if not (Path.cwd() / 'CLAUDE.md').exists():
-        tips.append('run [main]/init[/main] to analyse your codebase')
+        tips.append('Run [main]/init[/main] to analyse your codebase')
     if (Path.cwd() / '.klaude' / 'mcp.json').exists():
-        tips.append('run [main]klaude --mcp[/main] or [main]/mcp[/main] to enable MCP tools')
+        tips.append('Run [main]klaude --mcp[/main] or [main]/mcp[/main] to enable MCP tools')
 
     import random
 

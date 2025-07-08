@@ -2,15 +2,57 @@ from types import TracebackType
 from typing import Optional, Type
 
 from rich.columns import Columns
-from rich.console import Console, Group, RenderableType, StyleType
+from rich.console import Console, ConsoleOptions, Group, RenderableType, StyleType
 from rich.live import Live
 from rich.spinner import Spinner
 from rich.text import Text
+from rich.measure import Measurement
 
 from .colors import ColorStyle
 from .console import console
 
 INTERRUPT_TIP = ' (ctrl+c to interrupt)'
+
+
+class CustomSpinner:
+    def __init__(self, frames, interval_ms=100, style: StyleType = None):
+        self.frames = frames
+        self.interval = interval_ms / 1000.0
+        self.start_time = None
+        self.style = style
+
+    def __rich_console__(self, console, options):
+        yield self.render(console.get_time())
+
+    def render(self, time_now):
+        if self.start_time is None:
+            self.start_time = time_now
+
+        elapsed = time_now - self.start_time
+        frame_index = int(elapsed / self.interval) % len(self.frames)
+        frame_text = self.frames[frame_index]
+        return Text(frame_text, style=self.style)
+
+    def __rich_measure__(self, console: 'Console', options: 'ConsoleOptions') -> Measurement:
+        return Measurement.get(console, options, '✶')
+
+
+claudeFrames = [
+    '✶',
+    '✻',
+    '✽',
+    '✻',
+    '✶',
+    '✳',
+    '✢',
+    '·',
+    '✢',
+    '✳',
+]
+
+
+def get_claude_spinner(style: StyleType = None):
+    return CustomSpinner(claudeFrames, interval_ms=100, style=style)
 
 
 class DotsStatus:
@@ -20,16 +62,14 @@ class DotsStatus:
         description: Optional[RenderableType] = None,
         *,
         console: Console = Console(),
-        spinner: str = 'dots',
         spinner_style: StyleType = None,
         dots_style: StyleType = None,
         refresh_per_second: int = 10,
     ):
         self.status = status
         self.description = description
-        self.spinner = spinner
-        self.spinner_style = spinner_style
-        self.dots_style = dots_style
+        self.spinner = get_claude_spinner(style=spinner_style)
+        self.dots = Spinner(name='simpleDots', style=dots_style, speed=1)
         self.refresh_per_second = refresh_per_second
         self._live = Live(
             self.renderable,
@@ -43,7 +83,6 @@ class DotsStatus:
         *,
         status: Optional[RenderableType] = None,
         description: Optional[RenderableType] = None,
-        spinner: Optional[str] = None,
         spinner_style: Optional[StyleType] = None,
         dots_style: Optional[StyleType] = None,
     ):
@@ -51,12 +90,10 @@ class DotsStatus:
             self.status = status
         if description:
             self.description = description
-        if spinner:
-            self.spinner = spinner
         if spinner_style:
-            self.spinner_style = spinner_style
+            self.spinner = get_claude_spinner(style=spinner_style)
         if dots_style:
-            self.dots_style = dots_style
+            self.dots = Spinner(name='simpleDots', style=dots_style, speed=1)
         self._live.update(self.renderable, refresh=True)
 
     @property
@@ -65,10 +102,10 @@ class DotsStatus:
             '',
             Columns(
                 [
-                    Spinner(name=self.spinner, style=self.spinner_style),
+                    self.spinner,
                     ' ',
                     self.status,
-                    Spinner(name='simpleDots', style=self.dots_style, speed=1),
+                    self.dots,
                     ' ',
                     self.description,
                 ],
@@ -103,7 +140,6 @@ class DotsStatus:
 def render_dot_status(
     status: str,
     description: Optional[str] = None,
-    spinner: str = 'dots',
     spinner_style: StyleType = None,
     dots_style: StyleType = None,
 ):
@@ -115,7 +151,6 @@ def render_dot_status(
         status=status,
         description=desc_text,
         console=console.console,
-        spinner=spinner,
         spinner_style=spinner_style,
         dots_style=dots_style,
     )
