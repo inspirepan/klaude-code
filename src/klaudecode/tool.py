@@ -173,7 +173,9 @@ class ToolDisplayManager:
     def create_live_group(tool_instances: List['ToolInstance']) -> list:
         """Create the live group for display."""
         live_group = []
-        for ti in tool_instances:
+        # Sort tool instances: uncompleted first, then completed
+        sorted_instances = sorted(tool_instances, key=lambda ti: ti.is_completed())
+        for ti in sorted_instances:
             live_group.append('')
             live_group.append(ti.tool_result())
         return live_group
