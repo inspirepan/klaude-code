@@ -119,12 +119,12 @@ def _process_header_line(line: str, style: Optional[Union[str, Style]] = None, l
         return Text.from_markup(line, style=style + Style(bold=True) if style else Style(bold=True))
 
     hashes, title = header_match.groups()
-
+    print(hashes, title, line_number)
     if len(hashes) == 2:
         if line_number == 0:
-            return Text(title, ColorStyle.HEADER_2.bold)
+            return Group(Text(title, ColorStyle.HEADER_2.bold), Rule(style=ColorStyle.LINE, characters='╌'))
         else:
-            return Group('', Text(title, ColorStyle.HEADER_2.bold))
+            return Group('', Text(title, ColorStyle.HEADER_2.bold), Rule(style=ColorStyle.LINE, characters='╌'))
     elif len(hashes) == 3:
         return Text(title, ColorStyle.HEADER_3.bold)
     elif len(hashes) == 4:
@@ -177,6 +177,7 @@ def _process_regular_line(line: str, style: Optional[Union[str, Style]] = None):
 
 
 def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Group:
+    print(text)
     """Convert Markdown syntax to Rich Group"""
     if not text:
         return Group()
@@ -199,27 +200,16 @@ def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Gro
         # Process different line types
         if line.strip().startswith('##'):
             processed_line = _process_header_line(line, style, i)
-            formatted_lines.append(processed_line)
 
-            # Check if next line is empty and convert it to rule
-            if i + 1 < len(lines) and lines[i + 1].strip() == '':
-                formatted_lines.append(Rule(style=ColorStyle.LINE, characters='╌'))
-                i += 2  # Skip both header and empty line
-                continue
+            # # Check if next line is empty and convert it to rule
+            if not line.strip().startswith('###') and i + 1 < len(lines) and lines[i + 1].strip() == '':
+                i += 1  # Skip both header and empty line
         elif line.strip().startswith('>'):
             processed_line = _process_quote_line(line, style)
-        elif line.strip() == '' and i > 0 and i < len(lines) - 1:
-            # Check if previous line was h2 header, if so skip this empty line (already handled above)
-            prev_line = lines[i - 1].strip()
-            if prev_line.startswith('## '):
-                i += 1
-                continue
-            else:
-                processed_line = _process_regular_line(line, style)
         else:
             processed_line = _process_regular_line(line, style)
-
         formatted_lines.append(processed_line)
+
         i += 1
 
     return Group(*formatted_lines)
