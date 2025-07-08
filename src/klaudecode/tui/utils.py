@@ -19,6 +19,8 @@ def get_prompt_toolkit_color(color_style: ColorStyle) -> str:
     basic_colors = ['white', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'black']
     if style_str in basic_colors:
         return f'ansi{style_str}'
+    elif style_str == 'bright_white':
+        return 'ansiwhite'
     elif style_str.startswith('bright_') and style_str[7:] in basic_colors:
         color_name = style_str.replace('_', '')
         return f'ansi{color_name}'

@@ -182,20 +182,20 @@ def render_edit_result(tool_msg: ToolMessage):
         renderables = []
         if summary_parts and file_path:
             # Create styled summary using Text.assemble
-            summary_text = Text.assemble(('Updated ', 'dim'), (file_path, 'bold dim'), (' with ', 'dim'))
+            summary_text = Text.assemble('Updated ', (file_path, 'bold'), ' with ')
 
             for i, part in enumerate(summary_parts):
                 if i > 0:
-                    summary_text.append(' and ', style='dim')
+                    summary_text.append(' and ')
 
                 # Extract number and text from part like "1 addition" or "2 removals"
                 words = part.split(' ', 1)
                 if len(words) == 2:
                     number, text = words
-                    summary_text.append(number, style='bold dim')
-                    summary_text.append(f' {text}', style='dim')
+                    summary_text.append(number, style='bold')
+                    summary_text.append(f' {text}')
                 else:
-                    summary_text.append(part, style='dim')
+                    summary_text.append(part)
 
             renderables.append(summary_text)
 
