@@ -69,6 +69,21 @@ async def get_session(ctx: typer.Context) -> Optional[Session]:
 
 
 async def main_async(ctx: typer.Context):
+    # Check for updates at startup (only in interactive mode and if not disabled)
+    if not ctx.obj['prompt'] and not ctx.obj['no_update_check']:
+        from .updater import check_and_prompt_update
+
+        # Run update check in background, don't block startup
+        try:
+            updated = await check_and_prompt_update()
+            if updated:
+                # If update was performed, exit to allow user to restart
+                console.print(Text('Please restart klaude to use the updated version.', style=ColorStyle.INFO))
+                return
+        except Exception:
+            # Silently ignore update check errors
+            pass
+
     session = await get_session(ctx)
     if not session:
         return
@@ -131,6 +146,7 @@ def main(
     theme: Optional[str] = typer.Option(None, '--theme', help='Override theme from config (light, dark, light_ansi, or dark_ansi)'),
     mcp: bool = typer.Option(False, '--mcp', help='Enable MCP (Model Context Protocol) tools'),
     logo: bool = typer.Option(False, '--logo', help='Show logo'),
+    no_update_check: bool = typer.Option(False, '--no-update-check', help='Skip automatic update check on startup'),
 ):
     ctx.ensure_object(dict)
     if ctx.invoked_subcommand is None:
@@ -166,6 +182,7 @@ def main(
         ctx.obj['mcp'] = mcp
         ctx.obj['config'] = config_model
         ctx.obj['logo'] = logo
+        ctx.obj['no_update_check'] = no_update_check
         asyncio.run(main_async(ctx))
 
 
@@ -243,26 +260,6 @@ def version_command():
 @app.command('update')
 def update_command():
     """Update klaude-code to the latest version"""
-    import subprocess
-    import sys
+    from .updater import update_klaude_code
 
-    console.print(Text('Updating klaude-code...', style=ColorStyle.INFO))
-
-    try:
-        # Try uv first (recommended)
-        result = subprocess.run(['uv', 'tool', 'upgrade', 'klaude-code'], capture_output=True, text=True)
-        if result.returncode == 0:
-            console.print(Text('✓ Updated successfully with uv', style=ColorStyle.SUCCESS))
-            return
-    except FileNotFoundError:
-        pass
-
-    try:
-        # Fallback to pip
-        result = subprocess.run([sys.executable, '-m', 'pip', 'install', '--upgrade', 'klaude-code'], capture_output=True, text=True)
-        if result.returncode == 0:
-            console.print(Text('✓ Updated successfully with pip', style=ColorStyle.SUCCESS))
-        else:
-            console.print(Text(f'✗ Update failed: {result.stderr}', style=ColorStyle.ERROR))
-    except Exception as e:
-        console.print(Text(f'✗ Update failed: {format_exception(e)}', style=ColorStyle.ERROR))
+    update_klaude_code()
