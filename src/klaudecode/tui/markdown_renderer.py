@@ -26,7 +26,7 @@ def _process_inline_formatting(text: str, style: str = '') -> Text:
     for match in re.finditer(pattern, text):
         # Add text before the match
         if match.start() > pos:
-            segments.append((text[pos : match.start()], style))
+            segments.append((text[pos : match.start()]))
 
         # Add formatted text based on which group matched
         if match.group('bold'):
@@ -44,7 +44,7 @@ def _process_inline_formatting(text: str, style: str = '') -> Text:
     if pos < len(text):
         segments.append(text[pos:])
 
-    return Text.assemble(*segments) if segments else Text(text)
+    return Text.assemble(*segments, style=style) if segments else Text(text, style=style)
 
 
 def _is_table_row(line: str) -> bool:
@@ -200,7 +200,7 @@ def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Gro
         if line.strip().startswith('##'):
             processed_line = _process_header_line(line, style, i)
             formatted_lines.append(processed_line)
-            
+
             # Check if next line is empty and convert it to rule
             if i + 1 < len(lines) and lines[i + 1].strip() == '':
                 formatted_lines.append(Rule(style=ColorStyle.LINE, characters='╌'))
