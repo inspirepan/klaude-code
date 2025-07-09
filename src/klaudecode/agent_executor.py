@@ -30,7 +30,7 @@ class AgentExecutor(TaskToolMixin, Tool):
 
     def __init__(self, agent_state: AgentState):
         self.agent_state = agent_state
-        self.tool_handler = ToolHandler(self.agent_state, self.agent_state.available_tools or [], show_live=agent_state.print_switch)
+        self.tool_handler = ToolHandler(self.agent_state, self.agent_state.all_tools or [], show_live=agent_state.print_switch)
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, check_cancel: Callable[[], bool] = None, tools: Optional[List[Tool]] = None):
         try:
@@ -200,7 +200,7 @@ class AgentExecutor(TaskToolMixin, Tool):
             if tools:
                 total_tokens += sum(tool.tokens() for tool in tools)
             else:
-                total_tokens += sum(tool.tokens() for tool in self.agent_state.get_all_tools())
+                total_tokens += sum(tool.tokens() for tool in self.agent_state.all_tools)
         total_tokens += self.agent_state.config.max_tokens.value
         if total_tokens > self.agent_state.config.context_window_threshold.value * TOKEN_WARNING_THRESHOLD:
             console.print(

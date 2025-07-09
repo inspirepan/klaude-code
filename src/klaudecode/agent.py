@@ -65,7 +65,7 @@ class Agent:
                         self._handle_claudemd_reminder()
                         self._handle_empty_todo_reminder()
                     agent_run_first_time = False
-                    await self.agent_executor.run(max_steps=DEFAULT_MAX_STEPS, tools=self.agent_state.get_all_tools())
+                    await self.agent_executor.run(max_steps=DEFAULT_MAX_STEPS, tools=self.agent_state.all_tools)
                 else:
                     self.agent_state.session.save()
         finally:
@@ -100,7 +100,7 @@ class Agent:
 
         update_task = asyncio.create_task(update_status())
         try:
-            result = await self.agent_executor.run(tools=self.agent_state.get_all_tools(), max_steps=DEFAULT_MAX_STEPS)
+            result = await self.agent_executor.run(tools=self.agent_state.all_tools, max_steps=DEFAULT_MAX_STEPS)
             return result
         finally:
             running = False

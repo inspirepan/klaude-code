@@ -106,7 +106,7 @@ class TestAgentState:
         available_tools = BASIC_TOOLS
         agent_state = AgentState(mock_session, available_tools=available_tools)
 
-        tools = agent_state.get_all_tools()
+        tools = agent_state.all_tools
 
         assert tools == available_tools
         assert agent_state._cached_all_tools == available_tools
@@ -120,7 +120,7 @@ class TestAgentState:
         agent_state._cached_all_tools = cached_tools
         agent_state._tools_cache_dirty = False
 
-        tools = agent_state.get_all_tools()
+        tools = agent_state.all_tools
 
         assert tools == cached_tools
 
@@ -134,7 +134,7 @@ class TestAgentState:
         mock_mcp_manager.get_mcp_tools.return_value = mock_mcp_tools
         agent_state.mcp_manager = mock_mcp_manager
 
-        tools = agent_state.get_all_tools()
+        tools = agent_state.all_tools
 
         expected_tools = available_tools + mock_mcp_tools
         assert tools == expected_tools
@@ -148,7 +148,7 @@ class TestAgentState:
         mock_mcp_manager.is_initialized.return_value = False
         agent_state.mcp_manager = mock_mcp_manager
 
-        tools = agent_state.get_all_tools()
+        tools = agent_state.all_tools
 
         assert tools == available_tools
         mock_mcp_manager.get_mcp_tools.assert_not_called()
@@ -156,7 +156,7 @@ class TestAgentState:
     def test_get_all_tools_no_available_tools(self, mock_session):
         agent_state = AgentState(mock_session, available_tools=None)
 
-        tools = agent_state.get_all_tools()
+        tools = agent_state.all_tools
 
         assert tools == []
 

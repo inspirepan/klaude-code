@@ -56,7 +56,8 @@ class AgentState:
             return result
         return True
 
-    def get_all_tools(self) -> List[Tool]:
+    @property
+    def all_tools(self) -> List[Tool]:
         """Get all available tools including MCP tools with caching"""
         if not self._tools_cache_dirty and self._cached_all_tools is not None:
             return self._cached_all_tools

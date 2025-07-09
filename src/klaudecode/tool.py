@@ -12,7 +12,7 @@ from rich.live import Live
 from rich.text import Text
 
 from .message import AIMessage, ToolCall, ToolMessage, count_tokens
-from .tui import ColorStyle, console, render_dot_status
+from .tui import ColorStyle, console, render_dot_status, render_suffix
 from .utils.exception import format_exception
 
 if TYPE_CHECKING:
@@ -379,6 +379,7 @@ class ToolHandler:
 
         for tool_call in tool_calls.values():
             if tool_call.tool_name not in self.tool_dict:
+                console.print(render_suffix(f'Tool {tool_call.tool_name} not found', style=ColorStyle.ERROR))
                 continue
             if self.tool_dict[tool_call.tool_name].skip_in_tool_handler():
                 continue
