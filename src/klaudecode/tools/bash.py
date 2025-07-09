@@ -82,6 +82,7 @@ class BashTool(Tool):
     }
 
     MAX_OUTPUT_SIZE = 30000  # Maximum output size to prevent memory overflow
+    TRUNCATE_PRESERVE_LINES = 200  # Number of lines to preserve from start and end
     DEFAULT_TIMEOUT = 300000  # 5 minutes in milliseconds
     MAX_TIMEOUT = 600000  # 10 minutes in milliseconds
 
@@ -169,9 +170,7 @@ class BashTool(Tool):
 
         def update_current_content():
             """Update the content with current output"""
-            content = '\n'.join(output_lines)
-            if total_output_size >= cls.MAX_OUTPUT_SIZE:
-                content += f'\n[Output truncated at {cls.MAX_OUTPUT_SIZE} characters]'
+            content = cls._format_output_with_truncation(output_lines, total_output_size)
             update_content(content)
 
         try:
@@ -224,12 +223,8 @@ class BashTool(Tool):
                         # Strip ANSI codes from output
                         clean_output = BashUtils.strip_ansi_codes(remaining_output)
                         for line in clean_output.splitlines():
-                            if total_output_size < cls.MAX_OUTPUT_SIZE:
-                                output_lines.append(line)
-                                # +1 for newline
-                                total_output_size += len(line) + 1
-                            else:
-                                break
+                            output_lines.append(line)
+                            total_output_size += len(line) + 1  # +1 for newline
                     break
 
                 # Read process output with interrupt checking
@@ -319,6 +314,29 @@ class BashTool(Tool):
                 pass  # Process might already be dead
 
     @classmethod
+    def _format_output_with_truncation(cls, output_lines: list, total_output_size: int) -> str:
+        """Format output with middle truncation if needed to preserve start and end content"""
+        if total_output_size < cls.MAX_OUTPUT_SIZE or len(output_lines) <= cls.TRUNCATE_PRESERVE_LINES * 2:
+            return '\n'.join(output_lines)
+
+        # Calculate how many lines to keep from start and end
+        preserve_lines = cls.TRUNCATE_PRESERVE_LINES
+        start_lines = output_lines[:preserve_lines]
+        end_lines = output_lines[-preserve_lines:]
+
+        # Calculate approximate character counts
+        start_chars = sum(len(line) + 1 for line in start_lines)  # +1 for newline
+        end_chars = sum(len(line) + 1 for line in end_lines)
+        truncated_chars = total_output_size - start_chars - end_chars
+        truncated_line_count = len(output_lines) - 2 * preserve_lines
+
+        # Create truncation message
+        truncation_msg = f'\n[... {truncated_line_count} lines ({truncated_chars} chars) truncated from middle ...]\n'
+
+        # Combine start, truncation message, and end
+        return '\n'.join(start_lines) + truncation_msg + '\n'.join(end_lines)
+
+    @classmethod
     def _process_output_line(cls, line: str, output_lines: list, total_output_size: int, update_content_func) -> tuple[int, bool]:
         """Process a single output line and return (new_total_size, should_break)"""
         line = line.rstrip('\n\r')
@@ -339,14 +357,12 @@ class BashTool(Tool):
             # We could handle this by sending ENTER, but for now just log it
             pass
 
-        if total_output_size < cls.MAX_OUTPUT_SIZE:
-            output_lines.append(clean_line)
-            total_output_size += len(clean_line) + 1  # +1 for newline
-            update_content_func()
-            return total_output_size, False
-        else:
-            update_content_func()
-            return total_output_size, True
+        output_lines.append(clean_line)
+        total_output_size += len(clean_line) + 1  # +1 for newline
+        update_content_func()
+
+        # Continue collecting output even after MAX_OUTPUT_SIZE to preserve end content
+        return total_output_size, False
 
     @classmethod
     def _read_process_output(cls, process, output_lines: list, total_output_size: int, update_content_func, check_canceled=None) -> tuple[int, bool, str]:

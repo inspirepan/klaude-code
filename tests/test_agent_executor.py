@@ -33,6 +33,7 @@ class TestAgentExecutor:
         state = Mock(spec=AgentState)
         state.session = mock_session
         state.available_tools = BASIC_TOOLS
+        state.all_tools = BASIC_TOOLS
         state.print_switch = True
         state.usage = Mock()
         state.usage.update_usage = Mock()
@@ -198,5 +199,5 @@ class TestAgentExecutor:
             executor = AgentExecutor(mock_agent_state)
 
             assert executor.agent_state == mock_agent_state
-            mock_tool_handler_class.assert_called_once_with(mock_agent_state, mock_agent_state.available_tools, show_live=mock_agent_state.print_switch)
+            mock_tool_handler_class.assert_called_once_with(mock_agent_state, mock_agent_state.all_tools, show_live=mock_agent_state.print_switch)
             assert executor.tool_handler == mock_tool_handler

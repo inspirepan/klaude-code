@@ -16,10 +16,10 @@ uv pip install -e .
 ### Code Quality Commands
 ```bash
 # Format code
-ruff format src/
+ruff format .
 
 # Run linter
-ruff check src/ --fix
+ruff check . --fix
 ```
 
 ### Testing
@@ -33,8 +33,11 @@ source .venv/bin/activate
 # Install dependencies (only needed once or when dependencies change)
 uv sync
 
-# Run all tests
+# Run all tests (detailed output)
 uv run python -m pytest tests/ -v
+
+# Run all tests (quick/concise output, recommended for regular checks)
+uv run python -m pytest tests/ -q
 
 # Alternative test runner (also available)
 uv run python tests/run_tests.py
@@ -44,6 +47,9 @@ uv run python -m pytest tests/tools/test_read.py -v
 
 # Run specific test category
 uv run python tests/run_tests.py tools
+
+# Run with short error messages (useful for debugging)
+uv run python -m pytest tests/ -v --tb=short
 
 # Run with coverage
 uv run python -m pytest tests/ --cov=src/klaudecode --cov-report=html
@@ -58,6 +64,7 @@ uv run python tests/run_tests.py --cov
 - Always run tests in a virtual environment to ensure proper dependency isolation
 - The main package is `klaudecode` under `src/`
 - Entry point is `klaudecode.cli:app` defined in pyproject.toml
+- **When asked to run all tests**: Use `uv run python -m pytest tests/ -q` for quick overview, then fix any failures with `uv run python -m pytest tests/ -v --tb=short` for detailed debugging
 
 ## Architecture Overview
 
@@ -87,17 +94,3 @@ uv run python tests/run_tests.py --cov
    - Type-safe message classes for all roles (user, assistant, tool, system)
    - Registry pattern for custom rendering based on message type
    - Special handling for tool calls and results
-
-### Key Design Patterns
-
-- **Interrupt Handling**: Global interrupt flag pattern with graceful cleanup
-- **Streaming**: AsyncIterator pattern for real-time LLM responses
-- **Tool Discovery**: Dynamic tool registration based on available imports
-- **Message Rendering**: Visitor pattern for customizable output formatting
-
-### Important Conventions
-
-- All file paths in tools must be absolute, not relative
-- Tool parameters use Pydantic models for validation
-- Messages are stored incrementally in JSONL format
-- Custom commands are discovered from `.claude/commands/` directory
