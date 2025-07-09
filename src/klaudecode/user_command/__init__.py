@@ -2,6 +2,7 @@ from .command_clear import ClearCommand
 from .command_compact import CompactCommand
 from .command_continue import ContinueCommand
 from .command_cost import CostCommand
+from .command_debug import DebugCommand
 from .command_example_custom_command import ExampleCustomCommand
 from .command_init import InitCommand
 from .command_mac_setup import MacSetupCommand
@@ -23,6 +24,7 @@ __all__ = [
     'CompactCommand',
     'CostCommand',
     'ClearCommand',
+    'DebugCommand',
     'MacSetupCommand',
     'MCPCommand',
     'QueryRewriteCommand',
@@ -53,6 +55,7 @@ register_slash_command(ClearCommand())
 register_slash_command(CompactCommand())
 register_slash_command(ContinueCommand())
 register_slash_command(CostCommand())
+register_slash_command(DebugCommand())
 register_slash_command(ThemeCommand())
 if MacSetupCommand.need_mac_setup():
     register_slash_command(MacSetupCommand())
