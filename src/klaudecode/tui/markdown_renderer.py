@@ -3,11 +3,10 @@ from typing import Optional, Union
 from rich import box
 from rich.console import Console, ConsoleOptions, Group, RenderResult
 from rich.markdown import CodeBlock, Heading, HorizontalRule, Markdown, TableElement
+from rich.panel import Panel
 from rich.rule import Rule
 from rich.style import Style
 from rich.table import Table
-from rich.panel import Panel
-from rich.text import Text
 
 from .colors import ColorStyle
 
@@ -20,7 +19,7 @@ class CustomCodeBlock(CodeBlock):
         from .console import console as global_console
 
         if global_console.is_dark_theme():
-            theme = 'lightbulb'
+            theme = 'github-dark'
         else:
             theme = 'lovelace'
 
