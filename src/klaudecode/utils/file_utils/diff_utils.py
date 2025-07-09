@@ -3,12 +3,12 @@ import re
 from typing import List, Tuple
 
 from rich.console import Group
-from rich.padding import Padding
 from rich.table import Table
 from rich.text import Text
 
 from ...tui import ColorStyle
 from ...utils.str_utils import normalize_tabs
+from .file_operations import get_relative_path_for_display
 
 
 def generate_diff_lines(old_content: str, new_content: str) -> List[str]:
@@ -28,9 +28,26 @@ def generate_diff_lines(old_content: str, new_content: str) -> List[str]:
         difflib.unified_diff(
             old_lines,
             new_lines,
-            lineterm='',
         )
     )
+
+    # Add "\ No newline at end of file" messages if needed
+    old_ends_with_newline = old_content.endswith('\n')
+    new_ends_with_newline = new_content.endswith('\n')
+
+    # If there are diff lines and newline status differs, add the message
+    if diff_lines and (old_ends_with_newline != new_ends_with_newline):
+        # Find the last line that was changed
+        for i in range(len(diff_lines) - 1, -1, -1):
+            line = diff_lines[i]
+            if line.startswith('-') and not old_ends_with_newline:
+                # Insert after the removed line
+                diff_lines.insert(i + 1, '\\ No newline at end of file\n')
+                break
+            elif line.startswith('+') and not new_ends_with_newline:
+                # Insert after the added line
+                diff_lines.insert(i + 1, '\\ No newline at end of file\n')
+                break
 
     return diff_lines
 
@@ -69,6 +86,9 @@ def generate_snippet_from_diff(diff_lines: List[str]) -> str:
             context_line = line[1:].rstrip('\n\r')
             snippet_lines.append(f'{new_line_num}→{normalize_tabs(context_line)}')
             new_line_num += 1
+        elif line.startswith('\\'):
+            # Skip "\ No newline at end of file" in snippet generation
+            continue
 
     return '\n'.join(snippet_lines)
 
@@ -108,17 +128,52 @@ def generate_char_level_diff(old_line: str, new_line: str) -> Tuple[Text, Text]:
     return old_text, new_text
 
 
-def render_diff_lines(diff_lines: List[str]) -> Group:
+def render_diff_lines(diff_lines: List[str], file_path: str = None, show_summary: bool = False) -> Group:
     """Render diff lines with color formatting for terminal display.
 
     Args:
         diff_lines: List of unified diff lines
+        file_path: Optional file path to show in summary
+        show_summary: Whether to show addition/removal summary
 
     Returns:
         Rich Group object with formatted diff content
     """
     if not diff_lines:
-        return ''
+        return Group()
+
+    # Calculate additions and removals if summary is requested
+    summary_renderable = None
+    if show_summary and file_path:
+        additions = sum(1 for line in diff_lines if line.startswith('+') and not line.startswith('+++'))
+        removals = sum(1 for line in diff_lines if line.startswith('-') and not line.startswith('---'))
+
+        # Create summary line
+        summary_parts = []
+        if additions > 0:
+            summary_parts.append(f'{additions} addition{"s" if additions != 1 else ""}')
+        if removals > 0:
+            summary_parts.append(f'{removals} removal{"s" if removals != 1 else ""}')
+
+        if summary_parts:
+            display_path = get_relative_path_for_display(file_path)
+            # Create styled summary using Text.assemble
+            summary_text = Text.assemble('Updated ', (display_path, 'bold'), ' with ')
+
+            for i, part in enumerate(summary_parts):
+                if i > 0:
+                    summary_text.append(' and ')
+
+                # Extract number and text from part like "1 addition" or "2 removals"
+                words = part.split(' ', 1)
+                if len(words) == 2:
+                    number, text = words
+                    summary_text.append(number, style='bold')
+                    summary_text.append(f' {text}')
+                else:
+                    summary_text.append(part)
+
+            summary_renderable = summary_text
 
     old_line_num = 1
     new_line_num = 1
@@ -220,8 +275,18 @@ def render_diff_lines(diff_lines: List[str]) -> Group:
             old_line_num += 1
             new_line_num += 1
             i += 1
+        elif line.startswith('\\'):
+            # Handle "\ No newline at end of file" as context line
+            no_newline_text = Text(line.strip())
+            no_newline_text.stylize(ColorStyle.CONTEXT_LINE)
+            grid.add_row('', Text('  '), no_newline_text)
+            i += 1
         else:
             grid.add_row('', '', Text(line))
             i += 1
 
-    return Padding.indent(grid, level=2)
+    # Return with or without summary
+    if summary_renderable:
+        return Group(summary_renderable, grid)
+    else:
+        return grid

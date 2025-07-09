@@ -147,6 +147,10 @@ class TestSession:
     def test_save(self, mock_save):
         work_dir = Path('/test')
         session = Session(work_dir=work_dir)
+        
+        # Add a message to make the session have incremental changes
+        from klaudecode.message import UserMessage
+        session.append_message(UserMessage(content="test message"))
 
         session.save()
 

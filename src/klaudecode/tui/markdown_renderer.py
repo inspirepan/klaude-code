@@ -2,13 +2,7 @@ from typing import Optional, Union
 
 from rich import box
 from rich.console import Console, ConsoleOptions, Group, RenderResult
-from rich.markdown import (
-    CodeBlock,
-    Heading,
-    HorizontalRule,
-    Markdown,
-    TableElement,
-)
+from rich.markdown import CodeBlock, Heading, HorizontalRule, Markdown, TableElement
 from rich.rule import Rule
 from rich.style import Style
 from rich.table import Table

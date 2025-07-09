@@ -129,7 +129,7 @@ class TestAgent:
         agent.input_session.prompt_async = AsyncMock(return_value='quit')
 
         with patch.object(agent, '_handle_claudemd_reminder') as mock_handle_claudemd, patch.object(agent, '_handle_empty_todo_reminder') as mock_handle_todo:
-            await agent.chat_interactive(first_message='Hello')
+            await agent.chat_interactive(initial_message='Hello')
 
             agent.user_input_handler.handle.assert_called_with('Hello', print_msg=True)
             agent.agent_executor.run.assert_called_once()

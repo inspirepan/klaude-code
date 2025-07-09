@@ -158,7 +158,7 @@ class ToolDisplayManager:
     def generate_status_text(tool_calls: List[ToolCall]) -> Text:
         """Generate status text for tool execution."""
         if len(tool_calls) == 1:
-            return Text.assemble('Executing ', (ToolCall.get_display_tool_name(tool_calls[0].tool_name), ColorStyle.TOOL_NAME.bold), ' ')
+            return Text.assemble('Executing ', (ToolCall.get_display_tool_name(tool_calls[0].tool_name), ColorStyle.TOOL_NAME.bold), ' ', style=ColorStyle.CLAUDE)
         else:
             tool_counts = {}
             for tc in tool_calls:
@@ -167,7 +167,7 @@ class ToolDisplayManager:
                 Text.assemble((ToolCall.get_display_tool_name(name), ColorStyle.TOOL_NAME.bold), ' * ' + str(count) if count > 1 else '', ' ')
                 for name, count in tool_counts.items()
             ]
-            return Text.assemble('Executing ', *tool_names)
+            return Text.assemble('Executing ', *tool_names, style=ColorStyle.CLAUDE)
 
     @staticmethod
     def create_live_group(tool_instances: List['ToolInstance']) -> list:
@@ -184,7 +184,7 @@ class ToolDisplayManager:
     async def live_display(tool_instances: List['ToolInstance'], tool_calls: List[ToolCall], interrupt_handler: 'InterruptHandler'):
         try:
             status_text = ToolDisplayManager.generate_status_text(tool_calls)
-            status = render_dot_status(status=status_text)
+            status = render_dot_status(status=status_text, spinner_style=ColorStyle.CLAUDE, dots_style=ColorStyle.CLAUDE)
 
             with Live(refresh_per_second=10, console=console.console) as live:
                 live_group = ToolDisplayManager.create_live_group(tool_instances)
