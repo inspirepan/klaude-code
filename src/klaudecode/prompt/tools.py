@@ -1,14 +1,14 @@
-TASK_TOOL_DESC = """Launch a new agent that has access to the following tools: Bash, Glob, Grep, LS, Read, Edit, MultiEdit, Write, TodoRead, TodoWrite. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use the Agent tool to perform the search for you.
+TASK_TOOL_DESC = """Launch a new agent that has access to the following tools: Bash, Glob, Grep, LS, Read, Edit, MultiEdit, Write, TodoRead, TodoWrite. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use the Task tool to perform the search for you.
 
-When to use the Agent tool:
+When to use the Task tool:
 
-- If you are searching for a keyword like "config" or "logger", or for questions like "which file does X?", the Agent tool is strongly recommended
+- If you are searching for a keyword like "config" or "logger", or for questions like "which file does X?", the Task tool is strongly recommended
 
-When NOT to use the Agent tool:
+When NOT to use the Task tool:
 
-- If you want to read a specific file path, use the Read or Glob tool instead of the Agent tool, to find the match more quickly
+- If you want to read a specific file path, use the Read or Glob tool instead of the Task tool, to find the match more quickly
 - If you are searching for a specific class definition like "class Foo", use the Glob tool instead, to find the match more quickly
-- If you are searching for code within a specific file or set of 2-3 files, use the Read tool instead of the Agent tool, to find the match more quickly
+- If you are searching for code within a specific file or set of 2-3 files, use the Read tool instead of the Task tool, to find the match more quickly
 - Writing code and running bash commands (use other tools for that)
 - Other tasks that are not related to searching for a keyword or file
 
@@ -427,14 +427,14 @@ GREP_TOOL_DESC = """- Fast content search tool that works with any codebase size
 - Returns file paths with at least one match sorted by modification time
 - Use this tool when you need to find files containing specific patterns
 - If you need to identify/count the number of matches within files, use the Bash tool with `rg` (ripgrep) directly. Do NOT use `grep`.
-- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Agent tool instead
+- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Task tool instead
 """
 
 GLOB_TOOL_DESC = """- Fast file pattern matching tool that works with any codebase size
 - Supports glob patterns like "/*.js" or "src//*.ts"
 - Returns matching file paths sorted by modification time
 - Use this tool when you need to find files by name patterns
-- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Agent tool instead
+- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Task tool instead
 - You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful.
 """
 

@@ -25,6 +25,13 @@ from ..utils.bash_utils import BashUtils
 - Advanced security validation and dangerous command blocking
 - Interactive prompt detection and timeout management
 - Process tree cleanup and signal handling for graceful termination
+
+Output Truncation Logic:
+- Truncation triggers when output ≥ 30,000 chars AND ≥ 400 lines
+- Preserves first 200 lines (command start, parameters, early output)
+- Preserves last 200 lines (command end, results, exit codes)
+- Middle content is truncated with summary: [... X lines (Y chars) truncated from middle ...]
+- Ensures important command completion info is never lost
 """
 
 
