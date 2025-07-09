@@ -1,6 +1,6 @@
 [project]
 name = "klaude-code"
-version = "0.1.10"
+version = "0.1.11"
 description = "Coding Agent CLI"
 readme = "README.md"
 requires-python = ">=3.13"
