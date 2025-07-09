@@ -10,9 +10,10 @@ from prompt_toolkit.cursor_shapes import CursorShape
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 
-from ..tui import console
+from ..tui import ColorStyle, console
 from ..utils.file_utils import is_image_path
 from ..utils.str_utils import get_inserted_text
+from ..utils.exception import format_exception
 from .input_completer import UserInputCompleter
 from .input_mode import _INPUT_MODES, NORMAL_MODE_NAME, InputModeCommand
 
@@ -143,9 +144,11 @@ class InputSession:
                 # Try to get image from clipboard first
                 from PIL import ImageGrab
 
+                print('grabclipboard')
                 clipboard_image = ImageGrab.grabclipboard()
 
                 if clipboard_image is not None:
+                    print('clipboard_image is not None')
                     # Convert image to base64
                     import io
 
@@ -168,8 +171,9 @@ class InputSession:
                             buf.insert_text(text)
                     except Exception:
                         pass
-            except Exception:
+            except Exception as e:
                 # If image grabbing fails, try regular text paste
+                console.print(f'Error: {format_exception(e)}', style=ColorStyle.ERROR)
                 try:
                     text = pyperclip.paste()
                     if text:
