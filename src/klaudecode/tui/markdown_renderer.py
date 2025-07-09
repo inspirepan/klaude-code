@@ -7,6 +7,7 @@ from rich.rule import Rule
 from rich.style import Style
 from rich.table import Table
 from rich.panel import Panel
+from rich.text import Text
 
 from .colors import ColorStyle
 
@@ -64,17 +65,16 @@ class CustomHeading(Heading):
         text.justify = 'left'
 
         if self.tag == 'h1':
-            text.stylize(ColorStyle.HEADER_2.bold + Style(underline=True))
+            text.stylize(ColorStyle.HEADER_1.bold + Style(underline=True))
             yield text
         elif self.tag == 'h2':
             text.stylize(ColorStyle.HEADER_2.bold + Style(underline=False))
-            yield text
-            yield Rule(style=ColorStyle.LINE, characters='╌')
+            yield Group(text)
         elif self.tag == 'h3':
-            text.stylize(ColorStyle.HEADER_3.bold)
+            text.stylize(ColorStyle.HEADER_3.style + Style(bold=False))
             yield text
         else:
-            text.stylize(ColorStyle.HIGHLIGHT.style + Style(bold=False, italic=False, underline=False))
+            text.stylize(ColorStyle.HEADER_4.style + Style(bold=False, italic=False, underline=False))
             yield text
 
 

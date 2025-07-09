@@ -48,8 +48,10 @@ class ColorStyle(str, Enum):
     MEMORY_MODE = 'memory_mode'
     PLAN_MODE = 'plan_mode'
     # Markdown
+    HEADER_1 = 'header_1'
     HEADER_2 = 'header_2'
     HEADER_3 = 'header_3'
+    HEADER_4 = 'header_4'
 
     INLINE_CODE = 'inline_code'
 
@@ -238,7 +240,9 @@ def get_theme(theme: str) -> Theme:
             ColorStyle.PLAN_MODE: theme_colors[ThemeColorEnum.CYAN],
             # Markdown
             ColorStyle.INLINE_CODE: theme_colors[ThemeColorEnum.PURPLE],
+            ColorStyle.HEADER_1: theme_colors[ThemeColorEnum.HIGHLIGHT],
             ColorStyle.HEADER_2: theme_colors[ThemeColorEnum.HIGHLIGHT],
-            ColorStyle.HEADER_3: theme_colors[ThemeColorEnum.PRIMARY],
+            ColorStyle.HEADER_3: theme_colors[ThemeColorEnum.SECONDARY],
+            ColorStyle.HEADER_4: theme_colors[ThemeColorEnum.SECONDARY],
         }
     )
