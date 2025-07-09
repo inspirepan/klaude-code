@@ -6,6 +6,7 @@ from rich.markdown import CodeBlock, Heading, HorizontalRule, Markdown, TableEle
 from rich.rule import Rule
 from rich.style import Style
 from rich.table import Table
+from rich.panel import Panel
 
 from .colors import ColorStyle
 
@@ -30,10 +31,10 @@ class CustomCodeBlock(CodeBlock):
             self.lexer_name,
             theme=theme,
             word_wrap=True,
-            padding=1,
+            padding=0,
             background_color='default',
         )
-        yield syntax
+        yield Panel.fit(syntax, title=self.lexer_name, border_style=ColorStyle.LINE, box=box.HORIZONTALS, title_align='left')
 
 
 class CustomTableElement(TableElement):
