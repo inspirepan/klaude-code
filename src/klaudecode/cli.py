@@ -117,7 +117,7 @@ async def main_async(ctx: typer.Context):
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
-    prompt: Optional[str] = typer.Option(None, '-p', '--print', help='Run in headless mode with the given prompt'),
+    print_prompt: Optional[str] = typer.Option(None, '-p', '--print', help='Run in headless mode with the given prompt'),
     resume: bool = typer.Option(
         False,
         '-r',
@@ -151,13 +151,20 @@ def main(
 ):
     ctx.ensure_object(dict)
     if ctx.invoked_subcommand is None:
-        # Check for piped input only if no prompt is provided via -p option
-        if prompt is None and not sys.stdin.isatty():
+        # Check for piped input and combine with prompt if provided
+        piped_input = None
+        if not sys.stdin.isatty():
             try:
-                prompt = sys.stdin.read().strip()
+                piped_input = sys.stdin.read().strip()
             except KeyboardInterrupt:
                 # Handle Ctrl+C gracefully when reading from stdin
                 pass
+
+        # Combine prompt and piped input
+        if print_prompt is not None and piped_input:
+            print_prompt = f'{print_prompt}\n{piped_input}'
+        elif print_prompt is None and piped_input:
+            print_prompt = piped_input
 
         try:
             config_model = setup_config(
@@ -177,7 +184,7 @@ def main(
             console.print(Text(f'Error: {format_exception(e)}', style=ColorStyle.ERROR))
             raise typer.Exit(code=1)
 
-        ctx.obj['prompt'] = prompt
+        ctx.obj['prompt'] = print_prompt
         ctx.obj['resume'] = resume
         ctx.obj['continue_latest'] = continue_latest
         ctx.obj['mcp'] = mcp
