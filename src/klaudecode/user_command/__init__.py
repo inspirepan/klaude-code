@@ -51,7 +51,7 @@ register_slash_command(MemoryCommand())
 register_slash_command(MCPCommand())
 register_slash_command(ClearCommand())
 register_slash_command(CompactCommand())
-# register_slash_command(ContinueCommand())
+register_slash_command(ContinueCommand())
 register_slash_command(CostCommand())
 register_slash_command(ThemeCommand())
 if MacSetupCommand.need_mac_setup():

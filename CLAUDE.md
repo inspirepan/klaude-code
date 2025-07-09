@@ -100,4 +100,4 @@ uv run python tests/run_tests.py --cov
 - All file paths in tools must be absolute, not relative
 - Tool parameters use Pydantic models for validation
 - Messages are stored incrementally in JSONL format
-- Custom commands are discovered from `.klaude/commands/` directory
+- Custom commands are discovered from `.claude/commands/` directory

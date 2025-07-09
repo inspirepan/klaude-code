@@ -7,7 +7,7 @@ class ContinueCommand(Command):
         return 'continue'
 
     def get_command_desc(self) -> str:
-        return 'Request LLM without new user message. NOTE: May cause error when no user message exists'
+        return 'Request LLM without new user message.'
 
     async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
         command_handle_output = await super().handle(agent_state, user_input)
