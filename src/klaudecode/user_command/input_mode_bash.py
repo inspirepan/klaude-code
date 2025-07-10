@@ -16,7 +16,9 @@ from ..prompt.commands import BASH_INPUT_MODE_CONTENT
 from ..tools.bash import BashTool
 from ..tui import ColorStyle, console, get_prompt_toolkit_color, render_message, render_suffix
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput
-from ..utils.bash_utils import BashUtils
+from ..utils.bash_utils.environment import BashEnvironment
+from ..utils.bash_utils.interaction_detection import BashInteractionDetector
+from ..utils.bash_utils.security import BashSecurity
 
 
 class BashMode(InputModeCommand):
@@ -43,14 +45,14 @@ class BashMode(InputModeCommand):
         command = user_input.cleaned_input
 
         # Safety check
-        is_safe, error_msg = BashTool.validate_command_safety(command)
+        is_safe, error_msg = BashSecurity.validate_command_safety(command)
         if not is_safe:
             error_result = f'Error: {error_msg}'
             command_handle_output.user_msg.set_extra_data('stdout', '')
             command_handle_output.user_msg.set_extra_data('stderr', error_result)
             return command_handle_output
 
-        processed_command = BashUtils.preprocess_command(command)
+        processed_command = BashEnvironment.preprocess_command(command)
 
         # Execute command and display output in streaming mode
         stdout, stderr = await self._execute_command_with_live_output(processed_command)
@@ -70,10 +72,10 @@ class BashMode(InputModeCommand):
         display_text = Text()
 
         try:
-            processed_command = BashUtils.preprocess_command(command)
+            processed_command = BashEnvironment.preprocess_command(command)
 
             env = os.environ.copy()
-            env.update(BashUtils.get_non_interactive_env())
+            env.update(BashEnvironment.get_non_interactive_env())
 
             master_fd, slave_fd = pty.openpty()
 
@@ -118,12 +120,12 @@ class BashMode(InputModeCommand):
                         if ready:
                             data = os.read(master_fd, 4096).decode('utf-8', errors='replace')
                             if data:
-                                data = BashUtils.strip_ansi_codes(data)
+                                data = BashEnvironment.strip_ansi_codes(data)
                                 lines = (partial_line + data).split('\n')
                                 partial_line = lines[-1]
 
                                 for line in lines[:-1]:
-                                    if BashUtils.detect_safe_continue_prompt(line):
+                                    if BashInteractionDetector.detect_safe_continue_prompt(line):
                                         # Send ENTER key for safe continue prompts
                                         display_text.append(f'Auto-continuing from prompt: {line}\n')
                                         try:
@@ -133,7 +135,7 @@ class BashMode(InputModeCommand):
                                         output_lines.append(line)
                                         display_text.append(line + '\n')
                                         continue
-                                    elif BashUtils.detect_interactive_prompt(line):
+                                    elif BashInteractionDetector.detect_interactive_prompt(line):
                                         display_text.append(f'Interactive prompt detected: {line}\n')
                                         display_text.append('Command terminated due to interactive prompt\n')
                                         live.update(render_suffix(display_text))

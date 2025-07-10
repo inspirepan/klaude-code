@@ -1,15 +1,17 @@
-"""Tests for BashUtils class"""
+"""Tests for bash_utils modules"""
 
 import unittest.mock
 
-from klaudecode.utils.bash_utils import BashUtils
+from klaudecode.utils.bash_utils.environment import BashEnvironment
+from klaudecode.utils.bash_utils.interaction_detection import BashInteractionDetector
+from klaudecode.utils.bash_utils.security import BashSecurity
 
 
-class TestBashUtils:
+class TestBashEnvironment:
     def test_preprocess_command_with_quotes(self):
         """Test that commands with quotes are properly escaped"""
         # Mock timeout availability to make tests predictable
-        with unittest.mock.patch.object(BashUtils, '_has_timeout_command', return_value=True):
+        with unittest.mock.patch.object(BashEnvironment, '_has_timeout_command', return_value=True):
             test_cases = [
                 # Simple command with single quotes
                 {
@@ -34,7 +36,7 @@ class TestBashUtils:
             ]
 
             for case in test_cases:
-                result = BashUtils.preprocess_command(case['command'])
+                result = BashEnvironment.preprocess_command(case['command'])
                 for expected in case['expected_contains']:
                     assert expected in result, f"Expected '{expected}' in result '{result}'"
 
@@ -51,7 +53,7 @@ class TestBashUtils:
         ]
 
         for cmd in wrapper_needed:
-            assert BashUtils._needs_bash_wrapper(cmd), f"Command '{cmd}' should need bash wrapper"
+            assert BashEnvironment._needs_bash_wrapper(cmd), f"Command '{cmd}' should need bash wrapper"
 
         # Commands that should NOT need wrapper
         no_wrapper_needed = [
@@ -63,7 +65,7 @@ class TestBashUtils:
         ]
 
         for cmd in no_wrapper_needed:
-            assert not BashUtils._needs_bash_wrapper(cmd), f"Command '{cmd}' should NOT need bash wrapper"
+            assert not BashEnvironment._needs_bash_wrapper(cmd), f"Command '{cmd}' should NOT need bash wrapper"
 
     def test_strip_ansi_codes(self):
         """Test ANSI code stripping"""
@@ -75,7 +77,7 @@ class TestBashUtils:
         ]
 
         for input_text, expected in test_cases:
-            result = BashUtils.strip_ansi_codes(input_text)
+            result = BashEnvironment.strip_ansi_codes(input_text)
             assert result == expected, f"Expected '{expected}', got '{result}'"
 
     def test_detect_interactive_prompt(self):
@@ -88,7 +90,7 @@ class TestBashUtils:
         ]
 
         for prompt in interactive_prompts:
-            assert BashUtils.detect_interactive_prompt(prompt), f"'{prompt}' should be detected as interactive"
+            assert BashInteractionDetector.detect_interactive_prompt(prompt), f"'{prompt}' should be detected as interactive"
 
         non_interactive = [
             'Processing file...',
@@ -97,40 +99,40 @@ class TestBashUtils:
         ]
 
         for text in non_interactive:
-            assert not BashUtils.detect_interactive_prompt(text), f"'{text}' should NOT be detected as interactive"
+            assert not BashInteractionDetector.detect_interactive_prompt(text), f"'{text}' should NOT be detected as interactive"
 
     def test_has_timeout_command(self):
         """Test detection of timeout command availability"""
         # Test when timeout is available
         with unittest.mock.patch('shutil.which', return_value='/usr/bin/timeout'):
-            assert BashUtils._has_timeout_command() is True
+            assert BashEnvironment._has_timeout_command() is True
 
         # Test when timeout is not available
         with unittest.mock.patch('shutil.which', return_value=None):
-            assert BashUtils._has_timeout_command() is False
+            assert BashEnvironment._has_timeout_command() is False
 
     def test_preprocess_command_with_timeout_available(self):
         """Test command preprocessing when timeout is available"""
-        with unittest.mock.patch.object(BashUtils, '_has_timeout_command', return_value=True):
+        with unittest.mock.patch.object(BashEnvironment, '_has_timeout_command', return_value=True):
             # Simple command
-            result = BashUtils.preprocess_command('echo test', 5.0)
+            result = BashEnvironment.preprocess_command('echo test', 5.0)
             assert result == 'timeout 5s echo test'
 
             # Complex command needing bash wrapper
-            result = BashUtils.preprocess_command('echo test | cat', 10.0)
+            result = BashEnvironment.preprocess_command('echo test | cat', 10.0)
             assert result.startswith('timeout 10s bash -c')
             assert 'echo test | cat' in result
 
     def test_preprocess_command_without_timeout(self):
         """Test command preprocessing when timeout is not available"""
-        with unittest.mock.patch.object(BashUtils, '_has_timeout_command', return_value=False):
+        with unittest.mock.patch('klaudecode.utils.bash_utils.environment.BashEnvironment._has_timeout_command', return_value=False):
             # Simple command
-            result = BashUtils.preprocess_command('echo test', 5.0)
+            result = BashEnvironment.preprocess_command('echo test', 5.0)
             assert result == 'echo test'
             assert 'timeout' not in result
 
             # Complex command needing bash wrapper
-            result = BashUtils.preprocess_command('echo test | cat', 10.0)
+            result = BashEnvironment.preprocess_command('echo test | cat', 10.0)
             assert result.startswith('bash -c')
             assert 'echo test | cat' in result
             assert 'timeout' not in result
