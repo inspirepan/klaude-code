@@ -26,7 +26,19 @@ class MockMessage:
         return {'role': self.role, 'content': self.content}
 
     def to_anthropic(self):
+        if self.role == 'system':
+            return {'type': 'text', 'text': self.content}
         return {'role': self.role, 'content': self.content}
+
+
+class MockSystemMessage(MockMessage):
+    """Mock SystemMessage for testing"""
+
+    def __init__(self, content: str = 'System prompt', removed: bool = False):
+        super().__init__('system', content, removed)
+
+    def to_anthropic(self):
+        return {'type': 'text', 'text': self.content}
 
 
 class MockTool:
@@ -160,6 +172,64 @@ class TestDebugCommand:
             # Check Anthropic format
             assert 'input_schema' in data['tools'][0]
             assert 'type' not in data['tools'][0]  # No 'type' field in Anthropic format
+
+    @pytest.mark.asyncio
+    async def test_export_anthropic_schema_with_system_messages(self):
+        """Test Anthropic schema export with system messages properly separated"""
+        # Add system messages to the mock messages
+        messages_with_system = [
+            MockSystemMessage('You are a helpful assistant'),
+            MockMessage('user', 'Hello'),
+            MockMessage('assistant', 'Hi there'),
+            MockSystemMessage('Follow safety guidelines'),
+            MockMessage('tool', 'Tool result'),
+        ]
+        self.mock_agent_state.session.messages.messages = messages_with_system
+
+        # Mock user_select to return Anthropic option (index 2)
+        # Mock subprocess.run to prevent actual file opening
+        with pytest.MonkeyPatch().context() as m:
+            # Mock the convert_to_anthropic method to return proper separation
+            def mock_convert_to_anthropic(msgs):
+                system_msgs = [msg.to_anthropic() for msg in msgs if msg.role == 'system' and bool(msg)]
+                other_msgs = [msg.to_anthropic() for msg in msgs if msg.role != 'system' and bool(msg)]
+                return system_msgs, other_msgs
+
+            m.setattr('klaudecode.user_command.command_debug.AnthropicProxy.convert_to_anthropic', mock_convert_to_anthropic)
+            m.setattr('klaudecode.user_command.command_debug.user_select', AsyncMock(return_value=2))
+            m.setattr('klaudecode.user_command.command_debug.subprocess.run', Mock())
+
+            user_input = UserInput(command_name='debug', cleaned_input='/debug', raw_input='/debug')
+            command_output = await self.debug_command.handle(self.mock_agent_state, user_input)
+
+            # Check export data
+            debug_info = command_output.user_msg.get_extra_data('debug_exported')
+            assert debug_info['provider'] == 'anthropic'
+            assert debug_info['message_count'] == 3  # Non-system messages
+
+            # Check file content
+            file_path = Path(debug_info['file_path'])
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+
+            # Check that system messages are separated
+            assert 'messages' in data
+            assert 'system' in data
+            assert 'tools' in data
+
+            # Should have 2 system messages and 3 non-system messages
+            assert len(data['system']) == 2
+            assert len(data['messages']) == 3
+
+            # Check system messages format
+            for sys_msg in data['system']:
+                assert 'type' in sys_msg
+                assert sys_msg['type'] == 'text'
+                assert 'text' in sys_msg
+
+            # Check that messages don't contain system messages
+            for msg in data['messages']:
+                assert msg.get('role') != 'system'
 
     @pytest.mark.asyncio
     async def test_generate_curl_openai(self):

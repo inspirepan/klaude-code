@@ -9,6 +9,7 @@ from rich.console import Group
 from rich.text import Text
 
 from ..agent import AgentState
+from ..llm.anthropic_proxy import AnthropicProxy
 from ..message import UserMessage
 from ..tui import render_suffix
 from ..user_input import Command, CommandHandleOutput, UserInput, user_select
@@ -74,13 +75,19 @@ class DebugCommand(Command):
 
         # Get messages in appropriate format
         messages = []
+        system_messages = []
         role_counts = Counter()
         for msg in agent_state.session.messages.messages:
             if not msg.removed and bool(msg):
                 role_counts[msg.role] += 1
-                if is_anthropic:
-                    messages.append(msg.to_anthropic())
-                else:
+
+        if is_anthropic:
+            # Use the convert_to_anthropic method to properly separate system messages
+            all_messages = [msg for msg in agent_state.session.messages.messages if not msg.removed and bool(msg)]
+            system_messages, messages = AnthropicProxy.convert_to_anthropic(all_messages)
+        else:
+            for msg in agent_state.session.messages.messages:
+                if not msg.removed and bool(msg):
                     messages.append(msg.to_openai())
 
         # Get tools in appropriate format
@@ -92,7 +99,7 @@ class DebugCommand(Command):
                 tools.append(tool.openai_schema())
 
         # Generate curl command
-        curl_command = self._build_curl_command(base_url, api_key, model_name, messages, tools, is_anthropic, config)
+        curl_command = self._build_curl_command(base_url, api_key, model_name, messages, tools, is_anthropic, config, system_messages if is_anthropic else None)
 
         # Save curl command to file
         debug_dir = agent_state.session.work_dir / '.klaude' / 'debug'
@@ -126,14 +133,21 @@ class DebugCommand(Command):
         messages = []
         tools = []
         role_counts = Counter()
+        system_messages = []
 
-        for msg in agent_state.session.messages.messages:
-            if not msg.removed and bool(msg):
+        if provider == 'anthropic':
+            # Use the convert_to_anthropic method to properly separate system messages
+            all_messages = [msg for msg in agent_state.session.messages.messages if not msg.removed and bool(msg)]
+            system_messages, messages = AnthropicProxy.convert_to_anthropic(all_messages)
+
+            # Count roles from the original messages
+            for msg in all_messages:
                 role_counts[msg.role] += 1
-                if provider == 'openai':
+        else:  # openai
+            for msg in agent_state.session.messages.messages:
+                if not msg.removed and bool(msg):
+                    role_counts[msg.role] += 1
                     messages.append(msg.to_openai())
-                else:  # anthropic
-                    messages.append(msg.to_anthropic())
 
         for tool in agent_state.all_tools:
             if provider == 'openai':
@@ -142,7 +156,12 @@ class DebugCommand(Command):
                 tools.append(tool.anthropic_schema())
 
         # Create debug data
-        debug_data = {'messages': messages, 'tools': tools}
+        if provider == 'anthropic':
+            debug_data = {'messages': messages, 'tools': tools}
+            if system_messages:
+                debug_data['system'] = system_messages
+        else:
+            debug_data = {'messages': messages, 'tools': tools}
 
         # Create .klaude/debug directory in session work directory
         debug_dir = agent_state.session.work_dir / '.klaude' / 'debug'
@@ -168,19 +187,22 @@ class DebugCommand(Command):
             {'type': 'schema', 'provider': provider, 'file_path': str(debug_file), 'message_count': len(messages), 'tool_count': len(tools), 'role_counts': dict(role_counts)},
         )
 
-    def _build_curl_command(self, base_url: str, api_key: str, model_name: str, messages: list, tools: list, is_anthropic: bool, config) -> str:
+    def _build_curl_command(self, base_url: str, api_key: str, model_name: str, messages: list, tools: list, is_anthropic: bool, config, system_messages: list = None) -> str:
         """Build curl command string"""
         if is_anthropic:
-            return self._build_anthropic_curl(base_url, api_key, model_name, messages, tools, config)
+            return self._build_anthropic_curl(base_url, api_key, model_name, messages, tools, config, system_messages)
         else:
             return self._build_openai_curl(base_url, api_key, model_name, messages, tools, config)
 
-    def _build_anthropic_curl(self, base_url: str, api_key: str, model_name: str, messages: list, tools: list, config) -> str:
+    def _build_anthropic_curl(self, base_url: str, api_key: str, model_name: str, messages: list, tools: list, config, system_messages: list = None) -> str:
         """Build Anthropic curl command"""
         url = f'{base_url.rstrip("/")}/messages'
         max_tokens = config.max_tokens.value if config.max_tokens else 32000
 
         payload = {'model': model_name, 'max_tokens': max_tokens, 'messages': messages}
+
+        if system_messages:
+            payload['system'] = system_messages
 
         if tools:
             payload['tools'] = tools
