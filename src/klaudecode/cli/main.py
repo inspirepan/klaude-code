@@ -7,7 +7,6 @@ from typing import Optional
 import typer
 
 from ..agent import get_main_agent
-from ..config import ConfigManager, ConfigModel
 from ..message import SystemMessage
 from ..prompt.system import STATIC_SYSTEM_PROMPT, get_system_prompt_dynamic_part
 from ..session import Session
@@ -15,14 +14,7 @@ from ..tui import ColorStyle, Text, console, render_hello, render_logo, render_t
 from ..user_input import user_select
 from ..utils.exception import format_exception
 from ..utils.str_utils import format_relative_time
-
-
-def setup_config(**kwargs) -> ConfigModel:
-    config_manager = ConfigManager.setup(**kwargs)
-    config_model = config_manager.get_config_model()
-    if hasattr(config_model, 'theme') and config_model.theme:
-        console.set_theme(config_model.theme.value)
-    return config_model
+from .config import setup_config
 
 
 async def get_session(ctx: typer.Context) -> Optional[Session]:
