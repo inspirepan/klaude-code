@@ -242,7 +242,7 @@ def get_theme(theme: str) -> Theme:
             ColorStyle.INLINE_CODE: theme_colors[ThemeColorEnum.PURPLE],
             ColorStyle.HEADER_1: theme_colors[ThemeColorEnum.HIGHLIGHT],
             ColorStyle.HEADER_2: theme_colors[ThemeColorEnum.HIGHLIGHT],
-            ColorStyle.HEADER_3: theme_colors[ThemeColorEnum.SECONDARY],
-            ColorStyle.HEADER_4: theme_colors[ThemeColorEnum.SECONDARY],
+            ColorStyle.HEADER_3: theme_colors[ThemeColorEnum.HIGHLIGHT],
+            ColorStyle.HEADER_4: theme_colors[ThemeColorEnum.HIGHLIGHT],
         }
     )

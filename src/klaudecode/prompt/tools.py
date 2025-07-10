@@ -202,8 +202,9 @@ TODO_READ_RESULT = """Remember to continue to use update and read from the todo 
 
 {todo_list_json}"""
 
-TODO_WRITE_RESULT = """Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable."""
-
+TODO_WRITE_RESULT = (
+    """Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable."""
+)
 
 
 READ_TOOL_DESC = """Reads a file from the local filesystem. You can access any file directly by using this tool.

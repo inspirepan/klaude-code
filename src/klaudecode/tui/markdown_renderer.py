@@ -63,19 +63,15 @@ class CustomHeading(Heading):
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         text = self.text
         text.justify = 'left'
-
         if self.tag == 'h1':
-            text.stylize(ColorStyle.HEADER_1.bold + Style(underline=True))
-            yield text
+            text = Group(text, Rule(style=ColorStyle.LINE, characters='╌'))
         elif self.tag == 'h2':
-            text.stylize(ColorStyle.HEADER_2.bold + Style(underline=False))
-            yield Group(text)
+            text.stylize(Style(bold=True))
+            text.stylize(Style(underline=True, bold=True))
         elif self.tag == 'h3':
-            text.stylize(ColorStyle.HEADER_3.style + Style(bold=False))
-            yield text
-        else:
-            text.stylize(ColorStyle.HEADER_4.style + Style(bold=False, italic=False, underline=False))
-            yield text
+            text.stylize(Style(bold=True))
+
+        yield text
 
 
 class CustomMarkdown(Markdown):
@@ -101,6 +97,10 @@ class CustomMarkdown(Markdown):
                 'markdown.item.bullet': ColorStyle.HINT.style,
                 'markdown.item.number': ColorStyle.HINT.style,
                 'markdown.block_quote': ColorStyle.INFO.style,
+                'markdown.h1': ColorStyle.HEADER_1.style,
+                'markdown.h2': ColorStyle.HEADER_2.style,
+                'markdown.h3': ColorStyle.HEADER_3.style,
+                'markdown.h4': ColorStyle.HEADER_4.style,
             }
         )
 

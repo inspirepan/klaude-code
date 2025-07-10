@@ -65,10 +65,13 @@ class Session(BaseModel):
                 if content and len(content) > 50:
                     truncated_content += '...'
 
-                if self.title_msg:
-                    self.title_msg = f'{self.title_msg}_{truncated_content}'
-                else:
-                    self.title_msg = truncated_content
+                old_title_msg = self.title_msg
+                new_title_msg = truncated_content
+                if old_title_msg:
+                    new_title_msg = f'{old_title_msg}_{new_title_msg}'
+                if not new_title_msg:
+                    new_title_msg = 'untitled'
+                self.title_msg = new_title_msg
 
         with self._hook_lock:
             if self._hook_weakref:
