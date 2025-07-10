@@ -22,7 +22,7 @@ class CustomCodeBlock(CodeBlock):
         if global_console.is_dark_theme():
             theme = 'github-dark'
         else:
-            theme = 'lovelace'
+            theme = 'solarized-light'
 
         from rich.syntax import Syntax
 

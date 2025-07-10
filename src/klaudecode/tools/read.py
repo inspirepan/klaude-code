@@ -28,6 +28,7 @@ READ_SIZE_LIMIT_ERROR_MSG = 'File content ({size:.1f}KB) exceeds maximum allowed
 READ_TOKEN_LIMIT_ERROR_MSG = 'File content ({tokens} tokens) exceeds maximum allowed tokens ({max_tokens}). Please use offset and limit parameters to read specific portions of the file, or use the GrepTool to search for specific content.'
 READ_RESULT_BRIEF_LIMIT = 5
 
+
 class ReadResult(Attachment):
     success: bool = True
     error_msg: str = ''
