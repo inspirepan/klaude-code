@@ -248,7 +248,9 @@ def render_read_content(tool_msg: ToolMessage):
         if actual_range and truncated:
             read_text.append(f' (truncated to line {actual_range})', style=ColorStyle.WARNING)
 
-        table.add_row('…', read_text)
+        # Show ellipsis only if we have 5 or more lines displayed
+        ellipsis = '…' if len(brief_list) >= 5 else ''
+        table.add_row(ellipsis, read_text)
         yield render_suffix(table)
     elif tool_msg.tool_call.status == 'success':
         yield render_suffix('(No content)')

@@ -188,7 +188,9 @@ def render_write_result(tool_msg: ToolMessage):
                 write_text.append('Wrote ')
                 write_text.append(str(total_lines), style='bold')
                 write_text.append(' lines')
-                table.add_row('…', write_text)
+                # Show ellipsis only if we have 5 or more lines displayed
+                ellipsis = '…' if len(preview_lines) >= 5 else ''
+                table.add_row(ellipsis, write_text)
 
             yield render_suffix(Group(summary_text, table))
         elif total_lines > 0:
