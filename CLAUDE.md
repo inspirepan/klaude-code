@@ -80,7 +80,9 @@ uv run python tests/run_tests.py --cov
    - Manages interrupt handling and usage tracking
    - Supports both interactive and headless modes
 
-3. **Tool Framework** (`tool.py` and `tools/`)
+3. **Tool Framework** (`tool/` and `tools/`)
+   - `tool/`: Framework layer with base classes, schema generation, and execution infrastructure
+   - `tools/`: Concrete tool implementations (bash, read, edit, grep, etc.)
    - Base `Tool` class with automatic JSON schema generation
    - Tools implement `call()` method for execution logic
    - Tool results can have custom renderers via decorators
