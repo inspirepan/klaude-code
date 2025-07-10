@@ -28,6 +28,8 @@ from ..utils.str_utils import normalize_tabs
 - File permission preservation and encoding handling
 """
 
+WRITE_RESULT_BRIEF_LIMIT = 5
+
 
 class WriteTool(Tool):
     name = 'Write'
@@ -98,7 +100,7 @@ class WriteTool(Tool):
             # Extract preview lines for display
             lines = args.content.splitlines()
             preview_lines = []
-            for i, line in enumerate(lines[:5], 1):
+            for i, line in enumerate(lines[:WRITE_RESULT_BRIEF_LIMIT], 1):
                 preview_lines.append((i, line))
 
             if file_exists:
@@ -188,8 +190,8 @@ def render_write_result(tool_msg: ToolMessage):
                 write_text.append('Wrote ')
                 write_text.append(str(total_lines), style='bold')
                 write_text.append(' lines')
-                # Show ellipsis only if we have 5 or more lines displayed
-                ellipsis = '…' if len(preview_lines) >= 5 else ''
+                # Show ellipsis only if we have WRITE_RESULT_BRIEF_LIMIT or more lines displayed
+                ellipsis = '…' if len(preview_lines) >= WRITE_RESULT_BRIEF_LIMIT else ''
                 table.add_row(ellipsis, write_text)
 
             yield render_suffix(Group(summary_text, table))

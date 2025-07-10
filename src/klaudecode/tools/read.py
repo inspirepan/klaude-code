@@ -26,7 +26,7 @@ READ_MAX_FILE_SIZE_KB = 256
 READ_MAX_TOKENS = 25000
 READ_SIZE_LIMIT_ERROR_MSG = 'File content ({size:.1f}KB) exceeds maximum allowed size ({max_size}KB). Please use offset and limit parameters to read specific portions of the file, or use the GrepTool to search for specific content.'
 READ_TOKEN_LIMIT_ERROR_MSG = 'File content ({tokens} tokens) exceeds maximum allowed tokens ({max_tokens}). Please use offset and limit parameters to read specific portions of the file, or use the GrepTool to search for specific content.'
-
+READ_RESULT_BRIEF_LIMIT = 5
 
 class ReadResult(Attachment):
     success: bool = True
@@ -161,7 +161,7 @@ def execute_read(file_path: str, offset: int = 0, limit: int = 0, tracker: FileT
 
     result.content = formatted_content
     result.line_count = len(numbered_lines)
-    result.brief = truncated_numbered_lines[:5]
+    result.brief = truncated_numbered_lines[:READ_RESULT_BRIEF_LIMIT]
 
     return result
 
@@ -248,8 +248,8 @@ def render_read_content(tool_msg: ToolMessage):
         if actual_range and truncated:
             read_text.append(f' (truncated to line {actual_range})', style=ColorStyle.WARNING)
 
-        # Show ellipsis only if we have 5 or more lines displayed
-        ellipsis = '…' if len(brief_list) >= 5 else ''
+        # Show ellipsis only if we have READ_RESULT_BRIEF_LIMIT or more lines displayed
+        ellipsis = '…' if len(brief_list) >= READ_RESULT_BRIEF_LIMIT else ''
         table.add_row(ellipsis, read_text)
         yield render_suffix(table)
     elif tool_msg.tool_call.status == 'success':
