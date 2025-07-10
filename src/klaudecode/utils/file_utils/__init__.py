@@ -13,6 +13,7 @@ from .file_operations import (
     read_file_lines_partial,
     replace_string_in_content,
     restore_backup,
+    try_colorblind_compatible_match,
     write_file_content,
 )
 from .file_tracker import CheckModifiedResult, EditHistoryEntry, FileStatus, FileTracker
@@ -56,6 +57,7 @@ __all__ = [
     'replace_string_in_content',
     'create_backup',
     'restore_backup',
+    'try_colorblind_compatible_match',
     'cleanup_backup',
     'cleanup_all_backups',
     # Functions - Validation

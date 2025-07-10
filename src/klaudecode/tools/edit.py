@@ -18,6 +18,7 @@ from ..utils.file_utils import (
     render_diff_lines,
     replace_string_in_content,
     restore_backup,
+    try_colorblind_compatible_match,
     validate_file_exists,
     write_file_content,
 )
@@ -79,8 +80,15 @@ class EditTool(Tool):
             # Check if old_string exists in content
             occurrence_count = count_occurrences(content, args.old_string)
             if occurrence_count == 0:
-                instance.tool_result().set_error_msg(f'String to replace not found in file. String:"{args.old_string}"')
-                return
+                # Try colorblind compatibility fix
+                found_compatible, corrected_string = try_colorblind_compatible_match(content, args.old_string)
+                if found_compatible:
+                    # Use the corrected string for replacement
+                    args.old_string = corrected_string
+                    occurrence_count = count_occurrences(content, args.old_string)
+                else:
+                    instance.tool_result().set_error_msg(f'String to replace not found in file. String:"{args.old_string}"')
+                    return
 
             # Check for uniqueness if not replace_all
             if not args.replace_all and occurrence_count > 1:

@@ -18,6 +18,7 @@ from ..utils.file_utils import (
     render_diff_lines,
     replace_string_in_content,
     restore_backup,
+    try_colorblind_compatible_match,
     validate_file_exists,
     write_file_content,
 )
@@ -199,10 +200,17 @@ def _validate_all_edits(edits: List[EditOperation], original_content: str) -> Va
         occurrences = count_occurrences(simulated_content, old_string)
 
         if occurrences == 0:
-            return ValidationResult(
-                False,
-                f'Edit {i + 1}: old_string not found. Previous edits may have removed it.',
-            )
+            # Try colorblind compatibility fix
+            found_compatible, corrected_string = try_colorblind_compatible_match(simulated_content, old_string)
+            if found_compatible:
+                old_string = corrected_string
+                edit.old_string = corrected_string  # Update the edit object
+                occurrences = count_occurrences(simulated_content, old_string)
+            else:
+                return ValidationResult(
+                    False,
+                    f'Edit {i + 1}: old_string not found. Previous edits may have removed it.',
+                )
         if not replace_all and occurrences > 1:
             return ValidationResult(
                 False,
@@ -222,10 +230,17 @@ def _validate_single_edit(edit: EditOperation, content: str, index: int) -> Vali
     occurrences = count_occurrences(content, old_string)
 
     if occurrences == 0:
-        return ValidationResult(
-            False,
-            'old_string not found in current content (may be due to previous edits)',
-        )
+        # Try colorblind compatibility fix
+        found_compatible, corrected_string = try_colorblind_compatible_match(content, old_string)
+        if found_compatible:
+            edit.old_string = corrected_string  # Update the edit object
+            old_string = corrected_string
+            occurrences = count_occurrences(content, old_string)
+        else:
+            return ValidationResult(
+                False,
+                'old_string not found in current content (may be due to previous edits)',
+            )
 
     if not replace_all and occurrences > 1:
         return ValidationResult(
