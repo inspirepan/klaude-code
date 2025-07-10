@@ -7,7 +7,7 @@ from unittest.mock import patch
 from klaudecode.config.arg_source import ArgConfigSource
 from klaudecode.config.default_source import DefaultConfigSource
 from klaudecode.config.env_source import EnvConfigSource
-from klaudecode.config.file_arg_source import FileConfigSource
+from klaudecode.config.file_arg_source import FileArgConfigSource
 from klaudecode.config.global_source import GlobalConfigSource
 from klaudecode.config.manager import ConfigManager
 
@@ -132,7 +132,7 @@ class TestConfigManager:
                 assert isinstance(manager.sources[0], DefaultConfigSource)
                 assert isinstance(manager.sources[1], GlobalConfigSource)
                 assert isinstance(manager.sources[2], EnvConfigSource)
-                assert isinstance(manager.sources[3], FileConfigSource)
+                assert isinstance(manager.sources[3], FileArgConfigSource)
                 assert isinstance(manager.sources[4], ArgConfigSource)
 
                 assert manager.get('api_key') == 'test_key'

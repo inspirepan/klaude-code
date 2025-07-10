@@ -9,7 +9,7 @@ from ..tui import ColorStyle, console
 from .arg_source import ArgConfigSource
 from .default_source import DefaultConfigSource
 from .env_source import EnvConfigSource
-from .file_arg_source import FileConfigSource
+from .file_arg_source import FileArgConfigSource
 from .global_source import GlobalConfigSource
 from .model import ConfigModel, ConfigValue
 from .source import ConfigSource
@@ -109,7 +109,7 @@ class ConfigManager:
 
         # Add CLI specified config file if provided
         if config_file:
-            sources.append(FileConfigSource(config_file))
+            sources.append(FileArgConfigSource(config_file))
 
         # CLI arguments have the highest priority
         sources.append(

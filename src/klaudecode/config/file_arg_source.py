@@ -9,7 +9,7 @@ from .model import ConfigModel
 from .source import ConfigSource
 
 
-class FileConfigSource(ConfigSource):
+class FileArgConfigSource(ConfigSource):
     """Configuration from CLI specified file"""
 
     def __init__(self, config_file: str):

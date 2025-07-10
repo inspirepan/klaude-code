@@ -2,7 +2,7 @@
 from .arg_source import ArgConfigSource
 from .default_source import DefaultConfigSource
 from .env_source import EnvConfigSource
-from .file_arg_source import FileConfigSource
+from .file_arg_source import FileArgConfigSource
 from .global_source import (
     DEFAULT_API_VERSION,
     DEFAULT_BASE_URL,
@@ -30,7 +30,7 @@ __all__ = [
     'ArgConfigSource',
     'EnvConfigSource',
     'GlobalConfigSource',
-    'FileConfigSource',
+    'FileArgConfigSource',
     'DefaultConfigSource',
     # Manager
     'ConfigManager',

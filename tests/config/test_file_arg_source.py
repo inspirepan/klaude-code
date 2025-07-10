@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from klaudecode.config.file_arg_source import FileConfigSource
+from klaudecode.config.file_arg_source import FileArgConfigSource
 
 
 class TestFileConfigSource:
@@ -18,7 +18,7 @@ class TestFileConfigSource:
             config_path = f.name
 
         try:
-            source = FileConfigSource(config_path)
+            source = FileArgConfigSource(config_path)
             assert source.source == '--config'
             assert source.config_file == config_path
             assert source.get('api_key') == 'file_api_key'
@@ -32,7 +32,7 @@ class TestFileConfigSource:
         nonexistent_path = '/nonexistent/path/config.json'
 
         with patch('klaudecode.config.file_arg_source.console') as mock_console:
-            source = FileConfigSource(nonexistent_path)
+            source = FileArgConfigSource(nonexistent_path)
             assert source.source == '--config'
             assert source.config_file == nonexistent_path
             assert source.config_model is not None
@@ -50,7 +50,7 @@ class TestFileConfigSource:
 
         try:
             with patch('klaudecode.config.file_arg_source.console') as mock_console:
-                source = FileConfigSource(config_path)
+                source = FileArgConfigSource(config_path)
                 assert source.source == '--config'
                 assert source.config_model is not None
 
@@ -70,7 +70,7 @@ class TestFileConfigSource:
             config_path = f.name
 
         try:
-            source = FileConfigSource(config_path)
+            source = FileArgConfigSource(config_path)
             assert source.get('api_key') == 'test_key'
             assert source.get('model_name') == 'test_model'
             assert source.get('invalid_field') is None
@@ -99,7 +99,7 @@ class TestFileConfigSource:
             config_path = f.name
 
         try:
-            source = FileConfigSource(config_path)
+            source = FileArgConfigSource(config_path)
             assert source.get('api_key') == 'test_key'
             assert source.get('model_name') == 'test_model'
             assert source.get('base_url') == 'https://test.example.com'
@@ -123,7 +123,7 @@ class TestFileConfigSource:
             config_path = f.name
 
         try:
-            source = FileConfigSource(config_path)
+            source = FileArgConfigSource(config_path)
             config_value = source.config_model.api_key
             assert config_value.value == 'test_key'
             assert config_value.source == '--config'
@@ -137,7 +137,7 @@ class TestFileConfigSource:
             config_path = f.name
 
         try:
-            source = FileConfigSource(config_path)
+            source = FileArgConfigSource(config_path)
             assert source.config_model is not None
             assert source.get('api_key') is None
             assert source.get('model_name') is None
