@@ -2,8 +2,6 @@ import asyncio
 
 from rich.text import Text
 
-from .executor import AgentExecutor
-from .state import AgentState
 from ..config import ConfigModel
 from ..message import AIMessage, ToolMessage, UserMessage
 from ..prompt.reminder import EMPTY_TODO_REMINDER, get_context_reminder
@@ -13,6 +11,8 @@ from ..tui import INTERRUPT_TIP, ColorStyle, console, render_dot_status
 from ..user_input import InputSession, UserInputHandler
 from ..utils.exception import format_exception
 from ..utils.file_utils import cleanup_all_backups
+from .executor import AgentExecutor
+from .state import AgentState
 
 DEFAULT_MAX_STEPS = 100
 QUIT_COMMAND = ['quit', 'exit']

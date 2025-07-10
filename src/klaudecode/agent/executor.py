@@ -5,7 +5,6 @@ from anthropic import AnthropicError
 from openai import OpenAIError
 from rich.text import Text
 
-from .state import AgentState
 from ..message import INTERRUPTED_MSG, AIMessage, SpecialUserMessageTypeEnum, ToolCall, ToolMessage, UserMessage
 from ..prompt.plan_mode import APPROVE_MSG, PLAN_MODE_REMINDER, REJECT_MSG
 from ..prompt.reminder import FILE_DELETED_EXTERNAL_REMINDER, FILE_MODIFIED_EXTERNAL_REMINDER
@@ -16,6 +15,7 @@ from ..tools.task import TaskToolMixin
 from ..tui import ColorStyle, console, render_message, render_suffix
 from ..user_input import user_select
 from ..utils.exception import format_exception
+from .state import AgentState
 
 TOKEN_WARNING_THRESHOLD = 0.85
 COMPACT_THRESHOLD = 0.9

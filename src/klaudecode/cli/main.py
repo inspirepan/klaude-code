@@ -6,17 +6,15 @@ from typing import Optional
 
 import typer
 
-from .agent import get_main_agent
-from .config import ConfigManager, ConfigModel
-from .message import SystemMessage
-from .prompt.system import STATIC_SYSTEM_PROMPT, get_system_prompt_dynamic_part
-from .session import Session
-from .tui import ColorStyle, Text, console, render_hello, render_logo, render_tips
-from .user_input import user_select
-from .utils.exception import format_exception
-from .utils.str_utils import format_relative_time
-
-app = typer.Typer(help='Coding Agent CLI', add_completion=False)
+from ..agent import get_main_agent
+from ..config import ConfigManager, ConfigModel
+from ..message import SystemMessage
+from ..prompt.system import STATIC_SYSTEM_PROMPT, get_system_prompt_dynamic_part
+from ..session import Session
+from ..tui import ColorStyle, Text, console, render_hello, render_logo, render_tips
+from ..user_input import user_select
+from ..utils.exception import format_exception
+from ..utils.str_utils import format_relative_time
 
 
 def setup_config(**kwargs) -> ConfigModel:
@@ -29,14 +27,12 @@ def setup_config(**kwargs) -> ConfigModel:
 
 async def get_session(ctx: typer.Context) -> Optional[Session]:
     if ctx.obj['continue_latest']:
-        # --continue
         session = Session.get_latest_session(Path.cwd())
         if not session:
             console.print(Text(f'No session found in {Path.cwd()}', style=ColorStyle.ERROR))
             return None
         session = session.create_new_session()
     elif ctx.obj['resume']:
-        # --resume
         sessions = Session.load_session_list(Path.cwd())
         if not sessions or len(sessions) == 0:
             console.print(Text(f'No session found in {Path.cwd()}', style=ColorStyle.ERROR))
@@ -69,22 +65,6 @@ async def get_session(ctx: typer.Context) -> Optional[Session]:
 
 
 async def main_async(ctx: typer.Context):
-    # Check for updates at startup (only in interactive mode and if not disabled)
-    # TODO: silent update check and remind user the next startup
-    # if not ctx.obj['prompt'] and not ctx.obj['no_update_check']:
-    #     from .updater import check_and_prompt_update
-
-    #     # Run update check in background, don't block startup
-    #     try:
-    #         updated = await check_and_prompt_update()
-    #         if updated:
-    #             # If update was performed, exit to allow user to restart
-    #             console.print(Text('Please restart klaude to use the updated version.', style=ColorStyle.INFO))
-    #             return
-    #     except Exception:
-    #         # Silently ignore update check errors
-    #         pass
-
     session = await get_session(ctx)
     if not session:
         return
@@ -97,7 +77,7 @@ async def main_async(ctx: typer.Context):
             has_session = (Path.cwd() / '.klaude' / 'sessions').exists()
             auto_show_logo = not has_session
             console.print(render_hello(show_info=not auto_show_logo))
-            if (auto_show_logo or ctx.obj['logo']) and width >= 49:  # MIN LENGTH REQUIRED FOR LOGO
+            if (auto_show_logo or ctx.obj['logo']) and width >= 49:
                 console.print()
                 console.print(render_logo('KLAUDE', ColorStyle.CLAUDE))
                 console.print(render_logo('CODE', ColorStyle.CLAUDE))
@@ -106,7 +86,6 @@ async def main_async(ctx: typer.Context):
             try:
                 await agent.chat_interactive()
             finally:
-                # Show token usage statistics
                 console.print()
                 agent.agent_state.print_usage()
                 console.print(Text('\nBye!', style=ColorStyle.CLAUDE))
@@ -114,8 +93,7 @@ async def main_async(ctx: typer.Context):
         pass
 
 
-@app.callback(invoke_without_command=True)
-def main(
+def main_command(
     ctx: typer.Context,
     print_prompt: Optional[str] = typer.Option(None, '-p', '--print', help='Run in headless mode with the given prompt'),
     resume: bool = typer.Option(
@@ -151,16 +129,13 @@ def main(
 ):
     ctx.ensure_object(dict)
     if ctx.invoked_subcommand is None:
-        # Check for piped input and combine with prompt if provided
         piped_input = None
         if not sys.stdin.isatty():
             try:
                 piped_input = sys.stdin.read().strip()
             except KeyboardInterrupt:
-                # Handle Ctrl+C gracefully when reading from stdin
                 pass
 
-        # Combine prompt and piped input
         if print_prompt is not None and piped_input:
             print_prompt = f'{print_prompt}\n{piped_input}'
         elif print_prompt is None and piped_input:
@@ -192,82 +167,3 @@ def main(
         ctx.obj['logo'] = logo
         ctx.obj['no_update_check'] = no_update_check
         asyncio.run(main_async(ctx))
-
-
-config_app = typer.Typer(help='Manage global configuration')
-app.add_typer(config_app, name='config')
-
-
-@config_app.command('show')
-def config_show():
-    """
-    Show global configuration
-    """
-    config_manager = ConfigManager.setup()
-    console.print(config_manager)
-
-
-@config_app.command('edit')
-def config_edit():
-    """
-    Init or edit global configuration file
-    """
-    from .config import GlobalConfigSource
-
-    GlobalConfigSource.edit_config_file()
-
-
-mcp_app = typer.Typer(help='Manage MCP (Model Context Protocol) servers')
-app.add_typer(mcp_app, name='mcp')
-
-
-@mcp_app.command('show')
-def mcp_show():
-    """Show current MCP configuration and available tools"""
-    import asyncio
-
-    from .mcp.mcp_tool import MCPManager
-
-    _ = setup_config()
-
-    async def show_mcp_info():
-        mcp_manager = MCPManager()
-        try:
-            await mcp_manager.initialize()
-            console.print(mcp_manager)
-        except Exception as e:
-            console.print(Text(f'Error connecting to MCP servers: {format_exception(e)}', style=ColorStyle.ERROR))
-        finally:
-            await mcp_manager.shutdown()
-
-    asyncio.run(show_mcp_info())
-
-
-@mcp_app.command('edit')
-def mcp_edit():
-    """Init or edit MCP configuration file"""
-    from .mcp.mcp_config import MCPConfigManager
-
-    config_manager = MCPConfigManager()
-    config_manager.edit_config_file()
-
-
-@app.command('version')
-def version_command():
-    """Show version information"""
-    # Import here to avoid circular imports
-    from importlib.metadata import version
-
-    try:
-        pkg_version = version('klaude-code')
-        console.print(Text(f'klaude-code {pkg_version}', style=ColorStyle.SUCCESS))
-    except Exception:
-        console.print(Text('klaude-code (development)', style=ColorStyle.SUCCESS))
-
-
-@app.command('update')
-def update_command():
-    """Update klaude-code to the latest version"""
-    from .updater import update_klaude_code
-
-    update_klaude_code()

@@ -7,8 +7,7 @@ import pytest
 from anthropic import AnthropicError
 from openai import OpenAIError
 
-from klaudecode.agent import AgentExecutor
-from klaudecode.agent import AgentState
+from klaudecode.agent import AgentExecutor, AgentState
 from klaudecode.message import INTERRUPTED_MSG
 from klaudecode.session import Session
 from klaudecode.tools import BASIC_TOOLS

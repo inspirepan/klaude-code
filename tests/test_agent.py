@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from klaudecode.agent import Agent, get_main_agent, AgentState
+from klaudecode.agent import Agent, AgentState, get_main_agent
 from klaudecode.config import ConfigModel
 from klaudecode.message import UserMessage
 from klaudecode.session import Session

@@ -5,13 +5,17 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+import typer
+
 try:
     from importlib.metadata import version
 except ImportError:
     from importlib_metadata import version
 
-from .tui import ColorStyle, Text, console
-from .user_input import user_select
+from ..tui import ColorStyle, Text, console
+from ..user_input import user_select
+
+update_app = typer.Typer(help='Update commands')
 
 
 class UpdaterError(Exception):
@@ -224,7 +228,7 @@ class KlaudeUpdater:
                 console.print(Text(f'✗ Update failed: {result.stderr}', style=ColorStyle.ERROR))
                 return False
         except Exception as e:
-            from .utils.exception import format_exception
+            from ..utils.exception import format_exception
 
             console.print(Text(f'✗ Update failed: {format_exception(e)}', style=ColorStyle.ERROR))
             return False
@@ -289,3 +293,9 @@ async def check_and_prompt_update() -> bool:
     except Exception:
         # Silently fail update checks to not interrupt the main flow
         return False
+
+
+@update_app.command('update')
+def update_command():
+    """Update klaude-code to the latest version"""
+    update_klaude_code()
