@@ -59,10 +59,10 @@ class Session(BaseModel):
             msg = msgs[0]
             if hasattr(msg, 'role') and msg.role == 'user' and hasattr(msg, 'user_raw_input'):
                 # Append new user message to existing title
-                content = msg.user_raw_input
-                truncated_content = content[:50]
+                content = msg.user_raw_input or msg.content
+                truncated_content = content[:50] if content else ''
                 # Only add ellipsis if content was actually truncated
-                if len(content) > 50:
+                if content and len(content) > 50:
                     truncated_content += '...'
 
                 if self.title_msg:
