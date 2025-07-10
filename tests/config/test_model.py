@@ -1,6 +1,5 @@
 from unittest.mock import patch
 
-
 from klaudecode.config.model import ConfigModel, ConfigValue, parse_json_string
 
 

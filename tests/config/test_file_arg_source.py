@@ -3,7 +3,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-
 from klaudecode.config.file_arg_source import FileConfigSource
 
 

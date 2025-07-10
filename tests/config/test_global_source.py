@@ -3,7 +3,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-
 from klaudecode.config.global_source import (
     DEFAULT_API_VERSION,
     DEFAULT_BASE_URL,

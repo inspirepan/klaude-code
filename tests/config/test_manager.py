@@ -4,13 +4,12 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-
-from klaudecode.config.manager import ConfigManager
 from klaudecode.config.arg_source import ArgConfigSource
 from klaudecode.config.default_source import DefaultConfigSource
 from klaudecode.config.env_source import EnvConfigSource
 from klaudecode.config.file_arg_source import FileConfigSource
 from klaudecode.config.global_source import GlobalConfigSource
+from klaudecode.config.manager import ConfigManager
 
 
 class TestConfigManager:

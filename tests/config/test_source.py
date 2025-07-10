@@ -1,5 +1,5 @@
-from klaudecode.config.source import ConfigSource
 from klaudecode.config.model import ConfigModel
+from klaudecode.config.source import ConfigSource
 
 
 class TestConfigSource:
