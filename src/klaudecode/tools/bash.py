@@ -39,7 +39,18 @@ class BashTool(Tool):
         description: Annotated[
             str,
             Field(
-                description="Clear, concise description of what this command does in 5-10 words. Examples: Input: ls Output: Lists files in current directory Input: git status Output: Shows working tree status Input: npm install Output: Installs package dependencies Input: mkdir foo Output: Creates directory 'foo'"
+                description="""Clear, concise description of what this command does in 5-10 words. Examples:
+Input: ls
+Output: Lists files in current directory
+
+Input: git status
+Output: Shows working tree status
+
+Input: npm install
+Output: Installs package dependencies
+
+Input: mkdir foo
+Output: Creates directory 'foo'"""
             ),
         ] = ''
         timeout: Annotated[int, Field(description='Optional timeout in milliseconds (max 600000)')] = 0

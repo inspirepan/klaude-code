@@ -47,12 +47,12 @@ class TodoWriteTool(Tool):
     parallelable: bool = True
 
     class Input(BaseModel):
-        todo_list: Annotated[TodoList, Field(description='The updated todo list')]
+        todos: Annotated[TodoList, Field(description='The updated todo list')]
 
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
         args: 'TodoWriteTool.Input' = cls.parse_input_args(tool_call)
-        json_todo_list = json.dumps(args.todo_list.model_dump(), ensure_ascii=False)
+        json_todo_list = json.dumps(args.todos.model_dump(), ensure_ascii=False)
         reminder = TODO_REMINDER.format(todo_list_json=json_todo_list)
         instance.tool_result().set_content(TODO_WRITE_RESULT + '\n' + reminder)
 
@@ -61,9 +61,9 @@ class TodoWriteTool(Tool):
         if old_todo_list is not None:
             old_todo_dict = {todo.id: todo for todo in old_todo_list.root}
 
-        instance.agent_state.session.todo_list = args.todo_list
+        instance.agent_state.session.todo_list = args.todos
         new_completed_todos = []
-        for todo in args.todo_list.root:
+        for todo in args.todos.root:
             if old_todo_list is not None and todo.id in old_todo_dict:
                 old_todo = old_todo_dict[todo.id]
                 if old_todo.status != 'completed' and todo.status == 'completed':

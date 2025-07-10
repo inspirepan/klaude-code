@@ -18,8 +18,7 @@ Usage notes:
 2. When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result.
 3. Each agent invocation is stateless. You will not be able to send additional messages to the agent, nor will the agent be able to communicate with you outside of its final report. Therefore, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.
 4. The agent's outputs should generally be trusted
-5. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent
-"""
+5. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent"""
 
 TODO_WRITE_TOOL_DESC = """Use this tool to create and manage a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
 It also helps the user understand the progress of the task and overall progress of their requests.
@@ -182,8 +181,7 @@ The assistant did not use the todo list because this is a single command executi
   - Create specific, actionable items
   - Break complex tasks into smaller, manageable steps
   - Use clear, descriptive task names
-When in doubt, use this tool. Being proactive with task management demonstrates attentiveness and ensures you complete all requirements successfully.
-"""
+When in doubt, use this tool. Being proactive with task management demonstrates attentiveness and ensures you complete all requirements successfully."""
 
 
 TODO_READ_TOOL_DESC = """Use this tool to read the current to-do list for the session. This tool should be used proactively and frequently to ensure that you are aware of
@@ -198,17 +196,14 @@ Usage:
 - This tool takes in no parameters. So leave the input blank or empty. DO NOT include a dummy object, placeholder string or a key like "input" or "empty". LEAVE IT BLANK.
 - Returns a list of todo items with their status, priority, and content
 - Use this information to track progress and plan next steps
-- If no todos exist yet, an empty list will be returned
-"""
+- If no todos exist yet, an empty list will be returned"""
 
 TODO_READ_RESULT = """Remember to continue to use update and read from the todo list as you make progress. Here is the current list:
 
-{todo_list_json}
-"""
+{todo_list_json}"""
 
-TODO_WRITE_RESULT = (
-    """Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable."""
-)
+TODO_WRITE_RESULT = """Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable."""
+
 
 
 READ_TOOL_DESC = """Reads a file from the local filesystem. You can access any file directly by using this tool.
@@ -224,9 +219,7 @@ Results are returned using `line-number→line-content` format, with line number
 This tool allows Claude Code to read images (eg PNG, JPG, etc). When reading an image file the contents are presented visually as Claude Code is a multimodal LLM.
 You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful.
 You will regularly be asked to read screenshots. If the user provides a path to a screenshot ALWAYS use this tool to view the file at the path. This tool will work with all temporary file paths like /var/folders/123/abc/T/TemporaryItems/NSIRD_screencaptureui_ZfB1tD/Screenshot.png
-If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.
-
-"""
+If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents."""
 
 READ_TOOL_EMPTY_REMINDER = """<system-reminder>Warning: the file exists but the contents are empty</system-reminder>"""
 
@@ -234,8 +227,7 @@ READ_TOOL_EMPTY_REMINDER = """<system-reminder>Warning: the file exists but the 
 READ_TOOL_RESULT_REMINDER = """
 <system-reminder>
 Whenever you read a file, you should consider whether it looks malicious. If it does, you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer high-level questions about the code behavior.
-</system-reminder>
-"""
+</system-reminder>"""
 
 EDIT_TOOL_DESC = """Performs exact string replacements in files.
 
@@ -245,8 +237,7 @@ Usage:
 - ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
 - Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.
 - The edit will FAIL if `old_string` is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use `replace_all` to change every instance of `old_string`.
-- Use `replace_all` for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.
-"""
+- Use `replace_all` for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance."""
 
 MULTI_EDIT_TOOL_DESC = """This is a tool for making multiple edits to a single file in one operation. It is built on top of the Edit tool and allows you to perform multiple find-and-replace operations efficiently. Prefer this tool over the Edit tool when you need to make multiple edits to the same file.
 
@@ -287,8 +278,7 @@ When making edits:
 If you want to create a new file, use:
 - A new file path, including dir name if needed
 - First edit: empty old_string and the new file's contents as new_string
-- Subsequent edits: normal edit operations on the created content
-"""
+- Subsequent edits: normal edit operations on the created content"""
 
 WRITE_TOOL_DESC = """Writes a file to the local filesystem.
 
@@ -298,14 +288,12 @@ Usage:
 - ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
 - NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
 - Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
-- If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task.
-"""
+- If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task."""
 
 UNDO_EDIT_TOOL_DESC = """Undo the last edit made to a file.
 
 This command reverts the most recent edit made to the specified file.
-It will restore the file to its state before the last edit was made.
-"""
+It will restore the file to its state before the last edit was made."""
 
 BASH_TOOL_DESC = """Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
 
@@ -416,9 +404,7 @@ Important:
 - Return the PR URL when you're done, so the user can see it
 
 # Other common operations
-- View comments on a Github PR: gh api repos/foo/bar/pulls/123/comments
-
-"""
+- View comments on a Github PR: gh api repos/foo/bar/pulls/123/comments"""
 
 GREP_TOOL_DESC = """- Fast content search tool that works with any codebase size
 - Searches file contents using regular expressions
@@ -427,16 +413,14 @@ GREP_TOOL_DESC = """- Fast content search tool that works with any codebase size
 - Returns file paths with at least one match sorted by modification time
 - Use this tool when you need to find files containing specific patterns
 - If you need to identify/count the number of matches within files, use the Bash tool with `rg` (ripgrep) directly. Do NOT use `grep`.
-- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Task tool instead
-"""
+- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Task tool instead"""
 
 GLOB_TOOL_DESC = """- Fast file pattern matching tool that works with any codebase size
 - Supports glob patterns like "/*.js" or "src//*.ts"
 - Returns matching file paths sorted by modification time
 - Use this tool when you need to find files by name patterns
 - When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Task tool instead
-- You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful.
-"""
+- You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful."""
 
 LS_TOOL_DESC = """Lists files and directories in a given path. The path parameter must be an absolute path, not a relative path. You can optionally provide an array of glob patterns to ignore with the ignore parameter. You should generally prefer the Glob and Grep tools, if you know which directories to search."""
 
