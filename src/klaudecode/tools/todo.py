@@ -111,7 +111,7 @@ def render_todo_read_result(tool_msg: ToolMessage):
 
 
 def render_todo_write_result(tool_msg: ToolMessage):
-    todo_list = tool_msg.tool_call.tool_args_dict.get('todo_list', {})
+    todo_list = tool_msg.tool_call.tool_args_dict.get('todos', {})
     new_completed_todos = tool_msg.get_extra_data('new_completed_todos', [])
     yield render_suffix(Group(*(render_todo_dict(todo, todo.get('id') in new_completed_todos) for todo in todo_list)))
 
@@ -125,7 +125,7 @@ def render_todo_write_name(tool_call: ToolCall, is_suffix: bool = False):
     pending_todos = []
     all_completed = True
     all_pending = True
-    for todo in tool_call.tool_args_dict.get('todo_list', {}):
+    for todo in tool_call.tool_args_dict.get('todos', {}):
         if todo.get('status') == 'in_progress':
             in_progress_todos.append(todo.get('content'))
         if todo.get('status') != 'completed':
