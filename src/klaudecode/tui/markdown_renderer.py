@@ -72,7 +72,13 @@ class CustomHeading(Heading):
         elif self.tag == 'h2':
             text.stylize(Style(bold=True))
             rule = Rule(style=ColorStyle.LINE, characters='╌')
-            text = Group(text, rule)
+            # Check if we need to add empty line before H2
+            markdown_instance = getattr(console, '_current_markdown', None)
+            if markdown_instance and getattr(markdown_instance, '_has_content', False):
+                text = Group('', text, rule)
+            else:
+                text = Group(text, rule)
+
         elif self.tag == 'h3':
             text.stylize(Style(bold=True))
 
@@ -91,6 +97,7 @@ class CustomMarkdown(Markdown):
         # Disable hyperlink rendering to preserve original format
         kwargs['hyperlinks'] = False
         super().__init__(*args, **kwargs)
+        self._has_content = False
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         # Create temporary theme to override styles
@@ -112,12 +119,24 @@ class CustomMarkdown(Markdown):
         # Use push_theme and pop_theme to temporarily override styles
         console.push_theme(temp_theme)
 
+        # Set current markdown instance to console for CustomHeading to use
+        console._current_markdown = self
+
         try:
             # Call parent class render method
-            yield from super().__rich_console__(console, options)
+            first_element = True
+            for element in super().__rich_console__(console, options):
+                if first_element:
+                    first_element = False
+                else:
+                    self._has_content = True
+                yield element
         finally:
             # Restore original theme
             console.pop_theme()
+            # Clean up temporary attributes
+            if hasattr(console, '_current_markdown'):
+                delattr(console, '_current_markdown')
 
 
 def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Group:
