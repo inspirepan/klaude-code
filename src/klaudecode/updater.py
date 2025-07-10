@@ -151,11 +151,35 @@ class KlaudeUpdater:
             console.print(Text('For editable installations, please update manually with "git pull && uv sync"', style=ColorStyle.INFO))
             return False
 
+        # Get current branch and commit before update
+        try:
+            branch_result = subprocess.run(['git', 'branch', '--show-current'], cwd=self.project_root, capture_output=True, text=True)
+            current_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else 'unknown'
+            
+            commit_result = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=self.project_root, capture_output=True, text=True)
+            current_commit = commit_result.stdout.strip() if commit_result.returncode == 0 else 'unknown'
+            
+            console.print(Text(f'Current: {current_branch}@{current_commit}', style=ColorStyle.INFO))
+        except Exception:
+            current_branch = current_commit = 'unknown'
+
         # Pull latest changes
         result = subprocess.run(['git', 'pull'], cwd=self.project_root, capture_output=True, text=True)
         if result.returncode != 0:
             console.print(Text(f'✗ Git pull failed: {result.stderr}', style=ColorStyle.ERROR))
             return False
+
+        # Get new branch and commit after update
+        try:
+            branch_result = subprocess.run(['git', 'branch', '--show-current'], cwd=self.project_root, capture_output=True, text=True)
+            new_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else 'unknown'
+            
+            commit_result = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=self.project_root, capture_output=True, text=True)
+            new_commit = commit_result.stdout.strip() if commit_result.returncode == 0 else 'unknown'
+            
+            console.print(Text(f'Updated: {new_branch}@{new_commit}', style=ColorStyle.SUCCESS))
+        except Exception:
+            pass
 
         console.print(Text('✓ Updated editable installation from git', style=ColorStyle.SUCCESS))
 
