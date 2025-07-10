@@ -183,7 +183,12 @@ def render_write_result(tool_msg: ToolMessage):
             table = render_grid([[f'{line_num:>{width}}', Text(normalize_tabs(line_content))] for line_num, line_content in preview_lines], padding=(0, 2))
             table.columns[0].justify = 'right'
             if total_lines > len(preview_lines):
-                table.add_row('…', '')
+                # Build write info with Rich Text for styling similar to Read tool
+                write_text = Text()
+                write_text.append('Wrote ')
+                write_text.append(str(total_lines), style='bold')
+                write_text.append(' lines')
+                table.add_row('…', write_text)
 
             yield render_suffix(Group(summary_text, table))
         elif total_lines > 0:
