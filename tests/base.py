@@ -3,7 +3,8 @@ from pathlib import Path
 from typing import Any, Optional
 from unittest.mock import Mock
 
-from klaudecode.tool import Tool, ToolCall, ToolInstance
+from klaudecode.message import ToolCall
+from klaudecode.tool import Tool, ToolInstance
 from klaudecode.utils.file_utils import FileTracker
 
 
