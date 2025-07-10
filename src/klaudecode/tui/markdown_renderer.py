@@ -56,7 +56,11 @@ class CustomTableElement(TableElement):
 
 class CustomHorizontalRule(HorizontalRule):
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
-        yield Rule(style=ColorStyle.LINE, characters='╌')
+        yield Group(
+            '',
+            Rule(style=ColorStyle.HINT, characters='━'),
+            '',
+        )
 
 
 class CustomHeading(Heading):
@@ -64,10 +68,11 @@ class CustomHeading(Heading):
         text = self.text
         text.justify = 'left'
         if self.tag == 'h1':
-            text = Group(text, Rule(style=ColorStyle.LINE, characters='╌'))
+            text.stylize(Style(underline=True, bold=True))
         elif self.tag == 'h2':
             text.stylize(Style(bold=True))
-            text.stylize(Style(underline=True, bold=True))
+            rule = Rule(style=ColorStyle.LINE, characters='╌')
+            text = Group(text, rule)
         elif self.tag == 'h3':
             text.stylize(Style(bold=True))
 
