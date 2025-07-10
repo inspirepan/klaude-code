@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Annotated
 
 from pydantic import BaseModel, Field
+from rich.console import Group
 from rich.text import Text
 
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
@@ -140,6 +141,8 @@ def render_write_args(tool_call: ToolCall, is_suffix: bool = False):
 
 
 def render_write_result(tool_msg: ToolMessage):
+    if tool_msg.error_msg is not None:
+        return
     preview_lines = tool_msg.get_extra_data('preview_lines', [])
     total_lines = tool_msg.get_extra_data('total_lines', 0)
     file_exists = tool_msg.get_extra_data('file_exists', False)
@@ -176,8 +179,6 @@ def render_write_result(tool_msg: ToolMessage):
 
         # Show preview if we have lines
         if preview_lines and total_lines > 0:
-            from rich.console import Group
-
             width = max(len(str(preview_lines[-1][0])) if preview_lines else 3, 3)
             table = render_grid([[f'{line_num:>{width}}', Text(normalize_tabs(line_content))] for line_num, line_content in preview_lines], padding=(0, 2))
             table.columns[0].justify = 'right'
