@@ -1,8 +1,5 @@
 import typer
 
-from ..tui import ColorStyle, Text, console
-
-
 edit_app = typer.Typer(help='Edit configuration files')
 
 
@@ -10,7 +7,7 @@ edit_app = typer.Typer(help='Edit configuration files')
 def edit_config():
     """Edit global configuration file"""
     from ..config import GlobalConfigSource
-    
+
     GlobalConfigSource.edit_config_file()
 
 
@@ -18,6 +15,6 @@ def edit_config():
 def edit_mcp():
     """Edit MCP configuration file"""
     from ..mcp.mcp_config import MCPConfigManager
-    
+
     config_manager = MCPConfigManager()
     config_manager.edit_config_file()

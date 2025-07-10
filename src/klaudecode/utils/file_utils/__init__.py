@@ -1,15 +1,7 @@
 from .diff_utils import generate_char_level_diff, generate_diff_lines, generate_snippet_from_diff, render_diff_lines
-from .directory_utils import (
-    DEFAULT_IGNORE_PATTERNS,
-    DEFAULT_MAX_CHARS,
-    INDENT_SIZE,
-    DirectoryTreeBuilder,
-    GitIgnoreParser,
-    TreeNode,
-    get_directory_structure,
-    get_effective_ignore_patterns,
-    parse_gitignore,
-)
+from .directory_constants import DEFAULT_IGNORE_PATTERNS, DEFAULT_MAX_CHARS, INDENT_SIZE
+from .directory_tree_builder import DirectoryTreeBuilder
+from .directory_utils import get_directory_structure, get_effective_ignore_patterns, parse_gitignore
 from .file_glob import FileGlob
 from .file_operations import (
     cleanup_all_backups,
@@ -34,6 +26,7 @@ from .file_validation import (
     is_image_path,
     validate_file_exists,
 )
+from .gitignore_parser import GitIgnoreParser
 
 # Re-export all functionality for backward compatibility
 __all__ = [
@@ -51,7 +44,6 @@ __all__ = [
     'CheckModifiedResult',
     'EditHistoryEntry',
     'FileTracker',
-    'TreeNode',
     'DirectoryTreeBuilder',
     'GitIgnoreParser',
     'FileGlob',
