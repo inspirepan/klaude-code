@@ -10,10 +10,9 @@ from rich.abc import RichRenderable
 from rich.live import Live
 from rich.text import Text
 
-from ..agent_state import AgentState
+from ..agent import AgentState
 from ..message import UserMessage
 from ..prompt.commands import BASH_INPUT_MODE_CONTENT
-from ..tools.bash import BashTool
 from ..tui import ColorStyle, console, get_prompt_toolkit_color, render_message, render_suffix
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput
 from ..utils.bash_utils.environment import BashEnvironment

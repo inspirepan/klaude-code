@@ -1,12 +1,15 @@
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style
 
-from ..agent_state import AgentState
 from ..message import register_user_msg_content_func, register_user_msg_renderer, register_user_msg_suffix_renderer
 from ..tui import ColorStyle, get_prompt_toolkit_color, get_prompt_toolkit_style
 from .input_command import Command, CommandHandleOutput, UserInput
+
+if TYPE_CHECKING:
+    from ..agent import AgentState
 
 
 class InputModeCommand(Command, ABC):

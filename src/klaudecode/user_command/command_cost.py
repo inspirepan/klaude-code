@@ -2,7 +2,7 @@ from typing import Generator
 
 from rich.abc import RichRenderable
 
-from ..agent_state import AgentState
+from ..agent import AgentState
 from ..message import AgentUsage, UserMessage
 from ..tui import render_suffix
 from ..user_input import Command, CommandHandleOutput, UserInput

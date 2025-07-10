@@ -2,18 +2,17 @@ import asyncio
 
 from rich.text import Text
 
-from . import user_command  # noqa: F401 # import user_command to trigger command registration
-from .agent_executor import AgentExecutor
-from .agent_state import AgentState
-from .config import ConfigModel
-from .message import AIMessage, ToolMessage, UserMessage
-from .prompt.reminder import EMPTY_TODO_REMINDER, get_context_reminder
-from .session import Session
-from .tools import BASIC_TOOLS, TodoWriteTool
-from .tui import INTERRUPT_TIP, ColorStyle, console, render_dot_status
-from .user_input import InputSession, UserInputHandler
-from .utils.exception import format_exception
-from .utils.file_utils import cleanup_all_backups
+from .executor import AgentExecutor
+from .state import AgentState
+from ..config import ConfigModel
+from ..message import AIMessage, ToolMessage, UserMessage
+from ..prompt.reminder import EMPTY_TODO_REMINDER, get_context_reminder
+from ..session import Session
+from ..tools import BASIC_TOOLS, TodoWriteTool
+from ..tui import INTERRUPT_TIP, ColorStyle, console, render_dot_status
+from ..user_input import InputSession, UserInputHandler
+from ..utils.exception import format_exception
+from ..utils.file_utils import cleanup_all_backups
 
 DEFAULT_MAX_STEPS = 100
 QUIT_COMMAND = ['quit', 'exit']
@@ -33,7 +32,7 @@ class Agent:
 
         # Initialize custom commands
         try:
-            from .user_command import custom_command_manager
+            from ..user_command import custom_command_manager
 
             custom_command_manager.discover_and_register_commands(agent_state.session.work_dir)
         except Exception as e:
@@ -148,7 +147,7 @@ class Agent:
 
 
 async def get_main_agent(session: Session, config: ConfigModel, enable_mcp: bool = False) -> Agent:
-    from .agent_executor import AgentExecutor
+    from .executor import AgentExecutor
 
     state = AgentState(session, config, available_tools=[AgentExecutor] + BASIC_TOOLS)
     if enable_mcp:

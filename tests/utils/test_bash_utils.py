@@ -4,7 +4,6 @@ import unittest.mock
 
 from klaudecode.utils.bash_utils.environment import BashEnvironment
 from klaudecode.utils.bash_utils.interaction_detection import BashInteractionDetector
-from klaudecode.utils.bash_utils.security import BashSecurity
 
 
 class TestBashEnvironment:

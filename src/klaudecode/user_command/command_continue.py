@@ -1,4 +1,4 @@
-from ..agent_state import AgentState
+from ..agent import AgentState
 from ..user_input import Command, CommandHandleOutput, UserInput
 
 

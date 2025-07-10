@@ -5,7 +5,7 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
-from ..agent_state import AgentState
+from ..agent import AgentState
 from ..message import UserMessage
 from ..prompt.commands import GIT_COMMIT_COMMAND
 from ..tui import ColorStyle, render_grid

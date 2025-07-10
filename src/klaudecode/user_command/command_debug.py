@@ -8,7 +8,7 @@ from rich.abc import RichRenderable
 from rich.console import Group
 from rich.text import Text
 
-from ..agent_state import AgentState
+from ..agent import AgentState
 from ..message import UserMessage
 from ..tui import render_suffix
 from ..user_input import Command, CommandHandleOutput, UserInput, user_select

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from klaudecode.agent_state import AgentState
+from klaudecode.agent import AgentState
 from klaudecode.config import ConfigModel
 from klaudecode.message import AgentUsage
 from klaudecode.session import Session
@@ -54,7 +54,7 @@ class TestAgentState:
     def test_initialize_llm_first_time(self, mock_session, mock_config):
         agent_state = AgentState(mock_session, config=mock_config)
 
-        with patch('klaudecode.agent_state.LLMManager') as mock_llm_manager_class:
+        with patch('klaudecode.agent.state.LLMManager') as mock_llm_manager_class:
             mock_llm_manager = Mock()
             mock_llm_manager_class.return_value = mock_llm_manager
 
@@ -78,7 +78,7 @@ class TestAgentState:
     async def test_initialize_mcp_first_time(self, mock_session):
         agent_state = AgentState(mock_session)
 
-        with patch('klaudecode.agent_state.MCPManager') as mock_mcp_manager_class:
+        with patch('klaudecode.agent.state.MCPManager') as mock_mcp_manager_class:
             mock_mcp_manager = Mock()
             mock_mcp_manager.initialize = AsyncMock(return_value=True)
             mock_mcp_manager_class.return_value = mock_mcp_manager

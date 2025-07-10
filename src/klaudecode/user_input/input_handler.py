@@ -1,13 +1,15 @@
 import re
 from pathlib import Path
-from typing import List, Tuple
+from typing import TYPE_CHECKING, List, Tuple
 
-from ..agent_state import AgentState
 from ..message import Attachment, UserMessage
 from ..prompt.reminder import LANGUAGE_REMINDER
 from ..prompt.tools import LS_TOOL_RESULT_REMINDER
 from ..tools.read import execute_read
 from ..tui import console
+
+if TYPE_CHECKING:
+    from ..agent import AgentState
 from ..utils.file_utils import get_directory_structure
 from .input_command import _SLASH_COMMANDS, UserInput
 from .input_mode import _INPUT_MODES, NORMAL_MODE_NAME, NormalMode

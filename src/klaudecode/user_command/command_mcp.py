@@ -3,7 +3,7 @@ from typing import Generator
 from rich.abc import RichRenderable
 from rich.text import Text
 
-from ..agent_state import AgentState
+from ..agent import AgentState
 from ..mcp.mcp_config import MCPConfigManager
 from ..message import UserMessage
 from ..tui import ColorStyle, console, render_suffix

@@ -9,7 +9,7 @@ from .executor import ToolExecutor
 from .schema import ToolSchema
 
 if TYPE_CHECKING:
-    from ..agent_state import AgentState
+    from ..agent import AgentState
     from .instance import ToolInstance
 
 

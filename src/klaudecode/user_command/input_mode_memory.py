@@ -4,7 +4,7 @@ from typing import Generator
 from rich.abc import RichRenderable
 from rich.text import Text
 
-from ..agent_state import AgentState
+from ..agent import AgentState
 from ..message import UserMessage
 from ..tui import ColorStyle, get_prompt_toolkit_color, render_message, render_suffix
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput, user_select

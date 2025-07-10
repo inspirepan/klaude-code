@@ -1,4 +1,4 @@
-from ..agent_state import AgentState
+from ..agent import AgentState
 from ..tui import ColorStyle, get_prompt_toolkit_color
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput
 

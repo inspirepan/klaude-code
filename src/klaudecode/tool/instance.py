@@ -6,7 +6,7 @@ from ..message import ToolCall, ToolMessage
 from ..utils.exception import format_exception
 
 if TYPE_CHECKING:
-    from ..agent_state import AgentState
+    from ..agent import AgentState
     from .base import Tool
 
 

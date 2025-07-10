@@ -6,7 +6,7 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 
-from ..agent_state import AgentState
+from ..agent import AgentState
 from ..message import UserMessage
 from ..tui import ColorStyle, console, render_grid, render_suffix
 from ..user_input import Command, CommandHandleOutput, UserInput, user_select

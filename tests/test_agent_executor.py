@@ -7,8 +7,8 @@ import pytest
 from anthropic import AnthropicError
 from openai import OpenAIError
 
-from klaudecode.agent_executor import AgentExecutor
-from klaudecode.agent_state import AgentState
+from klaudecode.agent import AgentExecutor
+from klaudecode.agent import AgentState
 from klaudecode.message import INTERRUPTED_MSG
 from klaudecode.session import Session
 from klaudecode.tools import BASIC_TOOLS
@@ -43,7 +43,7 @@ class TestAgentExecutor:
 
     @pytest.fixture
     def agent_executor(self, mock_agent_state):
-        with patch('klaudecode.agent_executor.ToolHandler') as mock_tool_handler_class:
+        with patch('klaudecode.agent.executor.ToolHandler') as mock_tool_handler_class:
             mock_tool_handler = Mock()
             mock_tool_handler_class.return_value = mock_tool_handler
 
@@ -158,7 +158,7 @@ class TestAgentExecutor:
     def test_handle_llm_error(self, agent_executor, mock_agent_state):
         error = OpenAIError('Test error')
 
-        with patch('klaudecode.agent_executor.console') as mock_console, patch('klaudecode.agent_executor.format_exception') as mock_format:
+        with patch('klaudecode.agent.executor.console') as mock_console, patch('klaudecode.agent.executor.format_exception') as mock_format:
             mock_format.return_value = 'Formatted error'
 
             result = agent_executor._handle_llm_error(error)
@@ -180,8 +180,8 @@ class TestAgentExecutor:
         error = ValueError('Test error')
 
         with (
-            patch('klaudecode.agent_executor.console') as mock_console,
-            patch('klaudecode.agent_executor.format_exception') as mock_format,
+            patch('klaudecode.agent.executor.console') as mock_console,
+            patch('klaudecode.agent.executor.format_exception') as mock_format,
         ):
             mock_format.return_value = 'Formatted error'
 
@@ -192,7 +192,7 @@ class TestAgentExecutor:
 
     @pytest.mark.asyncio
     async def test_initialization(self, mock_agent_state):
-        with patch('klaudecode.agent_executor.ToolHandler') as mock_tool_handler_class:
+        with patch('klaudecode.agent.executor.ToolHandler') as mock_tool_handler_class:
             mock_tool_handler = Mock()
             mock_tool_handler_class.return_value = mock_tool_handler
 

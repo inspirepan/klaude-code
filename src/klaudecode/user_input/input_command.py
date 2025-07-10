@@ -1,13 +1,15 @@
 from abc import ABC, abstractmethod
-from typing import Generator, Optional
+from typing import TYPE_CHECKING, Generator, Optional
 
 from pydantic import BaseModel
 from rich.abc import RichRenderable
 from rich.text import Text
 
-from ..agent_state import AgentState
 from ..message import UserMessage, register_user_msg_content_func, register_user_msg_renderer, register_user_msg_suffix_renderer
 from ..tui import render_message
+
+if TYPE_CHECKING:
+    from ..agent import AgentState
 
 
 class UserInput(BaseModel):

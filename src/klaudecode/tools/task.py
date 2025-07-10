@@ -12,7 +12,6 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-from ..agent_state import AgentState
 from ..message import AIMessage, BasicMessage, SystemMessage, ToolCall, ToolMessage, UserMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.system import get_subagent_system_prompt
 from ..prompt.tools import TASK_TOOL_DESC
@@ -26,7 +25,7 @@ from . import BASIC_TOOLS
 DEFAULT_MAX_STEPS = 80
 
 if TYPE_CHECKING:
-    from ..agent_executor import AgentExecutor
+    from ..agent import AgentExecutor, AgentState
 
 
 class TaskToolMixin:
@@ -57,6 +56,8 @@ class TaskToolMixin:
                     continue
                 task_msg_data = {'content': msg.content, 'tool_calls': [tool_call.model_dump() for tool_call in msg.tool_calls.values()] if msg.tool_calls else []}
                 instance.tool_result().append_extra_data('task_msgs', task_msg_data)
+
+        from ..agent import AgentState
 
         sub_agent_session = Session(
             work_dir=Path.cwd(),
