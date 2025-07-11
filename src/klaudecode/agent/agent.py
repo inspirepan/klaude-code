@@ -147,9 +147,9 @@ class Agent:
 
 
 async def get_main_agent(session: Session, config: ConfigModel, enable_mcp: bool = False) -> Agent:
-    from .executor import AgentExecutor
+    from ..tools.task import TaskTool
 
-    state = AgentState(session, config, available_tools=[AgentExecutor] + BASIC_TOOLS)
+    state = AgentState(session, config, available_tools=[TaskTool] + BASIC_TOOLS)
     if enable_mcp:
         await state.initialize_mcp()
     return Agent(state)

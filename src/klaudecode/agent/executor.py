@@ -11,7 +11,6 @@ from ..prompt.reminder import FILE_DELETED_EXTERNAL_REMINDER, FILE_MODIFIED_EXTE
 from ..tool import Tool, ToolHandler
 from ..tools import ExitPlanModeTool
 from ..tools.read import execute_read
-from ..tools.task import TaskToolMixin
 from ..tui import ColorStyle, console, render_message, render_suffix
 from ..user_input import user_select
 from ..utils.exception import format_exception
@@ -22,7 +21,7 @@ COMPACT_THRESHOLD = 0.9
 DEFAULT_MAX_STEPS = 100
 
 
-class AgentExecutor(TaskToolMixin, Tool):
+class AgentExecutor(Tool):
     """
     AgentExecutor contains the core execution logic for running LLM conversations and tool handling.
     It focuses purely on the execution loop without handling user input or interface concerns.
