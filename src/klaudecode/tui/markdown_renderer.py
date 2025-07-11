@@ -58,7 +58,7 @@ class CustomHorizontalRule(HorizontalRule):
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         yield Group(
             '',
-            Rule(style=ColorStyle.HINT, characters='='),
+            Rule(style=ColorStyle.LINE, characters='═'),
             '',
         )
 

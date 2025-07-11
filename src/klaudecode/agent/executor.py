@@ -29,7 +29,7 @@ class AgentExecutor(Tool):
 
     def __init__(self, agent_state: AgentState):
         self.agent_state = agent_state
-        self.tool_handler = ToolHandler(self.agent_state, self.agent_state.all_tools or [], show_live=agent_state.print_switch)
+        self.tool_handler = ToolHandler(self.agent_state, show_live=agent_state.print_switch)
 
     async def run(self, max_steps: int = DEFAULT_MAX_STEPS, check_cancel: Callable[[], bool] = None, tools: Optional[List[Tool]] = None):
         try:

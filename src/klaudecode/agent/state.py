@@ -70,6 +70,7 @@ class AgentState:
 
         self._cached_all_tools = tools
         self._tools_cache_dirty = False
+        print(f'all_tools: {[t.name for t in tools]}')
         return tools
 
     def invalidate_tools_cache(self):

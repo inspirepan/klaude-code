@@ -15,53 +15,70 @@ class StreamStatus(BaseModel):
 
 REASONING_STATUS_TEXT_LIST = [
     'Thinking',
-    'Reflecting',
     'Reasoning',
+    'Meditating',
+    'Contemplating',
+    'Pondering',
+    'Reflecting',
+    'Cogitating',
+    'Mulling',
 ]
 
 CONTENT_STATUS_TEXT_LIST = [
     'Composing',
     'Crafting',
-    'Formulating',
-    'Responding',
+    'Weaving',
+    'Spinning',
+    'Painting',
+    'Sculpting',
+    'Brewing',
+    'Conjuring',
+    'Distilling',
+    'Orchestrating',
+    'Manifesting',
     'Articulating',
-    'Expressing',
-    'Detailing',
-    'Explaining',
-    'Describing',
-    'Pondering',
-    'Considering',
-    'Analyzing',
-    'Contemplating',
-    'Deliberating',
-    'Evaluating',
-    'Assessing',
-    'Examining',
+    'Creating',
+    'Generating',
+    'Forming',
+    'Hatching',
+    'Ideating',
+    'Synthesizing',
+    'Transmuting',
+    'Musing',
 ]
 
 UPLOAD_STATUS_TEXT_LIST = [
-    'Waiting',
-    'Loading',
-    'Connecting',
     'Launching',
+    'Booting',
+    'Activating',
+    'Engaging',
+    'Summoning',
+    'Awakening',
+    'Initializing',
+    'Coalescing',
+    'Mustering',
+    'Reticulating',
+    'Vibing',
+    'Cerebrating',
 ]
 
-UPDATE_STATUS_TEXTS = ['Updating', 'Modifying', 'Changing', 'Refactoring', 'Transforming', 'Rewriting', 'Refining', 'Polishing', 'Tweaking', 'Adjusting', 'Fixing']
-TODO_STATUS_TEXTS = ['Planning', 'Organizing', 'Structuring', 'Brainstorming', 'Strategizing', 'Outlining', 'Tracking']
+EDIT_STATUS_TEXTS = ['Updating', 'Refining', 'Polishing', 'Tweaking', 'Enchanting', 'Transforming', 'Evolving', 'Reshaping', 'Forging', 'Actualizing', 'Effecting', 'Finagling', 'Determining']
+TODO_STATUS_TEXTS = ['Planning', 'Scheming', 'Plotting', 'Strategizing', 'Blueprinting', 'Choreographing', 'Masterminding', 'Accomplishing', 'Actioning', 'Doing', 'Working', 'Considering', 'Deliberating']
 
 TOOL_CALL_STATUS_TEXT_DICT = {
-    'MultiEdit': UPDATE_STATUS_TEXTS,
-    'Edit': UPDATE_STATUS_TEXTS,
-    'Read': ['Exploring', 'Reading', 'Scanning', 'Analyzing', 'Inspecting', 'Examining', 'Studying'],
-    'Write': ['Writing', 'Creating', 'Crafting', 'Composing', 'Generating'],
+    'MultiEdit': EDIT_STATUS_TEXTS,
+    'Edit': EDIT_STATUS_TEXTS,
+    'Read': ['Exploring', 'Deciphering', 'Absorbing', 'Devouring', 'Savoring', 'Digesting', 'Unraveling', 'Percolating', 'Simmering', 'Inferring'],
+    'Write': ['Writing', 'Inscribing', 'Birthing', 'Channeling', 'Baking', 'Cooking', 'Marinating', 'Stewing'],
     'TodoWrite': TODO_STATUS_TEXTS,
     'TodoRead': TODO_STATUS_TEXTS,
-    'LS': ['Exploring', 'Scanning', 'Browsing', 'Investigating', 'Surveying', 'Discovering', 'Wandering'],
-    'Grep': ['Searching', 'Looking', 'Finding', 'Hunting', 'Tracking', 'Filtering', 'Digging'],
-    'Glob': ['Searching', 'Looking', 'Finding', 'Matching', 'Collecting', 'Gathering', 'Harvesting'],
-    'Bash': ['Executing', 'Running', 'Processing', 'Computing', 'Launching', 'Invoking', 'Commanding'],
-    'exit_plan_mode': ['Planning'],
+    'LS': ['Wandering', 'Discovering', 'Venturing', 'Roaming', 'Adventuring', 'Pathfinding', 'Moseying', 'Puttering'],
+    'Grep': ['Searching', 'Hunting', 'Stalking', 'Pursuing', 'Chasing', 'Seeking', 'Detecting', 'Herding', 'Noodling'],
+    'Glob': ['Gathering', 'Harvesting', 'Collecting', 'Reaping', 'Foraging', 'Accumulating', 'Hoarding', 'Schlepping', 'Shucking', 'Smooshing'],
+    'Bash': ['Executing', 'Commanding', 'Wielding', 'Casting', 'Invoking', 'Computing', 'Calculating', 'Crunching', 'Churning', 'Processing', 'Ruminating'],
+    'exit_plan_mode': ['Reporting'],    
     'CommandPatternResult': ['Patterning'],
+    'Task': ['Delegating', 'Dispatching', 'Outsourcing', 'Assigning', 'Coordinating', 'Hustling', 'Honking', 'Clauding'],
 }
 
 

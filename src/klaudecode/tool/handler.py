@@ -15,11 +15,15 @@ class ToolHandler:
     ToolHandler accepts a list of tool calls.
     """
 
-    def __init__(self, agent_state, tools: List[Tool], show_live: bool = True):
+    def __init__(self, agent_state, show_live: bool = True):
         self.agent_state = agent_state
-        self.tool_dict = {tool.name: tool for tool in tools} if tools else {}
         self.show_live = show_live
         self._global_interrupt = threading.Event()
+
+    def _get_tool_dict(self) -> Dict[str, Tool]:
+        """Get current tool dictionary, dynamically refreshed from agent_state.all_tools"""
+        tools = self.agent_state.all_tools
+        return {tool.name: tool for tool in tools} if tools else {}
 
     async def handle(self, ai_message: AIMessage):
         """Handle all tool calls in the AI message."""
@@ -39,14 +43,15 @@ class ToolHandler:
         """Categorize tool calls into parallelable and non-parallelable."""
         parallelable_calls = []
         non_parallelable_calls = []
+        tool_dict = self._get_tool_dict()
 
         for tool_call in tool_calls.values():
-            if tool_call.tool_name not in self.tool_dict:
+            if tool_call.tool_name not in tool_dict:
                 console.print(render_suffix(f'Tool {tool_call.tool_name} not found', style=ColorStyle.ERROR))
                 continue
-            if self.tool_dict[tool_call.tool_name].skip_in_tool_handler():
+            if tool_dict[tool_call.tool_name].skip_in_tool_handler():
                 continue
-            if self.tool_dict[tool_call.tool_name].is_parallelable():
+            if tool_dict[tool_call.tool_name].is_parallelable():
                 parallelable_calls.append(tool_call)
             else:
                 non_parallelable_calls.append(tool_call)
@@ -58,7 +63,8 @@ class ToolHandler:
         if not tool_calls:
             return
 
-        tool_instances = [self.tool_dict[tc.tool_name].create_instance(tc, self.agent_state) for tc in tool_calls]
+        tool_dict = self._get_tool_dict()
+        tool_instances = [tool_dict[tc.tool_name].create_instance(tc, self.agent_state) for tc in tool_calls]
         tasks = await self._start_tool_tasks(tool_instances)
 
         interrupted = False

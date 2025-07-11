@@ -78,10 +78,7 @@ class RetryWrapper(LLMClientWrapper):
                 if attempt < self.max_retries:
                     delay = self.backoff_base * (2**attempt)
                     error_msg = f'{format_exception(last_exception)} · Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{self.max_retries})'
-                    if isinstance(e, (openai.APIConnectionError, anthropic.APIConnectionError)):
-                        # Check if it's a connection error and suggest proxy check
-                        if os.environ.get('http_proxy') or os.environ.get('https_proxy') or os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY'):
-                            error_msg += ' · HTTP proxy detected, try disabling it'
+                    error_msg = self.enhance_error_message(e, error_msg)
 
                     console.print(
                         render_suffix(
@@ -91,6 +88,12 @@ class RetryWrapper(LLMClientWrapper):
                     )
                     await asyncio.sleep(delay)
         raise last_exception
+
+    def enhance_error_message(self, exception, error_msg: str) -> str:
+        if isinstance(exception, (openai.APIConnectionError, anthropic.APIConnectionError)):
+            if os.environ.get('http_proxy') or os.environ.get('https_proxy') or os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY'):
+                error_msg += ' · HTTP proxy detected, try disabling it'
+        return error_msg
 
 
 class StatusWrapper(LLMClientWrapper):

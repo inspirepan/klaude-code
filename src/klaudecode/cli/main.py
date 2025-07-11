@@ -115,7 +115,7 @@ def main_command(
     extra_header: Optional[str] = typer.Option(None, '--extra-header', help='Override extra header from config (JSON string)'),
     extra_body: Optional[str] = typer.Option(None, '--extra-body', help='Override extra body from config (JSON string)'),
     theme: Optional[str] = typer.Option(None, '--theme', help='Override theme from config (light, dark, light_ansi, or dark_ansi)'),
-    mcp: bool = typer.Option(False, '--mcp', help='Enable MCP (Model Context Protocol) tools'),
+    mcp: bool = typer.Option(False, '-m', '--mcp', help='Enable MCP (Model Context Protocol) tools'),
     logo: bool = typer.Option(False, '--logo', help='Show logo'),
     no_update_check: bool = typer.Option(False, '--no-update-check', help='Skip automatic update check on startup'),
 ):
