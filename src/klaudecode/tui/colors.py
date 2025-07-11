@@ -130,6 +130,17 @@ light_theme_colors = {
     ThemeColorEnum.QUATERNARY: 'rgb(200,200,200)',
 }
 
+
+light_claude_theme_colors = {
+    **light_theme_colors,
+    ColorStyle.AI_CONTENT: 'rgb(181,75,52)',
+    ColorStyle.HEADER_1: 'rgb(164,39,46)',
+    ColorStyle.HEADER_2: 'rgb(164,39,46)',
+    ColorStyle.HEADER_3: 'rgb(164,39,46)',
+    ColorStyle.HEADER_4: 'rgb(164,39,46)',
+}
+
+
 dark_theme_colors = {
     ThemeColorEnum.CLAUDE: 'rgb(214,119,86)',
     ThemeColorEnum.RED: 'rgb(237,118,129)',
@@ -149,6 +160,17 @@ dark_theme_colors = {
     ThemeColorEnum.TERTIARY: 'rgb(151,153,153)',
     ThemeColorEnum.QUATERNARY: 'rgb(100,100,100)',
 }
+
+
+dark_claude_theme_colors = {
+    **dark_theme_colors,
+    ColorStyle.AI_CONTENT: 'rgb(214,119,86)',
+    ColorStyle.HEADER_1: 'rgb(214,119,86)',
+    ColorStyle.HEADER_2: 'rgb(214,119,86)',
+    ColorStyle.HEADER_3: 'rgb(214,119,86)',
+    ColorStyle.HEADER_4: 'rgb(214,119,86)',
+}
+
 
 light_ansi_theme_colors = {
     ThemeColorEnum.CLAUDE: 'yellow',
@@ -191,12 +213,19 @@ dark_ansi_theme_colors = {
     ThemeColorEnum.QUATERNARY: 'bright_black',
 }
 
+
 theme_map = {
     'light': light_theme_colors,
     'dark': dark_theme_colors,
     'light_ansi': light_ansi_theme_colors,
     'dark_ansi': dark_ansi_theme_colors,
+    'light_claude': light_claude_theme_colors,
+    'dark_claude': dark_claude_theme_colors,
 }
+
+
+def get_all_themes() -> list[str]:
+    return list(theme_map.keys())
 
 
 def get_theme(theme: str) -> Theme:
@@ -205,8 +234,8 @@ def get_theme(theme: str) -> Theme:
     return Theme(
         {
             # AI and user interaction
-            ColorStyle.AI_CONTENT: theme_colors[ThemeColorEnum.PRIMARY],
-            ColorStyle.AI_THINKING: theme_colors[ThemeColorEnum.TERTIARY],
+            ColorStyle.AI_CONTENT: theme_colors.get(ColorStyle.AI_CONTENT, theme_colors[ThemeColorEnum.PRIMARY]),
+            ColorStyle.AI_THINKING: theme_colors.get(ColorStyle.AI_THINKING, theme_colors[ThemeColorEnum.TERTIARY]),
             ColorStyle.CLAUDE: theme_colors[ThemeColorEnum.CLAUDE],
             # Status indicators
             ColorStyle.ERROR: theme_colors[ThemeColorEnum.RED],
@@ -223,7 +252,7 @@ def get_theme(theme: str) -> Theme:
             ColorStyle.TODO_COMPLETED: theme_colors[ThemeColorEnum.GREEN],
             ColorStyle.TODO_IN_PROGRESS: theme_colors[ThemeColorEnum.BLUE],
             # Tools
-            ColorStyle.TOOL_NAME: theme_colors[ThemeColorEnum.PRIMARY],
+            ColorStyle.TOOL_NAME: theme_colors.get(ColorStyle.TOOL_NAME, theme_colors[ThemeColorEnum.PRIMARY]),
             # Code
             ColorStyle.DIFF_REMOVED_LINE: theme_colors[ThemeColorEnum.DIFF_REMOVED_LINE],
             ColorStyle.DIFF_ADDED_LINE: theme_colors[ThemeColorEnum.DIFF_ADDED_LINE],
@@ -240,9 +269,9 @@ def get_theme(theme: str) -> Theme:
             ColorStyle.PLAN_MODE: theme_colors[ThemeColorEnum.CYAN],
             # Markdown
             ColorStyle.INLINE_CODE: theme_colors[ThemeColorEnum.PURPLE],
-            ColorStyle.HEADER_1: theme_colors[ThemeColorEnum.HIGHLIGHT],
-            ColorStyle.HEADER_2: theme_colors[ThemeColorEnum.HIGHLIGHT],
-            ColorStyle.HEADER_3: theme_colors[ThemeColorEnum.HIGHLIGHT],
-            ColorStyle.HEADER_4: theme_colors[ThemeColorEnum.HIGHLIGHT],
+            ColorStyle.HEADER_1: theme_colors.get(ColorStyle.HEADER_1, theme_colors[ThemeColorEnum.HIGHLIGHT]),
+            ColorStyle.HEADER_2: theme_colors.get(ColorStyle.HEADER_2, theme_colors[ThemeColorEnum.HIGHLIGHT]),
+            ColorStyle.HEADER_3: theme_colors.get(ColorStyle.HEADER_3, theme_colors[ThemeColorEnum.HIGHLIGHT]),
+            ColorStyle.HEADER_4: theme_colors.get(ColorStyle.HEADER_4, theme_colors[ThemeColorEnum.HIGHLIGHT]),
         }
     )

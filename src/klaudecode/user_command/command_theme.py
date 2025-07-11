@@ -5,7 +5,7 @@ from rich.abc import RichRenderable
 from ..agent import AgentState
 from ..config import GlobalConfigSource
 from ..message import UserMessage
-from ..tui import console, render_suffix
+from ..tui import console, get_all_themes, render_suffix
 from ..user_input import Command, CommandHandleOutput, UserInput, user_select
 
 
@@ -14,13 +14,13 @@ class ThemeCommand(Command):
         return 'theme'
 
     def get_command_desc(self) -> str:
-        return 'Switch color theme between light, dark, light_ansi, and dark_ansi'
+        return 'Switch color theme between {}'.format(', '.join(get_all_themes()))
 
     async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
         command_handle_output = await super().handle(agent_state, user_input)
         command_handle_output.user_msg.removed = True
 
-        theme_options = ['light', 'dark', 'light_ansi', 'dark_ansi']
+        theme_options = get_all_themes()
         selected_idx = await user_select(theme_options, 'Select theme:')
 
         if selected_idx is not None:

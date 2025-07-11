@@ -92,7 +92,7 @@ class ToolMessage(BasicMessage):
                     yield from renderer(self)
                     renderer_found = True
                     break
-            
+
             if not renderer_found:
                 if self.content:
                     yield render_suffix(

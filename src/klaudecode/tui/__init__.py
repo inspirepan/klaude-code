@@ -1,7 +1,7 @@
 # Re-export all public APIs to maintain backward compatibility
 from rich.text import Text
 
-from .colors import ColorStyle
+from .colors import ColorStyle, get_all_themes
 from .console import ConsoleProxy, console
 from .diff_renderer import DiffRenderer
 from .markdown_renderer import render_markdown
@@ -13,6 +13,7 @@ from .utils import clear_last_line, get_inquirer_style, get_prompt_toolkit_color
 __all__ = [
     # Colors and themes
     'ColorStyle',
+    'get_all_themes',
     # Console
     'ConsoleProxy',
     'console',
