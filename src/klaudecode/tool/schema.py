@@ -57,7 +57,11 @@ class ToolSchema:
             if '$ref' in obj:
                 return ToolSchema._resolve_single_ref(obj, defs_map)
             else:
-                return {k: ToolSchema._resolve_refs_in_object(v, defs_map) for k, v in obj.items()}
+                result = {}
+                for k, v in obj.items():
+                    if k != 'title':  # Remove title fields
+                        result[k] = ToolSchema._resolve_refs_in_object(v, defs_map)
+                return result
         elif isinstance(obj, list):
             return [ToolSchema._resolve_refs_in_object(item, defs_map) for item in obj]
         else:
