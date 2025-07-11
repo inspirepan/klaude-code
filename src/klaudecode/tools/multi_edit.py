@@ -6,7 +6,7 @@ from rich.text import Text
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import MULTI_EDIT_TOOL_DESC
 from ..tool import Tool, ToolInstance
-from ..tui import ColorStyle, render_suffix
+from ..tui import ColorStyle, DiffRenderer, render_suffix
 from ..utils.file_utils import (
     EDIT_OLD_STRING_NEW_STRING_IDENTICAL_ERROR_MSG,
     count_occurrences,
@@ -15,7 +15,6 @@ from ..utils.file_utils import (
     generate_snippet_from_diff,
     get_relative_path_for_display,
     read_file_content,
-    render_diff_lines,
     replace_string_in_content,
     restore_backup,
     try_colorblind_compatible_match,
@@ -289,4 +288,5 @@ def render_multi_edit_result(tool_msg: ToolMessage):
                 if len(parts) == 2:
                     file_path = parts[1].rstrip(':')
 
-        yield render_suffix(render_diff_lines(diff_lines, file_path=file_path, show_summary=True))
+        diff_renderer = DiffRenderer()
+        yield render_suffix(diff_renderer.render_diff_lines(diff_lines, file_path=file_path, show_summary=True))

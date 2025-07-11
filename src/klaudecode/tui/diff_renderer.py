@@ -1,45 +1,113 @@
+import re
 from typing import List
 
 from rich.console import Group
 from rich.table import Table
 from rich.text import Text
 
-from ...tui import ColorStyle
-from ...utils.str_utils import normalize_tabs
-from .diff_analyzer import DiffAnalyzer
+from ..utils.file_utils.file_operations import get_relative_path_for_display
+from ..utils.str_utils import normalize_tabs
+from . import ColorStyle
 
 LINE_NUMBER_WIDTH = 3
 
 
-def generate_char_level_diff(old_line: str, new_line: str) -> tuple[Text, Text]:
-    import difflib
+class DiffAnalyzer:
+    @staticmethod
+    def calculate_diff_stats(diff_lines: List[str]) -> tuple[int, int]:
+        additions = sum(1 for line in diff_lines if line.startswith('+') and not line.startswith('+++'))
+        removals = sum(1 for line in diff_lines if line.startswith('-') and not line.startswith('---'))
+        return additions, removals
 
-    matcher = difflib.SequenceMatcher(None, normalize_tabs(old_line), normalize_tabs(new_line))
+    @staticmethod
+    def parse_hunk_header(line: str) -> tuple[int, int]:
+        match = re.search(r'@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@', line)
+        if match:
+            return int(match.group(1)), int(match.group(2))
+        return 1, 1
 
-    old_text = Text()
-    new_text = Text()
+    @staticmethod
+    def is_single_line_change(diff_lines: List[str], start_idx: int) -> bool:
+        if start_idx == 0 or start_idx >= len(diff_lines) - 2:
+            return False
 
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        old_segment = old_line[i1:i2]
-        new_segment = new_line[j1:j2]
+        prev_line = diff_lines[start_idx - 1]
+        if not (prev_line.startswith(' ') or prev_line.startswith('@@')):
+            return False
 
-        if tag == 'equal':
-            old_text.append(old_segment, style=ColorStyle.DIFF_REMOVED_LINE)
-            new_text.append(new_segment, style=ColorStyle.DIFF_ADDED_LINE)
-        elif tag == 'delete':
-            old_text.append(old_segment, style=ColorStyle.DIFF_REMOVED_CHAR)
-        elif tag == 'insert':
-            new_text.append(new_segment, style=ColorStyle.DIFF_ADDED_CHAR)
-        elif tag == 'replace':
-            old_text.append(old_segment, style=ColorStyle.DIFF_REMOVED_CHAR)
-            new_text.append(new_segment, style=ColorStyle.DIFF_ADDED_CHAR)
+        current_line = diff_lines[start_idx]
+        next_line = diff_lines[start_idx + 1]
+        if not (current_line.startswith('-') and next_line.startswith('+')):
+            return False
 
-    return old_text, new_text
+        if start_idx + 2 < len(diff_lines):
+            after_plus = diff_lines[start_idx + 2]
+            if not (after_plus.startswith(' ') or after_plus.startswith('@@') or after_plus.startswith('---') or after_plus.startswith('+++')):
+                return False
+
+        return True
+
+    @classmethod
+    def create_summary_text(cls, diff_lines: List[str], file_path: str):
+        from rich.text import Text
+
+        additions, removals = cls.calculate_diff_stats(diff_lines)
+
+        summary_parts = []
+        if additions > 0:
+            summary_parts.append(f'{additions} addition{"s" if additions != 1 else ""}')
+        if removals > 0:
+            summary_parts.append(f'{removals} removal{"s" if removals != 1 else ""}')
+
+        if not summary_parts:
+            return None
+
+        display_path = get_relative_path_for_display(file_path)
+        summary_text = Text.assemble('Updated ', (display_path, 'bold'), ' with ')
+
+        for i, part in enumerate(summary_parts):
+            if i > 0:
+                summary_text.append(' and ')
+
+            words = part.split(' ', 1)
+            if len(words) == 2:
+                number, text = words
+                summary_text.append(number, style='bold')
+                summary_text.append(f' {text}')
+            else:
+                summary_text.append(part)
+
+        return summary_text
 
 
 class DiffRenderer:
     def __init__(self):
         self.analyzer = DiffAnalyzer()
+
+    def render_char_level_diff(self, old_line: str, new_line: str) -> tuple[Text, Text]:
+        import difflib
+
+        matcher = difflib.SequenceMatcher(None, normalize_tabs(old_line), normalize_tabs(new_line))
+
+        old_text = Text()
+        new_text = Text()
+
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            old_segment = old_line[i1:i2]
+            new_segment = new_line[j1:j2]
+
+            if tag == 'equal':
+                old_text.append(old_segment, style=ColorStyle.DIFF_REMOVED_LINE)
+                new_text.append(new_segment, style=ColorStyle.DIFF_ADDED_LINE)
+            elif tag == 'delete':
+                old_text.append(old_segment, style=ColorStyle.DIFF_REMOVED_CHAR)
+            elif tag == 'insert':
+                new_text.append(new_segment, style=ColorStyle.DIFF_ADDED_CHAR)
+            elif tag == 'replace':
+                old_text.append(old_segment, style=ColorStyle.DIFF_REMOVED_CHAR)
+                new_text.append(new_segment, style=ColorStyle.DIFF_ADDED_CHAR)
+
+        return old_text, new_text
 
     def render_diff_lines(self, diff_lines: List[str], file_path: str = None, show_summary: bool = False) -> Group:
         if not diff_lines:
@@ -120,7 +188,7 @@ class DiffRenderer:
             added_line = diff_lines[i + 1][1:].strip('\n\r')
 
             if self.analyzer.is_single_line_change(diff_lines, i):
-                styled_old, styled_new = generate_char_level_diff(removed_line, added_line)
+                styled_old, styled_new = self.render_char_level_diff(removed_line, added_line)
                 grid.add_row(Text(f'{old_line_num:{LINE_NUMBER_WIDTH}d} '), remove_line_symbol, styled_old)
                 grid.add_row(Text(f'{new_line_num:{LINE_NUMBER_WIDTH}d} '), add_line_symbol, styled_new)
             else:

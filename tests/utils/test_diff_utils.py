@@ -1,7 +1,8 @@
 from rich.console import Group
 from rich.text import Text
 
-from klaudecode.utils.file_utils.diff_utils import generate_char_level_diff, generate_diff_lines, generate_snippet_from_diff, render_diff_lines
+from klaudecode.tui.diff_renderer import DiffRenderer
+from klaudecode.utils.file_utils.diff_utils import generate_diff_lines, generate_snippet_from_diff
 
 
 class TestGenerateDiffLines:
@@ -97,12 +98,13 @@ class TestGenerateSnippetFromDiff:
         assert '2→new line' in lines
 
 
-class TestGenerateCharLevelDiff:
+class TestRenderCharLevelDiff:
     def test_no_change(self):
         """Test character-level diff with no changes."""
         old_line = 'same line'
         new_line = 'same line'
-        old_text, new_text = generate_char_level_diff(old_line, new_line)
+        diff_renderer = DiffRenderer()
+        old_text, new_text = diff_renderer.render_char_level_diff(old_line, new_line)
 
         assert isinstance(old_text, Text)
         assert isinstance(new_text, Text)
@@ -113,7 +115,8 @@ class TestGenerateCharLevelDiff:
         """Test character-level diff with changes."""
         old_line = 'old word here'
         new_line = 'new word here'
-        old_text, new_text = generate_char_level_diff(old_line, new_line)
+        diff_renderer = DiffRenderer()
+        old_text, new_text = diff_renderer.render_char_level_diff(old_line, new_line)
 
         assert isinstance(old_text, Text)
         assert isinstance(new_text, Text)
@@ -127,26 +130,30 @@ class TestGenerateCharLevelDiff:
 class TestRenderDiffLines:
     def test_empty_diff(self):
         """Test rendering empty diff."""
-        result = render_diff_lines([])
+        diff_renderer = DiffRenderer()
+        result = diff_renderer.render_diff_lines([])
         assert isinstance(result, Group)
 
     def test_basic_diff_rendering(self):
         """Test basic diff rendering."""
         diff_lines = ['--- \n', '+++ \n', '@@ -1,3 +1,3 @@\n', ' line1\n', '-old line\n', '+new line\n', ' line3\n']
-        result = render_diff_lines(diff_lines)
+        diff_renderer = DiffRenderer()
+        result = diff_renderer.render_diff_lines(diff_lines)
         # Without show_summary, returns a Table (wrapped by Padding)
         assert result is not None
 
     def test_diff_with_summary(self):
         """Test diff rendering with summary."""
         diff_lines = ['--- \n', '+++ \n', '@@ -1,3 +1,3 @@\n', ' line1\n', '-old line\n', '+new line\n', ' line3\n']
-        result = render_diff_lines(diff_lines, file_path='/test/file.txt', show_summary=True)
+        diff_renderer = DiffRenderer()
+        result = diff_renderer.render_diff_lines(diff_lines, file_path='/test/file.txt', show_summary=True)
         assert isinstance(result, Group)
 
     def test_no_newline_rendering(self):
         """Test rendering of no newline message."""
         diff_lines = ['--- \n', '+++ \n', '@@ -1,2 +1,2 @@\n', ' line1\n', '-old line', '\\ No newline at end of file\n', '+new line\n']
-        result = render_diff_lines(diff_lines)
+        diff_renderer = DiffRenderer()
+        result = diff_renderer.render_diff_lines(diff_lines)
         # Without show_summary, returns a Table (wrapped by Padding)
         assert result is not None
 
@@ -164,7 +171,8 @@ class TestRenderDiffLines:
             '+added line 3\n',
             ' line4\n',
         ]
-        result = render_diff_lines(diff_lines, file_path='/test/file.txt', show_summary=True)
+        diff_renderer = DiffRenderer()
+        result = diff_renderer.render_diff_lines(diff_lines, file_path='/test/file.txt', show_summary=True)
         assert isinstance(result, Group)
 
         # The summary should be calculated correctly (3 additions, 2 removals)
@@ -192,7 +200,8 @@ class TestIntegration:
         assert '\\ No newline at end of file' not in snippet
 
         # Render diff
-        rendered = render_diff_lines(diff_lines, file_path='/test/file.txt', show_summary=True)
+        diff_renderer = DiffRenderer()
+        rendered = diff_renderer.render_diff_lines(diff_lines, file_path='/test/file.txt', show_summary=True)
         assert isinstance(rendered, Group)
 
     def test_full_workflow_normal_case(self):
@@ -215,5 +224,6 @@ class TestIntegration:
         assert 'old content' not in snippet
 
         # Render diff
-        rendered = render_diff_lines(diff_lines, file_path='/test/file.txt', show_summary=True)
+        diff_renderer = DiffRenderer()
+        rendered = diff_renderer.render_diff_lines(diff_lines, file_path='/test/file.txt', show_summary=True)
         assert isinstance(rendered, Group)

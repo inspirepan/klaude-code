@@ -3,6 +3,7 @@ from rich.text import Text
 
 from .colors import ColorStyle
 from .console import ConsoleProxy, console
+from .diff_renderer import DiffRenderer
 from .markdown_renderer import render_markdown
 from .renderers import get_tip, render_grid, render_hello, render_logo, render_message, render_suffix, render_tips, truncate_middle_text
 from .status import INTERRUPT_TIP, DotsStatus, render_dot_status
@@ -25,6 +26,7 @@ __all__ = [
     'truncate_middle_text',
     'render_logo',
     'render_tips',
+    'DiffRenderer',
     # Status
     'INTERRUPT_TIP',
     'DotsStatus',

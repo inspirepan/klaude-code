@@ -7,16 +7,8 @@ from rich.text import Text
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import UNDO_EDIT_TOOL_DESC
 from ..tool import Tool, ToolInstance
-from ..tui import ColorStyle, render_suffix
-from ..utils.file_utils import (
-    generate_diff_lines,
-    generate_snippet_from_diff,
-    get_relative_path_for_display,
-    read_file_content,
-    render_diff_lines,
-    restore_backup,
-    validate_file_exists,
-)
+from ..tui import ColorStyle, DiffRenderer, render_suffix
+from ..utils.file_utils import generate_diff_lines, generate_snippet_from_diff, get_relative_path_for_display, read_file_content, restore_backup, validate_file_exists
 
 
 class UndoEditTool(Tool):
@@ -104,4 +96,5 @@ def render_undo_edit_args(tool_call: ToolCall, is_suffix: bool = False):
 def render_undo_edit_result(tool_msg: ToolMessage):
     diff_lines = tool_msg.get_extra_data('diff_lines')
     if diff_lines:
-        yield render_suffix(render_diff_lines(diff_lines))
+        diff_renderer = DiffRenderer()
+        yield render_suffix(diff_renderer.render_diff_lines(diff_lines))

@@ -1,4 +1,4 @@
-from .diff_utils import generate_char_level_diff, generate_diff_lines, generate_snippet_from_diff, render_diff_lines
+from .diff_utils import generate_diff_lines, generate_snippet_from_diff
 from .directory_constants import DEFAULT_IGNORE_PATTERNS, DEFAULT_MAX_CHARS, INDENT_SIZE
 from .directory_tree_builder import DirectoryTreeBuilder
 from .directory_utils import get_directory_structure, get_effective_ignore_patterns, parse_gitignore
@@ -67,8 +67,6 @@ __all__ = [
     # Functions - Diff operations
     'generate_diff_lines',
     'generate_snippet_from_diff',
-    'generate_char_level_diff',
-    'render_diff_lines',
     # Functions - Directory operations
     'parse_gitignore',
     'get_effective_ignore_patterns',

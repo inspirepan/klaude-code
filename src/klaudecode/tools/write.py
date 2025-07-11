@@ -8,7 +8,7 @@ from rich.text import Text
 from ..message import ToolCall, ToolMessage, register_tool_call_renderer, register_tool_result_renderer
 from ..prompt.tools import WRITE_TOOL_DESC
 from ..tool import Tool, ToolInstance
-from ..tui import ColorStyle, render_grid, render_suffix
+from ..tui import ColorStyle, DiffRenderer, render_grid, render_suffix
 from ..utils.file_utils import (
     create_backup,
     ensure_directory_exists,
@@ -16,7 +16,6 @@ from ..utils.file_utils import (
     generate_snippet_from_diff,
     get_relative_path_for_display,
     read_file_content,
-    render_diff_lines,
     restore_backup,
     write_file_content,
 )
@@ -164,7 +163,8 @@ def render_write_result(tool_msg: ToolMessage):
                 file_part = parts[0].replace('The file ', '')
                 file_path = file_part
 
-        yield render_suffix(render_diff_lines(diff_lines, file_path=file_path, show_summary=True))
+        diff_renderer = DiffRenderer()
+        yield render_suffix(diff_renderer.render_diff_lines(diff_lines, file_path=file_path, show_summary=True))
 
     # If this was a new file creation, show line count summary and preview
     elif not file_exists:

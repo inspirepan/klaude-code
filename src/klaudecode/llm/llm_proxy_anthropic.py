@@ -6,8 +6,8 @@ from anthropic.types import MessageParam, RawMessageStreamEvent, StopReason, Tex
 
 from ..message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, UserMessage, count_tokens
 from ..tool import Tool
-from .llm_proxy_base import LLMProxyBase
 from ..tui.stream_status import StreamStatus
+from .llm_proxy_base import LLMProxyBase
 
 TEMPERATURE = 1
 

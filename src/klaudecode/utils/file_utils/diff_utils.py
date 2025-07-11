@@ -1,13 +1,8 @@
 import difflib
 import re
-from typing import List, Tuple
-
-from rich.console import Group
-from rich.text import Text
+from typing import List
 
 from ...utils.str_utils import normalize_tabs
-from .diff_renderer import DiffRenderer
-from .diff_renderer import generate_char_level_diff as _generate_char_level_diff
 
 
 def generate_diff_lines(old_content: str, new_content: str) -> List[str]:
@@ -90,31 +85,3 @@ def generate_snippet_from_diff(diff_lines: List[str]) -> str:
             continue
 
     return '\n'.join(snippet_lines)
-
-
-def generate_char_level_diff(old_line: str, new_line: str) -> Tuple[Text, Text]:
-    """Generate character-level diff for two lines.
-
-    Args:
-        old_line: Original line content
-        new_line: Modified line content
-
-    Returns:
-        Tuple of (styled_old_line, styled_new_line)
-    """
-    return _generate_char_level_diff(old_line, new_line)
-
-
-def render_diff_lines(diff_lines: List[str], file_path: str = None, show_summary: bool = False) -> Group:
-    """Render diff lines with color formatting for terminal display.
-
-    Args:
-        diff_lines: List of unified diff lines
-        file_path: Optional file path to show in summary
-        show_summary: Whether to show addition/removal summary
-
-    Returns:
-        Rich Group object with formatted diff content
-    """
-    renderer = DiffRenderer()
-    return renderer.render_diff_lines(diff_lines, file_path, show_summary)
