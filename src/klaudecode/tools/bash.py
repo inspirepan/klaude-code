@@ -105,6 +105,3 @@ def render_bash_args(tool_call: ToolCall, is_suffix: bool = False):
         yield Padding.indent(Group(Rule(style=ColorStyle.LINE), Text(command), Rule(style=ColorStyle.LINE)), level=2)
     else:
         yield Columns([Text.assemble(('Bash', ColorStyle.TOOL_NAME.bold)), Text.assemble('(', Text(command), ')')], padding=(0, 0))
-
-
-#

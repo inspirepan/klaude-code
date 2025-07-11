@@ -4,7 +4,7 @@ from anthropic.types import MessageParam
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import Field
 
-from ..tui import ColorStyle, render_suffix
+from ..tui import ColorStyle, render_suffix, truncate_middle_text
 from .base import BasicMessage
 from .tool_call import ToolCall
 
@@ -86,7 +86,7 @@ class ToolMessage(BasicMessage):
         else:
             if self.content:
                 yield render_suffix(
-                    self.content,
+                    truncate_middle_text(self.content),
                     style=ColorStyle.ERROR if self.tool_call.status == 'error' else None,
                 )
             elif self.tool_call.status == 'success':
