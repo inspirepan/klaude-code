@@ -11,10 +11,10 @@ from ..message import AIMessage, BasicMessage
 from ..tool import Tool
 from ..tui import INTERRUPT_TIP, ColorStyle, console, render_dot_status, render_suffix
 from ..utils.exception import format_exception
-from .anthropic_proxy import AnthropicProxy
+from .llm_proxy_anthropic import AnthropicProxy
 from .llm_proxy_base import DEFAULT_RETRIES, DEFAULT_RETRY_BACKOFF_BASE, LLMProxyBase
-from .openai_proxy import OpenAIProxy
-from .stream_status import StreamStatus, get_content_status_text, get_reasoning_status_text, get_tool_call_status_text, get_upload_status_text, text_status_str
+from .llm_proxy_openai import OpenAIProxy
+from ..tui.stream_status import StreamStatus, get_content_status_text, get_reasoning_status_text, get_tool_call_status_text, get_upload_status_text, text_status_str
 
 NON_RETRY_EXCEPTIONS = (
     KeyboardInterrupt,
@@ -149,7 +149,7 @@ class StatusWrapper(LLMClientWrapper):
                 yield stream_status, ai_message
 
 
-class LLMProxy:
+class LLMClient:
     def __init__(
         self,
         model_name: str,

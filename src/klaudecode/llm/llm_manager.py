@@ -5,14 +5,14 @@ from typing import List, Optional
 
 from ..message import AIMessage, BasicMessage
 from ..tool import Tool
-from .llm_proxy import LLMProxy
+from .llm_client import LLMClient
 
 
 class LLMManager:
     """Thread-safe LLM connection pool manager"""
 
     def __init__(self):
-        self.client_pool = {}  # {thread_id: LLMProxy}
+        self.client_pool = {}  # {thread_id: LLMClient}
         self.config_cache = None  # Current configuration
         self._lock = threading.Lock()
         self._interrupt_flag = threading.Event()  # Global interrupt flag
@@ -33,7 +33,7 @@ class LLMManager:
                 'api_version': config.api_version.value,
             }
 
-    def get_client(self) -> LLMProxy:
+    def get_client(self) -> LLMClient:
         """Get LLM client for current thread"""
         thread_id = threading.get_ident()
 
@@ -42,7 +42,7 @@ class LLMManager:
                 raise RuntimeError('LLMManager not initialized. Call initialize_from_config() first.')
 
             # Create new client for this thread
-            self.client_pool[thread_id] = LLMProxy(
+            self.client_pool[thread_id] = LLMClient(
                 model_name=self.config_cache['model_name'],
                 base_url=self.config_cache['base_url'],
                 api_key=self.config_cache['api_key'],

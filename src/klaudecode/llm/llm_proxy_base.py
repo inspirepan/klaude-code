@@ -2,7 +2,7 @@ from typing import AsyncGenerator, List, Optional, Tuple
 
 from ..message import AIMessage, BasicMessage
 from ..tool import Tool
-from .stream_status import StreamStatus
+from ..tui.stream_status import StreamStatus
 
 DEFAULT_RETRIES = 10
 DEFAULT_RETRY_BACKOFF_BASE = 0.5

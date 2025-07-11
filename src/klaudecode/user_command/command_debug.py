@@ -9,7 +9,7 @@ from rich.console import Group
 from rich.text import Text
 
 from ..agent import AgentState
-from ..llm.anthropic_proxy import AnthropicProxy
+from ..llm.llm_proxy_anthropic import AnthropicProxy
 from ..message import UserMessage
 from ..tui import render_suffix
 from ..user_input import Command, CommandHandleOutput, UserInput, user_select

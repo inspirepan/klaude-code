@@ -4,7 +4,7 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 from rich.text import Text
 
-from ..tui import ColorStyle
+from . import ColorStyle
 
 
 class StreamStatus(BaseModel):

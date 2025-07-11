@@ -9,7 +9,7 @@ from openai.types.chat.chat_completion_message_tool_call import Function
 from ..message import AIMessage, BasicMessage, CompletionUsage, ToolCall, count_tokens
 from ..tool import Tool
 from .llm_proxy_base import LLMProxyBase
-from .stream_status import StreamStatus
+from ..tui.stream_status import StreamStatus
 
 TEMPERATURE = 1
 
