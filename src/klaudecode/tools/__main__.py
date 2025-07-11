@@ -13,19 +13,21 @@ except ImportError:
 
 def get_all_tools():
     from . import BashTool, EditTool, ExitPlanModeTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
+    from .task import TaskTool
 
     return [
         BashTool,
         TodoReadTool,
         TodoWriteTool,
-        EditTool,
         ExitPlanModeTool,
-        MultiEditTool,
         ReadTool,
+        EditTool,
+        MultiEditTool,
         WriteTool,
         LsTool,
         GrepTool,
         GlobTool,
+        TaskTool,
     ]
 
 
@@ -47,7 +49,7 @@ def main():
         console = Console()
 
         # Use Rich syntax highlighting
-        syntax = Syntax(formatted_json, 'json', theme='ansi', line_numbers=True, word_wrap=True)
+        syntax = Syntax(formatted_json, 'json', theme='github-dark', line_numbers=True, word_wrap=True)
 
         # Print title
         console.print('\n[bold cyan]All Tools OpenAI Schema[/bold cyan]\n')

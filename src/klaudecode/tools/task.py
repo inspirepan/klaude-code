@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 from pydantic import BaseModel, Field
 
@@ -7,9 +7,6 @@ from ..agent.subagent import SubAgentBase
 from ..prompt.system import get_subagent_system_prompt
 from ..prompt.tools import TASK_TOOL_DESC
 from . import BASIC_TOOLS
-
-if TYPE_CHECKING:
-    pass
 
 
 class TaskTool(SubAgentBase):
