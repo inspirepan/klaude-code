@@ -147,6 +147,7 @@ class EditTool(Tool):
             instance.tool_result().set_error_msg(f'Failed to edit file: {str(e)}')
 
 
+@register_tool_call_renderer(EditTool.name)
 def render_edit_args(tool_call: ToolCall, is_suffix: bool = False):
     file_path = tool_call.tool_args_dict.get('file_path', '')
 
@@ -162,6 +163,7 @@ def render_edit_args(tool_call: ToolCall, is_suffix: bool = False):
     yield tool_call_msg
 
 
+@register_tool_result_renderer(EditTool.name)
 def render_edit_result(tool_msg: ToolMessage):
     diff_lines = tool_msg.get_extra_data('diff_lines')
     if diff_lines:
@@ -176,7 +178,3 @@ def render_edit_result(tool_msg: ToolMessage):
                 file_path = file_part
 
         yield render_suffix(render_diff_lines(diff_lines, file_path=file_path, show_summary=True))
-
-
-register_tool_call_renderer('Edit', render_edit_args)
-register_tool_result_renderer('Edit', render_edit_result)

@@ -88,6 +88,7 @@ Output: Creates directory 'foo'"""
             instance.tool_result().set_error_msg(error_msg)
 
 
+@register_tool_call_renderer(BashTool.name)
 def render_bash_args(tool_call: ToolCall, is_suffix: bool = False):
     command = tool_call.tool_args_dict.get('command', '')
     if is_suffix:
@@ -106,5 +107,4 @@ def render_bash_args(tool_call: ToolCall, is_suffix: bool = False):
         yield Columns([Text.assemble(('Bash', ColorStyle.TOOL_NAME.bold)), Text.assemble('(', Text(command), ')')], padding=(0, 0))
 
 
-register_tool_call_renderer('Bash', render_bash_args)
 #

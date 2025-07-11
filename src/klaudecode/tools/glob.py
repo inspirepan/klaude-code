@@ -103,6 +103,7 @@ class GlobTool(Tool):
         return f'(Too many files. {suggestion_text})'
 
 
+@register_tool_call_renderer(GlobTool.name)
 def render_glob_args(tool_call: ToolCall, is_suffix: bool = False):
     pattern = tool_call.tool_args_dict.get('pattern', '')
     path = tool_call.tool_args_dict.get('path', '.')
@@ -124,6 +125,7 @@ def render_glob_args(tool_call: ToolCall, is_suffix: bool = False):
     yield tool_call_msg
 
 
+@register_tool_result_renderer(GlobTool.name)
 def render_glob_content(tool_msg: ToolMessage):
     file_count = tool_msg.get_extra_data('file_count', 0)
     truncated = tool_msg.get_extra_data('truncated', False)
@@ -137,7 +139,3 @@ def render_glob_content(tool_msg: ToolMessage):
         count_text.append(f' (truncated to {DEFAULT_MAX_FILES} files)', style=ColorStyle.WARNING)
 
     yield render_suffix(count_text)
-
-
-register_tool_call_renderer('Glob', render_glob_args)
-register_tool_result_renderer('Glob', render_glob_content)

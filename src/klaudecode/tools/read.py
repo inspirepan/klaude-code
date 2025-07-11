@@ -201,6 +201,7 @@ class ReadTool(Tool):
             instance.tool_result().set_extra_data('truncated', result.truncated)
 
 
+@register_tool_call_renderer(ReadTool.name)
 def render_read_args(tool_call: ToolCall, is_suffix: bool = False):
     offset = tool_call.tool_args_dict.get('offset', 0)
     limit = tool_call.tool_args_dict.get('limit', 0)
@@ -224,6 +225,7 @@ def render_read_args(tool_call: ToolCall, is_suffix: bool = False):
     yield tool_call_msg
 
 
+@register_tool_result_renderer(ReadTool.name)
 def render_read_content(tool_msg: ToolMessage):
     if tool_msg.attachments and tool_msg.attachments[0].type == 'image':
         # For images, show file size
@@ -255,7 +257,3 @@ def render_read_content(tool_msg: ToolMessage):
         yield render_suffix(table)
     elif tool_msg.tool_call.status == 'success':
         yield render_suffix('(No content)')
-
-
-register_tool_call_renderer('Read', render_read_args)
-register_tool_result_renderer('Read', render_read_content)

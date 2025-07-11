@@ -103,6 +103,7 @@ def render_todo_dict(todo: dict, new_completed: bool = False):
         return f'☐ {content}'
 
 
+@register_tool_result_renderer(TodoReadTool.name)
 def render_todo_read_result(tool_msg: ToolMessage):
     if tool_msg.get_extra_data('todo_list') is None:
         yield render_suffix('(No Content)')
@@ -110,12 +111,14 @@ def render_todo_read_result(tool_msg: ToolMessage):
     yield render_suffix(Group(*(render_todo_dict(todo) for todo in tool_msg.get_extra_data('todo_list'))))
 
 
+@register_tool_result_renderer(TodoWriteTool.name)
 def render_todo_write_result(tool_msg: ToolMessage):
     todo_list = tool_msg.tool_call.tool_args_dict.get('todos', {})
     new_completed_todos = tool_msg.get_extra_data('new_completed_todos', [])
     yield render_suffix(Group(*(render_todo_dict(todo, todo.get('id') in new_completed_todos) for todo in todo_list)))
 
 
+@register_tool_call_renderer(TodoWriteTool.name)
 def render_todo_write_name(tool_call: ToolCall, is_suffix: bool = False):
     if not is_suffix:
         yield Text('Update Todos', ColorStyle.TOOL_NAME.bold)
@@ -145,11 +148,6 @@ def render_todo_write_name(tool_call: ToolCall, is_suffix: bool = False):
         yield Text('Update Todos', ColorStyle.TOOL_NAME.bold)
 
 
+@register_tool_call_renderer(TodoReadTool.name)
 def render_todo_read_name(tool_call: ToolCall, is_suffix: bool = False):
     yield Text('Read Todos', ColorStyle.TOOL_NAME.bold if not is_suffix else 'bold')
-
-
-register_tool_result_renderer('TodoRead', render_todo_read_result)
-register_tool_result_renderer('TodoWrite', render_todo_write_result)
-register_tool_call_renderer('TodoRead', render_todo_read_name)
-register_tool_call_renderer('TodoWrite', render_todo_write_name)

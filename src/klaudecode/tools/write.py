@@ -127,6 +127,7 @@ class WriteTool(Tool):
             instance.tool_result().set_error_msg(f'Failed to write file: {str(e)}')
 
 
+@register_tool_call_renderer(WriteTool.name)
 def render_write_args(tool_call: ToolCall, is_suffix: bool = False):
     file_path = tool_call.tool_args_dict.get('file_path', '')
 
@@ -142,6 +143,7 @@ def render_write_args(tool_call: ToolCall, is_suffix: bool = False):
     yield tool_call_msg
 
 
+@register_tool_result_renderer(WriteTool.name)
 def render_write_result(tool_msg: ToolMessage):
     if tool_msg.error_msg is not None:
         return
@@ -199,7 +201,3 @@ def render_write_result(tool_msg: ToolMessage):
             yield render_suffix(summary_text)
         else:
             yield render_suffix(Group(summary_text, Text('(Empty file)')))
-
-
-register_tool_call_renderer('Write', render_write_args)
-register_tool_result_renderer('Write', render_write_result)

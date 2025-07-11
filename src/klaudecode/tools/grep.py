@@ -209,6 +209,7 @@ class GrepTool(Tool):
         return f'Too many results ({total_matches} total). {suggestion_text}'
 
 
+@register_tool_call_renderer(GrepTool.name)
 def render_grep_args(tool_call: ToolCall, is_suffix: bool = False):
     pattern = tool_call.tool_args_dict.get('pattern', '')
     path = tool_call.tool_args_dict.get('path', '.')
@@ -234,6 +235,7 @@ def render_grep_args(tool_call: ToolCall, is_suffix: bool = False):
     yield tool_call_msg
 
 
+@register_tool_result_renderer(GrepTool.name)
 def render_grep_content(tool_msg: ToolMessage):
     match_count = tool_msg.get_extra_data('match_count', 0)
     truncated = tool_msg.get_extra_data('truncated', False)
@@ -247,7 +249,3 @@ def render_grep_content(tool_msg: ToolMessage):
         count_text.append(f' (truncated to {DEFAULT_MAX_RESULTS} matches)', style=ColorStyle.WARNING)
 
     yield render_suffix(count_text)
-
-
-register_tool_call_renderer('Grep', render_grep_args)
-register_tool_result_renderer('Grep', render_grep_content)

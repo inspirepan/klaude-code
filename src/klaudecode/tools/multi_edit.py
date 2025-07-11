@@ -251,6 +251,7 @@ def _validate_single_edit(edit: EditOperation, content: str, index: int) -> Vali
     return ValidationResult(True)
 
 
+@register_tool_call_renderer(MultiEditTool.name)
 def render_multi_edit_args(tool_call: ToolCall, is_suffix: bool = False):
     file_path = tool_call.tool_args_dict.get('file_path', '')
     edits = tool_call.tool_args_dict.get('edits', [])
@@ -270,6 +271,7 @@ def render_multi_edit_args(tool_call: ToolCall, is_suffix: bool = False):
     yield tool_call_msg
 
 
+@register_tool_result_renderer(MultiEditTool.name)
 def render_multi_edit_result(tool_msg: ToolMessage):
     diff_lines = tool_msg.get_extra_data('diff_lines')
     if diff_lines:
@@ -288,7 +290,3 @@ def render_multi_edit_result(tool_msg: ToolMessage):
                     file_path = parts[1].rstrip(':')
 
         yield render_suffix(render_diff_lines(diff_lines, file_path=file_path, show_summary=True))
-
-
-register_tool_call_renderer('MultiEdit', render_multi_edit_args)
-register_tool_result_renderer('MultiEdit', render_multi_edit_result)

@@ -84,6 +84,7 @@ class UndoEditTool(Tool):
             instance.tool_result().set_error_msg(f'Failed to undo edit: {str(e)}')
 
 
+@register_tool_call_renderer(UndoEditTool.name)
 def render_undo_edit_args(tool_call: ToolCall, is_suffix: bool = False):
     file_path = tool_call.tool_args_dict.get('file_path', '')
 
@@ -99,11 +100,8 @@ def render_undo_edit_args(tool_call: ToolCall, is_suffix: bool = False):
     yield tool_call_msg
 
 
+@register_tool_result_renderer(UndoEditTool.name)
 def render_undo_edit_result(tool_msg: ToolMessage):
     diff_lines = tool_msg.get_extra_data('diff_lines')
     if diff_lines:
         yield render_suffix(render_diff_lines(diff_lines))
-
-
-register_tool_call_renderer('UndoEdit', render_undo_edit_args)
-register_tool_result_renderer('UndoEdit', render_undo_edit_result)

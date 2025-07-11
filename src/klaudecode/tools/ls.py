@@ -40,6 +40,7 @@ class LsTool(Tool):
             instance.tool_result().set_error_msg(error_msg)
 
 
+@register_tool_call_renderer(LsTool.name)
 def render_ls_args(tool_call: ToolCall, is_suffix: bool = False):
     ignores = tool_call.tool_args_dict.get('ignore', [])
     ignore_info = f' (ignore: {", ".join(ignores)})' if ignores else ''
@@ -58,6 +59,7 @@ def render_ls_args(tool_call: ToolCall, is_suffix: bool = False):
     yield tool_call_msg
 
 
+@register_tool_result_renderer(LsTool.name)
 def render_ls_content(tool_msg: ToolMessage):
     yield render_suffix(
         Text.assemble(
@@ -66,7 +68,3 @@ def render_ls_content(tool_msg: ToolMessage):
             ' paths',
         )
     )
-
-
-register_tool_call_renderer('LS', render_ls_args)
-register_tool_result_renderer('LS', render_ls_content)

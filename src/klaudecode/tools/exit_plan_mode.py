@@ -36,6 +36,7 @@ class ExitPlanModeTool(Tool):
         pass
 
 
+@register_tool_call_renderer(ExitPlanModeTool.name)
 def render_exit_plan_mode_args(tool_call: ToolCall, is_suffix: bool = False):
     yield Text("Here is Claude's plan:", ColorStyle.TOOL_NAME.bold)
     yield Padding.indent(
@@ -44,10 +45,7 @@ def render_exit_plan_mode_args(tool_call: ToolCall, is_suffix: bool = False):
     )
 
 
+@register_tool_result_renderer(ExitPlanModeTool.name)
 def render_exit_plan_mode_content(tool_msg: ToolMessage):
     approved = tool_msg.get_extra_data('approved', False)
     yield render_suffix(APPROVE_HINT if approved else REJECT_HINT, style=ColorStyle.SUCCESS if approved else ColorStyle.ERROR)
-
-
-register_tool_call_renderer('ExitPlanMode', render_exit_plan_mode_args)
-register_tool_result_renderer('ExitPlanMode', render_exit_plan_mode_content)
