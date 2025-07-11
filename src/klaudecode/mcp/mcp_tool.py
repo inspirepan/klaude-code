@@ -5,13 +5,41 @@ from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 from rich.console import Group, Text
+from rich.json import JSON
+from rich.pretty import Pretty
 from rich.table import Table
 
-from ..message import ToolCall
+from ..message import ToolCall, ToolMessage, register_tool_result_renderer
 from ..tool import Tool, ToolInstance
-from ..tui import ColorStyle, console, render_grid
+from ..tui import ColorStyle, console, render_grid, render_suffix
 from ..utils.exception import format_exception
 from .mcp_client import MCPClient
+
+
+@register_tool_result_renderer('mcp__')
+def render_mcp_tool_result(msg: ToolMessage):
+    content = msg.content
+    
+    try:
+        if isinstance(content, str) and content.strip().startswith('{'):
+            parsed = json.loads(content)
+            yield render_suffix(Pretty(
+                parsed,
+                max_depth=4,
+                max_length=4,
+                max_string=100,
+            ))
+        elif isinstance(content, dict):
+            yield render_suffix(Pretty(
+                content,
+                max_depth=4,
+                max_length=4,
+                max_string=100,
+            ))
+        else:
+            yield render_suffix(Text(str(content)))
+    except (json.JSONDecodeError, TypeError):
+        yield render_suffix(Text(str(content)))
 
 
 class MCPToolWrapper(Tool):

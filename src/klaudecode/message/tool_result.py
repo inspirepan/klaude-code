@@ -81,18 +81,28 @@ class ToolMessage(BasicMessage):
     def get_suffix_renderable(self):
         from .registry import _TOOL_RESULT_RENDERERS
 
+        # Try exact match first
         if self.tool_call.tool_name in _TOOL_RESULT_RENDERERS:
             yield from _TOOL_RESULT_RENDERERS[self.tool_call.tool_name](self)
         else:
-            if self.content:
-                yield render_suffix(
-                    truncate_middle_text(self.content),
-                    style=ColorStyle.ERROR if self.tool_call.status == 'error' else None,
-                )
-            elif self.tool_call.status == 'success':
-                yield render_suffix('(No content)')
-            elif self.tool_call.status == 'processing':
-                yield render_suffix('Running...')
+            # Try prefix match if exact match fails
+            renderer_found = False
+            for registered_name, renderer in _TOOL_RESULT_RENDERERS.items():
+                if self.tool_call.tool_name.startswith(registered_name):
+                    yield from renderer(self)
+                    renderer_found = True
+                    break
+            
+            if not renderer_found:
+                if self.content:
+                    yield render_suffix(
+                        truncate_middle_text(self.content),
+                        style=ColorStyle.ERROR if self.tool_call.status == 'error' else None,
+                    )
+                elif self.tool_call.status == 'success':
+                    yield render_suffix('(No content)')
+                elif self.tool_call.status == 'processing':
+                    yield render_suffix('Running...')
 
         if self.tool_call.status == 'canceled':
             yield render_suffix(INTERRUPTED_MSG, style=ColorStyle.ERROR)
