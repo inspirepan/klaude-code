@@ -104,8 +104,13 @@ class BashMode(InputModeCommand):
 
             old_handler = signal.signal(signal.SIGINT, signal_handler)
 
+            # Show "Running..." initially if no output yet
+            if not display_text.plain:
+                display_text.append('Running...', style=ColorStyle.HINT)
+
             with Live(render_suffix(display_text), refresh_per_second=10, console=console.console) as live:
                 partial_line = ''
+                has_output = False
 
                 while True:
                     if interrupted:
@@ -119,6 +124,11 @@ class BashMode(InputModeCommand):
                         if ready:
                             data = os.read(master_fd, 4096).decode('utf-8', errors='replace')
                             if data:
+                                # Clear "Running..." text on first real output
+                                if not has_output:
+                                    display_text = Text()
+                                    has_output = True
+
                                 data = BashEnvironment.strip_ansi_codes(data)
                                 lines = (partial_line + data).split('\n')
                                 partial_line = lines[-1]
