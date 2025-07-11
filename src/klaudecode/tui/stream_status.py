@@ -62,8 +62,36 @@ UPLOAD_STATUS_TEXT_LIST = [
     'Cerebrating',
 ]
 
-EDIT_STATUS_TEXTS = ['Updating', 'Refining', 'Polishing', 'Tweaking', 'Enchanting', 'Transforming', 'Evolving', 'Reshaping', 'Forging', 'Actualizing', 'Effecting', 'Finagling', 'Determining']
-TODO_STATUS_TEXTS = ['Planning', 'Scheming', 'Plotting', 'Strategizing', 'Blueprinting', 'Choreographing', 'Masterminding', 'Accomplishing', 'Actioning', 'Doing', 'Working', 'Considering', 'Deliberating']
+EDIT_STATUS_TEXTS = [
+    'Updating',
+    'Refining',
+    'Polishing',
+    'Tweaking',
+    'Enchanting',
+    'Transforming',
+    'Evolving',
+    'Reshaping',
+    'Forging',
+    'Actualizing',
+    'Effecting',
+    'Finagling',
+    'Determining',
+]
+TODO_STATUS_TEXTS = [
+    'Planning',
+    'Scheming',
+    'Plotting',
+    'Strategizing',
+    'Blueprinting',
+    'Choreographing',
+    'Masterminding',
+    'Accomplishing',
+    'Actioning',
+    'Doing',
+    'Working',
+    'Considering',
+    'Deliberating',
+]
 
 TOOL_CALL_STATUS_TEXT_DICT = {
     'MultiEdit': EDIT_STATUS_TEXTS,
@@ -76,7 +104,7 @@ TOOL_CALL_STATUS_TEXT_DICT = {
     'Grep': ['Searching', 'Hunting', 'Stalking', 'Pursuing', 'Chasing', 'Seeking', 'Detecting', 'Herding', 'Noodling'],
     'Glob': ['Gathering', 'Harvesting', 'Collecting', 'Reaping', 'Foraging', 'Accumulating', 'Hoarding', 'Schlepping', 'Shucking', 'Smooshing'],
     'Bash': ['Executing', 'Commanding', 'Wielding', 'Casting', 'Invoking', 'Computing', 'Calculating', 'Crunching', 'Churning', 'Processing', 'Ruminating'],
-    'exit_plan_mode': ['Reporting'],    
+    'exit_plan_mode': ['Reporting'],
     'CommandPatternResult': ['Patterning'],
     'Task': ['Delegating', 'Dispatching', 'Outsourcing', 'Assigning', 'Coordinating', 'Hustling', 'Honking', 'Clauding'],
 }
