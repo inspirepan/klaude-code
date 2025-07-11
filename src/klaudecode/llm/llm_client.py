@@ -81,7 +81,7 @@ class RetryWrapper(LLMClientWrapper):
                     if isinstance(e, (openai.APIConnectionError, anthropic.APIConnectionError)):
                         # Check if it's a connection error and suggest proxy check
                         if os.environ.get('http_proxy') or os.environ.get('https_proxy') or os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY'):
-                            error_msg += ' · Maybe unset http proxy'
+                            error_msg += ' · HTTP proxy detected, try disabling it'
 
                     console.print(
                         render_suffix(

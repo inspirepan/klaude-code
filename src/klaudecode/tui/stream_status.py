@@ -60,7 +60,7 @@ TOOL_CALL_STATUS_TEXT_DICT = {
     'Grep': ['Searching', 'Looking', 'Finding', 'Hunting', 'Tracking', 'Filtering', 'Digging'],
     'Glob': ['Searching', 'Looking', 'Finding', 'Matching', 'Collecting', 'Gathering', 'Harvesting'],
     'Bash': ['Executing', 'Running', 'Processing', 'Computing', 'Launching', 'Invoking', 'Commanding'],
-    'ExitPlanMode': ['Planning'],
+    'exit_plan_mode': ['Planning'],
     'CommandPatternResult': ['Patterning'],
 }
 
