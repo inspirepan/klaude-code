@@ -59,5 +59,5 @@ def get_inquirer_style() -> dict:
     """Get InquirerPy style dict based on current theme"""
     return {
         'question': f'bold {get_prompt_toolkit_color(ColorStyle.HIGHLIGHT)}',
-        'pointer': f'fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED)} bg:default',
+        'pointer': f'bold fg:{get_prompt_toolkit_color(ColorStyle.COMPLETION_SELECTED)} bg:default',
     }

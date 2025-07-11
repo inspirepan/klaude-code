@@ -59,7 +59,7 @@ class ToolSchema:
             else:
                 result = {}
                 for k, v in obj.items():
-                    if k != 'title':  # Remove title fields
+                    if k != 'title':  # Remove unneeded title fields
                         result[k] = ToolSchema._resolve_refs_in_object(v, defs_map)
                 return result
         elif isinstance(obj, list):

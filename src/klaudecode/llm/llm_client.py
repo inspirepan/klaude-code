@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 from abc import ABC, abstractmethod
 from typing import AsyncGenerator, List, Optional, Tuple
@@ -76,9 +77,15 @@ class RetryWrapper(LLMClientWrapper):
                 last_exception = e
                 if attempt < self.max_retries:
                     delay = self.backoff_base * (2**attempt)
+                    error_msg = f'{format_exception(last_exception)} · Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{self.max_retries})'
+                    if isinstance(e, (openai.APIConnectionError, anthropic.APIConnectionError)):
+                        # Check if it's a connection error and suggest proxy check
+                        if os.environ.get('http_proxy') or os.environ.get('https_proxy') or os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY'):
+                            error_msg += ' · Maybe unset http proxy'
+
                     console.print(
                         render_suffix(
-                            f'{format_exception(last_exception)} · Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{self.max_retries})',
+                            error_msg,
                             style=ColorStyle.ERROR,
                         )
                     )

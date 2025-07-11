@@ -11,7 +11,7 @@ from rich.text import Text
 from ..agent import AgentState
 from ..llm.llm_proxy_anthropic import AnthropicProxy
 from ..message import UserMessage
-from ..tui import render_suffix
+from ..tui import ColorStyle, render_suffix
 from ..user_input import Command, CommandHandleOutput, UserInput, user_select
 
 
@@ -258,6 +258,7 @@ EOF'''
             if export_type == 'curl':
                 # Curl command export
                 first_line = Text.assemble(
+                    ('✔ ', ColorStyle.SUCCESS.bold),
                     f'{provider.upper()} curl command generated: ',
                     (file_path, 'bold'),
                 )
@@ -279,7 +280,7 @@ EOF'''
                 second_line = Text.assemble((str(tool_count), 'bold'), ' tools, ', (str(total_messages), 'bold'), ' messages (', *role_parts, ') - executable curl script')
 
                 # Third line: curl usage tip
-                third_line = Text('💡 Tip: Direct curl may return end_turn - consider trimming messages for continuation', style='dim')
+                third_line = Text('Tip: Direct curl may return end_turn - consider remove some messages for continuation', style=ColorStyle.HINT)
 
                 yield render_suffix(Group(first_line, second_line, third_line))
             else:
