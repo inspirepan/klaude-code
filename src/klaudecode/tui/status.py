@@ -95,12 +95,14 @@ class DotsStatus:
         spinner_style: StyleType = ColorStyle.STATUS,
         dots_style: StyleType = ColorStyle.STATUS,
         refresh_per_second: int = 10,
+        padding_line: bool = True,
     ):
         self.status = status
         self.description = description
         self.spinner = get_spinner(style=spinner_style)
         self.dots = Spinner(name='simpleDots', style=dots_style, speed=1)
         self.refresh_per_second = refresh_per_second
+        self.padding_line = padding_line
         self._live = Live(
             self.renderable,
             console=console,
@@ -128,20 +130,23 @@ class DotsStatus:
 
     @property
     def renderable(self) -> Columns:
-        return Group(
-            '',
-            Columns(
-                [
-                    self.spinner,
-                    '  ',
-                    self.status,
-                    self.dots,
-                    ' ',
-                    self.description,
-                ],
-                padding=(0, 0),
-            ),
+        columns = Columns(
+            [
+                self.spinner,
+                '  ',
+                self.status,
+                self.dots,
+                ' ',
+                self.description,
+            ],
+            padding=(0, 0),
         )
+        if self.padding_line:
+            return Group(
+                '',
+                columns,
+            )
+        return columns
 
     def start(self) -> None:
         """Start the status animation."""
@@ -172,6 +177,7 @@ def render_dot_status(
     description: Optional[str] = None,
     spinner_style: StyleType = ColorStyle.STATUS,
     dots_style: StyleType = ColorStyle.STATUS,
+    padding_line: bool = True,
 ):
     if description:
         desc_text = Text.assemble(description, (INTERRUPT_TIP, ColorStyle.HINT))
@@ -183,4 +189,5 @@ def render_dot_status(
         console=console.console,
         spinner_style=spinner_style,
         dots_style=dots_style,
+        padding_line=padding_line,
     )

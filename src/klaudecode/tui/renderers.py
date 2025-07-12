@@ -110,11 +110,11 @@ def get_tip(all_tips: bool = False) -> RichRenderable:
         tips.append('Run [main]klaude --mcp[/main] or [main]/mcp[/main] to enable MCP tools')
 
     if all_tips:
-        return Group(*(Text.from_markup(tip) for tip in tips))
+        return Group(*(Text.from_markup(tip, style=ColorStyle.HINT) for tip in tips))
 
     import random
 
-    return Text.from_markup(random.choice(tips))
+    return Text.from_markup(random.choice(tips), style=ColorStyle.HINT)
 
 
 def render_tips() -> RenderResult:

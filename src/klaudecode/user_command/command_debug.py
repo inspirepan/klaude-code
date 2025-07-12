@@ -61,17 +61,6 @@ class DebugCommand(Command):
 
         # Detect provider
         is_anthropic = base_url and 'anthropic' in base_url
-        is_openai = base_url and ('openai' in base_url or 'api.openai.com' in base_url)
-
-        if not is_anthropic and not is_openai:
-            # Try to detect from model name
-            if model_name and ('claude' in model_name.lower() or 'anthropic' in model_name.lower()):
-                is_anthropic = True
-            elif model_name and ('gpt' in model_name.lower() or 'openai' in model_name.lower()):
-                is_openai = True
-            else:
-                # Default to anthropic for claude models
-                is_anthropic = True
 
         # Get messages in appropriate format
         messages = []

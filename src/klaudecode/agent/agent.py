@@ -3,11 +3,11 @@ import asyncio
 from rich.text import Text
 
 from ..config import ConfigModel
-from ..message import AIMessage, ToolMessage, UserMessage
+from ..message import ToolMessage, UserMessage
 from ..prompt.reminder import EMPTY_TODO_REMINDER, get_context_reminder
 from ..session import Session
 from ..tools import BASIC_TOOLS, TodoWriteTool
-from ..tui import INTERRUPT_TIP, ColorStyle, console, render_dot_status
+from ..tui import ColorStyle, console, render_dot_status
 from ..user_input import InputSession, UserInputHandler
 from ..utils.exception import format_exception
 from ..utils.file_utils import cleanup_all_backups
@@ -77,22 +77,16 @@ class Agent:
 
     async def _headless_run_with_status_display(self):
         """Run agent executor with real-time status display"""
-        status = render_dot_status(Text('Running', style=ColorStyle.STATUS))
+        status = render_dot_status(Text('Running', style=ColorStyle.STATUS), padding_line=False)
         status.start()
         running = True
 
         async def update_status():
             while running:
                 tool_msg_count = sum(1 for msg in self.agent_state.session.messages if msg.role == 'tool')
-                last_msg = self.agent_state.session.messages.get_last_message(filter_empty=True, role='assistant')
-                status_text = ''
-                if last_msg and isinstance(last_msg, AIMessage) and last_msg.content.strip():
-                    status_text = last_msg.content[:100]
                 status.update(
                     description=Text.assemble(
                         Text.from_markup(f'([bold]{tool_msg_count}[/bold] tool uses) '),
-                        Text(status_text, style=ColorStyle.CLAUDE),
-                        (INTERRUPT_TIP, ColorStyle.HINT),
                     ),
                 )
                 await asyncio.sleep(0.1)

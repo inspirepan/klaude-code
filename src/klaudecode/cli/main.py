@@ -46,10 +46,11 @@ async def get_session(ctx: typer.Context) -> Optional[Session]:
             return None
         session = Session.load(sessions[idx].get('id'))
     else:
+        support_cache_control = 'claude' in ctx.obj['config'].model_name.value.lower()
         session = Session(
             work_dir=Path.cwd(),
             messages=[
-                SystemMessage(content=STATIC_SYSTEM_PROMPT, cached=True),
+                SystemMessage(content=STATIC_SYSTEM_PROMPT, cached=support_cache_control),
                 SystemMessage(content=get_system_prompt_dynamic_part(Path.cwd(), ctx.obj['config'].model_name.value)),
             ],
         )

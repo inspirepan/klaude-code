@@ -33,7 +33,7 @@ uv tool install klaude-code
 klaude
 
 # Run a single command (headless mode)
-klaude --prompt "Fix the type errors in src/main.py"
+klaude --prompt "Fix the type errors in main.py"
 
 # Resume your last session
 klaude --continue
@@ -91,7 +91,7 @@ Special prefixes activate different input modes:
 
 - **File Reference** (`@`): Reference files with auto-completion
   ```
-  @src/main.py fix the syntax errors
+  @main.py fix the syntax errors
   ```
 
 - **Image Reference**: Paste images with Ctrl+V or reference image files
