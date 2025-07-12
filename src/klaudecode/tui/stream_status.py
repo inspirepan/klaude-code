@@ -34,7 +34,6 @@ CONTENT_STATUS_TEXT_LIST = [
     'Brewing',
     'Conjuring',
     'Distilling',
-    'Orchestrating',
     'Manifesting',
     'Articulating',
     'Creating',
@@ -106,7 +105,7 @@ TOOL_CALL_STATUS_TEXT_DICT = {
     'Bash': ['Executing', 'Commanding', 'Wielding', 'Casting', 'Invoking', 'Computing', 'Calculating', 'Crunching', 'Churning', 'Processing', 'Ruminating'],
     'exit_plan_mode': ['Reporting'],
     'CommandPatternResult': ['Patterning'],
-    'Task': ['Delegating', 'Dispatching', 'Outsourcing', 'Assigning', 'Coordinating', 'Hustling', 'Honking', 'Clauding'],
+    'Task': ['Delegating', 'Dispatching', 'Outsourcing', 'Assigning', 'Coordinating', 'Hustling', 'Honking', 'Clauding', 'Orchestrating'],
 }
 
 

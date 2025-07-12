@@ -51,7 +51,7 @@ def show_all_theme_previews() -> Columns:
         panel = show_theme_preview(theme_name)
         panels.append(panel)
 
-    return Columns(panels, expand=True, padding=(0, 2))
+    return Columns(panels, expand=True, padding=(0, 1))
 
 
 def _create_diff_section(theme_console: Console) -> Table:
