@@ -16,8 +16,8 @@ from ..user_input import user_select
 from ..utils.exception import format_exception
 from .state import AgentState
 
-TOKEN_WARNING_THRESHOLD = 0.85
-COMPACT_THRESHOLD = 0.9
+TOKEN_WARNING_THRESHOLD = 0.75
+COMPACT_THRESHOLD = 0.8
 DEFAULT_MAX_STEPS = 100
 
 
@@ -202,9 +202,10 @@ class AgentExecutor(Tool):
                 total_tokens += sum(tool.tokens() for tool in self.agent_state.all_tools)
         total_tokens += self.agent_state.config.max_tokens.value
         if total_tokens > self.agent_state.config.context_window_threshold.value * TOKEN_WARNING_THRESHOLD:
+            percentage = (total_tokens / (self.agent_state.config.context_window_threshold.value * COMPACT_THRESHOLD)) * 100
             console.print(
                 Text(
-                    f'Notice: total tokens: {total_tokens}, threshold: {self.agent_state.config.context_window_threshold.value}',
+                    f'Notice: token usage {percentage:.1f}% of compact threshold ({total_tokens}/{int(self.agent_state.config.context_window_threshold.value * COMPACT_THRESHOLD)})',
                     style=ColorStyle.WARNING,
                 )
             )
