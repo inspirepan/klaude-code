@@ -22,7 +22,6 @@ def render_message(
     mark: Optional[str] = '⏺',
     status: Literal['processing', 'success', 'error', 'canceled'] = 'success',
     mark_width: int = 0,
-    render_text: bool = False,
 ) -> RichRenderable:
     table = Table.grid(padding=(0, 1))
     table.add_column(width=mark_width, no_wrap=True)
@@ -36,10 +35,7 @@ def render_message(
     else:
         mark = Text(mark, style=mark_style)
     if isinstance(message, str):
-        if render_text:
-            render_message = Text.from_markup(message, style=style)
-        else:
-            render_message = Text(message, style=style)
+        render_message = Text(message, style=style)
     else:
         render_message = message
 
@@ -59,13 +55,13 @@ def render_grid(item: List[List[Union[str, RichRenderable]]], padding: Tuple[int
     return grid
 
 
-def render_suffix(content: str | RichRenderable, style: Optional[str] = None, render_text: bool = False) -> RichRenderable:
+def render_suffix(content: str | RichRenderable, style: Optional[str] = None) -> RichRenderable:
     if not content:
         return ''
     table = Table.grid(padding=(0, 1))
     table.add_column(width=3, no_wrap=True, style=style)
     table.add_column(overflow='fold', style=style)
-    table.add_row('  ⎿ ', Text(content, style=style) if isinstance(content, str) and not render_text else content)
+    table.add_row('  ⎿ ', Text(content, style=style) if isinstance(content, str) else content)
     return table
 
 
@@ -96,7 +92,7 @@ def render_hello(show_info: bool = True) -> RenderResult:
     return Panel.fit(table, border_style=ColorStyle.CLAUDE)
 
 
-def get_tip(all_tips: bool = False) -> List[str]:
+def get_tip(all_tips: bool = False) -> RichRenderable:
     tips = [
         'Type \\ followed by [main]Enter[/main] to insert newlines',
         'Type / to choose slash command',
@@ -113,19 +109,21 @@ def get_tip(all_tips: bool = False) -> List[str]:
     if (Path.cwd() / '.klaude' / 'mcp.json').exists():
         tips.append('Run [main]klaude --mcp[/main] or [main]/mcp[/main] to enable MCP tools')
 
+    if all_tips:
+        return Group(*(Text.from_markup(tip) for tip in tips))
+
     import random
 
-    return [random.choice(tips)] if not all_tips else tips
+    return Text.from_markup(random.choice(tips))
 
 
 def render_tips() -> RenderResult:
     return render_message(
-        '\n'.join(get_tip()),
+        get_tip(),
         mark='※ Tip:',
         style=ColorStyle.HINT,
         mark_style=ColorStyle.HINT,
         mark_width=5,
-        render_text=True,
     )
 
 

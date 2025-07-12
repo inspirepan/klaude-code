@@ -6,8 +6,9 @@ from openai.types.chat import ChatCompletionMessageParam
 from rich.rule import Rule
 from rich.text import Text
 
-from ..tui import ColorStyle, render_message, render_suffix
+from ..tui import ColorStyle, render_markdown, render_message, render_suffix
 from ..utils.file_utils import get_relative_path_for_display
+from ..utils.str_utils import extract_xml_content
 from .base import BasicMessage
 
 
@@ -159,7 +160,15 @@ def interrupted_renderer(user_msg: 'UserMessage'):
 
 def compact_renderer(user_msg: 'UserMessage'):
     yield Rule(title=Text('Previous Conversation Compacted', ColorStyle.HIGHLIGHT.bold), characters='=', style=ColorStyle.HIGHLIGHT)
-    yield render_message(user_msg.content, mark='✻', mark_style=ColorStyle.INFO, style=ColorStyle.INFO, render_text=True)
+    summary = extract_xml_content(user_msg.content, 'summary')
+    analysis = extract_xml_content(user_msg.content, 'analysis')
+    markdown_content = render_markdown(f'### Analysis\n{analysis}\n\n### Summary\n{summary}', style=ColorStyle.AI_CONTENT.italic)
+
+    yield render_message(
+        markdown_content,
+        mark='✻',
+        mark_style=ColorStyle.HIGHLIGHT,
+    )
 
 
 def initialize_default_renderers():

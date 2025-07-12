@@ -20,11 +20,8 @@ class OutputCommand(Command):
 
     async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
         # Check if there are any AI messages with content
-        has_ai_content = any(
-            isinstance(msg, AIMessage) and msg.content.strip()
-            for msg in agent_state.session.messages.messages
-        )
-        
+        has_ai_content = any(isinstance(msg, AIMessage) and msg.content.strip() for msg in agent_state.session.messages.messages)
+
         if not has_ai_content:
             error_msg = 'No AI message with content found'
             return CommandHandleOutput(
@@ -36,7 +33,7 @@ class OutputCommand(Command):
                 need_agent_run=False,
                 need_render_suffix=True,
             )
-        
+
         output_dir = agent_state.session.work_dir / '.klaude' / 'output'
         output_dir.mkdir(parents=True, exist_ok=True)
 

@@ -83,3 +83,10 @@ def get_inserted_text(old_text: str, new_text: str) -> str:
             break
 
     return new_text[prefix_len : len(new_text) - suffix_len]
+
+
+def extract_xml_content(text: str, tag: str) -> str:
+    """Extract content between XML tags"""
+    pattern = re.compile(rf'<{re.escape(tag)}>(.*?)</{re.escape(tag)}>', re.DOTALL)
+    match = pattern.search(text)
+    return match.group(1) if match else ''

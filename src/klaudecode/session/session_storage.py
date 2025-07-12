@@ -64,7 +64,6 @@ class SessionStorage:
             if not session_dir.exists():
                 session_dir.mkdir(parents=True)
 
-
             metadata_file = cls.get_metadata_file_path(session)
             messages_file = cls.get_messages_file_path(session)
             current_time = time.time()
