@@ -157,7 +157,7 @@ dark_theme_colors = {
     ThemeColorEnum.BLUE: '#53b1ff',
     ThemeColorEnum.YELLOW: '#ece100',
     ThemeColorEnum.PURPLE: '#afbafe',
-    ThemeColorEnum.CYAN: '#18998c',
+    ThemeColorEnum.CYAN: '#38b9ac',
     ThemeColorEnum.MAGENTA: '#ff4cb4',
     ThemeColorEnum.DIFF_REMOVED_LINE: '#ffffff on #702f37',
     ThemeColorEnum.DIFF_ADDED_LINE: '#ffffff on #005e24',

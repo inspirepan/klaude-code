@@ -5,7 +5,7 @@ from rich.console import Group
 from rich.table import Table
 from rich.text import Text
 
-from ..utils.file_utils.file_operations import get_relative_path_for_display
+from ..utils.file_utils.path_utils import get_relative_path_for_display
 from ..utils.str_utils import normalize_tabs
 from . import ColorStyle
 
