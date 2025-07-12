@@ -172,7 +172,6 @@ class AgentExecutor(Tool):
 
     def _handle_interruption(self):
         # Clean up any live displays
-        asyncio.create_task(asyncio.sleep(0.1))
         if hasattr(console.console, '_live') and console.console._live:
             try:
                 console.console._live.stop()

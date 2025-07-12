@@ -169,11 +169,9 @@ class TestAgentExecutor:
     async def test_handle_interruption(self, agent_executor, mock_agent_state):
         from klaudecode.message import INTERRUPTED_MSG
 
-        with patch('asyncio.create_task') as mock_create_task:
-            result = agent_executor._handle_interruption()
+        result = agent_executor._handle_interruption()
 
-            mock_create_task.assert_called_once()
-            assert result == INTERRUPTED_MSG
+        assert result == INTERRUPTED_MSG
 
     def test_handle_general_error(self, agent_executor, mock_agent_state):
         error = ValueError('Test error')

@@ -2,7 +2,7 @@ from typing import List, Literal, Optional
 
 from anthropic.types import MessageParam
 from openai.types.chat import ChatCompletionMessageParam
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from ..tui import ColorStyle, render_suffix, truncate_middle_text
 from .base import BasicMessage
@@ -21,8 +21,7 @@ class ToolMessage(BasicMessage):
     error_msg: Optional[str] = None
     system_reminders: Optional[List[str]] = None
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
     def tool_call(self) -> ToolCall:
