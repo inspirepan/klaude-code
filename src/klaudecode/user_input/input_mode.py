@@ -6,7 +6,6 @@ from prompt_toolkit.styles import Style
 from rich.abc import RichRenderable
 from rich.text import Text
 
-
 from ..message import UserMessage, register_user_msg_content_func, register_user_msg_renderer, register_user_msg_suffix_renderer
 from ..tui import ColorStyle, get_prompt_toolkit_color, get_prompt_toolkit_style, render_message
 from ..user_input import Command, CommandHandleOutput, UserInput

@@ -8,6 +8,7 @@ from .command_init import InitCommand
 from .command_mac_setup import MacSetupCommand
 from .command_mcp import MCPCommand
 from .command_memory import MemoryCommand
+from .command_output import OutputCommand
 from .command_save_custom_command import SaveCustomCommandCommand
 from .command_status import StatusCommand
 from .command_theme import ThemeCommand
@@ -30,6 +31,7 @@ __all__ = [
     'QueryRewriteCommand',
     'MemoryCommand',
     'InitCommand',
+    'OutputCommand',
     'ThemeCommand',
     'ExampleCustomCommand',
     'SaveCustomCommandCommand',
@@ -49,13 +51,14 @@ register_input_mode(MemoryMode())
 
 register_slash_command(StatusCommand())
 register_slash_command(InitCommand())
+register_slash_command(OutputCommand())
+register_slash_command(CompactCommand())
 register_slash_command(MemoryCommand())
+register_slash_command(DebugCommand())
 register_slash_command(MCPCommand())
 register_slash_command(ClearCommand())
-register_slash_command(CompactCommand())
 register_slash_command(ContinueCommand())
 register_slash_command(CostCommand())
-register_slash_command(DebugCommand())
 register_slash_command(ThemeCommand())
 if MacSetupCommand.need_mac_setup():
     register_slash_command(MacSetupCommand())

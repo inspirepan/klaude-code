@@ -1,4 +1,3 @@
-import re
 import sys
 
 from .colors import ColorStyle
