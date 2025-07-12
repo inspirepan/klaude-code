@@ -6,6 +6,7 @@ from ..agent import AgentState
 from ..config import GlobalConfigSource
 from ..message import UserMessage
 from ..tui import console, get_all_themes, render_suffix
+from ..tui.theme_preview import show_all_theme_previews
 from ..user_input import Command, CommandHandleOutput, UserInput, user_select
 
 
@@ -19,6 +20,10 @@ class ThemeCommand(Command):
     async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
         command_handle_output = await super().handle(agent_state, user_input)
         command_handle_output.user_msg.removed = True
+
+        # Show all theme previews
+        theme_previews = show_all_theme_previews()
+        console.print(theme_previews)
 
         theme_options = get_all_themes()
         selected_idx = await user_select(theme_options, 'Select theme:')
