@@ -92,7 +92,7 @@ Output: Creates directory 'foo'"""
 def render_bash_args(tool_call: ToolCall, is_suffix: bool = False):
     command = tool_call.tool_args_dict.get('command', '')
     if is_suffix:
-        yield Text.assemble(('Bash', 'bold'), '(', command, ')')
+        yield Text.assemble(('Bash', ColorStyle.MAIN.bold), '(', command, ')')
         return
 
     description = tool_call.tool_args_dict.get('description', '')

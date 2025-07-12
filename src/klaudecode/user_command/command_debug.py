@@ -260,7 +260,7 @@ EOF'''
                 first_line = Text.assemble(
                     ('✔ ', ColorStyle.SUCCESS.bold),
                     f'{provider.upper()} curl command generated: ',
-                    (file_path, 'bold'),
+                    (file_path, ColorStyle.MAIN.bold),
                 )
 
                 # Second line: statistics with bold numbers
@@ -271,13 +271,15 @@ EOF'''
                 # Build role statistics text
                 role_parts = []
                 for role, count in role_counts.items():
-                    role_parts.extend([role, ': ', (str(count), 'bold'), ', '])
+                    role_parts.extend([role, ': ', (str(count), ColorStyle.MAIN.bold), ', '])
 
                 # Remove the last comma and space
                 if role_parts:
                     role_parts = role_parts[:-1]
 
-                second_line = Text.assemble((str(tool_count), 'bold'), ' tools, ', (str(total_messages), 'bold'), ' messages (', *role_parts, ') - executable curl script')
+                second_line = Text.assemble(
+                    (str(tool_count), ColorStyle.MAIN.bold), ' tools, ', (str(total_messages), ColorStyle.MAIN.bold), ' messages (', *role_parts, ') - executable curl script'
+                )
 
                 # Third line: curl usage tip
                 third_line = Text('Tip: Direct curl may return end_turn - consider remove some messages for continuation', style=ColorStyle.HINT)
@@ -287,7 +289,7 @@ EOF'''
                 # Schema JSON export
                 first_line = Text.assemble(
                     f'{provider.upper()} native API schema exported to ',
-                    (file_path, 'bold'),
+                    (file_path, ColorStyle.MAIN.bold),
                 )
 
                 # Second line: statistics with bold numbers
@@ -298,12 +300,14 @@ EOF'''
                 # Build role statistics text
                 role_parts = []
                 for role, count in role_counts.items():
-                    role_parts.extend([role, ': ', (str(count), 'bold'), ', '])
+                    role_parts.extend([role, ': ', (str(count), ColorStyle.MAIN.bold), ', '])
 
                 # Remove the last comma and space
                 if role_parts:
                     role_parts = role_parts[:-1]
 
-                second_line = Text.assemble((str(tool_count), 'bold'), ' tools, ', (str(total_messages), 'bold'), ' messages (', *role_parts, ') - ready for direct API usage')
+                second_line = Text.assemble(
+                    (str(tool_count), ColorStyle.MAIN.bold), ' tools, ', (str(total_messages), ColorStyle.MAIN.bold), ' messages (', *role_parts, ') - ready for direct API usage'
+                )
 
                 yield render_suffix(Group(first_line, second_line))

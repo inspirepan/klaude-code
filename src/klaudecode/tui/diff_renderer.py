@@ -63,7 +63,7 @@ class DiffAnalyzer:
             return None
 
         display_path = get_relative_path_for_display(file_path)
-        summary_text = Text.assemble('Updated ', (display_path, 'bold'), ' with ')
+        summary_text = Text.assemble('Updated ', (display_path, ColorStyle.MAIN.bold), ' with ')
 
         for i, part in enumerate(summary_parts):
             if i > 0:
@@ -72,7 +72,7 @@ class DiffAnalyzer:
             words = part.split(' ', 1)
             if len(words) == 2:
                 number, text = words
-                summary_text.append(number, style='bold')
+                summary_text.append(number, style=ColorStyle.MAIN.bold)
                 summary_text.append(f' {text}')
             else:
                 summary_text.append(part)

@@ -134,7 +134,7 @@ def render_write_args(tool_call: ToolCall, is_suffix: bool = False):
     display_path = get_relative_path_for_display(file_path)
 
     tool_call_msg = Text.assemble(
-        (tool_call.tool_name, ColorStyle.TOOL_NAME.bold if not is_suffix else 'bold'),
+        (tool_call.tool_name, ColorStyle.TOOL_NAME.bold if not is_suffix else ColorStyle.MAIN.bold),
         '(',
         display_path,
         ')',
@@ -179,7 +179,7 @@ def render_write_result(tool_msg: ToolMessage):
         display_path = get_relative_path_for_display(file_path) if file_path else 'file'
 
         # Create summary similar to Edit tool
-        summary_text = Text.assemble('Wrote ', (str(total_lines), 'bold'), f' line{"s" if total_lines != 1 else ""} to ', (display_path, 'bold'))
+        summary_text = Text.assemble('Wrote ', (str(total_lines), ColorStyle.MAIN.bold), f' line{"s" if total_lines != 1 else ""} to ', (display_path, ColorStyle.MAIN.bold))
 
         # Show preview if we have lines
         if preview_lines and total_lines > 0:
@@ -190,7 +190,7 @@ def render_write_result(tool_msg: ToolMessage):
                 # Build write info with Rich Text for styling similar to Read tool
                 write_text = Text()
                 write_text.append('Wrote ')
-                write_text.append(str(total_lines), style='bold')
+                write_text.append(str(total_lines), style=ColorStyle.MAIN.bold)
                 write_text.append(' lines')
                 # Show ellipsis only if we have WRITE_RESULT_BRIEF_LIMIT or more lines displayed
                 ellipsis = '…' if len(preview_lines) >= WRITE_RESULT_BRIEF_LIMIT else ''

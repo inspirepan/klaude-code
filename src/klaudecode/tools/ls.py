@@ -50,7 +50,7 @@ def render_ls_args(tool_call: ToolCall, is_suffix: bool = False):
     display_path = get_relative_path_for_display(path)
 
     tool_call_msg = Text.assemble(
-        ('List', ColorStyle.TOOL_NAME.bold if not is_suffix else 'bold'),
+        ('List', ColorStyle.TOOL_NAME.bold if not is_suffix else ColorStyle.MAIN.bold),
         '(',
         display_path,
         ignore_info,
@@ -64,7 +64,7 @@ def render_ls_content(tool_msg: ToolMessage):
     yield render_suffix(
         Text.assemble(
             'Listed ',
-            (str(tool_msg.extra_data.get('path_count', 0)), 'bold'),
+            (str(tool_msg.extra_data.get('path_count', 0)), ColorStyle.MAIN.bold),
             ' paths',
         )
     )

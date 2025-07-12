@@ -108,7 +108,7 @@ description: {description}
             yield render_suffix(
                 Text.assemble(
                     'Command ',
-                    (f'{command_saved["name"]}', 'bold'),
+                    (f'{command_saved["name"]}', ColorStyle.MAIN.bold),
                     ' saved as ',
                     f'{command_saved["scope"]}',
                     ' command at ',

@@ -216,7 +216,7 @@ def render_read_args(tool_call: ToolCall, is_suffix: bool = False):
     display_path = get_relative_path_for_display(file_path)
 
     tool_call_msg = Text.assemble(
-        (tool_call.tool_name, ColorStyle.TOOL_NAME.bold if not is_suffix else 'bold'),
+        (tool_call.tool_name, ColorStyle.TOOL_NAME.bold if not is_suffix else ColorStyle.MAIN.bold),
         '(',
         display_path,
         line_range,
@@ -245,7 +245,7 @@ def render_read_content(tool_msg: ToolMessage):
         # Build read info with Rich Text for styling
         read_text = Text()
         read_text.append('Read ')
-        read_text.append(str(read_line_count), style='bold')
+        read_text.append(str(read_line_count), style=ColorStyle.MAIN.bold)
         read_text.append(' lines')
 
         if actual_range and truncated:

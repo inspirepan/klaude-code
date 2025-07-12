@@ -138,16 +138,16 @@ def render_todo_write_name(tool_call: ToolCall, is_suffix: bool = False):
         if todo.get('status') != 'pending':
             all_pending = False
     if all_completed:
-        yield Text.assemble(('Update Todos', 'bold'), '(', ('All Completed', ColorStyle.TODO_COMPLETED.bold), ')')
+        yield Text.assemble(('Update Todos', ColorStyle.MAIN.bold), '(', ('All Completed', ColorStyle.TODO_COMPLETED.bold), ')')
     elif all_pending:
-        yield Text.assemble(('Update Todos', 'bold'))
+        yield Text.assemble(('Update Todos', ColorStyle.MAIN.bold))
         yield Padding.indent(Group(*(Text(f'☐ {todo}') for todo in pending_todos)), 2)
     elif in_progress_todos:
-        yield Text.assemble(('Update Todos', 'bold'), '(', (f'{", ".join(in_progress_todos)}', ColorStyle.TODO_IN_PROGRESS), ')')
+        yield Text.assemble(('Update Todos', ColorStyle.MAIN.bold), '(', (f'{", ".join(in_progress_todos)}', ColorStyle.TODO_IN_PROGRESS), ')')
     else:
         yield Text('Update Todos', ColorStyle.TOOL_NAME.bold)
 
 
 @register_tool_call_renderer(TodoReadTool.name)
 def render_todo_read_name(tool_call: ToolCall, is_suffix: bool = False):
-    yield Text('Read Todos', ColorStyle.TOOL_NAME.bold if not is_suffix else 'bold')
+    yield Text('Read Todos', ColorStyle.TOOL_NAME.bold if not is_suffix else ColorStyle.MAIN.bold)

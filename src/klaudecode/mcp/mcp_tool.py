@@ -260,7 +260,7 @@ class MCPManager:
             yield Text('No MCP servers configured', style=ColorStyle.WARNING)
             return
 
-        yield Text('\nConfigured MCP servers:', style='bold')
+        yield Text('\nConfigured MCP servers:', style=ColorStyle.MAIN.bold)
 
         yield render_grid(
             [

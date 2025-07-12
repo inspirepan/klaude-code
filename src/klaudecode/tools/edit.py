@@ -154,7 +154,7 @@ def render_edit_args(tool_call: ToolCall, is_suffix: bool = False):
     display_path = get_relative_path_for_display(file_path)
 
     tool_call_msg = Text.assemble(
-        ('Update', ColorStyle.TOOL_NAME.bold if not is_suffix else 'bold'),
+        ('Update', ColorStyle.TOOL_NAME.bold if not is_suffix else ColorStyle.MAIN.bold),
         '(',
         display_path,
         ')',

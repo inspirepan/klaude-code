@@ -143,7 +143,7 @@ def truncate_middle_text(text: str, max_lines: int = 50, buffer_threshold: int =
         head_content,
         Rule(style=ColorStyle.LINE, title='···'),
         '',
-        Text.assemble('+ ', Text(str(middle_lines), style='bold'), ' lines', style=ColorStyle.HINT, justify='center'),
+        Text.assemble('+ ', Text(str(middle_lines), style=ColorStyle.MAIN.bold), ' lines', style=ColorStyle.HINT, justify='center'),
         '',
         Rule(style=ColorStyle.LINE, title='···'),
         tail_content,

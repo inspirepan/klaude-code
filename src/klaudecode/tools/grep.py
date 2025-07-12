@@ -225,7 +225,7 @@ def render_grep_args(tool_call: ToolCall, is_suffix: bool = False):
         path_info = ''
 
     tool_call_msg = Text.assemble(
-        ('Grep', ColorStyle.TOOL_NAME.bold if not is_suffix else 'bold'),
+        ('Grep', ColorStyle.TOOL_NAME.bold if not is_suffix else ColorStyle.MAIN.bold),
         '(',
         (pattern, ColorStyle.INLINE_CODE),
         path_info,
@@ -242,7 +242,7 @@ def render_grep_content(tool_msg: ToolMessage):
 
     count_text = Text()
     count_text.append('Found ')
-    count_text.append(str(match_count), style='bold')
+    count_text.append(str(match_count), style=ColorStyle.MAIN.bold)
     count_text.append(' matches')
 
     if truncated:

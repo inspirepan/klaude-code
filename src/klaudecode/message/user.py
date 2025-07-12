@@ -115,11 +115,11 @@ class UserMessage(BasicMessage):
                 display_path = get_relative_path_for_display(attachment.path)
 
                 if attachment.type == 'directory':
-                    attachment_text = Text.assemble('Listed directory ', (display_path + '/', 'bold'))
+                    attachment_text = Text.assemble('Listed directory ', (display_path + '/', ColorStyle.MAIN.bold))
                 elif attachment.type == 'image':
-                    attachment_text = Text.assemble('Read image ', (display_path, 'bold'), f' ({attachment.size_str})' if attachment.size_str else '')
+                    attachment_text = Text.assemble('Read image ', (display_path, ColorStyle.MAIN.bold), f' ({attachment.size_str})' if attachment.size_str else '')
                 else:
-                    attachment_text = Text.assemble('Read ', (display_path, 'bold'), f' ({attachment.line_count} lines)')
+                    attachment_text = Text.assemble('Read ', (display_path, ColorStyle.MAIN.bold), f' ({attachment.line_count} lines)')
                 yield render_suffix(attachment_text)
 
         if self.get_extra_data('error_msgs'):
