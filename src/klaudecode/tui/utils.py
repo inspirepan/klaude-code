@@ -25,20 +25,7 @@ def get_prompt_toolkit_color(color_style: ColorStyle) -> str:
         color_name = style_str.replace('_', '')
         return f'ansi{color_name}'
 
-    if hasattr(style_value, 'color') and style_value.color:
-        # Convert rich Color to hex
-        if hasattr(style_value.color, 'triplet'):
-            r, g, b = style_value.color.triplet
-            return f'#{r:02x}{g:02x}{b:02x}'
-        elif hasattr(style_value.color, 'number'):
-            # Handle palette colors
-            return f'ansi{style_value.color.number}'
-    # Fallback to extract from rgb() string
-    rgb_match = re.search(r'rgb\((\d+),(\d+),(\d+)\)', str(style_value))
-    if rgb_match:
-        r, g, b = map(int, rgb_match.groups())
-        return f'#{r:02x}{g:02x}{b:02x}'
-    return '#ffffff'
+    return style_str
 
 
 def get_prompt_toolkit_style() -> dict:

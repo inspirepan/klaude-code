@@ -94,7 +94,10 @@ class UserMessage(BasicMessage):
         from .registry import _USER_MSG_RENDERERS
 
         if not self.user_msg_type or self.user_msg_type not in _USER_MSG_RENDERERS:
-            yield render_message(Text(self.content), mark='>')
+            yield render_message(
+                Text(self.content, style=ColorStyle.USER_MESSAGE),
+                mark='>',
+            )
         else:
             yield from _USER_MSG_RENDERERS[self.user_msg_type](self)
         yield from self.get_suffix_renderable()

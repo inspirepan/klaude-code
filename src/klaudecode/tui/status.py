@@ -92,8 +92,8 @@ class DotsStatus:
         description: Optional[RenderableType] = None,
         *,
         console: Console = Console(),
-        spinner_style: StyleType = None,
-        dots_style: StyleType = None,
+        spinner_style: StyleType = ColorStyle.STATUS,
+        dots_style: StyleType = ColorStyle.STATUS,
         refresh_per_second: int = 10,
     ):
         self.status = status
@@ -170,8 +170,8 @@ class DotsStatus:
 def render_dot_status(
     status: str,
     description: Optional[str] = None,
-    spinner_style: StyleType = None,
-    dots_style: StyleType = None,
+    spinner_style: StyleType = ColorStyle.STATUS,
+    dots_style: StyleType = ColorStyle.STATUS,
 ):
     if description:
         desc_text = Text.assemble(description, (INTERRUPT_TIP, ColorStyle.HINT))

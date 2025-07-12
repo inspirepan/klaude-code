@@ -13,7 +13,7 @@ from rich.text import Text
 from ..agent import AgentState
 from ..message import UserMessage
 from ..prompt.commands import BASH_INPUT_MODE_CONTENT
-from ..tui import ColorStyle, console, get_prompt_toolkit_color, render_message, render_suffix
+from ..tui import ColorStyle, console, get_prompt_toolkit_color, render_suffix
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput
 from ..utils.bash_utils.environment import BashEnvironment
 from ..utils.bash_utils.interaction_detection import BashInteractionDetector
@@ -31,7 +31,7 @@ class BashMode(InputModeCommand):
         return get_prompt_toolkit_color(ColorStyle.BASH_MODE)
 
     def _get_placeholder(self) -> str:
-        return 'type a bash command...'
+        return 'Run commands...'
 
     def binding_key(self) -> str:
         return '!'
@@ -197,9 +197,6 @@ class BashMode(InputModeCommand):
                     pass
 
         return '\n'.join(output_lines), '\n'.join(error_lines)
-
-    def render_user_msg(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
-        yield render_message(Text(user_msg.content), mark='!', style=self._get_color(), mark_style=self._get_color())
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         stdout = user_msg.get_extra_data('stdout', '')

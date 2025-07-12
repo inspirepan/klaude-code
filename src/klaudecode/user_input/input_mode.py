@@ -1,12 +1,15 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generator
 
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style
+from rich.abc import RichRenderable
+from rich.text import Text
 
-from ..message import register_user_msg_content_func, register_user_msg_renderer, register_user_msg_suffix_renderer
-from ..tui import ColorStyle, get_prompt_toolkit_color, get_prompt_toolkit_style
-from .input_command import Command, CommandHandleOutput, UserInput
+
+from ..message import UserMessage, register_user_msg_content_func, register_user_msg_renderer, register_user_msg_suffix_renderer
+from ..tui import ColorStyle, get_prompt_toolkit_color, get_prompt_toolkit_style, render_message
+from ..user_input import Command, CommandHandleOutput, UserInput
 
 if TYPE_CHECKING:
     from ..agent import AgentState
@@ -41,7 +44,7 @@ class InputModeCommand(Command, ABC):
         return self._get_prompt() + ' '
 
     def get_placeholder(self):
-        color = self._get_color() or get_prompt_toolkit_color(ColorStyle.INPUT_PLACEHOLDER)
+        color = self._get_color()
         if color:
             return HTML(f'<style fg="{color}">{self._get_placeholder()} </style>')
         return self._get_placeholder() + ' '
@@ -55,6 +58,9 @@ class InputModeCommand(Command, ABC):
             style_dict[''] = self._get_color()
         return Style.from_dict(style_dict)
 
+    def render_user_msg(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
+        yield render_message(Text(user_msg.content, self._get_color()), mark=self._get_prompt(), style=self._get_color(), mark_style=self._get_color())
+
 
 class NormalMode(InputModeCommand):
     def get_name(self) -> str:
@@ -64,10 +70,13 @@ class NormalMode(InputModeCommand):
         return '>'
 
     def _get_color(self) -> str:
-        return ''
+        return get_prompt_toolkit_color(ColorStyle.USER_MESSAGE)
 
     def _get_placeholder(self) -> str:
-        return 'type you query... type exit to quit.'
+        return 'Ask anything... (exit to quit)'
+
+    def get_placeholder(self):
+        return HTML(f'<style fg="{get_prompt_toolkit_color(ColorStyle.INPUT_PLACEHOLDER)}">{self._get_placeholder()} </style>')
 
     def binding_key(self) -> str:
         return ''

@@ -6,7 +6,7 @@ from rich.text import Text
 
 from ..agent import AgentState
 from ..message import UserMessage
-from ..tui import ColorStyle, get_prompt_toolkit_color, render_message, render_suffix
+from ..tui import ColorStyle, get_prompt_toolkit_color, render_suffix
 from ..user_input import CommandHandleOutput, InputModeCommand, UserInput, user_select
 
 
@@ -21,7 +21,7 @@ class MemoryMode(InputModeCommand):
         return get_prompt_toolkit_color(ColorStyle.MEMORY_MODE)
 
     def _get_placeholder(self) -> str:
-        return 'type to memorize...'
+        return 'Add to memory...'
 
     def binding_key(self) -> str:
         return '#'
@@ -71,9 +71,6 @@ class MemoryMode(InputModeCommand):
         command_handle_output.user_msg.set_extra_data('path', str(claude_md_path))
         command_handle_output.need_agent_run = False
         return command_handle_output
-
-    def render_user_msg(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
-        yield render_message(Text(user_msg.content), mark='#', style=self._get_color(), mark_style=self._get_color())
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         result = user_msg.get_extra_data('result', '')

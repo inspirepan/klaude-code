@@ -111,7 +111,7 @@ TOOL_CALL_STATUS_TEXT_DICT = {
 
 
 def text_status_str(status_str: str) -> Text:
-    return Text(status_str, style=ColorStyle.CLAUDE)
+    return Text(status_str, style=ColorStyle.STATUS)
 
 
 def get_reasoning_status_text(seed: Optional[int] = None) -> Text:

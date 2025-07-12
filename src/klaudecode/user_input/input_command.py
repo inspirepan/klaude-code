@@ -6,7 +6,7 @@ from rich.abc import RichRenderable
 from rich.text import Text
 
 from ..message import UserMessage, register_user_msg_content_func, register_user_msg_renderer, register_user_msg_suffix_renderer
-from ..tui import render_message
+from ..tui import ColorStyle, render_message
 
 if TYPE_CHECKING:
     from ..agent import AgentState
@@ -45,7 +45,7 @@ class Command(ABC):
         )
 
     def render_user_msg(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
-        yield render_message(Text(user_msg.user_raw_input), mark='>')
+        yield render_message(Text(user_msg.user_raw_input, style=ColorStyle.USER_MESSAGE), mark='>')
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         return

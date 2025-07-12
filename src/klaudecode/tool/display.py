@@ -44,7 +44,7 @@ class ToolDisplayManager:
     async def live_display(tool_instances: List['ToolInstance'], tool_calls: List[ToolCall], interrupt_handler: 'InterruptHandler'):
         try:
             status_text = ToolDisplayManager.generate_status_text(tool_calls)
-            status = render_dot_status(status=status_text, spinner_style=ColorStyle.CLAUDE, dots_style=ColorStyle.CLAUDE)
+            status = render_dot_status(status=status_text)
 
             with Live(refresh_per_second=10, console=console.console) as live:
                 live_group = ToolDisplayManager.create_live_group(tool_instances)
