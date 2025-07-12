@@ -1,12 +1,13 @@
-"""Tests for bash_utils modules"""
+"""Tests for bash_utils modules - Environment and Interaction Detection"""
 
 import unittest.mock
 
 from klaudecode.utils.bash_utils.environment import BashEnvironment
 from klaudecode.utils.bash_utils.interaction_detection import BashInteractionDetector
+from tests.base import BaseToolTest
 
 
-class TestBashEnvironment:
+class TestBashEnvironment(BaseToolTest):
     def test_preprocess_command_with_quotes(self):
         """Test that commands with quotes are properly escaped"""
         # Mock timeout availability to make tests predictable

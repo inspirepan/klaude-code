@@ -1,6 +1,6 @@
 class BashInteractionDetector:
     INTERACTIVE_PATTERNS = [
-        'password:',
+        'password',
         'enter passphrase',
         'are you sure',
         '(y/n)',
@@ -16,16 +16,17 @@ class BashInteractionDetector:
     SAFE_CONTINUE_PATTERNS = [
         'press enter',
         'enter to continue',
-        '--More--',
-        '(press SPACE to continue)',
+        '--more--',
+        '(press space to continue)',
         'hit enter to continue',
-        'WARNING: terminal is not fully functional',
+        'warning: terminal is not fully functional',
         'terminal is not fully functional',
-        'Press ENTER or type command to continue',
-        'Hit ENTER for',
-        '(END)',
-        'Press any key to continue',
+        'press enter or type command to continue',
+        'hit enter for',
+        '(end)',
+        'press any key',
         'press return to continue',
+        'press return key',
     ]
 
     @classmethod
