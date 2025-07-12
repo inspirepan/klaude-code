@@ -115,7 +115,8 @@ class TestSessionStorage:
 
     def test_save_session_auto_title_generation(self):
         session = Session(work_dir=self.work_dir)
-        session.append_message(UserMessage(content='This is my question', user_raw_input='This is my question'), AIMessage(content='This is the answer'))
+        session.append_message(UserMessage(content='This is my question', user_raw_input='This is my question'))
+        session.append_message(AIMessage(content='This is the answer'))
 
         SessionStorage.save(session)
 

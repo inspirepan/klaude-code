@@ -27,8 +27,7 @@ class SessionStorage:
     @staticmethod
     def get_formatted_filename_prefix(session: 'Session') -> str:
         """Generate formatted filename prefix with datetime and title."""
-        created_at = session.created_at
-        dt = datetime.fromtimestamp(created_at)
+        dt = datetime.fromtimestamp(session.created_at)
         datetime_str = dt.strftime('%Y_%m%d_%H%M%S')
         title = sanitize_filename(session.title_msg, max_length=40)
         if session.source == 'subagent':
@@ -65,12 +64,6 @@ class SessionStorage:
             if not session_dir.exists():
                 session_dir.mkdir(parents=True)
 
-            if not session.title_msg:
-                first_user_msg = session.messages.get_first_message(role='user', filter_empty=True)
-                if first_user_msg is not None:
-                    session.title_msg = first_user_msg.user_raw_input or first_user_msg.content
-                else:
-                    session.title_msg = 'untitled'
 
             metadata_file = cls.get_metadata_file_path(session)
             messages_file = cls.get_messages_file_path(session)
@@ -86,7 +79,7 @@ class SessionStorage:
                 'todo_list': session.todo_list.model_dump(),
                 'file_tracker': session.file_tracker.model_dump(),
                 'source': session.source,
-                'title_msg': session.title_msg,
+                'title_msg': session.title_msg or 'UNTITLED',
             }
 
             with open(metadata_file, 'w', encoding='utf-8') as f:
@@ -257,7 +250,7 @@ class SessionStorage:
                             'updated_at': metadata.get('updated_at'),
                             'message_count': metadata.get('message_count', 0),
                             'source': metadata.get('source', 'user'),
-                            'title_msg': metadata.get('title_msg', ''),
+                            'title_msg': metadata.get('title_msg', 'UNTITLED'),
                         }
                     )
                 except Exception as e:

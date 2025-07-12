@@ -57,6 +57,7 @@ class Session(BaseModel):
         # Update title_msg when the first new message is a user message
         if self._incremental_message_count == 1 and len(msgs) == 1:
             msg = msgs[0]
+            self.reset_create_at()
             if hasattr(msg, 'role') and msg.role == 'user' and hasattr(msg, 'user_raw_input'):
                 # Append new user message to existing title
                 content = msg.user_raw_input or msg.content
@@ -68,9 +69,9 @@ class Session(BaseModel):
                 old_title_msg = self.title_msg
                 new_title_msg = truncated_content
                 if old_title_msg:
-                    new_title_msg = f'{old_title_msg}_{new_title_msg}'
+                    new_title_msg = f'{old_title_msg}.{new_title_msg}'
                 if not new_title_msg:
-                    new_title_msg = 'untitled'
+                    new_title_msg = 'UNTITLED'
                 self.title_msg = new_title_msg
 
         with self._hook_lock:
