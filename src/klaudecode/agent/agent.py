@@ -77,7 +77,7 @@ class Agent:
 
     async def _headless_run_with_status_display(self):
         """Run agent executor with real-time status display"""
-        status = render_dot_status('Running')
+        status = render_dot_status(Text('Running', style=ColorStyle.STATUS))
         status.start()
         running = True
 
