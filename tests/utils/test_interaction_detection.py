@@ -185,7 +185,7 @@ class TestBashInteractionDetector(BaseToolTest):
 
         for text in ambiguous_texts:
             interactive_result = BashInteractionDetector.detect_interactive_prompt(text)
-            safe_result = BashInteractionDetector.detect_safe_continue_prompt(text)
+            BashInteractionDetector.detect_safe_continue_prompt(text)
 
             # Interactive detection should take precedence for safety
             assert interactive_result is True, f"'{text}' should be detected as interactive"

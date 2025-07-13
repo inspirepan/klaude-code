@@ -64,7 +64,7 @@ class TestBashTool(BaseToolTest):
         with patch('klaudecode.utils.bash_utils.command_execution.BashCommandExecutor.execute_bash_command') as mock_execute:
             mock_execute.return_value = ''
 
-            result = self.invoke_tool(
+            self.invoke_tool(
                 BashTool,
                 {
                     'command': 'echo test',
@@ -82,7 +82,7 @@ class TestBashTool(BaseToolTest):
         with patch('klaudecode.utils.bash_utils.command_execution.BashCommandExecutor.execute_bash_command') as mock_execute:
             mock_execute.return_value = ''
 
-            result = self.invoke_tool(BashTool, {'command': 'echo test'})
+            self.invoke_tool(BashTool, {'command': 'echo test'})
 
             mock_execute.assert_called_once()
             call_args = mock_execute.call_args
@@ -102,7 +102,7 @@ class TestBashTool(BaseToolTest):
 
             mock_execute.side_effect = lambda **kwargs: kwargs['check_canceled']()
 
-            result = self.invoke_tool(BashTool, {'command': 'sleep 60'})
+            self.invoke_tool(BashTool, {'command': 'sleep 60'})
 
     def test_empty_description(self):
         """Test that empty description is handled properly"""

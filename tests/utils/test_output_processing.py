@@ -1,6 +1,5 @@
 from unittest.mock import Mock, patch
 
-
 from klaudecode.utils.bash_utils.output_processing import BashOutputProcessor
 from tests.base import BaseToolTest
 

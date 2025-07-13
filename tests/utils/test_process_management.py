@@ -2,7 +2,6 @@ import signal
 import subprocess
 from unittest.mock import call, patch
 
-
 from klaudecode.utils.bash_utils.process_management import BashProcessManager
 from tests.base import BaseToolTest
 
@@ -101,7 +100,6 @@ class TestBashProcessManager(BaseToolTest):
                 assert mock_subprocess.call_count == 3  # Parent + 2 children
 
                 # Should have killed parent and children
-                expected_pids = [12345, 12346, 12347]
                 killed_pids = set()
                 for call_args in mock_kill.call_args_list:
                     if call_args[0][1] == signal.SIGTERM:  # Only count SIGTERM calls
@@ -201,7 +199,7 @@ class TestBashProcessManager(BaseToolTest):
         with patch('klaudecode.utils.bash_utils.process_management.subprocess.check_output') as mock_subprocess:
             mock_subprocess.side_effect = subprocess.CalledProcessError(1, 'pgrep')
 
-            with patch('klaudecode.utils.bash_utils.process_management.os.kill') as mock_kill:
+            with patch('klaudecode.utils.bash_utils.process_management.os.kill'):
                 BashProcessManager.kill_process_tree(12345)
 
                 # Should call sleep after SIGTERM
