@@ -1,4 +1,5 @@
 import platform
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -212,6 +213,61 @@ def _get_directory_structure_context(workdir: Path):
         return ''
 
 
+def _get_git_status(work_dir: Path) -> str:
+    """Get git status information for the working directory"""
+    try:
+        if not work_dir.joinpath('.git').exists():
+            return ""
+        
+        # Get current branch
+        result = subprocess.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], 
+                              cwd=work_dir, capture_output=True, text=True)
+        current_branch = result.stdout.strip() if result.returncode == 0 else "unknown"
+        
+        # Get main branch (origin/main)
+        result = subprocess.run(['git', 'rev-parse', '--abbrev-ref', 'origin/HEAD'], 
+                              cwd=work_dir, capture_output=True, text=True)
+        main_branch = result.stdout.strip().replace('origin/', '') if result.returncode == 0 else "main"
+        
+        # Get git status
+        result = subprocess.run(['git', 'status', '--porcelain'], 
+                              cwd=work_dir, capture_output=True, text=True)
+        if result.returncode != 0:
+            return ""
+        git_status = result.stdout.strip()
+        
+        # Get recent commits
+        result = subprocess.run(['git', 'log', '--oneline', '-5'], 
+                              cwd=work_dir, capture_output=True, text=True)
+        if result.returncode != 0:
+            return ""
+        recent_commits = result.stdout.strip()
+        
+        if not any([current_branch, git_status, recent_commits]):
+            return ""
+        
+        if git_status:
+            status_lines = git_status.split('\n')
+            formatted_status = '\n'.join(line.strip() for line in status_lines if line.strip())
+        else:
+            formatted_status = "(clean)"
+        
+        return """
+gitStatus: This is the git status at the start of the conversation. Note that this status is a snapshot in time, and will not update during the conversation.
+Current branch: {}
+
+Main branch (you will usually use this for PRs): {}
+
+Status:
+{}
+
+Recent commits:
+{}
+""".format(current_branch, main_branch, formatted_status, recent_commits)
+    except Exception:
+        return ""
+
+
 def _get_env_instruction(work_dir: Path = Path.cwd(), model_name: str = 'Unknown Model') -> str:
     system = platform.system().lower()
     if system == 'darwin':
@@ -243,6 +299,7 @@ def get_system_prompt_dynamic_part(work_dir: Path = Path.cwd(), model_name: str 
     return (
         _get_env_instruction(work_dir=work_dir, model_name=model_name) + '\n\n' + CODEBASE_INSTRUCTION + '\n\n'
         # + (_get_directory_structure_context(work_dir) if work_dir.joinpath('.git').exists() else '')
+        + _get_git_status(work_dir)
     )
 
 
