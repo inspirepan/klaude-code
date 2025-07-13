@@ -118,7 +118,7 @@ def main_command(
     theme: Optional[str] = typer.Option(None, '--theme', help='Override theme from config (light, dark, light_ansi, or dark_ansi)'),
     mcp: bool = typer.Option(False, '-m', '--mcp', help='Enable MCP (Model Context Protocol) tools'),
     logo: bool = typer.Option(False, '--logo', help='Show logo'),
-    no_update_check: bool = typer.Option(False, '--no-update-check', help='Skip automatic update check on startup'),
+    # no_update_check: bool = typer.Option(False, '--no-update-check', help='Skip automatic update check on startup'),
 ):
     ctx.ensure_object(dict)
     if ctx.invoked_subcommand is None:
@@ -158,5 +158,5 @@ def main_command(
         ctx.obj['mcp'] = mcp
         ctx.obj['config'] = config_model
         ctx.obj['logo'] = logo
-        ctx.obj['no_update_check'] = no_update_check
+        # ctx.obj['no_update_check'] = no_update_check
         asyncio.run(main_async(ctx))

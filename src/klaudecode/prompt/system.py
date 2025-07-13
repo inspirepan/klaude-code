@@ -330,7 +330,12 @@ Task completed successfully. Modified src/app.py to add authentication middlewar
 
 def get_subagent_system_prompt(work_dir: Path = Path.cwd(), model_name: str = 'Unknown Model') -> str:
     return (
-        SUB_AGENT_SYSTEM_PROMPT + '\n\n' + _get_env_instruction(work_dir=work_dir, model_name=model_name) + '\n\n' + CODEBASE_INSTRUCTION
+        SUB_AGENT_SYSTEM_PROMPT
+        + '\n\n'
+        + _get_env_instruction(work_dir=work_dir, model_name=model_name)
+        + '\n\n'
+        + CODEBASE_INSTRUCTION
         # + '\n\n'
         # + _get_directory_structure_context(work_dir)
+        + _get_git_status(work_dir)
     )

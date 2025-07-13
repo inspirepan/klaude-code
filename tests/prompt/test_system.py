@@ -1,7 +1,6 @@
 import subprocess
 from unittest.mock import MagicMock, patch
 
-
 from klaudecode.prompt.system import _get_git_status, get_system_prompt_dynamic_part
 
 
