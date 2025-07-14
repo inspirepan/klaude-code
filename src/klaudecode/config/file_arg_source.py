@@ -12,8 +12,10 @@ from .source import ConfigSource
 class FileArgConfigSource(ConfigSource):
     """Configuration from CLI specified file"""
 
+    source = '--config'
+
     def __init__(self, config_file: str):
-        super().__init__('--config')
+        super().__init__(self.source)
         self.config_file = config_file
         self._load_config()
 
@@ -22,7 +24,7 @@ class FileArgConfigSource(ConfigSource):
         config_path = Path(self.config_file)
         if not config_path.exists():
             console.print(Text(f'Warning: Config file not found: {config_path}', style=ColorStyle.ERROR))
-            self.config_model = ConfigModel(source='--config')
+            self.config_model = ConfigModel(source=self.source)
             return
 
         try:
@@ -31,7 +33,7 @@ class FileArgConfigSource(ConfigSource):
                 # Filter only valid ConfigModel fields
                 valid_fields = {k for k in ConfigModel.model_fields.keys()}
                 filtered_data = {k: v for k, v in config_data.items() if k in valid_fields}
-                self.config_model = ConfigModel(source='--config', **filtered_data)
+                self.config_model = ConfigModel(source=self.source, **filtered_data)
         except (json.JSONDecodeError, IOError) as e:
             console.print(Text(f'Warning: Failed to load config file {config_path}: {format_exception(e)}', style=ColorStyle.ERROR))
-            self.config_model = ConfigModel(source='--config')
+            self.config_model = ConfigModel(source=self.source)

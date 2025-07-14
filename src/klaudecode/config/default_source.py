@@ -17,10 +17,12 @@ from .source import ConfigSource
 class DefaultConfigSource(ConfigSource):
     """Default configuration"""
 
+    source = 'default'
+
     def __init__(self):
-        super().__init__('default')
+        super().__init__(self.source)
         self.config_model = ConfigModel(
-            source='default',
+            source=self.source,
             api_key=None,
             model_name=DEFAULT_MODEL_NAME,
             base_url=DEFAULT_BASE_URL,

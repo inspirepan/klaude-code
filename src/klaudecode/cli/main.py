@@ -135,7 +135,7 @@ def main_command(
             print_prompt = piped_input
 
         try:
-            config_model = setup_config(
+            config_manager = setup_config(
                 api_key=api_key,
                 model_name=model,
                 base_url=base_url,
@@ -148,6 +148,7 @@ def main_command(
                 theme=theme,
                 config_file=config,
             )
+            config_model = config_manager.get_config_model()
         except ValueError as e:
             console.print(Text(f'Error: {format_exception(e)}', style=ColorStyle.ERROR))
             raise typer.Exit(code=1)

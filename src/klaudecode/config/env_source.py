@@ -7,8 +7,10 @@ from .source import ConfigSource
 class EnvConfigSource(ConfigSource):
     """Environment variable configuration"""
 
+    source = 'env'
+
     def __init__(self):
-        super().__init__('env')
+        super().__init__(self.source)
         self._env_map = {
             'api_key': 'API_KEY',
             'model_name': 'MODEL_NAME',
@@ -43,4 +45,4 @@ class EnvConfigSource(ConfigSource):
                 else:
                     config_data[key] = env_value
 
-        self.config_model = ConfigModel(source='env', **config_data)
+        self.config_model = ConfigModel(source=self.source, **config_data)

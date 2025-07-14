@@ -1,15 +1,15 @@
 import typer
 
-from ..config import ConfigManager, ConfigModel, GlobalConfigSource
+from ..config import ConfigManager, GlobalConfigSource
 from ..tui import console
 
 
-def setup_config(**kwargs) -> ConfigModel:
+def setup_config(**kwargs) -> ConfigManager:
     config_manager = ConfigManager.setup(**kwargs)
     config_model = config_manager.get_config_model()
     if hasattr(config_model, 'theme') and config_model.theme:
         console.set_theme(config_model.theme.value)
-    return config_model
+    return config_manager
 
 
 config_app = typer.Typer(help='Manage global configuration', invoke_without_command=True)
@@ -28,7 +28,7 @@ def config_show():
     """
     Show global configuration
     """
-    config_manager = ConfigManager.setup()
+    config_manager = setup_config()
     console.print(config_manager)
 
 

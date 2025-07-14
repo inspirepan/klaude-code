@@ -25,8 +25,10 @@ DEFAULT_THEME = 'dark'  # Supported themes: 'light', 'dark', 'light_ansi', 'dark
 class GlobalConfigSource(ConfigSource):
     """Global configuration file"""
 
+    source = 'config'
+
     def __init__(self):
-        super().__init__('config')
+        super().__init__(self.source)
         self._load_config()
 
     @staticmethod
@@ -38,7 +40,7 @@ class GlobalConfigSource(ConfigSource):
         """Load configuration file into config model"""
         config_path = self.get_config_path()
         if not config_path.exists():
-            self.config_model = ConfigModel(source='config')
+            self.config_model = ConfigModel(source=self.source)
             return
 
         try:
@@ -47,10 +49,10 @@ class GlobalConfigSource(ConfigSource):
                 # Filter only valid ConfigModel fields
                 valid_fields = {k for k in ConfigModel.model_fields.keys()}
                 filtered_data = {k: v for k, v in config_data.items() if k in valid_fields}
-                self.config_model = ConfigModel(source='config', **filtered_data)
+                self.config_model = ConfigModel(source=self.source, **filtered_data)
         except (json.JSONDecodeError, IOError) as e:
             console.print(Text(f'Warning: Failed to load config: {format_exception(e)}', style=ColorStyle.ERROR))
-            self.config_model = ConfigModel(source='config')
+            self.config_model = ConfigModel(source=self.source)
 
     @classmethod
     def open_config_file(cls):

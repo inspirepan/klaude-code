@@ -38,6 +38,15 @@ class ConfigValue(Generic[T]):
         return self.value is not None
 
 
+config_source_style_dict = {
+    'default': ColorStyle.HINT,
+    'env': ColorStyle.INFO.bold,
+    'cli': ColorStyle.INFO.bold,
+    '--config': ColorStyle.SUCCESS.bold,
+    'config': ColorStyle.TOOL_NAME,
+}
+
+
 class ConfigModel(BaseModel):
     """Pydantic model for configuration with sources"""
 
@@ -83,7 +92,7 @@ class ConfigModel(BaseModel):
         table = Table.grid(padding=(0, 1), expand=False)
         table.add_column(width=1, no_wrap=True)  # Status
         table.add_column(min_width=10, no_wrap=True)  # Setting name
-        table.add_column(min_width=14)  # Value
+        table.add_column(min_width=10, overflow='fold')  # Value
         table.add_column()  # Source
 
         config_items = [
@@ -105,7 +114,7 @@ class ConfigModel(BaseModel):
             if config_value and config_value.value is not None:
                 status = Text('✓', style=ColorStyle.SUCCESS)
                 value = str(config_value.value)
-                source = f'from {config_value.source}'
+                source = Text.assemble('from ', (config_value.source, config_source_style_dict[config_value.source]))
             else:
                 status = Text('✗', style=ColorStyle.ERROR.bold)
                 value = Text('Not Set', style=ColorStyle.ERROR)

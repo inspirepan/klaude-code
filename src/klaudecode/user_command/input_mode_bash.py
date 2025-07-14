@@ -77,17 +77,19 @@ class BashMode(InputModeCommand):
             env = os.environ.copy()
             env.update(BashEnvironment.get_non_interactive_env())
             # Force unbuffered output for PTY
-            env.update({
-                'PYTHONUNBUFFERED': '1',
-                'PYTHONUTF8': '1',
-                'PYTHONIOENCODING': 'utf-8',
-                'TERM': 'xterm-256color',  # Better than 'dumb' for PTY
-                'COLUMNS': '80',
-                'LINES': '24'
-            })
+            env.update(
+                {
+                    'PYTHONUNBUFFERED': '1',
+                    'PYTHONUTF8': '1',
+                    'PYTHONIOENCODING': 'utf-8',
+                    'TERM': 'xterm-256color',  # Better than 'dumb' for PTY
+                    'COLUMNS': '80',
+                    'LINES': '24',
+                }
+            )
 
             master_fd, slave_fd = pty.openpty()
-            
+
             # Set master_fd to non-blocking mode
             flags = fcntl.fcntl(master_fd, fcntl.F_GETFL)
             fcntl.fcntl(master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
