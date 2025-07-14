@@ -82,8 +82,8 @@ def config_show():
     if not config_files:
         return
     console.print(Text('CONFIG FILES', style=ColorStyle.SUCCESS.bold))
-    console.print(Text.assemble('use ', ('klaude --config <config_name>', ColorStyle.INLINE_CODE), ' to use a specific config file', style=ColorStyle.HINT))
-    console.print(Text.assemble('use ', ('klaude config edit <config_name>', ColorStyle.INLINE_CODE), ' to use a specific config file', style=ColorStyle.HINT))
+    console.print(Text.assemble('Run ', ('klaude --config <config_name>', ColorStyle.INLINE_CODE), ' to use a specific config file', style=ColorStyle.HINT))
+    console.print(Text.assemble('Run ', ('klaude config edit <config_name>', ColorStyle.INLINE_CODE), ' to edit a specific config file', style=ColorStyle.HINT))
     console.print(Rule(style=ColorStyle.LINE, characters='╌'))
 
     for config_file in config_files:
