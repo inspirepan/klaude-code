@@ -72,16 +72,23 @@ class TestFileConfigSource:
         finally:
             Path(config_file_path).unlink()
 
-    def test_file_config_source_nonexistent_file(self):
-        """Test handling of non-existent file"""
-        nonexistent_path = '/nonexistent/path/config.json'
-        
-        with patch('klaudecode.tui.console.print'):  # Mock console to suppress warning
-            source = FileConfigSource(nonexistent_path)
+    def test_file_config_source_nonexistent_file_default(self):
+        """Test handling of non-existent default config file"""
+        with patch('pathlib.Path.exists', return_value=False):
+            source = FileConfigSource()  # Default config, should not raise
             
-            # Should create empty config model when file doesn't exist
+            # Should create empty config model when default file doesn't exist
             assert source.config_model is not None
             assert source.config_model.api_key is None
+
+    def test_file_config_source_nonexistent_file_cli_specified(self):
+        """Test handling of non-existent CLI-specified config file"""
+        nonexistent_path = '/nonexistent/path/config.json'
+        
+        # Direct constructor should not raise, just create empty config
+        source = FileConfigSource(nonexistent_path)
+        assert source.config_model is not None
+        assert source.config_model.api_key is None
 
     def test_file_config_source_filter_invalid_fields(self):
         """Test filtering of invalid configuration fields"""
@@ -150,12 +157,11 @@ class TestFileConfigSource:
 
     def test_create_cli_config_source(self):
         """Test CLI config source factory method"""
-        with patch('pathlib.Path.exists', return_value=False):
-            source = FileConfigSource.create_cli_config_source('anthropic')
-            
-            assert source.config_file == 'anthropic'
-            assert source.source == 'anthropic'
-            assert source.config_path == Path.home() / '.klaude' / 'config_anthropic.json'
+        import pytest
+        
+        # Should raise ValueError when CLI config file doesn't exist
+        with pytest.raises(ValueError, match="Configuration file not found"):
+            FileConfigSource.create_cli_config_source('definitely_nonexistent_config_12345')
 
     def test_get_config_path_class_method(self):
         """Test get_config_path class method"""

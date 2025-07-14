@@ -208,3 +208,27 @@ class TestConfigManager:
         finally:
             os.unlink(config_file_path)
 
+    def test_config_manager_setup_nonexistent_config_file(self):
+        """Test setup method with non-existent config file should raise ValueError"""
+        import pytest
+        
+        nonexistent_config = '/nonexistent/path/config.json'
+        
+        # Should raise ValueError when config file doesn't exist
+        with pytest.raises(ValueError, match="Configuration file not found"):
+            ConfigManager.setup(
+                api_key='test_key',
+                config_file=nonexistent_config
+            )
+
+    def test_config_manager_setup_nonexistent_named_config(self):
+        """Test setup method with non-existent named config should raise ValueError"""
+        import pytest
+        
+        # Should raise ValueError when named config doesn't exist
+        with pytest.raises(ValueError, match="Configuration file not found"):
+            ConfigManager.setup(
+                api_key='test_key', 
+                config_file='nonexistent_config_name'
+            )
+
