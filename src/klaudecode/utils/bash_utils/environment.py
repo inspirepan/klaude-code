@@ -58,11 +58,14 @@ class BashEnvironment:
         for pattern, replacement in replacements.items():
             command = re.sub(pattern, replacement, command)
 
+        # Check if command already has timeout
+        has_timeout = command.strip().startswith('timeout ')
+
         # Check if command needs bash -c wrapping by detecting complex shell syntax
         needs_bash_wrapper = cls._needs_bash_wrapper(command)
 
-        # Check if timeout command is available
-        if cls._has_timeout_command():
+        # Only add timeout if not already present
+        if not has_timeout and cls._has_timeout_command():
             timeout_str = f'{timeout_seconds:.0f}s'
             if needs_bash_wrapper:
                 # Use shlex.quote to properly escape the command for bash -c
@@ -71,8 +74,8 @@ class BashEnvironment:
             else:
                 return f'timeout {timeout_str} {command}'
         else:
-            # If timeout is not available, return command as-is (timeout will be handled by Python)
-            if needs_bash_wrapper:
+            # If timeout is not available or already present, return command as-is
+            if needs_bash_wrapper and not has_timeout:
                 escaped_command = shlex.quote(command)
                 return f'bash -c {escaped_command}'
             else:

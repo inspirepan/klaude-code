@@ -136,3 +136,22 @@ class TestBashEnvironment(BaseToolTest):
             assert result.startswith('bash -c')
             assert 'echo test | cat' in result
             assert 'timeout' not in result
+
+    def test_preprocess_command_with_existing_timeout(self):
+        """Test that commands already containing timeout are not double-wrapped"""
+        with unittest.mock.patch.object(BashEnvironment, '_has_timeout_command', return_value=True):
+            # Command already has timeout
+            result = BashEnvironment.preprocess_command('timeout 30s uv run pytest', 5.0)
+            assert result == 'timeout 30s uv run pytest'
+            # Should not contain double timeout
+            assert result.count('timeout') == 1
+
+            # Command with different timeout format
+            result = BashEnvironment.preprocess_command('timeout 60 some_command', 10.0)
+            assert result == 'timeout 60 some_command'
+            assert result.count('timeout') == 1
+
+            # Complex command with existing timeout
+            result = BashEnvironment.preprocess_command('timeout 30s echo test | cat', 5.0)
+            assert result == 'timeout 30s echo test | cat'
+            assert result.count('timeout') == 1
