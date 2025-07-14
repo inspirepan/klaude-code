@@ -1,4 +1,3 @@
-from klaudecode.config.default_source import DefaultConfigSource
 from klaudecode.config.default_source import (
     DEFAULT_API_VERSION,
     DEFAULT_BASE_URL,
@@ -10,6 +9,7 @@ from klaudecode.config.default_source import (
     DEFAULT_MODEL_AZURE,
     DEFAULT_MODEL_NAME,
     DEFAULT_THEME,
+    DefaultConfigSource,
 )
 
 

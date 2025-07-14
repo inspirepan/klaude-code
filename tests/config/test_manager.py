@@ -7,7 +7,7 @@ from unittest.mock import patch
 from klaudecode.config.arg_source import ArgConfigSource
 from klaudecode.config.default_source import DefaultConfigSource
 from klaudecode.config.env_source import EnvConfigSource
-from klaudecode.config.file_config_source import FileConfigSource, get_default_config_path
+from klaudecode.config.file_config_source import FileConfigSource
 from klaudecode.config.manager import ConfigManager
 
 
@@ -117,10 +117,7 @@ class TestConfigManager:
                 mock_path = Path('/nonexistent/config.json')
                 mock_get_path.return_value = mock_path
 
-                manager = ConfigManager.setup(
-                    api_key='test_key',
-                    config_file=config_file_path
-                )
+                manager = ConfigManager.setup(api_key='test_key', config_file=config_file_path)
 
                 # Should have file config source instead of global
                 assert len(manager.sources) == 4  # Default, Env, File, Arg
@@ -149,7 +146,7 @@ class TestConfigManager:
                 extra_body='{"test": "body"}',
                 enable_thinking=True,
                 api_version='test-version',
-                theme='light'
+                theme='light',
             )
 
             # All CLI arguments should override other sources
@@ -189,7 +186,7 @@ class TestConfigManager:
 
                 manager = ConfigManager.setup(
                     model_name='cli_model',  # Should override file
-                    config_file=config_file_path
+                    config_file=config_file_path,
                 )
 
                 # Priority: CLI > File > Env > Default
@@ -211,24 +208,17 @@ class TestConfigManager:
     def test_config_manager_setup_nonexistent_config_file(self):
         """Test setup method with non-existent config file should raise ValueError"""
         import pytest
-        
+
         nonexistent_config = '/nonexistent/path/config.json'
-        
+
         # Should raise ValueError when config file doesn't exist
-        with pytest.raises(ValueError, match="Configuration file not found"):
-            ConfigManager.setup(
-                api_key='test_key',
-                config_file=nonexistent_config
-            )
+        with pytest.raises(ValueError, match='Configuration file not found'):
+            ConfigManager.setup(api_key='test_key', config_file=nonexistent_config)
 
     def test_config_manager_setup_nonexistent_named_config(self):
         """Test setup method with non-existent named config should raise ValueError"""
         import pytest
-        
-        # Should raise ValueError when named config doesn't exist
-        with pytest.raises(ValueError, match="Configuration file not found"):
-            ConfigManager.setup(
-                api_key='test_key', 
-                config_file='nonexistent_config_name'
-            )
 
+        # Should raise ValueError when named config doesn't exist
+        with pytest.raises(ValueError, match='Configuration file not found'):
+            ConfigManager.setup(api_key='test_key', config_file='nonexistent_config_name')

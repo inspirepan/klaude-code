@@ -101,7 +101,9 @@ def main_command(
         '--continue',
         help='Continue from the latest session in current directory',
     ),
-    config: Optional[str] = typer.Option(None, '-f', '--config', help='Specify a config name, e.g. `anthropic` for ~/.klaude/config_anthropic.json, or a path to a config file'),
+    config: Optional[str] = typer.Option(
+        None, '-f', '--config', help='Specify a config name to run, e.g. `anthropic` for `~/.klaude/config_anthropic.json`, or a path to a config file'
+    ),
     api_key: Optional[str] = typer.Option(None, '--api-key', help='Override API key from config'),
     model: Optional[str] = typer.Option(None, '--model', help='Override model name from config'),
     base_url: Optional[str] = typer.Option(None, '--base-url', help='Override base URL from config'),
@@ -116,8 +118,8 @@ def main_command(
     extra_header: Optional[str] = typer.Option(None, '--extra-header', help='Override extra header from config (JSON string)'),
     extra_body: Optional[str] = typer.Option(None, '--extra-body', help='Override extra body from config (JSON string)'),
     theme: Optional[str] = typer.Option(None, '--theme', help='Override theme from config (light, dark, light_ansi, or dark_ansi)'),
-    mcp: bool = typer.Option(False, '-m', '--mcp', help='Enable MCP (Model Context Protocol) tools'),
-    logo: bool = typer.Option(False, '--logo', help='Show logo'),
+    mcp: bool = typer.Option(False, '-m', '--mcp', help='Enable MCP tools'),
+    logo: bool = typer.Option(False, '--logo', help='Show ASCII Art logo'),
     # no_update_check: bool = typer.Option(False, '--no-update-check', help='Skip automatic update check on startup'),
 ):
     ctx.ensure_object(dict)

@@ -1,19 +1,19 @@
-import typer
 from typing import Optional
+
+import typer
 
 edit_app = typer.Typer(help='Edit configuration files', invoke_without_command=True)
 
 
 @edit_app.callback()
 def edit_main(
-    ctx: typer.Context,
-    config_name: Optional[str] = typer.Argument(None, help="Configuration name (e.g., 'anthropic' for config_anthropic.json) or 'mcp' for MCP configuration")
+    ctx: typer.Context, config_name: Optional[str] = typer.Argument(None, help="Configuration name (e.g., 'anthropic' for config_anthropic.json) or 'mcp' for MCP configuration")
 ):
     """Edit configuration files
-    
+
     Examples:
       klaude edit            # Edit default config.json
-      klaude edit anthropic  # Edit config_anthropic.json  
+      klaude edit anthropic  # Edit config_anthropic.json
       klaude edit mcp        # Edit MCP configuration
     """
     # Only process when no subcommand is invoked
@@ -30,7 +30,7 @@ def edit_config_file(config_name: Optional[str]):
     """Edit configuration file"""
     from ..config.file_config_source import FileConfigSource, resolve_config_path
     from ..tui import ColorStyle, Text, console
-    
+
     if config_name is None:
         # Edit default config.json
         FileConfigSource.edit_config_file()

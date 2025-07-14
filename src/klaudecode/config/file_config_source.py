@@ -120,7 +120,7 @@ class FileConfigSource(ConfigSource):
         # First validate that the config file exists for CLI-specified configs
         config_path = resolve_config_path(config_file)
         if not config_path.exists():
-            raise ValueError(f"Configuration file not found: {config_path}")
+            raise ValueError(f'Configuration file not found: {config_path}')
         return cls(config_file=config_file)
 
     @classmethod
