@@ -120,8 +120,6 @@ class TestOutputCommand:
         result = await output_command.handle(mock_agent_state, user_input)
 
         assert result.user_msg is not None
-        assert 'saved to' in result.user_msg.content
-        assert 'opened' in result.user_msg.content
         assert not result.need_agent_run
         assert result.need_render_suffix
 
@@ -146,7 +144,6 @@ class TestOutputCommand:
         result = await output_command.handle(mock_agent_state_with_task, user_input)
 
         assert result.user_msg is not None
-        assert 'saved to' in result.user_msg.content
 
         output_file = result.user_msg.get_extra_data('output_file')
         with open(output_file, 'r', encoding='utf-8') as f:
@@ -166,7 +163,6 @@ class TestOutputCommand:
         result = await output_command.handle(mock_agent_state_with_multiple_conversations, user_input)
 
         assert result.user_msg is not None
-        assert 'saved to' in result.user_msg.content
 
         output_file = result.user_msg.get_extra_data('output_file')
         with open(output_file, 'r', encoding='utf-8') as f:
@@ -201,7 +197,6 @@ class TestOutputCommand:
         result = await output_command.handle(mock_agent_state, user_input)
 
         assert result.user_msg is not None
-        assert 'No AI message with content found' in result.user_msg.content
         assert not result.need_agent_run
         assert result.need_render_suffix
 

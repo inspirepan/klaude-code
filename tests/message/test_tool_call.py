@@ -29,7 +29,7 @@ class TestToolCall:
     def test_tool_args_property_empty_dict(self):
         tool_call = ToolCall(id='call_123', tool_name='test_tool', tool_args_dict={})
 
-        assert tool_call.tool_args == ''
+        assert tool_call.tool_args == '{}'
 
     def test_initialization_with_tool_args_string(self):
         tool_args_str = '{"param": "value", "number": 123}'
@@ -43,13 +43,13 @@ class TestToolCall:
         tool_call = ToolCall(id='call_123', tool_name='test_tool', tool_args=invalid_json)
 
         assert tool_call.tool_args_dict == {}
-        assert tool_call.tool_args == ''
+        assert tool_call.tool_args == '{}'
 
     def test_initialization_with_empty_tool_args_string(self):
         tool_call = ToolCall(id='call_123', tool_name='test_tool', tool_args='')
 
         assert tool_call.tool_args_dict == {}
-        assert tool_call.tool_args == ''
+        assert tool_call.tool_args == '{}'
 
     def test_initialization_tool_args_dict_takes_precedence(self):
         tool_call = ToolCall(id='call_123', tool_name='test_tool', tool_args='{"should": "be_ignored"}', tool_args_dict={'actual': 'value'})

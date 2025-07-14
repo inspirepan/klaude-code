@@ -137,9 +137,6 @@ class UserMessage(BasicMessage):
         """
         For filtering out empty messages for session saving
         """
-        if self.removed:
-            return False
-
         return (self.content is not None and len(self.content.strip()) > 0) or (self.user_raw_input is not None and len(self.user_raw_input.strip()) > 0)
 
     def append_pre_system_reminder(self, reminder: str):

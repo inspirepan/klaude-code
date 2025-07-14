@@ -98,7 +98,6 @@ class DebugCommand(Command):
         provider_name = 'anthropic' if is_anthropic else 'openai'
         filename = f'debug_curl_{provider_name}_{timestamp}.sh'
         debug_file = debug_dir / filename
-
         with open(debug_file, 'w', encoding='utf-8') as f:
             f.write('#!/bin/bash\n\n')
             f.write('# Generated curl command for current LLM configuration\n')
@@ -108,9 +107,6 @@ class DebugCommand(Command):
 
         # Make file executable
         debug_file.chmod(0o755)
-
-        # Don't auto-open shell scripts
-
         command_handle_output.user_msg.set_extra_data(
             'debug_exported',
             {'type': 'curl', 'provider': provider_name, 'file_path': str(debug_file), 'message_count': len(messages), 'tool_count': len(tools), 'role_counts': dict(role_counts)},
@@ -234,7 +230,6 @@ EOF'''
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
         debug_info = user_msg.get_extra_data('debug_exported')
         debug_error = user_msg.get_extra_data('debug_error')
-
         if debug_error:
             yield render_suffix(Text(f'Error: {debug_error}', style='red'))
             return

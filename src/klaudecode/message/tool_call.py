@@ -25,7 +25,7 @@ class ToolCall(BaseModel):
     def tool_args(self) -> str:
         if self._tool_args_cache is not None:
             return self._tool_args_cache
-        result = json.dumps(self.tool_args_dict, ensure_ascii=False) if self.tool_args_dict else ''
+        result = json.dumps(self.tool_args_dict, ensure_ascii=False) if self.tool_args_dict else '{}'
         self._tool_args_cache = result
         return result
 
