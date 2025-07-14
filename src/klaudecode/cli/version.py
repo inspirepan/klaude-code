@@ -1,11 +1,6 @@
-import typer
-
 from ..tui import ColorStyle, Text, console
 
-version_app = typer.Typer(help='Version commands')
 
-
-@version_app.command('version')
 def version_command():
     """Show version information"""
     from importlib.metadata import version

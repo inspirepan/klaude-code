@@ -1,6 +1,6 @@
 from pathlib import Path
+from typing import Optional
 
-import typer
 from rich.rule import Rule
 from rich.text import Text
 
@@ -15,17 +15,6 @@ def setup_config(**kwargs) -> ConfigManager:
     if hasattr(config_model, 'theme') and config_model.theme:
         console.set_theme(config_model.theme.value)
     return config_manager
-
-
-config_app = typer.Typer(help='Manage global configuration', invoke_without_command=True)
-
-
-@config_app.callback()
-def config_callback(ctx: typer.Context):
-    """Manage global configuration"""
-    if ctx.invoked_subcommand is None:
-        # Default action: show config
-        config_show()
 
 
 def find_all_config_files() -> list[Path]:
@@ -65,7 +54,6 @@ def display_config_file(config_path: Path) -> None:
         console.print(Text(f'Error reading {config_path.name}: {e}', style=ColorStyle.ERROR))
 
 
-@config_app.command('show')
 def config_show():
     """
     Show all available configurations
@@ -109,15 +97,14 @@ def config_show():
         display_config_file(config_file)
 
 
-@config_app.command('edit')
-def config_edit(config_name: str = typer.Argument(None, help="Configuration name (e.g., 'anthropic' for config_anthropic.json)")):
+def config_edit(config_name: Optional[str] = None):
     """
     Init or edit configuration file
 
     If no config_name is provided, edits the default config.json.
     If config_name is provided, edits config_{config_name}.json.
     """
-    if config_name is None:
+    if not config_name:
         # Edit default config.json
         FileConfigSource.edit_config_file()
     else:
@@ -134,10 +121,19 @@ def config_edit(config_name: str = typer.Argument(None, help="Configuration name
 
         # Create file with example content if it doesn't exist
         if not config_path.exists():
-            console.print(Text(f'Creating new config file: {config_path}', style=ColorStyle.SUCCESS))
+            from ..user_input import user_select_sync
+
+            console.print(Text.assemble(('Config file not found: ', 'bright_black'), str(config_path)))
+            console.print()
+            idx = user_select_sync(
+                title='Do you want to create a new config file?',
+                options=['Yes', 'No'],
+            )
+            if idx != 0:
+                return
             FileConfigSource.create_example_config(config_path)
 
         # Open the file in editor
-        console.print(Text(f'Opening config file: {config_path}', style=ColorStyle.SUCCESS))
+        console.print(Text.assemble(('Created new config file: ', 'bright_black'), str(config_path)))
         editor = os.getenv('EDITOR', 'vi' if sys.platform != 'darwin' else 'open')
         os.system(f'{editor} {config_path}')

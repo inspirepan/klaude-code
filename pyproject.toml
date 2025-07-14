@@ -26,7 +26,6 @@ dependencies = [
     "questionary>=2.1.0",
     "rich>=14.0.0",
     "tiktoken>=0.9.0",
-    "typer>=0.9.0",
     "mcp>=1.0.0",
     "httpx[socks]>=0.28.1",
     "pillow>=10.0.0",
@@ -34,7 +33,7 @@ dependencies = [
 ]
 
 [project.scripts]
-klaude = "klaudecode.cli:app"
+klaude = "klaudecode.cli.main:main"
 
 [dependency-groups]
 dev = [

@@ -2,7 +2,7 @@ from .input_command import _SLASH_COMMANDS, Command, CommandHandleOutput, UserIn
 from .input_completer import UserInputCompleter
 from .input_handler import UserInputHandler
 from .input_mode import _INPUT_MODES, NORMAL_MODE_NAME, InputModeCommand, NormalMode, register_input_mode
-from .input_select import user_select
+from .input_select import user_select, user_select_sync
 from .input_session import InputSession
 
 __all__ = [
@@ -20,4 +20,5 @@ __all__ = [
     '_INPUT_MODES',
     '_SLASH_COMMANDS',
     'user_select',
+    'user_select_sync',
 ]

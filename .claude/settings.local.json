@@ -5,7 +5,8 @@
       "Bash(rg:*)",
       "Bash(isort:*)",
       "Bash(ruff format:*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(python:*)"
     ],
     "deny": []
   }

@@ -5,8 +5,6 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-import typer
-
 try:
     from importlib.metadata import version
 except ImportError:
@@ -14,8 +12,6 @@ except ImportError:
 
 from ..tui import ColorStyle, Text, console
 from ..user_input import user_select
-
-update_app = typer.Typer(help='Update commands')
 
 
 class UpdaterError(Exception):
@@ -295,7 +291,6 @@ async def check_and_prompt_update() -> bool:
         return False
 
 
-@update_app.command('update')
 def update_command():
     """Update klaude-code to the latest version"""
     update_klaude_code()
