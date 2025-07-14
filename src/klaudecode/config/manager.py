@@ -9,8 +9,7 @@ from ..tui import ColorStyle, console
 from .arg_source import ArgConfigSource
 from .default_source import DefaultConfigSource
 from .env_source import EnvConfigSource
-from .file_arg_source import FileArgConfigSource
-from .global_source import GlobalConfigSource
+from .file_config_source import FileConfigSource, get_default_config_path
 from .model import ConfigModel, ConfigValue
 from .source import ConfigSource
 
@@ -22,7 +21,18 @@ class ConfigManager:
         # Sources in priority order (higher index = higher priority)
         self.sources = sources
         self._merged_config_model = self._merge_config_models()
+        self._config_path = self._determine_config_path()
         self._validate_api_key()
+
+    def _determine_config_path(self):
+        """Determine the primary config file path from sources"""
+        # Find the FileConfigSource and use its path
+        for source in self.sources:
+            if isinstance(source, FileConfigSource):
+                return source.config_path
+
+        # Fallback to default if no FileConfigSource found
+        return get_default_config_path()
 
     def _merge_config_models(self) -> ConfigModel:
         """Merge all configuration models from sources"""
@@ -63,7 +73,7 @@ class ConfigManager:
 
     def __rich__(self):
         return Group(
-            Text(f' config path: {GlobalConfigSource.get_config_path()}', style=ColorStyle.HIGHLIGHT),
+            Text.assemble('config path: ', (str(self._config_path), ColorStyle.SUCCESS)),
             Panel.fit(self.get_config_model(), box=box.ROUNDED, border_style=ColorStyle.LINE),
         )
 
@@ -99,17 +109,18 @@ class ConfigManager:
             config_file: Path to configuration file specified via CLI
 
         Returns:
-            ConfigManager with sources in priority order: Default < Global Config < Environment < CLI Config < CLI Args
+            ConfigManager with sources in priority order: Default < Environment < File Config < CLI Args
         """
         sources = [
             DefaultConfigSource(),
-            GlobalConfigSource(),
             EnvConfigSource(),
         ]
 
-        # Add CLI specified config file if provided
+        # Add file config source - either CLI specified or global
         if config_file:
-            sources.append(FileArgConfigSource(config_file))
+            sources.append(FileConfigSource.create_cli_config_source(config_file))
+        else:
+            sources.append(FileConfigSource.create_global_config_source())
 
         # CLI arguments have the highest priority
         sources.append(

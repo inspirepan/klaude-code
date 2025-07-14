@@ -114,7 +114,9 @@ class ConfigModel(BaseModel):
             if config_value and config_value.value is not None:
                 status = Text('✓', style=ColorStyle.SUCCESS)
                 value = str(config_value.value)
-                source = Text.assemble('from ', (config_value.source, config_source_style_dict[config_value.source]))
+                # Use a default style for unknown sources
+                source_style = config_source_style_dict.get(config_value.source, ColorStyle.INFO)
+                source = Text.assemble('from ', (config_value.source, source_style))
             else:
                 status = Text('✗', style=ColorStyle.ERROR.bold)
                 value = Text('Not Set', style=ColorStyle.ERROR)

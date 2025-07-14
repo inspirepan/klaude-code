@@ -101,7 +101,7 @@ def main_command(
         '--continue',
         help='Continue from the latest session in current directory',
     ),
-    config: Optional[str] = typer.Option(None, '--config', help='Path to configuration file'),
+    config: Optional[str] = typer.Option(None, '--config', help='Specify a config name, e.g. `anthropic` for ~/.klaude/config_anthropic.json, or a path to a config file'),
     api_key: Optional[str] = typer.Option(None, '--api-key', help='Override API key from config'),
     model: Optional[str] = typer.Option(None, '--model', help='Override model name from config'),
     base_url: Optional[str] = typer.Option(None, '--base-url', help='Override base URL from config'),

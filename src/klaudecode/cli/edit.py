@@ -6,9 +6,9 @@ edit_app = typer.Typer(help='Edit configuration files')
 @edit_app.command('config')
 def edit_config():
     """Edit global configuration file"""
-    from ..config import GlobalConfigSource
+    from ..config import FileConfigSource
 
-    GlobalConfigSource.edit_config_file()
+    FileConfigSource.edit_config_file()
 
 
 @edit_app.command('mcp')

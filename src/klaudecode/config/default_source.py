@@ -1,17 +1,17 @@
-from .global_source import (
-    DEFAULT_API_VERSION,
-    DEFAULT_BASE_URL,
-    DEFAULT_CONTEXT_WINDOW_THRESHOLD,
-    DEFAULT_ENABLE_THINKING,
-    DEFAULT_EXTRA_BODY,
-    DEFAULT_EXTRA_HEADER,
-    DEFAULT_MAX_TOKENS,
-    DEFAULT_MODEL_AZURE,
-    DEFAULT_MODEL_NAME,
-    DEFAULT_THEME,
-)
 from .model import ConfigModel
 from .source import ConfigSource
+
+# Default value constants
+DEFAULT_CONTEXT_WINDOW_THRESHOLD = 200000
+DEFAULT_MODEL_NAME = 'claude-sonnet-4-20250514'
+DEFAULT_BASE_URL = 'https://api.anthropic.com/v1/'
+DEFAULT_MODEL_AZURE = False
+DEFAULT_MAX_TOKENS = 32000
+DEFAULT_EXTRA_HEADER = {}
+DEFAULT_EXTRA_BODY = {}
+DEFAULT_ENABLE_THINKING = False
+DEFAULT_API_VERSION = '2024-03-01-preview'
+DEFAULT_THEME = 'dark'  # Supported themes: 'light', 'dark', 'light_ansi', 'dark_ansi'
 
 
 class DefaultConfigSource(ConfigSource):

@@ -1,5 +1,5 @@
 from klaudecode.config.default_source import DefaultConfigSource
-from klaudecode.config.global_source import (
+from klaudecode.config.default_source import (
     DEFAULT_API_VERSION,
     DEFAULT_BASE_URL,
     DEFAULT_CONTEXT_WINDOW_THRESHOLD,

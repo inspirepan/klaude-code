@@ -3,7 +3,7 @@ from typing import Generator
 from rich.abc import RichRenderable
 
 from ..agent import AgentState
-from ..config import GlobalConfigSource
+from ..config import FileConfigSource
 from ..message import UserMessage
 from ..tui import console, get_all_themes, render_suffix
 from ..tui.theme_preview import show_all_theme_previews
@@ -31,7 +31,7 @@ class ThemeCommand(Command):
         if selected_idx is not None:
             selected_theme = theme_options[selected_idx]
 
-            config_path = GlobalConfigSource().get_config_path()
+            config_path = FileConfigSource().get_config_path()
 
             config_data = {}
             if config_path.exists():

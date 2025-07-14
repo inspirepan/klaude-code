@@ -1,9 +1,6 @@
 # Configuration module exports
 from .arg_source import ArgConfigSource
-from .default_source import DefaultConfigSource
-from .env_source import EnvConfigSource
-from .file_arg_source import FileArgConfigSource
-from .global_source import (
+from .default_source import (
     DEFAULT_API_VERSION,
     DEFAULT_BASE_URL,
     DEFAULT_CONTEXT_WINDOW_THRESHOLD,
@@ -14,8 +11,10 @@ from .global_source import (
     DEFAULT_MODEL_AZURE,
     DEFAULT_MODEL_NAME,
     DEFAULT_THEME,
-    GlobalConfigSource,
+    DefaultConfigSource,
 )
+from .env_source import EnvConfigSource
+from .file_config_source import FileConfigSource  # Backward compatibility alias
 from .manager import ConfigManager
 from .model import ConfigModel, ConfigValue, parse_json_string
 from .source import ConfigSource
@@ -29,8 +28,7 @@ __all__ = [
     'ConfigSource',
     'ArgConfigSource',
     'EnvConfigSource',
-    'GlobalConfigSource',
-    'FileArgConfigSource',
+    'FileConfigSource',
     'DefaultConfigSource',
     # Manager
     'ConfigManager',
