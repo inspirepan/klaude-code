@@ -83,7 +83,7 @@ def config_show():
         return
     console.print(Text('CONFIG FILES', style=ColorStyle.SUCCESS.bold))
     console.print(Text.assemble('Run ', ('klaude -f <config_name>', ColorStyle.INLINE_CODE), ' or ', ('klaude --config <config_name>', ColorStyle.INLINE_CODE), ' to use a specific config file', style=ColorStyle.HINT))
-    console.print(Text.assemble('Run ', ('klaude config edit <config_name>', ColorStyle.INLINE_CODE), ' to edit a specific config file', style=ColorStyle.HINT))
+    console.print(Text.assemble('Run ', ('klaude edit <config_name>', ColorStyle.INLINE_CODE), ' or ', ('klaude config edit <config_name>', ColorStyle.INLINE_CODE), ' to edit a specific config file', style=ColorStyle.HINT))
     console.print(Rule(style=ColorStyle.LINE, characters='╌'))
 
     for config_file in config_files:
