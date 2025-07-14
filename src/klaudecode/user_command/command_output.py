@@ -19,20 +19,8 @@ class OutputCommand(Command):
         return 'Generate a markdown file output of current session'
 
     async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
-        # Check if there are any AI messages with content
-        has_ai_content = any(isinstance(msg, AIMessage) and msg.content.strip() for msg in agent_state.session.messages.messages)
-
-        if not has_ai_content:
-            error_msg = 'No AI message with content found'
-            return CommandHandleOutput(
-                user_msg=UserMessage(
-                    content=error_msg,
-                    user_msg_type=user_input.command_name,
-                    user_raw_input=user_input.raw_input,
-                ),
-                need_agent_run=False,
-                need_render_suffix=True,
-            )
+        command_handle_output = await super().handle(agent_state, user_input)
+        command_handle_output.need_agent_run = False
 
         output_dir = agent_state.session.work_dir / '.klaude' / 'output'
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -47,15 +35,8 @@ class OutputCommand(Command):
                 f.write(markdown_content)
         except Exception as e:
             error_msg = f'Failed to write file: {e}'
-            return CommandHandleOutput(
-                user_msg=UserMessage(
-                    content=error_msg,
-                    user_msg_type=user_input.command_name,
-                    user_raw_input=user_input.raw_input,
-                ),
-                need_agent_run=False,
-                need_render_suffix=True,
-            )
+            command_handle_output.user_msg.set_extra_data('error_msg', error_msg)
+            return command_handle_output
 
         try:
             if os.name == 'posix':
@@ -64,26 +45,8 @@ class OutputCommand(Command):
                 os.system(f'start "" "{output_file}"')
         except Exception as e:
             error_msg = f'Failed to open file: {e}'
-            return CommandHandleOutput(
-                user_msg=UserMessage(
-                    content=error_msg,
-                    user_msg_type=user_input.command_name,
-                    user_raw_input=user_input.raw_input,
-                ),
-                need_agent_run=False,
-                need_render_suffix=True,
-            )
-
-        success_msg = f'Output saved to {output_file} and opened'
-        command_handle_output = CommandHandleOutput(
-            user_msg=UserMessage(
-                content=success_msg,
-                user_msg_type=user_input.command_name,
-                user_raw_input=user_input.raw_input,
-            ),
-            need_agent_run=False,
-            need_render_suffix=True,
-        )
+            command_handle_output.user_msg.set_extra_data('error_msg', error_msg)
+            return command_handle_output
 
         command_handle_output.user_msg.set_extra_data('output_file', str(output_file))
         command_handle_output.user_msg.set_extra_data('content_length', len(markdown_content))
@@ -153,6 +116,11 @@ class OutputCommand(Command):
         return task_sections
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:
+        error_msg = user_msg.get_extra_data('error_msg')
+        if error_msg:
+            yield render_suffix(Text.assemble('Error: ', Text(error_msg, style=ColorStyle.ERROR)))
+            return
+
         output_file = user_msg.get_extra_data('output_file')
         content_length = user_msg.get_extra_data('content_length')
 

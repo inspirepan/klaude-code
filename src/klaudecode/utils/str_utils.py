@@ -68,21 +68,33 @@ def get_inserted_text(old_text: str, new_text: str) -> str:
     if len(new_text) <= len(old_text):
         return ''
 
-    prefix_len = 0
-    for i in range(min(len(old_text), len(new_text))):
-        if old_text[i] == new_text[i]:
-            prefix_len += 1
-        else:
-            break
+    old_len, new_len = len(old_text), len(new_text)
 
+    # Find common prefix length
+    prefix_len = 0
+    max_prefix = min(old_len, new_len)
+    while prefix_len < max_prefix and old_text[prefix_len] == new_text[prefix_len]:
+        prefix_len += 1
+
+    # Find common suffix length, but only compare the remaining parts
     suffix_len = 0
-    for i in range(1, min(len(old_text) - prefix_len, len(new_text) - prefix_len) + 1):
-        if old_text[-i] == new_text[-i]:
+    old_remaining = old_len - prefix_len
+    new_remaining = new_len - prefix_len
+    max_suffix = min(old_remaining, new_remaining)
+
+    # Compare from the end backwards, but only within the remaining parts
+    while suffix_len < max_suffix:
+        old_idx = old_len - 1 - suffix_len
+        new_idx = new_len - 1 - suffix_len
+        if old_text[old_idx] == new_text[new_idx]:
             suffix_len += 1
         else:
             break
 
-    return new_text[prefix_len : len(new_text) - suffix_len]
+    # Extract the inserted part
+    start_idx = prefix_len
+    end_idx = new_len - suffix_len
+    return new_text[start_idx:end_idx]
 
 
 def extract_xml_content(text: str, tag: str) -> str:

@@ -22,5 +22,4 @@ class PlanMode(InputModeCommand):
     async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
         command_handle_output = await super().handle(agent_state, user_input)
         agent_state.plan_mode_activated = True
-        command_handle_output.need_agent_run = True
         return command_handle_output

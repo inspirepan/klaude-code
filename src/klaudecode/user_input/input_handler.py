@@ -124,7 +124,7 @@ class UserInputHandler:
         )
         user_msg = command_handle_output.user_msg
 
-        if user_msg is not None:
+        if user_msg is not None and user_msg.is_valid():
             # Add attachments to the user message
             if attachments:
                 user_msg.attachments = attachments

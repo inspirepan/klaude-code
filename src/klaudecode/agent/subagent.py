@@ -107,10 +107,8 @@ class SubAgentBase(Tool, metaclass=SubAgentMeta):
     def _render_processing_status(cls, task_msgs: list):
         """Render task in processing status"""
         msgs_to_show = []
-        for i in range(len(task_msgs) - 1, -1, -1):
-            msg = task_msgs[i]
+        for msg in reversed(task_msgs):
             msgs_to_show.append(msg)
-
             if (msg.get('content') and msg['content'].strip()) or len(msgs_to_show) >= 3:
                 break
 

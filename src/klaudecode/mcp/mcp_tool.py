@@ -311,8 +311,7 @@ class MCPManager:
                     else:
                         main_table.add_row('', tool_desc)
 
-                if list(tools_by_server.keys())[-1] != server_name:
-                    main_table.add_row('', '')
+            main_table.add_row('', '')
 
             yield main_table
         elif not self._initialized:

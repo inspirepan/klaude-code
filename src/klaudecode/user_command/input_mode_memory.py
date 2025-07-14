@@ -29,11 +29,11 @@ class MemoryMode(InputModeCommand):
     async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
         command_handle_output = await super().handle(agent_state, user_input)
         content = user_input.cleaned_input
+        command_handle_output.need_agent_run = False
 
         if not content.strip():
             command_handle_output.user_msg.set_extra_data('result', 'No content to save')
             command_handle_output.user_msg.set_extra_data('status', 'error')
-            command_handle_output.need_agent_run = False
             return command_handle_output
 
         options = ['Project memory          Checked in at ./CLAUDE.md', 'User memory             Saved in ~/.claude/CLAUDE.md']
@@ -43,7 +43,6 @@ class MemoryMode(InputModeCommand):
         if choice is None:
             command_handle_output.user_msg.set_extra_data('result', 'Cancelled by user')
             command_handle_output.user_msg.set_extra_data('status', 'cancelled')
-            command_handle_output.need_agent_run = False
             return command_handle_output
 
         if choice == 0:
@@ -69,7 +68,6 @@ class MemoryMode(InputModeCommand):
         command_handle_output.user_msg.set_extra_data('status', 'success')
         command_handle_output.user_msg.set_extra_data('location', location)
         command_handle_output.user_msg.set_extra_data('path', str(claude_md_path))
-        command_handle_output.need_agent_run = False
         return command_handle_output
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:

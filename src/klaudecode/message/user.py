@@ -126,9 +126,21 @@ class UserMessage(BasicMessage):
             for error in self.get_extra_data('error_msgs'):
                 yield render_suffix(error, style=ColorStyle.ERROR)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
+        """
+        For filtering out empty messages for LLM API calls
+        """
         has_content = (self.content is not None) and len(self.content.strip()) > 0
         return not self.removed and has_content
+
+    def is_valid(self) -> bool:
+        """
+        For filtering out empty messages for session saving
+        """
+        if self.removed:
+            return False
+
+        return (self.content is not None and len(self.content.strip()) > 0) or (self.user_raw_input is not None and len(self.user_raw_input.strip()) > 0)
 
     def append_pre_system_reminder(self, reminder: str):
         if not self.pre_system_reminders:

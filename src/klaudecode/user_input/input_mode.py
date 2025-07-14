@@ -32,7 +32,9 @@ class InputModeCommand(Command, ABC):
         raise NotImplementedError
 
     async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
-        return await super().handle(agent_state, user_input)
+        command_handle_output = await super().handle(agent_state, user_input)
+        command_handle_output.need_agent_run = command_handle_output.user_msg.is_valid()
+        return command_handle_output
 
     def get_command_desc(self) -> str:
         return f'Input mode: {self.get_name()}'
@@ -81,9 +83,7 @@ class NormalMode(InputModeCommand):
         return ''
 
     async def handle(self, agent_state: 'AgentState', user_input: UserInput) -> CommandHandleOutput:
-        command_handle_output = await super().handle(agent_state, user_input)
-        command_handle_output.need_agent_run = bool(command_handle_output.user_msg.content)
-        return command_handle_output
+        return await super().handle(agent_state, user_input)
 
 
 NORMAL_MODE_NAME = 'normal'
