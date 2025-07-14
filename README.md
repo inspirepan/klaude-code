@@ -5,6 +5,8 @@ Klaude Code is a powerful CLI tool that provides an AI-powered coding assistant.
 ## Features
 
 - **Interactive AI Assistant**: Chat with Claude or GPT models for coding help
+- **Multiple AI Providers**: Easy switching between Anthropic, OpenAI, DeepSeek, Gemini, and custom APIs
+- **Configuration Profiles**: Manage multiple API configurations with simple commands
 - **File Operations**: Read, write, edit, and search files with precision
 - **Code Refactoring**: Multi-file edits, pattern replacement, and automated refactoring
 - **Shell Integration**: Execute bash commands directly within the chat
@@ -44,14 +46,25 @@ klaude --resume
 
 ### Configuration
 
-Configure your API keys and preferences:
+Klaude Code supports multiple configuration profiles for different AI providers and settings:
 
 ```bash
-# Edit configuration
-klaude config edit
-
-# View current configuration
+# View all available configurations
 klaude config show
+
+# Edit default configuration
+klaude config edit
+# Or use the short form
+klaude edit
+
+# Create or edit named configurations. Any config_*.json file in ~/.klaude will be recognized as a configuration profile.
+klaude config edit anthropic    # Creates ~/.klaude/config_anthropic.json
+klaude edit openai              # Creates ~/.klaude/config_openai.json
+klaude edit deepseek            # Creates ~/.klaude/config_deepseek.json
+
+# Use a specific configuration
+klaude --config anthropic       # Use config_anthropic.json
+klaude -f openai               # Short form with -f flag
 ```
 
 ## Usage
@@ -144,10 +157,16 @@ Klaude Code provides a comprehensive set of tools:
 - **TodoWrite/TodoRead**: Manage task lists
 - **Task**: Spawn sub-agents for complex operations
 
-### Usage Examples
+## Usage Examples
 
 ```bash
-# Refactor code
+# Quick configuration switching
+klaude -f anthropic         # Use Claude for architectural discussions
+klaude -f openai           # Switch to GPT for different perspectives  
+klaude -f deepseek         # Use DeepSeek for coding tasks
+
+# Refactor code with your preferred model
+klaude -f anthropic
 > refactor the authentication module to use JWT tokens
 
 # Fix failing tests
@@ -271,13 +290,16 @@ Options:
   --continue, -c              Continue from the latest session
   --resume, -r               Resume from a session
   --prompt, -p               Run in headless mode
+  --config, -f TEXT          Use a specific config (e.g., 'anthropic' for ~/.klaude/config_anthropic.json)
   --model TEXT              Override the configured model
-  --api-key TEXT             API key
-  --api-key-env TEXT         Environment variable for API key
-  --mcp                      Enable Model Context Protocol
-  --theme [light|dark|light_ansi|dark_ansi]       Color theme
-  --compact-mode             Minimal output mode
+  --api-key TEXT             Override API key from config
+  --base-url TEXT            Override base URL from config
+  --max-tokens INTEGER       Override max tokens from config
+  --theme [light|dark|light_ansi|dark_ansi]  Override theme from config
+  --mcp, -m                  Enable Model Context Protocol
+  --logo                     Show ASCII Art logo
 ```
+
 
 ## Project Structure
 
