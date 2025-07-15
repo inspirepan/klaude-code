@@ -71,14 +71,21 @@ class InputSession:
                 inserted_text = get_inserted_text(previous_text, current_text)
                 # Check if inserted text is an image path
                 if inserted_text and is_image_path(inserted_text):
-                    # Generate next image ID and store in paste dict
-                    image_id = self._get_next_image_id()
-                    self.paste_dict[image_id] = PasteItem(type='file', path=inserted_text.strip())
+                    # Find where the inserted text is in current_text
+                    insert_pos = current_text.find(inserted_text)
+                    # Check if there's an @ symbol immediately before the inserted text
+                    has_at_prefix = insert_pos > 0 and current_text[insert_pos - 1] == '@'
 
-                    # Replace the inserted text with [Image #N] format
-                    new_text = f'[Image #{image_id}]'
-                    buf.text = current_text.replace(inserted_text, new_text)
-                    buf.cursor_position = len(buf.text)
+                    # Skip conversion if it's a @ prefixed path (file completion)
+                    if not has_at_prefix:
+                        # Generate next image ID and store in paste dict
+                        image_id = self._get_next_image_id()
+                        self.paste_dict[image_id] = PasteItem(type='file', path=inserted_text.strip())
+
+                        # Replace the inserted text with [Image #N] format
+                        new_text = f'[Image #{image_id}]'
+                        buf.text = current_text.replace(inserted_text, new_text)
+                        buf.cursor_position = len(buf.text)
 
             previous_text = buf.text
 
