@@ -29,16 +29,19 @@ def get_context_reminder(workdir: str) -> str:
     project_claudemd_remind = ''
     if user_claudemd_path.exists():
         user_claudemd_content = user_claudemd_path.read_text(encoding='utf-8')
-        user_claudemd_remind = f"""Contents of {user_claudemd_path} (user's private global instructions for all projects):
+        if user_claudemd_content.strip():
+            user_claudemd_remind = f"""Contents of {user_claudemd_path} (user's private global instructions for all projects):
 
 {user_claudemd_content}
 """
     if project_claudemd_path.exists():
         project_claudemd_content = project_claudemd_path.read_text(encoding='utf-8')
-        project_claudemd_remind = f"""Contents of {project_claudemd_path} (project instructions, checked into the codebase):
+        if project_claudemd_content.strip():
+            project_claudemd_remind = f"""Contents of {project_claudemd_path} (project instructions, checked into the codebase):
 
 {project_claudemd_content}
 """
+
     if user_claudemd_remind or project_claudemd_remind:
         claude_md_instructions = CLAUDE_MD_REMINDER.format(claude_md=user_claudemd_remind + '\n\n' + project_claudemd_remind)
     return CONTEXT_REMINDER_HEAD + '\n\n' + claude_md_instructions + '\n\n' + CONTEXT_REMINDER_TAIL
