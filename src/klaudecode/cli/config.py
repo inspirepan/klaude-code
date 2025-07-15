@@ -123,7 +123,7 @@ def config_edit(config_name: Optional[str] = None):
         if not config_path.exists():
             from ..user_input import user_select_sync
 
-            console.print(Text.assemble(('Config file not found: ', 'bright_black'), str(config_path)))
+            console.print(Text.assemble(('Config file not found: ', 'yellow'), (str(config_path), 'white')))
             console.print()
             idx = user_select_sync(
                 title='Do you want to create a new config file?',
@@ -134,6 +134,5 @@ def config_edit(config_name: Optional[str] = None):
             FileConfigSource.create_example_config(config_path)
 
         # Open the file in editor
-        console.print(Text.assemble(('Created new config file: ', 'bright_black'), str(config_path)))
         editor = os.getenv('EDITOR', 'vi' if sys.platform != 'darwin' else 'open')
         os.system(f'{editor} {config_path}')

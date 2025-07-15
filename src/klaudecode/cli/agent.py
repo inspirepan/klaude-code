@@ -2,7 +2,7 @@ import asyncio
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from ..agent import get_main_agent
 from ..message import SystemMessage
@@ -12,17 +12,18 @@ from ..tui import ColorStyle, Text, console, render_hello, render_logo, render_t
 from ..user_input import user_select
 from ..utils.exception import format_exception
 from ..utils.str_utils import format_relative_time
+from .arg_parse import CLIArgs
 from .config import setup_config
 
 
-async def get_session(args: Dict[str, Any], config_model) -> Optional[Session]:
-    if args.get('continue_latest'):
+async def get_session(args: CLIArgs, config_model) -> Optional[Session]:
+    if args.continue_latest:
         session = Session.get_latest_session(Path.cwd())
         if not session:
             console.print(Text(f'No session found in {Path.cwd()}', style=ColorStyle.ERROR))
             return None
         session = session.create_new_session()
-    elif args.get('resume'):
+    elif args.resume:
         sessions = Session.load_session_list(Path.cwd())
         if not sessions or len(sessions) == 0:
             console.print(Text(f'No session found in {Path.cwd()}', style=ColorStyle.ERROR))
@@ -55,21 +56,21 @@ async def get_session(args: Dict[str, Any], config_model) -> Optional[Session]:
     return session
 
 
-async def agent_async(args: Dict[str, Any], config_model, unknown_args: List[str]):
+async def agent_async(args: CLIArgs, config_model, unknown_args: List[str]):
     session = await get_session(args, config_model)
     if not session:
         return
-    agent = await get_main_agent(session, config=config_model, enable_mcp=args.get('mcp', False))
+    agent = await get_main_agent(session, config=config_model, enable_mcp=args.mcp)
     initial_message = ' '.join(unknown_args) if unknown_args else None
     try:
-        if args.get('headless_prompt'):
-            await agent.headless_run(args['headless_prompt'] + (initial_message or ''))
+        if args.headless_prompt:
+            await agent.headless_run(args.headless_prompt + (initial_message or ''))
         else:
             width, _ = shutil.get_terminal_size()
             has_session = (Path.cwd() / '.klaude' / 'sessions').exists()
             auto_show_logo = not has_session
             console.print(render_hello(show_info=not auto_show_logo))
-            if (auto_show_logo or args.get('logo', False)) and width >= 49:
+            if (auto_show_logo or args.logo) and width >= 49:
                 console.print()
                 console.print(render_logo('KLAUDE', ColorStyle.CLAUDE))
                 console.print(render_logo('CODE', ColorStyle.CLAUDE))
@@ -85,7 +86,7 @@ async def agent_async(args: Dict[str, Any], config_model, unknown_args: List[str
         pass
 
 
-def agent_command(args: Dict[str, Any], unknown_args: List[str]):
+def agent_command(args: CLIArgs, unknown_args: List[str]):
     piped_input = None
     if not sys.stdin.isatty():
         try:
@@ -93,27 +94,28 @@ def agent_command(args: Dict[str, Any], unknown_args: List[str]):
         except KeyboardInterrupt:
             pass
 
-    print_prompt = args.get('headless_prompt')
+    print_prompt = args.headless_prompt
     if print_prompt is not None and piped_input:
         print_prompt = f'{print_prompt}\n{piped_input}'
     elif print_prompt is None and piped_input:
         print_prompt = piped_input
 
-    args['headless_prompt'] = print_prompt
+    # Update the args model with the processed prompt
+    args = args.model_copy(update={'headless_prompt': print_prompt})
 
     try:
         config_manager = setup_config(
-            api_key=args.get('api_key'),
-            model_name=args.get('model'),
-            base_url=args.get('base_url'),
-            model_azure=args.get('model_azure'),
-            max_tokens=args.get('max_tokens'),
-            enable_thinking=args.get('thinking'),
-            api_version=args.get('api_version'),
-            extra_header=args.get('extra_header'),
-            extra_body=args.get('extra_body'),
-            theme=args.get('theme'),
-            config_file=args.get('config'),
+            api_key=args.api_key,
+            model_name=args.model,
+            base_url=args.base_url,
+            model_azure=args.model_azure,
+            max_tokens=args.max_tokens,
+            enable_thinking=args.thinking,
+            api_version=args.api_version,
+            extra_header=args.extra_header,
+            extra_body=args.extra_body,
+            theme=args.theme,
+            config_file=args.config,
         )
         config_model = config_manager.get_config_model()
     except ValueError as e:

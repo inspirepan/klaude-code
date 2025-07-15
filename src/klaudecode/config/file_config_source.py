@@ -166,7 +166,7 @@ class FileConfigSource(ConfigSource):
             config_path.parent.mkdir(parents=True, exist_ok=True)
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(example_config, f, indent=2, ensure_ascii=False)
-            console.print(Text(f'Example config file created at: {config_path}', style=ColorStyle.SUCCESS))
+            console.print(Text(f'Example config file created at: {config_path}\n', style=ColorStyle.SUCCESS))
             console.print(Text('Please edit the file and set your actual API key.'))
             return True
         except (IOError, OSError) as e:

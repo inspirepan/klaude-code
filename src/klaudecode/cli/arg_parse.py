@@ -3,7 +3,47 @@ Argument parsing
 """
 
 import argparse
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Annotated, List, Literal, Optional
+
+from pydantic import BaseModel, Field
+
+
+class CLIArgs(BaseModel):
+    """CLI arguments parsed into Pydantic model"""
+
+    # Main options
+    help: Annotated[bool, Field(description='Show help message and exit')] = False
+    headless_prompt: Annotated[Optional[str], Field(description='Run in headless mode with the given prompt')] = None
+    resume: Annotated[bool, Field(description='Resume from an existing session (only for interactive mode)')] = False
+    continue_latest: Annotated[bool, Field(description='Continue from the latest session in current directory')] = False
+    config: Annotated[Optional[str], Field(description='Specify a config name to run or path to a config file')] = None
+
+    # API overrides
+    api_key: Annotated[Optional[str], Field(description='Override API key from config')] = None
+    model: Annotated[Optional[str], Field(description='Override model name from config')] = None
+    base_url: Annotated[Optional[str], Field(description='Override base URL from config')] = None
+    max_tokens: Annotated[Optional[int], Field(description='Override max tokens from config')] = None
+    model_azure: Annotated[Optional[bool], Field(description='Override model is azure from config')] = None
+    thinking: Annotated[Optional[bool], Field(description='Enable Claude Extended Thinking capability')] = None
+    api_version: Annotated[Optional[str], Field(description='Override API version from config')] = None
+    extra_header: Annotated[Optional[str], Field(description='Override extra header from config (JSON string)')] = None
+    extra_body: Annotated[Optional[str], Field(description='Override extra body from config (JSON string)')] = None
+
+    # UI options
+    theme: Annotated[Optional[Literal['light', 'dark', 'light_ansi', 'dark_ansi']], Field(description='Override theme from config')] = None
+    logo: Annotated[bool, Field(description='Show ASCII Art logo')] = False
+
+    # MCP
+    mcp: Annotated[bool, Field(description='Enable MCP tools')] = False
+
+
+class ParsedCommand(BaseModel):
+    """Result of command line parsing"""
+
+    command: Annotated[str, Field(description='The command to execute')]
+    args: Annotated[CLIArgs, Field(description='Parsed CLI arguments')]
+    unknown_args: Annotated[List[str], Field(description='Unknown arguments (treated as chat input)')] = []
+    config_name: Annotated[Optional[str], Field(description='Config name for edit commands')] = None
 
 
 class ArgumentParser:
@@ -59,15 +99,23 @@ class ArgumentParser:
 
         self.parser.add_argument('unknown_args', nargs='*')  # Unknown arguments
 
-    def parse_args(self, args: Optional[List[str]] = None) -> Tuple[Dict[str, Any], List[str]]:
+    def parse_args(self, args: Optional[List[str]] = None) -> CLIArgs:
+        """Parse command line arguments into Pydantic model"""
         parsed_args, unknown_args = self.parser.parse_known_args(args)
-
         parsed_dict = vars(parsed_args)
 
+        # Handle unknown_args from positional argument
         if parsed_dict.get('unknown_args'):
             unknown_args.extend(parsed_dict['unknown_args'])
 
-        return parsed_dict, unknown_args
+        # Remove unknown_args from dict since it's not part of CLIArgs
+        parsed_dict.pop('unknown_args', None)
+
+        # Create CLIArgs model, storing unknown_args separately for later processing
+        cli_args = CLIArgs(**parsed_dict)
+        cli_args._unknown_args = unknown_args  # Store temporarily
+
+        return cli_args
 
     def print_help(self):
         import sys
@@ -125,69 +173,76 @@ Examples:
         sys.exit(0)
 
 
-def parse_command_line(args: Optional[List[str]] = None) -> Tuple[str, Dict[str, Any], List[str]]:
+def parse_command_line(args: Optional[List[str]] = None) -> ParsedCommand:
+    """Parse command line and return structured command result"""
     parser = ArgumentParser()
-    parsed_args, unknown_args = parser.parse_args(args)
+    cli_args = parser.parse_args(args)
 
+    # Extract unknown args from temporary storage
+    unknown_args = getattr(cli_args, '_unknown_args', [])
+    delattr(cli_args, '_unknown_args')  # Clean up temporary attribute
+
+    # Extract subcommand from unknown args
     subcommand = unknown_args[0] if unknown_args else ''
-    unknown_args = unknown_args[1:]
+    remaining_unknown = unknown_args[1:] if unknown_args else []
 
-    if parsed_args.get('help') or subcommand == 'help':
+    if cli_args.help or subcommand == 'help':
         parser.print_help()
-        return 'help', parsed_args, unknown_args
+        return ParsedCommand(command='help', args=cli_args, unknown_args=remaining_unknown)
 
     if subcommand == 'config':
-        return parse_config_subcommand(unknown_args, parsed_args)
+        return _parse_config_subcommand(remaining_unknown, cli_args)
     elif subcommand == 'mcp':
-        return parse_mcp_subcommand(unknown_args, parsed_args)
+        return _parse_mcp_subcommand(remaining_unknown, cli_args)
     elif subcommand == 'edit':
-        return parse_edit_subcommand(unknown_args, parsed_args)
+        return _parse_edit_subcommand(remaining_unknown, cli_args)
     elif subcommand == 'version':
-        return 'version', parsed_args, []
+        return ParsedCommand(command='version', args=cli_args, unknown_args=[])
     elif subcommand == 'update':
-        return 'update', parsed_args, []
+        return ParsedCommand(command='update', args=cli_args, unknown_args=[])
     else:
         if subcommand:
-            unknown_args.insert(0, subcommand)
-        return 'main', parsed_args, unknown_args
+            remaining_unknown.insert(0, subcommand)
+        return ParsedCommand(command='main', args=cli_args, unknown_args=remaining_unknown)
 
 
-def parse_config_subcommand(unknown_args: List[str], parsed_args: Dict[str, Any]) -> Tuple[str, Dict[str, Any], List[str]]:
+def _parse_config_subcommand(unknown_args: List[str], cli_args: CLIArgs) -> ParsedCommand:
+    """Parse config subcommand"""
     if not unknown_args:
-        return 'config_show', parsed_args, []
+        return ParsedCommand(command='config_show', args=cli_args, unknown_args=[])
 
     config_action = unknown_args[0]
     remaining_args = unknown_args[1:]
 
     if config_action == 'edit':
         config_name = remaining_args[0] if remaining_args else None
-        parsed_args['config_name'] = config_name
-        return 'config_edit', parsed_args, []
+        return ParsedCommand(command='config_edit', args=cli_args, unknown_args=[], config_name=config_name)
     else:
-        return 'config_show', parsed_args, []
+        return ParsedCommand(command='config_show', args=cli_args, unknown_args=[])
 
 
-def parse_mcp_subcommand(unknown_args: List[str], parsed_args: Dict[str, Any]) -> Tuple[str, Dict[str, Any], List[str]]:
+def _parse_mcp_subcommand(unknown_args: List[str], cli_args: CLIArgs) -> ParsedCommand:
+    """Parse MCP subcommand"""
     if not unknown_args:
-        return 'mcp_show', parsed_args, []
+        return ParsedCommand(command='mcp_show', args=cli_args, unknown_args=[])
 
     mcp_action = unknown_args[0]
 
     if mcp_action == 'edit':
-        return 'mcp_edit', parsed_args, []
+        return ParsedCommand(command='mcp_edit', args=cli_args, unknown_args=[])
     else:
-        return 'mcp_show', parsed_args, []
+        return ParsedCommand(command='mcp_show', args=cli_args, unknown_args=[])
 
 
-def parse_edit_subcommand(unknown_args: List[str], parsed_args: Dict[str, Any]) -> Tuple[str, Dict[str, Any], List[str]]:
+def _parse_edit_subcommand(unknown_args: List[str], cli_args: CLIArgs) -> ParsedCommand:
+    """Parse edit subcommand"""
     if not unknown_args:
-        return 'config_edit', parsed_args, []
+        return ParsedCommand(command='config_edit', args=cli_args, unknown_args=[])
 
     edit_action = unknown_args[0] if unknown_args else ''
 
     if edit_action == 'mcp':
-        return 'mcp_edit', parsed_args, []
+        return ParsedCommand(command='mcp_edit', args=cli_args, unknown_args=[])
     else:
         config_name = edit_action
-        parsed_args['config_name'] = config_name
-        return 'config_edit', parsed_args, []
+        return ParsedCommand(command='config_edit', args=cli_args, unknown_args=[], config_name=config_name)
