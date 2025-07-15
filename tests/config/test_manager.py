@@ -96,10 +96,10 @@ class TestConfigManager:
             manager = ConfigManager.setup(api_key='test_key')
 
             # Verify source order and types
-            assert len(manager.sources) == 4  # Default, Env, File, Arg
+            assert len(manager.sources) == 4  # Default, File, Env, Arg
             assert isinstance(manager.sources[0], DefaultConfigSource)
-            assert isinstance(manager.sources[1], EnvConfigSource)
-            assert isinstance(manager.sources[2], FileConfigSource)
+            assert isinstance(manager.sources[1], FileConfigSource)
+            assert isinstance(manager.sources[2], EnvConfigSource)
             assert isinstance(manager.sources[3], ArgConfigSource)
 
             assert manager.get('api_key') == 'test_key'
@@ -189,7 +189,7 @@ class TestConfigManager:
                     config_file=config_file_path,
                 )
 
-                # Priority: CLI > File > Env > Default
+                # Priority: CLI > Env > File > Default
                 assert manager.get('api_key') == 'env_key'  # From environment
                 assert manager.get('model_name') == 'cli_model'  # From CLI (highest priority)
                 assert manager.get('max_tokens') == 4000  # From file

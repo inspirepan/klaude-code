@@ -2,16 +2,16 @@ from klaudecode.config.arg_source import ArgConfigSource
 
 
 class TestArgConfigSource:
-    """测试 ArgConfigSource 类"""
+    """Test ArgConfigSource class"""
 
     def test_arg_config_source_initialization(self):
-        """测试基本初始化"""
+        """Test basic initialization"""
         source = ArgConfigSource()
         assert source.source == 'cli'
         assert source.config_model is not None
 
     def test_arg_config_source_with_values(self):
-        """测试带参数的初始化"""
+        """Test initialization with parameters"""
         source = ArgConfigSource(
             api_key='test_key',
             model_name='test_model',
@@ -35,7 +35,7 @@ class TestArgConfigSource:
         assert source.get('theme') == 'light'
 
     def test_arg_config_source_none_values(self):
-        """测试 None 值被忽略"""
+        """Test None values are ignored"""
         source = ArgConfigSource(api_key='test_key', model_name=None, max_tokens=None)
 
         assert source.get('api_key') == 'test_key'
@@ -43,7 +43,7 @@ class TestArgConfigSource:
         assert source.get('max_tokens') is None
 
     def test_arg_config_source_json_parsing(self):
-        """测试 JSON 字符串解析"""
+        """Test JSON string parsing"""
         source = ArgConfigSource(extra_header='{"Authorization": "Bearer token"}', extra_body='{"custom": "value"}')
 
         header_value = source.get('extra_header')
@@ -53,7 +53,7 @@ class TestArgConfigSource:
         assert body_value == {'custom': 'value'}
 
     def test_arg_config_source_invalid_json(self):
-        """测试无效 JSON 字符串处理"""
+        """Test invalid JSON string handling"""
         source = ArgConfigSource(extra_header='invalid json', extra_body="{'not': 'valid'}")
 
         header_value = source.get('extra_header')
@@ -63,7 +63,7 @@ class TestArgConfigSource:
         assert body_value == {}
 
     def test_arg_config_source_config_value_properties(self):
-        """测试配置值的属性"""
+        """Test config value properties"""
         source = ArgConfigSource(api_key='test_key')
 
         config_value = source.config_model.api_key

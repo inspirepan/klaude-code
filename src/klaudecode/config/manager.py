@@ -109,18 +109,23 @@ class ConfigManager:
             config_file: Path to configuration file specified via CLI
 
         Returns:
-            ConfigManager with sources in priority order: Default < Environment < File Config < CLI Args
+            ConfigManager with sources in priority order:
+            - If config_file specified: Default < Environment < CLI Config < CLI Args
+            - If no config_file: Default < Global Config < Environment < CLI Args
         """
-        sources = [
-            DefaultConfigSource(),
-            EnvConfigSource(),
-        ]
+        sources = [DefaultConfigSource()]
 
-        # Add file config source - either CLI specified or global
         if config_file:
-            sources.append(FileConfigSource.create_cli_config_source(config_file))
+            # When config file is specified: Env < CLI Config < CLI Args
+            sources.extend([EnvConfigSource(), FileConfigSource.create_cli_config_source(config_file)])
         else:
-            sources.append(FileConfigSource.create_global_config_source())
+            # When no config file specified: Global Config < Env < CLI Args
+            sources.extend(
+                [
+                    FileConfigSource.create_global_config_source(),
+                    EnvConfigSource(),
+                ]
+            )
 
         # CLI arguments have the highest priority
         sources.append(

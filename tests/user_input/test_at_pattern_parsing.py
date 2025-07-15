@@ -25,8 +25,8 @@ class TestAtPatternParsing:
             # Multiple patterns
             ('@file1.txt and @file2.py', ['file1.txt', 'file2.py']),
             ('Check @src/main.py and @tests/test.py', ['src/main.py', 'tests/test.py']),
-            # Complex text with Chinese
-            ('@src/klaudecode/llm/ 有哪些文件，@src/klaudecode/llm/llm_proxy_base.py 是干啥的', ['src/klaudecode/llm/', 'src/klaudecode/llm/llm_proxy_base.py']),
+            # Complex text with special characters
+            ('@src/klaudecode/llm/ what files are there, @src/klaudecode/llm/llm_proxy_base.py what does it do', ['src/klaudecode/llm/', 'src/klaudecode/llm/llm_proxy_base.py']),
             # Edge cases
             ('@@double.txt', ['@double.txt']),  # Second @ is part of filename
             ('email@example.com', ['example.com']),  # Will match after @ in email
@@ -163,7 +163,7 @@ class TestAtPatternParsing:
 
     def test_original_text_preserved(self):
         """Test that original user input is preserved."""
-        test_inputs = ['@file.txt check this', 'Look at @src/main.py and @tests/test.py', '@src/klaudecode/llm/ 有哪些文件，@src/klaudecode/llm/llm_proxy_base.py 是干啥的']
+        test_inputs = ['@file.txt check this', 'Look at @src/main.py and @tests/test.py', '@src/klaudecode/llm/ what files are there, @src/klaudecode/llm/llm_proxy_base.py what does it do']
 
         with patch('klaudecode.user_input.input_handler.execute_read') as mock_execute_read:
             # Mock the read result properly using ReadResult

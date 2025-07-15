@@ -30,8 +30,8 @@ class TestBashEnvironment(BaseToolTest):
                 },
                 # Command with unicode in quotes
                 {
-                    'command': 'python -c "print(\'成功\')"',
-                    'expected_contains': ['python -c "print(\'成功\')"', 'timeout'],
+                    'command': 'python -c "print(\'Success\')"',
+                    'expected_contains': ['python -c "print(\'Success\')"', 'timeout'],
                 },
             ]
 

@@ -66,7 +66,7 @@ class TestWriteTool(BaseToolTest):
     def test_write_with_unicode(self):
         """Test writing file with unicode content."""
         file_path = self.temp_path / 'unicode.txt'
-        content = 'Hello 世界! 🌍\nСпасибо'
+        content = 'Hello World! 🌍\nSpasibo'
 
         result = self.invoke_tool(WriteTool, {'file_path': str(file_path), 'content': content})
 

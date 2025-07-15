@@ -19,7 +19,7 @@ def mock_agent_state():
     work_dir = Path('/test/work/dir')
     session = Session(work_dir=work_dir)
 
-    user_msg = UserMessage(content='这是一个测试问题')
+    user_msg = UserMessage(content='This is a test question')
     session.messages.messages.append(user_msg)
 
     ai_msg = AIMessage(content='This is a test AI response with content.')
@@ -37,18 +37,18 @@ def mock_agent_state_with_task():
     work_dir = Path('/test/work/dir')
     session = Session(work_dir=work_dir)
 
-    user_msg = UserMessage(content='请帮我分析代码')
+    user_msg = UserMessage(content='Please help me analyze the code')
     session.messages.messages.append(user_msg)
 
-    ai_msg = AIMessage(content='我来帮你分析代码。')
-    task_call = ToolCall(id='task_123', tool_name='Task', tool_args_dict={'description': '分析代码结构', 'prompt': '请分析项目的代码结构'}, status='success')
+    ai_msg = AIMessage(content='I will help you analyze the code.')
+    task_call = ToolCall(id='task_123', tool_name='Task', tool_args_dict={'description': 'Analyze code structure', 'prompt': 'Please analyze the project code structure'}, status='success')
     ai_msg.tool_calls['task_123'] = task_call
     session.messages.messages.append(ai_msg)
 
-    tool_msg = ToolMessage(tool_call_id='task_123', tool_call_cache=task_call, content='代码分析结果：项目包含3个主要模块...')
+    tool_msg = ToolMessage(tool_call_id='task_123', tool_call_cache=task_call, content='Code analysis result: Project contains 3 main modules...')
     session.messages.messages.append(tool_msg)
 
-    final_ai_msg = AIMessage(content='根据分析结果，我建议...')
+    final_ai_msg = AIMessage(content='Based on the analysis results, I recommend...')
     session.messages.messages.append(final_ai_msg)
 
     class MockAgentState:
@@ -64,33 +64,33 @@ def mock_agent_state_with_multiple_conversations():
     session = Session(work_dir=work_dir)
 
     # First conversation
-    user_msg1 = UserMessage(content='请帮我分析代码')
+    user_msg1 = UserMessage(content='Please help me analyze the code')
     session.messages.messages.append(user_msg1)
 
-    ai_msg1 = AIMessage(content='我来帮你分析代码。')
-    task_call1 = ToolCall(id='task_123', tool_name='Task', tool_args_dict={'description': '分析代码结构', 'prompt': '请分析项目的代码结构'}, status='success')
+    ai_msg1 = AIMessage(content='I will help you analyze the code.')
+    task_call1 = ToolCall(id='task_123', tool_name='Task', tool_args_dict={'description': 'Analyze code structure', 'prompt': 'Please analyze the project code structure'}, status='success')
     ai_msg1.tool_calls['task_123'] = task_call1
     session.messages.messages.append(ai_msg1)
 
-    tool_msg1 = ToolMessage(tool_call_id='task_123', tool_call_cache=task_call1, content='代码分析结果：项目包含3个主要模块...')
+    tool_msg1 = ToolMessage(tool_call_id='task_123', tool_call_cache=task_call1, content='Code analysis result: Project contains 3 main modules...')
     session.messages.messages.append(tool_msg1)
 
-    final_ai_msg1 = AIMessage(content='根据分析结果，我建议...')
+    final_ai_msg1 = AIMessage(content='Based on the analysis results, I recommend...')
     session.messages.messages.append(final_ai_msg1)
 
     # Second conversation
-    user_msg2 = UserMessage(content='现在帮我优化性能')
+    user_msg2 = UserMessage(content='Now help me optimize performance')
     session.messages.messages.append(user_msg2)
 
-    ai_msg2 = AIMessage(content='我来帮你优化性能。')
-    task_call2 = ToolCall(id='task_456', tool_name='Task', tool_args_dict={'description': '性能分析', 'prompt': '分析性能瓶颈'}, status='success')
+    ai_msg2 = AIMessage(content='I will help you optimize performance.')
+    task_call2 = ToolCall(id='task_456', tool_name='Task', tool_args_dict={'description': 'Performance analysis', 'prompt': 'Analyze performance bottlenecks'}, status='success')
     ai_msg2.tool_calls['task_456'] = task_call2
     session.messages.messages.append(ai_msg2)
 
-    tool_msg2 = ToolMessage(tool_call_id='task_456', tool_call_cache=task_call2, content='性能分析结果：发现内存泄漏...')
+    tool_msg2 = ToolMessage(tool_call_id='task_456', tool_call_cache=task_call2, content='Performance analysis result: Found memory leak...')
     session.messages.messages.append(tool_msg2)
 
-    final_ai_msg2 = AIMessage(content='基于性能分析，建议使用...')
+    final_ai_msg2 = AIMessage(content='Based on performance analysis, recommend using...')
     session.messages.messages.append(final_ai_msg2)
 
     class MockAgentState:
@@ -131,7 +131,7 @@ class TestOutputCommand:
         output_file = result.user_msg.get_extra_data('output_file')
         with open(output_file, 'r', encoding='utf-8') as f:
             content = f.read()
-            assert '这是一个测试问题' in content
+            assert 'This is a test question' in content
             assert 'This is a test AI response with content.' in content
 
     @pytest.mark.asyncio
@@ -148,10 +148,10 @@ class TestOutputCommand:
         output_file = result.user_msg.get_extra_data('output_file')
         with open(output_file, 'r', encoding='utf-8') as f:
             content = f.read()
-            assert '# Task: 分析代码结构' in content
-            assert '代码分析结果：项目包含3个主要模块...' in content
-            assert '# User: 请帮我分析代码' in content
-            assert '根据分析结果，我建议...' in content
+            assert '# Task: Analyze code structure' in content
+            assert 'Code analysis result: Project contains 3 main modules...' in content
+            assert '# User: Please help me analyze the code' in content
+            assert 'Based on the analysis results, I recommend...' in content
 
     @pytest.mark.asyncio
     @patch('os.system')
@@ -169,16 +169,16 @@ class TestOutputCommand:
             content = f.read()
 
             # Check for first conversation section
-            assert '# User: 请帮我分析代码' in content
-            assert '根据分析结果，我建议...' in content
-            assert '# Task: 分析代码结构' in content
-            assert '代码分析结果：项目包含3个主要模块...' in content
+            assert '# User: Please help me analyze the code' in content
+            assert 'Based on the analysis results, I recommend...' in content
+            assert '# Task: Analyze code structure' in content
+            assert 'Code analysis result: Project contains 3 main modules...' in content
 
             # Check for second conversation section
-            assert '# User: 现在帮我优化性能' in content
-            assert '基于性能分析，建议使用...' in content
-            assert '# Task: 性能分析' in content
-            assert '性能分析结果：发现内存泄漏...' in content
+            assert '# User: Now help me optimize performance' in content
+            assert 'Based on performance analysis, recommend using...' in content
+            assert '# Task: Performance analysis' in content
+            assert 'Performance analysis result: Found memory leak...' in content
 
     @pytest.mark.asyncio
     @patch('os.system')

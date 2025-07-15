@@ -14,22 +14,22 @@ from klaudecode.config.default_source import (
 
 
 class TestDefaultConfigSource:
-    """测试 DefaultConfigSource 类"""
+    """Test DefaultConfigSource class"""
 
     def test_default_config_source_initialization(self):
-        """测试默认配置源初始化"""
+        """Test default config source initialization"""
         source = DefaultConfigSource()
         assert source.source == 'default'
         assert source.config_model is not None
 
     def test_default_config_source_values(self):
-        """测试默认配置值"""
+        """Test default config values"""
         source = DefaultConfigSource()
 
-        # API key 应该为 None（需要用户设置）
+        # API key should be None (needs to be set by user)
         assert source.get('api_key') is None
 
-        # 其他值应该是默认值
+        # Other values should be default values
         assert source.get('model_name') == DEFAULT_MODEL_NAME
         assert source.get('base_url') == DEFAULT_BASE_URL
         assert source.get('model_azure') == DEFAULT_MODEL_AZURE
@@ -42,10 +42,10 @@ class TestDefaultConfigSource:
         assert source.get('theme') == DEFAULT_THEME
 
     def test_default_config_source_config_value_properties(self):
-        """测试配置值的属性"""
+        """Test config value properties"""
         source = DefaultConfigSource()
 
-        # 测试非 None 值的 ConfigValue 属性
+        # Test non-None ConfigValue properties
         model_name_config = source.config_model.model_name
         assert model_name_config.value == DEFAULT_MODEL_NAME
         assert model_name_config.source == 'default'
@@ -54,14 +54,14 @@ class TestDefaultConfigSource:
         assert base_url_config.value == DEFAULT_BASE_URL
         assert base_url_config.source == 'default'
 
-        # API key 应该为 None
+        # API key should be None
         assert source.config_model.api_key is None
 
     def test_default_values_consistency(self):
-        """测试默认值常量的一致性"""
+        """Test consistency of default value constants"""
         source = DefaultConfigSource()
 
-        # 确保 DefaultConfigSource 使用的值与导入的常量一致
+        # Ensure DefaultConfigSource uses values consistent with imported constants
         assert source.get('model_name') == DEFAULT_MODEL_NAME
         assert source.get('base_url') == DEFAULT_BASE_URL
         assert source.get('model_azure') == DEFAULT_MODEL_AZURE
