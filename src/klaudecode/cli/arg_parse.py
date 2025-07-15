@@ -123,51 +123,45 @@ class ArgumentParser:
         help_text = """
 usage: klaude [OPTIONS] [SUBCOMMAND] [ARGS...]
 
-Coding Agent CLI
+Klaude Code - starts an interactive session by default, use -p/--print for non-interactive output
 
-Options:
-  -h, --help            Show this help message and exit
-  -p, --print PROMPT    Run in headless mode with the given prompt
-  -r, --resume          Resume from an existing session (only for interactive mode)
-  -c, --continue        Continue from the latest session in current directory
-  -f, --config CONFIG   Specify a config name to run, e.g. `anthropic` for `~/.klaude/config_anthropic.json`, or a path to a config file
-  --api-key KEY         Override API key from config
-  --model MODEL         Override model name from config
-  --base-url URL        Override base URL from config
-  --max-tokens TOKENS   Override max tokens from config
-  --model-azure         Override model is azure from config
-  --thinking            Enable Claude Extended Thinking capability (only for Anthropic Offical API yet)
-  --api-version VERSION Override API version from config
-  --extra-header HEADER Override extra header from config (JSON string)
-  --extra-body BODY     Override extra body from config (JSON string)
-  --theme THEME         Override theme from config (light, dark, light_ansi, or dark_ansi)
-  -m, --mcp             Enable MCP tools
-  --logo                Show ASCII Art logo
+Basic Arguments:
+  -h, --help                    Show this help message and exit
+  -p, --print PROMPT            Run in headless mode with specified prompt
+  -r, --resume                  Resume from existing session (interactive mode only)
+  -c, --continue                Continue from latest session in current directory
+  -f, --config NAME/PATH        Use specific config (e.g., 'anthropic') or config file path
+  -m, --mcp                     Enable Model Context Protocol tools
+
+API Arguments:
+  --api-key KEY                 Override API key (alternative to config file)
+  --model MODEL                 Override model name (e.g., claude-3-5-sonnet-20241022)
+  --base-url URL                Override API base URL (for custom endpoints)
+  --max-tokens TOKENS           Override maximum response tokens
+  --model-azure                 Use Azure OpenAI service instead of direct API
+  --thinking                    Enable Claude's advanced reasoning mode (Anthropic only)
+  --api-version VERSION         Specify API version (Azure OpenAI)
+  --extra-header JSON           Add custom HTTP headers (JSON format)
+  --extra-body JSON             Add custom request body parameters (JSON format)
+
+Interface Arguments:
+  --theme THEME                 Set color theme: light, dark, light_ansi, dark_ansi
+  --logo                        Display ASCII art logo on startup
 
 Subcommands:
-  config                Show all configurations
-    edit [CONFIG_NAME]  Edit configuration file
+  config                        Show all saved configurations
+    edit [NAME]                 Edit configuration file (creates if not exists)
 
-  mcp                   Show MCP (Model Context Protocol) servers
-    edit                Edit MCP configuration file
+  mcp                           Show MCP server configurations
+    edit                        Edit MCP configuration file
 
-  edit                  Alias for `config edit` and `mcp edit`
-  edit [CONFIG_NAME]    Edit configuration files, none for default config.json
-  edit mcp              Edit MCP configuration file
+  edit [NAME|mcp]               Quick config editing: (edit NAME for config, edit mcp for MCP)
+                                • edit          - Edit default config
+                                • edit NAME     - Edit named config
+                                • edit mcp      - Edit MCP config
 
-  version               Show version information
-
-  update                Update klaude-code to the latest version
-
-Examples:
-  klaude                        # Start interactive mode
-  klaude -p "Hello, world!"     # Run with prompt
-  klaude -f anthropic           # Use specific config
-  klaude config show            # Show all configurations
-  klaude config edit            # Show all configurations
-  klaude config edit anthropic  # Edit anthropic config
-  klaude mcp show               # Show MCP configuration
-  klaude update                 # Update to latest version
+  version                       Display version information
+  update                        Update klaude-code to latest version
 """
         print(help_text.strip())
         sys.exit(0)

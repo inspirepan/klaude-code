@@ -228,7 +228,6 @@ class TestArgumentParser:
 
         help_text = mock_print.call_args[0][0]
         assert 'usage: klaude [OPTIONS] [SUBCOMMAND] [ARGS...]' in help_text
-        assert 'Coding Agent CLI' in help_text
         assert '-h, --help' in help_text
         assert '-p, --print' in help_text
         assert '-r, --resume' in help_text
