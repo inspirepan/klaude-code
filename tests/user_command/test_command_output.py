@@ -41,7 +41,9 @@ def mock_agent_state_with_task():
     session.messages.messages.append(user_msg)
 
     ai_msg = AIMessage(content='I will help you analyze the code.')
-    task_call = ToolCall(id='task_123', tool_name='Task', tool_args_dict={'description': 'Analyze code structure', 'prompt': 'Please analyze the project code structure'}, status='success')
+    task_call = ToolCall(
+        id='task_123', tool_name='Task', tool_args_dict={'description': 'Analyze code structure', 'prompt': 'Please analyze the project code structure'}, status='success'
+    )
     ai_msg.tool_calls['task_123'] = task_call
     session.messages.messages.append(ai_msg)
 
@@ -68,7 +70,9 @@ def mock_agent_state_with_multiple_conversations():
     session.messages.messages.append(user_msg1)
 
     ai_msg1 = AIMessage(content='I will help you analyze the code.')
-    task_call1 = ToolCall(id='task_123', tool_name='Task', tool_args_dict={'description': 'Analyze code structure', 'prompt': 'Please analyze the project code structure'}, status='success')
+    task_call1 = ToolCall(
+        id='task_123', tool_name='Task', tool_args_dict={'description': 'Analyze code structure', 'prompt': 'Please analyze the project code structure'}, status='success'
+    )
     ai_msg1.tool_calls['task_123'] = task_call1
     session.messages.messages.append(ai_msg1)
 

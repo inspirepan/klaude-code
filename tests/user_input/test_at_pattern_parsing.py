@@ -163,7 +163,11 @@ class TestAtPatternParsing:
 
     def test_original_text_preserved(self):
         """Test that original user input is preserved."""
-        test_inputs = ['@file.txt check this', 'Look at @src/main.py and @tests/test.py', '@src/klaudecode/llm/ what files are there, @src/klaudecode/llm/llm_proxy_base.py what does it do']
+        test_inputs = [
+            '@file.txt check this',
+            'Look at @src/main.py and @tests/test.py',
+            '@src/klaudecode/llm/ what files are there, @src/klaudecode/llm/llm_proxy_base.py what does it do',
+        ]
 
         with patch('klaudecode.user_input.input_handler.execute_read') as mock_execute_read:
             # Mock the read result properly using ReadResult
