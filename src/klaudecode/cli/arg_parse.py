@@ -6,6 +6,7 @@ import argparse
 from typing import Annotated, List, Literal, Optional
 
 from pydantic import BaseModel, Field
+from rich.console import Console
 
 
 class CLIArgs(BaseModel):
@@ -123,51 +124,51 @@ class ArgumentParser:
     def print_help(self):
         import sys
 
-        help_text = """
-usage: klaude [OPTIONS] [SUBCOMMAND] [ARGS...]
+        console = Console()
+        help_text = """[bold green]Usage:[/bold green] [cyan bold]klaude[/cyan bold] [cyan][OPTIONS][/cyan] [cyan][SUBCOMMAND][/cyan] [cyan][ARGS...][/cyan]
 
 Klaude Code - starts an interactive session by default, use -p/--print for non-interactive output
 
-Basic Arguments:
-  -h, --help                    Show this help message and exit
-  -p, --print PROMPT            Run in headless mode with specified prompt
-  -r, --resume                  Resume from existing session (interactive mode only)
-  -c, --continue                Continue from latest session in current directory
-  -f, --config NAME/PATH        Use specific config (e.g., 'anthropic') or config file path
-  -m, --mcp                     Enable Model Context Protocol tools
+[bold green]Basic Arguments:[/bold green]
+  [cyan bold]-h, --help[/cyan bold]                    Show this help message and exit
+  [cyan bold]-p, --print[/cyan bold] [cyan]PROMPT[/cyan]            Run in headless mode with specified prompt
+  [cyan bold]-r, --resume[/cyan bold]                  Resume from existing session (interactive mode only)
+  [cyan bold]-c, --continue[/cyan bold]                Continue from latest session in current directory
+  [cyan bold]-f, --config[/cyan bold] [cyan]NAME/PATH[/cyan]        Use specific config (e.g., 'anthropic') or config file path
+  [cyan bold]-m, --mcp[/cyan bold]                     Enable Model Context Protocol tools
 
-API Arguments:
-  --api-key KEY                 Override API key (alternative to config file)
-  --model MODEL                 Override model name (e.g., claude-3-5-sonnet-20241022)
-  --base-url URL                Override API base URL (for custom endpoints)
-  --max-tokens TOKENS           Override maximum response tokens
-  --model-azure                 Use Azure OpenAI service instead of direct API
-  --thinking                    Enable Claude's advanced reasoning mode (Anthropic only)
-  --api-version VERSION         Specify API version (Azure OpenAI)
-  --extra-header JSON           Add custom HTTP headers (JSON format)
-  --extra-body JSON             Add custom request body parameters (JSON format)
+[bold green]API Arguments:[/bold green]
+  [cyan bold]--api-key[/cyan bold] [cyan]KEY[/cyan]                 Override API key (alternative to config file)
+  [cyan bold]--model[/cyan bold] [cyan]MODEL[/cyan]                 Override model name (e.g., claude-3-5-sonnet-20241022)
+  [cyan bold]--base-url[/cyan bold] [cyan]URL[/cyan]                Override API base URL (for custom endpoints)
+  [cyan bold]--max-tokens[/cyan bold] [cyan]TOKENS[/cyan]           Override maximum response tokens
+  [cyan bold]--model-azure[/cyan bold]                 Use Azure OpenAI service instead of direct API
+  [cyan bold]--thinking[/cyan bold]                    Enable Claude's advanced reasoning mode (Anthropic only)
+  [cyan bold]--api-version[/cyan bold] [cyan]VERSION[/cyan]         Specify API version (Azure OpenAI)
+  [cyan bold]--extra-header[/cyan bold] [cyan]JSON[/cyan]           Add custom HTTP headers (JSON format)
+  [cyan bold]--extra-body[/cyan bold] [cyan]JSON[/cyan]             Add custom request body parameters (JSON format)
 
-Interface Arguments:
-  --theme THEME                 Set color theme: light, dark, light_ansi, dark_ansi
-  --logo                        Display ASCII art logo on startup
-  --no-stream-print             Disable streaming output for text printing
+[bold green]Interface Arguments:[/bold green]
+  [cyan bold]--theme[/cyan bold] [cyan]THEME[/cyan]                 Set color theme: light, dark, light_ansi, dark_ansi
+  [cyan bold]--logo[/cyan bold]                        Display ASCII art logo on startup
+  [cyan bold]--no-stream-print[/cyan bold]             Disable streaming output for text printing
 
-Subcommands:
-  config                        Show all saved configurations
-    edit [NAME]                 Edit configuration file (creates if not exists)
+[bold green]Subcommands:[/bold green]
+  [cyan bold]config[/cyan bold]                        Show all saved configurations
+    [cyan bold]edit[/cyan bold] [cyan][NAME][/cyan]                 Edit configuration file (creates if not exists)
 
-  mcp                           Show MCP server configurations
-    edit                        Edit MCP configuration file
+  [cyan bold]mcp[/cyan bold]                           Show MCP server configurations
+    [cyan bold]edit[/cyan bold]                        Edit MCP configuration file
 
-  edit [NAME|mcp]               Quick config editing: (edit NAME for config, edit mcp for MCP)
+  [cyan bold]edit[/cyan bold] [cyan][NAME|mcp][/cyan]               Quick config editing: (edit NAME for config, edit mcp for MCP)
                                 • edit          - Edit default config
                                 • edit NAME     - Edit named config
                                 • edit mcp      - Edit MCP config
 
-  version                       Display version information
-  update                        Update klaude-code to latest version
-"""
-        print(help_text.strip())
+  [cyan bold]version[/cyan bold]                       Display version information
+  [cyan bold]update[/cyan bold]                        Update klaude-code to latest version"""
+
+        console.print(help_text)
         sys.exit(0)
 
 
