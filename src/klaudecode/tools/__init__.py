@@ -16,7 +16,7 @@ from .write import WriteTool
 
 # Tool collections
 
-BASIC_TOOLS = [BashTool, GlobTool, GrepTool, LsTool, ExitPlanModeTool, ReadTool, EditTool, MultiEditTool, WriteTool, UndoEditTool, TodoReadTool, TodoWriteTool]
+BASIC_TOOLS = [BashTool, GlobTool, GrepTool, LsTool, ExitPlanModeTool, ReadTool, EditTool, MultiEditTool, WriteTool, TodoReadTool, TodoWriteTool]
 READ_ONLY_TOOLS = [GlobTool, GrepTool, LsTool, ReadTool, TodoWriteTool, TodoReadTool]
 
 __all__ = [
