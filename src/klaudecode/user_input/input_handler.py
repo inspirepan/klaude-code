@@ -60,12 +60,11 @@ class UserInputHandler:
         attachments = []
         pattern = r'@([^\s]+)'  # Match @ followed by non-whitespace characters
 
-        # Find all matches first
-        matches = list(re.finditer(pattern, text))
+        # Find all matches and extract unique file paths
+        matches = re.findall(pattern, text)
+        unique_file_paths = list(set(matches))  # Remove duplicates
 
-        for match in matches:
-            file_path = match.group(1)
-
+        for file_path in unique_file_paths:
             # Try to resolve the file path
             abs_path = None
             if file_path.startswith('/'):
