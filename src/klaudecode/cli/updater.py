@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 try:
-    from importlib.metadata import version, PackageNotFoundError
+    from importlib.metadata import PackageNotFoundError, version
 except ImportError:
     from importlib_metadata import version
 
