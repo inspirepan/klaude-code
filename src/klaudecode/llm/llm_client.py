@@ -23,12 +23,17 @@ from .llm_proxy_openai import OpenAIProxy
 NON_RETRY_EXCEPTIONS = (
     KeyboardInterrupt,
     asyncio.CancelledError,
-    openai.APIStatusError,
-    anthropic.APIStatusError,
+    # LLM Errors
+    openai.BadRequestError,
+    anthropic.BadRequestError,
     openai.AuthenticationError,
     anthropic.AuthenticationError,
+    openai.PermissionDeniedError,
+    anthropic.PermissionDeniedError,
     openai.NotFoundError,
     anthropic.NotFoundError,
+    openai.ConflictError,
+    anthropic.ConflictError,
     openai.UnprocessableEntityError,
     anthropic.UnprocessableEntityError,
 )
