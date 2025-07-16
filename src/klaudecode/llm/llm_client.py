@@ -192,9 +192,9 @@ class StatusWrapper(LLMClientWrapper):
 
                 yield stream_status, ai_message
 
-            if stream_print_result:
-                console.print()
-                console.print(ai_message)
+        if stream_print_result:
+            console.print()
+            console.print(ai_message)
 
 
 class LLMClient:
