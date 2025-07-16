@@ -189,10 +189,10 @@ class StatusWrapper(LLMClientWrapper):
                             console.print()
                             console.print(*ai_message.get_thinking_renderable())
                             print_thinking_flag = True
-
                 yield stream_status, ai_message
+            live.update('')
 
-        if stream_print_result:
+        if stream_print_result and ai_message.content or ai_message.thinking_content:
             console.print()
             console.print(ai_message)
 
