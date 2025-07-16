@@ -145,11 +145,11 @@ class OpenAIProxy(LLMProxyBase):
     def _handle_choice_delta(self, choice: Any, stream_status: StreamStatus, ai_message: AIMessage, tool_call_chunk_accumulator) -> None:
         if choice.delta.content:
             stream_status.phase = 'content'
-            ai_message.content += choice.delta.content
+            ai_message.append_content_chunk(choice.delta.content)
 
         if hasattr(choice.delta, 'reasoning_content') and choice.delta.reasoning_content:
             stream_status.phase = 'think'
-            ai_message.thinking_content += choice.delta.reasoning_content
+            ai_message.append_thinking_content_chunk(choice.delta.reasoning_content)
 
         if choice.delta.tool_calls:
             stream_status.phase = 'tool_call'

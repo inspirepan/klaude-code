@@ -94,10 +94,7 @@ class AnthropicProxy(LLMProxyBase):
                 self.client.messages.create(
                     model=self.model_name,
                     max_tokens=self.max_tokens,
-                    thinking={
-                        'type': 'enabled' if self.enable_thinking else 'disabled',
-                        'budget_tokens': budget_tokens,
-                    },
+                    **({'thinking': {'type': 'enabled', 'budget_tokens': budget_tokens}} if self.enable_thinking else {}),
                     tools=[tool.anthropic_schema() for tool in tools] if tools else None,
                     messages=other_msgs,
                     system=system_msgs,
@@ -163,9 +160,9 @@ class AnthropicProxy(LLMProxyBase):
 
     def _handle_content_block_delta(self, event: RawMessageStreamEvent, ai_message: AIMessage, state: StreamState) -> None:
         if event.delta.type == 'text_delta':
-            ai_message.content += event.delta.text
+            ai_message.append_content_chunk(event.delta.text)
         elif event.delta.type == 'thinking_delta':
-            ai_message.thinking_content += event.delta.thinking
+            ai_message.append_thinking_content_chunk(event.delta.thinking)
         elif event.delta.type == 'signature_delta':
             ai_message.thinking_signature += event.delta.signature
         elif event.delta.type == 'input_json_delta':

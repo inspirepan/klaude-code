@@ -6,11 +6,12 @@ from typing import AsyncGenerator, List, Optional, Tuple
 
 import anthropic
 import openai
+from rich.console import Group
 from rich.text import Text
 
 from ..message import AIMessage, BasicMessage
 from ..tool import Tool
-from ..tui import INTERRUPT_TIP, ColorStyle, console, render_dot_status, render_suffix
+from ..tui import INTERRUPT_TIP, ColorStyle, CropAboveLive, console, render_dot_status, render_suffix
 from ..tui.stream_status import StreamStatus, get_content_status_text, get_reasoning_status_text, get_tool_call_status_text, get_upload_status_text, text_status_str
 from ..utils.exception import format_exception
 from .llm_proxy_anthropic import AnthropicProxy
@@ -100,6 +101,43 @@ class RetryWrapper(LLMClientWrapper):
 class StatusWrapper(LLMClientWrapper):
     """Wrapper that adds status display to LLM calls"""
 
+    def __init__(self, client: LLMProxyBase):
+        super().__init__(client)
+
+    def _get_phase_indicator_and_status(
+        self, stream_status: StreamStatus, reasoning_status_text: str, content_status_text: str, upload_status_text: str, status_text_seed: int
+    ) -> Tuple[str, str]:
+        if stream_status.phase == 'tool_call':
+            indicator = '⚒'
+            if stream_status.tool_names:
+                current_status_text = get_tool_call_status_text(stream_status.tool_names[-1], status_text_seed)
+            else:
+                current_status_text = reasoning_status_text
+        elif stream_status.phase == 'upload':
+            indicator = ''
+            current_status_text = upload_status_text
+        elif stream_status.phase == 'think':
+            indicator = '✻'
+            current_status_text = reasoning_status_text
+        elif stream_status.phase == 'content':
+            indicator = '↓'
+            current_status_text = content_status_text
+        else:
+            indicator = ''
+            current_status_text = reasoning_status_text
+
+        return indicator, current_status_text
+
+    def _update_status_display(self, status, indicator: str, tokens: int, current_status_text: str):
+        status.update(
+            status=current_status_text,
+            description=Text.assemble(
+                (f'{indicator}', ColorStyle.SUCCESS),
+                (f' {tokens} tokens' if tokens else '', ColorStyle.SUCCESS),
+                (INTERRUPT_TIP, ColorStyle.HINT),
+            ),
+        )
+
     async def stream_call(
         self,
         msgs: List[BasicMessage],
@@ -107,6 +145,7 @@ class StatusWrapper(LLMClientWrapper):
         timeout: float = 20.0,
         status_text: Optional[str] = None,
         show_result: bool = True,
+        stream_print_result: bool = True,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         status_text_seed = int(time.time() * 1000) % 10000
         if status_text:
@@ -123,41 +162,39 @@ class StatusWrapper(LLMClientWrapper):
 
         current_status_text = upload_status_text
 
-        with render_dot_status(current_status_text) as status:
+        status = render_dot_status(current_status_text)
+
+        if stream_print_result:
+            live = CropAboveLive(Group('', status) if stream_print_result else status, refresh_per_second=10, console=console.console, transient=True)
+        else:
+            live = status
+        with live:
             async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout):
                 ai_message: AIMessage
-                if stream_status.phase == 'tool_call':
-                    indicator = '⚒'
-                    if stream_status.tool_names:
-                        current_status_text = get_tool_call_status_text(stream_status.tool_names[-1], status_text_seed)
-                elif stream_status.phase == 'upload':
-                    indicator = ''
-                elif stream_status.phase == 'think':
-                    indicator = '✻'
-                    current_status_text = reasoning_status_text
-                elif stream_status.phase == 'content':
-                    indicator = '↓'
-                    current_status_text = content_status_text
-
-                status.update(
-                    status=current_status_text,
-                    description=Text.assemble(
-                        (f'{indicator}', ColorStyle.SUCCESS),
-                        (f' {stream_status.tokens} tokens' if stream_status.tokens else '', ColorStyle.SUCCESS),
-                        (INTERRUPT_TIP, ColorStyle.HINT),
-                    ),
+                stream_status: StreamStatus
+                indicator, current_status_text = self._get_phase_indicator_and_status(
+                    stream_status, reasoning_status_text, content_status_text, upload_status_text, status_text_seed
                 )
+                self._update_status_display(status, indicator, stream_status.tokens, current_status_text)
 
-                if show_result and stream_status.phase in ['tool_call', 'completed'] and not print_content_flag and ai_message.content:
-                    console.print()
-                    console.print(*ai_message.get_content_renderable())
-                    print_content_flag = True
-                if show_result and stream_status.phase in ['content', 'tool_call', 'completed'] and not print_thinking_flag and ai_message.thinking_content:
-                    console.print()
-                    console.print(*ai_message.get_thinking_renderable())
-                    print_thinking_flag = True
+                if show_result:
+                    if stream_print_result:
+                        live.update(Group('', ai_message, status))
+                    else:
+                        if stream_status.phase in ['tool_call', 'completed'] and not print_content_flag and ai_message.content:
+                            console.print()
+                            console.print(*ai_message.get_content_renderable())
+                            print_content_flag = True
+                        if stream_status.phase in ['content', 'tool_call', 'completed'] and not print_thinking_flag and ai_message.thinking_content:
+                            console.print()
+                            console.print(*ai_message.get_thinking_renderable())
+                            print_thinking_flag = True
 
                 yield stream_status, ai_message
+
+            if stream_print_result:
+                console.print()
+                console.print(ai_message)
 
 
 class LLMClient:
@@ -204,6 +241,7 @@ class LLMClient:
         show_status: bool = True,
         show_result: bool = True,
         status_text: Optional[str] = None,
+        stream_print_result: bool = True,
         timeout: float = 20.0,
     ) -> AIMessage:
         if not show_status:
@@ -211,6 +249,8 @@ class LLMClient:
                 pass
             return ai_message
 
-        async for _, ai_message in StatusWrapper(self.client).stream_call(msgs, tools, timeout=timeout, status_text=status_text, show_result=show_result):
+        async for _, ai_message in StatusWrapper(self.client).stream_call(
+            msgs, tools, timeout=timeout, status_text=status_text, show_result=show_result, stream_print_result=stream_print_result
+        ):
             pass
         return ai_message

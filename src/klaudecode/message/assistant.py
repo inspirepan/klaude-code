@@ -129,13 +129,19 @@ class AIMessage(BasicMessage):
         has_tool_calls = (self.tool_calls is not None) and len(self.tool_calls) > 0
         return not self.removed and (has_content or has_thinking or has_tool_calls)
 
+    def append_content_chunk(self, content_chunk: str):
+        self.content += content_chunk
+
+    def append_thinking_content_chunk(self, thinking_content_chunk: str):
+        self.thinking_content += thinking_content_chunk
+
     def merge(self, other: 'AIMessage') -> 'AIMessage':
         """
         # For message continuation, not currently used
         """
-        self.content += other.content
+        self.append_content_chunk(other.content)
         self.finish_reason = other.finish_reason
-        self.thinking_content += other.thinking_content
+        self.append_thinking_content_chunk(other.thinking_content)
         self.thinking_signature += other.thinking_signature
         if self.usage and other.usage:
             self.usage.completion_tokens += other.usage.completion_tokens

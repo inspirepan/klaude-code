@@ -64,6 +64,7 @@ class LLMManager:
         status_text: Optional[str] = None,
         timeout: float = 20.0,
         show_result: bool = True,
+        stream_print_result: bool = True,
     ) -> AIMessage:
         """Unified LLM call interface with interrupt handling"""
         client = self.get_client()
@@ -103,6 +104,7 @@ class LLMManager:
                     status_text=status_text,
                     timeout=timeout,
                     show_result=show_result,
+                    stream_print_result=stream_print_result,
                 )
             )
 

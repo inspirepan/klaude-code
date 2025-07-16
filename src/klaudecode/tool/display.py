@@ -2,11 +2,10 @@ import asyncio
 from typing import TYPE_CHECKING, List
 
 from rich.console import Group
-from rich.live import Live
 from rich.text import Text
 
 from ..message import ToolCall
-from ..tui import ColorStyle, console, render_dot_status
+from ..tui import ColorStyle, CropAboveLive, console, render_dot_status
 from ..utils.exception import format_exception
 
 if TYPE_CHECKING:
@@ -46,12 +45,15 @@ class ToolDisplayManager:
             status_text = ToolDisplayManager.generate_status_text(tool_calls)
             status = render_dot_status(status=status_text)
 
-            with Live(refresh_per_second=10, console=console.console) as live:
+            with CropAboveLive(refresh_per_second=10, console=console.console, transient=True) as live:
                 live_group = ToolDisplayManager.create_live_group(tool_instances)
                 while any(ti.is_running() for ti in tool_instances) and not interrupt_handler.interrupted:
                     live.update(Group(*live_group, status))
                     await asyncio.sleep(0.1)
                 live.update(Group(*live_group))
+            for ti in tool_instances:
+                console.print()
+                console.print(ti.tool_result())
         except Exception as e:
             console.print(format_exception(e), style=ColorStyle.ERROR)
             raise e
