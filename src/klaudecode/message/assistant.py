@@ -120,9 +120,11 @@ class AIMessage(BasicMessage):
             yield render_message(Text(self.thinking_content, style=ColorStyle.AI_THINKING.italic), mark='')
             yield ''
 
-    def get_content_renderable(self):
+    def get_content_renderable(self, done: bool = False):
         if self.content:
-            yield render_message(render_markdown(self.content, style=ColorStyle.AI_CONTENT), mark_style=ColorStyle.AI_MARK, status='success' if self.finished else 'processing')
+            yield render_message(
+                render_markdown(self.content, style=ColorStyle.AI_CONTENT), mark_style=ColorStyle.AI_MARK, status='success' if self.finished or done else 'processing'
+            )
 
     def __bool__(self):
         has_content = (self.content is not None) and len(self.content.strip()) > 0

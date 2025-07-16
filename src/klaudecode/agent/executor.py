@@ -71,7 +71,6 @@ class AgentExecutor(Tool):
             msgs=self.agent_state.session.messages,
             tools=tools,
             show_status=self.agent_state.print_switch,
-            stream_print_result=True,
         )
 
         usage_token_count = 0

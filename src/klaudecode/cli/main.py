@@ -1,5 +1,6 @@
 import sys
 
+from ..config.simple import NO_STREAM_PRINT, SimpleConfig
 from ..tui import ColorStyle, Text, console
 from ..utils.exception import format_exception
 from .arg_parse import parse_command_line
@@ -8,6 +9,11 @@ from .arg_parse import parse_command_line
 def main():
     try:
         parsed_result = parse_command_line()
+
+        # Set simple configuration options
+        if parsed_result.args.no_stream_print:
+            SimpleConfig.set(NO_STREAM_PRINT, True)
+
         if parsed_result.command == 'version':
             from .version import version_command
 

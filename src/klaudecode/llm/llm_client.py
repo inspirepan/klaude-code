@@ -9,6 +9,7 @@ import openai
 from rich.console import Group
 from rich.text import Text
 
+from ..config.simple import NO_STREAM_PRINT, SimpleConfig
 from ..message import AIMessage, BasicMessage
 from ..tool import Tool
 from ..tui import INTERRUPT_TIP, ColorStyle, CropAboveLive, console, render_dot_status, render_suffix
@@ -34,9 +35,14 @@ NON_RETRY_EXCEPTIONS = (
 
 
 class LLMClientWrapper(ABC):
-    """Base class for LLM client wrappers"""
+    """Base class for LLM client wrappers that provides common interface for different client decorators"""
 
     def __init__(self, client: LLMProxyBase):
+        """Initialize wrapper with the underlying LLM client
+
+        Args:
+            client: The base LLM proxy client to wrap
+        """
         self.client = client
 
     @property
@@ -50,13 +56,34 @@ class LLMClientWrapper(ABC):
         tools: Optional[List[Tool]] = None,
         timeout: float = 20.0,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
+        """Stream LLM response with status updates
+
+        Args:
+            msgs: List of messages to send to the LLM
+            tools: Optional list of tools available to the LLM
+            timeout: Request timeout in seconds
+
+        Yields:
+            Tuple of (StreamStatus, AIMessage) for each streaming update
+        """
         pass
 
 
 class RetryWrapper(LLMClientWrapper):
-    """Wrapper that adds retry logic to LLM calls"""
+    """Wrapper that adds exponential backoff retry logic to LLM calls
+
+    Retries failed requests with exponential backoff, but skips certain non-retryable
+    exceptions like authentication errors and user interruptions.
+    """
 
     def __init__(self, client: LLMProxyBase, max_retries: int = DEFAULT_RETRIES, backoff_base: float = DEFAULT_RETRY_BACKOFF_BASE):
+        """Initialize retry wrapper
+
+        Args:
+            client: The LLM client to wrap with retry logic
+            max_retries: Maximum number of retry attempts
+            backoff_base: Base delay for exponential backoff (in seconds)
+        """
         super().__init__(client)
         self.max_retries = max_retries
         self.backoff_base = backoff_base
@@ -68,6 +95,7 @@ class RetryWrapper(LLMClientWrapper):
         timeout: float = 20.0,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         last_exception = None
+
         for attempt in range(self.max_retries):
             try:
                 async for item in self.client.stream_call(msgs, tools, timeout):
@@ -89,6 +117,7 @@ class RetryWrapper(LLMClientWrapper):
                         )
                     )
                     await asyncio.sleep(delay)
+        # All retries exhausted, raise the last exception
         raise last_exception
 
     def enhance_error_message(self, exception, error_msg: str) -> str:
@@ -99,9 +128,18 @@ class RetryWrapper(LLMClientWrapper):
 
 
 class StatusWrapper(LLMClientWrapper):
-    """Wrapper that adds status display to LLM calls"""
+    """Wrapper that adds real-time status display and progress indicators to LLM calls
+
+    Provides visual feedback to users about the current phase of LLM processing,
+    including thinking, content generation, tool calls, and file uploads.
+    """
 
     def __init__(self, client: LLMProxyBase):
+        """Initialize status wrapper
+
+        Args:
+            client: The LLM client to wrap with status display
+        """
         super().__init__(client)
 
     def _get_phase_indicator_and_status(
@@ -129,6 +167,14 @@ class StatusWrapper(LLMClientWrapper):
         return indicator, current_status_text
 
     def _update_status_display(self, status, indicator: str, tokens: int, current_status_text: str):
+        """Update the live status display with current progress information
+
+        Args:
+            status: The status object to update
+            indicator: Phase indicator emoji
+            tokens: Number of tokens processed so far
+            current_status_text: Text describing current activity
+        """
         status.update(
             status=current_status_text,
             description=Text.assemble(
@@ -145,7 +191,6 @@ class StatusWrapper(LLMClientWrapper):
         timeout: float = 20.0,
         status_text: Optional[str] = None,
         show_result: bool = True,
-        stream_print_result: bool = True,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         status_text_seed = int(time.time() * 1000) % 10000
         if status_text:
@@ -164,10 +209,14 @@ class StatusWrapper(LLMClientWrapper):
 
         status = render_dot_status(current_status_text)
 
+        stream_print_result = not SimpleConfig.get(NO_STREAM_PRINT, False)
+
         if stream_print_result:
-            live = CropAboveLive(Group('', status) if stream_print_result else status, refresh_per_second=10, console=console.console, transient=True)
+            live = CropAboveLive(status, refresh_per_second=10, console=console.console, transient=True)
         else:
+            # Use static status display
             live = status
+
         with live:
             async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout):
                 ai_message: AIMessage
@@ -179,25 +228,41 @@ class StatusWrapper(LLMClientWrapper):
 
                 if show_result:
                     if stream_print_result:
-                        live.update(Group('', ai_message, status))
+                        if ai_message.content or ai_message.thinking_content:
+                            # Group content with status, adding spacing for readability
+                            live.update(Group('', ai_message, status))
+                        else:
+                            # Only show status if no content yet
+                            live.update(status)
                     else:
                         if stream_status.phase in ['tool_call', 'completed'] and not print_content_flag and ai_message.content:
                             console.print()
-                            console.print(*ai_message.get_content_renderable())
+                            console.print(*ai_message.get_content_renderable(done=True))
                             print_content_flag = True
                         if stream_status.phase in ['content', 'tool_call', 'completed'] and not print_thinking_flag and ai_message.thinking_content:
                             console.print()
                             console.print(*ai_message.get_thinking_renderable())
                             print_thinking_flag = True
                 yield stream_status, ai_message
-            live.update('')
 
-        if stream_print_result and ai_message.content or ai_message.thinking_content:
+            # Clean up the live display area
+            if stream_print_result:
+                live.update('')
+
+        # Final output since transient=True clears the live area
+        # Re-print the final message for persistence
+        if show_result and stream_print_result and (ai_message.content or ai_message.thinking_content):
             console.print()
             console.print(ai_message)
 
 
 class LLMClient:
+    """High-level LLM client that automatically selects the appropriate provider and adds retry/status functionality
+
+    This is the main entry point for LLM interactions. It automatically detects the provider
+    based on the model name and base URL, then wraps the client with retry logic.
+    """
+
     def __init__(
         self,
         model_name: str,
@@ -212,6 +277,22 @@ class LLMClient:
         max_retries=DEFAULT_RETRIES,
         backoff_base=DEFAULT_RETRY_BACKOFF_BASE,
     ):
+        """Initialize LLM client with provider auto-detection
+
+        Args:
+            model_name: Name of the model to use
+            base_url: API base URL for the provider
+            api_key: API key for authentication
+            model_azure: Whether to use Azure OpenAI configuration
+            max_tokens: Maximum tokens for responses
+            extra_header: Additional HTTP headers
+            extra_body: Additional request body parameters
+            enable_thinking: Whether to enable thinking/reasoning mode
+            api_version: API version for Azure deployments
+            max_retries: Maximum number of retry attempts
+            backoff_base: Base delay for exponential backoff
+        """
+        # Auto-detect provider based on base URL and model name
         if base_url == 'https://api.anthropic.com/v1/':
             base_client = AnthropicProxy(model_name, api_key, max_tokens, enable_thinking, extra_header, extra_body)
         elif 'gemini' in model_name.lower():
@@ -241,7 +322,6 @@ class LLMClient:
         show_status: bool = True,
         show_result: bool = True,
         status_text: Optional[str] = None,
-        stream_print_result: bool = True,
         timeout: float = 20.0,
     ) -> AIMessage:
         if not show_status:
@@ -249,8 +329,6 @@ class LLMClient:
                 pass
             return ai_message
 
-        async for _, ai_message in StatusWrapper(self.client).stream_call(
-            msgs, tools, timeout=timeout, status_text=status_text, show_result=show_result, stream_print_result=stream_print_result
-        ):
+        async for _, ai_message in StatusWrapper(self.client).stream_call(msgs, tools, timeout=timeout, status_text=status_text, show_result=show_result):
             pass
         return ai_message

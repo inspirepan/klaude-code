@@ -32,6 +32,7 @@ class CLIArgs(BaseModel):
     # UI options
     theme: Annotated[Optional[Literal['light', 'dark', 'light_ansi', 'dark_ansi']], Field(description='Override theme from config')] = None
     logo: Annotated[bool, Field(description='Show ASCII Art logo')] = False
+    no_stream_print: Annotated[bool, Field(description='Disable streaming output for text printing')] = False
 
     # MCP
     mcp: Annotated[bool, Field(description='Enable MCP tools')] = False
@@ -97,6 +98,8 @@ class ArgumentParser:
 
         self.parser.add_argument('--logo', action='store_true')  # Show ASCII Art logo
 
+        self.parser.add_argument('--no-stream-print', action='store_true')  # Disable streaming output for text printing
+
         self.parser.add_argument('unknown_args', nargs='*')  # Unknown arguments
 
     def parse_args(self, args: Optional[List[str]] = None) -> CLIArgs:
@@ -147,6 +150,7 @@ API Arguments:
 Interface Arguments:
   --theme THEME                 Set color theme: light, dark, light_ansi, dark_ansi
   --logo                        Display ASCII art logo on startup
+  --no-stream-print             Disable streaming output for text printing
 
 Subcommands:
   config                        Show all saved configurations
