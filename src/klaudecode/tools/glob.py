@@ -57,7 +57,7 @@ class GlobTool(Tool):
             instance.tool_result().set_content(result)
             instance.tool_result().set_extra_data('file_count', file_count)
             instance.tool_result().set_extra_data('truncated', truncated)
-        except Exception as e:
+        except (OSError, ValueError) as e:
             instance.tool_result().set_error_msg(f'Search failed: {str(e)}')
 
     @classmethod

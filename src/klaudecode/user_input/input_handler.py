@@ -50,7 +50,7 @@ class UserInputHandler:
                             media_type='image/png',
                         )
                         attachments.append(attachment)
-                    except Exception:
+                    except (ValueError, TypeError):
                         continue
 
         return attachments
@@ -75,7 +75,7 @@ class UserInputHandler:
                 # Relative path - try to resolve from current directory
                 try:
                     abs_path = str(Path.cwd() / file_path)
-                except Exception:
+                except (OSError, ValueError):
                     # If resolution fails, skip this @file reference
                     continue
 
@@ -93,7 +93,7 @@ class UserInputHandler:
                         # Add LS_TOOL_RESULT_REMINDER like the LS tool does
                         content = dir_result + '\n\n' + LS_TOOL_RESULT_REMINDER
                         attachments.append(Attachment(type='directory', path=abs_path, content=content))
-                except Exception:
+                except (OSError, IOError):
                     continue
             else:
                 # Handle file

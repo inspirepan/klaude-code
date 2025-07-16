@@ -95,7 +95,7 @@ class TestAgent:
             patch('klaudecode.user_command.custom_command_manager') as mock_command_manager,
             patch('klaudecode.agent.agent.console') as mock_console,
         ):
-            mock_command_manager.discover_and_register_commands = Mock(side_effect=Exception('Command error'))
+            mock_command_manager.discover_and_register_commands = Mock(side_effect=ImportError('Command error'))
 
             agent = Agent(mock_agent_state)
 

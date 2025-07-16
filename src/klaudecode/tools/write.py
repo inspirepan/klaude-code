@@ -76,7 +76,7 @@ class WriteTool(Tool):
                     try:
                         restore_backup(args.file_path, backup_path)
                         backup_path = None  # Don't cleanup since we restored
-                    except Exception:
+                    except (OSError, IOError):
                         pass
                 instance.tool_result().set_error_msg(error_msg)
                 return
@@ -115,12 +115,12 @@ class WriteTool(Tool):
 
             # Don't clean up backup - keep it for undo functionality
 
-        except Exception as e:
+        except (OSError, IOError) as e:
             # Restore from backup if something went wrong
             if backup_path:
                 try:
                     restore_backup(args.file_path, backup_path)
-                except Exception:
+                except (OSError, IOError):
                     pass
 
             instance.tool_result().set_error_msg(f'Failed to write file: {str(e)}')

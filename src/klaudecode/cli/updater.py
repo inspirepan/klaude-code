@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 try:
-    from importlib.metadata import version
+    from importlib.metadata import version, PackageNotFoundError
 except ImportError:
     from importlib_metadata import version
 
@@ -30,7 +30,7 @@ class KlaudeUpdater:
         """Get the current installed version."""
         try:
             return version('klaude-code')
-        except Exception:
+        except PackageNotFoundError:
             return None
 
     def get_latest_version(self) -> Optional[str]:
@@ -49,7 +49,7 @@ class KlaudeUpdater:
                             latest = versions_part.split(',')[0].strip()
                             return latest
             return None
-        except Exception:
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, OSError):
             return None
 
     def check_for_updates(self) -> tuple[bool, Optional[str], Optional[str]]:
@@ -74,7 +74,7 @@ class KlaudeUpdater:
                     if result.returncode == 0:
                         commits_behind = int(result.stdout.strip() or '0')
                         return commits_behind > 0, 'editable', f'{commits_behind} commits behind'
-                except Exception:
+                except (subprocess.CalledProcessError, ValueError):
                     pass
             return False, 'editable', 'editable'
 
@@ -129,7 +129,7 @@ class KlaudeUpdater:
             current_file = Path(__file__).resolve()
             is_editable = self.project_root in current_file.parents or current_file.parent == self.project_root
             return is_editable, self.project_root if is_editable else None
-        except Exception:
+        except (OSError, AttributeError):
             return False, None
 
     def is_git_repository(self, path: Path) -> bool:
@@ -160,7 +160,7 @@ class KlaudeUpdater:
             current_commit = commit_result.stdout.strip() if commit_result.returncode == 0 else 'unknown'
 
             console.print(Text(f'Current: {current_branch}@{current_commit}', style=ColorStyle.INFO))
-        except Exception:
+        except subprocess.CalledProcessError:
             current_branch = current_commit = 'unknown'
 
         # Pull latest changes
@@ -178,7 +178,7 @@ class KlaudeUpdater:
             new_commit = commit_result.stdout.strip() if commit_result.returncode == 0 else 'unknown'
 
             console.print(Text(f'Updated: {new_branch}@{new_commit}', style=ColorStyle.SUCCESS))
-        except Exception:
+        except subprocess.CalledProcessError:
             pass
 
         console.print(Text('✓ Updated editable installation from git', style=ColorStyle.SUCCESS))
@@ -223,7 +223,7 @@ class KlaudeUpdater:
             else:
                 console.print(Text(f'✗ Update failed: {result.stderr}', style=ColorStyle.ERROR))
                 return False
-        except Exception as e:
+        except (subprocess.CalledProcessError, OSError) as e:
             from ..utils.exception import format_exception
 
             console.print(Text(f'✗ Update failed: {format_exception(e)}', style=ColorStyle.ERROR))

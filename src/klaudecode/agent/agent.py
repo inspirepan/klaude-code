@@ -35,7 +35,7 @@ class Agent:
             from ..user_command import custom_command_manager
 
             custom_command_manager.discover_and_register_commands(agent_state.session.work_dir)
-        except Exception as e:
+        except (ImportError, ModuleNotFoundError) as e:
             if agent_state.print_switch:
                 console.print(f'Warning: Failed to load custom commands: {format_exception(e, show_traceback=True)}', style=ColorStyle.WARNING)
 

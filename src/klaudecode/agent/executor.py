@@ -137,7 +137,7 @@ class AgentExecutor(Tool):
                 else:
                     reminder = FILE_DELETED_EXTERNAL_REMINDER.format(file_path=file_path)
                     last_msg.append_post_system_reminder(reminder)
-            except Exception:
+            except (OSError, IOError):
                 reminder = FILE_DELETED_EXTERNAL_REMINDER.format(file_path=file_path)
                 last_msg.append_post_system_reminder(reminder)
 

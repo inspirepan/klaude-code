@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Optional
 
+import yaml
 from rich.rule import Rule
 from rich.text import Text
 
@@ -50,7 +51,7 @@ def display_config_file(config_path: Path) -> None:
         console.print(Text(config_path.name[7:-5], style=ColorStyle.HIGHLIGHT.bold))
         console.print(config_manager)
 
-    except Exception as e:
+    except (OSError, IOError, ValueError, yaml.YAMLError) as e:
         console.print(Text(f'Error reading {config_path.name}: {e}', style=ColorStyle.ERROR))
 
 

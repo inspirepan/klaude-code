@@ -33,7 +33,7 @@ class OutputCommand(Command):
         try:
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(markdown_content)
-        except Exception as e:
+        except (IOError, OSError, PermissionError) as e:
             error_msg = f'Failed to write file: {e}'
             command_handle_output.user_msg.set_extra_data('error_msg', error_msg)
             return command_handle_output
@@ -43,7 +43,7 @@ class OutputCommand(Command):
                 os.system(f'open "{output_file}"')
             elif os.name == 'nt':
                 os.system(f'start "" "{output_file}"')
-        except Exception as e:
+        except OSError as e:
             error_msg = f'Failed to open file: {e}'
             command_handle_output.user_msg.set_extra_data('error_msg', error_msg)
             return command_handle_output

@@ -61,7 +61,7 @@ class MacSetupCommand(Command):
                 result = subprocess.run([command, '--version'], capture_output=True, text=True, timeout=5)
                 version = result.stdout.strip().split('\n')[0] if result.returncode == 0 else 'unknown'
                 return {'tool': command, 'description': description, 'status': 'already_installed', 'version': version}
-            except Exception:
+            except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
                 return {'tool': command, 'description': description, 'status': 'already_installed', 'version': 'unknown'}
 
         # Install using Homebrew
@@ -72,7 +72,7 @@ class MacSetupCommand(Command):
                 try:
                     version_result = subprocess.run([command, '--version'], capture_output=True, text=True, timeout=5)
                     version = version_result.stdout.strip().split('\n')[0] if version_result.returncode == 0 else 'unknown'
-                except Exception:
+                except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
                     version = 'installed'
 
                 return {'tool': command, 'description': description, 'status': 'installed', 'version': version}
@@ -80,7 +80,7 @@ class MacSetupCommand(Command):
                 return {'tool': command, 'description': description, 'status': 'failed', 'error': result.stderr.strip()}
         except subprocess.TimeoutExpired:
             return {'tool': command, 'description': description, 'status': 'failed', 'error': 'Installation timed out'}
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError, FileNotFoundError) as e:
             return {'tool': command, 'description': description, 'status': 'failed', 'error': str(e)}
 
     def render_user_msg_suffix(self, user_msg: UserMessage) -> Generator[RichRenderable, None, None]:

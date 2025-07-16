@@ -164,7 +164,7 @@ class DebugCommand(Command):
         # Auto-open the file
         try:
             subprocess.run(['open', str(debug_file)], check=False)
-        except Exception:
+        except (OSError, subprocess.SubprocessError, FileNotFoundError):
             pass
 
         command_handle_output.user_msg.set_extra_data(

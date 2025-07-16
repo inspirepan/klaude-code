@@ -31,7 +31,7 @@ def create_backup(file_path: str) -> str:
     try:
         shutil.copy2(file_path, backup_path)
         return str(backup_path)
-    except Exception as e:
+    except (OSError, IOError, shutil.Error) as e:
         raise Exception(f'Failed to create backup: {str(e)}')
 
 
@@ -47,7 +47,7 @@ def restore_backup(file_path: str, backup_path: str) -> None:
     """
     try:
         shutil.move(backup_path, file_path)
-    except Exception as e:
+    except (OSError, IOError, shutil.Error) as e:
         raise Exception(f'Failed to restore backup: {str(e)}')
 
 
@@ -60,7 +60,7 @@ def cleanup_backup(backup_path: str) -> None:
     try:
         if os.path.exists(backup_path):
             os.remove(backup_path)
-    except Exception:
+    except (OSError, IOError):
         pass
 
 
@@ -83,6 +83,6 @@ def cleanup_all_backups() -> None:
             except OSError:
                 # Directory not empty, that's fine
                 pass
-    except Exception:
+    except (OSError, IOError):
         # Silently ignore cleanup errors
         pass

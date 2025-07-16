@@ -56,7 +56,7 @@ class GrepTool(Tool):
             instance.tool_result().set_content(result)
             instance.tool_result().set_extra_data('match_count', match_count)
             instance.tool_result().set_extra_data('truncated', truncated)
-        except Exception as e:
+        except (OSError, IOError, re.error) as e:
             instance.tool_result().set_error_msg(f'Search failed: {str(e)}')
 
     @classmethod
@@ -121,7 +121,7 @@ class GrepTool(Tool):
             return result.stdout, result.stderr, result.returncode
         except subprocess.TimeoutExpired:
             return '', f'Search timed out after {DEFAULT_TIMEOUT} seconds', 1
-        except Exception as e:
+        except (subprocess.TimeoutExpired, OSError) as e:
             return '', f'Command execution failed: {str(e)}', 1
 
     @classmethod

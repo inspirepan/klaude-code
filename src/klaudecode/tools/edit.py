@@ -135,7 +135,7 @@ class EditTool(Tool):
 
             # Don't clean up backup - keep it for undo functionality
 
-        except Exception as e:
+        except (OSError, IOError, ValueError) as e:
             # Restore from backup if something went wrong
             if backup_path:
                 try:

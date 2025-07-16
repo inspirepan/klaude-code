@@ -24,7 +24,7 @@ class FileGlob:
 
             fnmatch.translate(pattern)
             return None
-        except Exception as e:
+        except (ValueError, ImportError) as e:
             return f'Invalid glob pattern: {str(e)}'
 
     @classmethod
@@ -69,7 +69,7 @@ class FileGlob:
             return result.stdout, result.stderr, result.returncode
         except subprocess.TimeoutExpired:
             return '', f'Search timed out after {DEFAULT_TIMEOUT} seconds', 1
-        except Exception as e:
+        except (subprocess.TimeoutExpired, OSError) as e:
             return '', f'Command execution failed: {str(e)}', 1
 
     @classmethod
@@ -114,7 +114,7 @@ class FileGlob:
 
             return sorted(filtered_matches)
 
-        except Exception:
+        except (OSError, ValueError):
             return []
 
     @classmethod

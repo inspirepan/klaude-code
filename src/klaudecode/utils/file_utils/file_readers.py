@@ -20,9 +20,9 @@ def read_file_content(file_path: str, encoding: str = 'utf-8') -> Tuple[str, str
             with open(file_path, 'r', encoding='latin-1') as f:
                 content = f.read()
             return content, '<system-reminder>warning: File decoded using latin-1 encoding</system-reminder>'
-        except Exception as e:
+        except (OSError, IOError) as e:
             return '', f'Failed to read file: {str(e)}'
-    except Exception as e:
+    except (OSError, IOError) as e:
         return '', f'Failed to read file: {str(e)}'
 
 
