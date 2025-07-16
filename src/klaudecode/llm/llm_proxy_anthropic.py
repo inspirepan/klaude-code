@@ -4,7 +4,7 @@ from typing import Any, AsyncGenerator, Dict, List, Literal, Optional, Tuple
 import anthropic
 from anthropic.types import MessageParam, RawMessageStreamEvent, StopReason, TextBlockParam
 
-from ..message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, UserMessage, count_tokens
+from ..message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, UserMessage, add_cache_control, count_tokens
 from ..tool import Tool
 from ..tui.stream_status import StreamStatus
 from .llm_proxy_base import LLMProxyBase
@@ -204,6 +204,7 @@ class AnthropicProxy(LLMProxyBase):
             total_tokens=state.input_tokens + state.output_tokens,
         )
         ai_message._invalidate_cache()
+        ai_message.finished = True
 
     @staticmethod
     def convert_to_anthropic(
@@ -211,6 +212,8 @@ class AnthropicProxy(LLMProxyBase):
     ) -> Tuple[List[TextBlockParam], List[MessageParam]]:
         system_msgs = [msg.to_anthropic() for msg in msgs if isinstance(msg, SystemMessage) if msg]
         other_msgs = [msg.to_anthropic() for msg in msgs if not isinstance(msg, SystemMessage) if msg]
+        if other_msgs:
+            other_msgs[-1] = add_cache_control(other_msgs[-1])
         return system_msgs, other_msgs
 
     anthropic_stop_reason_openai_mapping = {

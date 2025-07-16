@@ -22,6 +22,7 @@ class AIMessage(BasicMessage):
     thinking_content: str = ''
     thinking_signature: str = ''
     finish_reason: Literal['stop', 'length', 'tool_calls', 'content_filter', 'function_call'] = 'stop'
+    finished: bool = False
     usage: Optional[CompletionUsage] = None
 
     _openai_cache: Optional[dict] = None
@@ -121,7 +122,7 @@ class AIMessage(BasicMessage):
 
     def get_content_renderable(self):
         if self.content:
-            yield render_message(render_markdown(self.content, style=ColorStyle.AI_CONTENT), mark_style=ColorStyle.AI_MARK)
+            yield render_message(render_markdown(self.content, style=ColorStyle.AI_CONTENT), mark_style=ColorStyle.AI_MARK, status='success' if self.finished else 'processing')
 
     def __bool__(self):
         has_content = (self.content is not None) and len(self.content.strip()) > 0

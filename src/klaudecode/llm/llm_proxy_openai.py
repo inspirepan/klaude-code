@@ -6,7 +6,7 @@ from openai.types.chat import ChatCompletionChunk, ChatCompletionMessageToolCall
 from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
 from openai.types.chat.chat_completion_message_tool_call import Function
 
-from ..message import AIMessage, BasicMessage, CompletionUsage, ToolCall, count_tokens
+from ..message import AIMessage, BasicMessage, CompletionUsage, ToolCall, add_cache_control, count_tokens
 from ..tool import Tool
 from ..tui.stream_status import StreamStatus
 from .llm_proxy_base import LLMProxyBase
@@ -90,11 +90,15 @@ class OpenAIProxy(LLMProxyBase):
         yield (stream_status, ai_message)
 
     async def _create_stream(self, msgs: List[BasicMessage], tools: Optional[List[Tool]], timeout: float) -> AsyncGenerator[ChatCompletionChunk, None]:
+        msgs = [msg.to_openai() for msg in msgs if msg]
+        if msgs:
+            msgs[-1] = add_cache_control(msgs[-1])
+
         # Create HTTP request task with immediate cancellation support
         self._current_request_task = asyncio.create_task(
             self.client.chat.completions.create(
                 model=self.model_name,
-                messages=[msg.to_openai() for msg in msgs if msg],
+                messages=msgs,
                 tools=[tool.openai_schema() for tool in tools] if tools else None,
                 extra_headers=self.extra_header,
                 max_tokens=self.max_tokens,
@@ -176,6 +180,7 @@ class OpenAIProxy(LLMProxyBase):
             total_tokens=total_tokens,
         )
         ai_message._invalidate_cache()
+        ai_message.finished = True
 
     class OpenAIToolCallChunkAccumulator:
         def __init__(self) -> None:
