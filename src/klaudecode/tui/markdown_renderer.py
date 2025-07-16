@@ -71,13 +71,15 @@ class CustomHeading(Heading):
             text.stylize(Style(underline=True, bold=True))
         elif self.tag == 'h2':
             text.stylize(Style(bold=True))
-            rule = Rule(style=ColorStyle.LINE, characters='╌')
-            # Check if we need to add empty line before H2
-            markdown_instance = getattr(console, '_current_markdown', None)
-            if markdown_instance and getattr(markdown_instance, '_has_content', False):
-                text = Group('', text, rule)
-            else:
-                text = Group(text, rule)
+            # Only add rule if heading has content
+            if str(text).strip():
+                rule = Rule(style=ColorStyle.LINE, characters='╌')
+                # Check if we need to add empty line before H2
+                markdown_instance = getattr(console, '_current_markdown', None)
+                if markdown_instance and getattr(markdown_instance, '_has_content', False):
+                    text = Group('', text, rule)
+                else:
+                    text = Group(text, rule)
 
         elif self.tag == 'h3':
             text.stylize(Style(bold=True))
