@@ -6,7 +6,7 @@ from openai.types.chat import ChatCompletionChunk, ChatCompletionMessageToolCall
 from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
 from openai.types.chat.chat_completion_message_tool_call import Function
 
-from ..message import AIMessage, BasicMessage, CompletionUsage, ToolCall, add_cache_control, count_tokens
+from ..message import AIMessage, BasicMessage, CompletionUsage, ToolCall, add_cache_control, count_tokens, remove_cache_control
 from ..tool import Tool
 from ..tui.stream_status import StreamStatus
 from .llm_proxy_base import LLMProxyBase
@@ -107,6 +107,9 @@ class OpenAIProxy(LLMProxyBase):
                 temperature=TEMPERATURE,
             )
         )
+
+        if msgs:
+            msgs[-1] = remove_cache_control(msgs[-1])
 
         try:
             # Use shield to ensure proper cleanup even if cancelled

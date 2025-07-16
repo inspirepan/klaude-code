@@ -4,7 +4,7 @@ from typing import Any, AsyncGenerator, Dict, List, Literal, Optional, Tuple
 import anthropic
 from anthropic.types import MessageParam, RawMessageStreamEvent, StopReason, TextBlockParam
 
-from ..message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, UserMessage, add_cache_control, count_tokens
+from ..message import AIMessage, BasicMessage, CompletionUsage, SystemMessage, ToolCall, UserMessage, add_cache_control, count_tokens, remove_cache_control
 from ..tool import Tool
 from ..tui.stream_status import StreamStatus
 from .llm_proxy_base import LLMProxyBase
@@ -89,6 +89,9 @@ class AnthropicProxy(LLMProxyBase):
         budget_tokens = self.get_think_budget(msgs)
 
         try:
+            if other_msgs:
+                other_msgs[-1] = add_cache_control(other_msgs[-1])
+
             # Create HTTP request task with immediate cancellation support
             self._current_request_task = asyncio.create_task(
                 self.client.messages.create(
@@ -104,6 +107,9 @@ class AnthropicProxy(LLMProxyBase):
                     temperature=TEMPERATURE,
                 )
             )
+
+            if other_msgs:
+                other_msgs[-1] = remove_cache_control(other_msgs[-1])
 
             try:
                 # Use shield to ensure proper cleanup even if cancelled
@@ -212,8 +218,6 @@ class AnthropicProxy(LLMProxyBase):
     ) -> Tuple[List[TextBlockParam], List[MessageParam]]:
         system_msgs = [msg.to_anthropic() for msg in msgs if isinstance(msg, SystemMessage) if msg]
         other_msgs = [msg.to_anthropic() for msg in msgs if not isinstance(msg, SystemMessage) if msg]
-        if other_msgs:
-            other_msgs[-1] = add_cache_control(other_msgs[-1])
         return system_msgs, other_msgs
 
     anthropic_stop_reason_openai_mapping = {

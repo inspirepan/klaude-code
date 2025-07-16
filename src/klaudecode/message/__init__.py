@@ -5,7 +5,7 @@ from .system import SystemMessage
 from .tool_call import ToolCall
 from .tool_result import ToolMessage
 from .user import INTERRUPTED_MSG, SpecialUserMessageTypeEnum, UserMessage
-from .utils import add_cache_control
+from .utils import add_cache_control, remove_cache_control
 
 __all__ = [
     'AIMessage',
@@ -26,4 +26,5 @@ __all__ = [
     'ToolMessage',
     'UserMessage',
     'add_cache_control',
+    'remove_cache_control',
 ]
