@@ -133,8 +133,14 @@ class InputSession:
             document = buf.document
             current_line_start_pos = document.cursor_position + document.get_start_of_line_position()
             if buf.cursor_position == current_line_start_pos:
-                self._switch_mode(event, NORMAL_MODE_NAME)
-                return
+                # If we're at the start of the first line and in a special mode, switch to normal mode
+                if document.cursor_position == 0 and self.current_input_mode.get_name() != NORMAL_MODE_NAME:
+                    self._switch_mode(event, NORMAL_MODE_NAME)
+                    return
+                # If we're at the start of a line but not the first line, allow deletion
+                if document.cursor_position > 0:
+                    buf.delete_before_cursor()
+                    return
             buf.delete_before_cursor()
 
         @kb.add('c-u')
