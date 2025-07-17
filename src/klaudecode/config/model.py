@@ -24,6 +24,20 @@ def parse_json_string(value: Union[Dict, str]) -> Dict:
     return {}
 
 
+def mask_api_key(api_key: str) -> str:
+    """Mask API key, showing first 5 and last 5 characters with asterisks in between"""
+    if not api_key:
+        return api_key
+
+    if len(api_key) <= 10:
+        # For short keys, show first few characters + asterisks
+        visible_chars = min(3, len(api_key) // 2)
+        return api_key[:visible_chars] + '*' * (len(api_key) - visible_chars)
+    else:
+        # For long keys, show first 5 + asterisks + last 5
+        return api_key[:5] + '*' * (len(api_key) - 10) + api_key[-5:]
+
+
 T = TypeVar('T')
 
 
@@ -89,11 +103,14 @@ class ConfigModel(BaseModel):
 
     def __rich__(self):
         """Rich display for configuration model"""
-        table = Table.grid(padding=(0, 1), expand=False)
+        table = Table.grid(padding=(0, 1), expand=True)
         table.add_column(width=1, no_wrap=True)  # Status
-        table.add_column(min_width=10, no_wrap=True)  # Setting name
-        table.add_column(min_width=10, overflow='fold')  # Value
-        table.add_column()  # Source
+        table.add_column(
+            ratio=1,
+            no_wrap=True,
+        )  # Setting name
+        table.add_column(ratio=4, overflow='fold')  # Value
+        table.add_column(ratio=1)  # Source
 
         config_items = [
             ('api_key', 'API Key'),
@@ -113,7 +130,14 @@ class ConfigModel(BaseModel):
             config_value = getattr(self, key, None)
             if config_value and config_value.value is not None:
                 status = Text('✓', style=ColorStyle.SUCCESS)
-                value = str(config_value.value)
+                value_str = str(config_value.value)
+
+                # Mask API key for security
+                if key == 'api_key' and value_str:
+                    value = mask_api_key(value_str)
+                else:
+                    value = value_str
+
                 # Use a default style for unknown sources
                 source_style = config_source_style_dict.get(config_value.source, ColorStyle.INFO)
                 source = Text.assemble('from ', (config_value.source, source_style))

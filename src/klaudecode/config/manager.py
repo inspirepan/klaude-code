@@ -74,7 +74,7 @@ class ConfigManager:
     def __rich__(self):
         return Group(
             Text.assemble('config path: ', (str(self._config_path), ColorStyle.SUCCESS)),
-            Panel.fit(self.get_config_model(), box=box.ROUNDED, border_style=ColorStyle.LINE),
+            Panel(self.get_config_model(), box=box.ROUNDED, border_style=ColorStyle.LINE),
         )
 
     def get(self, key: str) -> Optional[Union[str, bool, int]]:
