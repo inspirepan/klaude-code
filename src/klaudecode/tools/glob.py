@@ -127,6 +127,8 @@ def render_glob_args(tool_call: ToolCall, is_suffix: bool = False):
 
 @register_tool_result_renderer(GlobTool.name)
 def render_glob_content(tool_msg: ToolMessage):
+    if tool_msg.error_msg:
+        return
     file_count = tool_msg.get_extra_data('file_count', 0)
     truncated = tool_msg.get_extra_data('truncated', False)
 

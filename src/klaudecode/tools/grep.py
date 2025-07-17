@@ -237,6 +237,8 @@ def render_grep_args(tool_call: ToolCall, is_suffix: bool = False):
 
 @register_tool_result_renderer(GrepTool.name)
 def render_grep_content(tool_msg: ToolMessage):
+    if tool_msg.error_msg:
+        return
     match_count = tool_msg.get_extra_data('match_count', 0)
     truncated = tool_msg.get_extra_data('truncated', False)
 
