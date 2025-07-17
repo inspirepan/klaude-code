@@ -10,7 +10,7 @@ from prompt_toolkit.completion import Completer, Completion
 from ..utils.file_utils.directory_utils import DirectoryTreeBuilder, get_effective_ignore_patterns
 from .input_command import _SLASH_COMMANDS, Command
 
-DEFAULT_MAX_DEPTH = 5
+DEFAULT_MAX_DEPTH = 8
 MAX_FILES_THRESHOLD = 5000
 QUICK_SCAN_DEPTH = 2
 CACHE_TIMEOUT = 30
