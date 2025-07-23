@@ -217,7 +217,7 @@ class TestArgumentParser:
         assert 'test1' in unknown_args
         assert 'test2' in unknown_args
 
-    @patch('builtins.print')
+    @patch('rich.console.Console.print')
     @patch('sys.exit')
     def test_print_help(self, mock_exit, mock_print):
         parser = ArgumentParser()
@@ -227,16 +227,16 @@ class TestArgumentParser:
         mock_exit.assert_called_once_with(0)
 
         help_text = mock_print.call_args[0][0]
-        assert 'usage: klaude [OPTIONS] [SUBCOMMAND] [ARGS...]' in help_text
-        assert '-h, --help' in help_text
-        assert '-p, --print' in help_text
-        assert '-r, --resume' in help_text
-        assert '-c, --continue' in help_text
-        assert '-f, --config' in help_text
-        assert '--api-key' in help_text
-        assert '--model' in help_text
-        assert '--base-url' in help_text
-        assert '--max-tokens' in help_text
+        assert '[bold green]Usage:[/bold green]' in help_text
+        assert '[cyan bold]-h, --help[/cyan bold]' in help_text
+        assert '[cyan bold]-p, --print[/cyan bold]' in help_text
+        assert '[cyan bold]-r, --resume[/cyan bold]' in help_text
+        assert '[cyan bold]-c, --continue[/cyan bold]' in help_text
+        assert '[cyan bold]-f, --config[/cyan bold]' in help_text
+        assert '[cyan bold]--api-key[/cyan bold]' in help_text
+        assert '[cyan bold]--model[/cyan bold]' in help_text
+        assert '[cyan bold]--base-url[/cyan bold]' in help_text
+        assert '[cyan bold]--max-tokens[/cyan bold]' in help_text
         assert '--model-azure' in help_text
         assert '--thinking' in help_text
         assert '--api-version' in help_text

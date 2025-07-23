@@ -18,6 +18,8 @@ class ConsoleProxy:
 
     def print(self, *args, **kwargs):
         if not self.silent:
+            if 'style' not in kwargs or kwargs['style'] is None:
+                kwargs['style'] = ColorStyle.MAIN
             self.console.print(*args, **kwargs)
 
     def set_silent(self, silent: bool):
