@@ -117,7 +117,7 @@ class SubAgentBase(Tool, metaclass=SubAgentMeta):
         def generate_elements():
             for msg in msgs_to_show:
                 if msg.get('content') and msg['content'].strip():
-                    yield Text(truncate_char(msg['content']))
+                    yield Text(truncate_char(msg['content']), style=ColorStyle.MAIN)
 
                 tool_calls = msg.get('tool_calls', [])
                 if tool_calls:

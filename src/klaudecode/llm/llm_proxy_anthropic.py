@@ -112,11 +112,9 @@ class AnthropicProxy(LLMProxyBase):
                 other_msgs[-1] = remove_cache_control(other_msgs[-1])
 
             try:
-                # Use shield to ensure proper cleanup even if cancelled
-                stream = await asyncio.shield(asyncio.wait_for(self._current_request_task, timeout=timeout))
+                stream = await asyncio.wait_for(self._current_request_task, timeout=timeout)
                 return stream
             except asyncio.CancelledError:
-                # Ensure the request task is properly cancelled
                 if self._current_request_task and not self._current_request_task.done():
                     self._current_request_task.cancel()
                     try:
