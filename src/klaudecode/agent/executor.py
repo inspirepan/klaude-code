@@ -203,9 +203,11 @@ class AgentExecutor(Tool):
         if total_tokens > self.agent_state.config.context_window_threshold.value * TOKEN_WARNING_THRESHOLD:
             percentage = (total_tokens / (self.agent_state.config.context_window_threshold.value * COMPACT_THRESHOLD)) * 100
             console.print(
-                Text(
-                    f'Notice: token usage {percentage:.1f}% of compact threshold ({total_tokens}/{int(self.agent_state.config.context_window_threshold.value * COMPACT_THRESHOLD)})',
-                    style=ColorStyle.WARNING,
+                render_suffix(
+                    Text(
+                        f'Notice: token usage {percentage:.1f}% of compact threshold ({total_tokens}/{int(self.agent_state.config.context_window_threshold.value * COMPACT_THRESHOLD)})',
+                        style=ColorStyle.WARNING,
+                    )
                 )
             )
         if total_tokens > self.agent_state.config.context_window_threshold.value * COMPACT_THRESHOLD:

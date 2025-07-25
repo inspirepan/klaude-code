@@ -32,16 +32,16 @@ class CustomSpinner:
         elapsed = time_now - self.start_time
         frame_index = int(elapsed / self.interval) % len(self.frames)
         frame_text = self.frames[frame_index]
-        return Text(frame_text, style=self.style)
+        return Text(frame_text, style=self.style, justify='center')
 
     def __rich_measure__(self, console: 'Console', options: 'ConsoleOptions') -> Measurement:
-        return Measurement.get(console, options, self.frames[0])
+        return Measurement.get(console, options, self.render(console.get_time()))
 
 
 claude_frames = [
     '✶',
     '✻',
-    '✽',
+    '✲',
     '✻',
     '✶',
     '✳',

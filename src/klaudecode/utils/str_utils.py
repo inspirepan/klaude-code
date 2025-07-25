@@ -3,6 +3,7 @@ from typing import Optional
 
 
 def truncate_char(text: str, max_chars: int = 100, show_remaining: bool = False) -> str:
+    text = text.strip()
     if len(text) <= max_chars:
         return text
 

@@ -132,10 +132,10 @@ light_theme_colors = {
     ThemeColorEnum.DIFF_REMOVED_CHAR: '#000000 on #ef6d77',
     ThemeColorEnum.DIFF_ADDED_CHAR: '#000000 on #39b14e',
     ThemeColorEnum.HIGHLIGHT: '#000000',
-    ThemeColorEnum.PRIMARY: '#3d3929',
-    ThemeColorEnum.SECONDARY: '#6d6959',
-    ThemeColorEnum.TERTIARY: '#8d8979',
-    ThemeColorEnum.QUATERNARY: '#bdb9a9',
+    ThemeColorEnum.PRIMARY: '#3d3939',
+    ThemeColorEnum.SECONDARY: '#6d6969',
+    ThemeColorEnum.TERTIARY: '#8d8989',
+    ThemeColorEnum.QUATERNARY: '#bdb9b9',
 }
 
 
@@ -264,7 +264,7 @@ def get_theme(theme: str) -> Theme:
             ColorStyle.INFO: theme_colors.get(ColorStyle.INFO, theme_colors[ThemeColorEnum.BLUE]),
             # Basic
             ColorStyle.HIGHLIGHT: theme_colors.get(ColorStyle.HIGHLIGHT, theme_colors[ThemeColorEnum.HIGHLIGHT]),
-            ColorStyle.MAIN: theme_colors.get(ColorStyle.MAIN, theme_colors[ThemeColorEnum.SECONDARY]),
+            ColorStyle.MAIN: 'none',
             ColorStyle.HINT: theme_colors.get(ColorStyle.HINT, theme_colors[ThemeColorEnum.TERTIARY]),
             ColorStyle.LINE: theme_colors.get(ColorStyle.LINE, theme_colors[ThemeColorEnum.QUATERNARY]),
             # Todos
