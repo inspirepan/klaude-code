@@ -264,7 +264,7 @@ def get_theme(theme: str) -> Theme:
             ColorStyle.INFO: theme_colors.get(ColorStyle.INFO, theme_colors[ThemeColorEnum.BLUE]),
             # Basic
             ColorStyle.HIGHLIGHT: theme_colors.get(ColorStyle.HIGHLIGHT, theme_colors[ThemeColorEnum.HIGHLIGHT]),
-            ColorStyle.MAIN: 'none',
+            ColorStyle.MAIN: theme_colors.get(ColorStyle.HIGHLIGHT, theme_colors[ThemeColorEnum.SECONDARY]),
             ColorStyle.HINT: theme_colors.get(ColorStyle.HINT, theme_colors[ThemeColorEnum.TERTIARY]),
             ColorStyle.LINE: theme_colors.get(ColorStyle.LINE, theme_colors[ThemeColorEnum.QUATERNARY]),
             # Todos
