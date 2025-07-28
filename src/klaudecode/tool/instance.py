@@ -46,7 +46,7 @@ class ToolInstance:
             self._is_completed = True
             raise
         except Exception as e:
-            self.tool_msg.set_error_msg(format_exception(e))
+            self.tool_msg.set_error_msg(format_exception(e).plain)
             self._is_completed = True
         finally:
             self._is_running = False

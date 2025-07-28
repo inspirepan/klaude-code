@@ -60,7 +60,7 @@ class MCPClient:
                 console.print(Text(f'Timeout connecting to MCP server {server_name}', style=ColorStyle.ERROR))
                 continue
             except Exception as e:
-                console.print(Text(f'Failed to connect to MCP server {server_name}: {format_exception(e)}', style=ColorStyle.ERROR))
+                console.print(Text.assemble('Failed to connect to MCP server ', server_name, ': ', format_exception(e), style=ColorStyle.ERROR))
                 continue
         if success_count > 0:
             sussess_server_names = ', '.join(sussess_servers)
@@ -121,4 +121,4 @@ class MCPClient:
         except asyncio.TimeoutError:
             raise RuntimeError(f'MCP tool {tool_name} timed out after 30 seconds')
         except Exception as e:
-            raise RuntimeError(f'Error calling MCP tool {tool_name}: {format_exception(e)}')
+            raise RuntimeError(Text.assemble('Error calling MCP tool ', tool_name, ': ', format_exception(e)).plain)

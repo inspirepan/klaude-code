@@ -50,7 +50,7 @@ class MCPConfigManager:
                 self._config = MCPConfig.model_validate(config_data)
                 return self._config
         except (json.JSONDecodeError, IOError) as e:
-            console.print(Text(f'Warning: Failed to load MCP config: {format_exception(e)}', style=ColorStyle.WARNING))
+            console.print(Text.assemble('Warning: Failed to load MCP config: ', format_exception(e), style=ColorStyle.WARNING))
             self._config = MCPConfig()
             return self._config
 
@@ -66,7 +66,7 @@ class MCPConfigManager:
             self._config = config
             return True
         except (IOError, OSError) as e:
-            console.print(Text(f'Error: Failed to save MCP config: {format_exception(e)}', style=ColorStyle.ERROR))
+            console.print(Text.assemble('Error: Failed to save MCP config: ', format_exception(e), style=ColorStyle.ERROR))
             return False
 
     def add_server(self, name: str, command: str, args: List[str] = None, env: Dict[str, str] = None) -> bool:

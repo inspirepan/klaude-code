@@ -116,7 +116,7 @@ class CustomCommand(QueryRewriteCommand):
             with open(file_path, 'r', encoding='utf-8') as f:
                 file_content = f.read()
         except Exception as e:
-            raise ValueError(f'Failed to read command file {file_path}: {format_exception(e)}')
+            raise ValueError(f'Failed to read command file {file_path}: {format_exception(e).plain}')
 
         # Parse YAML frontmatter
         frontmatter = {}

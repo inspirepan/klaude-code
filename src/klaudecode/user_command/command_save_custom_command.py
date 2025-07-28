@@ -98,7 +98,7 @@ description: {description}
             command_handle_output.user_msg.set_extra_data('command_saved', {'name': command_name, 'path': str(command_file), 'scope': scope})
 
         except Exception as e:
-            console.print(f'Failed to save command: {format_exception(e)}', style=ColorStyle.ERROR)
+            console.print(Text.assemble('Failed to save command: ', format_exception(e), style=ColorStyle.ERROR))
 
         return command_handle_output
 

@@ -37,7 +37,10 @@ class Agent:
             custom_command_manager.discover_and_register_commands(agent_state.session.work_dir)
         except (ImportError, ModuleNotFoundError) as e:
             if agent_state.print_switch:
-                console.print(f'Warning: Failed to load custom commands: {format_exception(e, show_traceback=True)}', style=ColorStyle.WARNING)
+                console.print(Text.assemble(
+                    ('Warning: Failed to load custom commands: ', ColorStyle.WARNING),
+                    format_exception(e, show_traceback=True)
+                ))
 
     async def chat_interactive(self, initial_message: str = None):
         self.agent_state.initialize_llm()

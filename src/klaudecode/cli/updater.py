@@ -226,7 +226,10 @@ class KlaudeUpdater:
         except (subprocess.CalledProcessError, OSError) as e:
             from ..utils.exception import format_exception
 
-            console.print(Text(f'✗ Update failed: {format_exception(e)}', style=ColorStyle.ERROR))
+            console.print(Text.assemble(
+                ('✗ Update failed: ', ColorStyle.ERROR),
+                format_exception(e)
+            ))
             return False
 
     def update(self) -> bool:

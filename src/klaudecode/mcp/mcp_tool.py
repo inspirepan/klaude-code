@@ -222,7 +222,7 @@ class MCPManager:
                     wrapper_class = MCPToolWrapper.create_from_mcp_tool(tool_info, self.mcp_client)
                     self.mcp_tools[wrapper_class.name] = wrapper_class
                 except Exception as e:
-                    console.print(Text(f'Failed to create wrapper for MCP tool {tool_info["name"]}: {format_exception(e)}', style=ColorStyle.ERROR))
+                    console.print(Text.assemble('Failed to create wrapper for MCP tool ', tool_info["name"], ': ', format_exception(e), style=ColorStyle.ERROR))
 
         self._initialized = success
         return success

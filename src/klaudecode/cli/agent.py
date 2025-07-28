@@ -119,7 +119,10 @@ def agent_command(args: CLIArgs, unknown_args: List[str]):
         )
         config_model = config_manager.get_config_model()
     except ValueError as e:
-        console.print(Text(f'Error: {format_exception(e)}', style=ColorStyle.ERROR))
+        console.print(Text.assemble(
+            ('Error: ', ColorStyle.ERROR),
+            format_exception(e)
+        ))
         sys.exit(1)
 
     asyncio.run(agent_async(args, config_model, unknown_args))

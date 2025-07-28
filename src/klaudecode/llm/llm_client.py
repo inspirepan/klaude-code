@@ -112,7 +112,15 @@ class RetryWrapper(LLMClientWrapper):
                 last_exception = e
                 if attempt < self.max_retries:
                     delay = self.backoff_base * (2**attempt)
-                    error_msg = f'{format_exception(last_exception)} · Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{self.max_retries})'
+                    error_text = Text.assemble(
+                        format_exception(last_exception),
+                        (' · Retrying in ', 'default'),
+                        (f'{delay:.1f}', 'default'),
+                        (' seconds... (attempt ', 'default'),
+                        (f'{attempt + 1}/{self.max_retries}', 'default'),
+                        (')', 'default')
+                    )
+                    error_msg = error_text.plain
                     error_msg = self.enhance_error_message(e, error_msg)
 
                     console.print(

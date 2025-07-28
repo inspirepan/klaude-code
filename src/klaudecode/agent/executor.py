@@ -97,12 +97,20 @@ class AgentExecutor(Tool):
         return None
 
     def _handle_llm_error(self, e: Exception):
-        error_msg = f'LLM error: {format_exception(e)}'
+        error_msg_text = Text.assemble(
+            ('LLM error: ', 'default'),
+            format_exception(e)
+        )
+        error_msg = error_msg_text.plain
         console.print(render_suffix(error_msg, style=ColorStyle.ERROR))
         return error_msg
 
     def _handle_general_error(self, e: Exception):
-        error_msg = f'Error: {format_exception(e, show_traceback=True)}'
+        error_msg_text = Text.assemble(
+            ('Error: ', 'default'),
+            format_exception(e, show_traceback=True)
+        )
+        error_msg = error_msg_text.plain
         console.print(render_suffix(error_msg, style=ColorStyle.ERROR))
         return error_msg
 
@@ -176,7 +184,10 @@ class AgentExecutor(Tool):
             try:
                 console.console._live.stop()
             except Exception as e:
-                console.print(f'Error stopping live display: {format_exception(e)}')
+                console.print(Text.assemble(
+                    ('Error stopping live display: ', 'default'),
+                    format_exception(e)
+                ))
                 pass
 
         # Add interrupted message

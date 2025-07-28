@@ -55,5 +55,5 @@ class ToolDisplayManager:
                 console.print()
                 console.print(ti.tool_result())
         except Exception as e:
-            console.print(format_exception(e), style=ColorStyle.ERROR)
+            console.print(Text.assemble(format_exception(e), style=ColorStyle.ERROR))
             raise e

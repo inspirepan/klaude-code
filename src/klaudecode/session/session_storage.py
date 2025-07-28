@@ -88,7 +88,7 @@ class SessionStorage:
             cls._save_messages_jsonl(session, messages_file)
 
         except Exception as e:
-            console.print(Text(f'Failed to save session - error: {format_exception(e)}', style=ColorStyle.ERROR))
+            console.print(Text.assemble('Failed to save session - error: ', format_exception(e), style=ColorStyle.ERROR))
 
     @classmethod
     def _save_messages_jsonl(cls, session: 'Session', messages_file: Path) -> None:
@@ -192,7 +192,7 @@ class SessionStorage:
                             raise ValueError(f'Tool call {tool_call_id} not found')
                         messages.append(ToolMessage(**msg_data))
                 except json.JSONDecodeError as e:
-                    console.print(Text(f'Warning: Failed to parse message line {line_num}: {format_exception(e)}', style=ColorStyle.WARNING))
+                    console.print(Text.assemble('Warning: Failed to parse message line ', str(line_num), ': ', format_exception(e), style=ColorStyle.WARNING))
                     continue
 
             todo_list_data = metadata.get('todo_list', [])
@@ -224,7 +224,7 @@ class SessionStorage:
             return session
 
         except Exception as e:
-            console.print(Text(f'Failed to load session {session_id}: {format_exception(e)}', style=ColorStyle.ERROR))
+            console.print(Text.assemble('Failed to load session ', session_id, ': ', format_exception(e), style=ColorStyle.ERROR))
             return None
 
     @classmethod
@@ -253,13 +253,13 @@ class SessionStorage:
                         }
                     )
                 except Exception as e:
-                    console.print(Text(f'Warning: Failed to read metadata file {metadata_file}: {format_exception(e)}', style=ColorStyle.WARNING))
+                    console.print(Text.assemble('Warning: Failed to read metadata file ', str(metadata_file), ': ', format_exception(e), style=ColorStyle.WARNING))
                     continue
             sessions.sort(key=lambda x: x.get('updated_at', 0), reverse=True)
             return sessions
 
         except Exception as e:
-            console.print(Text(f'Failed to list sessions: {format_exception(e)}', style=ColorStyle.ERROR))
+            console.print(Text.assemble('Failed to list sessions: ', format_exception(e), style=ColorStyle.ERROR))
             return []
 
     @classmethod
