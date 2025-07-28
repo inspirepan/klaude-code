@@ -131,7 +131,7 @@ def truncate_middle_text(text: str, max_lines: int = 50, buffer_threshold: int =
     lines = text.splitlines()
 
     if len(lines) <= max_lines + buffer_threshold:
-        return text
+        return Text(text)
 
     head_lines = max_lines // 2
     tail_lines = max_lines - head_lines
@@ -140,13 +140,13 @@ def truncate_middle_text(text: str, max_lines: int = 50, buffer_threshold: int =
     head_content = '\n'.join(lines[:head_lines])
     tail_content = '\n'.join(lines[-tail_lines:])
     return Group(
-        head_content,
+        Text(head_content),
         Rule(style=ColorStyle.LINE, title='···'),
         '',
         Text.assemble('+ ', Text(str(middle_lines), style=ColorStyle.MAIN.bold), ' lines', style=ColorStyle.HINT, justify='center'),
         '',
         Rule(style=ColorStyle.LINE, title='···'),
-        tail_content,
+        Text(tail_content),
     )
 
 

@@ -1,3 +1,6 @@
+from rich.text import Text
+
+
 def format_exception(e: Exception, show_traceback: bool = False) -> str:
     """
     Brief exception formatting for logging
@@ -9,7 +12,14 @@ def format_exception(e: Exception, show_traceback: bool = False) -> str:
         Brief exception description
     """
     exception_type = type(e).__name__
-    exception_msg = ' (' + str(e).strip() + ')' if str(e).strip() else ''
+    exception_str = str(e).strip()
+
+    if exception_str:
+        exception_str = Text(exception_str)
+        exception_msg = ' (' + exception_str + ')'
+    else:
+        exception_msg = ''
+
     if show_traceback:
         import traceback
 
