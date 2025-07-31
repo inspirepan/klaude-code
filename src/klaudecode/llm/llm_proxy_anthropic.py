@@ -208,7 +208,7 @@ class AnthropicProxy(LLMProxyBase):
             total_tokens=state.input_tokens + state.output_tokens,
         )
         ai_message._invalidate_cache()
-        ai_message.finished = True
+        ai_message.status = 'success'
 
     @staticmethod
     def convert_to_anthropic(

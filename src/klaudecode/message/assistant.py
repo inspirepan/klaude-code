@@ -22,7 +22,7 @@ class AIMessage(BasicMessage):
     thinking_content: str = ''
     thinking_signature: str = ''
     finish_reason: Literal['stop', 'length', 'tool_calls', 'content_filter', 'function_call'] = 'stop'
-    finished: bool = False
+    status: Literal['success', 'processing', 'error'] = 'processing'
     usage: Optional[CompletionUsage] = None
 
     _openai_cache: Optional[dict] = None
@@ -110,23 +110,21 @@ class AIMessage(BasicMessage):
         yield from self.get_content_renderable()
 
     def get_thinking_renderable(self):
-        if self.thinking_content:
+        thinking_content = self.thinking_content.strip()
+        if thinking_content:
             yield render_message(
                 Text('Thinking...', style=ColorStyle.AI_THINKING.italic),
                 mark='✻',
                 mark_style=ColorStyle.AI_THINKING,
             )
             yield ''
-            yield render_message(Text(self.thinking_content, style=ColorStyle.AI_THINKING.italic), mark='')
+            yield render_message(Text(thinking_content, style=ColorStyle.AI_THINKING.italic), mark='')
             yield ''
 
     def get_content_renderable(self, done: bool = False):
-        if self.content:
-            cleaned_content = self.content.strip()
-            if cleaned_content:
-                yield render_message(
-                    render_markdown(cleaned_content, style=ColorStyle.AI_CONTENT), mark_style=ColorStyle.AI_MARK, status='success' if self.finished or done else 'processing'
-                )
+        content = self.content.strip()
+        if content:
+            yield render_message(render_markdown(content, style=ColorStyle.AI_CONTENT), mark_style=ColorStyle.AI_MARK, status=self.status)
 
     def __bool__(self):
         has_content = (self.content is not None) and len(self.content.strip()) > 0

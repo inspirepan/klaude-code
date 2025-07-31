@@ -173,7 +173,9 @@ class OpenAIProxy(LLMProxyBase):
             total_tokens=total_tokens,
         )
         ai_message._invalidate_cache()
-        ai_message.finished = True
+        ai_message.content = ai_message.content.strip()
+        ai_message.thinking_content = ai_message.thinking_content.strip()
+        ai_message.status = 'success'
 
     class OpenAIToolCallChunkAccumulator:
         def __init__(self) -> None:
