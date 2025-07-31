@@ -28,7 +28,7 @@ class OpenAIProxy(LLMProxyBase):
         enable_thinking: Optional[bool] = None,
     ) -> None:
         super().__init__(model_name, max_tokens, extra_header, extra_body)
-        self.enable_thinking = enable_thinking
+        self.enable_thinking = enable_thinking  # TODO
         self.extra_body = extra_body.copy() if extra_body else {}
 
         if model_azure:
@@ -41,14 +41,6 @@ class OpenAIProxy(LLMProxyBase):
             self.client = openai.AsyncOpenAI(
                 base_url=base_url,
                 api_key=api_key,
-            )
-        if 'thinking' not in self.extra_body:
-            self.extra_body.update(
-                {
-                    'thinking': {
-                        'type': 'auto' if self.enable_thinking is None else ('enabled' if self.enable_thinking else 'disabled'),
-                    }
-                }
             )
 
     def _create_tool_call_accumulator(self):
