@@ -51,7 +51,12 @@ class TodoWriteTool(Tool):
 
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
-        args: 'TodoWriteTool.Input' = cls.parse_input_args(tool_call)
+        try:
+            args: 'TodoWriteTool.Input' = cls.parse_input_args(tool_call)
+        except Exception as e:
+            instance.tool_result().set_error_msg(f'Invalid todo format: {str(e)}')
+            return
+
         json_todo_list = json.dumps(args.todos.model_dump(), ensure_ascii=False)
         reminder = TODO_REMINDER.format(todo_list_json=json_todo_list)
         instance.tool_result().set_content(TODO_WRITE_RESULT + '\n' + reminder)
@@ -113,7 +118,8 @@ def render_todo_read_result(tool_msg: ToolMessage):
 
 @register_tool_result_renderer(TodoWriteTool.name)
 def render_todo_write_result(tool_msg: ToolMessage):
-    todo_list = tool_msg.tool_call.tool_args_dict.get('todos', {})
+    todos_data = tool_msg.tool_call.tool_args_dict.get('todos', [])
+    todo_list = todos_data if isinstance(todos_data, list) else []
     new_completed_todos = tool_msg.get_extra_data('new_completed_todos', [])
     yield render_suffix(Group(*(render_todo_dict(todo, todo.get('id') in new_completed_todos) for todo in todo_list)))
 
@@ -124,19 +130,23 @@ def render_todo_write_name(tool_call: ToolCall, is_suffix: bool = False):
         yield Text('Update Todos', ColorStyle.TOOL_NAME.bold)
         return
     # For todo in task
+    todos_data = tool_call.tool_args_dict.get('todos', [])
+    todo_list = todos_data if isinstance(todos_data, list) else []
+
     in_progress_todos = []
     pending_todos = []
     all_completed = True
     all_pending = True
-    for todo in tool_call.tool_args_dict.get('todos', {}):
-        if todo.get('status') == 'in_progress':
-            in_progress_todos.append(todo.get('content'))
-        if todo.get('status') != 'completed':
-            all_completed = False
-        if todo.get('status') == 'pending':
-            pending_todos.append(todo.get('content'))
-        if todo.get('status') != 'pending':
-            all_pending = False
+    for todo in todo_list:
+        if isinstance(todo, dict):
+            if todo.get('status') == 'in_progress':
+                in_progress_todos.append(todo.get('content', ''))
+            if todo.get('status') != 'completed':
+                all_completed = False
+            if todo.get('status') == 'pending':
+                pending_todos.append(todo.get('content', ''))
+            if todo.get('status') != 'pending':
+                all_pending = False
     if all_completed:
         yield Text.assemble(('Update Todos', ColorStyle.MAIN.bold), '(', ('All Completed', ColorStyle.TODO_COMPLETED.bold), ')')
     elif all_pending:

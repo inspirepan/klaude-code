@@ -26,6 +26,10 @@ class MCPClient:
         if self._initialized:
             return True
 
+        import time
+
+        start_time = time.time()
+
         config = self.config_manager.load_config()
         if not config.mcpServers:
             console.print(Text('No MCP servers configured', style=ColorStyle.WARNING))
@@ -64,8 +68,14 @@ class MCPClient:
                 continue
         if success_count > 0:
             sussess_server_names = ', '.join(sussess_servers)
+            elapsed_time = time.time() - start_time
             console.print(
-                Text.assemble(f'Connected to {success_count}/{len(config.mcpServers)} MCP servers: ', (sussess_server_names, ColorStyle.INFO.bold), style=ColorStyle.SUCCESS)
+                Text.assemble(
+                    f'Connected to {success_count}/{len(config.mcpServers)} MCP servers: ',
+                    (sussess_server_names, ColorStyle.INFO.bold),
+                    f' (took {elapsed_time:.2f}s)',
+                    style=ColorStyle.SUCCESS,
+                )
             )
         console.print()
         self._initialized = True
