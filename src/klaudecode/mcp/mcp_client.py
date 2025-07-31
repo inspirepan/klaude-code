@@ -7,6 +7,7 @@ from mcp.client.stdio import stdio_client
 
 from ..tui import ColorStyle, Text, console
 from ..utils.exception import format_exception
+from .constants import MCP_CONNECT_TIMEOUT, MCP_INIT_TIMEOUT, MCP_TOOL_TIMEOUT
 from .mcp_config import MCPConfigManager
 
 
@@ -43,11 +44,11 @@ class MCPClient:
             try:
                 console.print(Text.assemble('Connecting to MCP server: ', (server_name, ColorStyle.INFO.bold)))
                 server_params = StdioServerParameters(command=server_config.command, args=server_config.args or [], env=server_config.env or {})
-                client_transport = await asyncio.wait_for(self.exit_stack.enter_async_context(stdio_client(server_params)), timeout=10.0)
-                client_session = await asyncio.wait_for(self.exit_stack.enter_async_context(ClientSession(client_transport[0], client_transport[1])), timeout=5.0)
-                await asyncio.wait_for(client_session.initialize(), timeout=10.0)
+                client_transport = await asyncio.wait_for(self.exit_stack.enter_async_context(stdio_client(server_params)), timeout=MCP_CONNECT_TIMEOUT)
+                client_session = await asyncio.wait_for(self.exit_stack.enter_async_context(ClientSession(client_transport[0], client_transport[1])), timeout=MCP_INIT_TIMEOUT)
+                await asyncio.wait_for(client_session.initialize(), timeout=MCP_CONNECT_TIMEOUT)
                 self.clients[server_name] = client_session
-                tools_result = await asyncio.wait_for(client_session.list_tools(), timeout=5.0)
+                tools_result = await asyncio.wait_for(client_session.list_tools(), timeout=MCP_INIT_TIMEOUT)
                 for mcp_tool in tools_result.tools:
                     tool_key = f'{server_name}::{mcp_tool.name}'
                     self.tools[tool_key] = {
@@ -114,7 +115,7 @@ class MCPClient:
 
         try:
             # Execute MCP tool with timeout
-            result = await asyncio.wait_for(tool_info['session'].call_tool(tool_name, arguments), timeout=30.0)
+            result = await asyncio.wait_for(tool_info['session'].call_tool(tool_name, arguments), timeout=MCP_TOOL_TIMEOUT)
 
             # Process result
             if result.content:
@@ -129,6 +130,6 @@ class MCPClient:
                 return {'content': [{'type': 'text', 'text': 'Tool executed successfully'}]}
 
         except asyncio.TimeoutError:
-            raise RuntimeError(f'MCP tool {tool_name} timed out after 30 seconds')
+            raise RuntimeError(f'MCP tool {tool_name} timed out after {MCP_TOOL_TIMEOUT} seconds')
         except Exception as e:
             raise RuntimeError(Text.assemble('Error calling MCP tool ', tool_name, ': ', format_exception(e)).plain)

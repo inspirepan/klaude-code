@@ -118,7 +118,7 @@ class RetryWrapper(LLMClientWrapper):
                         (f'{delay:.1f}', 'default'),
                         (' seconds... (attempt ', 'default'),
                         (f'{attempt + 1}/{self.max_retries}', 'default'),
-                        (')', 'default')
+                        (')', 'default'),
                     )
                     error_msg = error_text.plain
                     error_msg = self.enhance_error_message(e, error_msg)

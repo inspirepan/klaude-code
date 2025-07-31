@@ -203,10 +203,7 @@ class SubAgentFramework:
                 # Update parent agent usage with subagent usage
                 agent_state.usage.update_with_usage(sub_agent.agent_state.usage)
             except Exception as e:
-                result_text = Text.assemble(
-                    ('SubAgent error: ', 'default'),
-                    format_exception(e)
-                )
+                result_text = Text.assemble(('SubAgent error: ', 'default'), format_exception(e))
                 result = result_text.plain
             finally:
                 try:

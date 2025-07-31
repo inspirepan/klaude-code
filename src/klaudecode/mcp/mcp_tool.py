@@ -12,6 +12,7 @@ from ..message import ToolCall, ToolMessage, register_tool_result_renderer
 from ..tool import Tool, ToolInstance
 from ..tui import ColorStyle, console, render_grid, render_suffix
 from ..utils.exception import format_exception
+from .constants import MCP_TOOL_TIMEOUT
 from .mcp_client import MCPClient
 
 
@@ -50,7 +51,7 @@ class MCPToolWrapper(Tool):
     name: str = ''
     desc: str = ''
     parallelable: bool = True
-    timeout = 300
+    timeout = MCP_TOOL_TIMEOUT
 
     # MCP specific properties
     mcp_tool_name: str = ''
@@ -111,7 +112,7 @@ class MCPToolWrapper(Tool):
             'name': f'mcp__{mcp_tool.name}',
             'desc': f'[MCP:{server_name}] {mcp_tool.description}',
             'parallelable': True,
-            'timeout': 300,
+            'timeout': MCP_TOOL_TIMEOUT,
             'mcp_tool_name': mcp_tool.name,
             'mcp_input_schema': mcp_tool.inputSchema,
             'server_name': server_name,
@@ -135,13 +136,13 @@ class MCPToolWrapper(Tool):
                     # If we're in an async context, create a new thread
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(cls._sync_mcp_call, args_dict)
-                        result = future.result(timeout=cls.timeout)
+                        result = future.result(timeout=MCP_TOOL_TIMEOUT)
                 else:
                     # Use the existing loop
-                    result = loop.run_until_complete(asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=cls.timeout))
+                    result = loop.run_until_complete(asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=MCP_TOOL_TIMEOUT))
             except RuntimeError:
                 # No event loop in current thread, create a new one
-                result = asyncio.run(asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=cls.timeout))
+                result = asyncio.run(asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=MCP_TOOL_TIMEOUT))
 
             # Set result
             cls._process_result(result, instance)
@@ -152,7 +153,7 @@ class MCPToolWrapper(Tool):
     @classmethod
     def _sync_mcp_call(cls, args_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Synchronous wrapper for MCP tool call"""
-        return asyncio.run(asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=cls.timeout))
+        return asyncio.run(asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=MCP_TOOL_TIMEOUT))
 
     @classmethod
     async def invoke_async(cls, tool_call: ToolCall, instance: 'ToolInstance'):
@@ -162,7 +163,7 @@ class MCPToolWrapper(Tool):
             args_dict = json.loads(tool_call.tool_args)
 
             # Call MCP tool directly with proper timeout handling
-            result = await asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=cls.timeout)
+            result = await asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=MCP_TOOL_TIMEOUT)
 
             # Set result
             cls._process_result(result, instance)
@@ -222,7 +223,7 @@ class MCPManager:
                     wrapper_class = MCPToolWrapper.create_from_mcp_tool(tool_info, self.mcp_client)
                     self.mcp_tools[wrapper_class.name] = wrapper_class
                 except Exception as e:
-                    console.print(Text.assemble('Failed to create wrapper for MCP tool ', tool_info["name"], ': ', format_exception(e), style=ColorStyle.ERROR))
+                    console.print(Text.assemble('Failed to create wrapper for MCP tool ', tool_info['name'], ': ', format_exception(e), style=ColorStyle.ERROR))
 
         self._initialized = success
         return success

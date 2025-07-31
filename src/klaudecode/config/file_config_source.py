@@ -106,12 +106,9 @@ class FileConfigSource(ConfigSource):
                 filtered_data = {k: v for k, v in config_data.items() if k in valid_fields}
                 self.config_model = ConfigModel(source=self.source, **filtered_data)
         except (json.JSONDecodeError, IOError) as e:
-            console.print(Text.assemble(
-                ('Warning: Failed to load config file ', ColorStyle.ERROR),
-                (str(self.config_path), ColorStyle.ERROR),
-                (': ', ColorStyle.ERROR),
-                format_exception(e)
-            ))
+            console.print(
+                Text.assemble(('Warning: Failed to load config file ', ColorStyle.ERROR), (str(self.config_path), ColorStyle.ERROR), (': ', ColorStyle.ERROR), format_exception(e))
+            )
             self.config_model = ConfigModel(source=self.source)
 
     @classmethod
@@ -175,10 +172,7 @@ class FileConfigSource(ConfigSource):
             console.print(Text('Please edit the file and set your actual API key.'))
             return True
         except (IOError, OSError) as e:
-            console.print(Text.assemble(
-                ('Error: Failed to create config file: ', ColorStyle.ERROR),
-                format_exception(e)
-            ))
+            console.print(Text.assemble(('Error: Failed to create config file: ', ColorStyle.ERROR), format_exception(e)))
             return False
 
     @classmethod

@@ -47,8 +47,5 @@ def main():
         console.print(Text('\nBye!', style=ColorStyle.CLAUDE))
         sys.exit(0)
     except Exception as e:
-        console.print(Text.assemble(
-            ('Error: ', ColorStyle.ERROR),
-            format_exception(e, show_traceback=True)
-        ))
+        console.print(Text.assemble(('Error: ', ColorStyle.ERROR), format_exception(e, show_traceback=True)))
         sys.exit(1)
