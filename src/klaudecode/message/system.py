@@ -7,34 +7,34 @@ from .base import BasicMessage
 
 
 class SystemMessage(BasicMessage):
-    role: Literal['system'] = 'system'
+    role: Literal["system"] = "system"
     cached: bool = False
 
     def get_content(self):
         return [
             {
-                'type': 'text',
-                'text': self.content,
-                'cache_control': {'type': 'ephemeral'} if self.cached else None,
+                "type": "text",
+                "text": self.content,
+                "cache_control": {"type": "ephemeral"} if self.cached else None,
             }
         ]
 
     def get_anthropic_content(self):
         if self.cached:
             return {
-                'type': 'text',
-                'text': self.content,
-                'cache_control': {'type': 'ephemeral'},
+                "type": "text",
+                "text": self.content,
+                "cache_control": {"type": "ephemeral"},
             }
         return {
-            'type': 'text',
-            'text': self.content,
+            "type": "text",
+            "text": self.content,
         }
 
     def to_openai(self) -> ChatCompletionMessageParam:
         return {
-            'role': 'system',
-            'content': self.get_content(),
+            "role": "system",
+            "content": self.get_content(),
         }
 
     def to_anthropic(self) -> TextBlockParam:

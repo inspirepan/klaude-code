@@ -33,7 +33,7 @@ class MCPClient:
 
         config = self.config_manager.load_config()
         if not config.mcpServers:
-            console.print(Text('No MCP servers configured', style=ColorStyle.WARNING))
+            console.print(Text("No MCP servers configured", style=ColorStyle.WARNING))
             return True
 
         # Connect to all configured servers
@@ -42,39 +42,73 @@ class MCPClient:
         console.print()
         for server_name, server_config in config.mcpServers.items():
             try:
-                console.print(Text.assemble('Connecting to MCP server: ', (server_name, ColorStyle.INFO.bold)))
-                server_params = StdioServerParameters(command=server_config.command, args=server_config.args or [], env=server_config.env or {})
-                client_transport = await asyncio.wait_for(self.exit_stack.enter_async_context(stdio_client(server_params)), timeout=MCP_CONNECT_TIMEOUT)
-                client_session = await asyncio.wait_for(self.exit_stack.enter_async_context(ClientSession(client_transport[0], client_transport[1])), timeout=MCP_INIT_TIMEOUT)
-                await asyncio.wait_for(client_session.initialize(), timeout=MCP_CONNECT_TIMEOUT)
+                console.print(
+                    Text.assemble(
+                        "Connecting to MCP server: ",
+                        (server_name, ColorStyle.INFO.bold),
+                    )
+                )
+                server_params = StdioServerParameters(
+                    command=server_config.command,
+                    args=server_config.args or [],
+                    env=server_config.env or {},
+                )
+                client_transport = await asyncio.wait_for(
+                    self.exit_stack.enter_async_context(stdio_client(server_params)),
+                    timeout=MCP_CONNECT_TIMEOUT,
+                )
+                client_session = await asyncio.wait_for(
+                    self.exit_stack.enter_async_context(
+                        ClientSession(client_transport[0], client_transport[1])
+                    ),
+                    timeout=MCP_INIT_TIMEOUT,
+                )
+                await asyncio.wait_for(
+                    client_session.initialize(), timeout=MCP_CONNECT_TIMEOUT
+                )
                 self.clients[server_name] = client_session
-                tools_result = await asyncio.wait_for(client_session.list_tools(), timeout=MCP_INIT_TIMEOUT)
+                tools_result = await asyncio.wait_for(
+                    client_session.list_tools(), timeout=MCP_INIT_TIMEOUT
+                )
                 for mcp_tool in tools_result.tools:
-                    tool_key = f'{server_name}::{mcp_tool.name}'
+                    tool_key = f"{server_name}::{mcp_tool.name}"
                     self.tools[tool_key] = {
-                        'server_name': server_name,
-                        'session': client_session,
-                        'tool': mcp_tool,
-                        'name': mcp_tool.name,
-                        'description': mcp_tool.description,
-                        'inputSchema': mcp_tool.inputSchema,
+                        "server_name": server_name,
+                        "session": client_session,
+                        "tool": mcp_tool,
+                        "name": mcp_tool.name,
+                        "description": mcp_tool.description,
+                        "inputSchema": mcp_tool.inputSchema,
                     }
                 success_count += 1
                 sussess_servers.append(server_name)
             except asyncio.TimeoutError:
-                console.print(Text(f'Timeout connecting to MCP server {server_name}', style=ColorStyle.ERROR))
+                console.print(
+                    Text(
+                        f"Timeout connecting to MCP server {server_name}",
+                        style=ColorStyle.ERROR,
+                    )
+                )
                 continue
             except Exception as e:
-                console.print(Text.assemble('Failed to connect to MCP server ', server_name, ': ', format_exception(e), style=ColorStyle.ERROR))
+                console.print(
+                    Text.assemble(
+                        "Failed to connect to MCP server ",
+                        server_name,
+                        ": ",
+                        format_exception(e),
+                        style=ColorStyle.ERROR,
+                    )
+                )
                 continue
         if success_count > 0:
-            sussess_server_names = ', '.join(sussess_servers)
+            sussess_server_names = ", ".join(sussess_servers)
             elapsed_time = time.time() - start_time
             console.print(
                 Text.assemble(
-                    f'Connected to {success_count}/{len(config.mcpServers)} MCP servers: ',
+                    f"Connected to {success_count}/{len(config.mcpServers)} MCP servers: ",
                     (sussess_server_names, ColorStyle.INFO.bold),
-                    f' (took {elapsed_time:.2f}s)',
+                    f" (took {elapsed_time:.2f}s)",
                     style=ColorStyle.SUCCESS,
                 )
             )
@@ -87,7 +121,7 @@ class MCPClient:
         try:
             await self.exit_stack.aclose()
         except RuntimeError as e:
-            if 'Attempted to exit cancel scope in a different task' in str(e):
+            if "Attempted to exit cancel scope in a different task" in str(e):
                 # This can occur during KeyboardInterrupt and can be safely ignored
                 pass
             else:
@@ -99,37 +133,50 @@ class MCPClient:
 
     def get_all_tools(self) -> Dict[str, Any]:
         """Get all MCP tools"""
-        return {key: tool_info['tool'] for key, tool_info in self.tools.items()}
+        return {key: tool_info["tool"] for key, tool_info in self.tools.items()}
 
-    async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def call_tool(
+        self, tool_name: str, arguments: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Execute MCP tool"""
         # Find tool and server
         tool_info = None
         for _, info in self.tools.items():
-            if info['name'] == tool_name:
+            if info["name"] == tool_name:
                 tool_info = info
                 break
 
         if not tool_info:
-            raise ValueError(f'Tool {tool_name} not found in any connected server')
+            raise ValueError(f"Tool {tool_name} not found in any connected server")
 
         try:
             # Execute MCP tool with timeout
-            result = await asyncio.wait_for(tool_info['session'].call_tool(tool_name, arguments), timeout=MCP_TOOL_TIMEOUT)
+            result = await asyncio.wait_for(
+                tool_info["session"].call_tool(tool_name, arguments),
+                timeout=MCP_TOOL_TIMEOUT,
+            )
 
             # Process result
             if result.content:
                 content_parts = []
                 for content in result.content:
-                    if hasattr(content, 'text'):
+                    if hasattr(content, "text"):
                         content_parts.append(content.text)
                     else:
                         content_parts.append(str(content))
-                return {'content': [{'type': 'text', 'text': '\n'.join(content_parts)}]}
+                return {"content": [{"type": "text", "text": "\n".join(content_parts)}]}
             else:
-                return {'content': [{'type': 'text', 'text': 'Tool executed successfully'}]}
+                return {
+                    "content": [{"type": "text", "text": "Tool executed successfully"}]
+                }
 
         except asyncio.TimeoutError:
-            raise RuntimeError(f'MCP tool {tool_name} timed out after {MCP_TOOL_TIMEOUT} seconds')
+            raise RuntimeError(
+                f"MCP tool {tool_name} timed out after {MCP_TOOL_TIMEOUT} seconds"
+            )
         except Exception as e:
-            raise RuntimeError(Text.assemble('Error calling MCP tool ', tool_name, ': ', format_exception(e)).plain)
+            raise RuntimeError(
+                Text.assemble(
+                    "Error calling MCP tool ", tool_name, ": ", format_exception(e)
+                ).plain
+            )

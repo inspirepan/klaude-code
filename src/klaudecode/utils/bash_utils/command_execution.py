@@ -14,7 +14,13 @@ class BashCommandExecutor:
     MAX_TIMEOUT = 600000  # 10 minutes in milliseconds
 
     @classmethod
-    def execute_bash_command(cls, command: str, timeout_seconds: float, check_canceled: Callable[[], bool], update_content: Callable[[str], None]) -> str:
+    def execute_bash_command(
+        cls,
+        command: str,
+        timeout_seconds: float,
+        check_canceled: Callable[[], bool],
+        update_content: Callable[[str], None],
+    ) -> str:
         """
         Execute a bash command and return error message if any.
 
@@ -34,7 +40,9 @@ class BashCommandExecutor:
 
         def update_current_content():
             """Update the content with current output"""
-            content = BashOutputProcessor.format_output_with_truncation(output_lines, total_output_size)
+            content = BashOutputProcessor.format_output_with_truncation(
+                output_lines, total_output_size
+            )
             update_content(content)
 
         try:
@@ -43,7 +51,9 @@ class BashCommandExecutor:
             env.update(BashEnvironment.get_non_interactive_env())
 
             # Preprocess command to handle interactive tools
-            processed_command = BashEnvironment.preprocess_command(command, timeout_seconds)
+            processed_command = BashEnvironment.preprocess_command(
+                command, timeout_seconds
+            )
 
             # Start the process
             process = subprocess.Popen(
@@ -67,14 +77,16 @@ class BashCommandExecutor:
             while True:
                 # Check if task was canceled (more frequently)
                 if check_canceled():
-                    output_lines.append('Command interrupted by user')
+                    output_lines.append("Command interrupted by user")
                     update_current_content()
                     BashProcessManager.kill_process_tree(process.pid)
                     break
 
                 # Check timeout
                 if time.time() - start_time > timeout_seconds:
-                    output_lines.append(f'Command timed out after {timeout_seconds:.1f} seconds')
+                    output_lines.append(
+                        f"Command timed out after {timeout_seconds:.1f} seconds"
+                    )
                     update_current_content()
                     BashProcessManager.kill_process_tree(process.pid)
                     break
@@ -85,15 +97,23 @@ class BashCommandExecutor:
                     remaining_output = process.stdout.read()
                     if remaining_output:
                         # Strip ANSI codes from output
-                        clean_output = BashEnvironment.strip_ansi_codes(remaining_output)
+                        clean_output = BashEnvironment.strip_ansi_codes(
+                            remaining_output
+                        )
                         for line in clean_output.splitlines():
                             output_lines.append(line)
                             total_output_size += len(line) + 1  # +1 for newline
                     break
 
                 # Read process output with interrupt checking
-                total_output_size, should_break, error_msg = BashOutputProcessor.read_process_output(
-                    process, output_lines, total_output_size, update_current_content, check_canceled
+                total_output_size, should_break, error_msg = (
+                    BashOutputProcessor.read_process_output(
+                        process,
+                        output_lines,
+                        total_output_size,
+                        update_current_content,
+                        check_canceled,
+                    )
                 )
 
                 if error_msg:
@@ -107,16 +127,16 @@ class BashCommandExecutor:
             if process.poll() is not None:
                 exit_code = process.returncode
                 if exit_code != 0:
-                    output_lines.append(f'Exit code: {exit_code}')
+                    output_lines.append(f"Exit code: {exit_code}")
 
             # Final content update
             update_current_content()
-            return ''  # No error
+            return ""  # No error
 
         except Exception as e:
             import traceback
 
-            error_msg = f'Error executing command: {str(e)} {traceback.format_exc()}'
+            error_msg = f"Error executing command: {str(e)} {traceback.format_exc()}"
             update_current_content()
             return error_msg
 

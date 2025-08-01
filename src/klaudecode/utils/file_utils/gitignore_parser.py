@@ -14,11 +14,11 @@ class GitIgnoreParser:
             return patterns
 
         try:
-            with gitignore.open('r', encoding='utf-8') as f:
+            with gitignore.open("r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
-                    if line and not line.startswith('#'):
-                        if line.startswith('!'):
+                    if line and not line.startswith("#"):
+                        if line.startswith("!"):
                             continue
                         patterns.append(line)
         except Exception:
@@ -27,10 +27,12 @@ class GitIgnoreParser:
         return patterns
 
     @classmethod
-    def get_effective_ignore_patterns(cls, additional_patterns: Optional[List[str]] = None) -> List[str]:
+    def get_effective_ignore_patterns(
+        cls, additional_patterns: Optional[List[str]] = None
+    ) -> List[str]:
         patterns = DEFAULT_IGNORE_PATTERNS.copy()
 
-        gitignore_path = Path.cwd() / '.gitignore'
+        gitignore_path = Path.cwd() / ".gitignore"
         gitignore_patterns = cls.parse_gitignore(gitignore_path)
         patterns.extend(gitignore_patterns)
 

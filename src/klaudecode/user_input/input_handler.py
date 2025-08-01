@@ -16,7 +16,7 @@ from .input_mode import _INPUT_MODES, NORMAL_MODE_NAME, NormalMode
 
 
 class UserInputHandler:
-    def __init__(self, agent_state: 'AgentState', input_session=None):
+    def __init__(self, agent_state: "AgentState", input_session=None):
         self.agent_state = agent_state
         self.input_session = input_session
 
@@ -26,7 +26,7 @@ class UserInputHandler:
         if not self.input_session:
             return attachments
 
-        pattern = r'\[Image #(\d+)\]'  # Match [Image #N] pattern
+        pattern = r"\[Image #(\d+)\]"  # Match [Image #N] pattern
         matches = list(re.finditer(pattern, text))
 
         for match in matches:
@@ -34,20 +34,22 @@ class UserInputHandler:
             if image_id in self.input_session.paste_dict:
                 paste_item = self.input_session.paste_dict[image_id]
 
-                if paste_item.type == 'file':
+                if paste_item.type == "file":
                     # Handle file-based image
-                    result = execute_read(paste_item.path, tracker=self.agent_state.session.file_tracker)
+                    result = execute_read(
+                        paste_item.path, tracker=self.agent_state.session.file_tracker
+                    )
                     if result.success:
                         attachments.append(result)
-                elif paste_item.type == 'clipboard':
+                elif paste_item.type == "clipboard":
                     # Handle clipboard-based image (base64)
                     try:
                         # Create an attachment for clipboard image with base64 content
                         attachment = Attachment(
-                            type='image',
-                            path=f'Image #{image_id}',
+                            type="image",
+                            path=f"Image #{image_id}",
                             content=paste_item.content,  # Store as base64
-                            media_type='image/png',
+                            media_type="image/png",
                         )
                         attachments.append(attachment)
                     except (ValueError, TypeError):
@@ -58,7 +60,7 @@ class UserInputHandler:
     def _parse_at_files(self, text: str) -> List[Attachment]:
         """Parse @filepath patterns and return file attachments."""
         attachments = []
-        pattern = r'@([^\s]+)'  # Match @ followed by non-whitespace characters
+        pattern = r"@([^\s]+)"  # Match @ followed by non-whitespace characters
 
         # Find all matches and extract unique file paths
         matches = re.findall(pattern, text)
@@ -67,7 +69,7 @@ class UserInputHandler:
         for file_path in unique_file_paths:
             # Try to resolve the file path
             abs_path = None
-            if file_path.startswith('/'):
+            if file_path.startswith("/"):
                 # Absolute path
                 abs_path = file_path
             else:
@@ -82,21 +84,27 @@ class UserInputHandler:
                 continue
 
             # Check if it's a directory (ends with / or is an existing directory)
-            is_directory = file_path.endswith('/') or Path(abs_path).is_dir()
+            is_directory = file_path.endswith("/") or Path(abs_path).is_dir()
 
             if is_directory:
                 # Handle directory
                 try:
-                    dir_result, _, _ = get_directory_structure(abs_path, None, max_chars=40000, show_hidden=False)
+                    dir_result, _, _ = get_directory_structure(
+                        abs_path, None, max_chars=40000, show_hidden=False
+                    )
                     if dir_result:
                         # Add LS_TOOL_RESULT_REMINDER like the LS tool does
-                        content = dir_result + '\n\n' + LS_TOOL_RESULT_REMINDER
-                        attachments.append(Attachment(type='directory', path=abs_path, content=content))
+                        content = dir_result + "\n\n" + LS_TOOL_RESULT_REMINDER
+                        attachments.append(
+                            Attachment(type="directory", path=abs_path, content=content)
+                        )
                 except (OSError, IOError):
                     continue
             else:
                 # Handle file
-                result = execute_read(abs_path, tracker=self.agent_state.session.file_tracker)
+                result = execute_read(
+                    abs_path, tracker=self.agent_state.session.file_tracker
+                )
                 if result.success:
                     attachments.append(result)
         return attachments
@@ -112,7 +120,9 @@ class UserInputHandler:
         attachments = image_attachments + file_attachments
 
         command_name, cleaned_input = self._parse_command(user_input_text)
-        command = _INPUT_MODES.get(command_name, _SLASH_COMMANDS.get(command_name, NormalMode()))
+        command = _INPUT_MODES.get(
+            command_name, _SLASH_COMMANDS.get(command_name, NormalMode())
+        )
         command_handle_output = await command.handle(
             self.agent_state,
             UserInput(
@@ -139,19 +149,19 @@ class UserInputHandler:
 
     def _parse_command(self, text: str) -> Tuple[str, str]:
         if not text.strip():
-            return '', text
+            return "", text
 
         stripped = text.strip()
-        if stripped.startswith('/'):
+        if stripped.startswith("/"):
             parts = stripped[1:].split(None, 1)
             if parts:
                 command_part = parts[0]
-                remaining_text = parts[1] if len(parts) > 1 else ''
+                remaining_text = parts[1] if len(parts) > 1 else ""
                 if command_part in _SLASH_COMMANDS:
                     return command_part, remaining_text
                 if command_part in _INPUT_MODES:
                     return command_part, remaining_text
-        return '', text
+        return "", text
 
     def _handle_language_reminder(self, user_msg: UserMessage):
         if len(self.agent_state.session.messages) > 2:

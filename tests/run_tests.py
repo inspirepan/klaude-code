@@ -16,17 +16,17 @@ from pathlib import Path
 
 def main():
     # Default pytest arguments
-    args = ['pytest']
+    args = ["pytest"]
 
     # Add project root to Python path
     project_root = Path(__file__).parent.parent
-    sys.path.insert(0, str(project_root / 'src'))
+    sys.path.insert(0, str(project_root / "src"))
 
     # Parse command line arguments
     if len(sys.argv) > 1:
-        if '--cov' in sys.argv:
-            args.extend(['--cov=klaudecode', '--cov-report=html', '--cov-report=term'])
-            sys.argv.remove('--cov')
+        if "--cov" in sys.argv:
+            args.extend(["--cov=klaudecode", "--cov-report=html", "--cov-report=term"])
+            sys.argv.remove("--cov")
 
         # Add remaining arguments
         args.extend(sys.argv[1:])
@@ -36,5 +36,5 @@ def main():
     sys.exit(result.returncode)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

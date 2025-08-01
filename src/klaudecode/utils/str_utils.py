@@ -9,22 +9,24 @@ def truncate_char(text: str, max_chars: int = 100, show_remaining: bool = False)
 
     truncated_content = text[:max_chars]
     if show_remaining:
-        truncated_content += f'... + {len(text) - max_chars} chars'
+        truncated_content += f"... + {len(text) - max_chars} chars"
     else:
-        truncated_content += '...'
+        truncated_content += "..."
     return truncated_content
 
 
 def sanitize_filename(text: str, max_length: Optional[int] = None) -> str:
     if not text:
-        return 'untitled'
-    text = re.sub(r'[^\w\u4e00-\u9fff\u3400-\u4dbf\u3040-\u309f\u30a0-\u30ff\s.-]', '_', text)
-    text = re.sub(r'\s+', '_', text)
-    text = text.strip('_')
+        return "untitled"
+    text = re.sub(
+        r"[^\w\u4e00-\u9fff\u3400-\u4dbf\u3040-\u309f\u30a0-\u30ff\s.-]", "_", text
+    )
+    text = re.sub(r"\s+", "_", text)
+    text = text.strip("_")
     if not text:
-        return 'untitled'
+        return "untitled"
     if max_length and len(text) > max_length:
-        text = text[:max_length].rstrip('_')
+        text = text[:max_length].rstrip("_")
 
     return text
 
@@ -37,21 +39,21 @@ def format_relative_time(timestamp):
     diff = now - created
 
     if diff.days > 1:
-        return f'{diff.days} days ago'
+        return f"{diff.days} days ago"
     elif diff.days == 1:
-        return '1 day ago'
+        return "1 day ago"
     elif diff.seconds > 3600:
         hours = diff.seconds // 3600
-        return f'{hours}h ago'
+        return f"{hours}h ago"
     elif diff.seconds > 60:
         minutes = diff.seconds // 60
-        return f'{minutes}m ago'
+        return f"{minutes}m ago"
     else:
-        return 'just now'
+        return "just now"
 
 
 def normalize_tabs(text: str, tab_size: int = 4) -> str:
-    return text.replace('\t', ' ' * tab_size)
+    return text.replace("\t", " " * tab_size)
 
 
 def get_inserted_text(old_text: str, new_text: str) -> str:
@@ -67,7 +69,7 @@ def get_inserted_text(old_text: str, new_text: str) -> str:
         The inserted text part
     """
     if len(new_text) <= len(old_text):
-        return ''
+        return ""
 
     old_len, new_len = len(old_text), len(new_text)
 
@@ -100,6 +102,6 @@ def get_inserted_text(old_text: str, new_text: str) -> str:
 
 def extract_xml_content(text: str, tag: str) -> str:
     """Extract content between XML tags"""
-    pattern = re.compile(rf'<{re.escape(tag)}>(.*?)</{re.escape(tag)}>', re.DOTALL)
+    pattern = re.compile(rf"<{re.escape(tag)}>(.*?)</{re.escape(tag)}>", re.DOTALL)
     match = pattern.search(text)
-    return match.group(1) if match else ''
+    return match.group(1) if match else ""

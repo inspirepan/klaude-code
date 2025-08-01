@@ -6,7 +6,15 @@ from openai.types.chat import ChatCompletionChunk, ChatCompletionMessageToolCall
 from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
 from openai.types.chat.chat_completion_message_tool_call import Function
 
-from ..message import AIMessage, BasicMessage, CompletionUsage, ToolCall, add_cache_control, count_tokens, remove_cache_control
+from ..message import (
+    AIMessage,
+    BasicMessage,
+    CompletionUsage,
+    ToolCall,
+    add_cache_control,
+    count_tokens,
+    remove_cache_control,
+)
 from ..tool import Tool
 from ..tui.stream_status import StreamStatus
 from .llm_proxy_base import LLMProxyBase
@@ -43,7 +51,9 @@ class OpenAIProxy(LLMProxyBase):
                 api_key=api_key,
             )
 
-    def _create_tool_call_accumulator(self) -> 'OpenAIProxy.OpenAIToolCallChunkAccumulator':
+    def _create_tool_call_accumulator(
+        self,
+    ) -> "OpenAIProxy.OpenAIToolCallChunkAccumulator":
         """Create the appropriate tool call accumulator. Override in subclasses."""
         return self.OpenAIToolCallChunkAccumulator()
 
@@ -53,13 +63,15 @@ class OpenAIProxy(LLMProxyBase):
         tools: Optional[List[Tool]] = None,
         timeout: float = 20.0,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
-        stream_status = StreamStatus(phase='upload')
-        yield (stream_status, AIMessage(content=''))
+        stream_status = StreamStatus(phase="upload")
+        yield (stream_status, AIMessage(content=""))
 
         stream = await self._create_stream(msgs, tools, timeout)
         ai_message = AIMessage()
 
-        tool_call_chunk_accumulator: 'OpenAIProxy.OpenAIToolCallChunkAccumulator' = self._create_tool_call_accumulator()
+        tool_call_chunk_accumulator: "OpenAIProxy.OpenAIToolCallChunkAccumulator" = (
+            self._create_tool_call_accumulator()
+        )
 
         prompt_tokens = completion_tokens = total_tokens = 0
 
@@ -70,18 +82,32 @@ class OpenAIProxy(LLMProxyBase):
             async for chunk in stream:
                 chunk: ChatCompletionChunk
                 if asyncio.current_task().cancelled():
-                    raise asyncio.CancelledError('Stream cancelled')
+                    raise asyncio.CancelledError("Stream cancelled")
                 prompt_tokens, completion_tokens, total_tokens = self._process_chunk(
-                    chunk, stream_status, ai_message, tool_call_chunk_accumulator, prompt_tokens, completion_tokens, total_tokens
+                    chunk,
+                    stream_status,
+                    ai_message,
+                    tool_call_chunk_accumulator,
+                    prompt_tokens,
+                    completion_tokens,
+                    total_tokens,
                 )
                 yield (stream_status, ai_message)
         finally:
             self._current_request_task = None
 
-        self._finalize_message(ai_message, tool_call_chunk_accumulator, prompt_tokens, completion_tokens, total_tokens)
+        self._finalize_message(
+            ai_message,
+            tool_call_chunk_accumulator,
+            prompt_tokens,
+            completion_tokens,
+            total_tokens,
+        )
         yield (stream_status, ai_message)
 
-    async def _create_stream(self, msgs: List[BasicMessage], tools: Optional[List[Tool]], timeout: float) -> AsyncGenerator[ChatCompletionChunk, None]:
+    async def _create_stream(
+        self, msgs: List[BasicMessage], tools: Optional[List[Tool]], timeout: float
+    ) -> AsyncGenerator[ChatCompletionChunk, None]:
         msgs = [msg.to_openai() for msg in msgs if msg]
         if msgs:
             msgs[-1] = add_cache_control(msgs[-1])
@@ -128,45 +154,78 @@ class OpenAIProxy(LLMProxyBase):
         total_tokens: int,
     ) -> Tuple[int, int, int]:
         if chunk.choices:
-            self._handle_choice_delta(chunk.choices[0], stream_status, ai_message, tool_call_chunk_accumulator)
+            self._handle_choice_delta(
+                chunk.choices[0], stream_status, ai_message, tool_call_chunk_accumulator
+            )
 
         if chunk.usage:
-            prompt_tokens, total_tokens = chunk.usage.prompt_tokens, chunk.usage.total_tokens
+            prompt_tokens, total_tokens = (
+                chunk.usage.prompt_tokens,
+                chunk.usage.total_tokens,
+            )
 
-        completion_tokens = self._calculate_completion_tokens(chunk, ai_message, tool_call_chunk_accumulator, completion_tokens)
+        completion_tokens = self._calculate_completion_tokens(
+            chunk, ai_message, tool_call_chunk_accumulator, completion_tokens
+        )
 
         stream_status.tokens = completion_tokens
 
         return prompt_tokens, completion_tokens, total_tokens
 
-    def _handle_choice_delta(self, choice: Any, stream_status: StreamStatus, ai_message: AIMessage, tool_call_chunk_accumulator) -> None:
+    def _handle_choice_delta(
+        self,
+        choice: Any,
+        stream_status: StreamStatus,
+        ai_message: AIMessage,
+        tool_call_chunk_accumulator,
+    ) -> None:
         if choice.delta.content:
-            stream_status.phase = 'content'
+            stream_status.phase = "content"
             ai_message.append_content_chunk(choice.delta.content)
 
-        if hasattr(choice.delta, 'reasoning_content') and choice.delta.reasoning_content:
-            stream_status.phase = 'think'
+        if (
+            hasattr(choice.delta, "reasoning_content")
+            and choice.delta.reasoning_content
+        ):
+            stream_status.phase = "think"
             ai_message.append_thinking_content_chunk(choice.delta.reasoning_content)
 
         if choice.delta.tool_calls:
-            stream_status.phase = 'tool_call'
+            stream_status.phase = "tool_call"
             tool_call_chunk_accumulator.add_chunks(choice.delta.tool_calls)
-            stream_status.tool_names.extend([tc.function.name for tc in choice.delta.tool_calls if tc and tc.function and tc.function.name])
+            stream_status.tool_names.extend(
+                [
+                    tc.function.name
+                    for tc in choice.delta.tool_calls
+                    if tc and tc.function and tc.function.name
+                ]
+            )
 
         if choice.finish_reason:
             ai_message.finish_reason = choice.finish_reason
-            stream_status.phase = 'completed'
+            stream_status.phase = "completed"
 
         ai_message._invalidate_cache()
 
-    def _calculate_completion_tokens(self, chunk: ChatCompletionChunk, ai_message: AIMessage, tool_call_chunk_accumulator, current_tokens: int) -> int:
+    def _calculate_completion_tokens(
+        self,
+        chunk: ChatCompletionChunk,
+        ai_message: AIMessage,
+        tool_call_chunk_accumulator,
+        current_tokens: int,
+    ) -> int:
         if chunk.usage and chunk.usage.completion_tokens:
             return chunk.usage.completion_tokens
         else:
             return ai_message.tokens + tool_call_chunk_accumulator.count_tokens()
 
     def _finalize_message(
-        self, ai_message: AIMessage, tool_call_chunk_accumulator: 'OpenAIProxy.OpenAIToolCallChunkAccumulator', prompt_tokens: int, completion_tokens: int, total_tokens: int
+        self,
+        ai_message: AIMessage,
+        tool_call_chunk_accumulator: "OpenAIProxy.OpenAIToolCallChunkAccumulator",
+        prompt_tokens: int,
+        completion_tokens: int,
+        total_tokens: int,
     ) -> None:
         ai_message.tool_calls = tool_call_chunk_accumulator.get_tool_call_dict()
         ai_message.usage = CompletionUsage(
@@ -177,7 +236,7 @@ class OpenAIProxy(LLMProxyBase):
         ai_message._invalidate_cache()
         ai_message.content = ai_message.content.strip()
         ai_message.thinking_content = ai_message.thinking_content.strip()
-        ai_message.status = 'success'
+        ai_message.status = "success"
 
     class OpenAIToolCallChunkAccumulator:
         def __init__(self) -> None:
@@ -204,8 +263,8 @@ class OpenAIProxy(LLMProxyBase):
             self.tool_call_list.append(
                 ChatCompletionMessageToolCall(
                     id=tool_id,
-                    function=Function(arguments='', name=''),
-                    type='function',
+                    function=Function(arguments="", name=""),
+                    type="function",
                 )
             )
 
@@ -227,14 +286,18 @@ class OpenAIProxy(LLMProxyBase):
                         tool_args=raw_tc.function.arguments,
                     )
                 except Exception as e:
-                    from ..tui import render_suffix, ColorStyle
+                    from ..tui import ColorStyle, render_suffix
 
-                    render_suffix(f'Error processing tool call: {e}', style=ColorStyle.ERROR)
+                    render_suffix(
+                        f"Error processing tool call: {e}", style=ColorStyle.ERROR
+                    )
                     continue
             return result
 
         def count_tokens(self) -> int:
             tokens = 0
             for tc in self.tool_call_list:
-                tokens += count_tokens(tc.function.name) + count_tokens(tc.function.arguments)
+                tokens += count_tokens(tc.function.name) + count_tokens(
+                    tc.function.arguments
+                )
             return tokens

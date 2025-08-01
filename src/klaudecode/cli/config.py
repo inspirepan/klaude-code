@@ -13,21 +13,21 @@ from ..tui import ColorStyle, console
 def setup_config(**kwargs) -> ConfigManager:
     config_manager = ConfigManager.setup(**kwargs)
     config_model = config_manager.get_config_model()
-    if hasattr(config_model, 'theme') and config_model.theme:
+    if hasattr(config_model, "theme") and config_model.theme:
         console.set_theme(config_model.theme.value)
     return config_manager
 
 
 def find_all_config_files() -> list[Path]:
     """Find all config files in ~/.klaude/ directory"""
-    klaude_dir = Path.home() / '.klaude'
+    klaude_dir = Path.home() / ".klaude"
     if not klaude_dir.exists():
         return []
 
     config_files = []
 
     # Find all config_*.json files
-    for config_file in klaude_dir.glob('config_*.json'):
+    for config_file in klaude_dir.glob("config_*.json"):
         config_files.append(config_file)
 
     return sorted(config_files)
@@ -52,7 +52,9 @@ def display_config_file(config_path: Path) -> None:
         console.print(config_manager)
 
     except (OSError, IOError, ValueError, yaml.YAMLError) as e:
-        console.print(Text(f'Error reading {config_path.name}: {e}', style=ColorStyle.ERROR))
+        console.print(
+            Text(f"Error reading {config_path.name}: {e}", style=ColorStyle.ERROR)
+        )
 
 
 def config_show():
@@ -61,7 +63,7 @@ def config_show():
     """
     # Show the current active configuration first
     config_manager = setup_config()
-    console.print(Text('default', style=ColorStyle.HIGHLIGHT.bold))
+    console.print(Text("default", style=ColorStyle.HIGHLIGHT.bold))
     console.print(config_manager)
     console.print()
 
@@ -70,28 +72,28 @@ def config_show():
 
     if not config_files:
         return
-    console.print(Text('CONFIG FILES', style=ColorStyle.SUCCESS.bold))
+    console.print(Text("CONFIG FILES", style=ColorStyle.SUCCESS.bold))
     console.print(
         Text.assemble(
-            'Run ',
-            ('klaude -f <config_name>', ColorStyle.INLINE_CODE),
-            ' or ',
-            ('klaude --config <config_name>', ColorStyle.INLINE_CODE),
-            ' to use a specific config file',
+            "Run ",
+            ("klaude -f <config_name>", ColorStyle.INLINE_CODE),
+            " or ",
+            ("klaude --config <config_name>", ColorStyle.INLINE_CODE),
+            " to use a specific config file",
             style=ColorStyle.HINT,
         )
     )
     console.print(
         Text.assemble(
-            'Run ',
-            ('klaude edit <config_name>', ColorStyle.INLINE_CODE),
-            ' or ',
-            ('klaude config edit <config_name>', ColorStyle.INLINE_CODE),
-            ' to edit a specific config file',
+            "Run ",
+            ("klaude edit <config_name>", ColorStyle.INLINE_CODE),
+            " or ",
+            ("klaude config edit <config_name>", ColorStyle.INLINE_CODE),
+            " to edit a specific config file",
             style=ColorStyle.HINT,
         )
     )
-    console.print(Rule(style=ColorStyle.LINE, characters='╌'))
+    console.print(Rule(style=ColorStyle.LINE, characters="╌"))
 
     for config_file in config_files:
         console.print()
@@ -124,16 +126,20 @@ def config_edit(config_name: Optional[str] = None):
         if not config_path.exists():
             from ..user_input import user_select_sync
 
-            console.print(Text.assemble(('Config file not found: ', 'yellow'), (str(config_path), 'white')))
+            console.print(
+                Text.assemble(
+                    ("Config file not found: ", "yellow"), (str(config_path), "white")
+                )
+            )
             console.print()
             idx = user_select_sync(
-                title='Do you want to create a new config file?',
-                options=['Yes', 'No'],
+                title="Do you want to create a new config file?",
+                options=["Yes", "No"],
             )
             if idx != 0:
                 return
             FileConfigSource.create_example_config(config_path)
 
         # Open the file in editor
-        editor = os.getenv('EDITOR', 'vi' if sys.platform != 'darwin' else 'open')
-        os.system(f'{editor} {config_path}')
+        editor = os.getenv("EDITOR", "vi" if sys.platform != "darwin" else "open")
+        os.system(f"{editor} {config_path}")

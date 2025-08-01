@@ -5,7 +5,7 @@ from .colors import ColorStyle, get_theme
 
 class ConsoleProxy:
     def __init__(self):
-        self.theme_name = 'dark_ansi'
+        self.theme_name = "dark_ansi"
         self.console = Console(theme=get_theme(self.theme_name), style=ColorStyle.MAIN)
         self.silent = False
 
@@ -14,12 +14,12 @@ class ConsoleProxy:
         self.console = Console(theme=get_theme(theme_name), style=ColorStyle.MAIN)
 
     def is_dark_theme(self) -> bool:
-        return 'dark' in self.theme_name
+        return "dark" in self.theme_name
 
     def print(self, *args, **kwargs):
         if not self.silent:
-            if 'style' not in kwargs or kwargs['style'] is None:
-                kwargs['style'] = ColorStyle.MAIN
+            if "style" not in kwargs or kwargs["style"] is None:
+                kwargs["style"] = ColorStyle.MAIN
             self.console.print(*args, **kwargs)
 
     def set_silent(self, silent: bool):

@@ -13,26 +13,42 @@ class TreeNode:
         self.path = Path(path)
         self.is_dir = is_dir
         self.depth = depth
-        self.children: List['TreeNode'] = []
+        self.children: List["TreeNode"] = []
 
 
 class DirectoryTreeBuilder:
-    def __init__(self, max_chars: int = DEFAULT_MAX_CHARS, max_depth: Optional[int] = None, show_hidden: bool = False, additional_ignore_patterns: Optional[List[str]] = None):
+    def __init__(
+        self,
+        max_chars: int = DEFAULT_MAX_CHARS,
+        max_depth: Optional[int] = None,
+        show_hidden: bool = False,
+        additional_ignore_patterns: Optional[List[str]] = None,
+    ):
         self.max_chars = max_chars
         self.max_depth = max_depth
         self.show_hidden = show_hidden
-        self.ignore_patterns = GitIgnoreParser.get_effective_ignore_patterns(additional_ignore_patterns)
+        self.ignore_patterns = GitIgnoreParser.get_effective_ignore_patterns(
+            additional_ignore_patterns
+        )
 
     def should_ignore_path(self, item_path: Path, item_name: str) -> bool:
-        if not self.show_hidden and item_name.startswith('.') and item_name not in ['.', '..']:
+        if (
+            not self.show_hidden
+            and item_name.startswith(".")
+            and item_name not in [".", ".."]
+        ):
             return True
 
         for pattern in self.ignore_patterns:
-            if pattern.endswith('/'):
-                if fnmatch.fnmatch(item_name + '/', pattern) or fnmatch.fnmatch(str(item_path) + '/', pattern):
+            if pattern.endswith("/"):
+                if fnmatch.fnmatch(item_name + "/", pattern) or fnmatch.fnmatch(
+                    str(item_path) + "/", pattern
+                ):
                     return True
             else:
-                if fnmatch.fnmatch(item_name, pattern) or fnmatch.fnmatch(str(item_path), pattern):
+                if fnmatch.fnmatch(item_name, pattern) or fnmatch.fnmatch(
+                    str(item_path), pattern
+                ):
                     return True
         return False
 
@@ -41,7 +57,7 @@ class DirectoryTreeBuilder:
         root = TreeNode(root_dir.name or str(root_dir), root_dir, True, 0)
         queue = deque([root])
         path_count = 0
-        char_budget = self.max_chars if self.max_chars > 0 else float('inf')
+        char_budget = self.max_chars if self.max_chars > 0 else float("inf")
         truncated = False
 
         while queue and char_budget > 0:
@@ -82,7 +98,9 @@ class DirectoryTreeBuilder:
                 current_node.children.append(child_node)
                 path_count += 1
 
-                estimated_chars = (child_node.depth * INDENT_SIZE) + len(child_node.name) + 3
+                estimated_chars = (
+                    (child_node.depth * INDENT_SIZE) + len(child_node.name) + 3
+                )
                 if char_budget - estimated_chars <= 0:
                     truncated = True
                     break
@@ -102,12 +120,20 @@ class DirectoryTreeBuilder:
 
         def traverse(current_node: TreeNode):
             if current_node.depth == 0:
-                display_name = str(current_node.path) + '/' if current_node.is_dir else str(current_node.path)
-                lines.append(f'- {display_name}')
+                display_name = (
+                    str(current_node.path) + "/"
+                    if current_node.is_dir
+                    else str(current_node.path)
+                )
+                lines.append(f"- {display_name}")
             else:
-                indent = '  ' * current_node.depth
-                display_name = current_node.name + '/' if current_node.is_dir else current_node.name
-                lines.append(f'{indent}- {display_name}')
+                indent = "  " * current_node.depth
+                display_name = (
+                    current_node.name + "/"
+                    if current_node.is_dir
+                    else current_node.name
+                )
+                lines.append(f"{indent}- {display_name}")
 
             for child in current_node.children:
                 traverse(child)
@@ -119,17 +145,17 @@ class DirectoryTreeBuilder:
         dir_path = Path(path)
 
         if not dir_path.exists():
-            return f'Path does not exist: {dir_path}', False, 0
+            return f"Path does not exist: {dir_path}", False, 0
 
         if not dir_path.is_dir():
-            return f'Path is not a directory: {dir_path}', False, 0
+            return f"Path is not a directory: {dir_path}", False, 0
 
         root_node, path_count, truncated = self.build_tree(dir_path)
         lines = self.build_indent_lines(root_node)
-        content = '\n'.join(lines)
+        content = "\n".join(lines)
 
         if truncated:
-            content += f'\n... (truncated at {self.max_chars} characters, use LS tool with specific paths to explore more)'
+            content += f"\n... (truncated at {self.max_chars} characters, use LS tool with specific paths to explore more)"
 
         return content, truncated, path_count
 
@@ -147,8 +173,8 @@ class DirectoryTreeBuilder:
 
         def traverse(current_node: TreeNode):
             path_str = str(current_node.path)
-            if current_node.is_dir and not path_str.endswith('/'):
-                path_str += '/'
+            if current_node.is_dir and not path_str.endswith("/"):
+                path_str += "/"
             lines.append(path_str)
             for child in current_node.children:
                 traverse(child)

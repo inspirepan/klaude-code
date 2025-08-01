@@ -16,12 +16,12 @@ from .constants import MCP_TOOL_TIMEOUT
 from .mcp_client import MCPClient
 
 
-@register_tool_result_renderer('mcp__')
+@register_tool_result_renderer("mcp__")
 def render_mcp_tool_result(msg: ToolMessage):
     content = msg.content
 
     try:
-        if isinstance(content, str) and content.strip().startswith('{'):
+        if isinstance(content, str) and content.strip().startswith("{"):
             parsed = json.loads(content)
             yield render_suffix(
                 Pretty(
@@ -48,45 +48,45 @@ def render_mcp_tool_result(msg: ToolMessage):
 
 class MCPToolWrapper(Tool):
     # Dynamic properties
-    name: str = ''
-    desc: str = ''
+    name: str = ""
+    desc: str = ""
     parallelable: bool = True
     timeout = MCP_TOOL_TIMEOUT
 
     # MCP specific properties
-    mcp_tool_name: str = ''
+    mcp_tool_name: str = ""
     mcp_input_schema: Dict[str, Any] = {}
-    server_name: str = ''
+    server_name: str = ""
 
     @classmethod
     def create_from_mcp_tool(cls, tool_info: Dict[str, Any], mcp_client: MCPClient):
         """Create wrapper tool class from MCP tool info"""
 
-        mcp_tool = tool_info['tool']
-        server_name = tool_info['server_name']
+        mcp_tool = tool_info["tool"]
+        server_name = tool_info["server_name"]
 
         # Dynamically create Input class
-        input_properties = mcp_tool.inputSchema.get('properties', {})
-        required_fields = mcp_tool.inputSchema.get('required', [])
+        input_properties = mcp_tool.inputSchema.get("properties", {})
+        required_fields = mcp_tool.inputSchema.get("required", [])
 
         # Build Pydantic field annotations
         annotations = {}
         field_defaults = {}
 
         for prop_name, prop_schema in input_properties.items():
-            field_description = prop_schema.get('description', '')
+            field_description = prop_schema.get("description", "")
             is_required = prop_name in required_fields
 
             # Infer Python type from schema type
-            if prop_schema.get('type') == 'integer':
+            if prop_schema.get("type") == "integer":
                 field_type = int
-            elif prop_schema.get('type') == 'number':
+            elif prop_schema.get("type") == "number":
                 field_type = float
-            elif prop_schema.get('type') == 'boolean':
+            elif prop_schema.get("type") == "boolean":
                 field_type = bool
-            elif prop_schema.get('type') == 'array':
+            elif prop_schema.get("type") == "array":
                 field_type = list
-            elif prop_schema.get('type') == 'object':
+            elif prop_schema.get("type") == "object":
                 field_type = dict
             else:
                 field_type = str  # Default to string type
@@ -98,32 +98,36 @@ class MCPToolWrapper(Tool):
             if is_required:
                 field_defaults[prop_name] = Field(..., description=field_description)
             else:
-                field_defaults[prop_name] = Field(default=None, description=field_description)
+                field_defaults[prop_name] = Field(
+                    default=None, description=field_description
+                )
 
         # Create dynamic Input class
         class_dict = field_defaults.copy()
-        class_dict['__annotations__'] = annotations
-        DynamicInput = type('Input', (BaseModel,), class_dict)
+        class_dict["__annotations__"] = annotations
+        DynamicInput = type("Input", (BaseModel,), class_dict)
 
         # Create dynamic tool class
-        class_name = f'MCP_{server_name}_{mcp_tool.name.replace("-", "_").replace(".", "_")}'
+        class_name = (
+            f"MCP_{server_name}_{mcp_tool.name.replace('-', '_').replace('.', '_')}"
+        )
 
         class_attrs = {
-            'name': f'mcp__{mcp_tool.name}',
-            'desc': f'[MCP:{server_name}] {mcp_tool.description}',
-            'parallelable': True,
-            'timeout': MCP_TOOL_TIMEOUT,
-            'mcp_tool_name': mcp_tool.name,
-            'mcp_input_schema': mcp_tool.inputSchema,
-            'server_name': server_name,
-            'Input': DynamicInput,
-            '_mcp_client': mcp_client,
+            "name": f"mcp__{mcp_tool.name}",
+            "desc": f"[MCP:{server_name}] {mcp_tool.description}",
+            "parallelable": True,
+            "timeout": MCP_TOOL_TIMEOUT,
+            "mcp_tool_name": mcp_tool.name,
+            "mcp_input_schema": mcp_tool.inputSchema,
+            "server_name": server_name,
+            "Input": DynamicInput,
+            "_mcp_client": mcp_client,
         }
 
         return type(class_name, (MCPToolWrapper,), class_attrs)
 
     @classmethod
-    def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
+    def invoke(cls, tool_call: ToolCall, instance: "ToolInstance"):
         """Execute MCP tool (sync wrapper for compatibility)"""
         try:
             # Parse input parameters
@@ -139,57 +143,78 @@ class MCPToolWrapper(Tool):
                         result = future.result(timeout=MCP_TOOL_TIMEOUT)
                 else:
                     # Use the existing loop
-                    result = loop.run_until_complete(asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=MCP_TOOL_TIMEOUT))
+                    result = loop.run_until_complete(
+                        asyncio.wait_for(
+                            cls._call_mcp_tool_async(args_dict),
+                            timeout=MCP_TOOL_TIMEOUT,
+                        )
+                    )
             except RuntimeError:
                 # No event loop in current thread, create a new one
-                result = asyncio.run(asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=MCP_TOOL_TIMEOUT))
+                result = asyncio.run(
+                    asyncio.wait_for(
+                        cls._call_mcp_tool_async(args_dict), timeout=MCP_TOOL_TIMEOUT
+                    )
+                )
 
             # Set result
             cls._process_result(result, instance)
 
         except Exception as e:
-            instance.tool_result().set_error_msg(f'MCP tool error: {str(e)}')
+            instance.tool_result().set_error_msg(f"MCP tool error: {str(e)}")
 
     @classmethod
     def _sync_mcp_call(cls, args_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Synchronous wrapper for MCP tool call"""
-        return asyncio.run(asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=MCP_TOOL_TIMEOUT))
+        return asyncio.run(
+            asyncio.wait_for(
+                cls._call_mcp_tool_async(args_dict), timeout=MCP_TOOL_TIMEOUT
+            )
+        )
 
     @classmethod
-    async def invoke_async(cls, tool_call: ToolCall, instance: 'ToolInstance'):
+    async def invoke_async(cls, tool_call: ToolCall, instance: "ToolInstance"):
         """Execute MCP tool (native async implementation)"""
         try:
             # Parse input parameters
             args_dict = json.loads(tool_call.tool_args)
 
             # Call MCP tool directly with proper timeout handling
-            result = await asyncio.wait_for(cls._call_mcp_tool_async(args_dict), timeout=MCP_TOOL_TIMEOUT)
+            result = await asyncio.wait_for(
+                cls._call_mcp_tool_async(args_dict), timeout=MCP_TOOL_TIMEOUT
+            )
 
             # Set result
             cls._process_result(result, instance)
 
         except asyncio.TimeoutError:
-            instance.tool_result().set_error_msg(f'MCP tool {cls.mcp_tool_name} timed out after {cls.timeout}s')
+            instance.tool_result().set_error_msg(
+                f"MCP tool {cls.mcp_tool_name} timed out after {cls.timeout}s"
+            )
         except Exception as e:
-            instance.tool_result().set_error_msg(f'MCP tool error: {str(e)}')
+            instance.tool_result().set_error_msg(f"MCP tool error: {str(e)}")
 
     @classmethod
-    def _process_result(cls, result: Dict[str, Any], instance: 'ToolInstance'):
+    def _process_result(cls, result: Dict[str, Any], instance: "ToolInstance"):
         """Process MCP tool result and set it to instance"""
         if isinstance(result, dict):
-            if 'content' in result:
+            if "content" in result:
                 # Process content array
                 content_parts = []
-                for content_item in result['content']:
-                    if content_item.get('type') == 'text':
-                        content_parts.append(content_item.get('text', ''))
-                    elif content_item.get('type') == 'image':
-                        content_parts.append(f'[Image: {content_item.get("data", "base64 data")}]')
+                for content_item in result["content"]:
+                    if content_item.get("type") == "text":
+                        content_parts.append(content_item.get("text", ""))
+                    elif content_item.get("type") == "image":
+                        content_parts.append(
+                            f"[Image: {content_item.get('data', 'base64 data')}]"
+                        )
                     else:
                         content_parts.append(str(content_item))
-                instance.tool_result().set_content('\n'.join(content_parts))
+                instance.tool_result().set_content("\n".join(content_parts))
             else:
-                instance.tool_result().set_content(json.dumps(result, indent=2, ensure_ascii=False))
+                instance.tool_result().set_content(
+                    json.dumps(result, indent=2, ensure_ascii=False)
+                )
         else:
             instance.tool_result().set_content(str(result))
 
@@ -220,10 +245,20 @@ class MCPManager:
             # Get all MCP tools and create wrappers
             for tool_key, tool_info in self.mcp_client.tools.items():
                 try:
-                    wrapper_class = MCPToolWrapper.create_from_mcp_tool(tool_info, self.mcp_client)
+                    wrapper_class = MCPToolWrapper.create_from_mcp_tool(
+                        tool_info, self.mcp_client
+                    )
                     self.mcp_tools[wrapper_class.name] = wrapper_class
                 except Exception as e:
-                    console.print(Text.assemble('Failed to create wrapper for MCP tool ', tool_info['name'], ': ', format_exception(e), style=ColorStyle.ERROR))
+                    console.print(
+                        Text.assemble(
+                            "Failed to create wrapper for MCP tool ",
+                            tool_info["name"],
+                            ": ",
+                            format_exception(e),
+                            style=ColorStyle.ERROR,
+                        )
+                    )
 
         self._initialized = success
         return success
@@ -251,71 +286,99 @@ class MCPManager:
         config = config_manager.load_config()
 
         yield Text.assemble(
-            '\nMCP configuration file path: ',
+            "\nMCP configuration file path: ",
             (str(config_manager.get_config_path()), ColorStyle.SUCCESS),
-            '\n',
+            "\n",
         )
 
         # Show configured servers
         if not config.mcpServers:
-            yield Text('No MCP servers configured', style=ColorStyle.WARNING)
+            yield Text("No MCP servers configured", style=ColorStyle.WARNING)
             return
 
-        yield Text('\nConfigured MCP servers:', style=ColorStyle.MAIN.bold)
+        yield Text("\nConfigured MCP servers:", style=ColorStyle.MAIN.bold)
 
         yield render_grid(
             [
-                [Text(name, style=ColorStyle.INFO.bold), Text(server_config.command), Text(' '.join(server_config.args) if server_config.args else '')]
+                [
+                    Text(name, style=ColorStyle.INFO.bold),
+                    Text(server_config.command),
+                    Text(" ".join(server_config.args) if server_config.args else ""),
+                ]
                 for name, server_config in config.mcpServers.items()
             ]
         )
 
         # Show tools if initialized
         if self._initialized and self.mcp_client and self.mcp_client.tools:
-            yield Text(f'\nAvailable MCP tools ({len(self.mcp_client.tools)}):\n', style=ColorStyle.SUCCESS.bold)
+            yield Text(
+                f"\nAvailable MCP tools ({len(self.mcp_client.tools)}):\n",
+                style=ColorStyle.SUCCESS.bold,
+            )
 
             # Group tools by server
             tools_by_server = {}
             for tool_info in self.mcp_client.tools.values():
-                server_name = tool_info['server_name']
+                server_name = tool_info["server_name"]
                 if server_name not in tools_by_server:
                     tools_by_server[server_name] = []
                 tools_by_server[server_name].append(tool_info)
 
             main_table = Table.grid(padding=(0, 1))
             main_table.add_column(no_wrap=True)
-            main_table.add_column(overflow='fold')
+            main_table.add_column(overflow="fold")
 
             for server_name, tools in tools_by_server.items():
-                main_table.add_row(Text.assemble((server_name, ColorStyle.INFO.bold), f'({len(tools)} tools)'), '')
+                main_table.add_row(
+                    Text.assemble(
+                        (server_name, ColorStyle.INFO.bold), f"({len(tools)} tools)"
+                    ),
+                    "",
+                )
 
                 for tool_info in tools:
-                    tool_name = tool_info['name']
-                    tool_desc = tool_info['description'] or 'No description'
-                    mcp_tool = tool_info['tool']
+                    tool_name = tool_info["name"]
+                    tool_desc = tool_info["description"] or "No description"
+                    mcp_tool = tool_info["tool"]
                     input_schema = mcp_tool.inputSchema
-                    properties = input_schema.get('properties', {})
-                    required_fields = input_schema.get('required', [])
+                    properties = input_schema.get("properties", {})
+                    required_fields = input_schema.get("required", [])
 
                     if properties:
                         param_table = Table.grid(padding=(0, 1))
                         param_table.add_column(no_wrap=True)
                         param_table.add_column(no_wrap=True)
-                        param_table.add_column(overflow='fold')
+                        param_table.add_column(overflow="fold")
                         for param_name, param_schema in properties.items():
-                            param_type = param_schema.get('type', 'string')
-                            param_desc = param_schema.get('description', '')
+                            param_type = param_schema.get("type", "string")
+                            param_desc = param_schema.get("description", "")
                             is_required = param_name in required_fields
-                            required_indicator = '*' if is_required else ''
-                            param_table.add_row(Text(f'· {param_name}{required_indicator}', style=ColorStyle.HIGHLIGHT), Text(param_type, style=ColorStyle.INFO), Text(param_desc))
-                        main_table.add_row(Text(tool_name, style=ColorStyle.SUCCESS), Group(tool_desc, '', param_table, ''))
+                            required_indicator = "*" if is_required else ""
+                            param_table.add_row(
+                                Text(
+                                    f"· {param_name}{required_indicator}",
+                                    style=ColorStyle.HIGHLIGHT,
+                                ),
+                                Text(param_type, style=ColorStyle.INFO),
+                                Text(param_desc),
+                            )
+                        main_table.add_row(
+                            Text(tool_name, style=ColorStyle.SUCCESS),
+                            Group(tool_desc, "", param_table, ""),
+                        )
                     else:
-                        main_table.add_row('', tool_desc)
+                        main_table.add_row("", tool_desc)
 
-            main_table.add_row('', '')
+            main_table.add_row("", "")
 
             yield main_table
         elif not self._initialized:
-            yield Text('\nMCP tools not loaded (manager not initialized)', style=ColorStyle.WARNING)
+            yield Text(
+                "\nMCP tools not loaded (manager not initialized)",
+                style=ColorStyle.WARNING,
+            )
         else:
-            yield Text('\nUnable to connect to any MCP servers or no tools available', style=ColorStyle.WARNING)
+            yield Text(
+                "\nUnable to connect to any MCP servers or no tools available",
+                style=ColorStyle.WARNING,
+            )

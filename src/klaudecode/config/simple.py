@@ -4,7 +4,7 @@ Simple local configuration management for runtime options that don't need enviro
 
 from typing import Any, Dict
 
-NO_STREAM_PRINT = 'no_stream_print'
+NO_STREAM_PRINT = "no_stream_print"
 
 
 class SimpleConfig:

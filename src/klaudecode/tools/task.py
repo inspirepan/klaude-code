@@ -12,12 +12,14 @@ from . import BASIC_TOOLS
 class TaskTool(SubAgentBase):
     """Standalone Task tool for launching sub-agents"""
 
-    name = 'Task'
+    name = "Task"
     desc = TASK_TOOL_DESC
 
     class Input(BaseModel):
-        description: Annotated[str, Field(description='A short (3-5 word) description of the task')]
-        prompt: Annotated[str, Field(description='The task for the agent to perform')]
+        description: Annotated[
+            str, Field(description="A short (3-5 word) description of the task")
+        ]
+        prompt: Annotated[str, Field(description="The task for the agent to perform")]
 
     @classmethod
     def get_system_prompt(cls, work_dir: Path, model_name: str) -> str:

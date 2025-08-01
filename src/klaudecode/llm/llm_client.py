@@ -12,8 +12,22 @@ from rich.text import Text
 from ..config.simple import NO_STREAM_PRINT, SimpleConfig
 from ..message import AIMessage, BasicMessage
 from ..tool import Tool
-from ..tui import INTERRUPT_TIP, ColorStyle, CropAboveLive, console, render_dot_status, render_suffix
-from ..tui.stream_status import StreamStatus, get_content_status_text, get_reasoning_status_text, get_tool_call_status_text, get_upload_status_text, text_status_str
+from ..tui import (
+    INTERRUPT_TIP,
+    ColorStyle,
+    CropAboveLive,
+    console,
+    render_dot_status,
+    render_suffix,
+)
+from ..tui.stream_status import (
+    StreamStatus,
+    get_content_status_text,
+    get_reasoning_status_text,
+    get_tool_call_status_text,
+    get_upload_status_text,
+    text_status_str,
+)
 from ..utils.exception import format_exception
 from .llm_proxy_anthropic import AnthropicProxy
 from .llm_proxy_base import DEFAULT_RETRIES, DEFAULT_RETRY_BACKOFF_BASE, LLMProxyBase
@@ -82,7 +96,12 @@ class RetryWrapper(LLMClientWrapper):
     exceptions like authentication errors and user interruptions.
     """
 
-    def __init__(self, client: LLMProxyBase, max_retries: int = DEFAULT_RETRIES, backoff_base: float = DEFAULT_RETRY_BACKOFF_BASE):
+    def __init__(
+        self,
+        client: LLMProxyBase,
+        max_retries: int = DEFAULT_RETRIES,
+        backoff_base: float = DEFAULT_RETRY_BACKOFF_BASE,
+    ):
         """Initialize retry wrapper
 
         Args:
@@ -115,11 +134,11 @@ class RetryWrapper(LLMClientWrapper):
                     delay = self.backoff_base * (2**attempt)
                     error_text = Text.assemble(
                         format_exception(last_exception),
-                        (' · Retrying in ', 'default'),
-                        (f'{delay:.1f}', 'default'),
-                        (' seconds... (attempt ', 'default'),
-                        (f'{attempt + 1}/{self.max_retries}', 'default'),
-                        (')', 'default'),
+                        (" · Retrying in ", "default"),
+                        (f"{delay:.1f}", "default"),
+                        (" seconds... (attempt ", "default"),
+                        (f"{attempt + 1}/{self.max_retries}", "default"),
+                        (")", "default"),
                     )
                     error_msg = error_text.plain
                     error_msg = self.enhance_error_message(e, error_msg)
@@ -135,9 +154,16 @@ class RetryWrapper(LLMClientWrapper):
         raise last_exception
 
     def enhance_error_message(self, exception, error_msg: str) -> str:
-        if isinstance(exception, (openai.APIConnectionError, anthropic.APIConnectionError)):
-            if os.environ.get('http_proxy') or os.environ.get('https_proxy') or os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY'):
-                error_msg += ' · HTTP proxy detected, try disabling it'
+        if isinstance(
+            exception, (openai.APIConnectionError, anthropic.APIConnectionError)
+        ):
+            if (
+                os.environ.get("http_proxy")
+                or os.environ.get("https_proxy")
+                or os.environ.get("HTTP_PROXY")
+                or os.environ.get("HTTPS_PROXY")
+            ):
+                error_msg += " · HTTP proxy detected, try disabling it"
         return error_msg
 
 
@@ -157,30 +183,39 @@ class DisplayWrapper(LLMClientWrapper):
         super().__init__(client)
 
     def _get_phase_indicator_and_status(
-        self, stream_status: StreamStatus, reasoning_status_text: str, content_status_text: str, upload_status_text: str, status_text_seed: int
+        self,
+        stream_status: StreamStatus,
+        reasoning_status_text: str,
+        content_status_text: str,
+        upload_status_text: str,
+        status_text_seed: int,
     ) -> Tuple[str, str]:
-        if stream_status.phase == 'tool_call':
-            indicator = '⚒'
+        if stream_status.phase == "tool_call":
+            indicator = "⚒"
             if stream_status.tool_names:
-                current_status_text = get_tool_call_status_text(stream_status.tool_names[-1], status_text_seed)
+                current_status_text = get_tool_call_status_text(
+                    stream_status.tool_names[-1], status_text_seed
+                )
             else:
                 current_status_text = reasoning_status_text
-        elif stream_status.phase == 'upload':
-            indicator = ''
+        elif stream_status.phase == "upload":
+            indicator = ""
             current_status_text = upload_status_text
-        elif stream_status.phase == 'think':
-            indicator = '✻'
+        elif stream_status.phase == "think":
+            indicator = "✻"
             current_status_text = reasoning_status_text
-        elif stream_status.phase == 'content':
-            indicator = '↓'
+        elif stream_status.phase == "content":
+            indicator = "↓"
             current_status_text = content_status_text
         else:
-            indicator = ''
+            indicator = ""
             current_status_text = reasoning_status_text
 
         return indicator, current_status_text
 
-    def _update_status_display(self, status, indicator: str, tokens: int, current_status_text: str):
+    def _update_status_display(
+        self, status, indicator: str, tokens: int, current_status_text: str
+    ):
         """Update the live status display with current progress information
 
         Args:
@@ -192,8 +227,8 @@ class DisplayWrapper(LLMClientWrapper):
         status.update(
             status=current_status_text,
             description=Text.assemble(
-                (f'{indicator}', ColorStyle.SUCCESS),
-                (f' {tokens} tokens' if tokens else '', ColorStyle.SUCCESS),
+                (f"{indicator}", ColorStyle.SUCCESS),
+                (f" {tokens} tokens" if tokens else "", ColorStyle.SUCCESS),
                 (INTERRUPT_TIP, ColorStyle.HINT),
             ),
         )
@@ -226,34 +261,55 @@ class DisplayWrapper(LLMClientWrapper):
         stream_print_result = not SimpleConfig.get(NO_STREAM_PRINT, False)
 
         if stream_print_result:
-            live = CropAboveLive(status, refresh_per_second=10, console=console.console, transient=True)
+            live = CropAboveLive(
+                status, refresh_per_second=10, console=console.console, transient=True
+            )
         else:
             # Use static status display
             live = status
 
         with live:
-            async for stream_status, ai_message in self.client.stream_call(msgs, tools, timeout):
+            async for stream_status, ai_message in self.client.stream_call(
+                msgs, tools, timeout
+            ):
                 ai_message: AIMessage
                 stream_status: StreamStatus
                 indicator, current_status_text = self._get_phase_indicator_and_status(
-                    stream_status, reasoning_status_text, content_status_text, upload_status_text, status_text_seed
+                    stream_status,
+                    reasoning_status_text,
+                    content_status_text,
+                    upload_status_text,
+                    status_text_seed,
                 )
-                self._update_status_display(status, indicator, stream_status.tokens, current_status_text)
+                self._update_status_display(
+                    status, indicator, stream_status.tokens, current_status_text
+                )
 
                 if show_result:
                     if stream_print_result:
-                        if ai_message.content.strip() or ai_message.thinking_content.strip():
+                        if (
+                            ai_message.content.strip()
+                            or ai_message.thinking_content.strip()
+                        ):
                             # Group content with status, adding spacing for readability
-                            live.update(Group('', ai_message, status))
+                            live.update(Group("", ai_message, status))
                         else:
                             # Only show status if no content yet
                             live.update(status)
                     else:
-                        if stream_status.phase in ['tool_call', 'completed'] and not print_content_flag and ai_message.content:
+                        if (
+                            stream_status.phase in ["tool_call", "completed"]
+                            and not print_content_flag
+                            and ai_message.content
+                        ):
                             console.print()
                             console.print(*ai_message.get_content_renderable(done=True))
                             print_content_flag = True
-                        if stream_status.phase in ['content', 'tool_call', 'completed'] and not print_thinking_flag and ai_message.thinking_content:
+                        if (
+                            stream_status.phase in ["content", "tool_call", "completed"]
+                            and not print_thinking_flag
+                            and ai_message.thinking_content
+                        ):
                             console.print()
                             console.print(*ai_message.get_thinking_renderable())
                             print_thinking_flag = True
@@ -261,11 +317,15 @@ class DisplayWrapper(LLMClientWrapper):
 
             # Clean up the live display area
             if stream_print_result:
-                live.update('')
+                live.update("")
 
         # Final output since transient=True clears the live area
         # Re-print the final message for persistence
-        if show_result and stream_print_result and (ai_message.content or ai_message.thinking_content):
+        if (
+            show_result
+            and stream_print_result
+            and (ai_message.content or ai_message.thinking_content)
+        ):
             console.print()
             console.print(ai_message)
 
@@ -307,14 +367,51 @@ class LLMClient:
             backoff_base: Base delay for exponential backoff
         """
         # Auto-detect provider based on base URL and model name
-        if base_url == 'https://api.anthropic.com/v1/':
-            base_client = AnthropicProxy(model_name, api_key, max_tokens, enable_thinking, extra_header, extra_body)
-        elif 'gemini' in model_name.lower():
-            base_client = GeminiProxy(model_name, base_url, api_key, model_azure, max_tokens, extra_header, extra_body, api_version, enable_thinking)
-        elif 'glm' in model_name.lower():
-            base_client = GLMProxy(model_name, base_url, api_key, model_azure, max_tokens, extra_header, extra_body, api_version, enable_thinking)
+        if base_url == "https://api.anthropic.com/v1/":
+            base_client = AnthropicProxy(
+                model_name,
+                api_key,
+                max_tokens,
+                enable_thinking,
+                extra_header,
+                extra_body,
+            )
+        elif "gemini" in model_name.lower():
+            base_client = GeminiProxy(
+                model_name,
+                base_url,
+                api_key,
+                model_azure,
+                max_tokens,
+                extra_header,
+                extra_body,
+                api_version,
+                enable_thinking,
+            )
+        elif "glm" in model_name.lower():
+            base_client = GLMProxy(
+                model_name,
+                base_url,
+                api_key,
+                model_azure,
+                max_tokens,
+                extra_header,
+                extra_body,
+                api_version,
+                enable_thinking,
+            )
         else:
-            base_client = OpenAIProxy(model_name, base_url, api_key, model_azure, max_tokens, extra_header, extra_body, api_version, enable_thinking)
+            base_client = OpenAIProxy(
+                model_name,
+                base_url,
+                api_key,
+                model_azure,
+                max_tokens,
+                extra_header,
+                extra_body,
+                api_version,
+                enable_thinking,
+            )
 
         self.client = RetryWrapper(base_client, max_retries, backoff_base)
 
@@ -326,9 +423,9 @@ class LLMClient:
         """Cancel the current request"""
         # Find the base client and cancel it
         current_client = self.client
-        while hasattr(current_client, 'client'):
+        while hasattr(current_client, "client"):
             current_client = current_client.client
-        if hasattr(current_client, 'cancel'):
+        if hasattr(current_client, "cancel"):
             current_client.cancel()
 
     async def call(
@@ -341,10 +438,18 @@ class LLMClient:
         timeout: float = 20.0,
     ) -> AIMessage:
         if not show_status:
-            async for _, ai_message in self.client.stream_call(msgs, tools, timeout=timeout):
+            async for _, ai_message in self.client.stream_call(
+                msgs, tools, timeout=timeout
+            ):
                 pass
             return ai_message
 
-        async for _, ai_message in DisplayWrapper(self.client).stream_call(msgs, tools, timeout=timeout, status_text=status_text, show_result=show_result):
+        async for _, ai_message in DisplayWrapper(self.client).stream_call(
+            msgs,
+            tools,
+            timeout=timeout,
+            status_text=status_text,
+            show_result=show_result,
+        ):
             pass
         return ai_message

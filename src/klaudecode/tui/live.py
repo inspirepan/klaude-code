@@ -15,12 +15,14 @@ class CropAboveLiveRender(LiveRender):
     def __init__(
         self,
         renderable,
-        style='',
+        style="",
     ) -> None:
         # Call parent initialization with supported value first
-        super().__init__(renderable, style, 'ellipsis')
+        super().__init__(renderable, style, "ellipsis")
 
-    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> RenderResult:
         """Override rendering method to support crop_above"""
         renderable = self.renderable
         style = console.get_style(self.style)
@@ -67,7 +69,7 @@ class CropAboveLive(Live):
             transient=transient,
             redirect_stdout=redirect_stdout,
             redirect_stderr=redirect_stderr,
-            vertical_overflow='ellipsis',  # Parent class only accepts original values
+            vertical_overflow="ellipsis",  # Parent class only accepts original values
             get_renderable=get_renderable,
         )
         # Replace with our CropAboveLiveRender

@@ -52,10 +52,5 @@ test = [
 ]
 
 [tool.ruff]
-line-length = 180
 target-version = "py313"
 extend-exclude = ["build", "docs/_build"]
-
-[tool.ruff.format]
-quote-style = "single"
-docstring-code-format = true

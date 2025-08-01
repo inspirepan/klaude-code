@@ -24,10 +24,10 @@ class EditHistoryEntry(BaseModel):
 
 
 class CheckModifiedResult(Enum):
-    MODIFIED = 'modified'
-    NOT_TRACKED = 'not_tracked'
-    OS_ACCESS_ERROR = 'os_access_error'
-    NOT_MODIFIED = 'not_modified'
+    MODIFIED = "modified"
+    NOT_TRACKED = "not_tracked"
+    OS_ACCESS_ERROR = "os_access_error"
+    NOT_MODIFIED = "not_modified"
 
 
 class FileTracker(BaseModel):
@@ -44,7 +44,9 @@ class FileTracker(BaseModel):
         """
         try:
             stat = Path(file_path).stat()
-            self.tracking[file_path] = FileStatus(mtime=stat.st_mtime, size=stat.st_size)
+            self.tracking[file_path] = FileStatus(
+                mtime=stat.st_mtime, size=stat.st_size
+            )
         except OSError:
             pass
 
@@ -64,7 +66,10 @@ class FileTracker(BaseModel):
             stat = Path(file_path).stat()
             tracked_status = self.tracking[file_path]
 
-            if stat.st_mtime != tracked_status.mtime or stat.st_size != tracked_status.size:
+            if (
+                stat.st_mtime != tracked_status.mtime
+                or stat.st_size != tracked_status.size
+            ):
                 return CheckModifiedResult.MODIFIED
 
             return CheckModifiedResult.NOT_MODIFIED
@@ -93,7 +98,10 @@ class FileTracker(BaseModel):
         modified_files = []
         for file_path in self.tracking.keys():
             check_modified_result = self.check_modified(file_path)
-            if check_modified_result == CheckModifiedResult.MODIFIED or check_modified_result == CheckModifiedResult.OS_ACCESS_ERROR:
+            if (
+                check_modified_result == CheckModifiedResult.MODIFIED
+                or check_modified_result == CheckModifiedResult.OS_ACCESS_ERROR
+            ):
                 modified_files.append(file_path)
         return modified_files
 
@@ -114,9 +122,11 @@ class FileTracker(BaseModel):
             return False, FILE_MODIFIED_ERROR_MSG
         elif check_modified_result == CheckModifiedResult.OS_ACCESS_ERROR:
             return False, FILE_MODIFIED_ERROR_MSG
-        return True, ''
+        return True, ""
 
-    def record_edit(self, file_path: str, backup_path: str, tool_name: str, operation_summary: str) -> None:
+    def record_edit(
+        self, file_path: str, backup_path: str, tool_name: str, operation_summary: str
+    ) -> None:
         """Record an edit operation for undo functionality.
 
         Args:
@@ -125,7 +135,13 @@ class FileTracker(BaseModel):
             tool_name: Name of the tool that performed the edit
             operation_summary: Brief description of the edit operation
         """
-        entry = EditHistoryEntry(timestamp=time.time(), file_path=file_path, backup_path=backup_path, tool_name=tool_name, operation_summary=operation_summary)
+        entry = EditHistoryEntry(
+            timestamp=time.time(),
+            file_path=file_path,
+            backup_path=backup_path,
+            tool_name=tool_name,
+            operation_summary=operation_summary,
+        )
         self.edit_history.append(entry)
 
         # Keep only the last 10 edits per file to avoid unlimited growth

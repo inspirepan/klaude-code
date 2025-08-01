@@ -19,19 +19,19 @@ def render_message(
     *,
     style: Optional[str] = None,
     mark_style: Optional[str] = None,
-    mark: Optional[str] = '⏺',
-    status: Literal['processing', 'success', 'error', 'canceled'] = 'success',
+    mark: Optional[str] = "⏺",
+    status: Literal["processing", "success", "error", "canceled"] = "success",
     mark_width: int = 0,
 ) -> RichRenderable:
     table = Table.grid(padding=(0, 1))
     table.add_column(width=mark_width, no_wrap=True)
-    table.add_column(overflow='fold')
-    if status == 'error':
+    table.add_column(overflow="fold")
+    if status == "error":
         mark = Text(mark, style=ColorStyle.ERROR)
-    elif status == 'canceled':
+    elif status == "canceled":
         mark = Text(mark, style=ColorStyle.ERROR)
-    elif status == 'processing':
-        mark = Text('○', style=mark_style)
+    elif status == "processing":
+        mark = Text("○", style=mark_style)
     else:
         mark = Text(mark, style=mark_style)
     if isinstance(message, str):
@@ -43,25 +43,31 @@ def render_message(
     return table
 
 
-def render_grid(item: List[List[Union[str, RichRenderable]]], padding: Tuple[int, int] = (0, 1)) -> RichRenderable:
+def render_grid(
+    item: List[List[Union[str, RichRenderable]]], padding: Tuple[int, int] = (0, 1)
+) -> RichRenderable:
     if not item:
-        return ''
+        return ""
     column_count = len(item[0])
     grid = Table.grid(padding=padding)
     for _ in range(column_count):
-        grid.add_column(overflow='fold')
+        grid.add_column(overflow="fold")
     for row in item:
         grid.add_row(*row)
     return grid
 
 
-def render_suffix(content: str | RichRenderable, style: Optional[str] = None) -> RichRenderable:
+def render_suffix(
+    content: str | RichRenderable, style: Optional[str] = None
+) -> RichRenderable:
     if not content:
-        return ''
+        return ""
     table = Table.grid(padding=(0, 1))
     table.add_column(width=3, no_wrap=True, style=style)
-    table.add_column(overflow='fold', style=style)
-    table.add_row('  ⎿ ', Text(content, style=style) if isinstance(content, str) else content)
+    table.add_column(overflow="fold", style=style)
+    table.add_row(
+        "  ⎿ ", Text(content, style=style) if isinstance(content, str) else content
+    )
     return table
 
 
@@ -69,22 +75,22 @@ def render_hello(show_info: bool = True) -> RenderResult:
     if show_info:
         grid_data = [
             [
-                Text('✻', style=ColorStyle.CLAUDE),
+                Text("✻", style=ColorStyle.CLAUDE),
                 Group(
-                    'Welcome to [bold]Klaude Code[/bold]!',
-                    '',
-                    '[italic]/status for your current setup[/italic]',
-                    '',
-                    Text('cwd: {}'.format(Path.cwd())),
+                    "Welcome to [bold]Klaude Code[/bold]!",
+                    "",
+                    "[italic]/status for your current setup[/italic]",
+                    "",
+                    Text("cwd: {}".format(Path.cwd())),
                 ),
             ]
         ]
     else:
         grid_data = [
             [
-                Text('✻', style=ColorStyle.CLAUDE),
+                Text("✻", style=ColorStyle.CLAUDE),
                 Group(
-                    'Welcome to [bold]Klaude Code[/bold]!',
+                    "Welcome to [bold]Klaude Code[/bold]!",
                 ),
             ]
         ]
@@ -94,20 +100,24 @@ def render_hello(show_info: bool = True) -> RenderResult:
 
 def get_tip(all_tips: bool = False) -> RichRenderable:
     tips = [
-        'Type \\ followed by [main]Enter[/main] to insert newlines',
-        'Type / to choose slash command',
-        'Type ! to run bash command',
+        "Type \\ followed by [main]Enter[/main] to insert newlines",
+        "Type / to choose slash command",
+        "Type ! to run bash command",
         "Want Claude to remember something? Hit # to add preferences, tools, and instructions to Claude's memory",
-        'Type * to start plan mode',
-        'Type @ to mention a file',
+        "Type * to start plan mode",
+        "Type @ to mention a file",
     ]
 
-    if (Path.cwd() / '.klaude' / 'sessions').exists():
-        tips.append('Run [main]klaude --continue[/main] or [main]klaude --resume[/main] to resume a conversation')
-    if not (Path.cwd() / 'CLAUDE.md').exists():
-        tips.append('Run [main]/init[/main] to analyse your codebase')
-    if (Path.cwd() / '.klaude' / 'mcp.json').exists():
-        tips.append('Run [main]klaude --mcp[/main] or [main]/mcp[/main] to enable MCP tools')
+    if (Path.cwd() / ".klaude" / "sessions").exists():
+        tips.append(
+            "Run [main]klaude --continue[/main] or [main]klaude --resume[/main] to resume a conversation"
+        )
+    if not (Path.cwd() / "CLAUDE.md").exists():
+        tips.append("Run [main]/init[/main] to analyse your codebase")
+    if (Path.cwd() / ".klaude" / "mcp.json").exists():
+        tips.append(
+            "Run [main]klaude --mcp[/main] or [main]/mcp[/main] to enable MCP tools"
+        )
 
     if all_tips:
         return Group(*(Text.from_markup(tip, style=ColorStyle.HINT) for tip in tips))
@@ -120,14 +130,16 @@ def get_tip(all_tips: bool = False) -> RichRenderable:
 def render_tips() -> RenderResult:
     return render_message(
         get_tip(),
-        mark='※ Tip:',
+        mark="※ Tip:",
         style=ColorStyle.HINT,
         mark_style=ColorStyle.HINT,
         mark_width=5,
     )
 
 
-def truncate_middle_text(text: str, max_lines: int = 50, buffer_threshold: int = 20) -> RichRenderable:
+def truncate_middle_text(
+    text: str, max_lines: int = 50, buffer_threshold: int = 20
+) -> RichRenderable:
     lines = text.splitlines()
 
     if len(lines) <= max_lines + buffer_threshold:
@@ -137,20 +149,28 @@ def truncate_middle_text(text: str, max_lines: int = 50, buffer_threshold: int =
     tail_lines = max_lines - head_lines
     middle_lines = len(lines) - head_lines - tail_lines
 
-    head_content = '\n'.join(lines[:head_lines])
-    tail_content = '\n'.join(lines[-tail_lines:])
+    head_content = "\n".join(lines[:head_lines])
+    tail_content = "\n".join(lines[-tail_lines:])
     return Group(
         Text(head_content),
-        Rule(style=ColorStyle.LINE, title='···'),
-        '',
-        Text.assemble('+ ', Text(str(middle_lines), style=ColorStyle.MAIN.bold), ' lines', style=ColorStyle.HINT, justify='center'),
-        '',
-        Rule(style=ColorStyle.LINE, title='···'),
+        Rule(style=ColorStyle.LINE, title="···"),
+        "",
+        Text.assemble(
+            "+ ",
+            Text(str(middle_lines), style=ColorStyle.MAIN.bold),
+            " lines",
+            style=ColorStyle.HINT,
+            justify="center",
+        ),
+        "",
+        Rule(style=ColorStyle.LINE, title="···"),
         Text(tail_content),
     )
 
 
-def render_logo(text: str, color_style: Optional[Union[ColorStyle, str, Style]] = None) -> RichRenderable:
+def render_logo(
+    text: str, color_style: Optional[Union[ColorStyle, str, Style]] = None
+) -> RichRenderable:
     """
     Render ASCII art logo with optional color style.
 

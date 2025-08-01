@@ -25,8 +25,14 @@ class BashProcessManager:
             children = []
             try:
                 # Use pgrep to find all descendants, not just direct children
-                output = subprocess.check_output(['pgrep', '-P', str(pid)], stderr=subprocess.DEVNULL, timeout=2)
-                children = [int(child_pid) for child_pid in output.decode().strip().split('\n') if child_pid]
+                output = subprocess.check_output(
+                    ["pgrep", "-P", str(pid)], stderr=subprocess.DEVNULL, timeout=2
+                )
+                children = [
+                    int(child_pid)
+                    for child_pid in output.decode().strip().split("\n")
+                    if child_pid
+                ]
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
                 # No children found or pgrep failed
                 pass

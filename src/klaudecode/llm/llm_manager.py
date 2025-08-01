@@ -22,15 +22,15 @@ class LLMManager:
         """Initialize LLM manager from ConfigModel"""
         with self._lock:
             self.config_cache = {
-                'model_name': config.model_name.value,
-                'base_url': config.base_url.value,
-                'api_key': config.api_key.value,
-                'model_azure': config.model_azure.value,
-                'max_tokens': config.max_tokens.value,
-                'extra_header': config.extra_header.value,
-                'extra_body': config.extra_body.value,
-                'enable_thinking': config.enable_thinking.value,
-                'api_version': config.api_version.value,
+                "model_name": config.model_name.value,
+                "base_url": config.base_url.value,
+                "api_key": config.api_key.value,
+                "model_azure": config.model_azure.value,
+                "max_tokens": config.max_tokens.value,
+                "extra_header": config.extra_header.value,
+                "extra_body": config.extra_body.value,
+                "enable_thinking": config.enable_thinking.value,
+                "api_version": config.api_version.value,
             }
 
     def get_client(self) -> LLMClient:
@@ -39,19 +39,21 @@ class LLMManager:
 
         if thread_id not in self.client_pool:
             if not self.config_cache:
-                raise RuntimeError('LLMManager not initialized. Call initialize_from_config() first.')
+                raise RuntimeError(
+                    "LLMManager not initialized. Call initialize_from_config() first."
+                )
 
             # Create new client for this thread
             self.client_pool[thread_id] = LLMClient(
-                model_name=self.config_cache['model_name'],
-                base_url=self.config_cache['base_url'],
-                api_key=self.config_cache['api_key'],
-                model_azure=self.config_cache['model_azure'],
-                max_tokens=self.config_cache['max_tokens'],
-                extra_header=self.config_cache['extra_header'],
-                extra_body=self.config_cache['extra_body'],
-                enable_thinking=self.config_cache['enable_thinking'],
-                api_version=self.config_cache['api_version'],
+                model_name=self.config_cache["model_name"],
+                base_url=self.config_cache["base_url"],
+                api_key=self.config_cache["api_key"],
+                model_azure=self.config_cache["model_azure"],
+                max_tokens=self.config_cache["max_tokens"],
+                extra_header=self.config_cache["extra_header"],
+                extra_body=self.config_cache["extra_body"],
+                enable_thinking=self.config_cache["enable_thinking"],
+                api_version=self.config_cache["api_version"],
             )
 
         return self.client_pool[thread_id]
@@ -92,7 +94,7 @@ class LLMManager:
             # Check if interrupt flag is already set
             if self._interrupt_flag.is_set():
                 self._interrupt_flag.clear()
-                raise asyncio.CancelledError('LLM call interrupted by SIGINT')
+                raise asyncio.CancelledError("LLM call interrupted by SIGINT")
 
             # Create a task for the LLM call after setting up interrupt handling
             call_task = asyncio.create_task(
@@ -117,7 +119,7 @@ class LLMManager:
                 # Check if it was our interrupt
                 if self._interrupt_flag.is_set():
                     self._interrupt_flag.clear()
-                    raise asyncio.CancelledError('LLM call interrupted by SIGINT')
+                    raise asyncio.CancelledError("LLM call interrupted by SIGINT")
                 raise
 
         finally:
@@ -136,9 +138,9 @@ class LLMManager:
             client = self.client_pool[thread_id]
             # Proactively close HTTP client connections
             try:
-                if hasattr(client.client, 'client'):
+                if hasattr(client.client, "client"):
                     http_client = client.client.client
-                    if hasattr(http_client, 'aclose'):
+                    if hasattr(http_client, "aclose"):
                         await http_client.aclose()
             except Exception:
                 # Ignore cleanup errors

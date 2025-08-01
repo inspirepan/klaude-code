@@ -4,12 +4,18 @@ def add_cache_control(msg: object) -> object:
     """
     if not msg:
         return msg
-    if 'content' not in msg:
+    if "content" not in msg:
         return msg
-    if isinstance(msg['content'], str):
-        msg['content'] = [{'type': 'text', 'text': msg['content'], 'cache_control': {'type': 'ephemeral'}}]
-    elif isinstance(msg['content'], list):
-        msg['content'][-1]['cache_control'] = {'type': 'ephemeral'}
+    if isinstance(msg["content"], str):
+        msg["content"] = [
+            {
+                "type": "text",
+                "text": msg["content"],
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+    elif isinstance(msg["content"], list):
+        msg["content"][-1]["cache_control"] = {"type": "ephemeral"}
     return msg
 
 
@@ -19,10 +25,10 @@ def remove_cache_control(msg: object) -> object:
     """
     if not msg:
         return msg
-    if 'content' not in msg:
+    if "content" not in msg:
         return msg
-    if isinstance(msg['content'], str):
+    if isinstance(msg["content"], str):
         return msg
-    if isinstance(msg['content'], list) and 'cache_control' in msg['content'][-1]:
-        msg['content'][-1].pop('cache_control')
+    if isinstance(msg["content"], list) and "cache_control" in msg["content"][-1]:
+        msg["content"][-1].pop("cache_control")
     return msg

@@ -31,7 +31,7 @@ class InputSession:
         self.paste_dict: Dict[str, PasteItem] = {}
         self.paste_counter = 0
 
-        history_file = self.workdir / '.klaude' / 'input_history.txt'
+        history_file = self.workdir / ".klaude" / "input_history.txt"
         if not history_file.exists():
             history_file.parent.mkdir(parents=True, exist_ok=True)
             history_file.touch()
@@ -58,7 +58,7 @@ class InputSession:
 
     def _setup_buffer_handlers(self, buf: Buffer):
         """Setup buffer event handlers including text change detection."""
-        previous_text = ''
+        previous_text = ""
         timer = None
 
         def handle_inserted_text():
@@ -74,16 +74,20 @@ class InputSession:
                     # Find where the inserted text is in current_text
                     insert_pos = current_text.find(inserted_text)
                     # Check if there's an @ symbol immediately before the inserted text
-                    has_at_prefix = insert_pos > 0 and current_text[insert_pos - 1] == '@'
+                    has_at_prefix = (
+                        insert_pos > 0 and current_text[insert_pos - 1] == "@"
+                    )
 
                     # Skip conversion if it's a @ prefixed path (file completion)
                     if not has_at_prefix:
                         # Generate next image ID and store in paste dict
                         image_id = self._get_next_image_id()
-                        self.paste_dict[image_id] = PasteItem(type='file', path=inserted_text.strip())
+                        self.paste_dict[image_id] = PasteItem(
+                            type="file", path=inserted_text.strip()
+                        )
 
                         # Replace the inserted text with [Image #N] format
-                        new_text = f'[Image #{image_id}]'
+                        new_text = f"[Image #{image_id}]"
                         buf.text = current_text.replace(inserted_text, new_text)
                         buf.cursor_position = len(buf.text)
 
@@ -105,7 +109,7 @@ class InputSession:
     def _setup_key_bindings(self, buf: Buffer, kb: KeyBindings):
         for mode in _INPUT_MODES.values():
             binding_keys = []
-            if hasattr(mode, 'binding_keys'):
+            if hasattr(mode, "binding_keys"):
                 binding_keys = mode.binding_keys()
             elif mode.binding_key():
                 binding_keys = [mode.binding_key()]
@@ -118,7 +122,10 @@ class InputSession:
                     @kb.add(bind_key)
                     def _(event):
                         document = buf.document
-                        current_line_start_pos = document.cursor_position + document.get_start_of_line_position()
+                        current_line_start_pos = (
+                            document.cursor_position
+                            + document.get_start_of_line_position()
+                        )
                         if buf.cursor_position == current_line_start_pos:
                             self._switch_mode(event, current_mode.get_name())
                             return
@@ -128,13 +135,18 @@ class InputSession:
 
                 make_binding()
 
-        @kb.add('backspace')
+        @kb.add("backspace")
         def _(event):
             document = buf.document
-            current_line_start_pos = document.cursor_position + document.get_start_of_line_position()
+            current_line_start_pos = (
+                document.cursor_position + document.get_start_of_line_position()
+            )
             if buf.cursor_position == current_line_start_pos:
                 # If we're at the start of the first line and in a special mode, switch to normal mode
-                if document.cursor_position == 0 and self.current_input_mode.get_name() != NORMAL_MODE_NAME:
+                if (
+                    document.cursor_position == 0
+                    and self.current_input_mode.get_name() != NORMAL_MODE_NAME
+                ):
                     self._switch_mode(event, NORMAL_MODE_NAME)
                     return
                 # If we're at the start of a line but not the first line, allow deletion
@@ -143,13 +155,13 @@ class InputSession:
                     return
             buf.delete_before_cursor()
 
-        @kb.add('c-u')
+        @kb.add("c-u")
         def _(event):
             """Clear the entire buffer with ctrl+u (Unix standard)"""
-            buf.text = ''
+            buf.text = ""
             buf.cursor_position = 0
 
-        @kb.add('c-v')
+        @kb.add("c-v")
         def _(event):
             """Handle Ctrl+V paste with image detection"""
             try:
@@ -163,15 +175,17 @@ class InputSession:
                     import io
 
                     img_buffer = io.BytesIO()
-                    clipboard_image.save(img_buffer, format='PNG')
-                    img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+                    clipboard_image.save(img_buffer, format="PNG")
+                    img_base64 = base64.b64encode(img_buffer.getvalue()).decode("utf-8")
 
                     # Generate next image ID and store in paste dict
                     image_id = self._get_next_image_id()
-                    self.paste_dict[image_id] = PasteItem(type='clipboard', content=img_base64)
+                    self.paste_dict[image_id] = PasteItem(
+                        type="clipboard", content=img_base64
+                    )
 
                     # Insert the image reference
-                    image_text = f'[Image #{image_id}]'
+                    image_text = f"[Image #{image_id}]"
                     buf.insert_text(image_text)
                 else:
                     # Fall back to regular text paste
@@ -190,16 +204,16 @@ class InputSession:
                 except Exception:
                     pass
 
-        @kb.add('enter')
+        @kb.add("enter")
         def _(event):
             buffer = event.current_buffer
             cursor_pos = buffer.cursor_position
             # Check if there's a backslash immediately before cursor
-            if cursor_pos > 0 and buffer.text[cursor_pos - 1] == '\\':
+            if cursor_pos > 0 and buffer.text[cursor_pos - 1] == "\\":
                 # Delete the backslash
                 buffer.delete_before_cursor()
                 # Insert newline
-                buffer.insert_text('\n')
+                buffer.insert_text("\n")
             else:
                 buffer.validate_and_handle()
 
@@ -212,8 +226,10 @@ class InputSession:
             placeholder=self._dyn_placeholder,
             cursor=CursorShape.BEAM,
             completer=UserInputCompleter(
-                enable_file_completion_callabck=lambda: self.current_input_mode.get_name() in [NORMAL_MODE_NAME, 'plan'],
-                enable_command_callabck=lambda: self.current_input_mode.get_name() == NORMAL_MODE_NAME,
+                enable_file_completion_callabck=lambda: self.current_input_mode.get_name()
+                in [NORMAL_MODE_NAME, "plan"],
+                enable_command_callabck=lambda: self.current_input_mode.get_name()
+                == NORMAL_MODE_NAME,
             ),
             style=self.current_input_mode.get_style(),
         )
@@ -228,12 +244,12 @@ class InputSession:
         console.print()
         input_text = self._get_session().prompt()
         if self.current_input_mode.get_name() != NORMAL_MODE_NAME:
-            input_text = f'/{self.current_input_mode.get_name()} {input_text}'
+            input_text = f"/{self.current_input_mode.get_name()} {input_text}"
         return input_text
 
     async def prompt_async(self):
         console.print()
         input_text = await self._get_session().prompt_async()
         if self.current_input_mode.get_name() != NORMAL_MODE_NAME:
-            input_text = f'/{self.current_input_mode.get_name()} {input_text}'
+            input_text = f"/{self.current_input_mode.get_name()} {input_text}"
         return input_text

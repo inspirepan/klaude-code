@@ -13,12 +13,12 @@ from .base import BasicMessage
 
 
 class SpecialUserMessageTypeEnum(Enum):
-    INTERRUPTED = 'interrupted'
-    COMPACT_RESULT = 'compact_result'
+    INTERRUPTED = "interrupted"
+    COMPACT_RESULT = "compact_result"
 
 
 class UserMessage(BasicMessage):
-    role: Literal['user'] = 'user'
+    role: Literal["user"] = "user"
     pre_system_reminders: Optional[List[str]] = None
     post_system_reminders: Optional[List[str]] = None
     user_msg_type: Optional[str] = None
@@ -39,8 +39,8 @@ class UserMessage(BasicMessage):
         if self.pre_system_reminders:
             content_list.extend(
                 {
-                    'type': 'text',
-                    'text': reminder,
+                    "type": "text",
+                    "text": reminder,
                 }
                 for reminder in self.pre_system_reminders
             )
@@ -52,8 +52,8 @@ class UserMessage(BasicMessage):
 
         content_list.append(
             {
-                'type': 'text',
-                'text': main_content,
+                "type": "text",
+                "text": main_content,
             }
         )
 
@@ -66,8 +66,8 @@ class UserMessage(BasicMessage):
         if self.post_system_reminders:
             content_list.extend(
                 {
-                    'type': 'text',
-                    'text': reminder,
+                    "type": "text",
+                    "text": reminder,
                 }
                 for reminder in self.post_system_reminders
             )
@@ -79,7 +79,7 @@ class UserMessage(BasicMessage):
         if self._openai_cache is not None:
             return self._openai_cache
 
-        result = {'role': 'user', 'content': self.get_content()}
+        result = {"role": "user", "content": self.get_content()}
         self._openai_cache = result
         return result
 
@@ -87,7 +87,7 @@ class UserMessage(BasicMessage):
         if self._anthropic_cache is not None:
             return self._anthropic_cache
 
-        result = MessageParam(role='user', content=self.get_content())
+        result = MessageParam(role="user", content=self.get_content())
         self._anthropic_cache = result
         return result
 
@@ -97,7 +97,7 @@ class UserMessage(BasicMessage):
         if not self.user_msg_type or self.user_msg_type not in _USER_MSG_RENDERERS:
             yield render_message(
                 Text(self.content, style=ColorStyle.USER_MESSAGE),
-                mark='>',
+                mark=">",
             )
         else:
             yield from _USER_MSG_RENDERERS[self.user_msg_type](self)
@@ -114,16 +114,26 @@ class UserMessage(BasicMessage):
             for attachment in self.attachments:
                 display_path = get_relative_path_for_display(attachment.path)
 
-                if attachment.type == 'directory':
-                    attachment_text = Text.assemble('Listed directory ', (display_path + '/', ColorStyle.MAIN.bold))
-                elif attachment.type == 'image':
-                    attachment_text = Text.assemble('Read image ', (display_path, ColorStyle.MAIN.bold), f' ({attachment.size_str})' if attachment.size_str else '')
+                if attachment.type == "directory":
+                    attachment_text = Text.assemble(
+                        "Listed directory ", (display_path + "/", ColorStyle.MAIN.bold)
+                    )
+                elif attachment.type == "image":
+                    attachment_text = Text.assemble(
+                        "Read image ",
+                        (display_path, ColorStyle.MAIN.bold),
+                        f" ({attachment.size_str})" if attachment.size_str else "",
+                    )
                 else:
-                    attachment_text = Text.assemble('Read ', (display_path, ColorStyle.MAIN.bold), f' ({attachment.line_count} lines)')
+                    attachment_text = Text.assemble(
+                        "Read ",
+                        (display_path, ColorStyle.MAIN.bold),
+                        f" ({attachment.line_count} lines)",
+                    )
                 yield render_suffix(attachment_text)
 
-        if self.get_extra_data('error_msgs'):
-            for error in self.get_extra_data('error_msgs'):
+        if self.get_extra_data("error_msgs"):
+            for error in self.get_extra_data("error_msgs"):
                 yield render_suffix(error, style=ColorStyle.ERROR)
 
     def __bool__(self) -> bool:
@@ -137,7 +147,9 @@ class UserMessage(BasicMessage):
         """
         For filtering out empty messages for session saving
         """
-        return (self.content is not None and len(self.content.strip()) > 0) or (self.user_raw_input is not None and len(self.user_raw_input.strip()) > 0)
+        return (self.content is not None and len(self.content.strip()) > 0) or (
+            self.user_raw_input is not None and len(self.user_raw_input.strip()) > 0
+        )
 
     def append_pre_system_reminder(self, reminder: str):
         if not self.pre_system_reminders:
@@ -160,22 +172,31 @@ class UserMessage(BasicMessage):
         self._anthropic_cache = None
 
 
-INTERRUPTED_MSG = 'Interrupted by user'
+INTERRUPTED_MSG = "Interrupted by user"
 
 
-def interrupted_renderer(user_msg: 'UserMessage'):
-    yield render_message(INTERRUPTED_MSG, style=ColorStyle.ERROR, mark='>', mark_style=ColorStyle.ERROR)
+def interrupted_renderer(user_msg: "UserMessage"):
+    yield render_message(
+        INTERRUPTED_MSG, style=ColorStyle.ERROR, mark=">", mark_style=ColorStyle.ERROR
+    )
 
 
-def compact_renderer(user_msg: 'UserMessage'):
-    yield Rule(title=Text('Previous Conversation Compacted', ColorStyle.HIGHLIGHT.bold), characters='=', style=ColorStyle.HIGHLIGHT)
-    summary = extract_xml_content(user_msg.content, 'summary')
-    analysis = extract_xml_content(user_msg.content, 'analysis')
-    markdown_content = render_markdown(f'### Analysis\n{analysis}\n\n### Summary\n{summary}', style=ColorStyle.AI_CONTENT.italic)
+def compact_renderer(user_msg: "UserMessage"):
+    yield Rule(
+        title=Text("Previous Conversation Compacted", ColorStyle.HIGHLIGHT.bold),
+        characters="=",
+        style=ColorStyle.HIGHLIGHT,
+    )
+    summary = extract_xml_content(user_msg.content, "summary")
+    analysis = extract_xml_content(user_msg.content, "analysis")
+    markdown_content = render_markdown(
+        f"### Analysis\n{analysis}\n\n### Summary\n{summary}",
+        style=ColorStyle.AI_CONTENT.italic,
+    )
 
     yield render_message(
         markdown_content,
-        mark='✻',
+        mark="✻",
         mark_style=ColorStyle.HIGHLIGHT,
     )
 
@@ -183,8 +204,12 @@ def compact_renderer(user_msg: 'UserMessage'):
 def initialize_default_renderers():
     from .registry import register_user_msg_renderer
 
-    register_user_msg_renderer(SpecialUserMessageTypeEnum.INTERRUPTED.value, interrupted_renderer)
-    register_user_msg_renderer(SpecialUserMessageTypeEnum.COMPACT_RESULT.value, compact_renderer)
+    register_user_msg_renderer(
+        SpecialUserMessageTypeEnum.INTERRUPTED.value, interrupted_renderer
+    )
+    register_user_msg_renderer(
+        SpecialUserMessageTypeEnum.COMPACT_RESULT.value, compact_renderer
+    )
 
 
 initialize_default_renderers()

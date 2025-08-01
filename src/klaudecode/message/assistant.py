@@ -17,12 +17,14 @@ class CompletionUsage(BaseModel):
 
 
 class AIMessage(BasicMessage):
-    role: Literal['assistant'] = 'assistant'
+    role: Literal["assistant"] = "assistant"
     tool_calls: Dict[str, ToolCall] = {}
-    thinking_content: str = ''
-    thinking_signature: str = ''
-    finish_reason: Literal['stop', 'length', 'tool_calls', 'content_filter', 'function_call'] = 'stop'
-    status: Literal['success', 'processing', 'error'] = 'processing'
+    thinking_content: str = ""
+    thinking_signature: str = ""
+    finish_reason: Literal[
+        "stop", "length", "tool_calls", "content_filter", "function_call"
+    ] = "stop"
+    status: Literal["success", "processing", "error"] = "processing"
     usage: Optional[CompletionUsage] = None
 
     _openai_cache: Optional[dict] = None
@@ -39,24 +41,24 @@ class AIMessage(BasicMessage):
         if self.thinking_content:
             content.append(
                 {
-                    'type': 'thinking',
-                    'thinking': self.thinking_content,
-                    'signature': self.thinking_signature,
+                    "type": "thinking",
+                    "thinking": self.thinking_content,
+                    "signature": self.thinking_signature,
                 }
             )
         if self.content:
             content.append(
                 {
-                    'type': 'text',
-                    'text': self.content,
+                    "type": "text",
+                    "text": self.content,
                 }
             )
         if self.tool_calls:
             for tc in self.tool_calls.values():
                 content.append(
                     {
-                        'type': 'text',
-                        'text': tc.tool_args,
+                        "type": "text",
+                        "text": tc.tool_args,
                     }
                 )
 
@@ -67,9 +69,9 @@ class AIMessage(BasicMessage):
         if self._openai_cache is not None:
             return self._openai_cache
 
-        result = {'role': 'assistant', 'content': self.content}
+        result = {"role": "assistant", "content": self.content}
         if self.tool_calls:
-            result['tool_calls'] = [tc.to_openai() for tc in self.tool_calls.values()]
+            result["tool_calls"] = [tc.to_openai() for tc in self.tool_calls.values()]
 
         self._openai_cache = result
         return result
@@ -82,16 +84,16 @@ class AIMessage(BasicMessage):
         if self.thinking_content:
             content.append(
                 {
-                    'type': 'thinking',
-                    'thinking': self.thinking_content,
-                    'signature': self.thinking_signature,
+                    "type": "thinking",
+                    "thinking": self.thinking_content,
+                    "signature": self.thinking_signature,
                 }
             )
         if self.content:
             content.append(
                 {
-                    'type': 'text',
-                    'text': self.content,
+                    "type": "text",
+                    "text": self.content,
                 }
             )
         if self.tool_calls:
@@ -99,7 +101,7 @@ class AIMessage(BasicMessage):
                 content.append(tc.to_anthropic())
 
         result = MessageParam(
-            role='assistant',
+            role="assistant",
             content=content,
         )
         self._anthropic_cache = result
@@ -113,22 +115,30 @@ class AIMessage(BasicMessage):
         thinking_content = self.thinking_content.strip()
         if thinking_content:
             yield render_message(
-                Text('Thinking...', style=ColorStyle.AI_THINKING.italic),
-                mark='✻',
+                Text("Thinking...", style=ColorStyle.AI_THINKING.italic),
+                mark="✻",
                 mark_style=ColorStyle.AI_THINKING,
             )
-            yield ''
-            yield render_message(Text(thinking_content, style=ColorStyle.AI_THINKING.italic), mark='')
-            yield ''
+            yield ""
+            yield render_message(
+                Text(thinking_content, style=ColorStyle.AI_THINKING.italic), mark=""
+            )
+            yield ""
 
     def get_content_renderable(self, done: bool = False):
         content = self.content.strip()
         if content:
-            yield render_message(render_markdown(content, style=ColorStyle.AI_CONTENT), mark_style=ColorStyle.AI_MARK, status=self.status)
+            yield render_message(
+                render_markdown(content, style=ColorStyle.AI_CONTENT),
+                mark_style=ColorStyle.AI_MARK,
+                status=self.status,
+            )
 
     def __bool__(self):
         has_content = (self.content is not None) and len(self.content.strip()) > 0
-        has_thinking = (self.thinking_content is not None) and len(self.thinking_content.strip()) > 0
+        has_thinking = (self.thinking_content is not None) and len(
+            self.thinking_content.strip()
+        ) > 0
         has_tool_calls = (self.tool_calls is not None) and len(self.tool_calls) > 0
         return not self.removed and (has_content or has_thinking or has_tool_calls)
 
@@ -138,7 +148,7 @@ class AIMessage(BasicMessage):
     def append_thinking_content_chunk(self, thinking_content_chunk: str):
         self.thinking_content += thinking_content_chunk
 
-    def merge(self, other: 'AIMessage') -> 'AIMessage':
+    def merge(self, other: "AIMessage") -> "AIMessage":
         """
         # For message continuation, not currently used
         """
@@ -172,7 +182,7 @@ class AgentUsage(BaseModel):
             self.total_input_tokens += ai_message.usage.prompt_tokens
             self.total_output_tokens += ai_message.usage.completion_tokens
 
-    def update_with_usage(self, other_usage: 'AgentUsage'):
+    def update_with_usage(self, other_usage: "AgentUsage"):
         self.total_llm_calls += other_usage.total_llm_calls
         self.total_input_tokens += other_usage.total_input_tokens
         self.total_output_tokens += other_usage.total_output_tokens
@@ -181,7 +191,16 @@ class AgentUsage(BaseModel):
         from rich.console import Group
 
         yield Group(
-            Text(f'Total LLM calls:     {self.total_llm_calls:<10}', style=ColorStyle.HINT),
-            Text(f'Total input tokens:  {self.total_input_tokens:<10}', style=ColorStyle.HINT),
-            Text(f'Total output tokens: {self.total_output_tokens:<10}', style=ColorStyle.HINT),
+            Text(
+                f"Total LLM calls:     {self.total_llm_calls:<10}",
+                style=ColorStyle.HINT,
+            ),
+            Text(
+                f"Total input tokens:  {self.total_input_tokens:<10}",
+                style=ColorStyle.HINT,
+            ),
+            Text(
+                f"Total output tokens: {self.total_output_tokens:<10}",
+                style=ColorStyle.HINT,
+            ),
         )

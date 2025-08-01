@@ -26,11 +26,11 @@ class GeminiProxy(OpenAIProxy):
             index = chunk.index
             if index not in self.tool_call_dict:
                 # Generate unique ID for this tool call
-                tool_call_id = f'call_{uuid.uuid4().hex[:8]}_{index}'
+                tool_call_id = f"call_{uuid.uuid4().hex[:8]}_{index}"
                 self.tool_call_dict[index] = ChatCompletionMessageToolCall(
                     id=tool_call_id,
-                    function=Function(arguments='', name=''),
-                    type='function',
+                    function=Function(arguments="", name=""),
+                    type="function",
                 )
                 # Also add to parent's list for compatibility
                 self.tool_call_list.append(self.tool_call_dict[index])
@@ -39,4 +39,6 @@ class GeminiProxy(OpenAIProxy):
             if chunk.function and chunk.function.name:
                 self.tool_call_dict[index].function.name = chunk.function.name
             if chunk.function and chunk.function.arguments:
-                self.tool_call_dict[index].function.arguments += chunk.function.arguments
+                self.tool_call_dict[
+                    index
+                ].function.arguments += chunk.function.arguments

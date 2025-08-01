@@ -13,7 +13,7 @@ _encoder_cache = weakref.WeakValueDictionary()
 def _get_encoder():
     import tiktoken
 
-    return tiktoken.encoding_for_model('gpt-4')
+    return tiktoken.encoding_for_model("gpt-4")
 
 
 @lru_cache(maxsize=512)
@@ -24,19 +24,19 @@ def count_tokens(text: str) -> int:
 
 
 class Attachment(BaseModel):
-    type: Literal['text', 'image', 'directory'] = 'text'
+    type: Literal["text", "image", "directory"] = "text"
     path: str
-    content: str = ''
+    content: str = ""
     is_directory: bool = False
     # Text file
     line_count: int = 0
     brief: List[Tuple[int, str]] = []  # line_number, line_content for UI display
-    actual_range_str: str = ''  # actual range of the file for UI display
+    actual_range_str: str = ""  # actual range of the file for UI display
     truncated: bool = False
 
     # Image
     media_type: Optional[str] = None
-    size_str: str = ''
+    size_str: str = ""
 
     _content_cache: Optional[List] = None
 
@@ -44,22 +44,41 @@ class Attachment(BaseModel):
         if self._content_cache is not None:
             return self._content_cache
 
-        if self.type == 'image':
+        if self.type == "image":
             if self.path:
                 content = [
-                    {'type': 'text', 'text': f'Following is the image from file: {self.path}, you DO NOT need to call Read tool again.'},
-                    {'type': 'image', 'source': {'type': 'base64', 'data': self.content, 'media_type': self.media_type}},
+                    {
+                        "type": "text",
+                        "text": f"Following is the image from file: {self.path}, you DO NOT need to call Read tool again.",
+                    },
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "data": self.content,
+                            "media_type": self.media_type,
+                        },
+                    },
                 ]
             else:
-                content = [{'type': 'image', 'source': {'type': 'base64', 'data': self.content, 'media_type': self.media_type}}]
-        elif self.type == 'directory':
+                content = [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "data": self.content,
+                            "media_type": self.media_type,
+                        },
+                    }
+                ]
+        elif self.type == "directory":
             attachment_text = f'''Called the LS tool with the following input: {{"path":"{self.path}"}}
 Result of calling the LS tool: "{self.content}"'''
-            content = [{'type': 'text', 'text': attachment_text}]
+            content = [{"type": "text", "text": attachment_text}]
         else:
             attachment_text = f'''Called the Read tool with the following input: {{"file_path":"{self.path}"}}
 Result of calling the Read tool: "{self.content}"'''
-            content = [{'type': 'text', 'text': attachment_text}]
+            content = [{"type": "text", "text": attachment_text}]
 
         self._content_cache = content
         return content
@@ -67,7 +86,7 @@ Result of calling the Read tool: "{self.content}"'''
 
 class BasicMessage(BaseModel):
     role: str
-    content: str = ''
+    content: str = ""
     removed: bool = False
     extra_data: Optional[dict] = None
     attachments: Optional[List[Attachment]] = None
@@ -79,7 +98,7 @@ class BasicMessage(BaseModel):
         if self._content_cache is not None:
             return self._content_cache
 
-        content = [{'type': 'text', 'text': self.content}]
+        content = [{"type": "text", "text": self.content}]
         self._content_cache = content
         return content
 
@@ -89,25 +108,25 @@ class BasicMessage(BaseModel):
             return self._tokens_cache
 
         content_list = self.get_content()
-        total_text = ''
+        total_text = ""
 
         if isinstance(content_list, str):
             total_text = content_list
         elif isinstance(content_list, list):
             for item in content_list:
                 if isinstance(item, dict):
-                    if item.get('type') == 'text':
-                        total_text += item.get('text', '')
-                    elif item.get('type') == 'thinking':
-                        total_text += item.get('thinking', '')
-                    elif item.get('type') == 'tool_use':
+                    if item.get("type") == "text":
+                        total_text += item.get("text", "")
+                    elif item.get("type") == "thinking":
+                        total_text += item.get("thinking", "")
+                    elif item.get("type") == "tool_use":
                         # Count the full JSON structure that gets sent to API
                         total_text += json.dumps(item)
                 elif isinstance(item, str):
                     total_text += item
 
         # Add role overhead (approximation)
-        total_text = f'{self.role}: {total_text}'
+        total_text = f"{self.role}: {total_text}"
 
         self._tokens_cache = count_tokens(total_text)
         return self._tokens_cache

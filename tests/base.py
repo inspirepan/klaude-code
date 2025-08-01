@@ -36,16 +36,22 @@ class BaseToolTest:
         """Create a test file in the temporary directory."""
         file_path = self.temp_path / name
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_path.write_text(content, encoding='utf-8')
+        file_path.write_text(content, encoding="utf-8")
         return file_path
 
     def create_tool_call(self, tool_class: type[Tool], args: dict) -> ToolCall:
         """Create a ToolCall instance for testing."""
         import json
 
-        return ToolCall(id='test_call_123', tool_name=tool_class.get_name(), tool_args=json.dumps(args))
+        return ToolCall(
+            id="test_call_123",
+            tool_name=tool_class.get_name(),
+            tool_args=json.dumps(args),
+        )
 
-    def create_tool_instance(self, tool_class: type[Tool], tool_call: ToolCall) -> ToolInstance:
+    def create_tool_instance(
+        self, tool_class: type[Tool], tool_call: ToolCall
+    ) -> ToolInstance:
         """Create a ToolInstance for testing."""
         return tool_class.create_instance(tool_call, self.mock_agent)
 
@@ -59,8 +65,8 @@ class BaseToolTest:
 
         # Check if status was updated, if still processing, set to success
         result = instance.tool_result()
-        if result.tool_call.status == 'processing' and not result.error_msg:
-            result.tool_call.status = 'success'
+        if result.tool_call.status == "processing" and not result.error_msg:
+            result.tool_call.status = "success"
 
         # Return the result
         return result

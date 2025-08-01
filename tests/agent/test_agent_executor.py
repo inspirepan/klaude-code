@@ -42,7 +42,7 @@ class TestAgentExecutor:
 
     @pytest.fixture
     def agent_executor(self, mock_agent_state):
-        with patch('klaudecode.agent.executor.ToolHandler') as mock_tool_handler_class:
+        with patch("klaudecode.agent.executor.ToolHandler") as mock_tool_handler_class:
             mock_tool_handler = Mock()
             mock_tool_handler_class.return_value = mock_tool_handler
 
@@ -53,117 +53,149 @@ class TestAgentExecutor:
 
     @pytest.mark.asyncio
     async def test_run_success(self, agent_executor, mock_agent_state):
-        with patch.object(agent_executor, '_execute_run_loop') as mock_execute:
-            mock_execute.return_value = 'Success'
+        with patch.object(agent_executor, "_execute_run_loop") as mock_execute:
+            mock_execute.return_value = "Success"
 
             result = await agent_executor.run()
 
             mock_execute.assert_called_once_with(100, None, None)
-            assert result == 'Success'
+            assert result == "Success"
 
     @pytest.mark.asyncio
     async def test_run_openai_error(self, agent_executor, mock_agent_state):
-        with patch.object(agent_executor, '_execute_run_loop') as mock_execute, patch.object(agent_executor, '_handle_llm_error') as mock_handle_error:
-            error = OpenAIError('API Error')
+        with (
+            patch.object(agent_executor, "_execute_run_loop") as mock_execute,
+            patch.object(agent_executor, "_handle_llm_error") as mock_handle_error,
+        ):
+            error = OpenAIError("API Error")
             mock_execute.side_effect = error
-            mock_handle_error.return_value = 'LLM Error Handled'
+            mock_handle_error.return_value = "LLM Error Handled"
 
             result = await agent_executor.run()
 
             mock_handle_error.assert_called_once_with(error)
-            assert result == 'LLM Error Handled'
+            assert result == "LLM Error Handled"
 
     @pytest.mark.asyncio
     async def test_run_anthropic_error(self, agent_executor, mock_agent_state):
-        with patch.object(agent_executor, '_execute_run_loop') as mock_execute, patch.object(agent_executor, '_handle_llm_error') as mock_handle_error:
-            error = AnthropicError('API Error')
+        with (
+            patch.object(agent_executor, "_execute_run_loop") as mock_execute,
+            patch.object(agent_executor, "_handle_llm_error") as mock_handle_error,
+        ):
+            error = AnthropicError("API Error")
             mock_execute.side_effect = error
-            mock_handle_error.return_value = 'LLM Error Handled'
+            mock_handle_error.return_value = "LLM Error Handled"
 
             result = await agent_executor.run()
 
             mock_handle_error.assert_called_once_with(error)
-            assert result == 'LLM Error Handled'
+            assert result == "LLM Error Handled"
 
     @pytest.mark.asyncio
     async def test_run_keyboard_interrupt(self, agent_executor, mock_agent_state):
-        with patch.object(agent_executor, '_execute_run_loop') as mock_execute, patch.object(agent_executor, '_handle_interruption') as mock_handle_interrupt:
+        with (
+            patch.object(agent_executor, "_execute_run_loop") as mock_execute,
+            patch.object(
+                agent_executor, "_handle_interruption"
+            ) as mock_handle_interrupt,
+        ):
             mock_execute.side_effect = KeyboardInterrupt()
-            mock_handle_interrupt.return_value = 'Interrupted'
+            mock_handle_interrupt.return_value = "Interrupted"
 
             result = await agent_executor.run()
 
             mock_handle_interrupt.assert_called_once()
-            assert result == 'Interrupted'
+            assert result == "Interrupted"
 
     @pytest.mark.asyncio
     async def test_run_cancelled_error(self, agent_executor, mock_agent_state):
-        with patch.object(agent_executor, '_execute_run_loop') as mock_execute, patch.object(agent_executor, '_handle_interruption') as mock_handle_interrupt:
+        with (
+            patch.object(agent_executor, "_execute_run_loop") as mock_execute,
+            patch.object(
+                agent_executor, "_handle_interruption"
+            ) as mock_handle_interrupt,
+        ):
             mock_execute.side_effect = asyncio.CancelledError()
-            mock_handle_interrupt.return_value = 'Cancelled'
+            mock_handle_interrupt.return_value = "Cancelled"
 
             result = await agent_executor.run()
 
             mock_handle_interrupt.assert_called_once()
-            assert result == 'Cancelled'
+            assert result == "Cancelled"
 
     @pytest.mark.asyncio
     async def test_run_general_error(self, agent_executor, mock_agent_state):
-        with patch.object(agent_executor, '_execute_run_loop') as mock_execute, patch.object(agent_executor, '_handle_general_error') as mock_handle_error:
-            error = ValueError('Some error')
+        with (
+            patch.object(agent_executor, "_execute_run_loop") as mock_execute,
+            patch.object(agent_executor, "_handle_general_error") as mock_handle_error,
+        ):
+            error = ValueError("Some error")
             mock_execute.side_effect = error
-            mock_handle_error.return_value = 'General Error Handled'
+            mock_handle_error.return_value = "General Error Handled"
 
             result = await agent_executor.run()
 
             mock_handle_error.assert_called_once_with(error)
-            assert result == 'General Error Handled'
+            assert result == "General Error Handled"
 
     @pytest.mark.asyncio
     async def test_run_with_custom_params(self, agent_executor, mock_agent_state):
         tools = [Mock()]
         check_cancel = Mock(return_value=False)
 
-        with patch.object(agent_executor, '_execute_run_loop') as mock_execute:
-            mock_execute.return_value = 'Success'
+        with patch.object(agent_executor, "_execute_run_loop") as mock_execute:
+            mock_execute.return_value = "Success"
 
-            result = await agent_executor.run(max_steps=50, check_cancel=check_cancel, tools=tools)
+            result = await agent_executor.run(
+                max_steps=50, check_cancel=check_cancel, tools=tools
+            )
 
             mock_execute.assert_called_once_with(50, check_cancel, tools)
-            assert result == 'Success'
+            assert result == "Success"
 
     @pytest.mark.asyncio
-    async def test_execute_run_loop_check_cancel_true(self, agent_executor, mock_agent_state):
+    async def test_execute_run_loop_check_cancel_true(
+        self, agent_executor, mock_agent_state
+    ):
         check_cancel = Mock(return_value=True)
 
-        result = await agent_executor._execute_run_loop(max_steps=10, check_cancel=check_cancel, tools=None)
+        result = await agent_executor._execute_run_loop(
+            max_steps=10, check_cancel=check_cancel, tools=None
+        )
 
         assert result == INTERRUPTED_MSG
         check_cancel.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_execute_run_loop_no_cancel_check(self, agent_executor, mock_agent_state):
+    async def test_execute_run_loop_no_cancel_check(
+        self, agent_executor, mock_agent_state
+    ):
         agent_executor.agent_state.session.messages = []
 
-        with patch.object(agent_executor, '_auto_compact_conversation') as mock_compact:
+        with patch.object(agent_executor, "_auto_compact_conversation") as mock_compact:
             mock_compact.return_value = None
 
             try:
-                result = await agent_executor._execute_run_loop(max_steps=1, check_cancel=None, tools=None)
+                result = await agent_executor._execute_run_loop(
+                    max_steps=1, check_cancel=None, tools=None
+                )
                 assert result is not None
             except Exception:
                 pass
 
     def test_handle_llm_error(self, agent_executor, mock_agent_state):
-        error = OpenAIError('Test error')
+        error = OpenAIError("Test error")
 
-        with patch('klaudecode.agent.executor.console') as mock_console, patch('klaudecode.agent.executor.format_exception') as mock_format:
-            mock_format.return_value = 'Formatted error'
+        with (
+            patch("klaudecode.agent.executor.console") as mock_console,
+            patch("klaudecode.agent.executor.format_exception") as mock_format,
+        ):
+            mock_format.return_value = "Formatted error"
 
             result = agent_executor._handle_llm_error(error)
 
             mock_console.print.assert_called()
-            assert 'Formatted error' in result
+            assert "Formatted error" in result
 
     @pytest.mark.asyncio
     async def test_handle_interruption(self, agent_executor, mock_agent_state):
@@ -174,27 +206,29 @@ class TestAgentExecutor:
         assert result == INTERRUPTED_MSG
 
     def test_handle_general_error(self, agent_executor, mock_agent_state):
-        error = ValueError('Test error')
+        error = ValueError("Test error")
 
         with (
-            patch('klaudecode.agent.executor.console') as mock_console,
-            patch('klaudecode.agent.executor.format_exception') as mock_format,
+            patch("klaudecode.agent.executor.console") as mock_console,
+            patch("klaudecode.agent.executor.format_exception") as mock_format,
         ):
-            mock_format.return_value = 'Formatted error'
+            mock_format.return_value = "Formatted error"
 
             result = agent_executor._handle_general_error(error)
 
             mock_console.print.assert_called()
-            assert 'Formatted error' in result
+            assert "Formatted error" in result
 
     @pytest.mark.asyncio
     async def test_initialization(self, mock_agent_state):
-        with patch('klaudecode.agent.executor.ToolHandler') as mock_tool_handler_class:
+        with patch("klaudecode.agent.executor.ToolHandler") as mock_tool_handler_class:
             mock_tool_handler = Mock()
             mock_tool_handler_class.return_value = mock_tool_handler
 
             executor = AgentExecutor(mock_agent_state)
 
             assert executor.agent_state == mock_agent_state
-            mock_tool_handler_class.assert_called_once_with(mock_agent_state, show_live=mock_agent_state.print_switch)
+            mock_tool_handler_class.assert_called_once_with(
+                mock_agent_state, show_live=mock_agent_state.print_switch
+            )
             assert executor.tool_handler == mock_tool_handler

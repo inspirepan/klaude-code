@@ -13,16 +13,18 @@ from .colors import ColorStyle
 
 
 class CustomCodeBlock(CodeBlock):
-    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> RenderResult:
         code = str(self.text).rstrip()
 
         # Select color scheme based on theme
         from .console import console as global_console
 
         if global_console.is_dark_theme():
-            theme = 'github-dark'
+            theme = "github-dark"
         else:
-            theme = 'sas'
+            theme = "sas"
 
         from rich.syntax import Syntax
 
@@ -33,13 +35,20 @@ class CustomCodeBlock(CodeBlock):
             theme=theme,
             word_wrap=True,
             padding=0,
-            background_color='default',
+            background_color="default",
         )
-        yield Panel.fit(syntax, title=Text(self.lexer_name, style=ColorStyle.INLINE_CODE), border_style=ColorStyle.LINE, title_align='left')
+        yield Panel.fit(
+            syntax,
+            title=Text(self.lexer_name, style=ColorStyle.INLINE_CODE),
+            border_style=ColorStyle.LINE,
+            title_align="left",
+        )
 
 
 class CustomTableElement(TableElement):
-    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> RenderResult:
         table = Table(box=box.SQUARE, border_style=ColorStyle.LINE.style)
 
         if self.header is not None and self.header.row is not None:
@@ -55,33 +64,39 @@ class CustomTableElement(TableElement):
 
 
 class CustomHorizontalRule(HorizontalRule):
-    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> RenderResult:
         yield Group(
-            '',
-            Rule(style=ColorStyle.LINE, characters='═'),
-            '',
+            "",
+            Rule(style=ColorStyle.LINE, characters="═"),
+            "",
         )
 
 
 class CustomHeading(Heading):
-    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> RenderResult:
         text = self.text
-        text.justify = 'left'
-        if self.tag == 'h1':
+        text.justify = "left"
+        if self.tag == "h1":
             text.stylize(Style(underline=True, bold=True))
-        elif self.tag == 'h2':
+        elif self.tag == "h2":
             text.stylize(Style(bold=True))
             # Only add rule if heading has content
             if str(text).strip():
-                rule = Rule(style=ColorStyle.LINE, characters='╌')
+                rule = Rule(style=ColorStyle.LINE, characters="╌")
                 # Check if we need to add empty line before H2
-                markdown_instance = getattr(console, '_current_markdown', None)
-                if markdown_instance and getattr(markdown_instance, '_has_content', False):
-                    text = Group('', text, rule)
+                markdown_instance = getattr(console, "_current_markdown", None)
+                if markdown_instance and getattr(
+                    markdown_instance, "_has_content", False
+                ):
+                    text = Group("", text, rule)
                 else:
                     text = Group(text, rule)
 
-        elif self.tag == 'h3':
+        elif self.tag == "h3":
             text.stylize(Style(bold=True))
 
         yield text
@@ -89,32 +104,34 @@ class CustomHeading(Heading):
 
 class CustomMarkdown(Markdown):
     elements = Markdown.elements.copy()
-    elements['heading_open'] = CustomHeading
-    elements['hr'] = CustomHorizontalRule
-    elements['table_open'] = CustomTableElement
-    elements['fence'] = CustomCodeBlock
-    elements['code_block'] = CustomCodeBlock
+    elements["heading_open"] = CustomHeading
+    elements["hr"] = CustomHorizontalRule
+    elements["table_open"] = CustomTableElement
+    elements["fence"] = CustomCodeBlock
+    elements["code_block"] = CustomCodeBlock
 
     def __init__(self, *args, **kwargs):
         # Disable hyperlink rendering to preserve original format
-        kwargs['hyperlinks'] = False
+        kwargs["hyperlinks"] = False
         super().__init__(*args, **kwargs)
         self._has_content = False
 
-    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> RenderResult:
         # Create temporary theme to override styles
         from rich.theme import Theme
 
         temp_theme = Theme(
             {
-                'markdown.code': ColorStyle.INLINE_CODE.style,
-                'markdown.item.bullet': ColorStyle.HINT.style,
-                'markdown.item.number': ColorStyle.HINT.style,
-                'markdown.block_quote': ColorStyle.INFO.style,
-                'markdown.h1': ColorStyle.HEADER_1.style,
-                'markdown.h2': ColorStyle.HEADER_2.style,
-                'markdown.h3': ColorStyle.HEADER_3.style,
-                'markdown.h4': ColorStyle.HEADER_4.style,
+                "markdown.code": ColorStyle.INLINE_CODE.style,
+                "markdown.item.bullet": ColorStyle.HINT.style,
+                "markdown.item.number": ColorStyle.HINT.style,
+                "markdown.block_quote": ColorStyle.INFO.style,
+                "markdown.h1": ColorStyle.HEADER_1.style,
+                "markdown.h2": ColorStyle.HEADER_2.style,
+                "markdown.h3": ColorStyle.HEADER_3.style,
+                "markdown.h4": ColorStyle.HEADER_4.style,
             }
         )
 
@@ -137,8 +154,8 @@ class CustomMarkdown(Markdown):
             # Restore original theme
             console.pop_theme()
             # Clean up temporary attributes
-            if hasattr(console, '_current_markdown'):
-                delattr(console, '_current_markdown')
+            if hasattr(console, "_current_markdown"):
+                delattr(console, "_current_markdown")
 
 
 def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Group:
@@ -146,5 +163,5 @@ def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Gro
     if not text:
         return Group()
 
-    custom_md = CustomMarkdown(text, style=style or 'none')
+    custom_md = CustomMarkdown(text, style=style or "none")
     return Group(custom_md)

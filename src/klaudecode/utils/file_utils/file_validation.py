@@ -2,14 +2,18 @@ from pathlib import Path
 from typing import Tuple
 
 # Error messages
-FILE_NOT_READ_ERROR_MSG = 'File has not been read yet. Read it first before writing to it.'
-FILE_MODIFIED_ERROR_MSG = 'File has been modified externally. Either by user or a linter. Read it first before writing to it.'
-FILE_NOT_EXIST_ERROR_MSG = 'File does not exist.'
-FILE_NOT_A_FILE_ERROR_MSG = 'EISDIR: illegal operation on a directory.'
-EDIT_OLD_STRING_NEW_STRING_IDENTICAL_ERROR_MSG = 'No changes to make: old_string and new_string are exactly the same.'
+FILE_NOT_READ_ERROR_MSG = (
+    "File has not been read yet. Read it first before writing to it."
+)
+FILE_MODIFIED_ERROR_MSG = "File has been modified externally. Either by user or a linter. Read it first before writing to it."
+FILE_NOT_EXIST_ERROR_MSG = "File does not exist."
+FILE_NOT_A_FILE_ERROR_MSG = "EISDIR: illegal operation on a directory."
+EDIT_OLD_STRING_NEW_STRING_IDENTICAL_ERROR_MSG = (
+    "No changes to make: old_string and new_string are exactly the same."
+)
 
 
-IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg'}
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg"}
 
 
 def is_image_path(text: str) -> bool:
@@ -39,7 +43,7 @@ def validate_file_exists(file_path: str) -> Tuple[bool, str]:
         return False, FILE_NOT_EXIST_ERROR_MSG
     if not Path(file_path).is_file():
         return False, FILE_NOT_A_FILE_ERROR_MSG
-    return True, ''
+    return True, ""
 
 
 def ensure_directory_exists(file_path: str) -> None:

@@ -17,7 +17,12 @@ def mcp_show():
             await mcp_manager.initialize()
             console.print(mcp_manager)
         except Exception as e:
-            console.print(Text.assemble(('Error connecting to MCP servers: ', ColorStyle.ERROR), format_exception(e)))
+            console.print(
+                Text.assemble(
+                    ("Error connecting to MCP servers: ", ColorStyle.ERROR),
+                    format_exception(e),
+                )
+            )
         finally:
             await mcp_manager.shutdown()
 

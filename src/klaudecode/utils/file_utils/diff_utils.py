@@ -26,21 +26,21 @@ def generate_diff_lines(old_content: str, new_content: str) -> List[str]:
     )
 
     # Add "\ No newline at end of file" messages if needed
-    old_ends_with_newline = old_content.endswith('\n')
-    new_ends_with_newline = new_content.endswith('\n')
+    old_ends_with_newline = old_content.endswith("\n")
+    new_ends_with_newline = new_content.endswith("\n")
 
     # If there are diff lines and newline status differs, add the message
     if diff_lines and (old_ends_with_newline != new_ends_with_newline):
         # Find the last line that was changed
         for i in range(len(diff_lines) - 1, -1, -1):
             line = diff_lines[i]
-            if line.startswith('-') and not old_ends_with_newline:
+            if line.startswith("-") and not old_ends_with_newline:
                 # Insert after the removed line
-                diff_lines.insert(i + 1, '\\ No newline at end of file\n')
+                diff_lines.insert(i + 1, "\\ No newline at end of file\n")
                 break
-            elif line.startswith('+') and not new_ends_with_newline:
+            elif line.startswith("+") and not new_ends_with_newline:
                 # Insert after the added line
-                diff_lines.insert(i + 1, '\\ No newline at end of file\n')
+                diff_lines.insert(i + 1, "\\ No newline at end of file\n")
                 break
 
     return diff_lines
@@ -58,30 +58,30 @@ def generate_snippet_from_diff(diff_lines: List[str]) -> str:
         Formatted snippet string
     """
     if not diff_lines:
-        return ''
+        return ""
 
     new_line_num = 1
     snippet_lines = []
 
     for line in diff_lines:
-        if line.startswith('---') or line.startswith('+++'):
+        if line.startswith("---") or line.startswith("+++"):
             continue
-        elif line.startswith('@@'):
-            match = re.search(r'@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@', line)
+        elif line.startswith("@@"):
+            match = re.search(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@", line)
             if match:
                 new_line_num = int(match.group(2))
-        elif line.startswith('-'):
+        elif line.startswith("-"):
             continue
-        elif line.startswith('+'):
-            added_line = line[1:].rstrip('\n\r')
-            snippet_lines.append(f'{new_line_num}→{normalize_tabs(added_line)}')
+        elif line.startswith("+"):
+            added_line = line[1:].rstrip("\n\r")
+            snippet_lines.append(f"{new_line_num}→{normalize_tabs(added_line)}")
             new_line_num += 1
-        elif line.startswith(' '):
-            context_line = line[1:].rstrip('\n\r')
-            snippet_lines.append(f'{new_line_num}→{normalize_tabs(context_line)}')
+        elif line.startswith(" "):
+            context_line = line[1:].rstrip("\n\r")
+            snippet_lines.append(f"{new_line_num}→{normalize_tabs(context_line)}")
             new_line_num += 1
-        elif line.startswith('\\'):
+        elif line.startswith("\\"):
             # Skip "\ No newline at end of file" in snippet generation
             continue
 
-    return '\n'.join(snippet_lines)
+    return "\n".join(snippet_lines)

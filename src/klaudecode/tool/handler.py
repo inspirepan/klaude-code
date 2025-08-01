@@ -30,7 +30,9 @@ class ToolHandler:
         if not ai_message.tool_calls or not len(ai_message.tool_calls):
             return
 
-        parallelable_calls, non_parallelable_calls = self._categorize_tool_calls(ai_message.tool_calls)
+        parallelable_calls, non_parallelable_calls = self._categorize_tool_calls(
+            ai_message.tool_calls
+        )
 
         # Handle parallelable tools first
         await self.handle_tool_calls(parallelable_calls)
@@ -39,7 +41,9 @@ class ToolHandler:
         for tc in non_parallelable_calls:
             await self.handle_tool_calls([tc])
 
-    def _categorize_tool_calls(self, tool_calls: Dict[str, ToolCall]) -> tuple[List[ToolCall], List[ToolCall]]:
+    def _categorize_tool_calls(
+        self, tool_calls: Dict[str, ToolCall]
+    ) -> tuple[List[ToolCall], List[ToolCall]]:
         """Categorize tool calls into parallelable and non-parallelable."""
         parallelable_calls = []
         non_parallelable_calls = []
@@ -47,7 +51,11 @@ class ToolHandler:
 
         for tool_call in tool_calls.values():
             if tool_call.tool_name not in tool_dict:
-                console.print(render_suffix(f'Tool {tool_call.tool_name} not found', style=ColorStyle.ERROR))
+                console.print(
+                    render_suffix(
+                        f"Tool {tool_call.tool_name} not found", style=ColorStyle.ERROR
+                    )
+                )
                 continue
             if tool_dict[tool_call.tool_name].skip_in_tool_handler():
                 continue
@@ -64,7 +72,10 @@ class ToolHandler:
             return
 
         tool_dict = self._get_tool_dict()
-        tool_instances = [tool_dict[tc.tool_name].create_instance(tc, self.agent_state) for tc in tool_calls]
+        tool_instances = [
+            tool_dict[tc.tool_name].create_instance(tc, self.agent_state)
+            for tc in tool_calls
+        ]
         tasks = await self._start_tool_tasks(tool_instances)
 
         interrupted = False
@@ -75,10 +86,14 @@ class ToolHandler:
             monitor_task = None
             signal_handler_added = interrupt_handler.setup_signal_handler()
             if not signal_handler_added:
-                monitor_task = asyncio.create_task(interrupt_handler.interrupt_monitor())
+                monitor_task = asyncio.create_task(
+                    interrupt_handler.interrupt_monitor()
+                )
 
             if self.show_live:
-                await ToolDisplayManager.live_display(tool_instances, tool_calls, interrupt_handler)
+                await ToolDisplayManager.live_display(
+                    tool_instances, tool_calls, interrupt_handler
+                )
 
             await asyncio.gather(*tasks, return_exceptions=True)
             interrupted = interrupt_handler.interrupted
@@ -92,11 +107,15 @@ class ToolHandler:
                     await monitor_task
                 except asyncio.CancelledError:
                     pass
-            self.agent_state.session.append_message(*(ti.tool_result() for ti in tool_instances))
+            self.agent_state.session.append_message(
+                *(ti.tool_result() for ti in tool_instances)
+            )
             if interrupted:
                 raise asyncio.CancelledError
 
-    async def _start_tool_tasks(self, tool_instances: List[ToolInstance]) -> List[asyncio.Task]:
+    async def _start_tool_tasks(
+        self, tool_instances: List[ToolInstance]
+    ) -> List[asyncio.Task]:
         """Start async tasks for all tool instances."""
         return [await ti.start_async() for ti in tool_instances]
 
@@ -138,9 +157,14 @@ class InterruptHandler:
 
     async def interrupt_monitor(self):
         """Monitor for interrupts when signal handler is not available."""
-        while not self.interrupted and any(ti.is_running() for ti in self.tool_instances):
+        while not self.interrupted and any(
+            ti.is_running() for ti in self.tool_instances
+        ):
             try:
-                if hasattr(self.tool_handler.agent_state, '_should_interrupt') and self.tool_handler.agent_state._should_interrupt():
+                if (
+                    hasattr(self.tool_handler.agent_state, "_should_interrupt")
+                    and self.tool_handler.agent_state._should_interrupt()
+                ):
                     self.signal_handler()
                     break
                 await asyncio.sleep(0.05)

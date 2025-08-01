@@ -14,7 +14,7 @@ class ToolCall(BaseModel):
     id: str
     tool_name: str
     tool_args_dict: dict = {}
-    status: Literal['processing', 'success', 'error', 'canceled'] = 'processing'
+    status: Literal["processing", "success", "error", "canceled"] = "processing"
 
     _tool_args_cache: str = None
     _tokens_cache: int = None
@@ -25,18 +25,22 @@ class ToolCall(BaseModel):
     def tool_args(self) -> str:
         if self._tool_args_cache is not None:
             return self._tool_args_cache
-        result = json.dumps(self.tool_args_dict, ensure_ascii=False) if self.tool_args_dict else '{}'  # Gemini requires empty json object here
+        result = (
+            json.dumps(self.tool_args_dict, ensure_ascii=False)
+            if self.tool_args_dict
+            else "{}"
+        )  # Gemini requires empty json object here
         self._tool_args_cache = result
         return result
 
     def __init__(self, **data):
-        if 'tool_args' in data and not data.get('tool_args_dict'):
-            tool_args_str = data.pop('tool_args')
+        if "tool_args" in data and not data.get("tool_args_dict"):
+            tool_args_str = data.pop("tool_args")
             if tool_args_str:
                 try:
-                    data['tool_args_dict'] = json.loads(tool_args_str)
+                    data["tool_args_dict"] = json.loads(tool_args_str)
                 except (json.JSONDecodeError, TypeError) as e:
-                    raise ValueError(f'Invalid tool args: {tool_args_str}') from e
+                    raise ValueError(f"Invalid tool args: {tool_args_str}") from e
         super().__init__(**data)
         self._invalidate_cache()
 
@@ -54,11 +58,11 @@ class ToolCall(BaseModel):
             return self._openai_cache
 
         result = {
-            'id': self.id,
-            'type': 'function',
-            'function': {
-                'name': self.tool_name,
-                'arguments': self.tool_args,
+            "id": self.id,
+            "type": "function",
+            "function": {
+                "name": self.tool_name,
+                "arguments": self.tool_args,
             },
         }
         self._openai_cache = result
@@ -69,10 +73,10 @@ class ToolCall(BaseModel):
             return self._anthropic_cache
 
         result = {
-            'id': self.id,
-            'type': 'tool_use',
-            'name': self.tool_name,
-            'input': self.tool_args_dict,
+            "id": self.id,
+            "type": "tool_use",
+            "name": self.tool_name,
+            "input": self.tool_args_dict,
         }
         self._anthropic_cache = result
         return result
@@ -80,13 +84,15 @@ class ToolCall(BaseModel):
     @staticmethod
     @lru_cache(maxsize=256)
     def get_display_tool_name(tool_name: str) -> str:
-        if tool_name.startswith('mcp__'):
-            return tool_name[5:] + '(MCP)'
+        if tool_name.startswith("mcp__"):
+            return tool_name[5:] + "(MCP)"
         return tool_name
 
     @staticmethod
     def get_display_tool_args(tool_args_dict: dict) -> Text:
-        return Text.from_markup(', '.join([f'[b]{k}[/b]={v}' for k, v in tool_args_dict.items()]))
+        return Text.from_markup(
+            ", ".join([f"[b]{k}[/b]={v}" for k, v in tool_args_dict.items()])
+        )
 
     def _invalidate_cache(self):
         """Invalidate all caches when tool call data changes"""
@@ -101,12 +107,19 @@ class ToolCall(BaseModel):
         if self.tool_name in _TOOL_CALL_RENDERERS:
             for i, item in enumerate(_TOOL_CALL_RENDERERS[self.tool_name](self)):
                 if i == 0:
-                    yield render_message(item, mark_style=ColorStyle.SUCCESS, status=self.status)
+                    yield render_message(
+                        item, mark_style=ColorStyle.SUCCESS, status=self.status
+                    )
                 else:
                     yield item
         else:
             tool_name = ToolCall.get_display_tool_name(self.tool_name)
-            msg = Text.assemble((tool_name, ColorStyle.HIGHLIGHT.bold), '(', ToolCall.get_display_tool_args(self.tool_args_dict), ')')
+            msg = Text.assemble(
+                (tool_name, ColorStyle.HIGHLIGHT.bold),
+                "(",
+                ToolCall.get_display_tool_args(self.tool_args_dict),
+                ")",
+            )
             yield render_message(msg, mark_style=ColorStyle.SUCCESS, status=self.status)
 
     def get_suffix_renderable(self):
@@ -115,4 +128,9 @@ class ToolCall(BaseModel):
         if self.tool_name in _TOOL_CALL_RENDERERS:
             yield from _TOOL_CALL_RENDERERS[self.tool_name](self, is_suffix=True)
         else:
-            yield Text.assemble((ToolCall.get_display_tool_name(self.tool_name), ColorStyle.MAIN.bold), '(', ToolCall.get_display_tool_args(self.tool_args_dict), ')')
+            yield Text.assemble(
+                (ToolCall.get_display_tool_name(self.tool_name), ColorStyle.MAIN.bold),
+                "(",
+                ToolCall.get_display_tool_args(self.tool_args_dict),
+                ")",
+            )

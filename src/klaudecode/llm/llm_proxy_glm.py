@@ -28,7 +28,7 @@ class GLMProxy(OpenAIProxy):
                     self._add_complete_tool_call(chunk, chunk.id)
                 else:
                     # Subsequent chunks without ID, generate one
-                    generated_id = f'call_{uuid.uuid4().hex[:8]}_{self._call_counter}'
+                    generated_id = f"call_{uuid.uuid4().hex[:8]}_{self._call_counter}"
                     self._call_counter += 1
                     self._add_complete_tool_call(chunk, generated_id)
 
@@ -42,11 +42,13 @@ class GLMProxy(OpenAIProxy):
                 self._add_complete_tool_call(chunk, chunk.id)
             else:
                 # Generate ID for chunks without ID
-                generated_id = f'call_{uuid.uuid4().hex[:8]}_{self._call_counter}'
+                generated_id = f"call_{uuid.uuid4().hex[:8]}_{self._call_counter}"
                 self._call_counter += 1
                 self._add_complete_tool_call(chunk, generated_id)
 
-        def _add_complete_tool_call(self, chunk: ChoiceDeltaToolCall, tool_id: str) -> None:
+        def _add_complete_tool_call(
+            self, chunk: ChoiceDeltaToolCall, tool_id: str
+        ) -> None:
             """Add a complete tool call with GLM's format (complete JSON arguments)."""
             if not chunk or not chunk.function:
                 return

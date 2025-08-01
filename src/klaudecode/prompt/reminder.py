@@ -22,20 +22,20 @@ IMPORTANT: this context may or may not be relevant to your tasks. You should not
 
 
 def get_context_reminder(workdir: str) -> str:
-    user_claudemd_path = Path.home() / '.claude' / 'CLAUDE.md'
-    project_claudemd_path = Path(workdir) / 'CLAUDE.md'
-    claude_md_instructions = ''
-    user_claudemd_remind = ''
-    project_claudemd_remind = ''
+    user_claudemd_path = Path.home() / ".claude" / "CLAUDE.md"
+    project_claudemd_path = Path(workdir) / "CLAUDE.md"
+    claude_md_instructions = ""
+    user_claudemd_remind = ""
+    project_claudemd_remind = ""
     if user_claudemd_path.exists():
-        user_claudemd_content = user_claudemd_path.read_text(encoding='utf-8')
+        user_claudemd_content = user_claudemd_path.read_text(encoding="utf-8")
         if user_claudemd_content.strip():
             user_claudemd_remind = f"""Contents of {user_claudemd_path} (user's private global instructions for all projects):
 
 {user_claudemd_content}
 """
     if project_claudemd_path.exists():
-        project_claudemd_content = project_claudemd_path.read_text(encoding='utf-8')
+        project_claudemd_content = project_claudemd_path.read_text(encoding="utf-8")
         if project_claudemd_content.strip():
             project_claudemd_remind = f"""Contents of {project_claudemd_path} (project instructions, checked into the codebase):
 
@@ -43,8 +43,16 @@ def get_context_reminder(workdir: str) -> str:
 """
 
     if user_claudemd_remind or project_claudemd_remind:
-        claude_md_instructions = CLAUDE_MD_REMINDER.format(claude_md=user_claudemd_remind + '\n\n' + project_claudemd_remind)
-    return CONTEXT_REMINDER_HEAD + '\n\n' + claude_md_instructions + '\n\n' + CONTEXT_REMINDER_TAIL
+        claude_md_instructions = CLAUDE_MD_REMINDER.format(
+            claude_md=user_claudemd_remind + "\n\n" + project_claudemd_remind
+        )
+    return (
+        CONTEXT_REMINDER_HEAD
+        + "\n\n"
+        + claude_md_instructions
+        + "\n\n"
+        + CONTEXT_REMINDER_TAIL
+    )
 
 
 EMPTY_TODO_REMINDER = """<system-reminder>This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.</system-reminder>"""

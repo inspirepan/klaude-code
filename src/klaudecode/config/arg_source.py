@@ -7,7 +7,7 @@ from .source import ConfigSource
 class ArgConfigSource(ConfigSource):
     """CLI argument configuration"""
 
-    source = 'cli'
+    source = "cli"
 
     def __init__(
         self,

@@ -12,7 +12,19 @@ except ImportError:
 
 
 def get_all_tools():
-    from . import BashTool, EditTool, ExitPlanModeTool, GlobTool, GrepTool, LsTool, MultiEditTool, ReadTool, TodoReadTool, TodoWriteTool, WriteTool
+    from . import (
+        BashTool,
+        EditTool,
+        ExitPlanModeTool,
+        GlobTool,
+        GrepTool,
+        LsTool,
+        MultiEditTool,
+        ReadTool,
+        TodoReadTool,
+        TodoWriteTool,
+        WriteTool,
+    )
     from .task import TaskTool
 
     return [
@@ -49,22 +61,28 @@ def main():
         console = Console()
 
         # Use Rich syntax highlighting
-        syntax = Syntax(formatted_json, 'json', theme='github-dark', line_numbers=True, word_wrap=True)
+        syntax = Syntax(
+            formatted_json,
+            "json",
+            theme="github-dark",
+            line_numbers=True,
+            word_wrap=True,
+        )
 
         # Print title
-        console.print('\n[bold cyan]All Tools OpenAI Schema[/bold cyan]\n')
+        console.print("\n[bold cyan]All Tools OpenAI Schema[/bold cyan]\n")
 
         # Print highlighted JSON
         console.print(syntax)
 
         # Print tool statistics
-        console.print(f'\n[green]Total: {len(all_schemas)} tools[/green]\n')
+        console.print(f"\n[green]Total: {len(all_schemas)} tools[/green]\n")
     else:
         # Use regular print if Rich is not available
-        print('\nAll Tools OpenAI Schema\n')
+        print("\nAll Tools OpenAI Schema\n")
         print(formatted_json)
-        print(f'\nTotal: {len(all_schemas)} tools\n')
+        print(f"\nTotal: {len(all_schemas)} tools\n")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

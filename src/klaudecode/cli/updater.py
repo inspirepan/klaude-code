@@ -29,24 +29,29 @@ class KlaudeUpdater:
     def get_current_version(self) -> Optional[str]:
         """Get the current installed version."""
         try:
-            return version('klaude-code')
+            return version("klaude-code")
         except PackageNotFoundError:
             return None
 
     def get_latest_version(self) -> Optional[str]:
         """Get the latest version from PyPI."""
         try:
-            result = subprocess.run(['python', '-m', 'pip', 'index', 'versions', 'klaude-code'], capture_output=True, text=True, timeout=10)
+            result = subprocess.run(
+                ["python", "-m", "pip", "index", "versions", "klaude-code"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
             if result.returncode == 0:
                 # Parse the output to get the latest version
-                lines = result.stdout.strip().split('\n')
+                lines = result.stdout.strip().split("\n")
                 for line in lines:
-                    if 'Available versions:' in line:
+                    if "Available versions:" in line:
                         # Extract first version from the list
-                        versions_part = line.split('Available versions:')[1].strip()
+                        versions_part = line.split("Available versions:")[1].strip()
                         if versions_part:
                             # Get the first version (latest)
-                            latest = versions_part.split(',')[0].strip()
+                            latest = versions_part.split(",")[0].strip()
                             return latest
             return None
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError, OSError):
@@ -66,17 +71,32 @@ class KlaudeUpdater:
             if self.is_git_repository(self.project_root):
                 try:
                     # Fetch latest changes without merging
-                    subprocess.run(['git', 'fetch'], cwd=self.project_root, capture_output=True, timeout=10)
+                    subprocess.run(
+                        ["git", "fetch"],
+                        cwd=self.project_root,
+                        capture_output=True,
+                        timeout=10,
+                    )
 
                     # Check if we're behind origin
-                    result = subprocess.run(['git', 'rev-list', '--count', 'HEAD..origin/main'], cwd=self.project_root, capture_output=True, text=True, timeout=10)
+                    result = subprocess.run(
+                        ["git", "rev-list", "--count", "HEAD..origin/main"],
+                        cwd=self.project_root,
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
 
                     if result.returncode == 0:
-                        commits_behind = int(result.stdout.strip() or '0')
-                        return commits_behind > 0, 'editable', f'{commits_behind} commits behind'
+                        commits_behind = int(result.stdout.strip() or "0")
+                        return (
+                            commits_behind > 0,
+                            "editable",
+                            f"{commits_behind} commits behind",
+                        )
                 except (subprocess.CalledProcessError, ValueError):
                     pass
-            return False, 'editable', 'editable'
+            return False, "editable", "editable"
 
         # For regular installations, check PyPI
         current = self.get_current_version()
@@ -89,7 +109,9 @@ class KlaudeUpdater:
 
         return False, current, latest
 
-    async def prompt_for_update(self, current_version: str, latest_version: str) -> bool:
+    async def prompt_for_update(
+        self, current_version: str, latest_version: str
+    ) -> bool:
         """
         Prompt user whether they want to update.
 
@@ -99,20 +121,27 @@ class KlaudeUpdater:
         is_editable, _ = self.detect_installation_type()
 
         if is_editable:
-            message = f'New commits available ({latest_version}). Update now?'
+            message = f"New commits available ({latest_version}). Update now?"
         else:
-            message = f'Update available: {current_version} → {latest_version}. Update now?'
+            message = (
+                f"Update available: {current_version} → {latest_version}. Update now?"
+            )
 
         console.print(Text(message, style=ColorStyle.INFO))
 
-        options = ['Yes, update now', 'No, skip this time', 'Never ask again']
-        choice = await user_select(options, title='Update available')
+        options = ["Yes, update now", "No, skip this time", "Never ask again"]
+        choice = await user_select(options, title="Update available")
 
         if choice is None or choice == 1:  # No or skip
             return False
         elif choice == 2:  # Never ask again
             # TODO: Save preference to config
-            console.print(Text('Update checks disabled. Use "klaude update" to update manually.', style=ColorStyle.INFO))
+            console.print(
+                Text(
+                    'Update checks disabled. Use "klaude update" to update manually.',
+                    style=ColorStyle.INFO,
+                )
+            )
             return False
         else:  # Yes
             return True
@@ -127,14 +156,19 @@ class KlaudeUpdater:
         try:
             # Check if we're running from the project source directory
             current_file = Path(__file__).resolve()
-            is_editable = self.project_root in current_file.parents or current_file.parent == self.project_root
+            is_editable = (
+                self.project_root in current_file.parents
+                or current_file.parent == self.project_root
+            )
             return is_editable, self.project_root if is_editable else None
         except (OSError, AttributeError):
             return False, None
 
     def is_git_repository(self, path: Path) -> bool:
         """Check if the given path is a git repository."""
-        git_check = subprocess.run(['git', 'rev-parse', '--git-dir'], cwd=path, capture_output=True, text=True)
+        git_check = subprocess.run(
+            ["git", "rev-parse", "--git-dir"], cwd=path, capture_output=True, text=True
+        )
         return git_check.returncode == 0
 
     def update_editable_installation(self) -> bool:
@@ -144,51 +178,121 @@ class KlaudeUpdater:
         Returns:
             bool: True if successful, False otherwise
         """
-        console.print(Text('Detected editable installation. Attempting to update from git...', style=ColorStyle.INFO))
+        console.print(
+            Text(
+                "Detected editable installation. Attempting to update from git...",
+                style=ColorStyle.INFO,
+            )
+        )
 
         if not self.is_git_repository(self.project_root):
-            console.print(Text('Editable installation detected but not in a git repository.', style=ColorStyle.WARNING))
-            console.print(Text('For editable installations, please update manually with "git pull && uv sync"', style=ColorStyle.INFO))
+            console.print(
+                Text(
+                    "Editable installation detected but not in a git repository.",
+                    style=ColorStyle.WARNING,
+                )
+            )
+            console.print(
+                Text(
+                    'For editable installations, please update manually with "git pull && uv sync"',
+                    style=ColorStyle.INFO,
+                )
+            )
             return False
 
         # Get current branch and commit before update
         try:
-            branch_result = subprocess.run(['git', 'branch', '--show-current'], cwd=self.project_root, capture_output=True, text=True)
-            current_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else 'unknown'
+            branch_result = subprocess.run(
+                ["git", "branch", "--show-current"],
+                cwd=self.project_root,
+                capture_output=True,
+                text=True,
+            )
+            current_branch = (
+                branch_result.stdout.strip()
+                if branch_result.returncode == 0
+                else "unknown"
+            )
 
-            commit_result = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=self.project_root, capture_output=True, text=True)
-            current_commit = commit_result.stdout.strip() if commit_result.returncode == 0 else 'unknown'
+            commit_result = subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"],
+                cwd=self.project_root,
+                capture_output=True,
+                text=True,
+            )
+            current_commit = (
+                commit_result.stdout.strip()
+                if commit_result.returncode == 0
+                else "unknown"
+            )
 
-            console.print(Text(f'Current: {current_branch}@{current_commit}', style=ColorStyle.INFO))
+            console.print(
+                Text(
+                    f"Current: {current_branch}@{current_commit}", style=ColorStyle.INFO
+                )
+            )
         except subprocess.CalledProcessError:
-            current_branch = current_commit = 'unknown'
+            current_branch = current_commit = "unknown"
 
         # Pull latest changes
-        result = subprocess.run(['git', 'pull'], cwd=self.project_root, capture_output=True, text=True)
+        result = subprocess.run(
+            ["git", "pull"], cwd=self.project_root, capture_output=True, text=True
+        )
         if result.returncode != 0:
-            console.print(Text(f'✗ Git pull failed: {result.stderr}', style=ColorStyle.ERROR))
+            console.print(
+                Text(f"✗ Git pull failed: {result.stderr}", style=ColorStyle.ERROR)
+            )
             return False
 
         # Get new branch and commit after update
         try:
-            branch_result = subprocess.run(['git', 'branch', '--show-current'], cwd=self.project_root, capture_output=True, text=True)
-            new_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else 'unknown'
+            branch_result = subprocess.run(
+                ["git", "branch", "--show-current"],
+                cwd=self.project_root,
+                capture_output=True,
+                text=True,
+            )
+            new_branch = (
+                branch_result.stdout.strip()
+                if branch_result.returncode == 0
+                else "unknown"
+            )
 
-            commit_result = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=self.project_root, capture_output=True, text=True)
-            new_commit = commit_result.stdout.strip() if commit_result.returncode == 0 else 'unknown'
+            commit_result = subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"],
+                cwd=self.project_root,
+                capture_output=True,
+                text=True,
+            )
+            new_commit = (
+                commit_result.stdout.strip()
+                if commit_result.returncode == 0
+                else "unknown"
+            )
 
-            console.print(Text(f'Updated: {new_branch}@{new_commit}', style=ColorStyle.SUCCESS))
+            console.print(
+                Text(f"Updated: {new_branch}@{new_commit}", style=ColorStyle.SUCCESS)
+            )
         except subprocess.CalledProcessError:
             pass
 
-        console.print(Text('✓ Updated editable installation from git', style=ColorStyle.SUCCESS))
+        console.print(
+            Text("✓ Updated editable installation from git", style=ColorStyle.SUCCESS)
+        )
 
         # Check if dependencies need updating
-        sync_result = subprocess.run(['uv', 'sync'], cwd=self.project_root, capture_output=True, text=True)
+        sync_result = subprocess.run(
+            ["uv", "sync"], cwd=self.project_root, capture_output=True, text=True
+        )
         if sync_result.returncode == 0:
-            console.print(Text('✓ Dependencies synced', style=ColorStyle.SUCCESS))
+            console.print(Text("✓ Dependencies synced", style=ColorStyle.SUCCESS))
         else:
-            console.print(Text('⚠ Git updated but dependency sync failed. Run "uv sync" manually.', style=ColorStyle.WARNING))
+            console.print(
+                Text(
+                    '⚠ Git updated but dependency sync failed. Run "uv sync" manually.',
+                    style=ColorStyle.WARNING,
+                )
+            )
 
         return True
 
@@ -200,9 +304,13 @@ class KlaudeUpdater:
             bool: True if successful, False otherwise
         """
         try:
-            result = subprocess.run(['uv', 'tool', 'upgrade', 'klaude-code'], capture_output=True, text=True)
+            result = subprocess.run(
+                ["uv", "tool", "upgrade", "klaude-code"], capture_output=True, text=True
+            )
             if result.returncode == 0:
-                console.print(Text('✓ Updated successfully with uv', style=ColorStyle.SUCCESS))
+                console.print(
+                    Text("✓ Updated successfully with uv", style=ColorStyle.SUCCESS)
+                )
                 return True
         except FileNotFoundError:
             pass
@@ -216,17 +324,29 @@ class KlaudeUpdater:
             bool: True if successful, False otherwise
         """
         try:
-            result = subprocess.run([sys.executable, '-m', 'pip', 'install', '--upgrade', 'klaude-code'], capture_output=True, text=True)
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--upgrade", "klaude-code"],
+                capture_output=True,
+                text=True,
+            )
             if result.returncode == 0:
-                console.print(Text('✓ Updated successfully with pip', style=ColorStyle.SUCCESS))
+                console.print(
+                    Text("✓ Updated successfully with pip", style=ColorStyle.SUCCESS)
+                )
                 return True
             else:
-                console.print(Text(f'✗ Update failed: {result.stderr}', style=ColorStyle.ERROR))
+                console.print(
+                    Text(f"✗ Update failed: {result.stderr}", style=ColorStyle.ERROR)
+                )
                 return False
         except (subprocess.CalledProcessError, OSError) as e:
             from ..utils.exception import format_exception
 
-            console.print(Text.assemble(('✗ Update failed: ', ColorStyle.ERROR), format_exception(e)))
+            console.print(
+                Text.assemble(
+                    ("✗ Update failed: ", ColorStyle.ERROR), format_exception(e)
+                )
+            )
             return False
 
     def update(self) -> bool:
@@ -236,7 +356,7 @@ class KlaudeUpdater:
         Returns:
             bool: True if successful, False otherwise
         """
-        console.print(Text('Updating klaude-code...', style=ColorStyle.INFO))
+        console.print(Text("Updating klaude-code...", style=ColorStyle.INFO))
 
         # Check if this is an editable installation
         is_editable, _ = self.detect_installation_type()
@@ -277,13 +397,23 @@ async def check_and_prompt_update() -> bool:
         if has_update and current and latest:
             should_update = await updater.prompt_for_update(current, latest)
             if should_update:
-                console.print(Text('Starting update...', style=ColorStyle.INFO))
+                console.print(Text("Starting update...", style=ColorStyle.INFO))
                 success = updater.update()
                 if success:
-                    console.print(Text('Update completed! Please restart klaude.', style=ColorStyle.SUCCESS))
+                    console.print(
+                        Text(
+                            "Update completed! Please restart klaude.",
+                            style=ColorStyle.SUCCESS,
+                        )
+                    )
                     return True
                 else:
-                    console.print(Text('Update failed. Continuing with current version.', style=ColorStyle.ERROR))
+                    console.print(
+                        Text(
+                            "Update failed. Continuing with current version.",
+                            style=ColorStyle.ERROR,
+                        )
+                    )
 
         return False
     except Exception:

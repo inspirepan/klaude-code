@@ -19,20 +19,20 @@ def create_backup(file_path: str) -> str:
     import time
 
     # Create .klaude/backup directory if it doesn't exist
-    backup_dir = Path.cwd() / '.klaude' / 'backup'
+    backup_dir = Path.cwd() / ".klaude" / "backup"
     backup_dir.mkdir(parents=True, exist_ok=True)
 
     # Create unique backup filename using file hash and timestamp
     timestamp = int(time.time() * 1000000)  # microseconds for uniqueness
     file_hash = hashlib.md5(str(Path(file_path).resolve()).encode()).hexdigest()[:8]
-    backup_filename = f'{Path(file_path).name}.{file_hash}.{timestamp}'
+    backup_filename = f"{Path(file_path).name}.{file_hash}.{timestamp}"
     backup_path = backup_dir / backup_filename
 
     try:
         shutil.copy2(file_path, backup_path)
         return str(backup_path)
     except (OSError, IOError, shutil.Error) as e:
-        raise Exception(f'Failed to create backup: {str(e)}')
+        raise Exception(f"Failed to create backup: {str(e)}")
 
 
 def restore_backup(file_path: str, backup_path: str) -> None:
@@ -48,7 +48,7 @@ def restore_backup(file_path: str, backup_path: str) -> None:
     try:
         shutil.move(backup_path, file_path)
     except (OSError, IOError, shutil.Error) as e:
-        raise Exception(f'Failed to restore backup: {str(e)}')
+        raise Exception(f"Failed to restore backup: {str(e)}")
 
 
 def cleanup_backup(backup_path: str) -> None:
@@ -67,7 +67,7 @@ def cleanup_backup(backup_path: str) -> None:
 def cleanup_all_backups() -> None:
     """Remove all backup files in .klaude/backup directory."""
     try:
-        backup_dir = Path.cwd() / '.klaude' / 'backup'
+        backup_dir = Path.cwd() / ".klaude" / "backup"
         if backup_dir.exists():
             # Remove all files in backup directory
             for backup_file in backup_dir.iterdir():
@@ -78,7 +78,7 @@ def cleanup_all_backups() -> None:
                 backup_dir.rmdir()
                 # Try to remove .klaude directory if it's now empty
                 parent_dir = backup_dir.parent
-                if parent_dir.name == '.klaude' and not any(parent_dir.iterdir()):
+                if parent_dir.name == ".klaude" and not any(parent_dir.iterdir()):
                     parent_dir.rmdir()
             except OSError:
                 # Directory not empty, that's fine

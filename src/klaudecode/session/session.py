@@ -23,18 +23,18 @@ class Session(BaseModel):
     todo_list: TodoList = Field(default_factory=TodoList)
     file_tracker: FileTracker = Field(default_factory=FileTracker)
     work_dir: Path
-    source: Literal['user', 'subagent', 'clear', 'compact'] = 'user'
+    source: Literal["user", "subagent", "clear", "compact"] = "user"
     session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     created_at: float = Field(default_factory=time.time)
     append_message_hook: Optional[Callable] = None
-    title_msg: str = ''
+    title_msg: str = ""
     _initial_message_count: int = 0
     _incremental_message_count: int = 0
 
     def __init__(self, **data):
         # Handle messages parameter - convert list to MessageHistory if needed
-        if 'messages' in data and isinstance(data['messages'], list):
-            data['messages'] = MessageHistory(messages=data['messages'])
+        if "messages" in data and isinstance(data["messages"], list):
+            data["messages"] = MessageHistory(messages=data["messages"])
 
         super().__init__(**data)
         self._hook_weakref: Optional[weakref.ReferenceType] = None
@@ -44,7 +44,7 @@ class Session(BaseModel):
         self._initial_message_count = len(self.messages.messages)
         self._incremental_message_count = 0
 
-    @field_serializer('work_dir')
+    @field_serializer("work_dir")
     def serialize_work_dir(self, work_dir: Path) -> str:
         return str(work_dir)
 
@@ -58,20 +58,24 @@ class Session(BaseModel):
         if self._incremental_message_count == 1 and len(msgs) == 1:
             msg = msgs[0]
             self.reset_create_at()
-            if hasattr(msg, 'role') and msg.role == 'user' and hasattr(msg, 'user_raw_input'):
+            if (
+                hasattr(msg, "role")
+                and msg.role == "user"
+                and hasattr(msg, "user_raw_input")
+            ):
                 # Append new user message to existing title
                 content = msg.user_raw_input or msg.content
-                truncated_content = content[:50] if content else ''
+                truncated_content = content[:50] if content else ""
                 # Only add ellipsis if content was actually truncated
                 if content and len(content) > 50:
-                    truncated_content += '...'
+                    truncated_content += "..."
 
                 old_title_msg = self.title_msg
                 new_title_msg = truncated_content
                 if old_title_msg:
-                    new_title_msg = f'{old_title_msg}.{new_title_msg}'
+                    new_title_msg = f"{old_title_msg}.{new_title_msg}"
                 if not new_title_msg:
-                    new_title_msg = 'UNTITLED'
+                    new_title_msg = "UNTITLED"
                 self.title_msg = new_title_msg
 
         with self._hook_lock:
@@ -89,7 +93,7 @@ class Session(BaseModel):
                     # Log the exception but don't let it break the message appending
                     import logging
 
-                    logging.warning(f'Exception in append_message_hook: {e}')
+                    logging.warning(f"Exception in append_message_hook: {e}")
 
     def set_append_message_hook(self, hook: Optional[Callable] = None) -> None:
         """Set the append message hook with automatic weakref conversion."""
@@ -111,7 +115,11 @@ class Session(BaseModel):
         current_time = time.time()
         self.created_at = current_time
 
-    def _create_session_from_template(self, filter_removed: bool = False, source: Optional[Literal['user', 'subagent', 'clear', 'compact']] = None) -> 'Session':
+    def _create_session_from_template(
+        self,
+        filter_removed: bool = False,
+        source: Optional[Literal["user", "subagent", "clear", "compact"]] = None,
+    ) -> "Session":
         """Create a new session based on this session's template with optional filtering and source."""
         if filter_removed:
             messages = [msg for msg in self.messages.messages if not msg.removed]
@@ -119,35 +127,46 @@ class Session(BaseModel):
             messages = self.messages.messages
 
         kwargs = {
-            'work_dir': self.work_dir,
-            'messages': messages,
-            'todo_list': self.todo_list,
-            'file_tracker': self.file_tracker,
-            'title_msg': self.title_msg,
+            "work_dir": self.work_dir,
+            "messages": messages,
+            "todo_list": self.todo_list,
+            "file_tracker": self.file_tracker,
+            "title_msg": self.title_msg,
         }
 
         if source is not None:
-            kwargs['source'] = source
+            kwargs["source"] = source
 
         return Session(**kwargs)
 
-    def create_new_session(self) -> 'Session':
+    def create_new_session(self) -> "Session":
         return self._create_session_from_template()
 
     def clear_conversation_history(self):
         """Clear conversation history by creating a new session for real cleanup"""
         SessionOperations.clear_conversation_history(self)
 
-    async def compact_conversation_history(self, instructions: str = '', show_status: bool = True, llm_manager: Optional[LLMManager] = None):
+    async def compact_conversation_history(
+        self,
+        instructions: str = "",
+        show_status: bool = True,
+        llm_manager: Optional[LLMManager] = None,
+    ):
         """Compact conversation history using LLM to summarize."""
-        await SessionOperations.compact_conversation_history(self, instructions, show_status, llm_manager)
+        await SessionOperations.compact_conversation_history(
+            self, instructions, show_status, llm_manager
+        )
 
-    async def analyze_conversation_for_command(self, llm_manager: Optional[LLMManager] = None) -> Optional[dict]:
+    async def analyze_conversation_for_command(
+        self, llm_manager: Optional[LLMManager] = None
+    ) -> Optional[dict]:
         """Analyze conversation to extract command pattern."""
-        return await SessionOperations.analyze_conversation_for_command(self, llm_manager)
+        return await SessionOperations.analyze_conversation_for_command(
+            self, llm_manager
+        )
 
     @classmethod
-    def load(cls, session_id: str, work_dir: Path = Path.cwd()) -> Optional['Session']:
+    def load(cls, session_id: str, work_dir: Path = Path.cwd()) -> Optional["Session"]:
         """Load session from local files"""
         return SessionStorage.load(session_id, work_dir)
 
@@ -157,6 +176,6 @@ class Session(BaseModel):
         return SessionStorage.load_session_list(work_dir)
 
     @classmethod
-    def get_latest_session(cls, work_dir: Path = Path.cwd()) -> Optional['Session']:
+    def get_latest_session(cls, work_dir: Path = Path.cwd()) -> Optional["Session"]:
         """Get the most recent session for the current working directory."""
         return SessionStorage.get_latest_session(work_dir)

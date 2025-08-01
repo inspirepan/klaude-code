@@ -33,26 +33,28 @@ def resolve_config_path(config_input: str) -> Path:
     config_path = Path(config_input)
 
     # If it's already an absolute path or relative path with directory separators, use as-is
-    if config_path.is_absolute() or '/' in config_input or '\\' in config_input:
+    if config_path.is_absolute() or "/" in config_input or "\\" in config_input:
         return config_path
 
     # If it's just a name without extension, treat as short name
-    if not config_input.endswith('.json'):
-        return Path.home() / '.klaude' / f'config_{config_input}.json'
+    if not config_input.endswith(".json"):
+        return Path.home() / ".klaude" / f"config_{config_input}.json"
 
     # If it's a filename ending with .json, put it in ~/.klaude/
-    return Path.home() / '.klaude' / config_input
+    return Path.home() / ".klaude" / config_input
 
 
 def get_default_config_path() -> Path:
     """Get default global configuration file path"""
-    return Path.home() / '.klaude' / 'config.json'
+    return Path.home() / ".klaude" / "config.json"
 
 
 class FileConfigSource(ConfigSource):
     """Configuration from file (either global config.json or CLI specified file)"""
 
-    def __init__(self, config_file: Optional[str] = None, source_name: Optional[str] = None):
+    def __init__(
+        self, config_file: Optional[str] = None, source_name: Optional[str] = None
+    ):
         """
         Initialize file config source
 
@@ -76,10 +78,14 @@ class FileConfigSource(ConfigSource):
 
         # Check if it's the default global config
         if config_path == get_default_config_path():
-            return 'global'
+            return "global"
 
         # Check if it's in ~/.klaude/ directory with config_xxx.json pattern
-        if config_path.parent == Path.home() / '.klaude' and config_path.name.startswith('config_') and config_path.name.endswith('.json'):
+        if (
+            config_path.parent == Path.home() / ".klaude"
+            and config_path.name.startswith("config_")
+            and config_path.name.endswith(".json")
+        ):
             # Extract xxx from config_xxx.json
             return config_path.name[7:-5]  # Remove 'config_' prefix and '.json' suffix
 
@@ -99,15 +105,22 @@ class FileConfigSource(ConfigSource):
             return
 
         try:
-            with open(self.config_path, 'r', encoding='utf-8') as f:
+            with open(self.config_path, "r", encoding="utf-8") as f:
                 config_data = json.load(f)
                 # Filter only valid ConfigModel fields
                 valid_fields = {k for k in ConfigModel.model_fields.keys()}
-                filtered_data = {k: v for k, v in config_data.items() if k in valid_fields}
+                filtered_data = {
+                    k: v for k, v in config_data.items() if k in valid_fields
+                }
                 self.config_model = ConfigModel(source=self.source, **filtered_data)
         except (json.JSONDecodeError, IOError) as e:
             console.print(
-                Text.assemble(('Warning: Failed to load config file ', ColorStyle.ERROR), (str(self.config_path), ColorStyle.ERROR), (': ', ColorStyle.ERROR), format_exception(e))
+                Text.assemble(
+                    ("Warning: Failed to load config file ", ColorStyle.ERROR),
+                    (str(self.config_path), ColorStyle.ERROR),
+                    (": ", ColorStyle.ERROR),
+                    format_exception(e),
+                )
             )
             self.config_model = ConfigModel(source=self.source)
 
@@ -122,7 +135,7 @@ class FileConfigSource(ConfigSource):
         # First validate that the config file exists for CLI-specified configs
         config_path = resolve_config_path(config_file)
         if not config_path.exists():
-            raise ValueError(f'Configuration file not found: {config_path}')
+            raise ValueError(f"Configuration file not found: {config_path}")
         return cls(config_file=config_file)
 
     @classmethod
@@ -137,13 +150,17 @@ class FileConfigSource(ConfigSource):
             config_path = get_default_config_path()
 
         if config_path.exists():
-            console.print(Text(f'Opening config file: {str(config_path)}', style=ColorStyle.SUCCESS))
+            console.print(
+                Text(
+                    f"Opening config file: {str(config_path)}", style=ColorStyle.SUCCESS
+                )
+            )
             import sys
 
-            editor = os.getenv('EDITOR', 'vi' if sys.platform != 'darwin' else 'open')
-            os.system(f'{editor} {config_path}')
+            editor = os.getenv("EDITOR", "vi" if sys.platform != "darwin" else "open")
+            os.system(f"{editor} {config_path}")
         else:
-            console.print(Text('Config file not found', style=ColorStyle.ERROR))
+            console.print(Text("Config file not found", style=ColorStyle.ERROR))
 
     @classmethod
     def create_example_config(cls, config_path: Optional[Path] = None):
@@ -152,27 +169,37 @@ class FileConfigSource(ConfigSource):
             config_path = get_default_config_path()
 
         example_config = {
-            'api_key': 'your_api_key_here',
-            'model_name': DEFAULT_MODEL_NAME,
-            'base_url': DEFAULT_BASE_URL,
-            'model_azure': DEFAULT_MODEL_AZURE,
-            'max_tokens': DEFAULT_MAX_TOKENS,
-            'context_window_threshold': DEFAULT_CONTEXT_WINDOW_THRESHOLD,
-            'extra_header': DEFAULT_EXTRA_HEADER,
-            'extra_body': DEFAULT_EXTRA_BODY,
-            'enable_thinking': DEFAULT_ENABLE_THINKING,
-            'api_version': DEFAULT_API_VERSION,
-            'theme': DEFAULT_THEME,
+            "api_key": "your_api_key_here",
+            "model_name": DEFAULT_MODEL_NAME,
+            "base_url": DEFAULT_BASE_URL,
+            "model_azure": DEFAULT_MODEL_AZURE,
+            "max_tokens": DEFAULT_MAX_TOKENS,
+            "context_window_threshold": DEFAULT_CONTEXT_WINDOW_THRESHOLD,
+            "extra_header": DEFAULT_EXTRA_HEADER,
+            "extra_body": DEFAULT_EXTRA_BODY,
+            "enable_thinking": DEFAULT_ENABLE_THINKING,
+            "api_version": DEFAULT_API_VERSION,
+            "theme": DEFAULT_THEME,
         }
         try:
             config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(example_config, f, indent=2, ensure_ascii=False)
-            console.print(Text(f'Example config file created at: {config_path}\n', style=ColorStyle.SUCCESS))
-            console.print(Text('Please edit the file and set your actual API key.'))
+            console.print(
+                Text(
+                    f"Example config file created at: {config_path}\n",
+                    style=ColorStyle.SUCCESS,
+                )
+            )
+            console.print(Text("Please edit the file and set your actual API key."))
             return True
         except (IOError, OSError) as e:
-            console.print(Text.assemble(('Error: Failed to create config file: ', ColorStyle.ERROR), format_exception(e)))
+            console.print(
+                Text.assemble(
+                    ("Error: Failed to create config file: ", ColorStyle.ERROR),
+                    format_exception(e),
+                )
+            )
             return False
 
     @classmethod

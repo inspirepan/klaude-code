@@ -15,7 +15,9 @@ def parse_gitignore(gitignore_path: Union[str, Path]) -> List[str]:
     return GitIgnoreParser.parse_gitignore(gitignore_path)
 
 
-def get_effective_ignore_patterns(additional_patterns: Optional[List[str]] = None) -> List[str]:
+def get_effective_ignore_patterns(
+    additional_patterns: Optional[List[str]] = None,
+) -> List[str]:
     """Get effective ignore patterns by combining defaults with .gitignore.
 
     DEPRECATED: Use GitIgnoreParser.get_effective_ignore_patterns() instead.
@@ -24,7 +26,11 @@ def get_effective_ignore_patterns(additional_patterns: Optional[List[str]] = Non
 
 
 def get_directory_structure(
-    path: Union[str, Path], ignore_pattern: Optional[List[str]] = None, max_chars: int = DEFAULT_MAX_CHARS, max_depth: Optional[int] = None, show_hidden: bool = False
+    path: Union[str, Path],
+    ignore_pattern: Optional[List[str]] = None,
+    max_chars: int = DEFAULT_MAX_CHARS,
+    max_depth: Optional[int] = None,
+    show_hidden: bool = False,
 ) -> Tuple[str, bool, int]:
     """Generate a text representation of directory structure.
     Args:
@@ -40,5 +46,10 @@ def get_directory_structure(
         - truncated: Whether truncated due to character limit
         - path_count: Number of path items included
     """
-    builder = DirectoryTreeBuilder(max_chars=max_chars, max_depth=max_depth, show_hidden=show_hidden, additional_ignore_patterns=ignore_pattern)
+    builder = DirectoryTreeBuilder(
+        max_chars=max_chars,
+        max_depth=max_depth,
+        show_hidden=show_hidden,
+        additional_ignore_patterns=ignore_pattern,
+    )
     return builder.get_directory_structure(path)

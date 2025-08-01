@@ -12,7 +12,7 @@ from rich.text import Text
 from .colors import ColorStyle
 from .console import console
 
-INTERRUPT_TIP = ' (ctrl+c to interrupt)'
+INTERRUPT_TIP = " (ctrl+c to interrupt)"
 
 
 class CustomSpinner:
@@ -32,51 +32,53 @@ class CustomSpinner:
         elapsed = time_now - self.start_time
         frame_index = int(elapsed / self.interval) % len(self.frames)
         frame_text = self.frames[frame_index]
-        return Text(frame_text, style=self.style, justify='center')
+        return Text(frame_text, style=self.style, justify="center")
 
-    def __rich_measure__(self, console: 'Console', options: 'ConsoleOptions') -> Measurement:
+    def __rich_measure__(
+        self, console: "Console", options: "ConsoleOptions"
+    ) -> Measurement:
         return Measurement.get(console, options, self.render(console.get_time()))
 
 
 claude_frames = [
-    '✶',
-    '✻',
-    '✲',
-    '✻',
-    '✶',
-    '✳',
-    '✢',
-    '·',
-    '✢',
-    '✳',
+    "✶",
+    "✻",
+    "✲",
+    "✻",
+    "✶",
+    "✳",
+    "✢",
+    "·",
+    "✢",
+    "✳",
 ]
 
 weather_frames = [
-    '☀️ ',
-    '☀️ ',
-    '☀️ ',
-    '🌤 ',
-    '⛅️ ',
-    '🌥 ',
-    '☁️ ',
-    '🌧 ',
-    '🌨 ',
-    '🌧 ',
-    '🌨 ',
-    '🌧 ',
-    '🌨 ',
-    '🌨 ',
-    '🌧 ',
-    '🌨 ',
-    '☁️ ',
-    '🌥 ',
-    '⛅️ ',
-    '🌤 ',
-    '☀️ ',
-    '☀️ ',
+    "☀️ ",
+    "☀️ ",
+    "☀️ ",
+    "🌤 ",
+    "⛅️ ",
+    "🌥 ",
+    "☁️ ",
+    "🌧 ",
+    "🌨 ",
+    "🌧 ",
+    "🌨 ",
+    "🌧 ",
+    "🌨 ",
+    "🌨 ",
+    "🌧 ",
+    "🌨 ",
+    "☁️ ",
+    "🌥 ",
+    "⛅️ ",
+    "🌤 ",
+    "☀️ ",
+    "☀️ ",
 ]
 
-_USE_BONUS_SPINNER = os.environ.get('TRANSIENCE') == '1'
+_USE_BONUS_SPINNER = os.environ.get("TRANSIENCE") == "1"
 
 
 def get_spinner(style: StyleType = None):
@@ -100,7 +102,7 @@ class DotsStatus:
         self.status = status
         self.description = description
         self.spinner = get_spinner(style=spinner_style)
-        self.dots = Spinner(name='simpleDots', style=dots_style, speed=1)
+        self.dots = Spinner(name="simpleDots", style=dots_style, speed=1)
         self.refresh_per_second = refresh_per_second
         self.padding_line = padding_line
         self._live = Live(
@@ -125,7 +127,7 @@ class DotsStatus:
         if spinner_style:
             self.spinner = get_spinner(style=spinner_style)
         if dots_style:
-            self.dots = Spinner(name='simpleDots', style=dots_style, speed=1)
+            self.dots = Spinner(name="simpleDots", style=dots_style, speed=1)
         self._live.update(self.renderable, refresh=True)
 
     @property
@@ -133,17 +135,17 @@ class DotsStatus:
         columns = Columns(
             [
                 self.spinner,
-                '  ',
+                "  ",
                 self.status,
                 self.dots,
-                ' ',
+                " ",
                 self.description,
             ],
             padding=(0, 0),
         )
         if self.padding_line:
             return Group(
-                '',
+                "",
                 columns,
             )
         return columns
@@ -159,7 +161,7 @@ class DotsStatus:
     def __rich__(self) -> RenderableType:
         return self.renderable
 
-    def __enter__(self) -> 'DotsStatus':
+    def __enter__(self) -> "DotsStatus":
         self.start()
         return self
 

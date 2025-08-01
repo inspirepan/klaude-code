@@ -12,7 +12,9 @@ class ToolExecutor:
     """Handles tool execution with timeout and interrupt support."""
 
     @staticmethod
-    async def execute_async(tool_class: type, tool_call: ToolCall, instance: 'ToolInstance'):
+    async def execute_async(
+        tool_class: type, tool_call: ToolCall, instance: "ToolInstance"
+    ):
         """Execute tool asynchronously with proper error handling."""
         loop = asyncio.get_event_loop()
         with ThreadPoolExecutor() as executor:
@@ -30,5 +32,5 @@ class ToolExecutor:
             except asyncio.TimeoutError:
                 instance._interrupt_flag.set()
                 future.cancel()
-                instance.tool_msg.tool_call.status = 'canceled'
+                instance.tool_msg.tool_call.status = "canceled"
                 instance.tool_msg.content = f"Tool '{tool_class.get_name()}' timed out after {tool_class.get_timeout()}s"

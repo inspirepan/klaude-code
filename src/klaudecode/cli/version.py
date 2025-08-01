@@ -6,7 +6,7 @@ def version_command():
     from importlib.metadata import version
 
     try:
-        pkg_version = version('klaude-code')
-        console.print(Text(f'klaude-code {pkg_version}', style=ColorStyle.SUCCESS))
+        pkg_version = version("klaude-code")
+        console.print(Text(f"klaude-code {pkg_version}", style=ColorStyle.SUCCESS))
     except Exception:
-        console.print(Text('klaude-code (development)', style=ColorStyle.SUCCESS))
+        console.print(Text("klaude-code (development)", style=ColorStyle.SUCCESS))

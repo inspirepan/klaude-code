@@ -17,13 +17,13 @@ class CustomCommandManager:
 
     @classmethod
     def user_commands_dir(cls) -> Path:
-        return Path.home() / '.claude' / 'commands'
+        return Path.home() / ".claude" / "commands"
 
     @classmethod
     def project_commands_dir(cls, workdir: Optional[Path] = None) -> Path:
         if workdir is None:
             workdir = Path.cwd()
-        return workdir / '.claude' / 'commands'
+        return workdir / ".claude" / "commands"
 
     def discover_and_register_commands(self, workdir: Path = None):
         """Discover and register all custom commands"""
@@ -36,12 +36,12 @@ class CustomCommandManager:
         # Discover project commands
         project_commands_dir = CustomCommandManager.project_commands_dir(workdir)
         if project_commands_dir.exists():
-            self._discover_commands(project_commands_dir, 'project')
+            self._discover_commands(project_commands_dir, "project")
 
         # Discover user commands
         user_commands_dir = CustomCommandManager.user_commands_dir()
         if user_commands_dir.exists():
-            self._discover_commands(user_commands_dir, 'user')
+            self._discover_commands(user_commands_dir, "user")
 
         # Register all discovered commands
         self._register_all()
@@ -49,7 +49,7 @@ class CustomCommandManager:
     def _discover_commands(self, commands_dir: Path, scope: str):
         """Discover commands in a directory with namespace support"""
         try:
-            for md_file in commands_dir.rglob('*.md'):
+            for md_file in commands_dir.rglob("*.md"):
                 try:
                     # Calculate command name with namespace
                     relative_path = md_file.relative_to(commands_dir)
@@ -60,27 +60,45 @@ class CustomCommandManager:
                     if len(path_parts) == 1:
                         # No namespace: just command name
                         command_name = path_parts[0]
-                        scope_info = f'({scope})'
+                        scope_info = f"({scope})"
                     else:
                         # With namespace: use only the last part as command name
                         command_name = path_parts[-1]
-                        scope_info = f'({scope}:{":".join(path_parts[:-1])})'
+                        scope_info = f"({scope}:{':'.join(path_parts[:-1])})"
 
                     # Create command instance with scope info
-                    command = CustomCommand.from_markdown_file(md_file, command_name, scope_info)
+                    command = CustomCommand.from_markdown_file(
+                        md_file, command_name, scope_info
+                    )
 
                     # Store in appropriate dictionary using command name directly
-                    if scope == 'project':
+                    if scope == "project":
                         self.project_commands[command_name] = command
                     else:
                         self.user_commands[command_name] = command
 
                 except Exception as e:
-                    console.print(Text.assemble('Error loading command from ', str(md_file), ': ', format_exception(e), style=ColorStyle.ERROR))
+                    console.print(
+                        Text.assemble(
+                            "Error loading command from ",
+                            str(md_file),
+                            ": ",
+                            format_exception(e),
+                            style=ColorStyle.ERROR,
+                        )
+                    )
                     continue
 
         except Exception as e:
-            console.print(Text.assemble('Error scanning commands directory ', str(commands_dir), ': ', format_exception(e), style=ColorStyle.ERROR))
+            console.print(
+                Text.assemble(
+                    "Error scanning commands directory ",
+                    str(commands_dir),
+                    ": ",
+                    format_exception(e),
+                    style=ColorStyle.ERROR,
+                )
+            )
 
     def _register_all(self):
         """Register all discovered commands with the system following priority: system > project > user"""
@@ -90,7 +108,15 @@ class CustomCommandManager:
                 register_slash_command(command)
                 self.registered_commands.append(command_name)
             except Exception as e:
-                console.print(Text.assemble('Error registering user command ', command_name, ': ', format_exception(e), style=ColorStyle.ERROR))
+                console.print(
+                    Text.assemble(
+                        "Error registering user command ",
+                        command_name,
+                        ": ",
+                        format_exception(e),
+                        style=ColorStyle.ERROR,
+                    )
+                )
 
         # Register project commands (higher priority - will override user commands)
         for command_name, command in self.project_commands.items():
@@ -99,7 +125,15 @@ class CustomCommandManager:
                 if command_name not in self.registered_commands:
                     self.registered_commands.append(command_name)
             except Exception as e:
-                console.print(Text.assemble('Error registering project command ', command_name, ': ', format_exception(e), style=ColorStyle.ERROR))
+                console.print(
+                    Text.assemble(
+                        "Error registering project command ",
+                        command_name,
+                        ": ",
+                        format_exception(e),
+                        style=ColorStyle.ERROR,
+                    )
+                )
 
     def _unregister_all(self):
         """Unregister all previously registered custom commands"""
@@ -125,20 +159,22 @@ class CustomCommandManager:
         info_lines = []
 
         if self.project_commands:
-            info_lines.append('Project Commands:')
+            info_lines.append("Project Commands:")
             for name, cmd in self.project_commands.items():
-                info_lines.append(f'  /{name} - {cmd.get_command_desc()}')
+                info_lines.append(f"  /{name} - {cmd.get_command_desc()}")
 
         if self.user_commands:
-            info_lines.append('User Commands:')
+            info_lines.append("User Commands:")
             for name, cmd in self.user_commands.items():
-                info_lines.append(f'  /{name} - {cmd.get_command_desc()}')
+                info_lines.append(f"  /{name} - {cmd.get_command_desc()}")
 
         if not self.project_commands and not self.user_commands:
-            info_lines.append('No custom commands found.')
-            info_lines.append('Create .md files in .claude/commands/ (project) or ~/.claude/commands/ (user)')
+            info_lines.append("No custom commands found.")
+            info_lines.append(
+                "Create .md files in .claude/commands/ (project) or ~/.claude/commands/ (user)"
+            )
 
-        return '\n'.join(info_lines)
+        return "\n".join(info_lines)
 
 
 # Global instance

@@ -18,8 +18,8 @@ class Tool(ABC):
     Tool is the base class for all tools.
     """
 
-    name: str = ''
-    desc: str = ''
+    name: str = ""
+    desc: str = ""
     parallelable: bool = True
     timeout = 300
 
@@ -74,29 +74,33 @@ class Tool(ABC):
         return json.dumps(cls.openai_schema())
 
     @classmethod
-    def create_instance(cls, tool_call: ToolCall, agent_state: 'AgentState') -> 'ToolInstance':
+    def create_instance(
+        cls, tool_call: ToolCall, agent_state: "AgentState"
+    ) -> "ToolInstance":
         from .instance import ToolInstance
 
         return ToolInstance(tool=cls, tool_call=tool_call, agent_state=agent_state)
 
     @classmethod
     def parse_input_args(cls, tool_call: ToolCall) -> Optional[BaseModel]:
-        if hasattr(cls, 'Input') and issubclass(cls.Input, BaseModel):
+        if hasattr(cls, "Input") and issubclass(cls.Input, BaseModel):
             args_dict = json.loads(tool_call.tool_args)
             try:
                 input_inst = cls.Input(**args_dict)
                 return input_inst
             except ValidationError as e:
                 error = e.errors(include_url=False, include_context=False)
-                error_msg = ', '.join(e.get('msg', '') for e in error)
-                raise ValueError(f'Tool args invalid: {error_msg}, args: "{tool_call.tool_args}"')
-        raise ValueError(f'Invalid tool, cls: {cls.__name__}')
+                error_msg = ", ".join(e.get("msg", "") for e in error)
+                raise ValueError(
+                    f'Tool args invalid: {error_msg}, args: "{tool_call.tool_args}"'
+                )
+        raise ValueError(f"Invalid tool, cls: {cls.__name__}")
 
     @classmethod
-    def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
+    def invoke(cls, tool_call: ToolCall, instance: "ToolInstance"):
         raise NotImplementedError
 
     @classmethod
-    async def invoke_async(cls, tool_call: ToolCall, instance: 'ToolInstance'):
+    async def invoke_async(cls, tool_call: ToolCall, instance: "ToolInstance"):
         """Execute tool asynchronously with proper error handling."""
         await ToolExecutor.execute_async(cls, tool_call, instance)

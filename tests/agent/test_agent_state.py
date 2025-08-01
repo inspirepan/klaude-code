@@ -44,7 +44,12 @@ class TestAgentState:
     def test_agent_state_initialization_with_params(self, mock_session, mock_config):
         available_tools = BASIC_TOOLS
 
-        agent_state = AgentState(session=mock_session, config=mock_config, available_tools=available_tools, print_switch=False)
+        agent_state = AgentState(
+            session=mock_session,
+            config=mock_config,
+            available_tools=available_tools,
+            print_switch=False,
+        )
 
         assert agent_state.session == mock_session
         assert agent_state.config == mock_config
@@ -54,7 +59,7 @@ class TestAgentState:
     def test_initialize_llm_first_time(self, mock_session, mock_config):
         agent_state = AgentState(mock_session, config=mock_config)
 
-        with patch('klaudecode.agent.state.LLMManager') as mock_llm_manager_class:
+        with patch("klaudecode.agent.state.LLMManager") as mock_llm_manager_class:
             mock_llm_manager = Mock()
             mock_llm_manager_class.return_value = mock_llm_manager
 
@@ -78,7 +83,7 @@ class TestAgentState:
     async def test_initialize_mcp_first_time(self, mock_session):
         agent_state = AgentState(mock_session)
 
-        with patch('klaudecode.agent.state.MCPManager') as mock_mcp_manager_class:
+        with patch("klaudecode.agent.state.MCPManager") as mock_mcp_manager_class:
             mock_mcp_manager = Mock()
             mock_mcp_manager.initialize = AsyncMock(return_value=True)
             mock_mcp_manager_class.return_value = mock_mcp_manager
@@ -171,7 +176,7 @@ class TestAgentState:
     def test_print_usage(self, mock_session):
         agent_state = AgentState(mock_session)
 
-        with patch('klaudecode.tui.console') as mock_console:
+        with patch("klaudecode.tui.console") as mock_console:
             agent_state.print_usage()
 
             assert mock_console.print.call_count == 2

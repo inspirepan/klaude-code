@@ -56,12 +56,18 @@ class ConfigManager:
     def _validate_api_key(self):
         """Validate that API key is provided and not from default source"""
         api_key_config = self._merged_config_model.api_key
-        if not api_key_config or not api_key_config.value or api_key_config.source == 'default':
-            console.print(Text('Error: API key not set', style='red bold'))
+        if (
+            not api_key_config
+            or not api_key_config.value
+            or api_key_config.source == "default"
+        ):
+            console.print(Text("Error: API key not set", style="red bold"))
             console.print()
-            console.print(Text('Please set your API key using one of the following methods:'))
-            console.print(Text('- Command line: --api-key YOUR_API_KEY'))
-            console.print(Text('- Environment: export API_KEY=YOUR_API_KEY'))
+            console.print(
+                Text("Please set your API key using one of the following methods:")
+            )
+            console.print(Text("- Command line: --api-key YOUR_API_KEY"))
+            console.print(Text("- Environment: export API_KEY=YOUR_API_KEY"))
             console.print(Text("- Config file: Run 'klaude config edit' to configure"))
             import sys
 
@@ -73,8 +79,12 @@ class ConfigManager:
 
     def __rich__(self):
         return Group(
-            Text.assemble('config path: ', (str(self._config_path), ColorStyle.SUCCESS)),
-            Panel(self.get_config_model(), box=box.ROUNDED, border_style=ColorStyle.LINE),
+            Text.assemble(
+                "config path: ", (str(self._config_path), ColorStyle.SUCCESS)
+            ),
+            Panel(
+                self.get_config_model(), box=box.ROUNDED, border_style=ColorStyle.LINE
+            ),
         )
 
     def get(self, key: str) -> Optional[Union[str, bool, int]]:
@@ -101,7 +111,7 @@ class ConfigManager:
         api_version: Optional[str] = None,
         theme: Optional[str] = None,
         config_file: Optional[str] = None,
-    ) -> 'ConfigManager':
+    ) -> "ConfigManager":
         """Create a ConfigManager with all configuration sources
 
         Args:
@@ -117,7 +127,12 @@ class ConfigManager:
 
         if config_file:
             # When config file is specified: Env < CLI Config < CLI Args
-            sources.extend([EnvConfigSource(), FileConfigSource.create_cli_config_source(config_file)])
+            sources.extend(
+                [
+                    EnvConfigSource(),
+                    FileConfigSource.create_cli_config_source(config_file),
+                ]
+            )
         else:
             # When no config file specified: Global Config < Env < CLI Args
             sources.extend(
