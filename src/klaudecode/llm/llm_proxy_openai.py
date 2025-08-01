@@ -246,35 +246,23 @@ class OpenAIProxy(LLMProxyBase):
             if not chunks:
                 return
             for chunk in chunks:
-                self.add_chunk(chunk)
+                self._add_chunk(chunk)
 
-        def add_chunk(self, chunk: ChoiceDeltaToolCall) -> None:
+        def _add_chunk(self, chunk: ChoiceDeltaToolCall) -> None:
             if not chunk:
                 return
             if chunk.id:
-                self._add_new_tool_call(chunk.id)
-            if chunk.function.name and self.tool_call_list:
-                self._update_tool_name(chunk.function.name)
-            if chunk.function.arguments and self.tool_call_list:
-                self._update_tool_arguments(chunk.function.arguments)
-
-        def _add_new_tool_call(self, tool_id: str) -> None:
-            """Add a new tool call with the given ID."""
-            self.tool_call_list.append(
-                ChatCompletionMessageToolCall(
-                    id=tool_id,
-                    function=Function(arguments="", name=""),
-                    type="function",
+                self.tool_call_list.append(
+                    ChatCompletionMessageToolCall(
+                        id=chunk.id,
+                        function=Function(arguments="", name=""),
+                        type="function",
+                    )
                 )
-            )
-
-        def _update_tool_name(self, name: str) -> None:
-            """Update the name of the last tool call."""
-            self.tool_call_list[-1].function.name = name
-
-        def _update_tool_arguments(self, arguments: str) -> None:
-            """Update the arguments of the last tool call (append for streaming)."""
-            self.tool_call_list[-1].function.arguments += arguments
+            if chunk.function.name and self.tool_call_list:
+                self.tool_call_list[-1].function.name = chunk.function.name
+            if chunk.function.arguments and self.tool_call_list:
+                self.tool_call_list[-1].function.arguments += chunk.function.arguments
 
         def get_tool_call_dict(self) -> Dict[str, ToolCall]:
             result = {}

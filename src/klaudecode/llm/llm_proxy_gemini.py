@@ -18,7 +18,7 @@ class GeminiProxy(OpenAIProxy):
             super().__init__()
             self.tool_call_dict: Dict[int, ChatCompletionMessageToolCall] = {}
 
-        def add_chunk(self, chunk: ChoiceDeltaToolCall) -> None:
+        def _add_chunk(self, chunk: ChoiceDeltaToolCall) -> None:
             if not chunk:
                 return
 
