@@ -28,7 +28,7 @@ from .state import AgentState
 
 TOKEN_WARNING_THRESHOLD = 0.75
 COMPACT_THRESHOLD = 0.8
-DEFAULT_MAX_STEPS = 100
+DEFAULT_MAX_STEPS = 200
 
 
 class AgentExecutor(Tool):

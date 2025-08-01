@@ -1,4 +1,4 @@
-from .agent import DEFAULT_MAX_STEPS, QUIT_COMMAND, Agent, get_main_agent
+from .agent import QUIT_COMMAND, Agent, get_main_agent
 from .executor import AgentExecutor
 from .state import AgentState
 
@@ -7,6 +7,5 @@ __all__ = [
     "AgentExecutor",
     "AgentState",
     "get_main_agent",
-    "DEFAULT_MAX_STEPS",
     "QUIT_COMMAND",
 ]
