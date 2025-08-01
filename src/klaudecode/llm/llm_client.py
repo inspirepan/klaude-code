@@ -140,7 +140,7 @@ class RetryWrapper(LLMClientWrapper):
         return error_msg
 
 
-class StatusWrapper(LLMClientWrapper):
+class DisplayWrapper(LLMClientWrapper):
     """Wrapper that adds real-time status display and progress indicators to LLM calls
 
     Provides visual feedback to users about the current phase of LLM processing,
@@ -241,7 +241,7 @@ class StatusWrapper(LLMClientWrapper):
 
                 if show_result:
                     if stream_print_result:
-                        if ai_message.content or ai_message.thinking_content:
+                        if ai_message.content.strip() or ai_message.thinking_content.strip():
                             # Group content with status, adding spacing for readability
                             live.update(Group('', ai_message, status))
                         else:
@@ -342,6 +342,6 @@ class LLMClient:
                 pass
             return ai_message
 
-        async for _, ai_message in StatusWrapper(self.client).stream_call(msgs, tools, timeout=timeout, status_text=status_text, show_result=show_result):
+        async for _, ai_message in DisplayWrapper(self.client).stream_call(msgs, tools, timeout=timeout, status_text=status_text, show_result=show_result):
             pass
         return ai_message
