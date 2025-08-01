@@ -18,6 +18,7 @@ from ..utils.exception import format_exception
 from .llm_proxy_anthropic import AnthropicProxy
 from .llm_proxy_base import DEFAULT_RETRIES, DEFAULT_RETRY_BACKOFF_BASE, LLMProxyBase
 from .llm_proxy_gemini import GeminiProxy
+from .llm_proxy_glm import GLMProxy
 from .llm_proxy_openai import OpenAIProxy
 
 NON_RETRY_EXCEPTIONS = (
@@ -310,6 +311,8 @@ class LLMClient:
             base_client = AnthropicProxy(model_name, api_key, max_tokens, enable_thinking, extra_header, extra_body)
         elif 'gemini' in model_name.lower():
             base_client = GeminiProxy(model_name, base_url, api_key, model_azure, max_tokens, extra_header, extra_body, api_version, enable_thinking)
+        elif 'glm' in model_name.lower():
+            base_client = GLMProxy(model_name, base_url, api_key, model_azure, max_tokens, extra_header, extra_body, api_version, enable_thinking)
         else:
             base_client = OpenAIProxy(model_name, base_url, api_key, model_azure, max_tokens, extra_header, extra_body, api_version, enable_thinking)
 

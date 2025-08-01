@@ -35,8 +35,8 @@ class ToolCall(BaseModel):
             if tool_args_str:
                 try:
                     data['tool_args_dict'] = json.loads(tool_args_str)
-                except (json.JSONDecodeError, TypeError):
-                    data['tool_args_dict'] = {}
+                except (json.JSONDecodeError, TypeError) as e:
+                    raise ValueError(f'Invalid tool args: {tool_args_str}') from e
         super().__init__(**data)
         self._invalidate_cache()
 

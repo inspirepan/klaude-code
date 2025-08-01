@@ -1,11 +1,10 @@
 import uuid
-from typing import Dict, List, Optional
+from typing import Dict
 
 from openai.types.chat import ChatCompletionMessageToolCall
 from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
 from openai.types.chat.chat_completion_message_tool_call import Function
 
-from ..message import ToolCall, count_tokens
 from .llm_proxy_openai import OpenAIProxy
 
 
@@ -14,20 +13,16 @@ class GeminiProxy(OpenAIProxy):
         """Create Gemini-specific tool call accumulator."""
         return self.GeminiToolCallChunkAccumulator()
 
-    class GeminiToolCallChunkAccumulator:
+    class GeminiToolCallChunkAccumulator(OpenAIProxy.OpenAIToolCallChunkAccumulator):
         def __init__(self) -> None:
+            super().__init__()
             self.tool_call_dict: Dict[int, ChatCompletionMessageToolCall] = {}
-
-        def add_chunks(self, chunks: Optional[List[ChoiceDeltaToolCall]]) -> None:
-            if not chunks:
-                return
-            for chunk in chunks:
-                self.add_chunk(chunk)
 
         def add_chunk(self, chunk: ChoiceDeltaToolCall) -> None:
             if not chunk:
                 return
 
+            # Gemini uses index to identify different tool calls in streaming response
             index = chunk.index
             if index not in self.tool_call_dict:
                 # Generate unique ID for this tool call
@@ -37,24 +32,11 @@ class GeminiProxy(OpenAIProxy):
                     function=Function(arguments='', name=''),
                     type='function',
                 )
+                # Also add to parent's list for compatibility
+                self.tool_call_list.append(self.tool_call_dict[index])
 
+            # Update the tool call at this index
             if chunk.function and chunk.function.name:
                 self.tool_call_dict[index].function.name = chunk.function.name
             if chunk.function and chunk.function.arguments:
                 self.tool_call_dict[index].function.arguments += chunk.function.arguments
-
-        def get_tool_call_msg_dict(self) -> Dict[str, ToolCall]:
-            return {
-                raw_tc.id: ToolCall(
-                    id=raw_tc.id,
-                    tool_name=raw_tc.function.name,
-                    tool_args=raw_tc.function.arguments,
-                )
-                for raw_tc in self.tool_call_dict.values()
-            }
-
-        def count_tokens(self) -> int:
-            tokens = 0
-            for tc in self.tool_call_dict.values():
-                tokens += count_tokens(tc.function.name) + count_tokens(tc.function.arguments)
-            return tokens

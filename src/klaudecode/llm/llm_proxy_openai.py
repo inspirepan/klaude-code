@@ -43,7 +43,7 @@ class OpenAIProxy(LLMProxyBase):
                 api_key=api_key,
             )
 
-    def _create_tool_call_accumulator(self):
+    def _create_tool_call_accumulator(self) -> 'OpenAIProxy.OpenAIToolCallChunkAccumulator':
         """Create the appropriate tool call accumulator. Override in subclasses."""
         return self.OpenAIToolCallChunkAccumulator()
 
@@ -59,7 +59,7 @@ class OpenAIProxy(LLMProxyBase):
         stream = await self._create_stream(msgs, tools, timeout)
         ai_message = AIMessage()
 
-        tool_call_chunk_accumulator = self._create_tool_call_accumulator()
+        tool_call_chunk_accumulator: 'OpenAIProxy.OpenAIToolCallChunkAccumulator' = self._create_tool_call_accumulator()
 
         prompt_tokens = completion_tokens = total_tokens = 0
 
@@ -165,8 +165,10 @@ class OpenAIProxy(LLMProxyBase):
         else:
             return ai_message.tokens + tool_call_chunk_accumulator.count_tokens()
 
-    def _finalize_message(self, ai_message: AIMessage, tool_call_chunk_accumulator, prompt_tokens: int, completion_tokens: int, total_tokens: int) -> None:
-        ai_message.tool_calls = tool_call_chunk_accumulator.get_tool_call_msg_dict()
+    def _finalize_message(
+        self, ai_message: AIMessage, tool_call_chunk_accumulator: 'OpenAIProxy.OpenAIToolCallChunkAccumulator', prompt_tokens: int, completion_tokens: int, total_tokens: int
+    ) -> None:
+        ai_message.tool_calls = tool_call_chunk_accumulator.get_tool_call_dict()
         ai_message.usage = CompletionUsage(
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
@@ -191,27 +193,45 @@ class OpenAIProxy(LLMProxyBase):
             if not chunk:
                 return
             if chunk.id:
-                self.tool_call_list.append(
-                    ChatCompletionMessageToolCall(
-                        id=chunk.id,
-                        function=Function(arguments='', name='', type='function'),
-                        type='function',
-                    )
-                )
+                self._add_new_tool_call(chunk.id)
             if chunk.function.name and self.tool_call_list:
-                self.tool_call_list[-1].function.name = chunk.function.name
+                self._update_tool_name(chunk.function.name)
             if chunk.function.arguments and self.tool_call_list:
-                self.tool_call_list[-1].function.arguments += chunk.function.arguments
+                self._update_tool_arguments(chunk.function.arguments)
 
-        def get_tool_call_msg_dict(self) -> Dict[str, ToolCall]:
-            return {
-                raw_tc.id: ToolCall(
-                    id=raw_tc.id,
-                    tool_name=raw_tc.function.name,
-                    tool_args=raw_tc.function.arguments,
+        def _add_new_tool_call(self, tool_id: str) -> None:
+            """Add a new tool call with the given ID."""
+            self.tool_call_list.append(
+                ChatCompletionMessageToolCall(
+                    id=tool_id,
+                    function=Function(arguments='', name=''),
+                    type='function',
                 )
-                for raw_tc in self.tool_call_list
-            }
+            )
+
+        def _update_tool_name(self, name: str) -> None:
+            """Update the name of the last tool call."""
+            self.tool_call_list[-1].function.name = name
+
+        def _update_tool_arguments(self, arguments: str) -> None:
+            """Update the arguments of the last tool call (append for streaming)."""
+            self.tool_call_list[-1].function.arguments += arguments
+
+        def get_tool_call_dict(self) -> Dict[str, ToolCall]:
+            result = {}
+            for raw_tc in self.tool_call_list:
+                try:
+                    result[raw_tc.id] = ToolCall(
+                        id=raw_tc.id,
+                        tool_name=raw_tc.function.name,
+                        tool_args=raw_tc.function.arguments,
+                    )
+                except Exception as e:
+                    from ..tui import render_suffix, ColorStyle
+
+                    render_suffix(f'Error processing tool call: {e}', style=ColorStyle.ERROR)
+                    continue
+            return result
 
         def count_tokens(self) -> int:
             tokens = 0
