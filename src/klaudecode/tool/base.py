@@ -2,7 +2,7 @@ import json
 from abc import ABC
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from ..message import ToolCall
 from .executor import ToolExecutor
@@ -83,9 +83,14 @@ class Tool(ABC):
     def parse_input_args(cls, tool_call: ToolCall) -> Optional[BaseModel]:
         if hasattr(cls, 'Input') and issubclass(cls.Input, BaseModel):
             args_dict = json.loads(tool_call.tool_args)
-            input_inst = cls.Input(**args_dict)
-            return input_inst
-        return None
+            try:
+                input_inst = cls.Input(**args_dict)
+                return input_inst
+            except ValidationError as e:
+                error = e.errors(include_url=False, include_context=False)
+                error_msg = ', '.join(e.get('msg', '') for e in error)
+                raise ValueError(f'Tool args invalid: {error_msg}, args: "{tool_call.tool_args}"')
+        raise ValueError(f'Invalid tool, cls: {cls.__name__}')
 
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):

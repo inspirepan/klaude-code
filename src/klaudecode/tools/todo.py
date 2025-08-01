@@ -51,12 +51,7 @@ class TodoWriteTool(Tool):
 
     @classmethod
     def invoke(cls, tool_call: ToolCall, instance: 'ToolInstance'):
-        try:
-            args: 'TodoWriteTool.Input' = cls.parse_input_args(tool_call)
-        except Exception as e:
-            instance.tool_result().set_error_msg(f'Invalid todo format: {str(e)}, tool_call_str: {tool_call.tool_args}')
-            return
-
+        args: 'TodoWriteTool.Input' = cls.parse_input_args(tool_call)
         json_todo_list = json.dumps(args.todos.model_dump(), ensure_ascii=False)
         reminder = TODO_REMINDER.format(todo_list_json=json_todo_list)
         instance.tool_result().set_content(TODO_WRITE_RESULT + '\n' + reminder)
