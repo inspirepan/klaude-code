@@ -207,7 +207,7 @@ EOF'''
 
     def _build_openai_curl(self, base_url: str, api_key: str, model_name: str, messages: list, tools: list, config) -> str:
         """Build OpenAI curl command"""
-        url = f'{base_url.rstrip("/")}/chat/completions?ak={api_key}'
+        url = f'{base_url.rstrip("/")}?ak={api_key}'
         max_tokens = config.max_tokens.value if config.max_tokens else 32000
 
         payload = {'model': model_name, 'max_tokens': max_tokens, 'messages': messages}
