@@ -309,7 +309,8 @@ class TestDebugCommand:
             content = file_path.read_text()
             assert "#!/bin/bash" in content
             assert "curl -X POST" in content
-            assert "chat/completions?ak=test-key-123" in content  # URL with API key
+            assert "chat/completions?ak=test-key-123" not in content  # URL with API key format changed
+            assert "?ak=test-key-123" in content  # New URL format with API key
             assert (
                 "Authorization: Bearer test-key-123" in content
             )  # Header with API key
@@ -521,7 +522,8 @@ class TestDebugCommand:
         )
 
         assert "curl -X POST" in openai_curl
-        assert "chat/completions?ak=test-key" in openai_curl
+        assert "chat/completions?ak=test-key" not in openai_curl  # URL format changed
+        assert "?ak=test-key" in openai_curl  # New URL format with API key
         assert "Authorization: Bearer test-key" in openai_curl
         assert "EOF" in openai_curl
 
