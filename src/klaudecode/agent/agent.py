@@ -33,7 +33,9 @@ class Agent:
         try:
             from ..user_command import custom_command_manager
 
-            custom_command_manager.discover_and_register_commands(agent_state.session.work_dir)
+            custom_command_manager.discover_and_register_commands(
+                agent_state.session.work_dir
+            )
         except (ImportError, ModuleNotFoundError) as e:
             if agent_state.print_switch:
                 console.print(
@@ -51,7 +53,12 @@ class Agent:
         self.agent_state.session.messages.print_all_message()  # For continue and resume scene.
 
         # If resuming a session, this is not the agent's first run
-        agent_run_first_time = self.agent_state.session.messages.get_last_message("user", filter_empty=True) is None
+        agent_run_first_time = (
+            self.agent_state.session.messages.get_last_message(
+                "user", filter_empty=True
+            )
+            is None
+        )
         try:
             while True:
                 if not self.agent_state.plan_mode_activated:
@@ -65,7 +72,9 @@ class Agent:
                 if user_input_text.strip().lower() in QUIT_COMMAND:
                     break
 
-                need_agent_run = await self.user_input_handler.handle(user_input_text, print_msg=bool(initial_message))
+                need_agent_run = await self.user_input_handler.handle(
+                    user_input_text, print_msg=bool(initial_message)
+                )
                 if need_agent_run:
                     if agent_run_first_time:
                         self._handle_claudemd_reminder()
@@ -95,7 +104,9 @@ class Agent:
 
         async def update_status():
             while running:
-                tool_msg_count = sum(1 for msg in self.agent_state.session.messages if msg.role == "tool")
+                tool_msg_count = sum(
+                    1 for msg in self.agent_state.session.messages if msg.role == "tool"
+                )
                 status.update(
                     description=Text.assemble(
                         Text.from_markup(f"([bold]{tool_msg_count}[/bold] tool uses) "),
@@ -120,7 +131,9 @@ class Agent:
         self.agent_state.initialize_llm()
 
         try:
-            need_agent_run = await self.user_input_handler.handle(user_input_text, print_msg=False)
+            need_agent_run = await self.user_input_handler.handle(
+                user_input_text, print_msg=False
+            )
             if not need_agent_run:
                 return
 
@@ -147,12 +160,16 @@ class Agent:
 
     def _handle_empty_todo_reminder(self):
         if TodoWriteTool in self.agent_state.available_tools:
-            last_msg = self.agent_state.session.messages.get_last_message(filter_empty=True)
+            last_msg = self.agent_state.session.messages.get_last_message(
+                filter_empty=True
+            )
             if last_msg and isinstance(last_msg, (UserMessage, ToolMessage)):
                 last_msg.append_post_system_reminder(EMPTY_TODO_REMINDER)
 
 
-async def get_main_agent(session: Session, config: ConfigModel, enable_mcp: bool = False) -> Agent:
+async def get_main_agent(
+    session: Session, config: ConfigModel, enable_mcp: bool = False
+) -> Agent:
     from ..tools.task import TaskTool
 
     state = AgentState(session, config, available_tools=[TaskTool] + BASIC_TOOLS)

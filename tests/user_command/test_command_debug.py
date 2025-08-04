@@ -309,7 +309,9 @@ class TestDebugCommand:
             content = file_path.read_text()
             assert "#!/bin/bash" in content
             assert "curl -X POST" in content
-            assert "chat/completions?ak=test-key-123" not in content  # URL with API key format changed
+            assert (
+                "chat/completions?ak=test-key-123" not in content
+            )  # URL with API key format changed
             assert "?ak=test-key-123" in content  # New URL format with API key
             assert (
                 "Authorization: Bearer test-key-123" in content

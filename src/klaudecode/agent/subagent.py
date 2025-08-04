@@ -42,8 +42,12 @@ class SubAgentMeta(type(Tool)):
             # Check if this class inherits from SubAgentBase (by name, not issubclass to avoid circular issues)
             has_subagent_base = any(base.__name__ == "SubAgentBase" for base in bases)
             if has_subagent_base and hasattr(new_class, "name"):
-                register_tool_call_renderer(new_class.name, new_class.render_tool_call_args)
-                register_tool_result_renderer(new_class.name, new_class.render_tool_result)
+                register_tool_call_renderer(
+                    new_class.name, new_class.render_tool_call_args
+                )
+                register_tool_result_renderer(
+                    new_class.name, new_class.render_tool_result
+                )
         return new_class
 
 
@@ -133,7 +137,9 @@ class SubAgentBase(Tool, metaclass=SubAgentMeta):
         msgs_to_show = []
         for msg in reversed(task_msgs):
             msgs_to_show.append(msg)
-            if (msg.get("content") and msg["content"].strip()) or len(msgs_to_show) >= 3:
+            if (msg.get("content") and msg["content"].strip()) or len(
+                msgs_to_show
+            ) >= 3:
                 break
 
         msgs_to_show.reverse()
@@ -149,7 +155,10 @@ class SubAgentBase(Tool, metaclass=SubAgentMeta):
 
             shown_msgs_count = len(msgs_to_show)
             if shown_msgs_count < len(task_msgs):
-                remaining_tool_calls = sum(len(task_msgs[i].get("tool_calls", [])) for i in range(len(task_msgs) - shown_msgs_count))
+                remaining_tool_calls = sum(
+                    len(task_msgs[i].get("tool_calls", []))
+                    for i in range(len(task_msgs) - shown_msgs_count)
+                )
                 if remaining_tool_calls > 0:
                     yield Text(
                         f"+ {remaining_tool_calls} more tool use{'' if remaining_tool_calls == 1 else 's'}",
@@ -162,7 +171,11 @@ class SubAgentBase(Tool, metaclass=SubAgentMeta):
     def _render_completed_status(cls, content: str, task_msgs: list):
         """Render task in completed status"""
         # Use generator to avoid creating intermediate list
-        all_tool_calls = (tool_call for task_msg in task_msgs for tool_call in task_msg.get("tool_calls", []))
+        all_tool_calls = (
+            tool_call
+            for task_msg in task_msgs
+            for tool_call in task_msg.get("tool_calls", [])
+        )
 
         # Check if there are any tool calls by trying to get the first one
         tool_call_gen = cls._render_tool_calls(all_tool_calls)
@@ -202,9 +215,15 @@ class SubAgentFramework:
                     continue
                 task_msg_data = {
                     "content": msg.content,
-                    "tool_calls": [tool_call.model_dump() for tool_call in msg.tool_calls.values()] if msg.tool_calls else [],
+                    "tool_calls": [
+                        tool_call.model_dump() for tool_call in msg.tool_calls.values()
+                    ]
+                    if msg.tool_calls
+                    else [],
                 }
-                tool_instance.tool_result().append_extra_data("task_msgs", task_msg_data)
+                tool_instance.tool_result().append_extra_data(
+                    "task_msgs", task_msg_data
+                )
 
         from .executor import AgentExecutor
         from .state import AgentState
@@ -248,14 +267,17 @@ class SubAgentFramework:
                 asyncio.set_event_loop(loop)
                 result = loop.run_until_complete(
                     sub_agent.run(
-                        check_cancel=lambda: tool_instance.tool_result().tool_call.status == "canceled",
+                        check_cancel=lambda: tool_instance.tool_result().tool_call.status
+                        == "canceled",
                         tools=tools,
                     )
                 )
                 # Update parent agent usage with subagent usage
                 agent_state.usage.update_with_usage(sub_agent.agent_state.usage)
             except Exception as e:
-                result_text = Text.assemble(("SubAgent error: ", "default"), format_exception(e))
+                result_text = Text.assemble(
+                    ("SubAgent error: ", "default"), format_exception(e)
+                )
                 result = result_text.plain
             finally:
                 try:
@@ -264,7 +286,9 @@ class SubAgentFramework:
                     for task in pending:
                         task.cancel()
                     if pending:
-                        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                        loop.run_until_complete(
+                            asyncio.gather(*pending, return_exceptions=True)
+                        )
                 except Exception:
                     pass
                 finally:

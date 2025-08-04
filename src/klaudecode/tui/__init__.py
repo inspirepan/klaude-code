@@ -3,9 +3,9 @@ from rich.text import Text
 
 from .colors import ColorStyle, get_all_themes
 from .console import ConsoleProxy, console
-from .diff_renderer import DiffRenderer
+from .diff import DiffRenderer
 from .live import CropAboveLive
-from .markdown_renderer import render_markdown
+from .markdown import render_markdown
 from .renderers import (
     get_tip,
     render_grid,

@@ -52,9 +52,7 @@ class TestToolCall:
     def test_initialization_with_invalid_tool_args_string(self):
         invalid_json = '{"param": invalid json}'
         with pytest.raises(ValueError, match="Invalid tool args"):
-            ToolCall(
-                id="call_123", tool_name="test_tool", tool_args=invalid_json
-            )
+            ToolCall(id="call_123", tool_name="test_tool", tool_args=invalid_json)
 
     def test_initialization_with_empty_tool_args_string(self):
         tool_call = ToolCall(id="call_123", tool_name="test_tool", tool_args="")

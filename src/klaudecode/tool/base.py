@@ -74,7 +74,9 @@ class Tool(ABC):
         return json.dumps(cls.openai_schema())
 
     @classmethod
-    def create_instance(cls, tool_call: ToolCall, agent_state: "AgentState") -> "ToolInstance":
+    def create_instance(
+        cls, tool_call: ToolCall, agent_state: "AgentState"
+    ) -> "ToolInstance":
         from .instance import ToolInstance
 
         return ToolInstance(tool=cls, tool_call=tool_call, agent_state=agent_state)
@@ -89,7 +91,9 @@ class Tool(ABC):
             except ValidationError as e:
                 error = e.errors(include_url=False, include_context=False)
                 error_msg = ", ".join(e.get("msg", "") for e in error)
-                raise ValueError(f"Tool args invalid: {error_msg}, args: {tool_call.tool_args}")
+                raise ValueError(
+                    f"Tool args invalid: {error_msg}, args: {tool_call.tool_args}"
+                )
         raise ValueError(f"Invalid tool, cls: {cls.__name__}")
 
     @classmethod

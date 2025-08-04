@@ -1,7 +1,7 @@
 from rich.console import Group
 from rich.text import Text
 
-from klaudecode.tui.diff_renderer import DiffRenderer
+from klaudecode.tui.diff import DiffRenderer
 from klaudecode.utils.file_utils.diff_utils import (
     generate_diff_lines,
     generate_snippet_from_diff,
