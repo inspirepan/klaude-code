@@ -344,5 +344,30 @@ def get_theme(theme: str) -> Theme:
             ColorStyle.PLAN_MODE: theme_colors.get(
                 ColorStyle.PLAN_MODE, theme_colors[ThemeColorEnum.CYAN]
             ),
+            # Markdown styles
+            "markdown.code": theme_colors.get(
+                ColorStyle.INLINE_CODE, theme_colors[ThemeColorEnum.PURPLE]
+            ),
+            "markdown.item.bullet": theme_colors.get(
+                ColorStyle.HINT, theme_colors[ThemeColorEnum.TERTIARY]
+            ),
+            "markdown.item.number": theme_colors.get(
+                ColorStyle.HINT, theme_colors[ThemeColorEnum.TERTIARY]
+            ),
+            "markdown.block_quote": theme_colors.get(
+                ColorStyle.INFO, theme_colors[ThemeColorEnum.BLUE]
+            ),
+            "markdown.h1": theme_colors.get(
+                ColorStyle.HEADER_1, theme_colors[ThemeColorEnum.HIGHLIGHT]
+            ),
+            "markdown.h2": theme_colors.get(
+                ColorStyle.HEADER_2, theme_colors[ThemeColorEnum.HIGHLIGHT]
+            ),
+            "markdown.h3": theme_colors.get(
+                ColorStyle.HEADER_3, theme_colors[ThemeColorEnum.HIGHLIGHT]
+            ),
+            "markdown.h4": theme_colors.get(
+                ColorStyle.HEADER_4, theme_colors[ThemeColorEnum.HIGHLIGHT]
+            ),
         }
     )

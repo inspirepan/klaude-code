@@ -58,7 +58,7 @@ class TestAgentExecutor:
 
             result = await agent_executor.run()
 
-            mock_execute.assert_called_once_with(100, None, None)
+            mock_execute.assert_called_once_with(200, None, None)
             assert result == "Success"
 
     @pytest.mark.asyncio

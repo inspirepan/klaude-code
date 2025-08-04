@@ -41,6 +41,7 @@ class CustomCodeBlock(CodeBlock):
             syntax,
             title=Text(self.lexer_name, style=ColorStyle.INLINE_CODE),
             border_style=ColorStyle.LINE,
+            box=box.HORIZONTALS,
             title_align="left",
         )
 
@@ -87,14 +88,7 @@ class CustomHeading(Heading):
             # Only add rule if heading has content
             if str(text).strip():
                 rule = Rule(style=ColorStyle.LINE, characters="╌")
-                # Check if we need to add empty line before H2
-                markdown_instance = getattr(console, "_current_markdown", None)
-                if markdown_instance and getattr(
-                    markdown_instance, "_has_content", False
-                ):
-                    text = Group("", text, rule)
-                else:
-                    text = Group(text, rule)
+                text = Group(text, rule)
 
         elif self.tag == "h3":
             text.stylize(Style(bold=True))
@@ -114,48 +108,13 @@ class CustomMarkdown(Markdown):
         # Disable hyperlink rendering to preserve original format
         kwargs["hyperlinks"] = False
         super().__init__(*args, **kwargs)
-        self._has_content = False
 
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
-        # Create temporary theme to override styles
-        from rich.theme import Theme
-
-        temp_theme = Theme(
-            {
-                "markdown.code": ColorStyle.INLINE_CODE.style,
-                "markdown.item.bullet": ColorStyle.HINT.style,
-                "markdown.item.number": ColorStyle.HINT.style,
-                "markdown.block_quote": ColorStyle.INFO.style,
-                "markdown.h1": ColorStyle.HEADER_1.style,
-                "markdown.h2": ColorStyle.HEADER_2.style,
-                "markdown.h3": ColorStyle.HEADER_3.style,
-                "markdown.h4": ColorStyle.HEADER_4.style,
-            }
-        )
-
-        # Use push_theme and pop_theme to temporarily override styles
-        console.push_theme(temp_theme)
-
-        # Set current markdown instance to console for CustomHeading to use
-        console._current_markdown = self
-
-        try:
-            # Call parent class render method
-            first_element = True
-            for element in super().__rich_console__(console, options):
-                if first_element:
-                    first_element = False
-                else:
-                    self._has_content = True
-                yield element
-        finally:
-            # Restore original theme
-            console.pop_theme()
-            # Clean up temporary attributes
-            if hasattr(console, "_current_markdown"):
-                delattr(console, "_current_markdown")
+        # Call parent class render method
+        for element in super().__rich_console__(console, options):
+            yield element
 
 
 def render_markdown(text: str, style: Optional[Union[str, Style]] = None) -> Group:
