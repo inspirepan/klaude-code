@@ -29,6 +29,7 @@ from ..tui.stream_status import (
     text_status_str,
 )
 from ..utils.exception import format_exception
+from .config import TIMEOUT
 from .llm_proxy_anthropic import AnthropicProxy
 from .llm_proxy_base import DEFAULT_RETRIES, DEFAULT_RETRY_BACKOFF_BASE, LLMProxyBase
 from .llm_proxy_gemini import GeminiProxy
@@ -74,7 +75,7 @@ class LLMClientWrapper(ABC):
         self,
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
-        timeout: float = 20.0,
+        timeout: float = TIMEOUT,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         """Stream LLM response with status updates
 
@@ -117,7 +118,7 @@ class RetryWrapper(LLMClientWrapper):
         self,
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
-        timeout: float = 20.0,
+        timeout: float = TIMEOUT,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         last_exception = None
 
@@ -237,7 +238,7 @@ class DisplayWrapper(LLMClientWrapper):
         self,
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
-        timeout: float = 20.0,
+        timeout: float = TIMEOUT,
         status_text: Optional[str] = None,
         show_result: bool = True,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
@@ -435,7 +436,7 @@ class LLMClient:
         show_status: bool = True,
         show_result: bool = True,
         status_text: Optional[str] = None,
-        timeout: float = 20.0,
+        timeout: float = TIMEOUT,
     ) -> AIMessage:
         if not show_status:
             async for _, ai_message in self.client.stream_call(

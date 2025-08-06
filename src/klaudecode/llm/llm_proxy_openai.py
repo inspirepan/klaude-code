@@ -17,9 +17,8 @@ from ..message import (
 )
 from ..tool import Tool
 from ..tui.stream_status import StreamStatus
+from .config import TEMPERATURE, TIMEOUT
 from .llm_proxy_base import LLMProxyBase
-
-TEMPERATURE = 1
 
 
 class OpenAIProxy(LLMProxyBase):
@@ -61,7 +60,7 @@ class OpenAIProxy(LLMProxyBase):
         self,
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
-        timeout: float = 20.0,
+        timeout: float = TIMEOUT,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         stream_status = StreamStatus(phase="upload")
         yield (stream_status, AIMessage(content=""))

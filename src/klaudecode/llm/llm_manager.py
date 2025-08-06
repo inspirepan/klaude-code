@@ -5,6 +5,7 @@ from typing import List, Optional
 
 from ..message import AIMessage, BasicMessage
 from ..tool import Tool
+from .config import TIMEOUT
 from .llm_client import LLMClient
 
 
@@ -64,7 +65,7 @@ class LLMManager:
         tools: Optional[List[Tool]] = None,
         show_status: bool = True,
         status_text: Optional[str] = None,
-        timeout: float = 20.0,
+        timeout: float = TIMEOUT,
         show_result: bool = True,
     ) -> AIMessage:
         """Unified LLM call interface with interrupt handling"""

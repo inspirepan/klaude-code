@@ -3,6 +3,7 @@ from typing import AsyncGenerator, List, Optional, Tuple
 from ..message import AIMessage, BasicMessage
 from ..tool import Tool
 from ..tui.stream_status import StreamStatus
+from .config import TIMEOUT
 
 DEFAULT_RETRIES = 10
 DEFAULT_RETRY_BACKOFF_BASE = 0.5
@@ -30,7 +31,7 @@ class LLMProxyBase:
         self,
         msgs: List[BasicMessage],
         tools: Optional[List[Tool]] = None,
-        timeout: float = 20.0,
+        timeout: float = TIMEOUT,
     ) -> AsyncGenerator[Tuple[StreamStatus, AIMessage], None]:
         """Make a streaming call to the LLM"""
         raise NotImplementedError

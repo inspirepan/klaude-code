@@ -73,8 +73,10 @@ class DebugCommand(Command):
             )
             return
 
-        # Detect provider - align with LLMClient logic  
-        is_anthropic = base_url == "https://api.anthropic.com/v1/" or (base_url and "anthropic" in base_url)
+        # Detect provider - align with LLMClient logic
+        is_anthropic = base_url == "https://api.anthropic.com/v1/" or (
+            base_url and "anthropic" in base_url
+        )
         is_azure = config.model_azure.value if config.model_azure else False
 
         # Get messages in appropriate format
@@ -302,12 +304,14 @@ class DebugCommand(Command):
         """Build OpenAI-compatible curl command"""
         if is_azure:
             # Azure OpenAI API endpoint
-            api_version = config.api_version.value if config.api_version else "2024-02-01"
+            api_version = (
+                config.api_version.value if config.api_version else "2024-02-01"
+            )
             url = f"{base_url.rstrip('/')}/openai/deployments/{model_name}/chat/completions?api-version={api_version}"
         else:
             # Standard OpenAI API endpoint
             url = f"{base_url.rstrip('/')}/chat/completions"
-        
+
         max_tokens = config.max_tokens.value if config.max_tokens else 32000
 
         payload = {"model": model_name, "max_tokens": max_tokens, "messages": messages}
@@ -323,7 +327,7 @@ class DebugCommand(Command):
 
         # Use --data-raw with properly escaped JSON
         escaped_json = payload_json.replace("'", "'\"'\"'")
-        
+
         if is_azure:
             curl_cmd = f'''curl -X POST "{url}" \\
   -H "Content-Type: application/json" \\
