@@ -7,7 +7,6 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.style import Style
 from rich.table import Table
-from rich.text import Text
 
 from .colors import ColorStyle
 
@@ -39,7 +38,7 @@ class CustomCodeBlock(CodeBlock):
         )
         yield Panel.fit(
             syntax,
-            title=Text(self.lexer_name, style=ColorStyle.INLINE_CODE),
+            # title=Text(self.lexer_name, style=ColorStyle.INLINE_CODE),
             border_style=ColorStyle.LINE,
             box=box.HORIZONTALS,
             title_align="left",

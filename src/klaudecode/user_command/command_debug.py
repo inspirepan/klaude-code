@@ -73,8 +73,9 @@ class DebugCommand(Command):
             )
             return
 
-        # Detect provider
-        is_anthropic = base_url and "anthropic" in base_url
+        # Detect provider - align with LLMClient logic  
+        is_anthropic = base_url == "https://api.anthropic.com/v1/" or (base_url and "anthropic" in base_url)
+        is_azure = config.model_azure.value if config.model_azure else False
 
         # Get messages in appropriate format
         messages = []
@@ -115,6 +116,7 @@ class DebugCommand(Command):
             messages,
             tools,
             is_anthropic,
+            is_azure,
             config,
             system_messages if is_anthropic else None,
         )
@@ -124,7 +126,12 @@ class DebugCommand(Command):
         debug_dir.mkdir(parents=True, exist_ok=True)
 
         timestamp = int(time.time())
-        provider_name = "anthropic" if is_anthropic else "openai"
+        if is_anthropic:
+            provider_name = "anthropic"
+        elif is_azure:
+            provider_name = "azure"
+        else:
+            provider_name = "openai"
         filename = f"debug_curl_{provider_name}_{timestamp}.sh"
         debug_file = debug_dir / filename
         with open(debug_file, "w", encoding="utf-8") as f:
@@ -234,6 +241,7 @@ class DebugCommand(Command):
         messages: list,
         tools: list,
         is_anthropic: bool,
+        is_azure: bool,
         config,
         system_messages: list = None,
     ) -> str:
@@ -244,7 +252,7 @@ class DebugCommand(Command):
             )
         else:
             return self._build_openai_curl(
-                base_url, api_key, model_name, messages, tools, config
+                base_url, api_key, model_name, messages, tools, config, is_azure
             )
 
     def _build_anthropic_curl(
@@ -269,16 +277,15 @@ class DebugCommand(Command):
         if tools:
             payload["tools"] = tools
 
-        payload_json = json.dumps(payload, indent=2, ensure_ascii=False)
+        payload_json = json.dumps(payload, ensure_ascii=False)
 
-        # Use heredoc to avoid escaping issues
+        # Use --data-raw with properly escaped JSON
+        escaped_json = payload_json.replace("'", "'\"'\"'")
         curl_cmd = f'''curl -X POST "{url}" \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: {api_key}" \\
   -H "anthropic-version: 2023-06-01" \\
-  -d @- << 'EOF'
-{payload_json}
-EOF'''
+  --data-raw '{escaped_json}' '''
 
         return curl_cmd
 
@@ -290,9 +297,17 @@ EOF'''
         messages: list,
         tools: list,
         config,
+        is_azure: bool = False,
     ) -> str:
-        """Build OpenAI curl command"""
-        url = f"{base_url.rstrip('/')}?ak={api_key}"
+        """Build OpenAI-compatible curl command"""
+        if is_azure:
+            # Azure OpenAI API endpoint
+            api_version = config.api_version.value if config.api_version else "2024-02-01"
+            url = f"{base_url.rstrip('/')}/openai/deployments/{model_name}/chat/completions?api-version={api_version}"
+        else:
+            # Standard OpenAI API endpoint
+            url = f"{base_url.rstrip('/')}/chat/completions"
+        
         max_tokens = config.max_tokens.value if config.max_tokens else 32000
 
         payload = {"model": model_name, "max_tokens": max_tokens, "messages": messages}
@@ -300,15 +315,25 @@ EOF'''
         if tools:
             payload["tools"] = tools
 
-        payload_json = json.dumps(payload, indent=2, ensure_ascii=False)
+        # For Azure, remove model from payload as it's in the URL
+        if is_azure:
+            payload.pop("model", None)
 
-        # Use heredoc to avoid escaping issues
-        curl_cmd = f'''curl -X POST "{url}" \\
+        payload_json = json.dumps(payload, ensure_ascii=False)
+
+        # Use --data-raw with properly escaped JSON
+        escaped_json = payload_json.replace("'", "'\"'\"'")
+        
+        if is_azure:
+            curl_cmd = f'''curl -X POST "{url}" \\
+  -H "Content-Type: application/json" \\
+  -H "api-key: {api_key}" \\
+  --data-raw '{escaped_json}' '''
+        else:
+            curl_cmd = f'''curl -X POST "{url}" \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer {api_key}" \\
-  -d @- << 'EOF'
-{payload_json}
-EOF'''
+  --data-raw '{escaped_json}' '''
 
         return curl_cmd
 
@@ -356,12 +381,12 @@ EOF'''
                     (str(total_messages), ColorStyle.MAIN.bold),
                     " messages (",
                     *role_parts,
-                    ") - executable curl script",
+                    ") - using --data-raw format",
                 )
 
                 # Third line: curl usage tip
                 third_line = Text(
-                    "Tip: Direct curl may return end_turn - consider remove some messages for continuation",
+                    "Tip: Using --data-raw format for easy copy-paste",
                     style=ColorStyle.HINT,
                 )
 
