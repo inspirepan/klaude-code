@@ -21,9 +21,7 @@ class AIMessage(BasicMessage):
     tool_calls: Dict[str, ToolCall] = {}
     thinking_content: str = ""
     thinking_signature: str = ""
-    finish_reason: Literal[
-        "stop", "length", "tool_calls", "content_filter", "function_call"
-    ] = "stop"
+    finish_reason: Literal["stop", "length", "tool_calls", "content_filter", "function_call"] = "stop"
     status: Literal["success", "processing", "error"] = "processing"
     usage: Optional[CompletionUsage] = None
 
@@ -120,9 +118,7 @@ class AIMessage(BasicMessage):
                 mark_style=ColorStyle.AI_THINKING,
             )
             yield ""
-            yield render_message(
-                Text(thinking_content, style=ColorStyle.AI_THINKING.italic), mark=""
-            )
+            yield render_message(Text(thinking_content, style=ColorStyle.AI_THINKING.italic), mark="")
             yield ""
 
     def get_content_renderable(self, done: bool = False):
@@ -131,14 +127,12 @@ class AIMessage(BasicMessage):
             yield render_message(
                 render_markdown(content, style=ColorStyle.AI_CONTENT),
                 mark_style=ColorStyle.AI_MARK,
-                status=self.status,
+                # status=self.status,
             )
 
     def __bool__(self):
         has_content = (self.content is not None) and len(self.content.strip()) > 0
-        has_thinking = (self.thinking_content is not None) and len(
-            self.thinking_content.strip()
-        ) > 0
+        has_thinking = (self.thinking_content is not None) and len(self.thinking_content.strip()) > 0
         has_tool_calls = (self.tool_calls is not None) and len(self.tool_calls) > 0
         return not self.removed and (has_content or has_thinking or has_tool_calls)
 

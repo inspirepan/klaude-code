@@ -31,19 +31,16 @@ class CustomSpinner:
 
         elapsed = time_now - self.start_time
         frame_index = int(elapsed / self.interval) % len(self.frames)
-        frame_text = self.frames[frame_index]
-        return Text(frame_text, style=self.style, justify="center")
+        return Text(self.frames[frame_index], style=self.style, justify="left")
 
-    def __rich_measure__(
-        self, console: "Console", options: "ConsoleOptions"
-    ) -> Measurement:
+    def __rich_measure__(self, console: "Console", options: "ConsoleOptions") -> Measurement:
         return Measurement.get(console, options, self.render(console.get_time()))
 
 
 claude_frames = [
     "✶",
     "✻",
-    "✲",
+    "✽",
     "✻",
     "✶",
     "✳",
@@ -51,6 +48,17 @@ claude_frames = [
     "·",
     "✢",
     "✳",
+]
+
+codex_frames = [
+    "·",
+    "•",
+    "•",
+    "●",
+    "●",
+    "•",
+    "•",
+    "·",
 ]
 
 weather_frames = [
@@ -78,13 +86,10 @@ weather_frames = [
     "☀️ ",
 ]
 
-_USE_BONUS_SPINNER = os.environ.get("TRANSIENCE") == "1"
-
 
 def get_spinner(style: StyleType = None):
-    if _USE_BONUS_SPINNER:
-        return CustomSpinner(weather_frames, interval_ms=100, style=style)
     return CustomSpinner(claude_frames, interval_ms=100, style=style)
+    return Spinner("dots")
 
 
 class DotsStatus:
