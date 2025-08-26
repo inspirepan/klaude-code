@@ -33,7 +33,9 @@ class CustomSpinner:
         frame_index = int(elapsed / self.interval) % len(self.frames)
         return Text(self.frames[frame_index], style=self.style, justify="left")
 
-    def __rich_measure__(self, console: "Console", options: "ConsoleOptions") -> Measurement:
+    def __rich_measure__(
+        self, console: "Console", options: "ConsoleOptions"
+    ) -> Measurement:
         return Measurement.get(console, options, self.render(console.get_time()))
 
 
