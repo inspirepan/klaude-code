@@ -1,14 +1,15 @@
 import asyncio
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from prompt_toolkit import PromptSession
 
 from src.agent import Agent
+from src.config import Config
 from src.protocal import EndEvent, Event
 from src.ui import StdoutDisplay
 
 
-async def forward_event(gen: AsyncGenerator[Event, None], q: asyncio.Queue[Event]) -> None:
+async def forward_event(gen: AsyncGenerator[Event, None], q: asyncio.Queue[Event]):
     try:
         async for event in gen:
             await q.put(event)
@@ -19,19 +20,19 @@ async def forward_event(gen: AsyncGenerator[Event, None], q: asyncio.Queue[Event
 
 
 async def run_interactive():
-    session: PromptSession = PromptSession()
-    agent: Agent = Agent()
+    session: PromptSession[str] = PromptSession()
+    agent: Agent = Agent(config=Config())
     display: StdoutDisplay = StdoutDisplay()
     q: asyncio.Queue[Event] = asyncio.Queue()
 
     while True:
-        user_input = await session.prompt_async("> ")
+        user_input: str = await session.prompt_async("> ")
         if user_input == "exit":
             break
 
         async with asyncio.TaskGroup() as tg:
-            tg.create_task(forward_event(agent.run_task(user_input), q))
-            tg.create_task(display.consume_event_loop(q))
+            _ = tg.create_task(forward_event(agent.run_task(user_input), q))
+            _ = tg.create_task(display.consume_event_loop(q))
         await q.join()
 
 

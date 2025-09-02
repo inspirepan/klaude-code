@@ -1,13 +1,10 @@
 from abc import ABC, abstractmethod
 from asyncio import Queue
 
-from src.protocal import Event, EndEvent
+from src.protocal import EndEvent, Event
 
 
 class Display(ABC):
-    def __init__(self):
-        pass
-
     @abstractmethod
     async def consume_event(self, event: Event) -> None:
         pass

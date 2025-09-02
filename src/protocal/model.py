@@ -1,10 +1,9 @@
-from abc import ABC
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel
 
 
-class ResponseItem(ABC, BaseModel):
+class ResponseItem(BaseModel):
     """
     Base class for all response items.
     """
@@ -13,41 +12,49 @@ class ResponseItem(ABC, BaseModel):
 
 
 class ContentItem(BaseModel):
-    text: Optional[str] = None
-    image: Optional[str] = None
+    text: str | None = None
+    image: str | None = None
 
 
 class MessageItem(ResponseItem):
-    id: Optional[str] = None
-    content: List[ContentItem]
+    id: str | None = None
+    content: list[ContentItem]
     role: Literal["system", "user", "assistant", "tool"]
 
 
 class ReasoningItem(ResponseItem):
-    id: Optional[str] = None
-    summary: Optional[str] = None
-    content: Optional[List[ContentItem]] = None
-    encrypted_content: Optional[str] = None
+    id: str | None = None
+    summary: str | None = None
+    content: list[ContentItem] | None = None
+    encrypted_content: str | None = None
+
+
+class ReasoningItemDelta(ReasoningItem):
+    pass
 
 
 class ToolCallItem(ResponseItem):
-    id: Optional[str] = None
+    id: str | None = None
     name: str
     arguments: str
     call_id: str
 
 
 class SystemMessage(MessageItem):
-    role: Literal["system"] = "system"
+    role: Literal["system", "user", "assistant", "tool"] = "system"
 
 
 class UserMessage(MessageItem):
-    role: Literal["user"] = "user"
+    role: Literal["system", "user", "assistant", "tool"] = "user"
 
 
 class AssistantMessage(MessageItem):
-    role: Literal["assistant"] = "assistant"
+    role: Literal["system", "user", "assistant", "tool"] = "assistant"
+
+
+class AssistantMessageDelta(AssistantMessage):
+    pass
 
 
 class ToolMessage(MessageItem):
-    role: Literal["tool", "user"] = "tool"
+    role: Literal["system", "user", "assistant", "tool"] = "tool"

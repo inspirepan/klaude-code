@@ -1,9 +1,7 @@
-from abc import ABC
-
 from pydantic import BaseModel
 
 
-class Event(ABC, BaseModel):
+class Event(BaseModel):
     pass
 
 
@@ -27,7 +25,7 @@ class ToolCallEvent(Event):
     tool_call_id: str
     assistant_message_id: str
     tool_name: str
-    args: dict
+    arguments: str
 
 
 class ToolCallResultEvent(Event):

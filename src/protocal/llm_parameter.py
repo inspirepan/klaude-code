@@ -1,6 +1,7 @@
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel
+from pydantic.json_schema import JsonSchemaValue
 
 from src.protocal import ResponseItem
 
@@ -9,7 +10,7 @@ class Tool(BaseModel):
     name: str
     type: Literal["function"]
     description: str
-    parameters: dict
+    parameters: JsonSchemaValue
 
 
 class Reasoning(BaseModel):
@@ -31,17 +32,17 @@ class Thinking(BaseModel):
 
 
 class LLMParameter(BaseModel):
-    input: List[ResponseItem]
+    input: list[ResponseItem]
     model: str
     temperature: float = 1.0
     max_tokens: int = 8192
     stream: Literal[True] = True  # Always True
-    tools: Optional[List[Tool]] = None
+    tools: list[Tool] | None = None
 
     # OpenAI Reasoning Model & Responses
-    include: Optional[List[str]] = None
-    reasoning: Optional[Reasoning] = None
+    include: list[str] | None = None
+    reasoning: Reasoning | None = None
     store: Literal[False] = False
 
     # Claude Extended Thinking
-    thinking: Optional[Thinking] = None
+    thinking: Thinking | None = None
