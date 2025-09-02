@@ -2,35 +2,55 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+RoleType = Literal["system", "developer", "user", "assistant", "tool"]
+
 
 class ResponseItem(BaseModel):
     """
-    Base class for all response items.
+    Base class for all LLM API response items.
+    Each LLMClient should convert this class from/to specific API response items.
+    A typical sequence of response items is:
+    - Start
+    - [ThinkingTextDelta] × n
+    - [ThinkingTextDone]
+    - [ThinkingTextDelta] × n # OpenAI's Reasoning Summary has multiple parts
+    - [ThinkingTextDone]
+    - [ReasoningItem]
+    - [AssistantMessageTextDelta] × n
+    - [AssistantMessage]
+    - [ToolCallItem] × n
+    - [ResponseMetadataItem]
+    - Done
     """
 
     pass
 
 
-class ContentItem(BaseModel):
+class StreamErrorItem(ResponseItem):
+    error: str
+
+
+class StreamRetriableErrorItem(StreamErrorItem):
+    pass
+
+
+class ContentPart(BaseModel):
     text: str | None = None
     image: str | None = None
 
 
 class MessageItem(ResponseItem):
+    content: list[ContentPart]
+    role: RoleType
     id: str | None = None
-    content: list[ContentItem]
-    role: Literal["system", "user", "assistant", "tool"]
 
 
 class ReasoningItem(ResponseItem):
     id: str | None = None
-    summary: str | None = None
-    content: list[ContentItem] | None = None
+    summary: list[str] | None = None
+    content: list[ContentPart] | None = None
     encrypted_content: str | None = None
-
-
-class ReasoningItemDelta(ReasoningItem):
-    pass
+    response_id: str | None = None
 
 
 class ToolCallItem(ResponseItem):
@@ -38,23 +58,54 @@ class ToolCallItem(ResponseItem):
     name: str
     arguments: str
     call_id: str
+    response_id: str | None = None
+
+
+class Usage(BaseModel):
+    input_tokens: int
+    cached_tokens: int
+    reasoning_tokens: int
+    output_tokens: int
+    total_tokens: int
+
+
+class ResponseMetadataItem(ResponseItem):
+    usage: Usage | None = None
+    response_id: str | None = None
 
 
 class SystemMessage(MessageItem):
-    role: Literal["system", "user", "assistant", "tool"] = "system"
+    role: RoleType = "system"
+
+
+class DeveloperMessage(MessageItem):
+    role: RoleType = "developer"
 
 
 class UserMessage(MessageItem):
-    role: Literal["system", "user", "assistant", "tool"] = "user"
+    role: RoleType = "user"
 
 
 class AssistantMessage(MessageItem):
-    role: Literal["system", "user", "assistant", "tool"] = "assistant"
-
-
-class AssistantMessageDelta(AssistantMessage):
-    pass
+    role: RoleType = "assistant"
+    response_id: str | None = None
 
 
 class ToolMessage(MessageItem):
-    role: Literal["system", "user", "assistant", "tool"] = "tool"
+    role: RoleType = "tool"
+    call_id: str
+
+
+class ThinkingTextDelta(ResponseItem):
+    thinking: str
+    response_id: str | None = None
+
+
+class ThinkingTextDone(ResponseItem):
+    thinking: str
+    response_id: str | None = None
+
+
+class AssistantMessageTextDelta(ResponseItem):
+    content: str
+    response_id: str | None = None

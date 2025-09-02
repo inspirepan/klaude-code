@@ -1,21 +1,23 @@
 import uuid
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.protocal import ResponseItem
 
 
 class Session(BaseModel):
-    id: str = uuid.uuid4().hex
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     work_dir: Path
-    conversation_history: list[ResponseItem] = []
+    conversation_history: list[ResponseItem] = Field(default_factory=list)
+    system_prompt: str = Field(default_factory=str)
 
     @classmethod
     def load(cls, id: str) -> "Session":
-        # TODO
-        print(id)
-        return Session(work_dir=Path.cwd())
+        return Session(id=id, work_dir=Path.cwd())
 
     def save(self):
         pass
+
+    def append_history(self, items: list[ResponseItem]):
+        self.conversation_history.extend(items)

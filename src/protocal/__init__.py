@@ -9,9 +9,16 @@ from .events import (
     ToolCallEvent,
     ToolCallResultEvent,
 )
+from .llm_parameter import (
+    LLMCallParameter,
+    LLMConfigParameter,
+    Reasoning,
+    Thinking,
+    Tool,
+)
 from .model import (
     AssistantMessage,
-    ContentItem,
+    ContentPart,
     MessageItem,
     ReasoningItem,
     ResponseItem,
@@ -33,11 +40,16 @@ __all__ = [
     "ToolCallResultEvent",
     "ResponseItem",
     "ReasoningItem",
-    "ContentItem",
+    "ContentPart",
     "MessageItem",
     "ToolCallItem",
     "SystemMessage",
     "UserMessage",
     "AssistantMessage",
     "ToolMessage",
+    "LLMCallParameter",
+    "LLMConfigParameter",
+    "Reasoning",
+    "Thinking",
+    "Tool",
 ]

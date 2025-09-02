@@ -1,3 +1,3 @@
 {
-    "windsurfPyright.analysis.typeCheckingMode": "all"
+    "windsurfPyright.analysis.typeCheckingMode": "strict"
 }

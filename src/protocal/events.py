@@ -1,7 +1,13 @@
 from pydantic import BaseModel
 
+from src.protocal.model import Usage
+
 
 class Event(BaseModel):
+    """
+    Event is how Agent Executor and UI Display communicate.
+    """
+
     pass
 
 
@@ -9,31 +15,48 @@ class EndEvent(Event):
     pass
 
 
-class AssistantMessageDeltaEvent(Event):
-    id: str
+class ThinkingDeltaEvent(Event):
     session_id: str
+    response_id: str | None = None
+    content: str
+
+
+class ThinkingEvent(Event):
+    session_id: str
+    response_id: str | None = None
+    content: str
+
+
+class AssistantMessageDeltaEvent(Event):
+    session_id: str
+    response_id: str | None = None
     content: str
 
 
 class AssistantMessageEvent(Event):
-    id: str
+    response_id: str | None = None
     session_id: str
     content: str
 
 
 class ToolCallEvent(Event):
+    response_id: str | None = None
     tool_call_id: str
-    assistant_message_id: str
     tool_name: str
     arguments: str
 
 
 class ToolCallResultEvent(Event):
     tool_call_id: str
-    assistant_message_id: str
     tool_name: str
     result: str
     extra: str
+
+
+class ResponseMetadataEvent(Event):
+    response_id: str | None = None
+    session_id: str
+    usage: Usage | None = None
 
 
 class ErrorEvent(Event):

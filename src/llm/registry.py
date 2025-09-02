@@ -1,6 +1,6 @@
 from typing import Callable, TypeVar
 
-from src.config import Config
+from src.config import LLMConfig
 from src.llm.client import LLMClient
 
 _REGISTRY: dict[str, type[LLMClient]] = {}
@@ -20,7 +20,7 @@ def clients() -> list[str]:
     return list(_REGISTRY.keys())
 
 
-def create_llm_client(name: str, config: Config) -> LLMClient:
-    if name not in _REGISTRY:
-        raise ValueError(f"Unknown LLMClient: {name}")
-    return _REGISTRY[name].create(config)
+def create_llm_client(config: LLMConfig) -> LLMClient:
+    if config.protocal not in _REGISTRY:
+        raise ValueError(f"Unknown LLMClient: {config.protocal}")
+    return _REGISTRY[config.protocal].create(config.llm_parameter)

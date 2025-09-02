@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaValue
 
-from src.protocal import ResponseItem
+from src.protocal.model import ResponseItem
 
 
 class Tool(BaseModel):
@@ -31,18 +31,52 @@ class Thinking(BaseModel):
     budget_tokens: int
 
 
-class LLMParameter(BaseModel):
-    input: list[ResponseItem]
-    model: str
-    temperature: float = 1.0
-    max_tokens: int = 8192
-    stream: Literal[True] = True  # Always True
-    tools: list[Tool] | None = None
+class LLMConfigParameter(BaseModel):
+    """
+    Parameter support in config JSON
+    """
 
-    # OpenAI Reasoning Model & Responses
-    include: list[str] | None = None
+    model: str | None = None
+    base_url: str | None = None
+    api_key: str | None = None
+    is_azure: bool = False
+    azure_api_version: str | None = None
+
+    temperature: float | None = None
+    max_tokens: int | None = None
+
+    # OpenAI Reasoning
     reasoning: Reasoning | None = None
-    store: Literal[False] = False
 
     # Claude Extended Thinking
     thinking: Thinking | None = None
+
+
+class LLMCallParameter(LLMConfigParameter):
+    input: list[ResponseItem]
+    system: str | None = None
+    tools: list[Tool] | None = None
+    stream: Literal[True] = True  # Always True
+
+    # OpenAI Responses
+    include: list[str] | None = None
+    store: Literal[False] = False
+
+
+def merge_llm_parameter(
+    param: LLMCallParameter, config: LLMConfigParameter
+) -> LLMCallParameter:
+    if param.model is None:
+        param.model = config.model
+    if param.temperature is None:
+        param.temperature = config.temperature
+    if param.max_tokens is None:
+        param.max_tokens = config.max_tokens
+    if param.reasoning is None:
+        param.reasoning = config.reasoning
+    if param.thinking is None:
+        param.thinking = config.thinking
+
+    if param.model is None:
+        raise ValueError("Model is required")
+    return param
