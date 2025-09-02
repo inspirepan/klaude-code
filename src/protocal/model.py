@@ -10,7 +10,7 @@ class ResponseItem(BaseModel):
     Base class for all LLM API response items.
     Each LLMClient should convert this class from/to specific API response items.
     A typical sequence of response items is:
-    - Start
+    - [StartItem]
     - [ThinkingTextDelta] × n
     - [ThinkingTextDone]
     - [ThinkingTextDelta] × n # OpenAI's Reasoning Summary has multiple parts
@@ -24,6 +24,10 @@ class ResponseItem(BaseModel):
     """
 
     pass
+
+
+class StartItem(ResponseItem):
+    response_id: str
 
 
 class StreamErrorItem(ResponseItem):

@@ -21,6 +21,7 @@ from src.protocal.model import (
     ReasoningItem,
     ResponseItem,
     ResponseMetadataItem,
+    StartItem,
     ThinkingTextDelta,
     ThinkingTextDone,
     ToolCallItem,
@@ -56,14 +57,22 @@ class Agent:
         turn_reasoning_items: ReasoningItem | None = None
         turn_assistant_message: AssistantMessage | None = None
         turn_tool_calls: list[ResponseItem] = []
+        current_response_id: str | None = None
+        store_at_remote = False  # This is the 'store' parameter of OpenAI Responses API for storing history at OpenAI
 
         async for response_item in self.llm_client.Call(
             LLMCallParameter(
                 input=self.session.conversation_history,
                 system=self.session.system_prompt,
+                previous_response_id=self.session.preprevious_response_id
+                if store_at_remote
+                else None,
+                store=store_at_remote,
             )
         ):
             match response_item:
+                case StartItem() as item:
+                    current_response_id = item.response_id
                 case ThinkingTextDelta() as item:
                     yield ThinkingDeltaEvent(
                         content=item.thinking,
@@ -103,13 +112,15 @@ class Agent:
                     turn_tool_calls.append(item)
                 case _:
                     pass
-        if turn_reasoning_items:
-            self.session.append_history([turn_reasoning_items])
-        if turn_assistant_message:
-            self.session.append_history([turn_assistant_message])
-        if turn_tool_calls:
-            self.session.append_history(turn_tool_calls)
-
+        if not store_at_remote:
+            if turn_reasoning_items:
+                self.session.append_history([turn_reasoning_items])
+            if turn_assistant_message:
+                self.session.append_history([turn_assistant_message])
+            if turn_tool_calls:
+                self.session.append_history(turn_tool_calls)
+        if current_response_id is not None:
+            self.session.preprevious_response_id = current_response_id
         if turn_tool_calls:
             # TODO: call tools
             pass

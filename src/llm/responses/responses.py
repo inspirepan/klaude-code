@@ -29,6 +29,7 @@ from src.protocal.model import (
     ReasoningItem,
     ResponseItem,
     ResponseMetadataItem,
+    StartItem,
     ThinkingTextDelta,
     ThinkingTextDone,
     Usage,
@@ -74,7 +75,8 @@ class ResponsesClient(LLMClient):
             include=[
                 "reasoning.encrypted_content",
             ],
-            store=False,
+            store=param.store,
+            previous_response_id=param.previous_response_id,
             stream=True,
             temperature=param.temperature,
             max_output_tokens=param.max_tokens,
@@ -93,6 +95,7 @@ class ResponsesClient(LLMClient):
             match response:
                 case ResponseCreatedEvent() as event:
                     response_id = event.response.id
+                    yield StartItem(response_id=response_id)
                 case ResponseReasoningSummaryTextDeltaEvent() as event:
                     yield ThinkingTextDelta(
                         thinking=event.delta, response_id=response_id

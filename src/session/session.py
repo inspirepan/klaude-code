@@ -11,6 +11,7 @@ class Session(BaseModel):
     work_dir: Path
     conversation_history: list[ResponseItem] = Field(default_factory=list)
     system_prompt: str = Field(default_factory=str)
+    preprevious_response_id: str | None = None
 
     @classmethod
     def load(cls, id: str) -> "Session":

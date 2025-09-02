@@ -20,7 +20,8 @@ def convert_history_to_input(history: list[ResponseItem]) -> ResponseInputParam:
         if isinstance(item, MessageItem):
             items.append(convert_message_item(item))
         elif isinstance(item, ReasoningItem):
-            items.append(convert_reasoning_item(item))
+            # items.append(convert_reasoning_item(item))
+            pass
         elif isinstance(item, ToolCallItem):
             items.append(convert_tool_call_item(item))
         else:

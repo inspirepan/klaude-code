@@ -60,7 +60,8 @@ class LLMCallParameter(LLMConfigParameter):
 
     # OpenAI Responses
     include: list[str] | None = None
-    store: Literal[False] = False
+    store: bool = True
+    previous_response_id: str | None = None
 
 
 def merge_llm_parameter(
