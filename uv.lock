@@ -46,7 +46,7 @@ wheels = [
 ]
 
 [[package]]
-name = "codex-minimal"
+name = "codex-mini"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

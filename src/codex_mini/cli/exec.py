@@ -1,12 +1,12 @@
 import asyncio
 from asyncio import Queue
 
-from src.agent import Agent
-from src.agent.tool import BASH_TOOL_NAME, get_tool_schemas
-from src.config import load_config
-from src.llm import LLMClient, create_llm_client
-from src.protocol import EndEvent, Event
-from src.ui import REPLDisplay
+from codex_mini.agent import Agent
+from codex_mini.agent.tool import BASH_TOOL_NAME, get_tool_schemas
+from codex_mini.config import load_config
+from codex_mini.llm import LLMClient, create_llm_client
+from codex_mini.protocol import EndEvent, Event
+from codex_mini.ui import REPLDisplay
 
 
 async def exec_once(user_input: str) -> None:

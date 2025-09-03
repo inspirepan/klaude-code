@@ -8,7 +8,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Vertical
 from textual.widgets import Input, Log, Static
 
-from src.protocol.events import (
+from codex_mini.protocol.events import (
     AssistantMessageDeltaEvent,
     AssistantMessageEvent,
     EndEvent,
@@ -19,8 +19,8 @@ from src.protocol.events import (
     ThinkingDeltaEvent,
     ThinkingEvent,
 )
-from src.ui.display_abc import Display
-from src.ui.input_abc import InputProvider
+from codex_mini.ui.display_abc import Display
+from codex_mini.ui.input_abc import InputProvider
 
 
 class ChatApp(App):

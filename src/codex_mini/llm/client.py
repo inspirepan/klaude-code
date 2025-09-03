@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from typing import cast
 
-from src.protocol import LLMCallParameter, LLMConfigParameter, ResponseItem
+from codex_mini.protocol import LLMCallParameter, LLMConfigParameter, ResponseItem
 
 
 class LLMClient(ABC):

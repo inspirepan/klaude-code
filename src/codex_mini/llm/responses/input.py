@@ -3,8 +3,8 @@
 
 from openai.types.responses import ResponseInputItemParam, ResponseInputParam, ToolParam
 
-from src.protocol.llm_parameter import ToolSchema
-from src.protocol.model import (
+from codex_mini.protocol.llm_parameter import ToolSchema
+from codex_mini.protocol.model import (
     ContentPart,
     MessageItem,
     ReasoningItem,

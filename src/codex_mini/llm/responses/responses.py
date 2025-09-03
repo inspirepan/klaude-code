@@ -16,15 +16,15 @@ from openai.types.responses import (
     ResponseTextDeltaEvent,
 )
 
-from src.llm.client import LLMClient
-from src.llm.registry import register
-from src.llm.responses.input import convert_history_to_input, convert_tool_schema
-from src.protocol.llm_parameter import (
+from codex_mini.llm.client import LLMClient
+from codex_mini.llm.registry import register
+from codex_mini.llm.responses.input import convert_history_to_input, convert_tool_schema
+from codex_mini.protocol.llm_parameter import (
     LLMCallParameter,
     LLMConfigParameter,
     merge_llm_parameter,
 )
-from src.protocol.model import (
+from codex_mini.protocol.model import (
     AssistantMessage,
     AssistantMessageTextDelta,
     ContentPart,

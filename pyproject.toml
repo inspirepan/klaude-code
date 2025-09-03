@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "codex-minimal"
+name = "codex-mini"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -18,10 +18,10 @@ dependencies = [
 ]
 
 [project.scripts]
-codex-mini = "src.cli.main:app"
+codex-mini = "codex_mini.cli.main:app"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src"]
+[tool.hatch.build]
+sources = ["src"]
 
 [dependency-groups]
 dev = [

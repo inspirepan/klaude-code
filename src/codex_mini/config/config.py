@@ -3,8 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from src.protocol import LLMConfigParameter, Reasoning, Thinking
-from src.trace import log
+from codex_mini.protocol import LLMConfigParameter, Reasoning, Thinking
+from codex_mini.trace import log
 
 config_path = Path.home() / ".config" / "codex-minimal" / "config.json"
 

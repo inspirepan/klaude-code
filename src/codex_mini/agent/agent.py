@@ -1,10 +1,10 @@
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
-from src.agent.tool.tool_registry import run_tool
-from src.llm.client import LLMClient
-from src.prompt.system import get_system_prompt
-from src.protocol.events import (
+from codex_mini.agent.tool.tool_registry import run_tool
+from codex_mini.llm.client import LLMClient
+from codex_mini.prompt.system import get_system_prompt
+from codex_mini.protocol.events import (
     AssistantMessageDeltaEvent,
     AssistantMessageEvent,
     Event,
@@ -16,8 +16,8 @@ from src.protocol.events import (
     ToolCallEvent,
     ToolCallResultEvent,
 )
-from src.protocol.llm_parameter import LLMCallParameter, ToolSchema
-from src.protocol.model import (
+from codex_mini.protocol.llm_parameter import LLMCallParameter, ToolSchema
+from codex_mini.protocol.model import (
     AssistantMessage,
     AssistantMessageTextDelta,
     ContentPart,
@@ -31,7 +31,7 @@ from src.protocol.model import (
     Usage,
     UserMessage,
 )
-from src.session import Session
+from codex_mini.session import Session
 
 
 class Agent:

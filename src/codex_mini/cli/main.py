@@ -5,14 +5,14 @@ from typing import Annotated
 
 import typer
 
-from src.agent import Agent
-from src.agent.tool import BASH_TOOL_NAME, get_tool_schemas
-from src.cli.exec import exec_once
-from src.config import load_config
-from src.llm import LLMClient, create_llm_client
-from src.protocol import EndEvent, Event
-from src.trace.log import log
-from src.ui import PromptToolkitInput, REPLDisplay
+from codex_mini.agent import Agent
+from codex_mini.agent.tool import BASH_TOOL_NAME, get_tool_schemas
+from codex_mini.cli.exec import exec_once
+from codex_mini.config import load_config
+from codex_mini.llm import LLMClient, create_llm_client
+from codex_mini.protocol import EndEvent, Event
+from codex_mini.trace.log import log
+from codex_mini.ui import PromptToolkitInput, REPLDisplay
 
 
 async def forward_event(gen: AsyncGenerator[Event, None], q: asyncio.Queue[Event]):
@@ -33,7 +33,7 @@ async def run_interactive(ui: str = "repl"):
     q: asyncio.Queue[Event] = asyncio.Queue()
 
     if ui == "textual":
-        from src.ui.tui import TextualDisplay, TextualInput  # type: ignore
+        from codex_mini.ui.tui import TextualDisplay, TextualInput  # type: ignore
 
         display = TextualDisplay()
         input_provider = TextualInput(display)

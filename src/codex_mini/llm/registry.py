@@ -1,7 +1,7 @@
 from typing import Callable, TypeVar
 
-from src.config import LLMConfig
-from src.llm.client import LLMClient
+from codex_mini.config import LLMConfig
+from codex_mini.llm.client import LLMClient
 
 _REGISTRY: dict[str, type[LLMClient]] = {}
 

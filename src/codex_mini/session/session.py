@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from src.protocol import ResponseItem
+from codex_mini.protocol import ResponseItem
 
 
 class Session(BaseModel):

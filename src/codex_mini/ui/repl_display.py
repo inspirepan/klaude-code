@@ -7,7 +7,7 @@ from rich.rule import Rule
 from rich.status import Status
 from rich.text import Text
 
-from src.protocol.events import (
+from codex_mini.protocol.events import (
     AssistantMessageDeltaEvent,
     AssistantMessageEvent,
     Event,
@@ -19,7 +19,7 @@ from src.protocol.events import (
     ToolCallEvent,
     ToolCallResultEvent,
 )
-from src.ui.display_abc import Display
+from codex_mini.ui.display_abc import Display
 
 
 class REPLDisplay(Display):
