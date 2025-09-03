@@ -14,7 +14,7 @@ from .llm_parameter import (
     LLMConfigParameter,
     Reasoning,
     Thinking,
-    Tool,
+    ToolSchema,
 )
 from .model import (
     AssistantMessage,
@@ -51,5 +51,5 @@ __all__ = [
     "LLMConfigParameter",
     "Reasoning",
     "Thinking",
-    "Tool",
+    "ToolSchema",
 ]

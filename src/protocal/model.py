@@ -66,11 +66,11 @@ class ToolCallItem(ResponseItem):
 
 
 class Usage(BaseModel):
-    input_tokens: int
-    cached_tokens: int
-    reasoning_tokens: int
-    output_tokens: int
-    total_tokens: int
+    input_tokens: int = 0
+    cached_tokens: int = 0
+    reasoning_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
 
 
 class ResponseMetadataItem(ResponseItem):
@@ -97,7 +97,11 @@ class AssistantMessage(MessageItem):
 
 class ToolMessage(MessageItem):
     role: RoleType = "tool"
-    call_id: str
+    call_id: str = ""
+    status: Literal["success", "error"]
+    ui_extra: str | None = (
+        None  # extra information for tool call result, maybe used for UI display
+    )
 
 
 class ThinkingTextDelta(ResponseItem):

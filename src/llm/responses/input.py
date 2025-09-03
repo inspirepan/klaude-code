@@ -3,7 +3,7 @@
 
 from openai.types.responses import ResponseInputItemParam, ResponseInputParam, ToolParam
 
-from src.protocal.llm_parameter import Tool
+from src.protocal.llm_parameter import ToolSchema
 from src.protocal.model import (
     ContentPart,
     MessageItem,
@@ -87,7 +87,7 @@ def convert_tool_call_item(item: ToolCallItem) -> ResponseInputItemParam:
     }
 
 
-def convert_tool_schema(tools: list[Tool] | None) -> list[ToolParam]:
+def convert_tool_schema(tools: list[ToolSchema] | None) -> list[ToolParam]:
     if tools is None:
         return []
     return [

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 from src.protocal.model import Usage
@@ -40,6 +42,7 @@ class AssistantMessageEvent(Event):
 
 
 class ToolCallEvent(Event):
+    session_id: str
     response_id: str | None = None
     tool_call_id: str
     tool_name: str
@@ -47,15 +50,18 @@ class ToolCallEvent(Event):
 
 
 class ToolCallResultEvent(Event):
+    session_id: str
+    response_id: str | None = None
     tool_call_id: str
     tool_name: str
     result: str
-    extra: str
+    ui_extra: str | None = None
+    status: Literal["success", "error"]
 
 
 class ResponseMetadataEvent(Event):
-    response_id: str | None = None
     session_id: str
+    response_id: str | None = None
     usage: Usage | None = None
 
 

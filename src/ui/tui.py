@@ -19,9 +19,8 @@ from src.protocal.events import (
     ThinkingDeltaEvent,
     ThinkingEvent,
 )
-from src.ui.ui import Display
-
-from .input import InputProvider
+from src.ui.display_abc import Display
+from src.ui.input_abc import InputProvider
 
 
 class ChatApp(App):

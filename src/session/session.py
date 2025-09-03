@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -20,5 +21,5 @@ class Session(BaseModel):
     def save(self):
         pass
 
-    def append_history(self, items: list[ResponseItem]):
+    def append_history(self, items: Sequence[ResponseItem]):
         self.conversation_history.extend(items)

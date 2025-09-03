@@ -6,7 +6,7 @@ from pydantic.json_schema import JsonSchemaValue
 from src.protocal.model import ResponseItem
 
 
-class Tool(BaseModel):
+class ToolSchema(BaseModel):
     name: str
     type: Literal["function"]
     description: str
@@ -55,7 +55,7 @@ class LLMConfigParameter(BaseModel):
 class LLMCallParameter(LLMConfigParameter):
     input: list[ResponseItem]
     system: str | None = None
-    tools: list[Tool] | None = None
+    tools: list[ToolSchema] | None = None
     stream: Literal[True] = True  # Always True
 
     # OpenAI Responses

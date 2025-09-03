@@ -6,6 +6,7 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types.responses import (
     ResponseCompletedEvent,
     ResponseCreatedEvent,
+    ResponseFunctionToolCall,
     ResponseOutputItemDoneEvent,
     ResponseOutputMessage,
     ResponseOutputText,
@@ -23,8 +24,8 @@ from src.protocal.llm_parameter import (
     LLMConfigParameter,
     merge_llm_parameter,
 )
-from src.protocal.model import AssistantMessage  # ToolCallItem,
 from src.protocal.model import (
+    AssistantMessage,
     AssistantMessageTextDelta,
     ContentPart,
     ReasoningItem,
@@ -33,6 +34,7 @@ from src.protocal.model import (
     StartItem,
     ThinkingTextDelta,
     ThinkingTextDone,
+    ToolCallItem,
     Usage,
 )
 
@@ -137,6 +139,14 @@ class ResponsesClient(LLMClient):
                                 id=item.id,
                                 response_id=response_id,
                             )
+                        case ResponseFunctionToolCall() as item:
+                            yield ToolCallItem(
+                                name=item.name,
+                                arguments=item.arguments,
+                                call_id=item.call_id,
+                                id=item.id,
+                                response_id=response_id,
+                            )
                         case _:
                             pass
                 case ResponseCompletedEvent() as event:
@@ -144,11 +154,9 @@ class ResponsesClient(LLMClient):
                     if event.response.usage is not None:
                         usage = Usage(
                             input_tokens=event.response.usage.input_tokens,
-                            cached_tokens=event.response.usage.input_tokens
-                            - event.response.usage.input_tokens_details.cached_tokens,
+                            cached_tokens=event.response.usage.input_tokens_details.cached_tokens,
                             reasoning_tokens=event.response.usage.output_tokens_details.reasoning_tokens,
-                            output_tokens=event.response.usage.output_tokens
-                            - event.response.usage.output_tokens_details.reasoning_tokens,
+                            output_tokens=event.response.usage.output_tokens,
                             total_tokens=event.response.usage.total_tokens,
                         )
 
