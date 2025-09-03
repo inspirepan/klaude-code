@@ -1,8 +1,8 @@
 import asyncio
 from asyncio import Queue
 
-from codex_mini.agent import Agent
-from codex_mini.agent.tool import BASH_TOOL_NAME, get_tool_schemas
+from codex_mini.core import Agent
+from codex_mini.core.tool import BASH_TOOL_NAME, get_tool_schemas
 from codex_mini.config import load_config
 from codex_mini.llm import LLMClient, create_llm_client
 from codex_mini.protocol import EndEvent, Event

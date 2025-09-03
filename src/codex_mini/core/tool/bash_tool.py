@@ -3,9 +3,9 @@ import shlex
 
 from pydantic import BaseModel
 
-from codex_mini.agent.tool.tool_abc import ToolABC
-from codex_mini.agent.tool.tool_common import truncate_tool_output
-from codex_mini.agent.tool.tool_registry import register
+from codex_mini.core.tool.tool_abc import ToolABC
+from codex_mini.core.tool.tool_common import truncate_tool_output
+from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import ContentPart, ToolMessage
 

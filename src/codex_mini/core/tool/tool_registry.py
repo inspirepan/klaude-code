@@ -1,6 +1,6 @@
 from typing import Callable, TypeVar
 
-from codex_mini.agent.tool.tool_abc import ToolABC
+from codex_mini.core.tool.tool_abc import ToolABC
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import ContentPart, ToolCallItem, ToolMessage
 

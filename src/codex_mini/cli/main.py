@@ -5,8 +5,8 @@ from typing import Annotated
 
 import typer
 
-from codex_mini.agent import Agent
-from codex_mini.agent.tool import BASH_TOOL_NAME, get_tool_schemas
+from codex_mini.core import Agent
+from codex_mini.core.tool import BASH_TOOL_NAME, get_tool_schemas
 from codex_mini.cli.exec import exec_once
 from codex_mini.config import load_config
 from codex_mini.llm import LLMClient, create_llm_client

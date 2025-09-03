@@ -1,9 +1,9 @@
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
-from codex_mini.agent.tool.tool_registry import run_tool
+from codex_mini.core.tool.tool_registry import run_tool
 from codex_mini.llm.client import LLMClient
-from codex_mini.prompt.system import get_system_prompt
+from codex_mini.core.prompt.system import get_system_prompt
 from codex_mini.protocol.events import (
     AssistantMessageDeltaEvent,
     AssistantMessageEvent,
