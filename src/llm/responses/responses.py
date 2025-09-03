@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator
 from typing import override
 
+import httpx
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types.responses import (
     ResponseCompletedEvent,
@@ -47,9 +48,14 @@ class ResponsesClient(LLMClient):
                 api_key=config.api_key,
                 azure_endpoint=str(config.base_url),
                 api_version=config.azure_api_version,
+                timeout=httpx.Timeout(300.0, connect=15.0, read=285.0),
             )
         else:
-            client = AsyncOpenAI(api_key=config.api_key, base_url=config.base_url)
+            client = AsyncOpenAI(
+                api_key=config.api_key,
+                base_url=config.base_url,
+                timeout=httpx.Timeout(300.0, connect=15.0, read=285.0),
+            )
         self.client: AsyncAzureOpenAI | AsyncOpenAI = client
 
     @classmethod
