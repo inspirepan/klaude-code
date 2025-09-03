@@ -1,8 +1,19 @@
 from typing import override
 
 from rich.console import Console
+from rich.rule import Rule
+from rich.text import Text
 
-from src.protocal import Event
+from src.protocal.events import (
+    AssistantMessageDeltaEvent,
+    AssistantMessageEvent,
+    Event,
+    ResponseMetadataEvent,
+    TaskFinishEvent,
+    TaskStartEvent,
+    ThinkingDeltaEvent,
+    ThinkingEvent,
+)
 from src.ui.ui import Display
 
 
@@ -12,4 +23,37 @@ class StdoutDisplay(Display):
 
     @override
     async def consume_event(self, event: Event) -> None:
-        self.console.print("[Event] ", event.__class__.__name__, event)
+        match event:
+            case TaskStartEvent():
+                self.console.print()
+            case TaskFinishEvent():
+                pass
+            case ThinkingDeltaEvent() as item:
+                self.console.print(Text(item.content, style="bright_black"), end="")
+            case ThinkingEvent() as item:
+                self.console.print()
+                self.console.print()
+            case AssistantMessageDeltaEvent() as item:
+                self.console.print(Text(item.content), end="")
+            case AssistantMessageEvent() as item:
+                self.console.print()
+            case ResponseMetadataEvent() as item:
+                rule_text = ""
+                if item.usage is not None:
+                    rule_text = f"input_tokens: {item.usage.input_tokens} cached_tokens: {item.usage.cached_tokens} reasoning_tokens: {item.usage.reasoning_tokens} output_tokens: {item.usage.output_tokens}"
+                self.console.print(
+                    Rule(
+                        Text(rule_text, style="grey70"),
+                        style="grey70",
+                        align="right",
+                        characters="-",
+                    )
+                )
+            case _:
+                self.console.print("[Event]", event.__class__.__name__, event)
+
+    async def start(self) -> None:
+        pass
+
+    async def stop(self) -> None:
+        pass

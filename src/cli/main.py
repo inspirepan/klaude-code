@@ -1,7 +1,8 @@
 import asyncio
 from collections.abc import AsyncGenerator
 
-from prompt_toolkit import PromptSession
+import os
+import typer
 
 from src.agent import Agent
 from src.config import load_config
@@ -9,6 +10,7 @@ from src.llm import LLMClient, create_llm_client
 from src.protocal import EndEvent, Event
 from src.trace.log import log
 from src.ui import StdoutDisplay
+from src.ui.input_ptk import PromptToolkitInput
 
 
 async def forward_event(gen: AsyncGenerator[Event, None], q: asyncio.Queue[Event]):
@@ -17,35 +19,51 @@ async def forward_event(gen: AsyncGenerator[Event, None], q: asyncio.Queue[Event
             await q.put(event)
     except Exception as e:
         raise e
-    finally:
-        await q.put(EndEvent())
 
 
-async def run_interactive():
-    session: PromptSession[str] = PromptSession()
+async def run_interactive(ui: str = "stdout"):
     config = load_config()
     llm_client: LLMClient = create_llm_client(config.llm_config)
     agent: Agent = Agent(llm_client=llm_client)
-    display: StdoutDisplay = StdoutDisplay()
+
     q: asyncio.Queue[Event] = asyncio.Queue()
 
-    try:
-        while True:
-            user_input: str = await session.prompt_async("> ")
-            if user_input == "exit":
-                break
+    # Choose display and input provider
+    if ui == "textual":
+        # Lazy import to avoid requiring textual when using stdout UI
+        from src.ui.tui import TextualDisplay, TextualInput  # type: ignore
 
-            async with asyncio.TaskGroup() as tg:
-                _ = tg.create_task(forward_event(agent.run_task(user_input), q))
-                _ = tg.create_task(display.consume_event_loop(q))
-            await q.join()
+        display = TextualDisplay()
+        input_provider = TextualInput(display)
+    else:
+        display = StdoutDisplay()
+        input_provider = PromptToolkitInput(prompt="> ")
+
+    display_task = asyncio.create_task(display.consume_event_loop(q))
+
+    try:
+        await input_provider.start()
+        async for user_input in input_provider.iter_inputs():
+            if user_input.strip().lower() in {"exit", ":q", "quit"}:
+                break
+            await forward_event(agent.run_task(user_input), q)
+            await q.join()  # ensure events drained before next input
     except KeyboardInterrupt:
         log("Bye!")
+    finally:
+        await q.put(EndEvent())
+        await display_task
 
 
-def main():
-    asyncio.run(run_interactive())
+app = typer.Typer(add_completion=False)
+
+
+@app.command()
+def main(ui: str = typer.Option("textual", help="UI backend: stdout|textual")):
+    """Run interactive chat with selected UI backend."""
+    ui_choice = os.getenv("CODEX_UI", ui)
+    asyncio.run(run_interactive(ui_choice))
 
 
 if __name__ == "__main__":
-    main()
+    app()
