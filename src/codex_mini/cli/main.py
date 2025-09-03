@@ -5,10 +5,10 @@ from typing import Annotated
 
 import typer
 
-from codex_mini.core import Agent
-from codex_mini.core.tool import BASH_TOOL_NAME, get_tool_schemas
 from codex_mini.cli.exec import exec_once
 from codex_mini.config import load_config
+from codex_mini.core import Agent
+from codex_mini.core.tool import BASH_TOOL_NAME, get_tool_schemas
 from codex_mini.llm import LLMClient, create_llm_client
 from codex_mini.protocol import EndEvent, Event
 from codex_mini.trace.log import log
@@ -33,7 +33,10 @@ async def run_interactive(ui: str = "repl"):
     q: asyncio.Queue[Event] = asyncio.Queue()
 
     if ui == "textual":
-        from codex_mini.ui.tui import TextualDisplay, TextualInput  # type: ignore
+        from codex_mini.ui.tui import (
+            TextualDisplay,  # type: ignore
+            TextualInput,
+        )
 
         display = TextualDisplay()
         input_provider = TextualInput(display)
