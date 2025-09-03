@@ -61,7 +61,7 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> bool:
         unsafe_noarg = {"--search-zip", "-z"}
         unsafe_witharg_prefix = {"--pre", "--hostname-bin"}
 
-        for i, arg in enumerate(argv[1:], start=1):
+        for _, arg in enumerate(argv[1:], start=1):
             if arg in unsafe_noarg:
                 return False
             for opt in unsafe_witharg_prefix:
