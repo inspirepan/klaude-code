@@ -91,6 +91,9 @@ class ResponsesClient(LLMClient):
             input=input,
             instructions=param.system,
             tools=convert_tool_schema(param.tools),
+            text={
+                "verbosity": param.verbosity,
+            },
             reasoning={
                 "effort": param.reasoning.effort,
                 "summary": param.reasoning.summary,

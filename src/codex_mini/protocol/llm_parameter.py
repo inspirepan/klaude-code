@@ -48,6 +48,9 @@ class LLMConfigParameter(BaseModel):
     # OpenAI Reasoning
     reasoning: Reasoning | None = None
 
+    # OpenAI GPT-5
+    verbosity: Literal["low", "medium", "high"] | None = None
+
     # Claude Extended Thinking
     thinking: Thinking | None = None
 
