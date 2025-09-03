@@ -22,8 +22,8 @@ from src.protocal.llm_parameter import (
     LLMConfigParameter,
     merge_llm_parameter,
 )
+from src.protocal.model import AssistantMessage  # ToolCallItem,
 from src.protocal.model import (
-    AssistantMessage,  # ToolCallItem,
     AssistantMessageTextDelta,
     ContentPart,
     ReasoningItem,

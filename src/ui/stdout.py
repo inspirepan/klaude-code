@@ -34,19 +34,19 @@ class StdoutDisplay(Display):
                 self.console.print()
                 self.console.print()
             case AssistantMessageDeltaEvent() as item:
-                self.console.print(Text(item.content), end="")
+                self.console.print(Text(item.content, style="bold"), end="")
             case AssistantMessageEvent() as item:
                 self.console.print()
             case ResponseMetadataEvent() as item:
                 rule_text = ""
                 if item.usage is not None:
-                    rule_text = f"input_tokens: {item.usage.input_tokens} cached_tokens: {item.usage.cached_tokens} reasoning_tokens: {item.usage.reasoning_tokens} output_tokens: {item.usage.output_tokens}"
+                    rule_text = f"[bold]token usage[/bold] input:{item.usage.input_tokens} cached:{item.usage.cached_tokens} reasoning:{item.usage.reasoning_tokens} output:{item.usage.output_tokens}"
                 self.console.print(
                     Rule(
-                        Text(rule_text, style="grey70"),
+                        Text.from_markup(rule_text, style="grey70"),
                         style="grey70",
                         align="right",
-                        characters="-",
+                        characters="⎯",
                     )
                 )
             case _:

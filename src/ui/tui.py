@@ -6,7 +6,7 @@ from typing import Optional
 
 from textual.app import App, ComposeResult
 from textual.containers import Vertical
-from textual.widgets import Input, Static, Log
+from textual.widgets import Input, Log, Static
 
 from src.protocal.events import (
     AssistantMessageDeltaEvent,
@@ -20,6 +20,7 @@ from src.protocal.events import (
     ThinkingEvent,
 )
 from src.ui.ui import Display
+
 from .input import InputProvider
 
 
@@ -27,7 +28,7 @@ class ChatApp(App):
     CSS = """
     Screen { layout: vertical; }
     #log { height: 1fr; }
-    #stream { height: 3; color: grey70; }
+    #stream { height: 3; color: #b3b3b3; }
     #input { height: 3; }
     """
 
@@ -35,7 +36,8 @@ class ChatApp(App):
         super().__init__()
         self.event_q = event_q
         self.input_q = input_q
-        self.log: Optional[Log] = None
+        # Avoid clashing with Textual's App.log property
+        self.log_widget: Optional[Log] = None
         self.stream: Optional[Static] = None
         self._consumer_task: Optional[asyncio.Task] = None
         self._busy: bool = False
@@ -49,10 +51,10 @@ class ChatApp(App):
         )
 
     async def on_mount(self) -> None:
-        self.log = self.query_one("#log", Log)
+        self.log_widget = self.query_one("#log", Log)
         self.stream = self.query_one("#stream", Static)
         input_widget = self.query_one("#input", Input)
-        await input_widget.focus()
+        input_widget.focus()
         # Start event consumer
         self._consumer_task = asyncio.create_task(self._consume_events())
 
@@ -101,10 +103,10 @@ class ChatApp(App):
                 self.event_q.task_done()
 
     def _append(self, text: str, style: str = "") -> None:
-        assert self.log is not None
+        assert self.log_widget is not None
         # Log doesn't support styles directly; keep plain text
-        self.log.write_line(text)
-        self.log.write_line("")  # spacing
+        self.log_widget.write_line(text)
+        self.log_widget.write_line("")  # spacing
 
     def _render_stream(self) -> None:
         assert self.stream is not None

@@ -8,7 +8,7 @@ from .input import InputProvider
 
 
 class PromptToolkitInput(InputProvider):
-    def __init__(self, prompt: str = "> "):
+    def __init__(self, prompt: str = "❯ "):
         self._session: PromptSession[str] = PromptSession(prompt)
 
     async def start(self) -> None:  # noqa: D401
@@ -23,4 +23,3 @@ class PromptToolkitInput(InputProvider):
         while True:
             line: str = await self._session.prompt_async()
             yield line
-

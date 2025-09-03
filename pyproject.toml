@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
-codex-mini = "src.cli.main:main"
+codex-mini = "src.cli.main:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]

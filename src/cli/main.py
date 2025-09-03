@@ -1,7 +1,8 @@
 import asyncio
-from collections.abc import AsyncGenerator
-
 import os
+from collections.abc import AsyncGenerator
+from typing import Annotated
+
 import typer
 
 from src.agent import Agent
@@ -55,15 +56,12 @@ async def run_interactive(ui: str = "stdout"):
         await display_task
 
 
-app = typer.Typer(add_completion=False)
+app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 
 @app.command()
-def main(ui: str = typer.Option("textual", help="UI backend: stdout|textual")):
-    """Run interactive chat with selected UI backend."""
+def main(
+    ui: Annotated[str, typer.Option(help="UI backend: stdout|textual")] = "stdout",
+):
     ui_choice = os.getenv("CODEX_UI", ui)
     asyncio.run(run_interactive(ui_choice))
-
-
-if __name__ == "__main__":
-    app()
