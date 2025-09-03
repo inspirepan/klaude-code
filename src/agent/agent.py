@@ -4,7 +4,7 @@ from pathlib import Path
 from src.agent.tool.tool_registry import run_tool
 from src.llm.client import LLMClient
 from src.prompt.system import get_system_prompt
-from src.protocal.events import (
+from src.protocol.events import (
     AssistantMessageDeltaEvent,
     AssistantMessageEvent,
     Event,
@@ -16,8 +16,8 @@ from src.protocal.events import (
     ToolCallEvent,
     ToolCallResultEvent,
 )
-from src.protocal.llm_parameter import LLMCallParameter, ToolSchema
-from src.protocal.model import (
+from src.protocol.llm_parameter import LLMCallParameter, ToolSchema
+from src.protocol.model import (
     AssistantMessage,
     AssistantMessageTextDelta,
     ContentPart,

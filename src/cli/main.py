@@ -10,7 +10,7 @@ from src.agent.tool import BASH_TOOL_NAME, get_tool_schemas
 from src.cli.exec import exec_once
 from src.config import load_config
 from src.llm import LLMClient, create_llm_client
-from src.protocal import EndEvent, Event
+from src.protocol import EndEvent, Event
 from src.trace.log import log
 from src.ui import PromptToolkitInput, REPLDisplay
 

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from asyncio import Queue
 
-from src.protocal import EndEvent, Event
+from src.protocol import EndEvent, Event
 
 
 class Display(ABC):

@@ -6,6 +6,6 @@
 - Response: Each call to the LLM API is considered a Response
 
 
-- `src/protocal/model.py`: Communication structure definitions between the Agent execution layer and LLMClient, also serving as the persistent structure for conversations
-- `src/protocal/events.py`: Event definitions sent from the Agent execution layer to the UI layer
-- `src/protocal/op.py`: Operation definitions sent from the UI layer to the Agent execution layer
+- `src/protocol/model.py`: Communication structure definitions between the Agent execution layer and LLMClient, also serving as the persistent structure for conversations
+- `src/protocol/events.py`: Event definitions sent from the Agent execution layer to the UI layer
+- `src/protocol/op.py`: Operation definitions sent from the UI layer to the Agent execution layer

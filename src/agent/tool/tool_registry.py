@@ -1,8 +1,8 @@
 from typing import Callable, TypeVar
 
 from src.agent.tool.tool_abc import ToolABC
-from src.protocal.llm_parameter import ToolSchema
-from src.protocal.model import ContentPart, ToolCallItem, ToolMessage
+from src.protocol.llm_parameter import ToolSchema
+from src.protocol.model import ContentPart, ToolCallItem, ToolMessage
 
 _REGISTRY: dict[str, type[ToolABC]] = {}
 

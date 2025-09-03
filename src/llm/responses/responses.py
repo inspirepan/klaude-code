@@ -19,12 +19,12 @@ from openai.types.responses import (
 from src.llm.client import LLMClient
 from src.llm.registry import register
 from src.llm.responses.input import convert_history_to_input, convert_tool_schema
-from src.protocal.llm_parameter import (
+from src.protocol.llm_parameter import (
     LLMCallParameter,
     LLMConfigParameter,
     merge_llm_parameter,
 )
-from src.protocal.model import (
+from src.protocol.model import (
     AssistantMessage,
     AssistantMessageTextDelta,
     ContentPart,

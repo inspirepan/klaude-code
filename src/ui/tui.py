@@ -8,7 +8,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Vertical
 from textual.widgets import Input, Log, Static
 
-from src.protocal.events import (
+from src.protocol.events import (
     AssistantMessageDeltaEvent,
     AssistantMessageEvent,
     EndEvent,

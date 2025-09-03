@@ -3,14 +3,14 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from src.protocal import LLMConfigParameter, Reasoning, Thinking
+from src.protocol import LLMConfigParameter, Reasoning, Thinking
 from src.trace import log
 
 config_path = Path.home() / ".config" / "codex-minimal" / "config.json"
 
 
 class LLMConfig(BaseModel):
-    protocal: Literal["chat_completion", "responses", "anthropic"] = "responses"
+    protocol: Literal["chat_completion", "responses", "anthropic"] = "responses"
 
     llm_parameter: LLMConfigParameter
 
@@ -22,7 +22,7 @@ class Config(BaseModel):
 def get_example_config() -> Config:
     return Config(
         llm_config=LLMConfig(
-            protocal="responses",
+            protocol="responses",
             llm_parameter=LLMConfigParameter(
                 model="gpt-5-2025-08-07",
                 base_url="https://api.openai.com/v1",

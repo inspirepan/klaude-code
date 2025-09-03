@@ -6,8 +6,8 @@ from pydantic import BaseModel
 from src.agent.tool.tool_abc import ToolABC
 from src.agent.tool.tool_common import truncate_tool_output
 from src.agent.tool.tool_registry import register
-from src.protocal.llm_parameter import ToolSchema
-from src.protocal.model import ContentPart, ToolMessage
+from src.protocol.llm_parameter import ToolSchema
+from src.protocol.model import ContentPart, ToolMessage
 
 BASH_TOOL_NAME = "Bash"
 

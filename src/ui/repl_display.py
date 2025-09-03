@@ -7,7 +7,7 @@ from rich.rule import Rule
 from rich.status import Status
 from rich.text import Text
 
-from src.protocal.events import (
+from src.protocol.events import (
     AssistantMessageDeltaEvent,
     AssistantMessageEvent,
     Event,

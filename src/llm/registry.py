@@ -21,6 +21,6 @@ def clients() -> list[str]:
 
 
 def create_llm_client(config: LLMConfig) -> LLMClient:
-    if config.protocal not in _REGISTRY:
-        raise ValueError(f"Unknown LLMClient: {config.protocal}")
-    return _REGISTRY[config.protocal].create(config.llm_parameter)
+    if config.protocol not in _REGISTRY:
+        raise ValueError(f"Unknown LLMClient: {config.protocol}")
+    return _REGISTRY[config.protocol].create(config.llm_parameter)

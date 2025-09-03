@@ -3,8 +3,8 @@
 
 from openai.types.responses import ResponseInputItemParam, ResponseInputParam, ToolParam
 
-from src.protocal.llm_parameter import ToolSchema
-from src.protocal.model import (
+from src.protocol.llm_parameter import ToolSchema
+from src.protocol.model import (
     ContentPart,
     MessageItem,
     ReasoningItem,

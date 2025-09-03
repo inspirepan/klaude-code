@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaValue
 
-from src.protocal.model import ResponseItem
+from src.protocol.model import ResponseItem
 
 
 class ToolSchema(BaseModel):

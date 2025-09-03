@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from src.protocal.model import Usage
+from src.protocol.model import Usage
 
 
 class Event(BaseModel):
