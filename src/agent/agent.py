@@ -80,7 +80,7 @@ class Agent:
         yield ResponseMetadataEvent(
             usage=task_usage,
             session_id=self.session.id,
-            response_id=self.session.preprevious_response_id,
+            response_id=self.session.last_response_id,
         )
         yield TaskFinishEvent(session_id=self.session.id)
 
@@ -97,7 +97,7 @@ class Agent:
                 input=self.session.conversation_history,
                 system=self.session.system_prompt,
                 tools=self.tools,
-                previous_response_id=self.session.preprevious_response_id
+                previous_response_id=self.session.last_response_id
                 if store_at_remote
                 else None,
                 store=store_at_remote,
@@ -153,7 +153,7 @@ class Agent:
             if turn_tool_calls:
                 self.session.append_history(turn_tool_calls)
         if current_response_id is not None:
-            self.session.preprevious_response_id = current_response_id
+            self.session.last_response_id = current_response_id
         if turn_tool_calls:
             for tool_call in turn_tool_calls:
                 yield ToolCallEvent(

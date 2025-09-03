@@ -67,13 +67,11 @@ app = typer.Typer(
 @app.callback(invoke_without_command=True)
 def main_callback(
     ctx: typer.Context,
-    ui: Annotated[str, typer.Option(help="UI backend: stdout|textual")] = "stdout",
 ):
     """Root command callback. Runs interactive mode when no subcommand provided."""
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
-        ui_choice = os.getenv("CODEX_UI", ui)
-        asyncio.run(run_interactive(ui_choice))
+        asyncio.run(run_interactive())
 
 
 @app.command("exec")
