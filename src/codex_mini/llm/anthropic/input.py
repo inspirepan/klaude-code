@@ -15,7 +15,7 @@ from codex_mini.protocol import llm_parameter, model
 
 
 def convert_history_to_input(
-    history: list[model.ResponseItem],
+    history: list[model.ConversationItem],
 ) -> list[BetaMessageParam]:
     messages: list[BetaMessageParam] = []
     for group_kind, group in model.group_reponse_items_gen(history):
@@ -30,23 +30,25 @@ def convert_history_to_input(
                                 "text": item.content,
                             }
                             for item in group
-                            if isinstance(item, model.UserMessage)
+                            if isinstance(item, model.UserMessageItem)
                         ],
                     }
                 )
             case "tool":
-                if len(group) == 0 or not isinstance(group[0], model.ToolMessage):
+                if len(group) == 0 or not isinstance(
+                    group[0], model.ToolResultItemItem
+                ):
                     continue
-                tool_message = group[0]
+                tool_result = group[0]
                 messages.append(
                     {
                         "role": "user",
                         "content": [
                             {
                                 "type": "tool_result",
-                                "tool_use_id": tool_message.call_id,
-                                "is_error": tool_message.status == "error",
-                                "content": tool_message.content,
+                                "tool_use_id": tool_result.call_id,
+                                "is_error": tool_result.status == "error",
+                                "content": tool_result.output,
                             }
                         ],
                     }
@@ -58,30 +60,30 @@ def convert_history_to_input(
                 }
                 for item in group:
                     match item:
-                        case model.AssistantMessage() as assistant_message_item:
+                        case model.AssistantMessageItem() as a:
                             assistant_message["content"].append(
                                 {
                                     "type": "text",
-                                    "text": assistant_message_item.content,
+                                    "text": a.content,
                                 }
                             )
-                        case model.ToolCallItem() as tool_call_item:
+                        case model.ToolCallItem() as t:
                             assistant_message["content"].append(
                                 {
                                     "type": "tool_use",
-                                    "id": tool_call_item.call_id,
-                                    "name": tool_call_item.name,
-                                    "input": json.loads(tool_call_item.arguments)
-                                    if tool_call_item.arguments
+                                    "id": t.call_id,
+                                    "name": t.name,
+                                    "input": json.loads(t.arguments)
+                                    if t.arguments
                                     else None,
                                 }
                             )
-                        case model.ReasoningItem() as reasoning_item:
+                        case model.ReasoningItem() as r:
                             assistant_message["content"].append(
                                 {
                                     "type": "thinking",
-                                    "thinking": reasoning_item.content,
-                                    "signature": reasoning_item.encrypted_content,
+                                    "thinking": r.content,
+                                    "signature": r.encrypted_content,
                                 }
                             )
                         case _:
@@ -90,6 +92,8 @@ def convert_history_to_input(
                 messages.append(assistant_message)
             case "other":
                 pass
+
+    # Cache control
     if len(messages) > 0:
         last_message = messages[-1]
         content_list = list(last_message.get("content", []))

@@ -25,19 +25,19 @@ from codex_mini.llm.anthropic.input import (
     convert_system_to_input,
     convert_tool_schema,
 )
-from codex_mini.llm.client import LLMClient
+from codex_mini.llm.client import LLMClientABC
 from codex_mini.llm.registry import register
 from codex_mini.protocol import llm_parameter, model
 from codex_mini.protocol.llm_parameter import (
     LLMCallParameter,
     LLMClientProtocol,
     LLMConfigParameter,
-    merge_llm_parameter,
+    apply_config_defaults,
 )
 
 
 @register(LLMClientProtocol.ANTHROPIC)
-class AnthropicClient(LLMClient):
+class AnthropicClient(LLMClientABC):
     def __init__(self, config: LLMConfigParameter):
         self.config: LLMConfigParameter = config
         client = anthropic.AsyncAnthropic(
@@ -49,14 +49,14 @@ class AnthropicClient(LLMClient):
 
     @classmethod
     @override
-    def create(cls, config: LLMConfigParameter) -> "LLMClient":
+    def create(cls, config: LLMConfigParameter) -> "LLMClientABC":
         return cls(config)
 
     @override
     async def Call(
         self, param: LLMCallParameter
-    ) -> AsyncGenerator[model.ResponseItem, None]:
-        param = merge_llm_parameter(param, self.config)
+    ) -> AsyncGenerator[model.ConversationItem, None]:
+        param = apply_config_defaults(param, self.config)
 
         messages = convert_history_to_input(param.input)
         tools = convert_tool_schema(param.tools)
@@ -116,7 +116,7 @@ class AnthropicClient(LLMClient):
                         case BetaSignatureDelta() as delta:
                             full_thinking = "".join(accumulated_thinking)
                             accumulated_thinking.clear()
-                            yield model.ThinkingTextDone(
+                            yield model.ThinkingTextItem(
                                 thinking=full_thinking,
                                 response_id=response_id,
                             )
@@ -127,7 +127,7 @@ class AnthropicClient(LLMClient):
                             )
                         case BetaTextDelta() as delta:
                             accumulated_content.append(delta.text)
-                            yield model.AssistantMessageTextDelta(
+                            yield model.AssistantMessageDelta(
                                 content=delta.text,
                                 response_id=response_id,
                             )
@@ -146,7 +146,7 @@ class AnthropicClient(LLMClient):
                             pass
                 case BetaRawContentBlockStopEvent() as event:
                     if len(accumulated_content) > 0:
-                        yield model.AssistantMessage(
+                        yield model.AssistantMessageItem(
                             content="".join(accumulated_content),
                             response_id=response_id,
                         )

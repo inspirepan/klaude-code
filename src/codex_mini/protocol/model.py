@@ -1,71 +1,107 @@
 from collections.abc import Iterator
-from typing import Iterable, Literal
+from typing import Iterable, Literal, Union
 
 from pydantic import BaseModel
 
 RoleType = Literal["system", "developer", "user", "assistant", "tool"]
 
 
-class ResponseItem(BaseModel):
-    """
-    Base class for all LLM API response items.
-    Each LLMClient should convert this class from/to specific API response items.
-    A typical sequence of response items is:
-    - [StartItem]
-    - [ThinkingTextDelta] × n
-    - [ThinkingTextDone]
-    - [ThinkingTextDelta] × n # OpenAI's Reasoning Summary has multiple parts
-    - [ThinkingTextDone]
-    - [ReasoningItem]
-    - [AssistantMessageTextDelta] × n
-    - [AssistantMessage]
-    - [ToolCallItem] × n
-    - [ResponseMetadataItem]
-    - Done
+"""
+Models for LLM API input and response items.
 
-    A conversation history contains:
-    - [UserMessage]
-    - [ReasoningItem]
-    - [AssistantMessage]
-    - [ToolCallItem]
-    - [ToolMessage]
-    """
+A typical sequence of response items is:
+- [StartItem]
+- [ThinkingTextDelta] × n
+- [ThinkingTextItem]
+- [ThinkingTextDelta] × n # OpenAI's Reasoning Summary has multiple parts
+- [ThinkingTextItem]
+- [ReasoningItem]
+- [AssistantMessageDelta] × n
+- [AssistantMessageItem]
+- [ToolCallItem] × n
+- [ResponseMetadataItem]
+- Done
 
-    pass
+A conversation history input contains:
+- [UserMessage]
+- [ReasoningItem]
+- [AssistantMessage]
+- [ToolCallItem]
+- [ToolResultItem]
+"""
 
 
-class StartItem(ResponseItem):
+class StartItem(BaseModel):
     response_id: str
 
 
-class StreamErrorItem(ResponseItem):
-    error: str
-
-
-class StreamRetriableErrorItem(StreamErrorItem):
-    pass
-
-
-class MessageItem(ResponseItem):
+class SystemMessageItem(BaseModel):
+    id: str | None = None
+    role: RoleType = "system"
     content: str | None = None
-    role: RoleType
-    id: str | None = None
 
 
-class ReasoningItem(ResponseItem):
+class DeveloperMessageItem(BaseModel):
     id: str | None = None
+    role: RoleType = "developer"
+    content: str | None = None
+
+
+class UserMessageItem(BaseModel):
+    id: str | None = None
+    role: RoleType = "user"
+    content: str | None = None
+
+
+class AssistantMessageItem(BaseModel):
+    id: str | None = None
+    role: RoleType = "assistant"
+    content: str | None = None
+    response_id: str | None = None
+
+
+class ThinkingTextDelta(BaseModel):
+    response_id: str | None = None
+    thinking: str
+
+
+class ThinkingTextItem(BaseModel):
+    response_id: str | None = None
+    thinking: str
+
+
+class ReasoningItem(BaseModel):
+    id: str | None = None
+    response_id: str | None = None
     summary: list[str] | None = None
     content: str | None = None
     encrypted_content: str | None = None
-    response_id: str | None = None
 
 
-class ToolCallItem(ResponseItem):
+class ToolCallItem(BaseModel):
     id: str | None = None
+    response_id: str | None = None
+    call_id: str
     name: str
     arguments: str
-    call_id: str
+
+
+class ToolResultItemItem(BaseModel):
+    call_id: str = ""
+    output: str | None = None
+    status: Literal["success", "error"]
+    ui_extra: str | None = (
+        None  # extra information for tool call result, maybe used for UI display
+    )
+
+
+class AssistantMessageDelta(BaseModel):
     response_id: str | None = None
+    content: str
+
+
+class StreamErrorItem(BaseModel):
+    error: str
 
 
 class Usage(BaseModel):
@@ -76,57 +112,38 @@ class Usage(BaseModel):
     total_tokens: int = 0
 
 
-class ResponseMetadataItem(ResponseItem):
-    usage: Usage | None = None
+class ResponseMetadataItem(BaseModel):
     response_id: str | None = None
+    usage: Usage | None = None
     model_name: str = ""
 
 
-class SystemMessage(MessageItem):
-    role: RoleType = "system"
+MessageItem = Union[
+    UserMessageItem,
+    AssistantMessageItem,
+    SystemMessageItem,
+    DeveloperMessageItem,
+    ThinkingTextItem,
+    ReasoningItem,
+    ToolCallItem,
+    ToolResultItemItem,
+]
 
+StreamItem = Union[ThinkingTextDelta, AssistantMessageDelta]
 
-class DeveloperMessage(MessageItem):
-    role: RoleType = "developer"
-
-
-class UserMessage(MessageItem):
-    role: RoleType = "user"
-
-
-class AssistantMessage(MessageItem):
-    role: RoleType = "assistant"
-    response_id: str | None = None
-
-
-class ToolMessage(MessageItem):
-    role: RoleType = "tool"
-    call_id: str = ""
-    status: Literal["success", "error"]
-    ui_extra: str | None = (
-        None  # extra information for tool call result, maybe used for UI display
-    )
-
-
-class ThinkingTextDelta(ResponseItem):
-    thinking: str
-    response_id: str | None = None
-
-
-class ThinkingTextDone(ResponseItem):
-    thinking: str
-    response_id: str | None = None
-
-
-class AssistantMessageTextDelta(ResponseItem):
-    content: str
-    response_id: str | None = None
+ConversationItem = Union[
+    StartItem,
+    StreamErrorItem,
+    StreamItem,
+    MessageItem,
+    ResponseMetadataItem,
+]
 
 
 def group_reponse_items_gen(
-    items: Iterable[ResponseItem],
+    items: Iterable[ConversationItem],
 ) -> Iterator[
-    tuple[Literal["assistantish", "user", "tool", "other"], list[ResponseItem]]
+    tuple[Literal["assistantish", "user", "tool", "other"], list[ConversationItem]]
 ]:
     """
     Group response items into sublists:
@@ -134,15 +151,17 @@ def group_reponse_items_gen(
     - Consecutive UserMessage are grouped together
     - Each ToolMessage is always a single group
     """
-    buffer: list[ResponseItem] = []
+    buffer: list[ConversationItem] = []
     buffer_kind: Literal["assistantish", "user", "tool", "other"] = "other"
 
-    def kind_of(it: ResponseItem) -> Literal["assistantish", "user", "tool", "other"]:
-        if isinstance(it, (ReasoningItem, AssistantMessage, ToolCallItem)):
+    def kind_of(
+        it: ConversationItem,
+    ) -> Literal["assistantish", "user", "tool", "other"]:
+        if isinstance(it, (ReasoningItem, AssistantMessageItem, ToolCallItem)):
             return "assistantish"
-        if isinstance(it, UserMessage):
+        if isinstance(it, UserMessageItem):
             return "user"
-        if isinstance(it, ToolMessage):
+        if isinstance(it, ToolResultItemItem):
             return "tool"
         return "other"
 

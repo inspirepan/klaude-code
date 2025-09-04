@@ -5,13 +5,13 @@ and they become available via the registry.
 """
 
 from .anthropic import AnthropicClient
-from .client import LLMClient
+from .client import LLMClientABC
 from .openai_compatible import OpenAICompatibleClient
 from .registry import create_llm_client
 from .responses import ResponsesClient
 
 __all__ = [
-    "LLMClient",
+    "LLMClientABC",
     "ResponsesClient",
     "OpenAICompatibleClient",
     "AnthropicClient",

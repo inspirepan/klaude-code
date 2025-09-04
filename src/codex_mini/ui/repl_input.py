@@ -6,10 +6,10 @@ from pathlib import Path
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 
-from .input_abc import InputProvider
+from .input_abc import InputProviderABC
 
 
-class PromptToolkitInput(InputProvider):
+class PromptToolkitInput(InputProviderABC):
     def __init__(self, prompt: str = "┃ "):
         project = str(Path.cwd()).strip("/").replace("/", "-")
         history_path = (

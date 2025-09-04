@@ -5,31 +5,31 @@ import httpx
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types import responses
 
-from codex_mini.llm.client import LLMClient
+from codex_mini.llm.client import LLMClientABC
 from codex_mini.llm.registry import register
 from codex_mini.llm.responses.input import convert_history_to_input, convert_tool_schema
 from codex_mini.protocol.llm_parameter import (
     LLMCallParameter,
     LLMClientProtocol,
     LLMConfigParameter,
-    merge_llm_parameter,
+    apply_config_defaults,
 )
 from codex_mini.protocol.model import (
-    AssistantMessage,
-    AssistantMessageTextDelta,
+    AssistantMessageDelta,
+    AssistantMessageItem,
+    ConversationItem,
     ReasoningItem,
-    ResponseItem,
     ResponseMetadataItem,
     StartItem,
     ThinkingTextDelta,
-    ThinkingTextDone,
+    ThinkingTextItem,
     ToolCallItem,
     Usage,
 )
 
 
 @register(LLMClientProtocol.RESPONSES)
-class ResponsesClient(LLMClient):
+class ResponsesClient(LLMClientABC):
     def __init__(self, config: LLMConfigParameter):
         self.config: LLMConfigParameter = config
         if config.is_azure:
@@ -51,12 +51,14 @@ class ResponsesClient(LLMClient):
 
     @classmethod
     @override
-    def create(cls, config: LLMConfigParameter) -> "LLMClient":
+    def create(cls, config: LLMConfigParameter) -> "LLMClientABC":
         return cls(config)
 
     @override
-    async def Call(self, param: LLMCallParameter) -> AsyncGenerator[ResponseItem, None]:
-        param = merge_llm_parameter(param, self.config)
+    async def Call(
+        self, param: LLMCallParameter
+    ) -> AsyncGenerator[ConversationItem, None]:
+        param = apply_config_defaults(param, self.config)
 
         if param.model == "gpt-5-2025-08-07":
             param.temperature = 1.0
@@ -101,9 +103,9 @@ class ResponsesClient(LLMClient):
                         thinking=event.delta, response_id=response_id
                     )
                 case responses.ResponseReasoningSummaryTextDoneEvent() as event:
-                    yield ThinkingTextDone(thinking=event.text, response_id=response_id)
+                    yield ThinkingTextItem(thinking=event.text, response_id=response_id)
                 case responses.ResponseTextDeltaEvent() as event:
-                    yield AssistantMessageTextDelta(
+                    yield AssistantMessageDelta(
                         content=event.delta, response_id=response_id
                     )
                 case responses.ResponseOutputItemDoneEvent() as event:
@@ -121,7 +123,7 @@ class ResponsesClient(LLMClient):
                                 response_id=response_id,
                             )
                         case responses.ResponseOutputMessage() as item:
-                            yield AssistantMessage(
+                            yield AssistantMessageItem(
                                 content="\n".join(
                                     [
                                         part.text

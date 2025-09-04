@@ -2,7 +2,7 @@ from typing import Callable, TypeVar
 
 from codex_mini.core.tool.tool_abc import ToolABC
 from codex_mini.protocol.llm_parameter import ToolSchema
-from codex_mini.protocol.model import ToolCallItem, ToolMessage
+from codex_mini.protocol.model import ToolCallItem, ToolResultItemItem
 
 _REGISTRY: dict[str, type[ToolABC]] = {}
 
@@ -30,21 +30,20 @@ def get_tool_schemas(tool_names: list[str]) -> list[ToolSchema]:
     return schemas
 
 
-async def run_tool(tool_call: ToolCallItem) -> ToolMessage:
+async def run_tool(tool_call: ToolCallItem) -> ToolResultItemItem:
     if tool_call.name not in _REGISTRY:
-        return ToolMessage(
+        return ToolResultItemItem(
             call_id=tool_call.call_id,
-            content=f"Tool {tool_call.name} not exists",
+            output=f"Tool {tool_call.name} not exists",
             status="error",
         )
     try:
         tool_message = await _REGISTRY[tool_call.name].call(tool_call.arguments)
         tool_message.call_id = tool_call.call_id
-        tool_message.id = tool_call.call_id
         return tool_message
     except Exception as e:
-        return ToolMessage(
+        return ToolResultItemItem(
             call_id=tool_call.call_id,
-            content=f"Tool {tool_call.name} execution error: {e}",
+            output=f"Tool {tool_call.name} execution error: {e}",
             status="error",
         )

@@ -4,7 +4,7 @@ from typing import Literal, override
 import httpx
 import openai
 
-from codex_mini.llm.client import LLMClient
+from codex_mini.llm.client import LLMClientABC
 from codex_mini.llm.openai_compatible.input import (
     convert_history_to_input,
     convert_tool_schema,
@@ -19,12 +19,12 @@ from codex_mini.protocol.llm_parameter import (
     LLMCallParameter,
     LLMClientProtocol,
     LLMConfigParameter,
-    merge_llm_parameter,
+    apply_config_defaults,
 )
 
 
 @register(LLMClientProtocol.OPENAI)
-class OpenAICompatibleClient(LLMClient):
+class OpenAICompatibleClient(LLMClientABC):
     def __init__(self, config: LLMConfigParameter):
         self.config: LLMConfigParameter = config
         if config.is_azure:
@@ -46,14 +46,14 @@ class OpenAICompatibleClient(LLMClient):
 
     @classmethod
     @override
-    def create(cls, config: LLMConfigParameter) -> "LLMClient":
+    def create(cls, config: LLMConfigParameter) -> "LLMClientABC":
         return cls(config)
 
     @override
     async def Call(
         self, param: LLMCallParameter
-    ) -> AsyncGenerator[model.ResponseItem, None]:
-        param = merge_llm_parameter(param, self.config)
+    ) -> AsyncGenerator[model.ConversationItem, None]:
+        param = apply_config_defaults(param, self.config)
 
         if param.model == "gpt-5-2025-08-07":
             param.temperature = 1.0
@@ -116,22 +116,22 @@ class OpenAICompatibleClient(LLMClient):
                 )
             if delta.content and len(delta.content) > 0:
                 if stage == "reasoning":
-                    yield model.ThinkingTextDone(
+                    yield model.ThinkingTextItem(
                         thinking="".join(accumulated_reasoning), response_id=response_id
                     )
                 stage = "assistant"
                 accumulated_content.append(delta.content)
-                yield model.AssistantMessageTextDelta(
+                yield model.AssistantMessageDelta(
                     content=delta.content,
                     response_id=response_id,
                 )
             if delta.tool_calls and len(delta.tool_calls) > 0:
                 if stage == "reasoning":
-                    yield model.ThinkingTextDone(
+                    yield model.ThinkingTextItem(
                         thinking="".join(accumulated_reasoning), response_id=response_id
                     )
                 elif stage == "assistant":
-                    yield model.AssistantMessage(
+                    yield model.AssistantMessageItem(
                         content="".join(accumulated_content),
                         response_id=response_id,
                     )
@@ -139,11 +139,11 @@ class OpenAICompatibleClient(LLMClient):
                 accumulated_tool_calls.add(delta.tool_calls)
 
         if stage == "reasoning":
-            yield model.ThinkingTextDone(
+            yield model.ThinkingTextItem(
                 thinking="".join(accumulated_reasoning), response_id=response_id
             )
         elif stage == "assistant":
-            yield model.AssistantMessage(
+            yield model.AssistantMessageItem(
                 content="".join(accumulated_content),
                 response_id=response_id,
             )

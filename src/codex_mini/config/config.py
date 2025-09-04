@@ -3,15 +3,13 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel
 
-from codex_mini.protocol import (
+from codex_mini.protocol.llm_parameter import (
     LLMClientProtocol,
+    LLMConfigModelParameter,
     LLMConfigParameter,
+    LLMConfigProviderParameter,
     Reasoning,
     Thinking,
-)
-from codex_mini.protocol.llm_parameter import (
-    LLMConfigModelParameter,
-    LLMConfigProviderParameter,
 )
 from codex_mini.trace import log
 

@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 from asyncio import Queue
 
-from codex_mini.protocol import EndEvent, Event
+from codex_mini.protocol.events import EndEvent, Event
 
 
-class Display(ABC):
+class DisplayABC(ABC):
     @abstractmethod
     async def consume_event(self, event: Event) -> None:
         pass

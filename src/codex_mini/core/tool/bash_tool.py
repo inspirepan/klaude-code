@@ -8,7 +8,7 @@ from codex_mini.core.tool.tool_abc import ToolABC
 from codex_mini.core.tool.tool_common import truncate_tool_output
 from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
-from codex_mini.protocol.model import ToolMessage
+from codex_mini.protocol.model import ToolResultItemItem
 
 BASH_TOOL_NAME = "Bash"
 
@@ -413,20 +413,20 @@ Disallow: redirection, subshells/parentheses, command substitution""",
         timeout_ms: int = 60000
 
     @classmethod
-    async def call(cls, arguments: str) -> ToolMessage:
+    async def call(cls, arguments: str) -> ToolResultItemItem:
         try:
             args = BashTool.BashArguments.model_validate_json(arguments)
         except ValueError as e:
-            return ToolMessage(
+            return ToolResultItemItem(
                 status="error",
-                content=f"Invalid arguments: {e}",
+                output=f"Invalid arguments: {e}",
             )
         # Safety check: only execute commands proven as "known safe"
         result = is_safe_command(args.command)
         if not result.is_safe:
-            return ToolMessage(
+            return ToolResultItemItem(
                 status="error",
-                content=f"Command rejected: {result.error_msg}",
+                output=f"Command rejected: {result.error_msg}",
             )
         # Run the command using bash -lc so shell semantics work (pipes, &&, etc.)
         # Capture stdout/stderr, respect timeout, and return a ToolMessage.
@@ -456,9 +456,9 @@ Disallow: redirection, subshells/parentheses, command substitution""",
                 if stderr.strip():
                     output = (output + ("\n" if output else "")) + f"[stderr]\n{stderr}"
                 output = truncate_tool_output(output)
-                return ToolMessage(
+                return ToolResultItemItem(
                     status="success",
-                    content=output.strip(),
+                    output=output.strip(),
                 )
             else:
                 combined = ""
@@ -469,23 +469,23 @@ Disallow: redirection, subshells/parentheses, command substitution""",
                 if not combined:
                     combined = f"Command exited with code {rc}"
                 combined = truncate_tool_output(combined)
-                return ToolMessage(
+                return ToolResultItemItem(
                     status="error",
-                    content=combined.strip(),
+                    output=combined.strip(),
                 )
 
         except subprocess.TimeoutExpired:
-            return ToolMessage(
+            return ToolResultItemItem(
                 status="error",
-                content=f"Timeout after {args.timeout_ms} ms running: {args.command}",
+                output=f"Timeout after {args.timeout_ms} ms running: {args.command}",
             )
         except FileNotFoundError:
-            return ToolMessage(
+            return ToolResultItemItem(
                 status="error",
-                content="bash not found on system path",
+                output="bash not found on system path",
             )
         except Exception as e:  # safeguard against unexpected failures
-            return ToolMessage(
+            return ToolResultItemItem(
                 status="error",
-                content=f"Execution error: {e}",
+                output=f"Execution error: {e}",
             )

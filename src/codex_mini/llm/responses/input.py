@@ -5,17 +5,17 @@ from openai.types import responses
 
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import (
-    AssistantMessage,
+    AssistantMessageItem,
+    ConversationItem,
     ReasoningItem,
-    ResponseItem,
     ToolCallItem,
-    ToolMessage,
-    UserMessage,
+    ToolResultItemItem,
+    UserMessageItem,
 )
 
 
 def convert_history_to_input(
-    history: list[ResponseItem],
+    history: list[ConversationItem],
 ) -> responses.ResponseInputParam:
     items: list[responses.ResponseInputItemParam] = []
     for item in history:
@@ -23,48 +23,48 @@ def convert_history_to_input(
             case ReasoningItem() as item:
                 # items.append(convert_reasoning_item(item))
                 pass
-            case ToolCallItem() as tool_call_item:
+            case ToolCallItem() as t:
                 items.append(
                     {
                         "type": "function_call",
-                        "name": tool_call_item.name,
-                        "arguments": tool_call_item.arguments,
-                        "call_id": tool_call_item.call_id,
-                        "id": tool_call_item.id,
+                        "name": t.name,
+                        "arguments": t.arguments,
+                        "call_id": t.call_id,
+                        "id": t.id,
                     }
                 )
-            case ToolMessage() as tool_message_item:
+            case ToolResultItemItem() as t:
                 items.append(
                     {
                         "type": "function_call_output",
-                        "call_id": tool_message_item.call_id,
-                        "output": tool_message_item.content,
+                        "call_id": t.call_id,
+                        "output": t.output,
                     }
                 )
-            case AssistantMessage() as assistant_message_item:
+            case AssistantMessageItem() as a:
                 items.append(
                     {
                         "type": "message",
                         "role": "assistant",
-                        "id": assistant_message_item.id,
+                        "id": a.id,
                         "content": [
                             {
                                 "type": "output_text",
-                                "text": assistant_message_item.content,
+                                "text": a.content,
                             }
                         ],
                     }
                 )
-            case UserMessage() as user_message_item:
+            case UserMessageItem() as u:
                 items.append(
                     {
                         "type": "message",
                         "role": "user",
-                        "id": user_message_item.id,
+                        "id": u.id,
                         "content": [
                             {
                                 "type": "input_text",
-                                "text": user_message_item.content,
+                                "text": u.content,
                             }
                         ],
                     }

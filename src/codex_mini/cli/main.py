@@ -6,8 +6,8 @@ import typer
 from codex_mini.config import load_config
 from codex_mini.core import Agent
 from codex_mini.core.tool import BASH_TOOL_NAME, get_tool_schemas
-from codex_mini.llm import LLMClient, create_llm_client
-from codex_mini.protocol import EndEvent, Event
+from codex_mini.llm import LLMClientABC, create_llm_client
+from codex_mini.protocol.events import EndEvent, Event
 from codex_mini.trace.log import log
 from codex_mini.ui import PromptToolkitInput, REPLDisplay
 
@@ -20,27 +20,20 @@ async def forward_event(gen: AsyncGenerator[Event, None], q: asyncio.Queue[Event
         raise e
 
 
-async def run_interactive(ui: str = "repl", model: str | None = None):
+async def run_interactive(model: str | None = None):
     config = load_config()
     model_config = (
         config.get_model_config(model) if model else config.get_main_model_config()
     )
-    llm_client: LLMClient = create_llm_client(model_config)
+    llm_client: LLMClientABC = create_llm_client(model_config)
     agent: Agent = Agent(
         llm_client=llm_client, tools=get_tool_schemas([BASH_TOOL_NAME])
     )
 
     q: asyncio.Queue[Event] = asyncio.Queue()
 
-    if ui == "textual":
-        from codex_mini.ui.tui import TextualDisplay  # type: ignore
-        from codex_mini.ui.tui import TextualInput
-
-        display = TextualDisplay()
-        input_provider = TextualInput(display)
-    else:
-        display = REPLDisplay()
-        input_provider = PromptToolkitInput()
+    display = REPLDisplay()
+    input_provider = PromptToolkitInput()
 
     display_task = asyncio.create_task(display.consume_event_loop(q))
 

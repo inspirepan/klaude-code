@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 from codex_mini.protocol.llm_parameter import ToolSchema
-from codex_mini.protocol.model import ToolMessage
+from codex_mini.protocol.model import ToolResultItemItem
 
 
 class ToolABC(ABC):
@@ -12,5 +12,5 @@ class ToolABC(ABC):
 
     @classmethod
     @abstractmethod
-    async def call(cls, arguments: str) -> ToolMessage:
+    async def call(cls, arguments: str) -> ToolResultItemItem:
         raise NotImplementedError

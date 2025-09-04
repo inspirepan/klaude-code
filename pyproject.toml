@@ -32,4 +32,4 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel.force-include]
-"src/codex_mini/core/prompt/prompt.md" = "codex_mini/core/prompt/prompt.md"
+"src/codex_mini/core/prompt.md" = "codex_mini/core/prompt.md"

@@ -2,16 +2,19 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from typing import cast
 
-from codex_mini.protocol import LLMCallParameter, LLMConfigParameter, ResponseItem
+from codex_mini.protocol.llm_parameter import LLMCallParameter, LLMConfigParameter
+from codex_mini.protocol.model import ConversationItem
 
 
-class LLMClient(ABC):
+class LLMClientABC(ABC):
     @classmethod
     @abstractmethod
-    def create(cls, config: LLMConfigParameter) -> "LLMClient":
+    def create(cls, config: LLMConfigParameter) -> "LLMClientABC":
         pass
 
     @abstractmethod
-    async def Call(self, param: LLMCallParameter) -> AsyncGenerator[ResponseItem, None]:
+    async def Call(
+        self, param: LLMCallParameter
+    ) -> AsyncGenerator[ConversationItem, None]:
         raise NotImplementedError
-        yield cast(ResponseItem, None)  # pyright: ignore[reportUnreachable]
+        yield cast(ConversationItem, None)  # pyright: ignore[reportUnreachable]

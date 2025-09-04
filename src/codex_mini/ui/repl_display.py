@@ -17,13 +17,13 @@ from codex_mini.protocol.events import (
     ThinkingDeltaEvent,
     ThinkingEvent,
     ToolCallEvent,
-    ToolCallResultEvent,
+    ToolResultEvent,
 )
-from codex_mini.ui.display_abc import Display
+from codex_mini.ui.display_abc import DisplayABC
 from codex_mini.ui.utils import format_number
 
 
-class REPLDisplay(Display):
+class REPLDisplay(DisplayABC):
     def __init__(self):
         self.console: Console = Console()
         self.spinner: Status = Status("Thinking...", spinner="bouncingBall")
@@ -50,7 +50,7 @@ class REPLDisplay(Display):
                 self.console.print()
             case ToolCallEvent() as e:
                 self.display_tool_call(e)
-            case ToolCallResultEvent() as e:
+            case ToolResultEvent() as e:
                 self.display_tool_call_result(e)
                 self.console.print()
             case _:
@@ -94,7 +94,7 @@ class REPLDisplay(Display):
             )
         return text
 
-    def display_tool_call_result(self, e: ToolCallResultEvent) -> None:
+    def display_tool_call_result(self, e: ToolResultEvent) -> None:
         self.console.print(
             Padding.indent(
                 Text(

@@ -4,17 +4,16 @@ from typing import Literal
 from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaValue
 
-from codex_mini.protocol.model import ResponseItem
+from codex_mini.protocol.model import ConversationItem
+
+DEFAULT_MAX_TOKENS = 8192
+DEFAULT_TEMPERATURE = 1.0
 
 
 class LLMClientProtocol(Enum):
     OPENAI = "openai"
     RESPONSES = "responses"
     ANTHROPIC = "anthropic"
-
-
-DEFAULT_MAX_TOKENS = 8192
-DEFAULT_TEMPERATURE = 1.0
 
 
 class ToolSchema(BaseModel):
@@ -79,7 +78,7 @@ class LLMCallParameter(LLMConfigModelParameter):
     """
 
     # Agent
-    input: list[ResponseItem]
+    input: list[ConversationItem]
     system: str | None = None
     tools: list[ToolSchema] | None = None
 
@@ -91,7 +90,7 @@ class LLMCallParameter(LLMConfigModelParameter):
     previous_response_id: str | None = None
 
 
-def merge_llm_parameter(
+def apply_config_defaults(
     param: LLMCallParameter, config: LLMConfigParameter
 ) -> LLMCallParameter:
     if param.model is None:

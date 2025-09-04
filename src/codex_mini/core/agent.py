@@ -1,9 +1,9 @@
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
-from codex_mini.core.prompt.system import get_system_prompt
+from codex_mini.core.prompt import get_system_prompt
 from codex_mini.core.tool.tool_registry import run_tool
-from codex_mini.llm.client import LLMClient
+from codex_mini.llm.client import LLMClientABC
 from codex_mini.protocol import events, llm_parameter, model
 from codex_mini.session import Session
 
@@ -11,7 +11,7 @@ from codex_mini.session import Session
 class Agent:
     def __init__(
         self,
-        llm_client: LLMClient,
+        llm_client: LLMClientABC,
         session_id: str | None = None,
         tools: list[llm_parameter.ToolSchema] | None = None,
     ):
@@ -21,13 +21,13 @@ class Agent:
             if session_id is None
             else Session.load(session_id)
         )
-        self.llm_client: LLMClient = llm_client
+        self.llm_client: LLMClientABC = llm_client
         self.tools: list[llm_parameter.ToolSchema] | None = tools
 
     async def run_task(self, user_input: str) -> AsyncGenerator[events.Event, None]:
         yield events.TaskStartEvent(session_id=self.session.id)
 
-        self.session.append_history([model.UserMessage(content=user_input)])
+        self.session.append_history([model.UserMessageItem(content=user_input)])
 
         task_usage: model.Usage = model.Usage()
         model_name = ""
@@ -62,7 +62,7 @@ class Agent:
     async def run_turn(self) -> AsyncGenerator[events.Event, None]:
         # If LLM API error occurred, we will discard (not append to history) and retry
         turn_reasoning_items: model.ReasoningItem | None = None
-        turn_assistant_message: model.AssistantMessage | None = None
+        turn_assistant_message: model.AssistantMessageItem | None = None
         turn_tool_calls: list[model.ToolCallItem] = []
         current_response_id: str | None = None
         store_at_remote = False  # This is the 'store' parameter of OpenAI Responses API for storing history at OpenAI, currently always False
@@ -87,7 +87,7 @@ class Agent:
                         response_id=item.response_id,
                         session_id=self.session.id,
                     )
-                case model.ThinkingTextDone() as item:
+                case model.ThinkingTextItem() as item:
                     yield events.ThinkingEvent(
                         content=item.thinking,
                         response_id=item.response_id,
@@ -95,13 +95,13 @@ class Agent:
                     )
                 case model.ReasoningItem() as item:
                     turn_reasoning_items = item
-                case model.AssistantMessageTextDelta() as item:
+                case model.AssistantMessageDelta() as item:
                     yield events.AssistantMessageDeltaEvent(
                         content=item.content,
                         response_id=item.response_id,
                         session_id=self.session.id,
                     )
-                case model.AssistantMessage() as item:
+                case model.AssistantMessageItem() as item:
                     turn_assistant_message = item
                     yield events.AssistantMessageEvent(
                         content=item.content or "",
@@ -137,12 +137,12 @@ class Agent:
                     response_id=tool_call.response_id,
                     session_id=self.session.id,
                 )
-                tool_result: model.ToolMessage = await run_tool(tool_call)
+                tool_result: model.ToolResultItemItem = await run_tool(tool_call)
                 self.session.append_history([tool_result])
-                yield events.ToolCallResultEvent(
+                yield events.ToolResultEvent(
                     tool_call_id=tool_call.call_id,
                     tool_name=tool_call.name,
-                    result=tool_result.content or "",
+                    result=tool_result.output or "",
                     ui_extra=tool_result.ui_extra,
                     response_id=tool_call.response_id,
                     session_id=self.session.id,

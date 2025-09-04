@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 
 
-class InputProvider(ABC):
+class InputProviderABC(ABC):
     @abstractmethod
     async def start(self) -> None:
         """Optional setup before reading inputs."""
