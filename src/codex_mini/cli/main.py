@@ -19,9 +19,12 @@ async def forward_event(gen: AsyncGenerator[Event, None], q: asyncio.Queue[Event
         raise e
 
 
-async def run_interactive(ui: str = "repl"):
+async def run_interactive(ui: str = "repl", model: str | None = None):
     config = load_config()
-    llm_client: LLMClient = create_llm_client(config.get_main_model_config())
+    model_config = (
+        config.get_model_config(model) if model else config.get_main_model_config()
+    )
+    llm_client: LLMClient = create_llm_client(model_config)
     agent: Agent = Agent(
         llm_client=llm_client, tools=get_tool_schemas([BASH_TOOL_NAME])
     )
@@ -64,10 +67,14 @@ app = typer.Typer(
 @app.callback(invoke_without_command=True)
 def main_callback(
     ctx: typer.Context,
+    model: str | None = typer.Option(
+        None,
+        "--model",
+        "-m",
+        help="Override model config name (uses main model by default)",
+    ),
 ):
     """Root command callback. Runs interactive mode when no subcommand provided."""
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
-        asyncio.run(run_interactive())
-
-
+        asyncio.run(run_interactive(model=model))
