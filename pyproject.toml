@@ -27,6 +27,7 @@ sources = ["src"]
 [dependency-groups]
 dev = [
     "isort>=6.0.1",
+    "pytest>=8.4.1",
 ]
 
 [tool.hatch.build.targets.wheel.force-include]

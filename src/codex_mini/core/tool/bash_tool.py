@@ -1,3 +1,4 @@
+import os
 import re
 import shlex
 
@@ -25,18 +26,99 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> bool:
 
     cmd0 = argv[0]
 
+    # Special handling for rm to prevent dangerous operations
+    if cmd0 == "rm":
+        # Enforce strict safety rules for rm operands
+        # - Forbid absolute paths, tildes, wildcards (*?[), and trailing '/'
+        # - Resolve each operand with realpath and ensure it stays under CWD
+        # - If -r/-R/-rf/-fr present: only allow relative paths whose targets
+        #   exist and are not symbolic links
+
+        cwd = os.getcwd()
+        workspace_root = os.path.realpath(cwd)
+
+        recursive = False
+        end_of_opts = False
+        operands: list[str] = []
+
+        for arg in argv[1:]:
+            if not end_of_opts and arg == "--":
+                end_of_opts = True
+                continue
+
+            if not end_of_opts and arg.startswith("-") and arg != "-":
+                # Parse short or long options
+                if arg.startswith("--"):
+                    # Recognize common long options
+                    if arg == "--recursive":
+                        recursive = True
+                    # Other long options are ignored for safety purposes
+                    continue
+                # Combined short options like -rf
+                for ch in arg[1:]:
+                    if ch in ("r", "R"):
+                        recursive = True
+                continue
+
+            # Operand (path)
+            operands.append(arg)
+
+        # Reject dangerous operand patterns
+        wildcard_chars = {"*", "?", "["}
+
+        for op in operands:
+            # Disallow absolute paths
+            if os.path.isabs(op):
+                return False
+            # Disallow tildes
+            if op.startswith("~") or "/~/" in op or "~/" in op:
+                return False
+            # Disallow wildcards
+            if any(c in op for c in wildcard_chars):
+                return False
+            # Disallow trailing slash (avoid whole-dir deletes)
+            if op.endswith("/"):
+                return False
+
+            # Resolve and ensure stays within workspace_root
+            op_abs = os.path.realpath(os.path.join(cwd, op))
+            try:
+                if os.path.commonpath([op_abs, workspace_root]) != workspace_root:
+                    return False
+            except Exception:
+                # Different drives or resolution errors
+                return False
+
+            if recursive:
+                # For recursive deletion, require operand exists and is not a symlink
+                op_lpath = os.path.join(cwd, op)
+                if not os.path.exists(op_lpath):
+                    return False
+                if os.path.islink(op_lpath):
+                    return False
+
+        # If no operands provided, allow (harmless, will fail at runtime)
+        return True
+
     # simple allowlist
     if cmd0 in {
         "cat",
         "cd",
+        "cp",
+        "date",
         "echo",
         "false",
+        "file",
         "grep",
         "head",
         "ls",
+        "mkdir",
+        "mv",
         "nl",
         "pwd",
         "tail",
+        "touch",
+        "tree",
         "true",
         "wc",
         "which",
@@ -57,6 +139,11 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> bool:
         }
         return not any(arg in unsafe_opts for arg in argv[1:])
 
+    # fd - modern find alternative, allow all options except exec
+    if cmd0 == "fd":
+        unsafe_opts = {"-x", "--exec", "-X", "--exec-batch"}
+        return not any(arg in unsafe_opts for arg in argv[1:])
+
     if cmd0 == "rg":
         unsafe_noarg = {"--search-zip", "-z"}
         unsafe_witharg_prefix = {"--pre", "--hostname-bin"}
@@ -73,12 +160,39 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> bool:
 
     if cmd0 == "git":
         sub = argv[1] if len(argv) > 1 else None
-        return sub in {"branch", "status", "log", "diff", "show"}
+        # Allow most local git operations, but block remote operations
+        allowed_git_cmds = {
+            "add",
+            "branch",
+            "checkout",
+            "commit",
+            "config",
+            "diff",
+            "init",
+            "log",
+            "merge",
+            "mv",
+            "rebase",
+            "reset",
+            "restore",
+            "revert",
+            "rm",
+            "show",
+            "stash",
+            "status",
+            "switch",
+            "tag",
+        }
+        # Block remote operations
+        blocked_git_cmds = {"push", "pull", "fetch", "clone", "remote"}
+        return sub in allowed_git_cmds and sub not in blocked_git_cmds
 
-    if cmd0 == "cargo":
-        return len(argv) > 1 and argv[1] == "check"
+    # Build tools and linters - allow all subcommands
+    if cmd0 in {"cargo", "uv", "go", "ruff", "pyright", "make"}:
+        return True
 
     if cmd0 == "sed":
+        # Allow sed -n patterns (line printing)
         if (
             len(argv) == 4
             and argv[1] == "-n"
@@ -86,6 +200,15 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> bool:
             and bool(argv[3])
         ):
             return True
+        # Allow simple text replacement: sed 's/old/new/g' file
+        # or sed -i 's/old/new/g' file for in-place editing
+        if len(argv) >= 3:
+            # Find the sed script argument (usually starts with 's/')
+            for arg in argv[1:]:
+                if arg.startswith("s/") or arg.startswith("s|"):
+                    # Basic safety check: no command execution in replacement
+                    if ";" not in arg and "`" not in arg and "$(" not in arg:
+                        return True
         return False
 
     return False
@@ -162,13 +285,16 @@ class BashTool(ToolABC):
 
 # Usage Notes
 Allowed commands:
-- cat/cd/echo/grep/ls/nl/pwd/tail/true/false/wc/which
-- git (branch/status/log/diff/show);
-- cargo check;
-- find (without -exec/-delete/-f* print options);
-- rg (without --pre/--hostname-bin/--search-zip/-z);
-- sequences joined by &&, ||, ;, |.
-Disallow redirection, subshells/parentheses, and command substitution.""",
+- File operations: cat/cd/cp/date/echo/false/file/grep/head/ls/mkdir/mv/nl/pwd/rm/tail/touch/tree/true/wc/which
+  Note: rm restrictions — only relative paths under CWD; forbid absolute paths, tildes, wildcards (*?[), and trailing '/';
+        with -r/-R, targets must exist and not be symlinks.
+- Text processing: sed (simple replacements and line printing)
+- Version control: git (local operations only - add/branch/checkout/commit/diff/log/merge/reset/restore/revert/show/stash/status etc.)
+  Note: Remote operations (push/pull/fetch/clone) are blocked
+- Build tools & linters: cargo/uv/go/ruff/pyright/make (all subcommands)
+- Search: find (without -exec/-delete/-f* print options), fd (without -x/--exec), rg (without --pre/--hostname-bin/--search-zip/-z)
+- Command sequences: joined by &&, ||, ;, |
+Disallow: redirection, subshells/parentheses, command substitution""",
             parameters={
                 "type": "object",
                 "properties": {
@@ -204,8 +330,11 @@ Disallow redirection, subshells/parentheses, and command substitution.""",
             return ToolMessage(
                 status="error",
                 content=(
-                    "Command rejected as not known-safe. Allowed: cat/cd/echo/grep/ls/nl/pwd/tail/true/false/wc/which; "
-                    "git (branch/status/log/diff/show); cargo check; find (without -exec/-delete/-f* print options); "
+                    "Command rejected as not known-safe. Allowed: "
+                    "cat/cd/cp/date/echo/false/file/grep/head/ls/mkdir/mv/nl/pwd/rm(tight restrictions)/tail/touch/tree/true/wc/which; "
+                    "rm restrictions: only relative paths under CWD; no absolute/~, no wildcards (*?[), no trailing '/'; -r/-R targets must exist and not be symlinks. "
+                    "sed (simple replacements); git (local operations only); cargo/uv/go/ruff/pyright/make (all subcommands); "
+                    "find (without -exec/-delete/-f* print options); fd (without -x/--exec); "
                     "rg (without --pre/--hostname-bin/--search-zip/-z); sequences joined by &&, ||, ;, |. "
                     "Disallow redirection, subshells/parentheses, and command substitution."
                 ),
