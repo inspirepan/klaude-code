@@ -4,6 +4,7 @@ Ensures built-in clients are imported so their `@register` decorators run
 and they become available via the registry.
 """
 
+from .anthropic import AnthropicClient
 from .client import LLMClient
 from .openai_compatible import OpenAICompatibleClient
 from .registry import create_llm_client
@@ -13,5 +14,6 @@ __all__ = [
     "LLMClient",
     "ResponsesClient",
     "OpenAICompatibleClient",
+    "AnthropicClient",
     "create_llm_client",
 ]

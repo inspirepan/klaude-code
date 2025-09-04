@@ -3,7 +3,6 @@ from typing import Literal, override
 
 import httpx
 import openai
-from openai.types.chat.chat_completion_chunk import ChoiceDelta
 
 from codex_mini.llm.client import LLMClient
 from codex_mini.llm.openai_compatible.input import (
@@ -22,7 +21,6 @@ from codex_mini.protocol.llm_parameter import (
     LLMConfigParameter,
     merge_llm_parameter,
 )
-from codex_mini.protocol.model import ResponseItem, StartItem
 
 
 @register(LLMClientProtocol.OPENAI)
@@ -52,7 +50,9 @@ class OpenAICompatibleClient(LLMClient):
         return cls(config)
 
     @override
-    async def Call(self, param: LLMCallParameter) -> AsyncGenerator[ResponseItem, None]:
+    async def Call(
+        self, param: LLMCallParameter
+    ) -> AsyncGenerator[model.ResponseItem, None]:
         param = merge_llm_parameter(param, self.config)
 
         if param.model == "gpt-5-2025-08-07":
@@ -96,7 +96,7 @@ class OpenAICompatibleClient(LLMClient):
             if not response_id and event.id:
                 response_id = event.id
                 accumulated_tool_calls.response_id = response_id
-                yield StartItem(response_id=response_id)
+                yield model.StartItem(response_id=response_id)
             if event.usage is not None:
                 yield model.ResponseMetadataItem(
                     usage=convert_usage(event.usage),
@@ -105,7 +105,7 @@ class OpenAICompatibleClient(LLMClient):
                 )
             if len(event.choices) == 0:
                 continue
-            delta: ChoiceDelta = event.choices[0].delta
+            delta = event.choices[0].delta
             if hasattr(delta, "reasoning") and getattr(delta, "reasoning"):
                 reasoning: str = getattr(delta, "reasoning")
                 stage = "reasoning"

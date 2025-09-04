@@ -1,3 +1,12 @@
+# pyright: ignore-file
+"""
+Textual TUI frontend implementation.
+
+Note: The project currently uses src/codex_mini/ui/repl_display.py as the frontend.
+This Textual implementation is not actively used, kept as an abstract interface
+for future TUI integration.
+"""
+
 from __future__ import annotations
 
 import asyncio

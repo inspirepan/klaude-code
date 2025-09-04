@@ -3,69 +3,17 @@
 # pyright: reportUnknownMemberType=false
 # pyright: reportAttributeAccessIssue=false
 
-
-from collections.abc import Iterator
-from typing import Iterable, Literal
-
 from openai.types import chat
 
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import (
     AssistantMessage,
-    ReasoningItem,
     ResponseItem,
     ToolCallItem,
     ToolMessage,
     UserMessage,
+    group_reponse_items_gen,
 )
-
-
-def group_reponse_items_gen(
-    items: Iterable[ResponseItem],
-) -> Iterator[tuple[Literal["assistantish", "user", "tool"], list[ResponseItem]]]:
-    """
-    Group response items into sublists:
-    - Consecutive (ReasoningItem | AssistantMessage | ToolCallItem) are grouped together
-    - Consecutive UserMessage are grouped together
-    - Each ToolMessage is always a single group
-    """
-    buffer: list[ResponseItem] = []
-    buffer_kind: str | None = None  # 'assistantish' | 'user' | None
-
-    def kind_of(it: ResponseItem) -> str:
-        if isinstance(it, (ReasoningItem, AssistantMessage, ToolCallItem)):
-            return "assistantish"
-        if isinstance(it, UserMessage):
-            return "user"
-        if isinstance(it, ToolMessage):
-            return "tool"
-        return "other"
-
-    for item in items:
-        k = kind_of(item)
-
-        if k == "tool":
-            # ToolMessage: flush current buffer and yield as single group
-            if buffer:
-                yield (buffer_kind, buffer)
-                buffer, buffer_kind = [], None
-            yield ("tool", [item])
-            continue
-
-        if not buffer:
-            buffer = [item]
-            buffer_kind = k
-        else:
-            if k == buffer_kind:
-                buffer.append(item)
-            else:
-                # Type switched, flush current buffer
-                yield (buffer_kind, buffer)
-                buffer = [item]
-                buffer_kind = k
-
-    if buffer:
-        yield (buffer_kind, buffer)
 
 
 def convert_history_to_input(
@@ -151,6 +99,8 @@ def convert_history_to_input(
                             pass
 
                 messages.append(assistant_message)
+            case "other":
+                pass
 
     return messages
 

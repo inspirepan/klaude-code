@@ -1,4 +1,5 @@
-from typing import Literal
+from collections.abc import Iterator
+from typing import Iterable, Literal
 
 from pydantic import BaseModel
 
@@ -120,3 +121,53 @@ class ThinkingTextDone(ResponseItem):
 class AssistantMessageTextDelta(ResponseItem):
     content: str
     response_id: str | None = None
+
+
+def group_reponse_items_gen(
+    items: Iterable[ResponseItem],
+) -> Iterator[
+    tuple[Literal["assistantish", "user", "tool", "other"], list[ResponseItem]]
+]:
+    """
+    Group response items into sublists:
+    - Consecutive (ReasoningItem | AssistantMessage | ToolCallItem) are grouped together
+    - Consecutive UserMessage are grouped together
+    - Each ToolMessage is always a single group
+    """
+    buffer: list[ResponseItem] = []
+    buffer_kind: Literal["assistantish", "user", "tool", "other"] = "other"
+
+    def kind_of(it: ResponseItem) -> Literal["assistantish", "user", "tool", "other"]:
+        if isinstance(it, (ReasoningItem, AssistantMessage, ToolCallItem)):
+            return "assistantish"
+        if isinstance(it, UserMessage):
+            return "user"
+        if isinstance(it, ToolMessage):
+            return "tool"
+        return "other"
+
+    for item in items:
+        k = kind_of(item)
+
+        if k == "tool":
+            # ToolMessage: flush current buffer and yield as single group
+            if buffer:
+                yield (buffer_kind, buffer)
+                buffer, buffer_kind = [], "other"
+            yield ("tool", [item])
+            continue
+
+        if not buffer:
+            buffer = [item]
+            buffer_kind = k
+        else:
+            if k == buffer_kind:
+                buffer.append(item)
+            else:
+                # Type switched, flush current buffer
+                yield (buffer_kind, buffer)
+                buffer = [item]
+                buffer_kind = k
+
+    if buffer:
+        yield (buffer_kind, buffer)
