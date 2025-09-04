@@ -1,10 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
-from typing import Annotated
-
 import typer
 
-from codex_mini.cli.exec import exec_once
 from codex_mini.config import load_config
 from codex_mini.core import Agent
 from codex_mini.core.tool import BASH_TOOL_NAME, get_tool_schemas
@@ -74,7 +71,3 @@ def main_callback(
         asyncio.run(run_interactive())
 
 
-@app.command("exec")
-def exec_cmd(input: Annotated[str, typer.Argument(help="Task input for the agent")]):
-    """Run a single task without entering interactive mode."""
-    asyncio.run(exec_once(input))
