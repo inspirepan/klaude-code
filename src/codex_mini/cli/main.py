@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator
+
 import typer
 
 from codex_mini.config import load_config

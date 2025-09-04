@@ -13,6 +13,14 @@ from codex_mini.protocol.model import ToolMessage
 BASH_TOOL_NAME = "Bash"
 
 
+class SafetyCheckResult:
+    """Result of a safety check with detailed error information."""
+
+    def __init__(self, is_safe: bool, error_msg: str = ""):
+        self.is_safe = is_safe
+        self.error_msg = error_msg
+
+
 def _is_valid_sed_n_arg(s: str | None) -> bool:
     if not s:
         return False
@@ -20,9 +28,9 @@ def _is_valid_sed_n_arg(s: str | None) -> bool:
     return bool(re.fullmatch(r"\d+(,\d+)?p", s))
 
 
-def _is_safe_to_call_with_exec(argv: list[str]) -> bool:
+def _is_safe_to_call_with_exec(argv: list[str]) -> SafetyCheckResult:
     if not argv:
-        return False
+        return SafetyCheckResult(False, "Empty command")
 
     cmd0 = argv[0]
 
@@ -69,36 +77,50 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> bool:
         for op in operands:
             # Disallow absolute paths
             if os.path.isabs(op):
-                return False
+                return SafetyCheckResult(
+                    False, f"rm: Absolute path not allowed: '{op}'"
+                )
             # Disallow tildes
             if op.startswith("~") or "/~/" in op or "~/" in op:
-                return False
+                return SafetyCheckResult(
+                    False, f"rm: Tilde expansion not allowed: '{op}'"
+                )
             # Disallow wildcards
             if any(c in op for c in wildcard_chars):
-                return False
+                return SafetyCheckResult(False, f"rm: Wildcards not allowed: '{op}'")
             # Disallow trailing slash (avoid whole-dir deletes)
             if op.endswith("/"):
-                return False
+                return SafetyCheckResult(
+                    False, f"rm: Trailing slash not allowed: '{op}'"
+                )
 
             # Resolve and ensure stays within workspace_root
             op_abs = os.path.realpath(os.path.join(cwd, op))
             try:
                 if os.path.commonpath([op_abs, workspace_root]) != workspace_root:
-                    return False
-            except Exception:
+                    return SafetyCheckResult(
+                        False, f"rm: Path escapes workspace: '{op}' -> '{op_abs}'"
+                    )
+            except Exception as e:
                 # Different drives or resolution errors
-                return False
+                return SafetyCheckResult(
+                    False, f"rm: Path resolution failed for '{op}': {e}"
+                )
 
             if recursive:
                 # For recursive deletion, require operand exists and is not a symlink
                 op_lpath = os.path.join(cwd, op)
                 if not os.path.exists(op_lpath):
-                    return False
+                    return SafetyCheckResult(
+                        False, f"rm -r: Target does not exist: '{op}'"
+                    )
                 if os.path.islink(op_lpath):
-                    return False
+                    return SafetyCheckResult(
+                        False, f"rm -r: Cannot delete symlink recursively: '{op}'"
+                    )
 
         # If no operands provided, allow (harmless, will fail at runtime)
-        return True
+        return SafetyCheckResult(True)
 
     # simple allowlist
     if cmd0 in {
@@ -123,43 +145,73 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> bool:
         "wc",
         "which",
     }:
-        return True
+        return SafetyCheckResult(True)
 
     if cmd0 == "find":
         unsafe_opts = {
-            "-exec",
-            "-execdir",
-            "-ok",
-            "-okdir",
-            "-delete",
-            "-fls",
-            "-fprint",
-            "-fprint0",
-            "-fprintf",
+            "-exec": "command execution",
+            "-execdir": "command execution",
+            "-ok": "interactive command execution",
+            "-okdir": "interactive command execution",
+            "-delete": "file deletion",
+            "-fls": "file output",
+            "-fprint": "file output",
+            "-fprint0": "file output",
+            "-fprintf": "formatted file output",
         }
-        return not any(arg in unsafe_opts for arg in argv[1:])
+        for arg in argv[1:]:
+            if arg in unsafe_opts:
+                return SafetyCheckResult(
+                    False, f"find: {unsafe_opts[arg]} option '{arg}' not allowed"
+                )
+        return SafetyCheckResult(True)
 
     # fd - modern find alternative, allow all options except exec
     if cmd0 == "fd":
-        unsafe_opts = {"-x", "--exec", "-X", "--exec-batch"}
-        return not any(arg in unsafe_opts for arg in argv[1:])
+        unsafe_opts = {
+            "-x": "command execution",
+            "--exec": "command execution",
+            "-X": "batch command execution",
+            "--exec-batch": "batch command execution",
+        }
+        for arg in argv[1:]:
+            if arg in unsafe_opts:
+                return SafetyCheckResult(
+                    False, f"fd: {unsafe_opts[arg]} option '{arg}' not allowed"
+                )
+        return SafetyCheckResult(True)
 
     if cmd0 == "rg":
-        unsafe_noarg = {"--search-zip", "-z"}
-        unsafe_witharg_prefix = {"--pre", "--hostname-bin"}
+        unsafe_noarg = {
+            "--search-zip": "compressed file search",
+            "-z": "compressed file search",
+        }
+        unsafe_witharg_prefix = {
+            "--pre": "preprocessor command execution",
+            "--hostname-bin": "hostname command execution",
+        }
 
         for _, arg in enumerate(argv[1:], start=1):
             if arg in unsafe_noarg:
-                return False
-            for opt in unsafe_witharg_prefix:
+                return SafetyCheckResult(
+                    False, f"rg: {unsafe_noarg[arg]} option '{arg}' not allowed"
+                )
+            for opt, desc in unsafe_witharg_prefix.items():
                 if arg == opt:
-                    return False
+                    return SafetyCheckResult(
+                        False, f"rg: {desc} option '{opt}' not allowed"
+                    )
                 if arg.startswith(opt + "="):
-                    return False
-        return True
+                    return SafetyCheckResult(
+                        False, f"rg: {desc} option '{arg}' not allowed"
+                    )
+        return SafetyCheckResult(True)
 
     if cmd0 == "git":
         sub = argv[1] if len(argv) > 1 else None
+        if not sub:
+            return SafetyCheckResult(False, "git: Missing subcommand")
+
         # Allow most local git operations, but block remote operations
         allowed_git_cmds = {
             "add",
@@ -185,11 +237,18 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> bool:
         }
         # Block remote operations
         blocked_git_cmds = {"push", "pull", "fetch", "clone", "remote"}
-        return sub in allowed_git_cmds and sub not in blocked_git_cmds
+
+        if sub in blocked_git_cmds:
+            return SafetyCheckResult(
+                False, f"git: Remote operation '{sub}' not allowed"
+            )
+        if sub not in allowed_git_cmds:
+            return SafetyCheckResult(False, f"git: Subcommand '{sub}' not in allowlist")
+        return SafetyCheckResult(True)
 
     # Build tools and linters - allow all subcommands
     if cmd0 in {"cargo", "uv", "go", "ruff", "pyright", "make"}:
-        return True
+        return SafetyCheckResult(True)
 
     if cmd0 == "sed":
         # Allow sed -n patterns (line printing)
@@ -199,7 +258,7 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> bool:
             and _is_valid_sed_n_arg(argv[2])
             and bool(argv[3])
         ):
-            return True
+            return SafetyCheckResult(True)
         # Allow simple text replacement: sed 's/old/new/g' file
         # or sed -i 's/old/new/g' file for in-place editing
         if len(argv) >= 3:
@@ -207,32 +266,51 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> bool:
             for arg in argv[1:]:
                 if arg.startswith("s/") or arg.startswith("s|"):
                     # Basic safety check: no command execution in replacement
-                    if ";" not in arg and "`" not in arg and "$(" not in arg:
-                        return True
-        return False
+                    if ";" in arg:
+                        return SafetyCheckResult(
+                            False, f"sed: Command separator ';' not allowed in '{arg}'"
+                        )
+                    if "`" in arg:
+                        return SafetyCheckResult(
+                            False, f"sed: Backticks not allowed in '{arg}'"
+                        )
+                    if "$(" in arg:
+                        return SafetyCheckResult(
+                            False, f"sed: Command substitution not allowed in '{arg}'"
+                        )
+                    return SafetyCheckResult(True)
+        return SafetyCheckResult(False, "sed: Unsupported pattern or options")
 
-    return False
+    return SafetyCheckResult(False, f"Command '{cmd0}' not in allowlist")
 
 
-def _contains_disallowed_shell_syntax(script: str) -> bool:
+def _contains_disallowed_shell_syntax(script: str) -> tuple[bool, str]:
+    """Check for disallowed shell syntax and return error details."""
     # Disallow subshells, command substitution, and redirections.
     # Conservative: detect raw chars; may reject some safe-but-quoted cases.
     disallowed_patterns = [
-        r"[()]",  # subshells
-        r"`",  # backticks
-        r"\$\(",  # command substitution
-        r"[<>]",  # redirection
-        r"\|&",  # pipe stdout+stderr
+        (r"\$\(", "command substitution $()"),  # Check $( before parentheses
+        (r"[()]", "subshells/parentheses"),
+        (r"`", "backticks for command substitution"),
+        (r"[<>]", "input/output redirection"),
+        (r"\|&", "pipe stdout+stderr"),
     ]
-    for pat in disallowed_patterns:
+    for pat, desc in disallowed_patterns:
         if re.search(pat, script):
-            return True
-    return False
+            return True, desc
+    return False, ""
 
 
-def _parse_word_only_commands_sequence(script: str) -> list[list[str]] | None:
-    if not script or _contains_disallowed_shell_syntax(script):
-        return None
+def _parse_word_only_commands_sequence(
+    script: str,
+) -> tuple[list[list[str]] | None, str]:
+    """Parse command sequence and return error details if failed."""
+    if not script:
+        return None, "Empty script"
+
+    has_disallowed, syntax_error = _contains_disallowed_shell_syntax(script)
+    if has_disallowed:
+        return None, syntax_error
 
     # Split by allowed operators: &&, ||, ;, |
     parts = re.split(r"\s*(?:\|\||&&|;|\|)\s*", script)
@@ -240,38 +318,53 @@ def _parse_word_only_commands_sequence(script: str) -> list[list[str]] | None:
     try:
         for part in parts:
             if not part.strip():
-                return None
+                return None, "Empty command in sequence"
             argv = shlex.split(part, posix=True)
             if not argv:
-                return None
+                return None, "Empty command after parsing"
             commands.append(argv)
-    except ValueError:
-        return None
-    return commands
+    except ValueError as e:
+        return None, f"Shell parsing error: {e}"
+    return commands, ""
 
 
-def is_safe_command(command: str) -> bool:
+def is_safe_command(command: str) -> SafetyCheckResult:
     """Conservatively determine if a command is known-safe.
 
     Mirrors the logic of the Rust `is_known_safe_command` with a simplified
-    parser for bash -lc scripts. Returns True only when safe is provable.
+    parser for bash -lc scripts. Returns SafetyCheckResult with details.
     """
     # First, try direct exec-style argv safety (e.g., "ls -l").
     try:
         argv = shlex.split(command, posix=True)
     except ValueError:
         argv = []
+        # Don't return error here, try sequence parsing below
 
-    if argv and _is_safe_to_call_with_exec(argv):
-        return True
+    if argv:
+        result = _is_safe_to_call_with_exec(argv)
+        if result.is_safe:
+            return result
 
     # Next, allow scripts that are sequences of safe commands joined by
     # allowed operators (&&, ||, ;, |) with no redirections or subshells.
-    seq = _parse_word_only_commands_sequence(command)
-    if seq and all(_is_safe_to_call_with_exec(cmd) for cmd in seq):
-        return True
+    seq, parse_error = _parse_word_only_commands_sequence(command)
+    if seq:
+        for cmd in seq:
+            result = _is_safe_to_call_with_exec(cmd)
+            if not result.is_safe:
+                return result
+        return SafetyCheckResult(True)
 
-    return False
+    # If we got here, command failed both checks
+    if parse_error:
+        return SafetyCheckResult(False, f"Script contains {parse_error}")
+    if argv and not argv[0]:
+        return SafetyCheckResult(False, "Empty command")
+    if argv:
+        # We have argv but it failed safety check earlier
+        return _is_safe_to_call_with_exec(argv)
+    return SafetyCheckResult(False, "Failed to parse command")
 
 
 @register(BASH_TOOL_NAME)
@@ -326,18 +419,11 @@ Disallow: redirection, subshells/parentheses, command substitution""",
                 content=f"Invalid arguments: {e}",
             )
         # Safety check: only execute commands proven as "known safe"
-        if not is_safe_command(args.command):
+        result = is_safe_command(args.command)
+        if not result.is_safe:
             return ToolMessage(
                 status="error",
-                content=(
-                    "Command rejected as not known-safe. Allowed: "
-                    "cat/cd/cp/date/echo/false/file/grep/head/ls/mkdir/mv/nl/pwd/rm(tight restrictions)/tail/touch/tree/true/wc/which; "
-                    "rm restrictions: only relative paths under CWD; no absolute/~, no wildcards (*?[), no trailing '/'; -r/-R targets must exist and not be symlinks. "
-                    "sed (simple replacements); git (local operations only); cargo/uv/go/ruff/pyright/make (all subcommands); "
-                    "find (without -exec/-delete/-f* print options); fd (without -x/--exec); "
-                    "rg (without --pre/--hostname-bin/--search-zip/-z); sequences joined by &&, ||, ;, |. "
-                    "Disallow redirection, subshells/parentheses, and command substitution."
-                ),
+                content=f"Command rejected: {result.error_msg}",
             )
         # Run the command using bash -lc so shell semantics work (pipes, &&, etc.)
         # Capture stdout/stderr, respect timeout, and return a ToolMessage.
