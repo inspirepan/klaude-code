@@ -21,6 +21,13 @@ class ResponseItem(BaseModel):
     - [ToolCallItem] × n
     - [ResponseMetadataItem]
     - Done
+
+    A conversation history contains:
+    - [UserMessage]
+    - [ReasoningItem]
+    - [AssistantMessage]
+    - [ToolCallItem]
+    - [ToolMessage]
     """
 
     pass
@@ -38,13 +45,8 @@ class StreamRetriableErrorItem(StreamErrorItem):
     pass
 
 
-class ContentPart(BaseModel):
-    text: str | None = None
-    image: str | None = None
-
-
 class MessageItem(ResponseItem):
-    content: list[ContentPart]
+    content: str | None = None
     role: RoleType
     id: str | None = None
 
@@ -52,7 +54,7 @@ class MessageItem(ResponseItem):
 class ReasoningItem(ResponseItem):
     id: str | None = None
     summary: list[str] | None = None
-    content: list[ContentPart] | None = None
+    content: str | None = None
     encrypted_content: str | None = None
     response_id: str | None = None
 

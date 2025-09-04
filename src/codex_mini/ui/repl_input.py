@@ -15,7 +15,7 @@ class PromptToolkitInput(InputProvider):
         history_path = (
             Path.home()
             / ".config"
-            / "codex-minimal"
+            / "codex-mini"
             / "project"
             / f"{project}"
             / "input_history.txt"

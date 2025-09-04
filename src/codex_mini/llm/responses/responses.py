@@ -3,18 +3,7 @@ from typing import override
 
 import httpx
 from openai import AsyncAzureOpenAI, AsyncOpenAI
-from openai.types.responses import (
-    ResponseCompletedEvent,
-    ResponseCreatedEvent,
-    ResponseFunctionToolCall,
-    ResponseOutputItemDoneEvent,
-    ResponseOutputMessage,
-    ResponseOutputText,
-    ResponseReasoningItem,
-    ResponseReasoningSummaryTextDeltaEvent,
-    ResponseReasoningSummaryTextDoneEvent,
-    ResponseTextDeltaEvent,
-)
+from openai.types import responses
 
 from codex_mini.llm.client import LLMClient
 from codex_mini.llm.registry import register
@@ -27,7 +16,6 @@ from codex_mini.protocol.llm_parameter import (
 from codex_mini.protocol.model import (
     AssistantMessage,
     AssistantMessageTextDelta,
-    ContentPart,
     ReasoningItem,
     ResponseItem,
     ResponseMetadataItem,
@@ -104,45 +92,48 @@ class ResponsesClient(LLMClient):
 
         async for response in await stream:
             match response:
-                case ResponseCreatedEvent() as event:
+                case responses.ResponseCreatedEvent() as event:
                     response_id = event.response.id
                     yield StartItem(response_id=response_id)
-                case ResponseReasoningSummaryTextDeltaEvent() as event:
+                case responses.ResponseReasoningSummaryTextDeltaEvent() as event:
                     yield ThinkingTextDelta(
                         thinking=event.delta, response_id=response_id
                     )
-                case ResponseReasoningSummaryTextDoneEvent() as event:
+                case responses.ResponseReasoningSummaryTextDoneEvent() as event:
                     yield ThinkingTextDone(thinking=event.text, response_id=response_id)
-                case ResponseTextDeltaEvent() as event:
+                case responses.ResponseTextDeltaEvent() as event:
                     yield AssistantMessageTextDelta(
                         content=event.delta, response_id=response_id
                     )
-                case ResponseOutputItemDoneEvent() as event:
+                case responses.ResponseOutputItemDoneEvent() as event:
                     match event.item:
-                        case ResponseReasoningItem() as item:
+                        case responses.ResponseReasoningItem() as item:
                             yield ReasoningItem(
                                 id=item.id,
                                 summary=[summary.text for summary in item.summary],
-                                content=[
-                                    ContentPart(text=content.text)
-                                    for content in item.content
-                                ]
+                                content="\n".join(
+                                    [content.text for content in item.content]
+                                )
                                 if item.content
                                 else None,
                                 encrypted_content=item.encrypted_content,
                                 response_id=response_id,
                             )
-                        case ResponseOutputMessage() as item:
+                        case responses.ResponseOutputMessage() as item:
                             yield AssistantMessage(
-                                content=[
-                                    ContentPart(text=part.text)
-                                    for part in item.content
-                                    if isinstance(part, ResponseOutputText)
-                                ],
+                                content="\n".join(
+                                    [
+                                        part.text
+                                        for part in item.content
+                                        if isinstance(
+                                            part, responses.ResponseOutputText
+                                        )
+                                    ]
+                                ),
                                 id=item.id,
                                 response_id=response_id,
                             )
-                        case ResponseFunctionToolCall() as item:
+                        case responses.ResponseFunctionToolCall() as item:
                             yield ToolCallItem(
                                 name=item.name,
                                 arguments=item.arguments,
@@ -152,7 +143,7 @@ class ResponsesClient(LLMClient):
                             )
                         case _:
                             pass
-                case ResponseCompletedEvent() as event:
+                case responses.ResponseCompletedEvent() as event:
                     usage: Usage | None = None
                     if event.response.usage is not None:
                         usage = Usage(
@@ -162,7 +153,6 @@ class ResponsesClient(LLMClient):
                             output_tokens=event.response.usage.output_tokens,
                             total_tokens=event.response.usage.total_tokens,
                         )
-
                     yield ResponseMetadataItem(
                         usage=usage,
                         response_id=response_id,

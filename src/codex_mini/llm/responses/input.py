@@ -1,56 +1,82 @@
 # pyright: reportReturnType=false
 # pyright: reportArgumentType=false
 
-from openai.types.responses import ResponseInputItemParam, ResponseInputParam, ToolParam
+from openai.types import responses
 
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import (
-    ContentPart,
-    MessageItem,
+    AssistantMessage,
     ReasoningItem,
     ResponseItem,
     ToolCallItem,
     ToolMessage,
+    UserMessage,
 )
 
 
-def convert_history_to_input(history: list[ResponseItem]) -> ResponseInputParam:
-    items: list[ResponseInputItemParam] = []
+def convert_history_to_input(
+    history: list[ResponseItem],
+) -> responses.ResponseInputParam:
+    items: list[responses.ResponseInputItemParam] = []
     for item in history:
-        if isinstance(item, MessageItem):
-            items.append(convert_message_item(item))
-        elif isinstance(item, ReasoningItem):
-            # items.append(convert_reasoning_item(item))
-            pass
-        elif isinstance(item, ToolCallItem):
-            items.append(convert_tool_call_item(item))
-        else:
-            # Other items may be Metadata
-            continue
+        match item:
+            case ReasoningItem() as item:
+                # items.append(convert_reasoning_item(item))
+                pass
+            case ToolCallItem() as tool_call_item:
+                items.append(
+                    {
+                        "type": "function_call",
+                        "name": tool_call_item.name,
+                        "arguments": tool_call_item.arguments,
+                        "call_id": tool_call_item.call_id,
+                        "id": tool_call_item.id,
+                    }
+                )
+            case ToolMessage() as tool_message_item:
+                items.append(
+                    {
+                        "type": "function_call_output",
+                        "call_id": tool_message_item.call_id,
+                        "output": tool_message_item.content,
+                    }
+                )
+            case AssistantMessage() as assistant_message_item:
+                items.append(
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "id": assistant_message_item.id,
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": assistant_message_item.content,
+                            }
+                        ],
+                    }
+                )
+            case UserMessage() as user_message_item:
+                items.append(
+                    {
+                        "type": "message",
+                        "role": "user",
+                        "id": user_message_item.id,
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": user_message_item.content,
+                            }
+                        ],
+                    }
+                )
+            case _:
+                # Other items may be Metadata
+                continue
 
     return items
 
 
-def convert_message_item(item: MessageItem) -> ResponseInputItemParam:
-    if item.role == "tool" and isinstance(item, ToolMessage):
-        return {
-            "type": "function_call_output",
-            "call_id": item.call_id,
-            "output": "\n".join(
-                [str(content_item.text) for content_item in item.content]
-            ),
-        }
-    return {
-        "type": "message",
-        "role": item.role,
-        "id": item.id,
-        "content": [
-            convert_content_item(content, item.role) for content in item.content
-        ],
-    }
-
-
-def convert_reasoning_item(item: ReasoningItem) -> ResponseInputItemParam:
+def convert_reasoning_item(item: ReasoningItem) -> responses.ResponseInputItemParam:
     result = {"type": "reasoning", "content": None}
 
     if item.summary is not None:
@@ -68,26 +94,7 @@ def convert_reasoning_item(item: ReasoningItem) -> ResponseInputItemParam:
     return result
 
 
-def convert_content_item(item: ContentPart, role: str) -> ResponseInputItemParam:
-    if item.text is not None:
-        return {
-            "type": "output_text" if role == "assistant" else "input_text",
-            "text": item.text,
-        }
-    raise ValueError("Non-text Content Not Supported")
-
-
-def convert_tool_call_item(item: ToolCallItem) -> ResponseInputItemParam:
-    return {
-        "type": "function_call",
-        "name": item.name,
-        "arguments": item.arguments,
-        "call_id": item.call_id,
-        "id": item.id,
-    }
-
-
-def convert_tool_schema(tools: list[ToolSchema] | None) -> list[ToolParam]:
+def convert_tool_schema(tools: list[ToolSchema] | None) -> list[responses.ToolParam]:
     if tools is None:
         return []
     return [

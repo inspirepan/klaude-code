@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from codex_mini.protocol import LLMConfigParameter, Reasoning, Thinking
 from codex_mini.trace import log
 
-config_path = Path.home() / ".config" / "codex-minimal" / "config.json"
+config_path = Path.home() / ".config" / "codex-mini" / "config.json"
 
 
 class LLMConfig(BaseModel):
@@ -31,6 +31,7 @@ def get_example_config() -> Config:
                 azure_api_version="2023-03-15-preview",
                 temperature=1.0,
                 max_tokens=8192,
+                verbosity="medium",
                 reasoning=Reasoning(effort="high", summary="auto"),
                 thinking=Thinking(type="enabled", budget_tokens=1024),
             ),

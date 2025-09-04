@@ -1,5 +1,4 @@
 import asyncio
-import os
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
@@ -33,10 +32,8 @@ async def run_interactive(ui: str = "repl"):
     q: asyncio.Queue[Event] = asyncio.Queue()
 
     if ui == "textual":
-        from codex_mini.ui.tui import (
-            TextualDisplay,  # type: ignore
-            TextualInput,
-        )
+        from codex_mini.ui.tui import TextualDisplay  # type: ignore
+        from codex_mini.ui.tui import TextualInput
 
         display = TextualDisplay()
         input_provider = TextualInput(display)

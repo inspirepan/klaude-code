@@ -18,7 +18,6 @@ from .llm_parameter import (
 )
 from .model import (
     AssistantMessage,
-    ContentPart,
     MessageItem,
     ReasoningItem,
     ResponseItem,
@@ -40,7 +39,6 @@ __all__ = [
     "ToolCallResultEvent",
     "ResponseItem",
     "ReasoningItem",
-    "ContentPart",
     "MessageItem",
     "ToolCallItem",
     "SystemMessage",

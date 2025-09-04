@@ -7,7 +7,7 @@ from codex_mini.core.tool.tool_abc import ToolABC
 from codex_mini.core.tool.tool_common import truncate_tool_output
 from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
-from codex_mini.protocol.model import ContentPart, ToolMessage
+from codex_mini.protocol.model import ToolMessage
 
 BASH_TOOL_NAME = "Bash"
 
@@ -197,22 +197,18 @@ Disallow redirection, subshells/parentheses, and command substitution.""",
         except ValueError as e:
             return ToolMessage(
                 status="error",
-                content=[ContentPart(text=f"Invalid arguments: {e}")],
+                content=f"Invalid arguments: {e}",
             )
         # Safety check: only execute commands proven as "known safe"
         if not is_safe_command(args.command):
             return ToolMessage(
                 status="error",
-                content=[
-                    ContentPart(
-                        text=(
-                            "Command rejected as not known-safe. Allowed: cat/cd/echo/grep/ls/nl/pwd/tail/true/false/wc/which; "
-                            "git (branch/status/log/diff/show); cargo check; find (without -exec/-delete/-f* print options); "
-                            "rg (without --pre/--hostname-bin/--search-zip/-z); sequences joined by &&, ||, ;, |. "
-                            "Disallow redirection, subshells/parentheses, and command substitution."
-                        )
-                    )
-                ],
+                content=(
+                    "Command rejected as not known-safe. Allowed: cat/cd/echo/grep/ls/nl/pwd/tail/true/false/wc/which; "
+                    "git (branch/status/log/diff/show); cargo check; find (without -exec/-delete/-f* print options); "
+                    "rg (without --pre/--hostname-bin/--search-zip/-z); sequences joined by &&, ||, ;, |. "
+                    "Disallow redirection, subshells/parentheses, and command substitution."
+                ),
             )
         # Run the command using bash -lc so shell semantics work (pipes, &&, etc.)
         # Capture stdout/stderr, respect timeout, and return a ToolMessage.
@@ -244,9 +240,7 @@ Disallow redirection, subshells/parentheses, and command substitution.""",
                 output = truncate_tool_output(output)
                 return ToolMessage(
                     status="success",
-                    content=[ContentPart(text=output.strip())]
-                    if output
-                    else [ContentPart(text="")],
+                    content=output.strip(),
                 )
             else:
                 combined = ""
@@ -259,27 +253,21 @@ Disallow redirection, subshells/parentheses, and command substitution.""",
                 combined = truncate_tool_output(combined)
                 return ToolMessage(
                     status="error",
-                    content=[ContentPart(text=combined.strip())],
+                    content=combined.strip(),
                 )
 
         except subprocess.TimeoutExpired:
             return ToolMessage(
                 status="error",
-                content=[
-                    ContentPart(
-                        text=(
-                            f"Timeout after {args.timeout_ms} ms running: {args.command}"
-                        )
-                    )
-                ],
+                content=f"Timeout after {args.timeout_ms} ms running: {args.command}",
             )
         except FileNotFoundError:
             return ToolMessage(
                 status="error",
-                content=[ContentPart(text="bash not found on system path")],
+                content="bash not found on system path",
             )
         except Exception as e:  # safeguard against unexpected failures
             return ToolMessage(
                 status="error",
-                content=[ContentPart(text=f"Execution error: {e}")],
+                content=f"Execution error: {e}",
             )

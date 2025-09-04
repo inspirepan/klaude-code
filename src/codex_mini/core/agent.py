@@ -20,7 +20,6 @@ from codex_mini.protocol.llm_parameter import LLMCallParameter, ToolSchema
 from codex_mini.protocol.model import (
     AssistantMessage,
     AssistantMessageTextDelta,
-    ContentPart,
     ReasoningItem,
     ResponseMetadataItem,
     StartItem,
@@ -53,9 +52,7 @@ class Agent:
     async def run_task(self, user_input: str) -> AsyncGenerator[Event, None]:
         yield TaskStartEvent(session_id=self.session.id)
 
-        self.session.append_history(
-            [UserMessage(content=[ContentPart(text=user_input)])]
-        )
+        self.session.append_history([UserMessage(content=user_input)])
 
         task_usage: Usage = Usage()
 
@@ -129,9 +126,7 @@ class Agent:
                 case AssistantMessage() as item:
                     turn_assistant_message = item
                     yield AssistantMessageEvent(
-                        content="\n".join(
-                            [str(content_item.text) for content_item in item.content]
-                        ),
+                        content=item.content or "",
                         response_id=item.response_id,
                         session_id=self.session.id,
                     )
@@ -168,9 +163,7 @@ class Agent:
                 yield ToolCallResultEvent(
                     tool_call_id=tool_call.call_id,
                     tool_name=tool_call.name,
-                    result="\n".join(
-                        [str(content_item.text) for content_item in tool_result.content]
-                    ),
+                    result=tool_result.content or "",
                     ui_extra=tool_result.ui_extra,
                     response_id=tool_call.response_id,
                     session_id=self.session.id,
