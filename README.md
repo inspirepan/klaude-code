@@ -1,6 +1,6 @@
-# Minimal Bash Agent CLI
+# Minimal Agent CLI
 
-A repository for showing how to make a simple Bash Agent CLI using OpenAI's Response API / Anthropic's Official API / OpenRouter's API
+A repository for showing how to make a simple Agent CLI using OpenAI's Response API / Anthropic's Official API / OpenRouter's API
 
 # Usage
 
