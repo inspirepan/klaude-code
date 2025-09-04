@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+
 from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
 from pydantic import BaseModel, Field
 

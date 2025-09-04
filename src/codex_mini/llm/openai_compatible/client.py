@@ -61,8 +61,9 @@ class OpenAICompatibleClient(LLMClient):
         messages = convert_history_to_input(param.input, param.system)
         tools = convert_tool_schema(param.tools)
 
-        import json
-        print(json.dumps(messages, indent=2, ensure_ascii=False))
+        # import json
+
+        # print(json.dumps(messages, indent=2, ensure_ascii=False))
 
         stream = self.client.chat.completions.create(
             model=str(param.model),
@@ -126,7 +127,6 @@ class OpenAICompatibleClient(LLMClient):
                         response_id=response_id,
                     )
                 stage = "tool"
-                print(delta.tool_calls)
                 accumulated_tool_calls.add(delta.tool_calls)
 
         if stage == "reasoning":
