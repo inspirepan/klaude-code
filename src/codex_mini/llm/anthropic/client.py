@@ -4,15 +4,9 @@ from typing import override
 import anthropic
 import httpx
 from anthropic.types.beta.beta_input_json_delta import BetaInputJSONDelta
-from anthropic.types.beta.beta_raw_content_block_delta_event import (
-    BetaRawContentBlockDeltaEvent,
-)
-from anthropic.types.beta.beta_raw_content_block_start_event import (
-    BetaRawContentBlockStartEvent,
-)
-from anthropic.types.beta.beta_raw_content_block_stop_event import (
-    BetaRawContentBlockStopEvent,
-)
+from anthropic.types.beta.beta_raw_content_block_delta_event import BetaRawContentBlockDeltaEvent
+from anthropic.types.beta.beta_raw_content_block_start_event import BetaRawContentBlockStartEvent
+from anthropic.types.beta.beta_raw_content_block_stop_event import BetaRawContentBlockStopEvent
 from anthropic.types.beta.beta_raw_message_delta_event import BetaRawMessageDeltaEvent
 from anthropic.types.beta.beta_raw_message_start_event import BetaRawMessageStartEvent
 from anthropic.types.beta.beta_signature_delta import BetaSignatureDelta
@@ -20,11 +14,7 @@ from anthropic.types.beta.beta_text_delta import BetaTextDelta
 from anthropic.types.beta.beta_thinking_delta import BetaThinkingDelta
 from anthropic.types.beta.beta_tool_use_block import BetaToolUseBlock
 
-from codex_mini.llm.anthropic.input import (
-    convert_history_to_input,
-    convert_system_to_input,
-    convert_tool_schema,
-)
+from codex_mini.llm.anthropic.input import convert_history_to_input, convert_system_to_input, convert_tool_schema
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.llm.registry import register
 from codex_mini.protocol import llm_parameter, model
@@ -53,9 +43,7 @@ class AnthropicClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def Call(
-        self, param: LLMCallParameter
-    ) -> AsyncGenerator[model.ConversationItem, None]:
+    async def Call(self, param: LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         param = apply_config_defaults(param, self.config)
 
         messages = convert_history_to_input(param.input)
@@ -154,9 +142,7 @@ class AnthropicClient(LLMClientABC):
                         yield model.ToolCallItem(
                             name=current_tool_name,
                             call_id=current_tool_call_id,
-                            arguments="".join(current_tool_inputs)
-                            if current_tool_inputs
-                            else "",
+                            arguments="".join(current_tool_inputs) if current_tool_inputs else "",
                             response_id=response_id,
                         )
                         current_tool_name = None

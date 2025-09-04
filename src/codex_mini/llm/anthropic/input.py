@@ -35,9 +35,7 @@ def convert_history_to_input(
                     }
                 )
             case "tool":
-                if len(group) == 0 or not isinstance(
-                    group[0], model.ToolResultItemItem
-                ):
+                if len(group) == 0 or not isinstance(group[0], model.ToolResultItemItem):
                     continue
                 tool_result = group[0]
                 messages.append(
@@ -73,9 +71,7 @@ def convert_history_to_input(
                                     "type": "tool_use",
                                     "id": t.call_id,
                                     "name": t.name,
-                                    "input": json.loads(t.arguments)
-                                    if t.arguments
-                                    else None,
+                                    "input": json.loads(t.arguments) if t.arguments else None,
                                 }
                             )
                         case model.ReasoningItem() as r:

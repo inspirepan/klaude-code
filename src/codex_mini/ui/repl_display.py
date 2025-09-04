@@ -86,12 +86,7 @@ class REPLDisplay(DisplayABC):
     def truncate_diplay(self, text: str) -> str:
         lines = text.split("\n")
         if len(lines) > 20:
-            return (
-                "\n".join(lines[:20])
-                + "\n... (more "
-                + str(len(lines) - 20)
-                + " lines are truncated)"
-            )
+            return "\n".join(lines[:20]) + "\n... (more " + str(len(lines) - 20) + " lines are truncated)"
         return text
 
     def display_tool_call_result(self, e: ToolResultEvent) -> None:
@@ -108,15 +103,9 @@ class REPLDisplay(DisplayABC):
     def display_metadata(self, e: ResponseMetadataEvent) -> None:
         rule_text = f"[bold]{e.model_name}[/bold]"
         if e.usage is not None:
-            cached_token_str = (
-                f"({format_number(e.usage.cached_tokens)} cached)"
-                if e.usage.cached_tokens > 0
-                else ""
-            )
+            cached_token_str = f"({format_number(e.usage.cached_tokens)} cached)" if e.usage.cached_tokens > 0 else ""
             reasoning_token_str = (
-                f"({format_number(e.usage.reasoning_tokens)} reasoning)"
-                if e.usage.reasoning_tokens > 0
-                else ""
+                f"({format_number(e.usage.reasoning_tokens)} reasoning)" if e.usage.reasoning_tokens > 0 else ""
             )
             rule_text += f" · [bold]token usage[/bold]: {format_number(e.usage.input_tokens)} input{cached_token_str}, {format_number(e.usage.output_tokens)} output{reasoning_token_str}"
         self.console.print(

@@ -22,13 +22,9 @@ async def forward_event(gen: AsyncGenerator[Event, None], q: asyncio.Queue[Event
 
 async def run_interactive(model: str | None = None):
     config = load_config()
-    model_config = (
-        config.get_model_config(model) if model else config.get_main_model_config()
-    )
+    model_config = config.get_model_config(model) if model else config.get_main_model_config()
     llm_client: LLMClientABC = create_llm_client(model_config)
-    agent: Agent = Agent(
-        llm_client=llm_client, tools=get_tool_schemas([BASH_TOOL_NAME])
-    )
+    agent: Agent = Agent(llm_client=llm_client, tools=get_tool_schemas([BASH_TOOL_NAME]))
 
     q: asyncio.Queue[Event] = asyncio.Queue()
 

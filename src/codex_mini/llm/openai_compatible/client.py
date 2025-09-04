@@ -5,14 +5,8 @@ import httpx
 import openai
 
 from codex_mini.llm.client import LLMClientABC
-from codex_mini.llm.openai_compatible.input import (
-    convert_history_to_input,
-    convert_tool_schema,
-)
-from codex_mini.llm.openai_compatible.tool_call_accumulator import (
-    BasicToolCallAccumulator,
-    ToolCallAccumulatorABC,
-)
+from codex_mini.llm.openai_compatible.input import convert_history_to_input, convert_tool_schema
+from codex_mini.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
 from codex_mini.llm.registry import register
 from codex_mini.protocol import model
 from codex_mini.protocol.llm_parameter import (
@@ -50,9 +44,7 @@ class OpenAICompatibleClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def Call(
-        self, param: LLMCallParameter
-    ) -> AsyncGenerator[model.ConversationItem, None]:
+    async def Call(self, param: LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         param = apply_config_defaults(param, self.config)
 
         if param.model == "gpt-5-2025-08-07":
@@ -116,9 +108,7 @@ class OpenAICompatibleClient(LLMClientABC):
                 )
             if delta.content and len(delta.content) > 0:
                 if stage == "reasoning":
-                    yield model.ThinkingTextItem(
-                        thinking="".join(accumulated_reasoning), response_id=response_id
-                    )
+                    yield model.ThinkingTextItem(thinking="".join(accumulated_reasoning), response_id=response_id)
                 stage = "assistant"
                 accumulated_content.append(delta.content)
                 yield model.AssistantMessageDelta(
@@ -127,9 +117,7 @@ class OpenAICompatibleClient(LLMClientABC):
                 )
             if delta.tool_calls and len(delta.tool_calls) > 0:
                 if stage == "reasoning":
-                    yield model.ThinkingTextItem(
-                        thinking="".join(accumulated_reasoning), response_id=response_id
-                    )
+                    yield model.ThinkingTextItem(thinking="".join(accumulated_reasoning), response_id=response_id)
                 elif stage == "assistant":
                     yield model.AssistantMessageItem(
                         content="".join(accumulated_content),
@@ -139,9 +127,7 @@ class OpenAICompatibleClient(LLMClientABC):
                 accumulated_tool_calls.add(delta.tool_calls)
 
         if stage == "reasoning":
-            yield model.ThinkingTextItem(
-                thinking="".join(accumulated_reasoning), response_id=response_id
-            )
+            yield model.ThinkingTextItem(thinking="".join(accumulated_reasoning), response_id=response_id)
         elif stage == "assistant":
             yield model.AssistantMessageItem(
                 content="".join(accumulated_content),
@@ -155,17 +141,8 @@ class OpenAICompatibleClient(LLMClientABC):
 def convert_usage(usage: openai.types.CompletionUsage) -> model.Usage:
     return model.Usage(
         input_tokens=usage.prompt_tokens,
-        cached_tokens=(
-            usage.prompt_tokens_details.cached_tokens
-            if usage.prompt_tokens_details
-            else 0
-        )
-        or 0,
-        reasoning_tokens=(
-            usage.completion_tokens_details.reasoning_tokens
-            if usage.completion_tokens_details
-            else 0
-        )
+        cached_tokens=(usage.prompt_tokens_details.cached_tokens if usage.prompt_tokens_details else 0) or 0,
+        reasoning_tokens=(usage.completion_tokens_details.reasoning_tokens if usage.completion_tokens_details else 0)
         or 0,
         output_tokens=usage.completion_tokens,
         total_tokens=usage.total_tokens,

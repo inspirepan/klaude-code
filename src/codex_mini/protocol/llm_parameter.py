@@ -90,9 +90,7 @@ class LLMCallParameter(LLMConfigModelParameter):
     previous_response_id: str | None = None
 
 
-def apply_config_defaults(
-    param: LLMCallParameter, config: LLMConfigParameter
-) -> LLMCallParameter:
+def apply_config_defaults(param: LLMCallParameter, config: LLMConfigParameter) -> LLMCallParameter:
     if param.model is None:
         param.model = config.model
     if param.temperature is None:

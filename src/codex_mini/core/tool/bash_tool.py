@@ -77,47 +77,33 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> SafetyCheckResult:
         for op in operands:
             # Disallow absolute paths
             if os.path.isabs(op):
-                return SafetyCheckResult(
-                    False, f"rm: Absolute path not allowed: '{op}'"
-                )
+                return SafetyCheckResult(False, f"rm: Absolute path not allowed: '{op}'")
             # Disallow tildes
             if op.startswith("~") or "/~/" in op or "~/" in op:
-                return SafetyCheckResult(
-                    False, f"rm: Tilde expansion not allowed: '{op}'"
-                )
+                return SafetyCheckResult(False, f"rm: Tilde expansion not allowed: '{op}'")
             # Disallow wildcards
             if any(c in op for c in wildcard_chars):
                 return SafetyCheckResult(False, f"rm: Wildcards not allowed: '{op}'")
             # Disallow trailing slash (avoid whole-dir deletes)
             if op.endswith("/"):
-                return SafetyCheckResult(
-                    False, f"rm: Trailing slash not allowed: '{op}'"
-                )
+                return SafetyCheckResult(False, f"rm: Trailing slash not allowed: '{op}'")
 
             # Resolve and ensure stays within workspace_root
             op_abs = os.path.realpath(os.path.join(cwd, op))
             try:
                 if os.path.commonpath([op_abs, workspace_root]) != workspace_root:
-                    return SafetyCheckResult(
-                        False, f"rm: Path escapes workspace: '{op}' -> '{op_abs}'"
-                    )
+                    return SafetyCheckResult(False, f"rm: Path escapes workspace: '{op}' -> '{op_abs}'")
             except Exception as e:
                 # Different drives or resolution errors
-                return SafetyCheckResult(
-                    False, f"rm: Path resolution failed for '{op}': {e}"
-                )
+                return SafetyCheckResult(False, f"rm: Path resolution failed for '{op}': {e}")
 
             if recursive:
                 # For recursive deletion, require operand exists and is not a symlink
                 op_lpath = os.path.join(cwd, op)
                 if not os.path.exists(op_lpath):
-                    return SafetyCheckResult(
-                        False, f"rm -r: Target does not exist: '{op}'"
-                    )
+                    return SafetyCheckResult(False, f"rm -r: Target does not exist: '{op}'")
                 if os.path.islink(op_lpath):
-                    return SafetyCheckResult(
-                        False, f"rm -r: Cannot delete symlink recursively: '{op}'"
-                    )
+                    return SafetyCheckResult(False, f"rm -r: Cannot delete symlink recursively: '{op}'")
 
         # If no operands provided, allow (harmless, will fail at runtime)
         return SafetyCheckResult(True)
@@ -161,9 +147,7 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> SafetyCheckResult:
         }
         for arg in argv[1:]:
             if arg in unsafe_opts:
-                return SafetyCheckResult(
-                    False, f"find: {unsafe_opts[arg]} option '{arg}' not allowed"
-                )
+                return SafetyCheckResult(False, f"find: {unsafe_opts[arg]} option '{arg}' not allowed")
         return SafetyCheckResult(True)
 
     # fd - modern find alternative, allow all options except exec
@@ -176,9 +160,7 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> SafetyCheckResult:
         }
         for arg in argv[1:]:
             if arg in unsafe_opts:
-                return SafetyCheckResult(
-                    False, f"fd: {unsafe_opts[arg]} option '{arg}' not allowed"
-                )
+                return SafetyCheckResult(False, f"fd: {unsafe_opts[arg]} option '{arg}' not allowed")
         return SafetyCheckResult(True)
 
     if cmd0 == "rg":
@@ -193,18 +175,12 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> SafetyCheckResult:
 
         for _, arg in enumerate(argv[1:], start=1):
             if arg in unsafe_noarg:
-                return SafetyCheckResult(
-                    False, f"rg: {unsafe_noarg[arg]} option '{arg}' not allowed"
-                )
+                return SafetyCheckResult(False, f"rg: {unsafe_noarg[arg]} option '{arg}' not allowed")
             for opt, desc in unsafe_witharg_prefix.items():
                 if arg == opt:
-                    return SafetyCheckResult(
-                        False, f"rg: {desc} option '{opt}' not allowed"
-                    )
+                    return SafetyCheckResult(False, f"rg: {desc} option '{opt}' not allowed")
                 if arg.startswith(opt + "="):
-                    return SafetyCheckResult(
-                        False, f"rg: {desc} option '{arg}' not allowed"
-                    )
+                    return SafetyCheckResult(False, f"rg: {desc} option '{arg}' not allowed")
         return SafetyCheckResult(True)
 
     if cmd0 == "git":
@@ -239,9 +215,7 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> SafetyCheckResult:
         blocked_git_cmds = {"push", "pull", "fetch", "clone", "remote"}
 
         if sub in blocked_git_cmds:
-            return SafetyCheckResult(
-                False, f"git: Remote operation '{sub}' not allowed"
-            )
+            return SafetyCheckResult(False, f"git: Remote operation '{sub}' not allowed")
         if sub not in allowed_git_cmds:
             return SafetyCheckResult(False, f"git: Subcommand '{sub}' not in allowlist")
         return SafetyCheckResult(True)
@@ -252,12 +226,7 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> SafetyCheckResult:
 
     if cmd0 == "sed":
         # Allow sed -n patterns (line printing)
-        if (
-            len(argv) == 4
-            and argv[1] == "-n"
-            and _is_valid_sed_n_arg(argv[2])
-            and bool(argv[3])
-        ):
+        if len(argv) == 4 and argv[1] == "-n" and _is_valid_sed_n_arg(argv[2]) and bool(argv[3]):
             return SafetyCheckResult(True)
         # Allow simple text replacement: sed 's/old/new/g' file
         # or sed -i 's/old/new/g' file for in-place editing
@@ -267,17 +236,11 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> SafetyCheckResult:
                 if arg.startswith("s/") or arg.startswith("s|"):
                     # Basic safety check: no command execution in replacement
                     if ";" in arg:
-                        return SafetyCheckResult(
-                            False, f"sed: Command separator ';' not allowed in '{arg}'"
-                        )
+                        return SafetyCheckResult(False, f"sed: Command separator ';' not allowed in '{arg}'")
                     if "`" in arg:
-                        return SafetyCheckResult(
-                            False, f"sed: Backticks not allowed in '{arg}'"
-                        )
+                        return SafetyCheckResult(False, f"sed: Backticks not allowed in '{arg}'")
                     if "$(" in arg:
-                        return SafetyCheckResult(
-                            False, f"sed: Command substitution not allowed in '{arg}'"
-                        )
+                        return SafetyCheckResult(False, f"sed: Command substitution not allowed in '{arg}'")
                     return SafetyCheckResult(True)
         return SafetyCheckResult(
             False,

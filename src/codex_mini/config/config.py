@@ -44,11 +44,7 @@ class Config(BaseModel):
             raise ValueError(f"Unknown model: {model_name}")
 
         provider = next(
-            (
-                provider
-                for provider in self.provider_list
-                if provider.provider_name == model.provider
-            ),
+            (provider for provider in self.provider_list if provider.provider_name == model.provider),
             None,
         )
         if provider is None:
@@ -117,9 +113,7 @@ def load_config() -> Config:
         example_config = get_example_config()
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_dict = example_config.model_dump(mode="json", exclude_none=True)
-        _ = config_path.write_text(
-            yaml.dump(config_dict, default_flow_style=False, sort_keys=False)
-        )
+        _ = config_path.write_text(yaml.dump(config_dict, default_flow_style=False, sort_keys=False))
         log(f"Example config created at: {config_path}")
         log("[bold]Please edit the config file to set up your models[/bold]")
         return example_config

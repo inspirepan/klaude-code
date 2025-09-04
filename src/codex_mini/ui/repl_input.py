@@ -12,23 +12,14 @@ from .input_abc import InputProviderABC
 class PromptToolkitInput(InputProviderABC):
     def __init__(self, prompt: str = "┃ "):
         project = str(Path.cwd()).strip("/").replace("/", "-")
-        history_path = (
-            Path.home()
-            / ".config"
-            / "codex-mini"
-            / "project"
-            / f"{project}"
-            / "input_history.txt"
-        )
+        history_path = Path.home() / ".config" / "codex-mini" / "project" / f"{project}" / "input_history.txt"
 
         if not history_path.parent.exists():
             history_path.parent.mkdir(parents=True, exist_ok=True)
         if not history_path.exists():
             history_path.touch()
 
-        self._session: PromptSession[str] = PromptSession(
-            prompt, history=FileHistory(history_path)
-        )
+        self._session: PromptSession[str] = PromptSession(prompt, history=FileHistory(history_path))
 
     async def start(self) -> None:  # noqa: D401
         # No setup needed for prompt_toolkit session

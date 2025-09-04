@@ -48,9 +48,7 @@ class TestBashToolSafety(unittest.TestCase):
 
     def assert_unsafe(self, command: str, expected_error: str | None = None):  # noqa: N802
         result = is_safe_command(command)
-        self.assertFalse(
-            result.is_safe, msg=f"Expected UNSAFE, got SAFE for: {command}"
-        )
+        self.assertFalse(result.is_safe, msg=f"Expected UNSAFE, got SAFE for: {command}")
         if expected_error:
             self.assertIn(
                 expected_error.lower(),

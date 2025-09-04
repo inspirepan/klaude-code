@@ -55,9 +55,7 @@ class ResponsesClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def Call(
-        self, param: LLMCallParameter
-    ) -> AsyncGenerator[ConversationItem, None]:
+    async def Call(self, param: LLMCallParameter) -> AsyncGenerator[ConversationItem, None]:
         param = apply_config_defaults(param, self.config)
 
         if param.model == "gpt-5-2025-08-07":
@@ -99,26 +97,18 @@ class ResponsesClient(LLMClientABC):
                     response_id = event.response.id
                     yield StartItem(response_id=response_id)
                 case responses.ResponseReasoningSummaryTextDeltaEvent() as event:
-                    yield ThinkingTextDelta(
-                        thinking=event.delta, response_id=response_id
-                    )
+                    yield ThinkingTextDelta(thinking=event.delta, response_id=response_id)
                 case responses.ResponseReasoningSummaryTextDoneEvent() as event:
                     yield ThinkingTextItem(thinking=event.text, response_id=response_id)
                 case responses.ResponseTextDeltaEvent() as event:
-                    yield AssistantMessageDelta(
-                        content=event.delta, response_id=response_id
-                    )
+                    yield AssistantMessageDelta(content=event.delta, response_id=response_id)
                 case responses.ResponseOutputItemDoneEvent() as event:
                     match event.item:
                         case responses.ResponseReasoningItem() as item:
                             yield ReasoningItem(
                                 id=item.id,
                                 summary=[summary.text for summary in item.summary],
-                                content="\n".join(
-                                    [content.text for content in item.content]
-                                )
-                                if item.content
-                                else None,
+                                content="\n".join([content.text for content in item.content]) if item.content else None,
                                 encrypted_content=item.encrypted_content,
                                 response_id=response_id,
                             )
@@ -128,9 +118,7 @@ class ResponsesClient(LLMClientABC):
                                     [
                                         part.text
                                         for part in item.content
-                                        if isinstance(
-                                            part, responses.ResponseOutputText
-                                        )
+                                        if isinstance(part, responses.ResponseOutputText)
                                     ]
                                 ),
                                 id=item.id,

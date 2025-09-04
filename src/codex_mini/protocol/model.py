@@ -90,9 +90,7 @@ class ToolResultItemItem(BaseModel):
     call_id: str = ""
     output: str | None = None
     status: Literal["success", "error"]
-    ui_extra: str | None = (
-        None  # extra information for tool call result, maybe used for UI display
-    )
+    ui_extra: str | None = None  # extra information for tool call result, maybe used for UI display
 
 
 class AssistantMessageDelta(BaseModel):
@@ -142,9 +140,7 @@ ConversationItem = Union[
 
 def group_reponse_items_gen(
     items: Iterable[ConversationItem],
-) -> Iterator[
-    tuple[Literal["assistantish", "user", "tool", "other"], list[ConversationItem]]
-]:
+) -> Iterator[tuple[Literal["assistantish", "user", "tool", "other"], list[ConversationItem]]]:
     """
     Group response items into sublists:
     - Consecutive (ReasoningItem | AssistantMessage | ToolCallItem) are grouped together

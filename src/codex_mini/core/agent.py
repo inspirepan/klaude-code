@@ -72,9 +72,7 @@ class Agent:
                 input=self.session.conversation_history,
                 system=self.session.system_prompt,
                 tools=self.tools,
-                previous_response_id=self.session.last_response_id
-                if store_at_remote
-                else None,
+                previous_response_id=self.session.last_response_id if store_at_remote else None,
                 store=store_at_remote,
             )
         ):
