@@ -40,6 +40,7 @@ async def run_tool(tool_call: ToolCallItem) -> ToolMessage:
     try:
         tool_message = await _REGISTRY[tool_call.name].call(tool_call.arguments)
         tool_message.call_id = tool_call.call_id
+        tool_message.id = tool_call.call_id
         return tool_message
     except Exception as e:
         return ToolMessage(

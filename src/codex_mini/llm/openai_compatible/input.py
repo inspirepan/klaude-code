@@ -100,17 +100,19 @@ def convert_history_to_input(
                     }
                 )
             case "tool":
+                if len(group) == 0 or not isinstance(group[0], ToolMessage):
+                    continue
+                tool_message = group[0]
                 messages.append(
                     {
                         "role": "tool",
                         "content": [
                             {
                                 "type": "text",
-                                "text": item.content,
+                                "text": tool_message.content,
                             }
-                            for item in group
-                            if isinstance(item, ToolMessage)
                         ],
+                        "tool_call_id": tool_message.call_id,
                     }
                 )
             case "assistantish":
@@ -118,17 +120,19 @@ def convert_history_to_input(
                 assistant_message = {
                     "role": "assistant",
                 }
+
                 for item in group:
                     match item:
                         case AssistantMessage() as assistant_message_item:
-                            if "content" not in assistant_message:
-                                assistant_message["content"] = []
-                            assistant_message["content"].append(
-                                {
-                                    "type": "text",
-                                    "text": assistant_message_item.content,
-                                }
-                            )
+                            if assistant_message_item.content:
+                                if "content" not in assistant_message:
+                                    assistant_message["content"] = (
+                                        assistant_message_item.content
+                                    )
+                                else:
+                                    assistant_message["content"] += (
+                                        assistant_message_item.content
+                                    )
                         case ToolCallItem() as tool_call_item:
                             if "tool_calls" not in assistant_message:
                                 assistant_message["tool_calls"] = []
@@ -154,4 +158,16 @@ def convert_history_to_input(
 def convert_tool_schema(
     tools: list[ToolSchema] | None,
 ) -> list[chat.ChatCompletionToolParam]:
-    pass
+    if tools is None:
+        return []
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.parameters,
+            },
+        }
+        for tool in tools
+    ]

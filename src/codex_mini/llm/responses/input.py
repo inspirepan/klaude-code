@@ -94,7 +94,9 @@ def convert_reasoning_item(item: ReasoningItem) -> responses.ResponseInputItemPa
     return result
 
 
-def convert_tool_schema(tools: list[ToolSchema] | None) -> list[responses.ToolParam]:
+def convert_tool_schema(
+    tools: list[ToolSchema] | None,
+) -> list[responses.ToolParam]:
     if tools is None:
         return []
     return [

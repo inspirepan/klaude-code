@@ -10,6 +10,10 @@ from codex_mini.llm.openai_compatible.input import (
     convert_history_to_input,
     convert_tool_schema,
 )
+from codex_mini.llm.openai_compatible.tool_call_accumulator import (
+    BasicToolCallAccumulator,
+    ToolCallAccumulatorABC,
+)
 from codex_mini.llm.registry import register
 from codex_mini.protocol import model
 from codex_mini.protocol.llm_parameter import (
@@ -57,13 +61,13 @@ class OpenAICompatibleClient(LLMClient):
         messages = convert_history_to_input(param.input, param.system)
         tools = convert_tool_schema(param.tools)
 
-        # import json
-        # print(json.dumps(messages, indent=2, ensure_ascii=False))
+        import json
+        print(json.dumps(messages, indent=2, ensure_ascii=False))
 
         stream = self.client.chat.completions.create(
             model=str(param.model),
             tool_choice="auto",
-            parallel_tool_calls=False,
+            parallel_tool_calls=True,
             stream=True,
             messages=messages,
             temperature=param.temperature,
@@ -76,11 +80,13 @@ class OpenAICompatibleClient(LLMClient):
         stage: Literal["waiting", "reasoning", "assistant", "tool", "done"] = "waiting"
         accumulated_reasoning: list[str] = []
         accumulated_content: list[str] = []
+        accumulated_tool_calls: ToolCallAccumulatorABC = BasicToolCallAccumulator()
         response_id: str | None = None
 
         async for event in await stream:
             if not response_id and event.id:
                 response_id = event.id
+                accumulated_tool_calls.response_id = response_id
                 yield StartItem(response_id=response_id)
             if event.usage is not None:
                 yield model.ResponseMetadataItem(
@@ -90,7 +96,6 @@ class OpenAICompatibleClient(LLMClient):
             if len(event.choices) == 0:
                 continue
             delta: ChoiceDelta = event.choices[0].delta
-            # print(delta)
             if hasattr(delta, "reasoning") and getattr(delta, "reasoning"):
                 reasoning: str = getattr(delta, "reasoning")
                 stage = "reasoning"
@@ -121,7 +126,8 @@ class OpenAICompatibleClient(LLMClient):
                         response_id=response_id,
                     )
                 stage = "tool"
-                # TODO
+                print(delta.tool_calls)
+                accumulated_tool_calls.add(delta.tool_calls)
 
         if stage == "reasoning":
             yield model.ThinkingTextDone(
@@ -132,6 +138,9 @@ class OpenAICompatibleClient(LLMClient):
                 content="".join(accumulated_content),
                 response_id=response_id,
             )
+        elif stage == "tool":
+            for tool_call_item in accumulated_tool_calls.get():
+                yield tool_call_item
 
 
 def convert_usage(usage: openai.types.CompletionUsage) -> model.Usage:
