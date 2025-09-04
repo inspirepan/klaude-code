@@ -106,23 +106,24 @@ class REPLDisplay(Display):
         )
 
     def display_metadata(self, e: ResponseMetadataEvent) -> None:
-        rule_text = f"[bold][cyan]{e.model_name}[/cyan][/bold]"
+        rule_text = f"[bold]{e.model_name}[/bold]"
         if e.usage is not None:
-            token_parts = [f"input:{format_number(e.usage.input_tokens)}"]
-            if e.usage.cached_tokens > 0:
-                token_parts.append(f"cached:{format_number(e.usage.cached_tokens)}")
-            token_parts.append(f"output:{format_number(e.usage.output_tokens)}")
-            if e.usage.reasoning_tokens > 0:
-                token_parts.append(
-                    f"reasoning:{format_number(e.usage.reasoning_tokens)}"
-                )
-
-            rule_text += f" · [bold]token[/bold] {' '.join(token_parts)}"
+            cached_token_str = (
+                f"({format_number(e.usage.cached_tokens)} cached)"
+                if e.usage.cached_tokens > 0
+                else ""
+            )
+            reasoning_token_str = (
+                f"({format_number(e.usage.reasoning_tokens)} reasoning)"
+                if e.usage.reasoning_tokens > 0
+                else ""
+            )
+            rule_text += f" · [bold]token usage[/bold]: {format_number(e.usage.input_tokens)} input{cached_token_str}, {format_number(e.usage.output_tokens)} output{reasoning_token_str}"
         self.console.print(
             Rule(
-                Text.from_markup(rule_text, style="grey70"),
-                style="grey70",
+                Text.from_markup(rule_text, style="bright_black"),
+                style="bright_black",
                 align="right",
-                characters="⎯",
+                characters="-",
             )
         )
