@@ -1,9 +1,16 @@
+from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaValue
 
 from codex_mini.protocol.model import ResponseItem
+
+
+class LLMClientProtocol(Enum):
+    OPENAI = "openai"
+    RESPONSES = "responses"
+    ANTHROPIC = "anthropic"
 
 
 class ToolSchema(BaseModel):

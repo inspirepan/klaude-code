@@ -10,6 +10,7 @@ from codex_mini.llm.registry import register
 from codex_mini.llm.responses.input import convert_history_to_input, convert_tool_schema
 from codex_mini.protocol.llm_parameter import (
     LLMCallParameter,
+    LLMClientProtocol,
     LLMConfigParameter,
     merge_llm_parameter,
 )
@@ -27,7 +28,7 @@ from codex_mini.protocol.model import (
 )
 
 
-@register("responses")
+@register(LLMClientProtocol.RESPONSES)
 class ResponsesClient(LLMClient):
     def __init__(self, config: LLMConfigParameter):
         self.config: LLMConfigParameter = config

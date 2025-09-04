@@ -11,6 +11,7 @@ from .events import (
 )
 from .llm_parameter import (
     LLMCallParameter,
+    LLMClientProtocol,
     LLMConfigParameter,
     Reasoning,
     Thinking,
@@ -47,6 +48,7 @@ __all__ = [
     "ToolMessage",
     "LLMCallParameter",
     "LLMConfigParameter",
+    "LLMClientProtocol",
     "Reasoning",
     "Thinking",
     "ToolSchema",

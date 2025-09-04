@@ -5,7 +5,13 @@ and they become available via the registry.
 """
 
 from .client import LLMClient
+from .openai_compatible import OpenAICompatibleClient
 from .registry import create_llm_client
 from .responses import ResponsesClient
 
-__all__ = ["LLMClient", "ResponsesClient", "create_llm_client"]
+__all__ = [
+    "LLMClient",
+    "ResponsesClient",
+    "OpenAICompatibleClient",
+    "create_llm_client",
+]

@@ -10,5 +10,5 @@ uv run codex-mini
 ```
 
 # Config
-An example config of Responses API will be created in `~/.config/codex-mini/config.json` when first run
+An example config of Responses API will be created in `~/.config/codex-mini/config.yaml` when first run
 

@@ -12,6 +12,7 @@ dependencies = [
     "openai>=1.102.0",
     "prompt-toolkit>=3.0.52",
     "pydantic>=2.11.7",
+    "pyyaml>=6.0.2",
     "rich>=14.1.0",
     "textual>=6.1.0",
     "typer>=0.17.3",
