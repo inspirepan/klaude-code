@@ -39,12 +39,11 @@ class REPLDisplay(Display):
             case ThinkingDeltaEvent() as e:
                 self.console.print(Text(e.content, style="italic bright_black"), end="")
             case ThinkingEvent() as e:
-                self.console.print()
-                self.console.print()
+                self.console.print("\n")
             case AssistantMessageDeltaEvent() as e:
                 self.console.print(Text(e.content, style="bold"), end="")
             case AssistantMessageEvent() as e:
-                self.console.print()
+                self.console.print("\n")
             case ResponseMetadataEvent() as e:
                 rule_text = ""
                 if e.usage is not None:

@@ -11,7 +11,7 @@ from codex_mini.ui import REPLDisplay
 
 async def exec_once(user_input: str) -> None:
     config = load_config()
-    llm_client: LLMClient = create_llm_client(config.llm_config)
+    llm_client: LLMClient = create_llm_client(config.get_main_model_config())
     agent: Agent = Agent(
         llm_client=llm_client, tools=get_tool_schemas([BASH_TOOL_NAME])
     )
