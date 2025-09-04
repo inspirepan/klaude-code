@@ -4,9 +4,7 @@ from pathlib import Path
 from codex_mini.core.prompt.system import get_system_prompt
 from codex_mini.core.tool.tool_registry import run_tool
 from codex_mini.llm.client import LLMClient
-from codex_mini.protocol import events
-from codex_mini.protocol import llm_parameter
-from codex_mini.protocol import model
+from codex_mini.protocol import events, llm_parameter, model
 from codex_mini.session import Session
 
 
