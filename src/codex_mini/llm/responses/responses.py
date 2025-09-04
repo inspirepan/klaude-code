@@ -157,6 +157,7 @@ class ResponsesClient(LLMClient):
                     yield ResponseMetadataItem(
                         usage=usage,
                         response_id=response_id,
+                        model_name=str(param.model),
                     )
                 case _:
                     pass

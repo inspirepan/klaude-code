@@ -20,6 +20,7 @@ from codex_mini.protocol.events import (
     ToolCallResultEvent,
 )
 from codex_mini.ui.display_abc import Display
+from codex_mini.ui.utils import format_number
 
 
 class REPLDisplay(Display):
@@ -45,17 +46,7 @@ class REPLDisplay(Display):
             case AssistantMessageEvent() as e:
                 self.console.print("\n")
             case ResponseMetadataEvent() as e:
-                rule_text = ""
-                if e.usage is not None:
-                    rule_text = f"[bold]token usage[/bold] input:{e.usage.input_tokens} (cached:{e.usage.cached_tokens}) output:{e.usage.output_tokens} (reasoning:{e.usage.reasoning_tokens})"
-                self.console.print(
-                    Rule(
-                        Text.from_markup(rule_text, style="grey70"),
-                        style="grey70",
-                        align="right",
-                        characters="⎯",
-                    )
-                )
+                self.display_metadata(e)
                 self.console.print()
             case ToolCallEvent() as e:
                 self.display_tool_call(e)
@@ -117,5 +108,27 @@ class REPLDisplay(Display):
                     style="grey50" if e.status == "success" else "red",
                 ),
                 level=2,
+            )
+        )
+
+    def display_metadata(self, e: ResponseMetadataEvent) -> None:
+        rule_text = f"[bold][cyan]{e.model_name}[/cyan][/bold]"
+        if e.usage is not None:
+            token_parts = [f"input:{format_number(e.usage.input_tokens)}"]
+            if e.usage.cached_tokens > 0:
+                token_parts.append(f"cached:{format_number(e.usage.cached_tokens)}")
+            token_parts.append(f"output:{format_number(e.usage.output_tokens)}")
+            if e.usage.reasoning_tokens > 0:
+                token_parts.append(
+                    f"reasoning:{format_number(e.usage.reasoning_tokens)}"
+                )
+
+            rule_text += f" · [bold]token[/bold] {' '.join(token_parts)}"
+        self.console.print(
+            Rule(
+                Text.from_markup(rule_text, style="grey70"),
+                style="grey70",
+                align="right",
+                characters="⎯",
             )
         )

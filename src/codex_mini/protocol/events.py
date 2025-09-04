@@ -63,6 +63,7 @@ class ResponseMetadataEvent(Event):
     session_id: str
     response_id: str | None = None
     usage: Usage | None = None
+    model_name: str
 
 
 class ErrorEvent(Event):

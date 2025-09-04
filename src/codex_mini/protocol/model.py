@@ -78,6 +78,7 @@ class Usage(BaseModel):
 class ResponseMetadataItem(ResponseItem):
     usage: Usage | None = None
     response_id: str | None = None
+    model_name: str = ""
 
 
 class SystemMessage(MessageItem):

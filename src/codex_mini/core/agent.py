@@ -55,6 +55,7 @@ class Agent:
         self.session.append_history([UserMessage(content=user_input)])
 
         task_usage: Usage = Usage()
+        model_name = ""
 
         while True:
             turn_has_tool_call = False
@@ -70,6 +71,7 @@ class Agent:
                             task_usage.reasoning_tokens += event.usage.reasoning_tokens
                             task_usage.output_tokens += event.usage.output_tokens
                             task_usage.total_tokens += event.usage.total_tokens
+                        model_name = event.model_name
                     case _ as event:
                         yield event
             if not turn_has_tool_call:
@@ -78,6 +80,7 @@ class Agent:
             usage=task_usage,
             session_id=self.session.id,
             response_id=self.session.last_response_id,
+            model_name=model_name,
         )
         yield TaskFinishEvent(session_id=self.session.id)
 
@@ -135,6 +138,7 @@ class Agent:
                         response_id=item.response_id,
                         session_id=self.session.id,
                         usage=item.usage,
+                        model_name=item.model_name,
                     )
                 case ToolCallItem() as item:
                     turn_tool_calls.append(item)

@@ -101,6 +101,7 @@ class OpenAICompatibleClient(LLMClient):
                 yield model.ResponseMetadataItem(
                     usage=convert_usage(event.usage),
                     response_id=response_id,
+                    model_name=str(param.model),
                 )
             if len(event.choices) == 0:
                 continue
