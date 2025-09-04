@@ -68,16 +68,10 @@ class REPLDisplay(Display):
             if len(json_dict) == 0:
                 return Text("")
             if len(json_dict) == 1:
-                return Text.assemble(
-                    "(", (str(next(iter(json_dict.values()))), "green"), ")"
-                )
-            return Text.assemble(
-                "(",
-                (", ".join([f"{k}: {v}" for k, v in json_dict.items()]), "green"),
-                ")",
-            )
+                return Text(str(next(iter(json_dict.values()))), "green")
+            return Text(", ".join([f"{k}: {v}" for k, v in json_dict.items()]), "green")
         except json.JSONDecodeError:
-            return Text(f"({arguments})")
+            return Text(arguments)
 
     def display_tool_call(self, e: ToolCallEvent) -> None:
         self.console.print(
