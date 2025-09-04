@@ -279,7 +279,7 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> SafetyCheckResult:
                             False, f"sed: Command substitution not allowed in '{arg}'"
                         )
                     return SafetyCheckResult(True)
-        return SafetyCheckResult(False, "sed: Unsupported pattern or options")
+        return SafetyCheckResult(False, "sed: Only text replacement (s/old/new/) or line printing (-n 'Np') is allowed")
 
     return SafetyCheckResult(False, f"Command '{cmd0}' not in allowlist")
 
