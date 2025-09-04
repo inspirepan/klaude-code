@@ -87,7 +87,7 @@ class Agent:
         turn_assistant_message: AssistantMessage | None = None
         turn_tool_calls: list[ToolCallItem] = []
         current_response_id: str | None = None
-        store_at_remote = False  # This is the 'store' parameter of OpenAI Responses API for storing history at OpenAI
+        store_at_remote = False  # This is the 'store' parameter of OpenAI Responses API for storing history at OpenAI, currently always False
 
         async for response_item in self.llm_client.Call(
             LLMCallParameter(

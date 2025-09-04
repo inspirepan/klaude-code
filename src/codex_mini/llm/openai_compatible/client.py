@@ -65,6 +65,13 @@ class OpenAICompatibleClient(LLMClient):
 
         # print(json.dumps(messages, indent=2, ensure_ascii=False))
 
+        extra_body = {}
+        if param.thinking:
+            extra_body["thinking"] = {
+                "type": param.thinking.type,
+                "budget_tokens": param.thinking.budget_tokens,
+            }
+
         stream = self.client.chat.completions.create(
             model=str(param.model),
             tool_choice="auto",
@@ -76,6 +83,7 @@ class OpenAICompatibleClient(LLMClient):
             tools=tools,
             reasoning_effort=param.reasoning.effort if param.reasoning else None,
             verbosity=param.verbosity,
+            extra_body=extra_body,  # pyright: ignore[reportUnknownArgumentType]
         )
 
         stage: Literal["waiting", "reasoning", "assistant", "tool", "done"] = "waiting"

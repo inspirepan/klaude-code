@@ -13,6 +13,10 @@ class LLMClientProtocol(Enum):
     ANTHROPIC = "anthropic"
 
 
+DEFAULT_MAX_TOKENS = 8192
+DEFAULT_TEMPERATURE = 1.0
+
+
 class ToolSchema(BaseModel):
     name: str
     type: Literal["function"]
@@ -38,17 +42,16 @@ class Thinking(BaseModel):
     budget_tokens: int
 
 
-class LLMConfigParameter(BaseModel):
-    """
-    Parameter support in config JSON
-    """
-
-    model: str | None = None
+class LLMConfigProviderParameter(BaseModel):
+    protocol: LLMClientProtocol
     base_url: str | None = None
     api_key: str | None = None
     is_azure: bool = False
     azure_api_version: str | None = None
 
+
+class LLMConfigModelParameter(BaseModel):
+    model: str | None = None
     temperature: float | None = None
     max_tokens: int | None = None
 
@@ -62,10 +65,24 @@ class LLMConfigParameter(BaseModel):
     thinking: Thinking | None = None
 
 
-class LLMCallParameter(LLMConfigParameter):
+class LLMConfigParameter(LLMConfigProviderParameter, LLMConfigModelParameter):
+    """
+    Parameter support in config yaml
+    """
+
+    pass
+
+
+class LLMCallParameter(LLMConfigModelParameter):
+    """
+    Parameters for a single agent call
+    """
+
+    # Agent
     input: list[ResponseItem]
     system: str | None = None
     tools: list[ToolSchema] | None = None
+
     stream: Literal[True] = True  # Always True
 
     # OpenAI Responses
@@ -90,4 +107,8 @@ def merge_llm_parameter(
 
     if param.model is None:
         raise ValueError("Model is required")
+    if param.max_tokens is None:
+        param.max_tokens = DEFAULT_MAX_TOKENS
+    if param.temperature is None:
+        param.temperature = DEFAULT_TEMPERATURE
     return param
