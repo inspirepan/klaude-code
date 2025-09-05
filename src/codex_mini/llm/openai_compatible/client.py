@@ -147,6 +147,8 @@ class OpenAICompatibleClient(LLMClientABC):
         metadata_item.response_id = response_id
         yield metadata_item
 
+    def model_name(self) -> str:
+        return str(self.config.model)
 
 def convert_usage(usage: openai.types.CompletionUsage) -> model.Usage:
     return model.Usage(

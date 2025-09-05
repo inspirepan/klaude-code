@@ -19,7 +19,7 @@ class Agent:
     ):
         work_dir: Path = Path.cwd()
         self.session: Session = (
-            Session(work_dir=work_dir, system_prompt=get_system_prompt())
+            Session(work_dir=work_dir, system_prompt=get_system_prompt(llm_client.model_name()))
             if session_id is None
             else Session.load(session_id)
         )

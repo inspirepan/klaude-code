@@ -28,3 +28,7 @@ class LLMClientABC(ABC):
 
     def is_debug_mode(self) -> bool:
         return self.debug_mode
+
+    @abstractmethod
+    def model_name(self) -> str:
+        raise NotImplementedError

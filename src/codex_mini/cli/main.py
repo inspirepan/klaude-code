@@ -30,7 +30,6 @@ async def run_interactive(model: str | None = None, debug: bool = False):
     llm_client: LLMClientABC = create_llm_client(model_config)
     if debug:
         llm_client.enable_debug_mode()
-    agent: Agent = Agent(llm_client=llm_client, tools=get_tool_schemas([BASH_TOOL_NAME]), debug_mode=debug)
 
     q: asyncio.Queue[Event] = asyncio.Queue()
 
@@ -39,6 +38,8 @@ async def run_interactive(model: str | None = None, debug: bool = False):
 
     display_task = asyncio.create_task(display.consume_event_loop(q))
 
+    agent: Agent | None = None
+
     try:
         await input_provider.start()
         async for user_input in input_provider.iter_inputs():
@@ -46,6 +47,10 @@ async def run_interactive(model: str | None = None, debug: bool = False):
                 break
             if user_input.strip() == "":
                 continue
+            if agent is None:
+                agent = Agent(
+                    llm_client=llm_client, tools=get_tool_schemas([BASH_TOOL_NAME]), debug_mode=debug
+                )  # Initialize agent when first input received
             await forward_event(agent.run_task(user_input), q)
             await q.join()  # ensure events drained before next input
     except KeyboardInterrupt:
