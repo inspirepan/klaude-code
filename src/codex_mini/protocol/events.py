@@ -72,6 +72,7 @@ class ResponseMetadataEvent(BaseModel):
     response_id: str | None = None
     usage: Usage | None = None
     model_name: str
+    provider: str | None = None  # OpenRouter's provider name
 
 
 Event = Union[

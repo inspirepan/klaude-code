@@ -51,17 +51,17 @@ class OpenAICompatibleClient(LLMClientABC):
         messages = convert_history_to_input(param.input, param.system)
         tools = convert_tool_schema(param.tools)
 
+        extra_body = {}
+        if param.thinking:
+            extra_body["thinking"] = param.thinking.model_dump(exclude_none=True)
+        if param.provider_routing:
+            extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
+
         if self.is_debug_mode():
             import json
 
             log_debug("▷▷▷ [Payload Messages]", json.dumps(messages, indent=2, ensure_ascii=False))
-
-        extra_body = {}
-        if param.thinking:
-            extra_body["thinking"] = {
-                "type": param.thinking.type,
-                "budget_tokens": param.thinking.budget_tokens,
-            }
+            log_debug("▷▷▷ [Payload Extra Body]", json.dumps(extra_body, indent=2, ensure_ascii=False))
 
         stream = self.client.chat.completions.create(
             model=str(param.model),
@@ -95,6 +95,7 @@ class OpenAICompatibleClient(LLMClientABC):
                     usage=convert_usage(event.usage),
                     response_id=response_id,
                     model_name=str(param.model),
+                    provider=str(getattr(event, "provider", None)),  # OpenRouter's provider name
                 )
             if len(event.choices) == 0:
                 continue

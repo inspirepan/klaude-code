@@ -1,4 +1,5 @@
 from typing import override
+
 from rich.console import Console
 
 from codex_mini.protocol.events import Event

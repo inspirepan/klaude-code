@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaValue
@@ -8,6 +8,7 @@ from codex_mini.protocol.model import ConversationItem
 
 DEFAULT_MAX_TOKENS = 8192
 DEFAULT_TEMPERATURE = 1.0
+DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS = 2048
 
 
 class LLMClientProtocol(Enum):
@@ -38,7 +39,47 @@ class Thinking(BaseModel):
     """
 
     type: Literal["enabled", "disabled"]
-    budget_tokens: int
+    budget_tokens: int | None = None
+
+
+class OpenRouterProviderRouting(BaseModel):
+    """
+    https://openrouter.ai/docs/features/provider-routing#json-schema-for-provider-preferences
+    """
+
+    allow_fallbacks: bool | None = None
+    require_parameters: bool | None = None
+
+    # Data collection setting: allow (default) or deny
+    data_collection: Literal["deny", "allow"] | None = None
+
+    # Provider lists
+    order: list[str] | None = None
+    only: list[str] | None = None
+    ignore: list[str] | None = None
+
+    # Quantization filters
+    quantizations: list[Literal["int4", "int8", "fp4", "fp6", "fp8", "fp16", "bf16", "fp32", "unknown"]] | None = None
+
+    # Sorting strategy when order is not specified
+    sort: Literal["price", "throughput", "latency"] | None = None
+
+    class MaxPrice(BaseModel):
+        # USD price per million tokens (or provider-specific string); OpenRouter also
+        # accepts other JSON types according to the schema, so Any covers that.
+        prompt: float | str | Any | None = None
+        completion: float | str | Any | None = None
+        image: float | str | Any | None = None
+        audio: float | str | Any | None = None
+        request: float | str | Any | None = None
+
+    max_price: MaxPrice | None = None
+
+    class Experimental(BaseModel):
+        # Placeholder for future experimental settings (no properties allowed in schema)
+        pass
+
+    experimental: Experimental | None = None
 
 
 class LLMConfigProviderParameter(BaseModel):
@@ -62,6 +103,9 @@ class LLMConfigModelParameter(BaseModel):
 
     # Claude Extended Thinking
     thinking: Thinking | None = None
+
+    # OpenRouter Provider Routing Preferences
+    provider_routing: OpenRouterProviderRouting | None = None
 
 
 class LLMConfigParameter(LLMConfigProviderParameter, LLMConfigModelParameter):
@@ -99,8 +143,12 @@ def apply_config_defaults(param: LLMCallParameter, config: LLMConfigParameter) -
         param.max_tokens = config.max_tokens
     if param.reasoning is None:
         param.reasoning = config.reasoning
+    if param.verbosity is None:
+        param.verbosity = config.verbosity
     if param.thinking is None:
         param.thinking = config.thinking
+    if param.provider_routing is None:
+        param.provider_routing = config.provider_routing
 
     if param.model is None:
         raise ValueError("Model is required")
@@ -108,6 +156,8 @@ def apply_config_defaults(param: LLMCallParameter, config: LLMConfigParameter) -
         param.max_tokens = DEFAULT_MAX_TOKENS
     if param.temperature is None:
         param.temperature = DEFAULT_TEMPERATURE
+    if param.thinking is not None and param.thinking.type == "enabled" and param.thinking.budget_tokens is None:
+        param.thinking.budget_tokens = DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS
 
     if param.model in {"gpt-5-2025-08-07", "gpt-5"}:
         param.temperature = 1.0  # Required for GPT-5

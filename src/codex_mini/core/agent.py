@@ -33,7 +33,12 @@ class Agent:
         self.session.append_history([model.UserMessageItem(content=user_input)])
 
         task_usage: model.Usage = model.Usage()
-        model_name = ""
+
+        accumulated_metadata: events.ResponseMetadataEvent = events.ResponseMetadataEvent(
+            model_name="",
+            session_id=self.session.id,
+            usage=model.Usage(),
+        )
 
         while True:
             turn_has_tool_call = False
@@ -43,23 +48,24 @@ class Agent:
                         turn_has_tool_call = True
                         yield event
                     case events.ResponseMetadataEvent() as event:
-                        if event.usage is not None:
-                            task_usage.input_tokens += event.usage.input_tokens
-                            task_usage.cached_tokens += event.usage.cached_tokens
-                            task_usage.reasoning_tokens += event.usage.reasoning_tokens
-                            task_usage.output_tokens += event.usage.output_tokens
-                            task_usage.total_tokens += event.usage.total_tokens
-                        model_name = event.model_name
+                        if event.usage is not None and accumulated_metadata.usage is not None:
+                            accumulated_metadata.usage.input_tokens += event.usage.input_tokens
+                            accumulated_metadata.usage.cached_tokens += event.usage.cached_tokens
+                            accumulated_metadata.usage.reasoning_tokens += event.usage.reasoning_tokens
+                            accumulated_metadata.usage.output_tokens += event.usage.output_tokens
+                            accumulated_metadata.usage.total_tokens += event.usage.total_tokens
+                        if event.provider:
+                            accumulated_metadata.provider = event.provider
+                        if event.model_name:
+                            accumulated_metadata.model_name = event.model_name
+                        if event.response_id:
+                            accumulated_metadata.response_id = event.response_id
                     case _ as event:
                         yield event
             if not turn_has_tool_call:
                 break
-        yield events.ResponseMetadataEvent(
-            usage=task_usage,
-            session_id=self.session.id,
-            response_id=self.session.last_response_id,
-            model_name=model_name,
-        )
+
+        yield accumulated_metadata
         yield events.TaskFinishEvent(session_id=self.session.id)
 
     async def run_turn(self) -> AsyncGenerator[events.Event, None]:
@@ -117,6 +123,7 @@ class Agent:
                         session_id=self.session.id,
                         usage=item.usage,
                         model_name=item.model_name,
+                        provider=item.provider,
                     )
                 case model.ToolCallItem() as item:
                     turn_tool_calls.append(item)
