@@ -138,6 +138,7 @@ class AnthropicClient(LLMClientABC):
                             content="".join(accumulated_content),
                             response_id=response_id,
                         )
+                        accumulated_content.clear()
                     if current_tool_name and current_tool_call_id:
                         yield model.ToolCallItem(
                             name=current_tool_name,
