@@ -8,7 +8,7 @@ from codex_mini.core.tool.tool_abc import ToolABC
 from codex_mini.core.tool.tool_common import truncate_tool_output
 from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
-from codex_mini.protocol.model import ToolResultItemItem
+from codex_mini.protocol.model import ToolResultItem
 
 BASH_TOOL_NAME = "Bash"
 
@@ -376,18 +376,18 @@ Disallow: redirection, subshells/parentheses, command substitution""",
         timeout_ms: int = 60000
 
     @classmethod
-    async def call(cls, arguments: str) -> ToolResultItemItem:
+    async def call(cls, arguments: str) -> ToolResultItem:
         try:
             args = BashTool.BashArguments.model_validate_json(arguments)
         except ValueError as e:
-            return ToolResultItemItem(
+            return ToolResultItem(
                 status="error",
                 output=f"Invalid arguments: {e}",
             )
         # Safety check: only execute commands proven as "known safe"
         result = is_safe_command(args.command)
         if not result.is_safe:
-            return ToolResultItemItem(
+            return ToolResultItem(
                 status="error",
                 output=f"Command rejected: {result.error_msg}",
             )
@@ -419,7 +419,7 @@ Disallow: redirection, subshells/parentheses, command substitution""",
                 if stderr.strip():
                     output = (output + ("\n" if output else "")) + f"[stderr]\n{stderr}"
                 output = truncate_tool_output(output)
-                return ToolResultItemItem(
+                return ToolResultItem(
                     status="success",
                     output=output.strip(),
                 )
@@ -432,23 +432,23 @@ Disallow: redirection, subshells/parentheses, command substitution""",
                 if not combined:
                     combined = f"Command exited with code {rc}"
                 combined = truncate_tool_output(combined)
-                return ToolResultItemItem(
+                return ToolResultItem(
                     status="error",
                     output=combined.strip(),
                 )
 
         except subprocess.TimeoutExpired:
-            return ToolResultItemItem(
+            return ToolResultItem(
                 status="error",
                 output=f"Timeout after {args.timeout_ms} ms running: {args.command}",
             )
         except FileNotFoundError:
-            return ToolResultItemItem(
+            return ToolResultItem(
                 status="error",
                 output="bash not found on system path",
             )
         except Exception as e:  # safeguard against unexpected failures
-            return ToolResultItemItem(
+            return ToolResultItem(
                 status="error",
                 output=f"Execution error: {e}",
             )

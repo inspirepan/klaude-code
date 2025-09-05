@@ -35,7 +35,7 @@ def convert_history_to_input(
                     }
                 )
             case "tool":
-                if len(group) == 0 or not isinstance(group[0], model.ToolResultItemItem):
+                if len(group) == 0 or not isinstance(group[0], model.ToolResultItem):
                     continue
                 tool_result = group[0]
                 messages.append(

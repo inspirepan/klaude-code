@@ -10,7 +10,7 @@ from codex_mini.protocol.model import (
     AssistantMessageItem,
     ConversationItem,
     ToolCallItem,
-    ToolResultItemItem,
+    ToolResultItem,
     UserMessageItem,
     group_reponse_items_gen,
 )
@@ -48,7 +48,7 @@ def convert_history_to_input(
                     }
                 )
             case "tool":
-                if len(group) == 0 or not isinstance(group[0], ToolResultItemItem):
+                if len(group) == 0 or not isinstance(group[0], ToolResultItem):
                     continue
                 tool_result = group[0]
                 messages.append(

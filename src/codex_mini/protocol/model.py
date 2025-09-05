@@ -86,7 +86,7 @@ class ToolCallItem(BaseModel):
     arguments: str
 
 
-class ToolResultItemItem(BaseModel):
+class ToolResultItem(BaseModel):
     call_id: str = ""
     output: str | None = None
     status: Literal["success", "error"]
@@ -124,7 +124,7 @@ MessageItem = Union[
     ThinkingTextItem,
     ReasoningItem,
     ToolCallItem,
-    ToolResultItemItem,
+    ToolResultItem,
 ]
 
 StreamItem = Union[ThinkingTextDelta, AssistantMessageDelta]
@@ -157,7 +157,7 @@ def group_reponse_items_gen(
             return "assistantish"
         if isinstance(it, UserMessageItem):
             return "user"
-        if isinstance(it, ToolResultItemItem):
+        if isinstance(it, ToolResultItem):
             return "tool"
         return "other"
 

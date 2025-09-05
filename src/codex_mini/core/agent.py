@@ -135,7 +135,7 @@ class Agent:
                     response_id=tool_call.response_id,
                     session_id=self.session.id,
                 )
-                tool_result: model.ToolResultItemItem = await run_tool(tool_call)
+                tool_result: model.ToolResultItem = await run_tool(tool_call)
                 self.session.append_history([tool_result])
                 yield events.ToolResultEvent(
                     tool_call_id=tool_call.call_id,

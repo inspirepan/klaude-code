@@ -9,7 +9,7 @@ from codex_mini.protocol.model import (
     ConversationItem,
     ReasoningItem,
     ToolCallItem,
-    ToolResultItemItem,
+    ToolResultItem,
     UserMessageItem,
 )
 
@@ -33,7 +33,7 @@ def convert_history_to_input(
                         "id": t.id,
                     }
                 )
-            case ToolResultItemItem() as t:
+            case ToolResultItem() as t:
                 items.append(
                     {
                         "type": "function_call_output",
