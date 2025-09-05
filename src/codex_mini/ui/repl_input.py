@@ -6,9 +6,9 @@ from typing import override
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.key_binding import KeyBindings
 
 from .input_abc import InputProviderABC
-from prompt_toolkit.key_binding import KeyBindings
 
 kb = KeyBindings()
 
@@ -16,6 +16,7 @@ kb = KeyBindings()
 @kb.add("enter")
 def _(event):  # type: ignore
     event.current_buffer.validate_and_handle()  # type: ignore
+
 
 @kb.add("c-j")
 def _(event):  # type: ignore

@@ -1,8 +1,7 @@
 from typing import override
 
-
-from codex_mini.trace import log_debug
 from codex_mini.protocol.events import Event
+from codex_mini.trace import log_debug
 from codex_mini.ui.display_abc import DisplayABC
 
 
