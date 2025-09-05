@@ -32,12 +32,9 @@ class Agent:
 
         self.session.append_history([model.UserMessageItem(content=user_input)])
 
-        task_usage: model.Usage = model.Usage()
-
         accumulated_metadata: events.ResponseMetadataEvent = events.ResponseMetadataEvent(
             model_name="",
             session_id=self.session.id,
-            usage=model.Usage(),
         )
 
         while True:
@@ -48,13 +45,15 @@ class Agent:
                         turn_has_tool_call = True
                         yield event
                     case events.ResponseMetadataEvent() as event:
-                        if event.usage is not None and accumulated_metadata.usage is not None:
+                        if event.usage is not None:
+                            if accumulated_metadata.usage is None:
+                                accumulated_metadata.usage = model.Usage()
                             accumulated_metadata.usage.input_tokens += event.usage.input_tokens
                             accumulated_metadata.usage.cached_tokens += event.usage.cached_tokens
                             accumulated_metadata.usage.reasoning_tokens += event.usage.reasoning_tokens
                             accumulated_metadata.usage.output_tokens += event.usage.output_tokens
                             accumulated_metadata.usage.total_tokens += event.usage.total_tokens
-                        if event.provider:
+                        if event.provider is not None:
                             accumulated_metadata.provider = event.provider
                         if event.model_name:
                             accumulated_metadata.model_name = event.model_name

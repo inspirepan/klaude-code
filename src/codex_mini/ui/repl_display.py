@@ -131,7 +131,7 @@ class REPLDisplay(DisplayABC):
 
     def display_metadata(self, e: ResponseMetadataEvent) -> None:
         rule_text = f"[bold]{e.model_name}[/bold]"
-        if e.provider:
+        if e.provider is not None:
             rule_text += f" · provider: [bold]{e.provider.lower()}[/bold]"
         if e.usage is not None:
             cached_token_str = f"({format_number(e.usage.cached_tokens)} cached)" if e.usage.cached_tokens > 0 else ""

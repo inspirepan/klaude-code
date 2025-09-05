@@ -82,30 +82,35 @@ class OpenAICompatibleClient(LLMClientABC):
         accumulated_content: list[str] = []
         accumulated_tool_calls: ToolCallAccumulatorABC = BasicToolCallAccumulator()
         response_id: str | None = None
+        metadata_item = model.ResponseMetadataItem()
 
         async for event in await stream:
             if self.is_debug_mode():
-                log_debug(f"◁◁◁ [SSE {event.__class__.__name__}]", event)  # type: ignore
+                log_debug("◁◁◁ [SSE]", event)  # type: ignore
             if not response_id and event.id:
                 response_id = event.id
                 accumulated_tool_calls.response_id = response_id
                 yield model.StartItem(response_id=response_id)
             if event.usage is not None:
-                yield model.ResponseMetadataItem(
-                    usage=convert_usage(event.usage),
-                    response_id=response_id,
-                    model_name=str(param.model),
-                    provider=str(getattr(event, "provider", None)),  # OpenRouter's provider name
-                )
+                metadata_item.usage = convert_usage(event.usage)
+            if event.model:
+                metadata_item.model_name = event.model
+            if provider := getattr(event, "provider", None):
+                metadata_item.provider = str(provider)
+
             if len(event.choices) == 0:
                 continue
             delta = event.choices[0].delta
+            reasoning_content = ""
             if hasattr(delta, "reasoning") and getattr(delta, "reasoning"):
-                reasoning: str = getattr(delta, "reasoning")
+                reasoning_content = getattr(delta, "reasoning")
+            if hasattr(delta, "reasoning_content") and getattr(delta, "reasoning_content"):
+                reasoning_content = getattr(delta, "reasoning_content")
+            if reasoning_content:
                 stage = "reasoning"
-                accumulated_reasoning.append(reasoning)
+                accumulated_reasoning.append(reasoning_content)
                 yield model.ThinkingTextDelta(
-                    thinking=reasoning,
+                    thinking=reasoning_content,
                     response_id=response_id,
                 )
             if delta.content and len(delta.content) > 0:
@@ -138,6 +143,9 @@ class OpenAICompatibleClient(LLMClientABC):
         elif stage == "tool":
             for tool_call_item in accumulated_tool_calls.get():
                 yield tool_call_item
+
+        metadata_item.response_id = response_id
+        yield metadata_item
 
 
 def convert_usage(usage: openai.types.CompletionUsage) -> model.Usage:
