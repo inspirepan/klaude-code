@@ -17,7 +17,7 @@ def register(name: str) -> Callable[[type[T]], type[T]]:
     return _decorator
 
 
-def clients() -> list[str]:
+def list_tools() -> list[str]:
     return list(_REGISTRY.keys())
 
 

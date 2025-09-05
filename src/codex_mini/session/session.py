@@ -16,9 +16,11 @@ class Session(BaseModel):
 
     @classmethod
     def load(cls, id: str) -> "Session":
+        # TODO
         return Session(id=id, work_dir=Path.cwd())
 
     def save(self):
+        # TODO
         pass
 
     def append_history(self, items: Sequence[ConversationItem]):

@@ -28,7 +28,7 @@ def _is_valid_sed_n_arg(s: str | None) -> bool:
     return bool(re.fullmatch(r"\d+(,\d+)?p", s))
 
 
-def _is_safe_to_call_with_exec(argv: list[str]) -> SafetyCheckResult:
+def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
     if not argv:
         return SafetyCheckResult(False, "Empty command")
 
@@ -108,7 +108,7 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> SafetyCheckResult:
         # If no operands provided, allow (harmless, will fail at runtime)
         return SafetyCheckResult(True)
 
-    # simple allowlist
+    # simple allow list
     if cmd0 in {
         "cat",
         "cd",
@@ -217,7 +217,7 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> SafetyCheckResult:
         if sub in blocked_git_cmds:
             return SafetyCheckResult(False, f"git: Remote operation '{sub}' not allowed")
         if sub not in allowed_git_cmds:
-            return SafetyCheckResult(False, f"git: Subcommand '{sub}' not in allowlist")
+            return SafetyCheckResult(False, f"git: Subcommand '{sub}' not in allow list")
         return SafetyCheckResult(True)
 
     # Build tools and linters - allow all subcommands
@@ -247,7 +247,7 @@ def _is_safe_to_call_with_exec(argv: list[str]) -> SafetyCheckResult:
             "sed: Only text replacement (s/old/new/) or line printing (-n 'Np') is allowed",
         )
 
-    return SafetyCheckResult(False, f"Command '{cmd0}' not in allowlist")
+    return SafetyCheckResult(False, f"Command '{cmd0}' not in allow list")
 
 
 def _contains_disallowed_shell_syntax(script: str) -> tuple[bool, str]:
@@ -295,11 +295,7 @@ def _parse_word_only_commands_sequence(
 
 
 def is_safe_command(command: str) -> SafetyCheckResult:
-    """Conservatively determine if a command is known-safe.
-
-    Mirrors the logic of the Rust `is_known_safe_command` with a simplified
-    parser for bash -lc scripts. Returns SafetyCheckResult with details.
-    """
+    """Conservatively determine if a command is known-safe."""
     # First, try direct exec-style argv safety (e.g., "ls -l").
     try:
         argv = shlex.split(command, posix=True)
@@ -308,7 +304,7 @@ def is_safe_command(command: str) -> SafetyCheckResult:
         # Don't return error here, try sequence parsing below
 
     if argv:
-        result = _is_safe_to_call_with_exec(argv)
+        result = _is_safe_argv(argv)
         if result.is_safe:
             return result
 
@@ -317,7 +313,7 @@ def is_safe_command(command: str) -> SafetyCheckResult:
     seq, parse_error = _parse_word_only_commands_sequence(command)
     if seq:
         for cmd in seq:
-            result = _is_safe_to_call_with_exec(cmd)
+            result = _is_safe_argv(cmd)
             if not result.is_safe:
                 return result
         return SafetyCheckResult(True)
@@ -329,7 +325,7 @@ def is_safe_command(command: str) -> SafetyCheckResult:
         return SafetyCheckResult(False, "Empty command")
     if argv:
         # We have argv but it failed safety check earlier
-        return _is_safe_to_call_with_exec(argv)
+        return _is_safe_argv(argv)
     return SafetyCheckResult(False, "Failed to parse command")
 
 

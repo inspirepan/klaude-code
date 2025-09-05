@@ -43,7 +43,7 @@ class AnthropicClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def Call(self, param: LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
+    async def call(self, param: LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         param = apply_config_defaults(param, self.config)
 
         messages = convert_history_to_input(param.input)
@@ -164,4 +164,3 @@ class AnthropicClient(LLMClientABC):
                     )
                 case _:
                     pass
-        yield model.StartItem(response_id="")

@@ -60,14 +60,14 @@ class Agent:
         yield events.TaskFinishEvent(session_id=self.session.id)
 
     async def run_turn(self) -> AsyncGenerator[events.Event, None]:
-        # If LLM API error occurred, we will discard (not append to history) and retry
-        turn_reasoning_items: model.ReasoningItem | None = None
+        # TODO: If LLM API error occurred, we will discard (not append to history) and retry
+        turn_reasoning_item: model.ReasoningItem | None = None
         turn_assistant_message: model.AssistantMessageItem | None = None
         turn_tool_calls: list[model.ToolCallItem] = []
         current_response_id: str | None = None
         store_at_remote = False  # This is the 'store' parameter of OpenAI Responses API for storing history at OpenAI, currently always False
 
-        async for response_item in self.llm_client.Call(
+        async for response_item in self.llm_client.call(
             llm_parameter.LLMCallParameter(
                 input=self.session.conversation_history,
                 system=self.session.system_prompt,
@@ -92,7 +92,7 @@ class Agent:
                         session_id=self.session.id,
                     )
                 case model.ReasoningItem() as item:
-                    turn_reasoning_items = item
+                    turn_reasoning_item = item
                 case model.AssistantMessageDelta() as item:
                     yield events.AssistantMessageDeltaEvent(
                         content=item.content,
@@ -118,8 +118,8 @@ class Agent:
                 case _:
                     pass
         if not store_at_remote:
-            if turn_reasoning_items:
-                self.session.append_history([turn_reasoning_items])
+            if turn_reasoning_item:
+                self.session.append_history([turn_reasoning_item])
             if turn_assistant_message:
                 self.session.append_history([turn_assistant_message])
             if turn_tool_calls:

@@ -51,7 +51,7 @@ def convert_history_to_input(
                         ],
                     }
                 )
-            case "assistantish":
+            case "assistant":
                 assistant_message = {
                     "role": "assistant",
                     "content": [],

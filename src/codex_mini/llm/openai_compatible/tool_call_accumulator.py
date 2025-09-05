@@ -47,34 +47,34 @@ class BasicToolCallAccumulator(ToolCallAccumulatorABC, BaseModel):
     [ChoiceDeltaToolCall(index=1, id='call_88931225', function=ChoiceDeltaToolCallFunction(arguments='{"command":"ls"}', name='Bash'), type='function')]
     """
 
-    chunks_steps: list[list[ChoiceDeltaToolCall]] = Field(default_factory=list)
+    chunks_by_step: list[list[ChoiceDeltaToolCall]] = Field(default_factory=list)
     response_id: str | None = None
 
     def add(self, chunks: list[ChoiceDeltaToolCall]):
-        self.chunks_steps.append(chunks)
+        self.chunks_by_step.append(chunks)
 
     def get(self) -> list[model.ToolCallItem]:
         result: list[model.ToolCallItem] = []
         current_index = -1
-        for chunks_step in self.chunks_steps:
-            if len(chunks_step) == 0:
+        for current_step in self.chunks_by_step:
+            if len(current_step) == 0:
                 continue
-            current_step = chunks_step[0]
-            if current_step.index != current_index:
-                current_index = current_step.index
+            first_chunk = current_step[0]
+            if first_chunk.index != current_index:
+                current_index = first_chunk.index
                 result.append(
                     model.ToolCallItem(
-                        id=current_step.id,
+                        id=first_chunk.id,
                         name="",
                         arguments="",
-                        call_id=current_step.id or "",
+                        call_id=first_chunk.id or "",
                         response_id=self.response_id,
                     )
                 )
-            if current_step.function is None:
+            if first_chunk.function is None:
                 continue
-            if current_step.function.name:
-                result[-1].name = current_step.function.name
-            if current_step.function.arguments:
-                result[-1].arguments += current_step.function.arguments
+            if first_chunk.function.name:
+                result[-1].name = first_chunk.function.name
+            if first_chunk.function.arguments:
+                result[-1].arguments += first_chunk.function.arguments
         return result

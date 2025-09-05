@@ -14,6 +14,7 @@ class InputProviderABC(ABC):
         """Optional teardown when stopping."""
 
     @abstractmethod
-    def iter_inputs(self) -> AsyncIterator[str]:
+    async def iter_inputs(self) -> AsyncIterator[str]:
         """Return an async iterator of user inputs."""
-        ...
+        raise NotImplementedError
+        yield ""  # pyright: ignore[reportUnreachable]

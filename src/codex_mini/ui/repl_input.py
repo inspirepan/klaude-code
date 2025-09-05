@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import override
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
@@ -29,6 +30,7 @@ class PromptToolkitInput(InputProviderABC):
         # No teardown needed
         pass
 
+    @override
     async def iter_inputs(self) -> AsyncIterator[str]:
         while True:
             line: str = await self._session.prompt_async()

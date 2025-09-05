@@ -63,6 +63,8 @@ class REPLDisplay(DisplayABC):
         pass
 
     def render_tool_call_arguments(self, arguments: str) -> Text:
+        if not arguments:
+            return Text("")
         try:
             json_dict = json.loads(arguments)
             if len(json_dict) == 0:

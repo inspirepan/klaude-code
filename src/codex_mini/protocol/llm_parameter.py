@@ -108,4 +108,8 @@ def apply_config_defaults(param: LLMCallParameter, config: LLMConfigParameter) -
         param.max_tokens = DEFAULT_MAX_TOKENS
     if param.temperature is None:
         param.temperature = DEFAULT_TEMPERATURE
+
+    if param.model == "gpt-5-2025-08-07" or "gpt-5":
+        param.temperature = 1.0  # Required for GPT-5
+
     return param

@@ -90,7 +90,7 @@ class ToolResultItem(BaseModel):
     call_id: str = ""
     output: str | None = None
     status: Literal["success", "error"]
-    ui_extra: str | None = None  # extra information for tool call result, maybe used for UI display
+    ui_extra: str | None = None  # extra data for UI display, e.g. diff render
 
 
 class AssistantMessageDelta(BaseModel):
@@ -140,7 +140,7 @@ ConversationItem = Union[
 
 def group_response_items_gen(
     items: Iterable[ConversationItem],
-) -> Iterator[tuple[Literal["assistantish", "user", "tool", "other"], list[ConversationItem]]]:
+) -> Iterator[tuple[Literal["assistant", "user", "tool", "other"], list[ConversationItem]]]:
     """
     Group response items into sublists:
     - Consecutive (ReasoningItem | AssistantMessage | ToolCallItem) are grouped together
@@ -148,13 +148,13 @@ def group_response_items_gen(
     - Each ToolMessage is always a single group
     """
     buffer: list[ConversationItem] = []
-    buffer_kind: Literal["assistantish", "user", "tool", "other"] = "other"
+    buffer_kind: Literal["assistant", "user", "tool", "other"] = "other"
 
     def kind_of(
         it: ConversationItem,
-    ) -> Literal["assistantish", "user", "tool", "other"]:
+    ) -> Literal["assistant", "user", "tool", "other"]:
         if isinstance(it, (ReasoningItem, AssistantMessageItem, ToolCallItem)):
-            return "assistantish"
+            return "assistant"
         if isinstance(it, UserMessageItem):
             return "user"
         if isinstance(it, ToolResultItem):

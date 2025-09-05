@@ -55,15 +55,12 @@ class ResponsesClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def Call(self, param: LLMCallParameter) -> AsyncGenerator[ConversationItem, None]:
+    async def call(self, param: LLMCallParameter) -> AsyncGenerator[ConversationItem, None]:
         param = apply_config_defaults(param, self.config)
-
-        if param.model == "gpt-5-2025-08-07":
-            param.temperature = 1.0
 
         response_id: str | None = None
 
-        input = convert_history_to_input(param.input)
+        inputs = convert_history_to_input(param.input)
 
         stream = self.client.responses.create(
             model=str(param.model),
@@ -77,7 +74,7 @@ class ResponsesClient(LLMClientABC):
             stream=True,
             temperature=param.temperature,
             max_output_tokens=param.max_tokens,
-            input=input,
+            input=inputs,
             instructions=param.system,
             tools=convert_tool_schema(param.tools),
             text={

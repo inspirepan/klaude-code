@@ -44,12 +44,8 @@ class OpenAICompatibleClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def Call(self, param: LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
+    async def call(self, param: LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         param = apply_config_defaults(param, self.config)
-
-        if param.model == "gpt-5-2025-08-07":
-            param.temperature = 1.0
-
         messages = convert_history_to_input(param.input, param.system)
         tools = convert_tool_schema(param.tools)
 

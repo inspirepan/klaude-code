@@ -63,7 +63,7 @@ def convert_history_to_input(
                         "tool_call_id": tool_result.call_id,
                     }
                 )
-            case "assistantish":
+            case "assistant":
                 # Merge all items into a single assistant message
                 assistant_message = {
                     "role": "assistant",

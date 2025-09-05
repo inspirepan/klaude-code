@@ -13,6 +13,6 @@ class LLMClientABC(ABC):
         pass
 
     @abstractmethod
-    async def Call(self, param: LLMCallParameter) -> AsyncGenerator[ConversationItem, None]:
+    async def call(self, param: LLMCallParameter) -> AsyncGenerator[ConversationItem, None]:
         raise NotImplementedError
         yield cast(ConversationItem, None)  # pyright: ignore[reportUnreachable]
