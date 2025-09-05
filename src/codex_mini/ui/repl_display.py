@@ -24,7 +24,14 @@ from codex_mini.ui.mdstream import MarkdownStream
 from codex_mini.ui.utils import format_number
 
 CODE_THEME = "solarized-light"
-MARKDOWN_THEME = Theme(styles={"markdown.code": "#5869f7"})
+MARKDOWN_THEME = Theme(
+    styles={
+        "markdown.code": "medium_purple3",
+        "markdown.h1.border": "gray70",
+        "markdown.h3": "bold gray54",
+        "markdown.h4": "bold gray70",
+    }
+)
 
 
 class REPLDisplay(DisplayABC):
