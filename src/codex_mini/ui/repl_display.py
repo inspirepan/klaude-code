@@ -56,20 +56,20 @@ class REPLDisplay(DisplayABC):
                     self.mdstream = MarkdownStream(
                         mdargs={"style": "italic bright_black", "code_theme": CODE_THEME}, theme=MARKDOWN_THEME
                     )
-                self.mdstream.update(self.current_stream_text)
+                self.mdstream.update(self.current_stream_text.strip())
             case ThinkingEvent() as e:
                 if self.mdstream is not None:
-                    self.mdstream.update(THINKING_PREFIX + e.content, final=True)
+                    self.mdstream.update(THINKING_PREFIX + e.content.strip(), final=True)
                 self.current_stream_text = ""
                 self.mdstream = None
             case AssistantMessageDeltaEvent() as e:
                 self.current_stream_text += e.content
                 if self.mdstream is None:
                     self.mdstream = MarkdownStream(mdargs={"code_theme": CODE_THEME}, theme=MARKDOWN_THEME)
-                self.mdstream.update(self.current_stream_text)
+                self.mdstream.update(self.current_stream_text.strip())
             case AssistantMessageEvent() as e:
                 if self.mdstream is not None:
-                    self.mdstream.update(e.content, final=True)
+                    self.mdstream.update(e.content.strip(), final=True)
                 self.current_stream_text = ""
                 self.mdstream = None
             case ResponseMetadataEvent() as e:

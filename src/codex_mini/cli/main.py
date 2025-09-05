@@ -44,6 +44,8 @@ async def run_interactive(model: str | None = None, debug: bool = False):
         async for user_input in input_provider.iter_inputs():
             if user_input.strip().lower() in {"exit", ":q", "quit"}:
                 break
+            if user_input.strip() == "":
+                continue
             await forward_event(agent.run_task(user_input), q)
             await q.join()  # ensure events drained before next input
     except KeyboardInterrupt:
