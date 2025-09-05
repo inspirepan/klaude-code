@@ -138,7 +138,7 @@ ConversationItem = Union[
 ]
 
 
-def group_reponse_items_gen(
+def group_response_items_gen(
     items: Iterable[ConversationItem],
 ) -> Iterator[tuple[Literal["assistantish", "user", "tool", "other"], list[ConversationItem]]]:
     """

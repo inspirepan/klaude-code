@@ -12,7 +12,7 @@ from codex_mini.protocol.model import (
     ToolCallItem,
     ToolResultItem,
     UserMessageItem,
-    group_reponse_items_gen,
+    group_response_items_gen,
 )
 
 
@@ -31,7 +31,7 @@ def convert_history_to_input(
         else []
     )
 
-    for group_kind, group in group_reponse_items_gen(history):
+    for group_kind, group in group_response_items_gen(history):
         match group_kind:
             case "user":
                 messages.append(

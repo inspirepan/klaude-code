@@ -83,7 +83,7 @@ class REPLDisplay(DisplayABC):
             )
         )
 
-    def truncate_diplay(self, text: str) -> str:
+    def truncate_display(self, text: str) -> str:
         lines = text.split("\n")
         if len(lines) > 20:
             return "\n".join(lines[:20]) + "\n... (more " + str(len(lines) - 20) + " lines are truncated)"
@@ -93,7 +93,7 @@ class REPLDisplay(DisplayABC):
         self.console.print(
             Padding.indent(
                 Text(
-                    self.truncate_diplay(e.result),
+                    self.truncate_display(e.result),
                     style="grey50" if e.status == "success" else "red",
                 ),
                 level=2,

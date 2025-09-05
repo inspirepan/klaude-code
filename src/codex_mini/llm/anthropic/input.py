@@ -18,7 +18,7 @@ def convert_history_to_input(
     history: list[model.ConversationItem],
 ) -> list[BetaMessageParam]:
     messages: list[BetaMessageParam] = []
-    for group_kind, group in model.group_reponse_items_gen(history):
+    for group_kind, group in model.group_response_items_gen(history):
         match group_kind:
             case "user":
                 messages.append(
