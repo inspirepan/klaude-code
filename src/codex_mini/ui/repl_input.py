@@ -8,6 +8,18 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 
 from .input_abc import InputProviderABC
+from prompt_toolkit.key_binding import KeyBindings
+
+kb = KeyBindings()
+
+
+@kb.add("enter")
+def _(event):  # type: ignore
+    event.current_buffer.validate_and_handle()  # type: ignore
+
+@kb.add("c-j")
+def _(event):  # type: ignore
+    event.current_buffer.insert_text("\n")  # type: ignore
 
 
 class PromptToolkitInput(InputProviderABC):
@@ -20,7 +32,13 @@ class PromptToolkitInput(InputProviderABC):
         if not history_path.exists():
             history_path.touch()
 
-        self._session: PromptSession[str] = PromptSession(prompt, history=FileHistory(history_path))
+        self._session: PromptSession[str] = PromptSession(
+            prompt,
+            history=FileHistory(history_path),
+            multiline=True,
+            prompt_continuation=prompt,
+            key_bindings=kb,
+        )
 
     async def start(self) -> None:  # noqa: D401
         # No setup needed for prompt_toolkit session
