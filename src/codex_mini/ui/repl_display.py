@@ -1,5 +1,5 @@
 import json
-from typing import override
+from typing import Literal, override
 
 from rich.console import Console
 from rich.padding import Padding
@@ -40,6 +40,7 @@ class REPLDisplay(DisplayABC):
         self.console: Console = Console()
         self.mdstream: MarkdownStream | None = None
         self.current_stream_text = ""
+        self.stage: Literal["waiting", "thinking", "assistant", "tool_call", "tool_result"] = "waiting"
 
     @override
     async def consume_event(self, event: Event) -> None:
@@ -49,7 +50,7 @@ class REPLDisplay(DisplayABC):
             case TaskFinishEvent():
                 pass
             case ThinkingDeltaEvent() as e:
-                if len(self.current_stream_text) == 0:
+                if len(self.current_stream_text) == 0 and self.stage != "thinking":
                     self.current_stream_text = THINKING_PREFIX
                 self.current_stream_text += e.content
                 if self.mdstream is None:
@@ -57,15 +58,20 @@ class REPLDisplay(DisplayABC):
                         mdargs={"style": "italic bright_black", "code_theme": CODE_THEME}, theme=MARKDOWN_THEME
                     )
                 self.mdstream.update(self.current_stream_text.strip())
+                self.stage = "thinking"
             case ThinkingEvent() as e:
                 if self.mdstream is not None:
-                    self.mdstream.update(THINKING_PREFIX + e.content.strip(), final=True)
+                    self.mdstream.update(
+                        THINKING_PREFIX + e.content.strip() if self.stage != "thinking" else e.content.strip(),
+                        final=True,
+                    )
                 self.current_stream_text = ""
                 self.mdstream = None
             case AssistantMessageDeltaEvent() as e:
                 self.current_stream_text += e.content
                 if self.mdstream is None:
                     self.mdstream = MarkdownStream(mdargs={"code_theme": CODE_THEME}, theme=MARKDOWN_THEME)
+                    self.stage = "assistant"
                 self.mdstream.update(self.current_stream_text.strip())
             case AssistantMessageEvent() as e:
                 if self.mdstream is not None:
@@ -77,9 +83,11 @@ class REPLDisplay(DisplayABC):
                 self.console.print()
             case ToolCallEvent() as e:
                 self.display_tool_call(e)
+                self.stage = "tool_call"
             case ToolResultEvent() as e:
                 self.display_tool_call_result(e)
                 self.console.print()
+                self.stage = "tool_result"
             case _:
                 self.console.print("[Event]", event.__class__.__name__, event)
 
