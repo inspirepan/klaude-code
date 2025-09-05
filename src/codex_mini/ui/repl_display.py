@@ -4,8 +4,8 @@ from typing import override
 from rich.console import Console
 from rich.padding import Padding
 from rich.rule import Rule
-from rich.status import Status
 from rich.text import Text
+from rich.theme import Theme
 
 from codex_mini.protocol.events import (
     AssistantMessageDeltaEvent,
@@ -20,31 +20,48 @@ from codex_mini.protocol.events import (
     ToolResultEvent,
 )
 from codex_mini.ui.display_abc import DisplayABC
+from codex_mini.ui.mdstream import MarkdownStream
 from codex_mini.ui.utils import format_number
+
+CODE_THEME = "solarized-light"
+MARKDOWN_THEME = Theme(styles={"markdown.code": "#5869f7"})
 
 
 class REPLDisplay(DisplayABC):
     def __init__(self):
         self.console: Console = Console()
-        self.spinner: Status = Status("Thinking...", spinner="bouncingBall")
+        self.mdstream: MarkdownStream | None = None
+        self.current_stream_text = ""
 
     @override
     async def consume_event(self, event: Event) -> None:
         match event:
             case TaskStartEvent():
                 self.console.print()
-                # self.spinner.start()
             case TaskFinishEvent():
-                # self.spinner.stop()
                 pass
             case ThinkingDeltaEvent() as e:
-                self.console.print(Text(e.content, style="italic bright_black"), end="")
+                self.current_stream_text += e.content
+                if self.mdstream is None:
+                    self.mdstream = MarkdownStream(
+                        mdargs={"style": "italic bright_black", "code_theme": CODE_THEME}, theme=MARKDOWN_THEME
+                    )
+                self.mdstream.update(self.current_stream_text)
             case ThinkingEvent() as e:
-                self.console.print("\n")
+                if self.mdstream is not None:
+                    self.mdstream.update(e.content, final=True)
+                self.current_stream_text = ""
+                self.mdstream = None
             case AssistantMessageDeltaEvent() as e:
-                self.console.print(Text(e.content, style="bold"), end="")
+                self.current_stream_text += e.content
+                if self.mdstream is None:
+                    self.mdstream = MarkdownStream(mdargs={"code_theme": CODE_THEME}, theme=MARKDOWN_THEME)
+                self.mdstream.update(self.current_stream_text)
             case AssistantMessageEvent() as e:
-                self.console.print("\n")
+                if self.mdstream is not None:
+                    self.mdstream.update(e.content, final=True)
+                self.current_stream_text = ""
+                self.mdstream = None
             case ResponseMetadataEvent() as e:
                 self.display_metadata(e)
                 self.console.print()

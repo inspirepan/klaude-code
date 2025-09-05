@@ -3,13 +3,13 @@ from collections.abc import AsyncGenerator
 
 import typer
 
+from codex_mini import ui
 from codex_mini.config import load_config
 from codex_mini.core import Agent
 from codex_mini.core.tool import BASH_TOOL_NAME, get_tool_schemas
 from codex_mini.llm import LLMClientABC, create_llm_client
 from codex_mini.protocol.events import EndEvent, Event
 from codex_mini.trace.log import log
-from codex_mini.ui import PromptToolkitInput, REPLDisplay
 
 
 async def forward_event(gen: AsyncGenerator[Event, None], q: asyncio.Queue[Event]):
@@ -28,8 +28,8 @@ async def run_interactive(model: str | None = None):
 
     q: asyncio.Queue[Event] = asyncio.Queue()
 
-    display = REPLDisplay()
-    input_provider = PromptToolkitInput()
+    display: ui.DisplayABC = ui.REPLDisplay()
+    input_provider: ui.InputProviderABC = ui.PromptToolkitInput()
 
     display_task = asyncio.create_task(display.consume_event_loop(q))
 
