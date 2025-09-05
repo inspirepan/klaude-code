@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
+
 from codex_mini.core.prompt import get_system_prompt
 from codex_mini.core.tool.tool_registry import run_tool
 from codex_mini.llm.client import LLMClientABC
@@ -85,7 +86,11 @@ class Agent:
             )
         ):
             if self.debug_mode:
-                log_debug(f"◀◀◀ [{response_item.__class__.__name__}]", response_item.model_dump_json(indent=2))
+                log_debug(
+                    f"◀◀◀ response [{response_item.__class__.__name__}]",
+                    response_item.model_dump_json(),
+                    style="green",
+                )
             match response_item:
                 case model.StartItem() as item:
                     current_response_id = item.response_id

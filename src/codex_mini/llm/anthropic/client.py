@@ -55,7 +55,7 @@ class AnthropicClient(LLMClientABC):
         if self.is_debug_mode():
             import json
 
-            log_debug("▷▷▷ [Payload Messages]", json.dumps(messages, indent=2, ensure_ascii=False))
+            log_debug("▷▷▷ llm [Payload Messages]", json.dumps(messages, indent=2, ensure_ascii=False), style="yellow")
 
         stream = self.client.beta.messages.create(
             model=str(param.model),
@@ -94,7 +94,7 @@ class AnthropicClient(LLMClientABC):
 
         async for event in await stream:
             if self.is_debug_mode():
-                log_debug(f"◁◁◁ [SSE {event.type}]", event)  # type: ignore
+                log_debug(f"◁◁◁ stream [SSE {event.type}]", str(event), style="blue")
             match event:
                 case BetaRawMessageStartEvent() as event:
                     response_id = event.message.id

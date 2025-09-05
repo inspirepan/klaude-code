@@ -60,8 +60,10 @@ class OpenAICompatibleClient(LLMClientABC):
         if self.is_debug_mode():
             import json
 
-            log_debug("▷▷▷ [Payload Messages]", json.dumps(messages, indent=2, ensure_ascii=False))
-            log_debug("▷▷▷ [Payload Extra Body]", json.dumps(extra_body, indent=2, ensure_ascii=False))
+            log_debug("▷▷▷ llm [Payload Messages]", json.dumps(messages, indent=2, ensure_ascii=False), style="yellow")
+            log_debug(
+                "▷▷▷ llm [Payload Extra Body]", json.dumps(extra_body, indent=2, ensure_ascii=False), style="yellow"
+            )
 
         stream = self.client.chat.completions.create(
             model=str(param.model),
@@ -86,7 +88,7 @@ class OpenAICompatibleClient(LLMClientABC):
 
         async for event in await stream:
             if self.is_debug_mode():
-                log_debug("◁◁◁ [SSE]", event)  # type: ignore
+                log_debug("◁◁◁ stream [SSE]", str(event), style="blue")
             if not response_id and event.id:
                 response_id = event.id
                 accumulated_tool_calls.response_id = response_id
@@ -149,6 +151,7 @@ class OpenAICompatibleClient(LLMClientABC):
 
     def model_name(self) -> str:
         return str(self.config.model)
+
 
 def convert_usage(usage: openai.types.CompletionUsage) -> model.Usage:
     return model.Usage(
