@@ -132,16 +132,18 @@ class REPLDisplay(DisplayABC):
     def display_metadata(self, e: ResponseMetadataEvent) -> None:
         rule_text = f"[bold]{e.model_name}[/bold]"
         if e.provider is not None:
-            rule_text += f" · provider: [bold]{e.provider.lower()}[/bold]"
+            rule_text += f" · provider [bold]{e.provider.lower()}[/bold]"
         if e.usage is not None:
-            cached_token_str = f"({format_number(e.usage.cached_tokens)} cached)" if e.usage.cached_tokens > 0 else ""
-            reasoning_token_str = (
-                f"({format_number(e.usage.reasoning_tokens)} reasoning)" if e.usage.reasoning_tokens > 0 else ""
+            cached_token_str = (
+                f"([b]{format_number(e.usage.cached_tokens)}[/b] cached)" if e.usage.cached_tokens > 0 else ""
             )
-            rule_text += f" · [bold]token usage[/bold]: {format_number(e.usage.input_tokens)} input{cached_token_str}, {format_number(e.usage.output_tokens)} output{reasoning_token_str}"
+            reasoning_token_str = (
+                f"([b]{format_number(e.usage.reasoning_tokens)}[/b] reasoning)" if e.usage.reasoning_tokens > 0 else ""
+            )
+            rule_text += f" · token usage [b]{format_number(e.usage.input_tokens)}[/b] input {cached_token_str} [b]{format_number(e.usage.output_tokens)}[/b] output {reasoning_token_str}"
         self.console.print(
             Rule(
-                Text.from_markup(rule_text, style="bright_black"),
+                Text.from_markup(rule_text, style="bright_black", overflow="fold"),
                 style="bright_black",
                 align="right",
                 characters="-",
