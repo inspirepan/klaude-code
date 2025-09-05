@@ -32,6 +32,7 @@ MARKDOWN_THEME = Theme(
         "markdown.h4": "bold gray70",
     }
 )
+THINKING_PREFIX = "✶ Thinking...\n\n"
 
 
 class REPLDisplay(DisplayABC):
@@ -48,6 +49,8 @@ class REPLDisplay(DisplayABC):
             case TaskFinishEvent():
                 pass
             case ThinkingDeltaEvent() as e:
+                if len(self.current_stream_text) == 0:
+                    self.current_stream_text = THINKING_PREFIX
                 self.current_stream_text += e.content
                 if self.mdstream is None:
                     self.mdstream = MarkdownStream(
@@ -56,7 +59,7 @@ class REPLDisplay(DisplayABC):
                 self.mdstream.update(self.current_stream_text)
             case ThinkingEvent() as e:
                 if self.mdstream is not None:
-                    self.mdstream.update(e.content, final=True)
+                    self.mdstream.update(THINKING_PREFIX + e.content, final=True)
                 self.current_stream_text = ""
                 self.mdstream = None
             case AssistantMessageDeltaEvent() as e:
