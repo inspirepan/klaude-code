@@ -24,11 +24,13 @@ from codex_mini.protocol.llm_parameter import (
     LLMConfigParameter,
     apply_config_defaults,
 )
+from codex_mini.trace import log_debug
 
 
 @register(LLMClientProtocol.ANTHROPIC)
 class AnthropicClient(LLMClientABC):
     def __init__(self, config: LLMConfigParameter):
+        super().__init__()
         self.config: LLMConfigParameter = config
         client = anthropic.AsyncAnthropic(
             api_key=config.api_key,
@@ -49,6 +51,11 @@ class AnthropicClient(LLMClientABC):
         messages = convert_history_to_input(param.input)
         tools = convert_tool_schema(param.tools)
         system = convert_system_to_input(param.system)
+
+        if self.is_debug_mode():
+            import json
+
+            log_debug("▷▷▷ [Payload Messages]", json.dumps(messages, indent=2, ensure_ascii=False))
 
         stream = self.client.beta.messages.create(
             model=str(param.model),
@@ -86,6 +93,8 @@ class AnthropicClient(LLMClientABC):
         output_tokens = 0
 
         async for event in await stream:
+            if self.is_debug_mode():
+                log_debug(f"◁◁◁ [SSE {event.type}]", event)  # type: ignore
             match event:
                 case BetaRawMessageStartEvent() as event:
                     response_id = event.message.id

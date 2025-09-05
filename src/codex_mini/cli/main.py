@@ -20,15 +20,17 @@ async def forward_event(gen: AsyncGenerator[Event, None], q: asyncio.Queue[Event
         raise e
 
 
-async def run_interactive(model: str | None = None):
+async def run_interactive(model: str | None = None, debug: bool = False):
     config = load_config()
     model_config = config.get_model_config(model) if model else config.get_main_model_config()
     llm_client: LLMClientABC = create_llm_client(model_config)
-    agent: Agent = Agent(llm_client=llm_client, tools=get_tool_schemas([BASH_TOOL_NAME]))
+    if debug:
+        llm_client.enable_debug_mode()
+    agent: Agent = Agent(llm_client=llm_client, tools=get_tool_schemas([BASH_TOOL_NAME]), debug_mode=debug)
 
     q: asyncio.Queue[Event] = asyncio.Queue()
 
-    display: ui.DisplayABC = ui.REPLDisplay()
+    display: ui.DisplayABC = ui.REPLDisplay() if not debug else ui.DebugEventDisplay()
     input_provider: ui.InputProviderABC = ui.PromptToolkitInput()
 
     display_task = asyncio.create_task(display.consume_event_loop(q))
@@ -63,8 +65,9 @@ def main_callback(
         "-m",
         help="Override model config name (uses main model by default)",
     ),
+    debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
 ):
     """Root command callback. Runs interactive mode when no subcommand provided."""
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
-        asyncio.run(run_interactive(model=model))
+        asyncio.run(run_interactive(model=model, debug=debug))

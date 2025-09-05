@@ -6,6 +6,7 @@ from codex_mini.core.tool.tool_registry import run_tool
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.protocol import events, llm_parameter, model
 from codex_mini.session import Session
+from codex_mini.trace import log_debug
 
 
 class Agent:
@@ -14,6 +15,7 @@ class Agent:
         llm_client: LLMClientABC,
         session_id: str | None = None,
         tools: list[llm_parameter.ToolSchema] | None = None,
+        debug_mode: bool = False,
     ):
         work_dir: Path = Path.cwd()
         self.session: Session = (
@@ -23,6 +25,7 @@ class Agent:
         )
         self.llm_client: LLMClientABC = llm_client
         self.tools: list[llm_parameter.ToolSchema] | None = tools
+        self.debug_mode: bool = debug_mode
 
     async def run_task(self, user_input: str) -> AsyncGenerator[events.Event, None]:
         yield events.TaskStartEvent(session_id=self.session.id)
@@ -76,6 +79,8 @@ class Agent:
                 store=store_at_remote,
             )
         ):
+            if self.debug_mode:
+                log_debug(f"◀◀◀ [{response_item.__class__.__name__}]", response_item.model_dump_json(indent=2))
             match response_item:
                 case model.StartItem() as item:
                     current_response_id = item.response_id

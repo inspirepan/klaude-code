@@ -15,11 +15,13 @@ from codex_mini.protocol.llm_parameter import (
     LLMConfigParameter,
     apply_config_defaults,
 )
+from codex_mini.trace import log_debug
 
 
 @register(LLMClientProtocol.OPENAI)
 class OpenAICompatibleClient(LLMClientABC):
     def __init__(self, config: LLMConfigParameter):
+        super().__init__()
         self.config: LLMConfigParameter = config
         if config.is_azure:
             if not config.base_url:
@@ -49,9 +51,10 @@ class OpenAICompatibleClient(LLMClientABC):
         messages = convert_history_to_input(param.input, param.system)
         tools = convert_tool_schema(param.tools)
 
-        # import json
+        if self.is_debug_mode():
+            import json
 
-        # print(json.dumps(messages, indent=2, ensure_ascii=False))
+            log_debug("▷▷▷ [Payload Messages]", json.dumps(messages, indent=2, ensure_ascii=False))
 
         extra_body = {}
         if param.thinking:
@@ -81,6 +84,8 @@ class OpenAICompatibleClient(LLMClientABC):
         response_id: str | None = None
 
         async for event in await stream:
+            if self.is_debug_mode():
+                log_debug(f"◁◁◁ [SSE {event.__class__.__name__}]", event)  # type: ignore
             if not response_id and event.id:
                 response_id = event.id
                 accumulated_tool_calls.response_id = response_id

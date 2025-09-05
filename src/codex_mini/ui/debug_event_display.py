@@ -1,5 +1,4 @@
 from typing import override
-
 from rich.console import Console
 
 from codex_mini.protocol.events import Event
@@ -12,7 +11,7 @@ class DebugEventDisplay(DisplayABC):
 
     @override
     async def consume_event(self, event: Event) -> None:
-        self.console.print(f"[{event.__class__.__name__}]", event)
+        self.console.print(f"▶▶▶ [{event.__class__.__name__}]", event.model_dump_json(indent=2))
 
     async def start(self) -> None:
         pass

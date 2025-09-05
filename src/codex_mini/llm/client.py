@@ -7,6 +7,9 @@ from codex_mini.protocol.model import ConversationItem
 
 
 class LLMClientABC(ABC):
+    def __init__(self) -> None:
+        self.debug_mode: bool = False
+
     @classmethod
     @abstractmethod
     def create(cls, config: LLMConfigParameter) -> "LLMClientABC":
@@ -16,3 +19,12 @@ class LLMClientABC(ABC):
     async def call(self, param: LLMCallParameter) -> AsyncGenerator[ConversationItem, None]:
         raise NotImplementedError
         yield cast(ConversationItem, None)  # pyright: ignore[reportUnreachable]
+
+    def enable_debug_mode(self) -> None:
+        self.debug_mode = True
+
+    def disable_debug_mode(self) -> None:
+        self.debug_mode = False
+
+    def is_debug_mode(self) -> bool:
+        return self.debug_mode

@@ -26,11 +26,13 @@ from codex_mini.protocol.model import (
     ToolCallItem,
     Usage,
 )
+from codex_mini.trace import log_debug
 
 
 @register(LLMClientProtocol.RESPONSES)
 class ResponsesClient(LLMClientABC):
     def __init__(self, config: LLMConfigParameter):
+        super().__init__()
         self.config: LLMConfigParameter = config
         if config.is_azure:
             if not config.base_url:
@@ -62,6 +64,11 @@ class ResponsesClient(LLMClientABC):
 
         inputs = convert_history_to_input(param.input)
 
+        if self.is_debug_mode():
+            import json
+
+            log_debug("▷▷▷ [Payload Messages]", json.dumps(inputs, indent=2, ensure_ascii=False))
+
         stream = self.client.responses.create(
             model=str(param.model),
             tool_choice="auto",
@@ -88,8 +95,10 @@ class ResponsesClient(LLMClientABC):
             else None,
         )
 
-        async for response in await stream:
-            match response:
+        async for event in await stream:
+            if self.is_debug_mode():
+                log_debug(f"◁◁◁ [SSE {event.type}]", event)  # type: ignore
+            match event:
                 case responses.ResponseCreatedEvent() as event:
                     response_id = event.response.id
                     yield StartItem(response_id=response_id)
