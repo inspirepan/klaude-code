@@ -20,6 +20,7 @@ class OperationType(Enum):
 
     USER_INPUT = "user_input"
     INTERRUPT = "interrupt"
+    INIT_AGENT = "init_agent"
 
 
 class Operation(BaseModel, ABC):
@@ -55,6 +56,16 @@ class InterruptOperation(Operation):
     async def execute(self, context: "ExecutorContext") -> None:
         """Execute interrupt by cancelling active tasks."""
         await context.handle_interrupt(self)
+
+
+class InitAgentOperation(Operation):
+    """Operation for initializing an agent and replaying history if any."""
+
+    type: OperationType = OperationType.INIT_AGENT
+    session_id: str | None = None
+
+    async def execute(self, context: "ExecutorContext") -> None:
+        await context.handle_init_agent(self)
 
 
 class Submission(BaseModel):

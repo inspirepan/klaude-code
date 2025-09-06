@@ -13,7 +13,6 @@ class Agent:
         self,
         llm_client: LLMClientABC,
         session: Session,
-        system_prompt: str | None = None,
         tools: list[llm_parameter.ToolSchema] | None = None,
         debug_mode: bool = False,
     ):
@@ -27,40 +26,101 @@ class Agent:
 
         self.session.append_history([model.UserMessageItem(content=user_input)])
 
-        accumulated_metadata: events.ResponseMetadataEvent = events.ResponseMetadataEvent(
-            model_name="",
-            session_id=self.session.id,
-        )
+        accumulated_metadata: model.ResponseMetadataItem = model.ResponseMetadataItem(model_name="")
 
         while True:
             turn_has_tool_call = False
             async for turn_event in self.run_turn():
                 match turn_event:
-                    case events.ToolCallEvent() as event:
+                    case events.ToolCallEvent() as metadata:
                         turn_has_tool_call = True
-                        yield event
-                    case events.ResponseMetadataEvent() as event:
-                        if event.usage is not None:
+                        yield metadata
+                    case events.ResponseMetadataEvent() as e:
+                        metadata = e.metadata
+                        if metadata.usage is not None:
                             if accumulated_metadata.usage is None:
                                 accumulated_metadata.usage = model.Usage()
-                            accumulated_metadata.usage.input_tokens += event.usage.input_tokens
-                            accumulated_metadata.usage.cached_tokens += event.usage.cached_tokens
-                            accumulated_metadata.usage.reasoning_tokens += event.usage.reasoning_tokens
-                            accumulated_metadata.usage.output_tokens += event.usage.output_tokens
-                            accumulated_metadata.usage.total_tokens += event.usage.total_tokens
-                        if event.provider is not None:
-                            accumulated_metadata.provider = event.provider
-                        if event.model_name:
-                            accumulated_metadata.model_name = event.model_name
-                        if event.response_id:
-                            accumulated_metadata.response_id = event.response_id
-                    case _ as event:
-                        yield event
+                            accumulated_metadata.usage.input_tokens += metadata.usage.input_tokens
+                            accumulated_metadata.usage.cached_tokens += metadata.usage.cached_tokens
+                            accumulated_metadata.usage.reasoning_tokens += metadata.usage.reasoning_tokens
+                            accumulated_metadata.usage.output_tokens += metadata.usage.output_tokens
+                            accumulated_metadata.usage.total_tokens += metadata.usage.total_tokens
+                        if metadata.provider is not None:
+                            accumulated_metadata.provider = metadata.provider
+                        if metadata.model_name:
+                            accumulated_metadata.model_name = metadata.model_name
+                        if metadata.response_id:
+                            accumulated_metadata.response_id = metadata.response_id
+                    case _ as metadata:
+                        yield metadata
             if not turn_has_tool_call:
                 break
 
-        yield accumulated_metadata
+        yield events.ResponseMetadataEvent(metadata=accumulated_metadata, session_id=self.session.id)
+        self.session.append_history([accumulated_metadata])
         yield events.TaskFinishEvent(session_id=self.session.id)
+
+    async def replay_history(self) -> AsyncGenerator[events.Event, None]:
+        """Yield UI events reconstructed from saved conversation history."""
+
+        replay_events: list[events.HistoryItemEvent] = []
+
+        for it in self.session.conversation_history:
+            match it:
+                case model.AssistantMessageItem() as am:
+                    content = am.content or ""
+                    replay_events.append(
+                        events.AssistantMessageEvent(
+                            content=content,
+                            response_id=am.response_id,
+                            session_id=self.session.id,
+                        )
+                    )
+                case model.ToolCallItem() as tc:
+                    replay_events.append(
+                        events.ToolCallEvent(
+                            tool_call_id=tc.call_id,
+                            tool_name=tc.name,
+                            arguments=tc.arguments,
+                            response_id=tc.response_id,
+                            session_id=self.session.id,
+                        )
+                    )
+                case model.ToolResultItem() as tr:
+                    replay_events.append(
+                        events.ToolResultEvent(
+                            tool_call_id=tr.call_id,
+                            tool_name=str(tr.tool_name),
+                            result=tr.output or "",
+                            ui_extra=tr.ui_extra,
+                            session_id=self.session.id,
+                            status=tr.status,
+                        )
+                    )
+                case model.UserMessageItem() as um:
+                    replay_events.append(
+                        events.UserMessageEvent(
+                            content=um.content or "",
+                            session_id=self.session.id,
+                        )
+                    )
+                case model.ReasoningItem() as ri:
+                    replay_events.append(
+                        events.ThinkingEvent(
+                            content=ri.content or ("\n".join(ri.summary or [])),
+                            session_id=self.session.id,
+                        )
+                    )
+                case model.ResponseMetadataItem() as mt:
+                    replay_events.append(
+                        events.ResponseMetadataEvent(
+                            session_id=self.session.id,
+                            metadata=mt,
+                        )
+                    )
+                case _:
+                    continue
+        yield events.ReplayHistoryEvent(events=replay_events)
 
     async def run_turn(self) -> AsyncGenerator[events.Event, None]:
         # TODO: If LLM API error occurred, we will discard (not append to history) and retry
@@ -117,11 +177,8 @@ class Agent:
                     )
                 case model.ResponseMetadataItem() as item:
                     yield events.ResponseMetadataEvent(
-                        response_id=item.response_id,
                         session_id=self.session.id,
-                        usage=item.usage,
-                        model_name=item.model_name,
-                        provider=item.provider,
+                        metadata=item,
                     )
                 case model.ToolCallItem() as item:
                     turn_tool_calls.append(item)

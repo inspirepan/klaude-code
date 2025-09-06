@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from typing import Iterable, Literal, Union
+from typing import Iterable, Literal
 
 from pydantic import BaseModel
 
@@ -90,6 +90,7 @@ class ToolResultItem(BaseModel):
     call_id: str = ""
     output: str | None = None
     status: Literal["success", "error"]
+    tool_name: str | None = None
     ui_extra: str | None = None  # extra data for UI display, e.g. diff render
 
 
@@ -117,26 +118,21 @@ class ResponseMetadataItem(BaseModel):
     provider: str | None = None  # OpenRouter's provider name
 
 
-MessageItem = Union[
-    UserMessageItem,
-    AssistantMessageItem,
-    SystemMessageItem,
-    DeveloperMessageItem,
-    ThinkingTextItem,
-    ReasoningItem,
-    ToolCallItem,
-    ToolResultItem,
-]
+MessageItem = (
+    UserMessageItem
+    | AssistantMessageItem
+    | SystemMessageItem
+    | DeveloperMessageItem
+    | ThinkingTextItem
+    | ReasoningItem
+    | ToolCallItem
+    | ToolResultItem
+)
 
-StreamItem = Union[ThinkingTextDelta, AssistantMessageDelta]
 
-ConversationItem = Union[
-    StartItem,
-    StreamErrorItem,
-    StreamItem,
-    MessageItem,
-    ResponseMetadataItem,
-]
+StreamItem = ThinkingTextDelta | AssistantMessageDelta
+
+ConversationItem = StartItem | StreamErrorItem | StreamItem | MessageItem | ResponseMetadataItem
 
 
 def group_response_items_gen(
@@ -160,10 +156,13 @@ def group_response_items_gen(
             return "user"
         if isinstance(it, ToolResultItem):
             return "tool"
-        return "other"
+        return "other"  # Metadata etc.
 
     for item in items:
         k = kind_of(item)
+
+        if k == "other":
+            continue
 
         if k == "tool":
             # ToolMessage: flush current buffer and yield as single group

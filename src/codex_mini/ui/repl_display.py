@@ -12,6 +12,8 @@ from codex_mini.protocol.events import (
     AssistantMessageDeltaEvent,
     AssistantMessageEvent,
     Event,
+    HistoryItemEvent,
+    ReplayHistoryEvent,
     ResponseMetadataEvent,
     TaskFinishEvent,
     TaskStartEvent,
@@ -19,6 +21,7 @@ from codex_mini.protocol.events import (
     ThinkingEvent,
     ToolCallEvent,
     ToolResultEvent,
+    UserMessageEvent,
 )
 from codex_mini.ui.display_abc import DisplayABC
 from codex_mini.ui.mdstream import MarkdownStream
@@ -89,6 +92,8 @@ class REPLDisplay(DisplayABC):
                 self.display_tool_call_result(e)
                 self.console.print()
                 self.stage = "tool_result"
+            case ReplayHistoryEvent() as e:
+                await self.replay_history(e.events)
             case _:
                 self.console.print("[Event]", event.__class__.__name__, event)
 
@@ -348,17 +353,22 @@ class REPLDisplay(DisplayABC):
                 )
 
     def display_metadata(self, e: ResponseMetadataEvent) -> None:
-        rule_text = f"[bold]{e.model_name}[/bold]"
-        if e.provider is not None:
-            rule_text += f" · [bold]{e.provider.lower()}[/bold]"
-        if e.usage is not None:
+        metadata = e.metadata
+        rule_text = f"[bold]{metadata.model_name}[/bold]"
+        if metadata.provider is not None:
+            rule_text += f" · [bold]{metadata.provider.lower()}[/bold]"
+        if metadata.usage is not None:
             cached_token_str = (
-                f" ([b]{format_number(e.usage.cached_tokens)}[/b] cached)" if e.usage.cached_tokens > 0 else ""
+                f" ([b]{format_number(metadata.usage.cached_tokens)}[/b] cached)"
+                if metadata.usage.cached_tokens > 0
+                else ""
             )
             reasoning_token_str = (
-                f" ([b]{format_number(e.usage.reasoning_tokens)}[/b] reasoning)" if e.usage.reasoning_tokens > 0 else ""
+                f" ([b]{format_number(metadata.usage.reasoning_tokens)}[/b] reasoning)"
+                if metadata.usage.reasoning_tokens > 0
+                else ""
             )
-            rule_text += f" · token: [b]{format_number(e.usage.input_tokens)}[/b] input{cached_token_str} [b]{format_number(e.usage.output_tokens)}[/b] output{reasoning_token_str}"
+            rule_text += f" · token: [b]{format_number(metadata.usage.input_tokens)}[/b] input{cached_token_str} [b]{format_number(metadata.usage.output_tokens)}[/b] output{reasoning_token_str}"
         self.console.print(
             Rule(
                 Text.from_markup(rule_text, style="bright_black", overflow="fold"),
@@ -367,3 +377,34 @@ class REPLDisplay(DisplayABC):
                 characters="-",
             )
         )
+
+    async def replay_history(self, history_events: list[HistoryItemEvent]) -> None:
+        for event in history_events:
+            match event:
+                case AssistantMessageEvent() as e:
+                    MarkdownStream(mdargs={"code_theme": CODE_THEME}, theme=MARKDOWN_THEME).update(
+                        e.content.strip(), final=True
+                    )
+                case ThinkingEvent() as e:
+                    MarkdownStream(
+                        mdargs={"code_theme": CODE_THEME, "style": THINKING_STYLE}, theme=MARKDOWN_THEME
+                    ).update(THINKING_PREFIX + "\n" + e.content.strip(), final=True)
+                case UserMessageEvent() as e:
+                    lines = e.content.split("\n")
+                    grid = Table.grid()
+                    table = Table.grid(padding=(0, 1))
+                    table.add_column(width=1, no_wrap=True)
+                    table.add_column(overflow="fold")
+                    for line in lines:
+                        grid.add_row(
+                            Text("┃ ", style="bright_black"),
+                            Text(line, style="bright_black"),
+                        )
+                    self.console.print(grid)
+                    self.console.print()
+                case ToolCallEvent() | ToolResultEvent() as e:
+                    await self.consume_event(e)
+                    self.console.print()
+                case ResponseMetadataEvent() as e:
+                    self.display_metadata(e)
+                    self.console.print()

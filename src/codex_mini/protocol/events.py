@@ -1,8 +1,8 @@
-from typing import Literal, Union
+from typing import Literal
 
 from pydantic import BaseModel
 
-from codex_mini.protocol.model import Usage
+from codex_mini.protocol import model
 
 """
 Event is how Agent Executor and UI Display communicate.
@@ -69,22 +69,34 @@ class ToolResultEvent(BaseModel):
 
 class ResponseMetadataEvent(BaseModel):
     session_id: str
-    response_id: str | None = None
-    usage: Usage | None = None
-    model_name: str
-    provider: str | None = None  # OpenRouter's provider name
+    metadata: model.ResponseMetadataItem
 
 
-Event = Union[
-    TaskStartEvent,
-    TaskFinishEvent,
-    ThinkingDeltaEvent,
-    ThinkingEvent,
-    AssistantMessageDeltaEvent,
-    AssistantMessageEvent,
-    ToolCallEvent,
-    ToolResultEvent,
-    ResponseMetadataEvent,
-    ErrorEvent,
-    EndEvent,
-]
+class UserMessageEvent(BaseModel):
+    session_id: str
+    content: str
+
+
+HistoryItemEvent = (
+    ThinkingEvent | AssistantMessageEvent | ToolCallEvent | ToolResultEvent | UserMessageEvent | ResponseMetadataEvent
+)
+
+
+class ReplayHistoryEvent(BaseModel):
+    events: list[HistoryItemEvent]
+
+
+Event = (
+    TaskStartEvent
+    | TaskFinishEvent
+    | ThinkingDeltaEvent
+    | ThinkingEvent
+    | AssistantMessageDeltaEvent
+    | AssistantMessageEvent
+    | ToolCallEvent
+    | ToolResultEvent
+    | ResponseMetadataEvent
+    | ReplayHistoryEvent
+    | ErrorEvent
+    | EndEvent
+)

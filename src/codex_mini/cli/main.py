@@ -8,10 +8,11 @@ from codex_mini.config.list_model import display_models_and_providers
 from codex_mini.core.executor import Executor
 from codex_mini.llm import LLMClientABC, create_llm_client
 from codex_mini.protocol.events import EndEvent, Event
+from codex_mini.session import Session
 from codex_mini.trace import log, log_debug
 
 
-async def run_interactive(model: str | None = None, debug: bool = False):
+async def run_interactive(model: str | None = None, debug: bool = False, continue_session: bool = False):
     """Run the interactive REPL using the new executor architecture."""
     config = load_config()
     model_config = config.get_model_config(model) if model else config.get_main_model_config()
@@ -39,7 +40,17 @@ async def run_interactive(model: str | None = None, debug: bool = False):
     # Start UI display task
     display_task = asyncio.create_task(display.consume_event_loop(event_queue))
 
+    # Determine session to continue if requested
+    session_id: str | None = None
+    if continue_session:
+        session_id = Session.most_recent_session_id()
+
     try:
+        # Init Agent
+        init_id = await executor.submit({"type": "init_agent", "session_id": session_id})
+        await executor.wait_for_completion(init_id)
+        await event_queue.join()
+        # Input
         await input_provider.start()
         async for user_input in input_provider.iter_inputs():
             # Handle special commands
@@ -52,7 +63,7 @@ async def run_interactive(model: str | None = None, debug: bool = False):
                 {
                     "type": "user_input",
                     "content": user_input,
-                    "session_id": None,  # Use default session
+                    "session_id": session_id,
                 }
             )
             # Wait for this specific task to complete before accepting next input
@@ -101,8 +112,9 @@ def main_callback(
         help="Override model config name (uses main model by default)",
     ),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
+    continue_: bool = typer.Option(False, "--continue", "-c", help="Continue from latest session"),
 ):
     """Root command callback. Runs interactive mode when no subcommand provided."""
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
-        asyncio.run(run_interactive(model=model, debug=debug))
+        asyncio.run(run_interactive(model=model, debug=debug, continue_session=continue_))

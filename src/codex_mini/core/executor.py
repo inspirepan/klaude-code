@@ -15,7 +15,7 @@ from codex_mini.core.prompt import get_system_prompt
 from codex_mini.core.tool import BASH_TOOL_NAME, EDIT_TOOL_NAME, MULTI_EDIT_TOOL_NAME, READ_TOOL_NAME, get_tool_schemas
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.protocol.events import ErrorEvent, Event, TaskFinishEvent
-from codex_mini.protocol.op import InterruptOperation, Submission, UserInputOperation
+from codex_mini.protocol.op import InitAgentOperation, InterruptOperation, Submission, UserInputOperation
 from codex_mini.session.session import Session
 from codex_mini.trace import log_debug
 
@@ -42,33 +42,42 @@ class ExecutorContext:
         """Emit an event to the UI display system."""
         await self.event_queue.put(event)
 
-    async def handle_user_input(self, operation: UserInputOperation) -> None:
-        """Handle a user input operation by running it through an agent."""
-        session = (
-            Session(work_dir=Path.cwd(), system_prompt=get_system_prompt(self.llm_client.model_name()))
-            if operation.session_id is None
-            else Session.load(operation.session_id)
-        )
-        session_id = session.id
-        # Get or create agent for this session
-        if session_id not in self.active_agents:
+    async def handle_init_agent(self, operation: InitAgentOperation) -> None:
+        """Initialize an agent for a session and replay history to UI."""
+        session_key = operation.session_id or "default"
+        # Create agent if not exists
+        if session_key not in self.active_agents:
+            system_prompt = get_system_prompt(self.llm_client.model_name())
+            if session_key == "default":
+                session = Session(work_dir=Path.cwd(), system_prompt=system_prompt)
+            else:
+                session = Session.load(session_key, system_prompt=system_prompt)
             agent = Agent(
                 llm_client=self.llm_client,
                 session=session,
                 tools=get_tool_schemas([BASH_TOOL_NAME, READ_TOOL_NAME, EDIT_TOOL_NAME, MULTI_EDIT_TOOL_NAME]),
-                system_prompt=get_system_prompt(self.llm_client.model_name()),
                 debug_mode=self.debug_mode,
             )
-            self.active_agents[session_id] = agent
-
+            async for evt in agent.replay_history():
+                await self.emit_event(evt)
+            self.active_agents[session_key] = agent
             if self.debug_mode:
-                log_debug(f"Created new agent for session: {session_id}", style="cyan")
+                log_debug(f"Initialized agent for session: {session.id}", style="cyan")
 
-        agent = self.active_agents[session_id]
+    async def handle_user_input(self, operation: UserInputOperation) -> None:
+        """Handle a user input operation by running it through an agent."""
+
+        session_key = operation.session_id or "default"
+        # Ensure initialized via init_agent
+        if session_key not in self.active_agents:
+            await self.handle_init_agent(InitAgentOperation(id=str(uuid4()), session_id=operation.session_id))
+
+        agent = self.active_agents[session_key]
+        actual_session_id = agent.session.id
 
         # Start task to process user input and wait for it to complete
         task: asyncio.Task[None] = asyncio.create_task(
-            self._run_agent_task(agent, operation.content, operation.id, session_id)
+            self._run_agent_task(agent, operation.content, operation.id, actual_session_id)
         )
         self.active_tasks[operation.id] = task
 
@@ -179,6 +188,9 @@ class Executor:
         elif op_type == "interrupt":
             target_session_id = cast(str | None, operation_data.get("target_session_id"))
             operation = InterruptOperation(id=submission_id, target_session_id=target_session_id)
+        elif op_type == "init_agent":
+            session_id = cast(str | None, operation_data.get("session_id"))
+            operation = InitAgentOperation(id=submission_id, session_id=session_id)
         else:
             raise ValueError(f"Unsupported operation type: {op_type}")
 
