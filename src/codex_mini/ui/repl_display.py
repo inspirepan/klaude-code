@@ -28,8 +28,9 @@ MARKDOWN_THEME = Theme(
     styles={
         "markdown.code": "medium_purple3",
         "markdown.h1.border": "gray70",
-        "markdown.h3": "bold gray54",
-        "markdown.h4": "bold gray70",
+        "markdown.h2.border": "gray70",
+        "markdown.h3": "bold gray46",
+        "markdown.h4": "bold gray54",
     }
 )
 THINKING_PREFIX = "✶ Thinking...\n"
