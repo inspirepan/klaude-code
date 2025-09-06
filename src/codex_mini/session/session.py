@@ -10,7 +10,7 @@ from codex_mini.protocol.model import ConversationItem
 class Session(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     work_dir: Path
-    conversation_history: list[ConversationItem] = Field(default_factory=list)
+    conversation_history: list[ConversationItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     system_prompt: str | None = None
     last_response_id: str | None = None
 

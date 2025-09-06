@@ -47,7 +47,7 @@ class BasicToolCallAccumulator(ToolCallAccumulatorABC, BaseModel):
     [ChoiceDeltaToolCall(index=1, id='call_88931225', function=ChoiceDeltaToolCallFunction(arguments='{"command":"ls"}', name='Bash'), type='function')]
     """
 
-    chunks_by_step: list[list[ChoiceDeltaToolCall]] = Field(default_factory=list)
+    chunks_by_step: list[list[ChoiceDeltaToolCall]] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     response_id: str | None = None
 
     def add(self, chunks: list[ChoiceDeltaToolCall]):
