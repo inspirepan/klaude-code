@@ -201,3 +201,95 @@ class Session(BaseModel):
             except Exception:
                 continue
         return latest_id
+
+    class SessionMetaBrief(BaseModel):
+        id: str
+        created_at: float
+        updated_at: float
+        work_dir: str
+        path: str
+        first_user_message: str | None = None
+
+    @classmethod
+    def list(cls) -> list[SessionMetaBrief]:
+        """List all sessions for the current project.
+
+        Returns a list of dicts with keys: id, created_at, updated_at, work_dir, path.
+        Sorted by updated_at descending.
+        """
+        sessions_dir = cls._sessions_dir()
+        if not sessions_dir.exists():
+            return []
+
+        def _get_first_user_message(session_id: str, created_at: float) -> str | None:
+            """Get the first user message from the session's jsonl file."""
+            messages_dir = cls._messages_dir()
+            if not messages_dir.exists():
+                return None
+
+            # Find the messages file for this session
+            prefix = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime(created_at))
+            msg_file = messages_dir / f"{prefix}-{session_id}.jsonl"
+
+            if not msg_file.exists():
+                # Try to find by pattern if exact file doesn't exist
+                msg_candidates = sorted(
+                    messages_dir.glob(f"*-{session_id}.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True
+                )
+                if not msg_candidates:
+                    return None
+                msg_file = msg_candidates[0]
+
+            try:
+                for line in msg_file.read_text().splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    obj = json.loads(line)
+                    if obj.get("type") == "UserMessageItem":
+                        data = obj.get("data", {})
+                        content = data.get("content", "")
+                        if isinstance(content, str):
+                            return content
+                        elif isinstance(content, list) and content:
+                            # Handle structured content - extract text
+                            text_parts: list[str] = []
+                            for part in content:  # pyright: ignore[reportUnknownVariableType]
+                                if isinstance(part, dict) and part.get("type") == "text":  # pyright: ignore[reportUnknownMemberType]
+                                    text = part.get("text", "")  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+                                    if isinstance(text, str):
+                                        text_parts.append(text)
+                            return " ".join(text_parts) if text_parts else None
+                        return None
+            except Exception:
+                return None
+            return None
+
+        items: list[Session.SessionMetaBrief] = []
+        for p in sessions_dir.glob("*.json"):
+            try:
+                data = json.loads(p.read_text())
+            except Exception:
+                # Skip unreadable files
+                continue
+            sid = str(data.get("id", p.stem))
+            created = float(data.get("created_at", p.stat().st_mtime))
+            updated = float(data.get("updated_at", p.stat().st_mtime))
+            work_dir = str(data.get("work_dir", ""))
+
+            # Get first user message
+            first_user_message = _get_first_user_message(sid, created)
+
+            items.append(
+                Session.SessionMetaBrief(
+                    id=sid,
+                    created_at=created,
+                    updated_at=updated,
+                    work_dir=work_dir,
+                    path=str(p),
+                    first_user_message=first_user_message,
+                )
+            )
+        # Sort by updated_at desc
+        items.sort(key=lambda d: d.updated_at, reverse=True)
+        return items

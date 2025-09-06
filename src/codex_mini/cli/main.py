@@ -13,10 +13,9 @@ from codex_mini.trace import log, log_debug
 
 
 def _select_model_from_config(preferred: str | None = None) -> str | None:
-    """Interactive single-choice model selector.
-
-    Preferred flow uses questionary TUI when a TTY is available; otherwise
-    falls back to numeric input.
+    """
+    Interactive single-choice model selector.
+    for `--select-model`
     """
     config = load_config()
     models = config.model_list
@@ -39,7 +38,7 @@ def _select_model_from_config(preferred: str | None = None) -> str | None:
         for m in models:
             star = "★ " if m.model_name == config.main_model else "  "
             label = [
-                ("class:text", f"{star}{m.model_name:<{max_model_name_length}}   → "),
+                ("class:t", f"{star}{m.model_name:<{max_model_name_length}}   → "),
                 ("class:b", m.model_params.model or "N/A"),
                 ("class:d", f" {m.provider}"),
             ]
@@ -53,7 +52,7 @@ def _select_model_from_config(preferred: str | None = None) -> str | None:
             instruction="↑↓ to move • Enter to select",
             style=questionary.Style(
                 [
-                    ("text", ""),
+                    ("t", ""),
                     ("b", "bold"),
                     ("d", "dim"),
                 ]
@@ -66,7 +65,71 @@ def _select_model_from_config(preferred: str | None = None) -> str | None:
         pass
 
 
-async def run_interactive(model: str | None = None, debug: bool = False, continue_session: bool = False):
+def _resume_select_session() -> str | None:
+    """
+    List sessions for current project and let user pick one.
+    for `--resume`
+    """
+    sessions = Session.list()
+    if not sessions:
+        log("No sessions found for this project.")
+        return None
+
+    # Format timestamps
+    import time as _t
+
+    def _fmt(ts: float) -> str:
+        try:
+            return _t.strftime("%m-%d %H:%M:%S", _t.localtime(ts))
+        except Exception:
+            return str(ts)
+
+    try:
+        import questionary
+
+        choices: list[questionary.Choice] = []
+        for s in sessions:
+            first_user_message = s.first_user_message or "N/A"
+
+            title = [
+                ("class:d", f"{_fmt(s.created_at):<16} "),
+                ("class:d", f"{_fmt(s.updated_at):<16} "),
+                ("class:t", f"{first_user_message.strip().replace('\n', ' ↩ '):<50}"),
+            ]
+            choices.append(questionary.Choice(title=title, value=s.id))
+        return questionary.select(
+            message=f"{' Created at':<17} {'Updated at':<16} {'First message':<50}",
+            choices=choices,
+            pointer="→",
+            instruction="↑↓ to move",
+            style=questionary.Style(
+                [
+                    ("t", ""),
+                    ("b", "bold"),
+                    ("d", "dim"),
+                ]
+            ),
+        ).ask()
+    except Exception as e:
+        log_debug(f"Failed to use questionary for session select, {e}")
+        # Fallback: numbered prompt
+        for i, s in enumerate(sessions, 1):
+            print(f"{i}. {_fmt(s.updated_at)}  {s.id}  {s.work_dir}")
+        try:
+            raw = input("Select a session number: ").strip()
+            idx = int(raw)
+            if 1 <= idx <= len(sessions):
+                return str(sessions[idx - 1].id)
+        except Exception:
+            return None
+    return None
+
+
+async def run_interactive(
+    model: str | None = None,
+    debug: bool = False,
+    session_id: str | None = None,
+):
     """Run the interactive REPL using the new executor architecture."""
     config = load_config()
     llm_config = config.get_model_config(model) if model else config.get_main_model_config()
@@ -93,11 +156,6 @@ async def run_interactive(model: str | None = None, debug: bool = False, continu
 
     # Start UI display task
     display_task = asyncio.create_task(display.consume_event_loop(event_queue))
-
-    # Determine session to continue if requested
-    session_id: str | None = None
-    if continue_session:
-        session_id = Session.most_recent_session_id()
 
     try:
         # Init Agent
@@ -173,6 +231,7 @@ def main_callback(
     ),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
     continue_: bool = typer.Option(False, "--continue", "-c", help="Continue from latest session"),
+    resume: bool = typer.Option(False, "--resume", "-r", help="Select a session to resume for this project"),
 ):
     """Root command callback. Runs interactive mode when no subcommand provided."""
     # Only run interactive mode when no subcommand is invoked
@@ -184,4 +243,21 @@ def main_callback(
             chosen_model = _select_model_from_config(preferred=default_name)
             if chosen_model is None:
                 return
-        asyncio.run(run_interactive(model=chosen_model, debug=debug, continue_session=continue_))
+
+        # Resolve session id before entering asyncio loop
+        session_id: str | None = None
+        if resume:
+            session_id = _resume_select_session()
+            if session_id is None:
+                return
+        # If user didn't pick, allow fallback to --continue
+        if session_id is None and continue_:
+            session_id = Session.most_recent_session_id()
+
+        asyncio.run(
+            run_interactive(
+                model=chosen_model,
+                debug=debug,
+                session_id=session_id,
+            )
+        )
