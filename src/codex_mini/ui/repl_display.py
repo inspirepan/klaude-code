@@ -359,16 +359,16 @@ class REPLDisplay(DisplayABC):
             rule_text += f" · [bold]{metadata.provider.lower()}[/bold]"
         if metadata.usage is not None:
             cached_token_str = (
-                f" ([b]{format_number(metadata.usage.cached_tokens)}[/b] cached)"
+                f", ([b]{format_number(metadata.usage.cached_tokens)}[/b] cached)"
                 if metadata.usage.cached_tokens > 0
                 else ""
             )
             reasoning_token_str = (
-                f" ([b]{format_number(metadata.usage.reasoning_tokens)}[/b] reasoning)"
+                f", ([b]{format_number(metadata.usage.reasoning_tokens)}[/b] reasoning)"
                 if metadata.usage.reasoning_tokens > 0
                 else ""
             )
-            rule_text += f" · token: [b]{format_number(metadata.usage.input_tokens)}[/b] input{cached_token_str} [b]{format_number(metadata.usage.output_tokens)}[/b] output{reasoning_token_str}"
+            rule_text += f" · token: [b]{format_number(metadata.usage.input_tokens)}[/b] input{cached_token_str}, [b]{format_number(metadata.usage.output_tokens)}[/b] output{reasoning_token_str}"
         self.console.print(
             Rule(
                 Text.from_markup(rule_text, style="bright_black", overflow="fold"),
