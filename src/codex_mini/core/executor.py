@@ -74,14 +74,14 @@ class ExecutorContext:
                 ),
                 debug_mode=self.debug_mode,
             )
+            async for evt in agent.replay_history():
+                await self.emit_event(evt)
             await self.emit_event(
                 events.WelcomeEvent(
                     work_dir=str(session.work_dir),
                     llm_config=self.llm_config,
                 )
             )
-            async for evt in agent.replay_history():
-                await self.emit_event(evt)
             self.active_agents[session_key] = agent
             if self.debug_mode:
                 log_debug(f"Initialized agent for session: {session.id}", style="cyan")

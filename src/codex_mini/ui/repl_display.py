@@ -1,7 +1,7 @@
 import json
+import time
 from typing import Literal, override
 
-from rich import box
 from rich.console import Console, RenderableType
 from rich.padding import Padding
 from rich.panel import Panel
@@ -81,7 +81,7 @@ class REPLDisplay(DisplayABC):
                 self.console.print()
                 self.stage = "tool_result"
             case events.ReplayHistoryEvent() as e:
-                await self.replay_history(e.events)
+                await self.replay_history(e)
             case events.WelcomeEvent() as e:
                 self.display_welcome(e)
             case events.ErrorEvent() as e:
@@ -427,12 +427,11 @@ class REPLDisplay(DisplayABC):
             Panel.fit(
                 Text.assemble((str(e.llm_config.model), "bold"), ("@", "dim"), (e.llm_config.provider_name, "dim")),
                 border_style="grey70",
-                box=box.ASCII2,
             )
         )
 
-    async def replay_history(self, history_events: list[events.HistoryItemEvent]) -> None:
-        for event in history_events:
+    async def replay_history(self, history_events: events.ReplayHistoryEvent) -> None:
+        for event in history_events.events:
             match event:
                 case events.AssistantMessageEvent() as e:
                     MarkdownStream(mdargs={"code_theme": CODE_THEME}, theme=MARKDOWN_THEME).update(
@@ -463,3 +462,14 @@ class REPLDisplay(DisplayABC):
                 case events.ResponseMetadataEvent() as e:
                     self.display_metadata(e)
                     self.console.print()
+        self.console.print(
+            Rule(
+                title=Text(
+                    "LOADED {}".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(history_events.updated_at))),
+                    style="bold green",
+                ),
+                characters="=",
+                style="green",
+            )
+        )
+        self.console.print()

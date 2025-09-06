@@ -89,6 +89,7 @@ HistoryItemEvent = (
 
 class ReplayHistoryEvent(BaseModel):
     events: list[HistoryItemEvent]
+    updated_at: float
 
 
 Event = (

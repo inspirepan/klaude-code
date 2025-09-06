@@ -123,7 +123,7 @@ class Agent:
                     )
                 case _:
                     continue
-        yield events.ReplayHistoryEvent(events=replay_events)
+        yield events.ReplayHistoryEvent(events=replay_events, updated_at=self.session.updated_at)
 
     async def run_turn(self) -> AsyncGenerator[events.Event, None]:
         # TODO: If LLM API error occurred, we will discard (not append to history) and retry
