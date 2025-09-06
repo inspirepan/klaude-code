@@ -444,6 +444,7 @@ class REPLDisplay(DisplayABC):
         )
 
     async def replay_history(self, history_events: events.ReplayHistoryEvent) -> None:
+        tool_call_dict: dict[str, events.ToolCallEvent] = {}
         for event in history_events.events:
             match event:
                 case events.AssistantMessageEvent() as e:
@@ -469,8 +470,12 @@ class REPLDisplay(DisplayABC):
                     self.console.print(grid)
                     self.console.print()
                 case events.ToolCallEvent() as e:
-                    await self.consume_event(e)
+                    tool_call_dict[e.tool_call_id] = e
                 case events.ToolResultEvent() as e:
+                    tool_call_event = tool_call_dict.get(e.tool_call_id)
+                    if tool_call_event is not None:
+                        await self.consume_event(tool_call_event)
+                    tool_call_dict.pop(e.tool_call_id, None)
                     await self.consume_event(e)
                 case events.ResponseMetadataEvent() as e:
                     self.display_metadata(e)
