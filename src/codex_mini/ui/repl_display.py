@@ -425,9 +425,28 @@ class REPLDisplay(DisplayABC):
         )
 
     def display_welcome(self, e: events.WelcomeEvent) -> None:
+        model_info = Text.assemble(
+            (str(e.llm_config.model), "bold"), (" @ ", "dim"), (e.llm_config.provider_name, "dim")
+        )
+        if e.llm_config.reasoning is not None and e.llm_config.reasoning.effort:
+            model_info.append_text(
+                Text.assemble(("\n• reasoning-effort: ", "dim"), (e.llm_config.reasoning.effort, "bold"))
+            )
+        if e.llm_config.thinking is not None and e.llm_config.thinking.budget_tokens:
+            model_info.append_text(
+                Text.assemble(("\n• thinking-budget: ", "dim"), (str(e.llm_config.thinking.budget_tokens), "bold"))
+            )
+        if e.llm_config.verbosity:
+            model_info.append_text(Text.assemble(("\n• verbosity: ", "dim"), (str(e.llm_config.verbosity), "bold")))
+        if pr := e.llm_config.provider_routing:
+            if pr.sort:
+                model_info.append_text(Text.assemble(("\n• provider-sort: ", "dim"), (str(pr.sort), "bold")))
+            if pr.order:
+                model_info.append_text(Text.assemble(("\n• provider-order: ", "dim"), (">".join(pr.order), "bold")))
+
         self.console.print(
             Panel.fit(
-                Text.assemble((str(e.llm_config.model), "bold"), ("@", "dim"), (e.llm_config.provider_name, "dim")),
+                model_info,
                 border_style="grey70",
             )
         )

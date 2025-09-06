@@ -33,10 +33,13 @@ def _select_model_from_config(preferred: str | None = None) -> str | None:
         import questionary
 
         choices: list[questionary.Choice] = []
+
+        max_model_name_length = max(len(m.model_name) for m in models)
+        print(max_model_name_length)
         for m in models:
             star = "★ " if m.model_name == config.main_model else "  "
             label = [
-                ("class:text", f"{star}{m.model_name:<15}   → "),
+                ("class:text", f"{star}{m.model_name:<{max_model_name_length}}   → "),
                 ("class:b", m.model_params.model or "N/A"),
                 ("class:d", f" {m.provider}"),
             ]
