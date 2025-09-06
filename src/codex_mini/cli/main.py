@@ -5,6 +5,7 @@ import typer
 
 from codex_mini import ui
 from codex_mini.config import load_config
+from codex_mini.config.list_model import display_models_and_providers
 from codex_mini.core import Agent
 from codex_mini.core.tool import BASH_TOOL_NAME, get_tool_schemas
 from codex_mini.llm import LLMClientABC, create_llm_client
@@ -65,6 +66,13 @@ app = typer.Typer(
     pretty_exceptions_enable=False,
     no_args_is_help=False,
 )
+
+
+@app.command("list")
+def list_models():
+    """List all models and providers configuration"""
+    config = load_config()
+    display_models_and_providers(config)
 
 
 @app.callback(invoke_without_command=True)
