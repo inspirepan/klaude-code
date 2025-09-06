@@ -132,15 +132,20 @@ class REPLDisplay(DisplayABC):
             else:
                 self.console.print(Text(e.content, style=THINKING_STYLE), end="")
 
+    def _create_grid(self) -> Table:
+        """Create a standard two-column grid table to align the text in the second column."""
+        grid = Table.grid(padding=(0, 1))
+        grid.add_column(no_wrap=True)
+        grid.add_column(overflow="fold")
+        return grid
+
     def render_error(self, error_msg: str) -> RenderableType:
-        table = Table.grid(padding=(0, 1))
-        table.add_column(no_wrap=True)
-        table.add_column(overflow="fold")
-        table.add_row(
+        grid = self._create_grid()
+        grid.add_row(
             Text("✘", style="bold red"),
             Text(self.truncate_display(error_msg), style="red"),
         )
-        return table
+        return grid
 
     def render_any_tool_call(self, tool_name: str, arguments: str, markup: str = "•") -> Text:
         render_result: Text = Text.assemble((markup, "bold"), " ", (tool_name, TOOL_NAME_STYLE), " ")
@@ -157,9 +162,7 @@ class REPLDisplay(DisplayABC):
             return render_result.append_text(Text(arguments))
 
     def render_read_tool_call(self, arguments: str) -> RenderableType:
-        table = Table.grid(padding=(0, 1))
-        table.add_column(no_wrap=True)
-        table.add_column(overflow="fold")
+        grid = self._create_grid()
         render_result: Text = Text.assemble(("Read", TOOL_NAME_STYLE), " ")
         try:
             json_dict = json.loads(arguments)
@@ -190,8 +193,8 @@ class REPLDisplay(DisplayABC):
                 )
         except json.JSONDecodeError:
             render_result = render_result.append_text(Text(arguments))
-        table.add_row(Text("←", "bold"), render_result)
-        return table
+        grid.add_row(Text("←", "bold"), render_result)
+        return grid
 
     def render_edit_tool_call(self, arguments: str) -> Text:
         render_result: Text = Text.assemble(("→ ", "bold"))
@@ -254,10 +257,7 @@ class REPLDisplay(DisplayABC):
             return Text("")
 
         lines = diff_text.split("\n")
-
-        table = Table.grid(padding=(0, 1))
-        table.add_column(no_wrap=True)
-        table.add_column(overflow="fold")
+        grid = self._create_grid()
 
         # Track line numbers based on hunk headers
         new_ln: int | None = None
@@ -275,7 +275,7 @@ class REPLDisplay(DisplayABC):
                     new_ln = new_start
                 except Exception:
                     new_ln = None
-                table.add_row("   …", "")
+                grid.add_row("   …", "")
                 continue
 
             # Skip file header lines entirely
@@ -314,19 +314,16 @@ class REPLDisplay(DisplayABC):
                 line_style = ""
             text = Text(line)
             text.stylize(line_style)
-            table.add_row(prefix, text)
+            grid.add_row(prefix, text)
 
-        return table
+        return grid
 
     def render_todo(self, tr: events.ToolResultEvent) -> RenderableType:
         if tr.ui_extra is None:
             return self.render_error("(no content)")
         try:
             ui_extra = model.TodoUIExtra.model_validate_json(tr.ui_extra)
-
-            table = Table.grid(padding=(0, 1))
-            table.add_column(no_wrap=True)
-            table.add_column(overflow="fold")
+            grid = self._create_grid()
 
             for todo in ui_extra.todos:
                 is_new_completed = todo.content in ui_extra.new_completed
@@ -345,11 +342,11 @@ class REPLDisplay(DisplayABC):
                         text_style = "green strike bold" if is_new_completed else "dim strike"
                 text = Text(todo.content)
                 text.stylize(text_style)
-                table.add_row(
+                grid.add_row(
                     Text(mark, style=f"bold {mark_style}"),
                     text,
                 )
-            return table
+            return grid
 
         except json.JSONDecodeError as e:
             return self.render_error(str(e))
@@ -457,15 +454,13 @@ class REPLDisplay(DisplayABC):
                     ).update(e.content.strip(), final=True)
                 case events.UserMessageEvent() as e:
                     lines = e.content.split("\n")
-                    table = Table.grid(padding=(0, 1))
-                    table.add_column(no_wrap=True)
-                    table.add_column(overflow="fold")
+                    grid = self._create_grid()
                     for line in lines:
-                        table.add_row(
+                        grid.add_row(
                             Text("┃", style="bright_black"),
                             Text(line, style="bright_black"),
                         )
-                    self.console.print(table)
+                    self.console.print(grid)
                     self.console.print()
                 case events.ToolCallEvent() as e:
                     tool_call_dict[e.tool_call_id] = e
