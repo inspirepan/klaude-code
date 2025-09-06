@@ -1,9 +1,10 @@
 import json
 from typing import Literal, override
 
-from rich.console import Console
+from rich.console import Console, RenderableType
 from rich.padding import Padding
 from rich.rule import Rule
+from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
@@ -35,11 +36,21 @@ MARKDOWN_THEME = Theme(
 )
 THINKING_PREFIX = "✶ Thinking...\n"
 THINKING_STYLE = "italic bright_black"
+TOOL_NAME_STYLE = "bold"
+DIFF_REMOVE_LINE_STYLE = "on #ffa8b4"
+DIFF_ADDED_LINE_STYLE = "on #69db7c"
 
 
 class REPLDisplay(DisplayABC):
     def __init__(self):
-        self.console: Console = Console()
+        self.console: Console = Console(
+            theme=Theme(
+                styles={
+                    "diff.remove": DIFF_REMOVE_LINE_STYLE,
+                    "diff.add": DIFF_ADDED_LINE_STYLE,
+                }
+            )
+        )
         self.assistant_mdstream: MarkdownStream | None = None
         self.accumulated_assistant_text = ""
         self.stage: Literal["waiting", "thinking", "assistant", "tool_call", "tool_result"] = "waiting"
@@ -119,28 +130,100 @@ class REPLDisplay(DisplayABC):
             else:
                 self.console.print(Text(e.content, style=THINKING_STYLE), end="")
 
-    def render_tool_call_arguments(self, arguments: str) -> Text:
+    def render_any_tool_call(self, tool_name: str, arguments: str, markup: str = "•") -> Text:
+        render_result: Text = Text.assemble((markup, "bold"), " ", (tool_name, TOOL_NAME_STYLE), " ")
         if not arguments:
-            return Text("")
+            return render_result
         try:
             json_dict = json.loads(arguments)
             if len(json_dict) == 0:
-                return Text("")
+                return render_result
             if len(json_dict) == 1:
-                return Text(str(next(iter(json_dict.values()))), "green")
-            return Text(", ".join([f"{k}: {v}" for k, v in json_dict.items()]), "green")
+                return render_result.append(Text(str(next(iter(json_dict.values()))), "green"))
+            return render_result.append(Text(", ".join([f"{k}: {v}" for k, v in json_dict.items()]), "green"))
         except json.JSONDecodeError:
-            return Text(arguments)
+            return render_result.append(Text(arguments))
+
+    def render_read_tool_call(self, arguments: str) -> Text:
+        render_result: Text = Text.assemble(("← ", "bold"), ("Read", TOOL_NAME_STYLE), " ")
+        try:
+            json_dict = json.loads(arguments)
+            file_path = json_dict.get("file_path")
+            limit = json_dict.get("limit", None)
+            offset = json_dict.get("offset", None)
+            render_result = render_result.append(Text(file_path, "green"))
+            if limit is not None and offset is not None:
+                render_result = (
+                    render_result.append_text(Text(" "))
+                    .append_text(Text(str(offset), "bold green"))
+                    .append_text(Text(":", "green"))
+                    .append_text(Text(str(offset + limit - 1), "bold green"))
+                )
+            elif limit is not None:
+                render_result = (
+                    render_result.append_text(Text(" "))
+                    .append_text(Text("1", "bold green"))
+                    .append_text(Text(":", "green"))
+                    .append_text(Text(str(limit), "bold green"))
+                )
+            elif offset is not None:
+                render_result = (
+                    render_result.append_text(Text(" "))
+                    .append_text(Text(str(offset), "bold green"))
+                    .append_text(Text(":", "green"))
+                    .append_text(Text("-", "bold green"))
+                )
+        except json.JSONDecodeError:
+            render_result = render_result.append_text(Text(arguments))
+        return render_result
+
+    def render_edit_tool_call(self, arguments: str) -> Text:
+        render_result: Text = Text.assemble(("→ ", "bold"))
+        try:
+            json_dict = json.loads(arguments)
+            file_path = json_dict.get("file_path")
+            old_string = json_dict.get("old_string", "")
+            render_result = (
+                render_result.append_text(Text("Create" if old_string == "" else "Edit", TOOL_NAME_STYLE))
+                .append_text(Text(" "))
+                .append_text(Text(file_path, "green"))
+            )
+        except json.JSONDecodeError:
+            render_result = (
+                render_result.append_text(Text("Edit", TOOL_NAME_STYLE))
+                .append_text(Text(" "))
+                .append_text(Text(arguments))
+            )
+        return render_result
+
+    def render_multi_edit_tool_call(self, arguments: str) -> Text:
+        render_result: Text = Text.assemble(("→ ", "bold"), ("MultiEdit", TOOL_NAME_STYLE), " ")
+        try:
+            json_dict = json.loads(arguments)
+            file_path = json_dict.get("file_path")
+            edits = json_dict.get("edits", [])
+            render_result = (
+                render_result.append_text(Text(file_path, "green"))
+                .append_text(Text(" - "))
+                .append_text(Text(f"{len(edits)}", "bold green"))
+                .append_text(Text(" updates", "green"))
+            )
+        except json.JSONDecodeError:
+            render_result = render_result.append_text(Text(arguments))
+        return render_result
 
     def display_tool_call(self, e: ToolCallEvent) -> None:
-        self.console.print(
-            Text.assemble(
-                "⏵ ",
-                (e.tool_name, "bold"),
-                " ",
-                self.render_tool_call_arguments(e.arguments),
-            )
-        )
+        match e.tool_name:
+            case "Read":
+                self.console.print(self.render_read_tool_call(e.arguments))
+            case "Edit":
+                self.console.print(self.render_edit_tool_call(e.arguments))
+            case "MultiEdit":
+                self.console.print(self.render_multi_edit_tool_call(e.arguments))
+            case "Bash":
+                self.console.print(self.render_any_tool_call(e.tool_name, e.arguments, ">"))
+            case _:
+                self.console.print(self.render_any_tool_call(e.tool_name, e.arguments))
 
     def truncate_display(self, text: str) -> str:
         lines = text.split("\n")
@@ -148,16 +231,119 @@ class REPLDisplay(DisplayABC):
             return "\n".join(lines[:20]) + "\n... (more " + str(len(lines) - 20) + " lines are truncated)"
         return text
 
+    def render_edit_diff(self, e: ToolResultEvent) -> RenderableType:
+        diff_text = e.ui_extra or ""
+        if diff_text == "":
+            return Text("")
+
+        lines = diff_text.split("\n")
+        out = Text()
+
+        # Track line numbers based on hunk headers
+        old_ln: int | None = None
+        new_ln: int | None = None
+
+        first_printed = True
+        for line in lines:
+            # Parse hunk headers to reset counters: @@ -l,s +l,s @@
+            if line.startswith("@@"):
+                try:
+                    # Example: @@ -12,3 +12,4 @@ optional
+                    header = line
+                    parts = header.split()
+                    minus = parts[1]  # like '-12,3'
+                    plus = parts[2]  # like '+12,4'
+                    # strip leading +/- and split by comma
+                    old_start = int(minus[1:].split(",")[0])
+                    new_start = int(plus[1:].split(",")[0])
+                    old_ln = old_start
+                    new_ln = new_start
+                except Exception:
+                    old_ln = None
+                    new_ln = None
+                continue
+
+            # Skip file header lines entirely
+            if line.startswith("--- ") or line.startswith("+++ "):
+                continue
+
+            # Hide completely blank diff lines (no content)
+            if line == "" or (line[0] in "+- " and len(line) == 1):
+                continue
+
+            # Add newline before every printed line except the first
+            if not first_printed:
+                out.append("\n")
+            first_printed = False
+
+            # Compute line number prefix
+            prefix = ""
+            if line.startswith("-"):
+                if old_ln is not None:
+                    prefix = f"{old_ln:>4} "
+                    old_ln += 1
+                else:
+                    prefix = "     "
+            elif line.startswith("+"):
+                if new_ln is not None:
+                    prefix = f"{new_ln:>4} "
+                    new_ln += 1
+                else:
+                    prefix = "     "
+            else:  # context line
+                if new_ln is not None:
+                    prefix = f"{new_ln:>4} "
+                    new_ln += 1
+                else:
+                    prefix = "     "
+                if old_ln is not None:
+                    old_ln += 1
+
+            out.append(prefix)
+
+            # Style only true diff content lines
+            if line.startswith("-"):
+                out.append(line, style="diff.remove")
+            elif line.startswith("+"):
+                out.append(line, style="diff.add")
+            else:
+                out.append(line)
+
+        return out
+
     def display_tool_call_result(self, e: ToolResultEvent) -> None:
-        self.console.print(
-            Padding.indent(
-                Text(
-                    self.truncate_display(e.result),
-                    style="grey50" if e.status == "success" else "red",
-                ),
-                level=2,
+        if e.status == "error":
+            grid = Table.grid()
+            table = Table.grid(padding=(0, 1))
+            table.add_column(width=1, no_wrap=True)
+            table.add_column(overflow="fold")
+            grid.add_row(
+                Text("✘ ", style="bold red"),
+                Text(self.truncate_display(e.result), style="red"),
             )
-        )
+            self.console.print(grid)
+            return
+
+        match e.tool_name:
+            case "Read":
+                pass
+            case "Edit" | "MultiEdit":
+                self.console.print(
+                    Padding.indent(
+                        self.render_edit_diff(e),
+                        level=2,
+                    )
+                )
+            case _:
+                self.console.print(
+                    Padding.indent(
+                        Text(
+                            self.truncate_display(e.result),
+                            style="grey50",
+                        ),
+                        level=2,
+                    )
+                )
 
     def display_metadata(self, e: ResponseMetadataEvent) -> None:
         rule_text = f"[bold]{e.model_name}[/bold]"
@@ -170,7 +356,7 @@ class REPLDisplay(DisplayABC):
             reasoning_token_str = (
                 f" ([b]{format_number(e.usage.reasoning_tokens)}[/b] reasoning)" if e.usage.reasoning_tokens > 0 else ""
             )
-            rule_text += f" · token usage [b]{format_number(e.usage.input_tokens)}[/b] input{cached_token_str} [b]{format_number(e.usage.output_tokens)}[/b] output{reasoning_token_str}"
+            rule_text += f" · token: [b]{format_number(e.usage.input_tokens)}[/b] input{cached_token_str} [b]{format_number(e.usage.output_tokens)}[/b] output{reasoning_token_str}"
         self.console.print(
             Rule(
                 Text.from_markup(rule_text, style="bright_black", overflow="fold"),
