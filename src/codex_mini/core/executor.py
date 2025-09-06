@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from codex_mini.core.agent import Agent
 from codex_mini.core.prompt import get_system_prompt
-from codex_mini.core.tool import BASH_TOOL_NAME, get_tool_schemas
+from codex_mini.core.tool import BASH_TOOL_NAME, EDIT_TOOL_NAME, MULTI_EDIT_TOOL_NAME, READ_TOOL_NAME, get_tool_schemas
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.protocol.events import ErrorEvent, Event, TaskFinishEvent
 from codex_mini.protocol.op import InterruptOperation, Submission, UserInputOperation
@@ -49,7 +49,7 @@ class ExecutorContext:
             agent = Agent(
                 llm_client=self.llm_client,
                 session_id=session_id,
-                tools=get_tool_schemas([BASH_TOOL_NAME]),
+                tools=get_tool_schemas([BASH_TOOL_NAME, READ_TOOL_NAME, EDIT_TOOL_NAME, MULTI_EDIT_TOOL_NAME]),
                 system_prompt=get_system_prompt(self.llm_client.model_name()),
                 debug_mode=self.debug_mode,
             )

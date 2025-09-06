@@ -8,3 +8,4 @@ wheels/
 .ruff_cache/
 # Virtual environments
 .venv
+.DS_Store

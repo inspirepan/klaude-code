@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
+from codex_mini.core.tool.tool_context import current_session_var
 from codex_mini.core.tool.tool_registry import run_tool
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.protocol import events, llm_parameter, model
@@ -148,7 +149,11 @@ class Agent:
                     response_id=tool_call.response_id,
                     session_id=self.session.id,
                 )
-                tool_result: model.ToolResultItem = await run_tool(tool_call)
+                token = current_session_var.set(self.session)
+                try:
+                    tool_result: model.ToolResultItem = await run_tool(tool_call)
+                finally:
+                    current_session_var.reset(token)
                 self.session.append_history([tool_result])
                 yield events.ToolResultEvent(
                     tool_call_id=tool_call.call_id,

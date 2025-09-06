@@ -13,6 +13,8 @@ class Session(BaseModel):
     conversation_history: list[ConversationItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     system_prompt: str | None = None
     last_response_id: str | None = None
+    # FileTracker: track file path -> last modification time when last read/edited
+    file_tracker: dict[str, float] = Field(default_factory=dict)
 
     @classmethod
     def load(cls, id: str) -> "Session":
