@@ -24,8 +24,8 @@ MARKDOWN_THEME = Theme(
         "markdown.h4": "bold gray54",
     }
 )
-THINKING_PREFIX = "✶ Thinking...\n"
 THINKING_STYLE = "italic dim"
+THINKING_PREFIX = Text.from_markup("[not italic]◈[/not italic] Thinking...\n", style=THINKING_STYLE)
 TOOL_NAME_STYLE = "bold"
 DIFF_REMOVE_LINE_STYLE = "#333333 on #ffa8b4"
 DIFF_ADDED_LINE_STYLE = "#333333 on #69db7c"
@@ -100,7 +100,7 @@ class REPLDisplay(DisplayABC):
         if len(e.content.strip()) == 0:
             return
         if self.stage != "thinking":
-            self.console.print(Text(THINKING_PREFIX, style=THINKING_STYLE))
+            self.console.print(THINKING_PREFIX)
         if e.content.count("**") == 2:
             left_part, middle_part, right_part = e.content.split("**", maxsplit=2)
             if self.is_thinking_in_bold:
@@ -435,9 +435,10 @@ class REPLDisplay(DisplayABC):
                         e.content.strip(), final=True
                     )
                 case events.ThinkingEvent() as e:
+                    self.console.print(THINKING_PREFIX)
                     MarkdownStream(
                         mdargs={"code_theme": CODE_THEME, "style": THINKING_STYLE}, theme=MARKDOWN_THEME
-                    ).update(THINKING_PREFIX + "\n" + e.content.strip(), final=True)
+                    ).update(e.content.strip(), final=True)
                 case events.UserMessageEvent() as e:
                     lines = e.content.split("\n")
                     grid = Table.grid()
