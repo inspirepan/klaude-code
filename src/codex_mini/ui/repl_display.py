@@ -341,16 +341,16 @@ class REPLDisplay(DisplayABC):
                 match todo.status:
                     case "pending":
                         mark = "▢"
-                        mark_style = "bright_black"
-                        text_style = "bright_black"
+                        mark_style = "dim"
+                        text_style = "dim"
                     case "in_progress":
                         mark = "◉"
                         mark_style = "blue"
                         text_style = "bold blue"
                     case "completed":
                         mark = "✔"
-                        mark_style = "green" if is_new_completed else "bright_black"
-                        text_style = "green strike" if is_new_completed else "bright_black strike"
+                        mark_style = "green" if is_new_completed else "dim"
+                        text_style = "green strike" if is_new_completed else "dim strike"
                 grid.add_row(
                     Text(f"{mark} ", style=f"bold {mark_style}"),
                     Text(todo.content, style=text_style),
@@ -420,7 +420,8 @@ class REPLDisplay(DisplayABC):
     def display_welcome(self, e: events.WelcomeEvent) -> None:
         self.console.print(
             Panel.fit(
-                Text.assemble((str(e.llm_config.model), "bold"), ("@", "dim"), (e.llm_config.provider_name, "dim")), border_style="grey70"
+                Text.assemble((str(e.llm_config.model), "bold"), ("@", "dim"), (e.llm_config.provider_name, "dim")),
+                border_style="grey70",
             )
         )
 
