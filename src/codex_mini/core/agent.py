@@ -63,6 +63,9 @@ class Agent:
     async def replay_history(self) -> AsyncGenerator[events.Event, None]:
         """Yield UI events reconstructed from saved conversation history."""
 
+        if len(self.session.conversation_history) == 0:
+            return
+
         replay_events: list[events.HistoryItemEvent] = []
 
         for it in self.session.conversation_history:

@@ -1,6 +1,7 @@
 import json
 from typing import Literal, override
 
+from rich import box
 from rich.console import Console, RenderableType
 from rich.padding import Padding
 from rich.panel import Panel
@@ -374,7 +375,6 @@ class REPLDisplay(DisplayABC):
             case tools.READ_TOOL_NAME:
                 pass
             case tools.EDIT_TOOL_NAME | tools.MULTI_EDIT_TOOL_NAME:
-                print(e.ui_extra)
                 self.console.print(
                     Padding.indent(
                         self.render_edit_diff(e),
@@ -425,6 +425,7 @@ class REPLDisplay(DisplayABC):
             Panel.fit(
                 Text.assemble((str(e.llm_config.model), "bold"), ("@", "dim"), (e.llm_config.provider_name, "dim")),
                 border_style="grey70",
+                box=box.ASCII2,
             )
         )
 
