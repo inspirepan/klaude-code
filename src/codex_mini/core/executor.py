@@ -14,7 +14,7 @@ from codex_mini.core.prompt import get_system_prompt
 from codex_mini.core.tool import BASH_TOOL_NAME, get_tool_schemas
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.protocol.events import ErrorEvent, Event, TaskFinishEvent
-from codex_mini.protocol.operations import InterruptOperation, Submission, UserInputOperation
+from codex_mini.protocol.op import InterruptOperation, Submission, UserInputOperation
 from codex_mini.trace import log_debug
 
 

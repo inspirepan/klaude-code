@@ -7,7 +7,7 @@
 
 - `src/protocol/model.py`: Communication structure definitions between the Agent execution layer and LLMClient, also serving as the persistent structure for conversations, base class is `model.ConversationItem`
 - `src/protocol/events.py`: Event definitions sent from the Agent execution layer to the UI layer, base class is `events.Event`
-- `src/protocol/op.py` (todo): Operation definitions sent from the UI layer to the Agent execution layer, currently not implemented, the only operation is simple user input
+- `src/protocol/op.py`: Operation definitions sent from the UI layer to the Agent execution layer.
 
 
 # Dev
