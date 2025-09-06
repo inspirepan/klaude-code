@@ -8,22 +8,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
-from codex_mini.protocol import model, tools
-from codex_mini.protocol.events import (
-    AssistantMessageDeltaEvent,
-    AssistantMessageEvent,
-    Event,
-    HistoryItemEvent,
-    ReplayHistoryEvent,
-    ResponseMetadataEvent,
-    TaskFinishEvent,
-    TaskStartEvent,
-    ThinkingDeltaEvent,
-    ThinkingEvent,
-    ToolCallEvent,
-    ToolResultEvent,
-    UserMessageEvent,
-)
+from codex_mini.protocol import events, model, tools
 from codex_mini.ui.display_abc import DisplayABC
 from codex_mini.ui.mdstream import MarkdownStream
 from codex_mini.ui.utils import format_number
@@ -41,8 +26,8 @@ MARKDOWN_THEME = Theme(
 THINKING_PREFIX = "✶ Thinking...\n"
 THINKING_STYLE = "italic bright_black"
 TOOL_NAME_STYLE = "bold"
-DIFF_REMOVE_LINE_STYLE = "on #ffa8b4"
-DIFF_ADDED_LINE_STYLE = "on #69db7c"
+DIFF_REMOVE_LINE_STYLE = "#333333 on #ffa8b4"
+DIFF_ADDED_LINE_STYLE = "#333333 on #69db7c"
 
 
 class REPLDisplay(DisplayABC):
@@ -61,39 +46,39 @@ class REPLDisplay(DisplayABC):
         self.is_thinking_in_bold = False
 
     @override
-    async def consume_event(self, event: Event) -> None:
+    async def consume_event(self, event: events.Event) -> None:
         match event:
-            case TaskStartEvent():
+            case events.TaskStartEvent():
                 self.console.print()
-            case TaskFinishEvent():
+            case events.TaskFinishEvent():
                 pass
-            case ThinkingDeltaEvent() as e:
+            case events.ThinkingDeltaEvent() as e:
                 self.display_thinking(e)
                 self.stage = "thinking"
-            case ThinkingEvent() as e:
+            case events.ThinkingEvent() as e:
                 self.console.print("\n")
-            case AssistantMessageDeltaEvent() as e:
+            case events.AssistantMessageDeltaEvent() as e:
                 self.accumulated_assistant_text += e.content
                 if self.assistant_mdstream is None:
                     self.assistant_mdstream = MarkdownStream(mdargs={"code_theme": CODE_THEME}, theme=MARKDOWN_THEME)
                     self.stage = "assistant"
                 self.assistant_mdstream.update(self.accumulated_assistant_text.strip())
-            case AssistantMessageEvent() as e:
+            case events.AssistantMessageEvent() as e:
                 if self.assistant_mdstream is not None:
                     self.assistant_mdstream.update(e.content.strip(), final=True)
                 self.accumulated_assistant_text = ""
                 self.assistant_mdstream = None
-            case ResponseMetadataEvent() as e:
+            case events.ResponseMetadataEvent() as e:
                 self.display_metadata(e)
                 self.console.print()
-            case ToolCallEvent() as e:
+            case events.ToolCallEvent() as e:
                 self.display_tool_call(e)
                 self.stage = "tool_call"
-            case ToolResultEvent() as e:
+            case events.ToolResultEvent() as e:
                 self.display_tool_call_result(e)
                 self.console.print()
                 self.stage = "tool_result"
-            case ReplayHistoryEvent() as e:
+            case events.ReplayHistoryEvent() as e:
                 await self.replay_history(e.events)
             case _:
                 self.console.print("[Event]", event.__class__.__name__, event)
@@ -104,7 +89,7 @@ class REPLDisplay(DisplayABC):
     async def stop(self) -> None:
         pass
 
-    def display_thinking(self, e: ThinkingDeltaEvent) -> None:
+    def display_thinking(self, e: events.ThinkingDeltaEvent) -> None:
         """
         Handle markdown bold syntax in thinking text.
         ```
@@ -163,8 +148,12 @@ class REPLDisplay(DisplayABC):
         except json.JSONDecodeError:
             return render_result.append(Text(arguments))
 
-    def render_read_tool_call(self, arguments: str) -> Text:
-        render_result: Text = Text.assemble(("← ", "bold"), ("Read", TOOL_NAME_STYLE), " ")
+    def render_read_tool_call(self, arguments: str) -> RenderableType:
+        grid = Table.grid()
+        table = Table.grid(padding=(0, 1))
+        table.add_column(width=1, no_wrap=True)
+        table.add_column(overflow="fold")
+        render_result: Text = Text.assemble(("Read", TOOL_NAME_STYLE), " ")
         try:
             json_dict = json.loads(arguments)
             file_path = json_dict.get("file_path")
@@ -194,7 +183,8 @@ class REPLDisplay(DisplayABC):
                 )
         except json.JSONDecodeError:
             render_result = render_result.append_text(Text(arguments))
-        return render_result
+        grid.add_row(Text("← ", "bold"), render_result)
+        return grid
 
     def render_edit_tool_call(self, arguments: str) -> Text:
         render_result: Text = Text.assemble(("→ ", "bold"))
@@ -231,7 +221,7 @@ class REPLDisplay(DisplayABC):
             render_result = render_result.append_text(Text(arguments))
         return render_result
 
-    def display_tool_call(self, e: ToolCallEvent) -> None:
+    def display_tool_call(self, e: events.ToolCallEvent) -> None:
         match e.tool_name:
             case tools.READ_TOOL_NAME:
                 self.console.print(self.render_read_tool_call(e.arguments))
@@ -252,19 +242,22 @@ class REPLDisplay(DisplayABC):
             return "\n".join(lines[:20]) + "\n... (more " + str(len(lines) - 20) + " lines are truncated)"
         return text
 
-    def render_edit_diff(self, e: ToolResultEvent) -> RenderableType:
+    def render_edit_diff(self, e: events.ToolResultEvent) -> RenderableType:
         diff_text = e.ui_extra or ""
         if diff_text == "":
             return Text("")
 
         lines = diff_text.split("\n")
-        out = Text()
+
+        grid = Table.grid()
+        table = Table.grid(padding=(0, 1))
+        table.add_column(width=4, no_wrap=True)
+        table.add_column(overflow="fold")
 
         # Track line numbers based on hunk headers
         old_ln: int | None = None
         new_ln: int | None = None
 
-        first_printed = True
         for line in lines:
             # Parse hunk headers to reset counters: @@ -l,s +l,s @@
             if line.startswith("@@"):
@@ -282,6 +275,7 @@ class REPLDisplay(DisplayABC):
                 except Exception:
                     old_ln = None
                     new_ln = None
+                grid.add_row("   … ", "")
                 continue
 
             # Skip file header lines entirely
@@ -291,11 +285,6 @@ class REPLDisplay(DisplayABC):
             # Hide completely blank diff lines (no content)
             if line == "" or (line[0] in "+- " and len(line) == 1):
                 continue
-
-            # Add newline before every printed line except the first
-            if not first_printed:
-                out.append("\n")
-            first_printed = False
 
             # Compute line number prefix
             prefix = ""
@@ -320,19 +309,20 @@ class REPLDisplay(DisplayABC):
                 if old_ln is not None:
                     old_ln += 1
 
-            out.append(prefix)
-
             # Style only true diff content lines
             if line.startswith("-"):
-                out.append(line, style="diff.remove")
+                line_style = "diff.remove"
             elif line.startswith("+"):
-                out.append(line, style="diff.add")
+                line_style = "diff.add"
             else:
-                out.append(line)
+                line_style = ""
+            text = Text(line)
+            text.stylize(line_style)
+            grid.add_row(prefix, text)
 
-        return out
+        return grid
 
-    def render_todo(self, tr: ToolResultEvent) -> RenderableType:
+    def render_todo(self, tr: events.ToolResultEvent) -> RenderableType:
         if tr.ui_extra is None:
             return self.render_error("(no content)")
         try:
@@ -369,7 +359,7 @@ class REPLDisplay(DisplayABC):
 
         return ""
 
-    def display_tool_call_result(self, e: ToolResultEvent) -> None:
+    def display_tool_call_result(self, e: events.ToolResultEvent) -> None:
         if e.status == "error":
             self.console.print(self.render_error(e.result))
             return
@@ -378,6 +368,7 @@ class REPLDisplay(DisplayABC):
             case tools.READ_TOOL_NAME:
                 pass
             case tools.EDIT_TOOL_NAME | tools.MULTI_EDIT_TOOL_NAME:
+                print(e.ui_extra)
                 self.console.print(
                     Padding.indent(
                         self.render_edit_diff(e),
@@ -397,7 +388,7 @@ class REPLDisplay(DisplayABC):
                     )
                 )
 
-    def display_metadata(self, e: ResponseMetadataEvent) -> None:
+    def display_metadata(self, e: events.ResponseMetadataEvent) -> None:
         metadata = e.metadata
         rule_text = f"[bold]{metadata.model_name}[/bold]"
         if metadata.provider is not None:
@@ -423,18 +414,18 @@ class REPLDisplay(DisplayABC):
             )
         )
 
-    async def replay_history(self, history_events: list[HistoryItemEvent]) -> None:
+    async def replay_history(self, history_events: list[events.HistoryItemEvent]) -> None:
         for event in history_events:
             match event:
-                case AssistantMessageEvent() as e:
+                case events.AssistantMessageEvent() as e:
                     MarkdownStream(mdargs={"code_theme": CODE_THEME}, theme=MARKDOWN_THEME).update(
                         e.content.strip(), final=True
                     )
-                case ThinkingEvent() as e:
+                case events.ThinkingEvent() as e:
                     MarkdownStream(
                         mdargs={"code_theme": CODE_THEME, "style": THINKING_STYLE}, theme=MARKDOWN_THEME
                     ).update(THINKING_PREFIX + "\n" + e.content.strip(), final=True)
-                case UserMessageEvent() as e:
+                case events.UserMessageEvent() as e:
                     lines = e.content.split("\n")
                     grid = Table.grid()
                     table = Table.grid(padding=(0, 1))
@@ -447,10 +438,10 @@ class REPLDisplay(DisplayABC):
                         )
                     self.console.print(grid)
                     self.console.print()
-                case ToolCallEvent() as e:
+                case events.ToolCallEvent() as e:
                     await self.consume_event(e)
-                case ToolResultEvent() as e:
+                case events.ToolResultEvent() as e:
                     await self.consume_event(e)
-                case ResponseMetadataEvent() as e:
+                case events.ResponseMetadataEvent() as e:
                     self.display_metadata(e)
                     self.console.print()

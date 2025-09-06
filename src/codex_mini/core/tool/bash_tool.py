@@ -338,6 +338,9 @@ class BashTool(ToolABC):
             description="""Runs a shell command and returns its output.
 
 # Usage Notes
+- When searching for text or files, prefer using `rg`, `rg --files` or `fd` respectively because `rg` and `fd` is much faster than alternatives like `grep` and `find`. (If these command is not found, then use alternatives.)
+
+
 Allowed commands:
 - File operations: cat/cd/cp/date/echo/false/file/grep/head/ls/mkdir/mv/nl/pwd/rm/tail/touch/tree/true/wc/which
   Note: rm restrictions — only relative paths under CWD; forbid absolute paths, tildes, wildcards (*?[), and trailing '/';
@@ -348,6 +351,7 @@ Allowed commands:
 - Build tools & linters: cargo/uv/go/ruff/pyright/make (all subcommands)
 - Search: find (without -exec/-delete/-f* print options), fd (without -x/--exec), rg (without --pre/--hostname-bin/--search-zip/-z)
 - Command sequences: joined by &&, ||, ;, |
+
 Disallow: redirection, subshells/parentheses, command substitution""",
             parameters={
                 "type": "object",
