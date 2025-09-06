@@ -249,7 +249,7 @@ class REPLDisplay(DisplayABC):
     def truncate_display(self, text: str) -> str:
         lines = text.split("\n")
         if len(lines) > 20:
-            return "\n".join(lines[:20]) + "\n... (more " + str(len(lines) - 20) + " lines are truncated)"
+            return "\n".join(lines[:20]) + "\n... (and " + str(len(lines) - 20) + " more lines)"
         return text
 
     def render_edit_diff(self, diff_text: str) -> RenderableType:
