@@ -84,6 +84,8 @@ class REPLDisplay(DisplayABC):
                 await self.replay_history(e.events)
             case events.WelcomeEvent() as e:
                 self.display_welcome(e)
+            case events.ErrorEvent() as e:
+                self.console.print(self.render_error(e.error_message))
             case _:
                 self.console.print("[Event]", event.__class__.__name__, event)
 
