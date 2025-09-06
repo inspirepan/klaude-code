@@ -83,6 +83,7 @@ class OpenRouterProviderRouting(BaseModel):
 
 
 class LLMConfigProviderParameter(BaseModel):
+    provider_name: str = ""
     protocol: LLMClientProtocol
     base_url: str | None = None
     api_key: str | None = None

@@ -15,12 +15,12 @@ from codex_mini.trace import log, log_debug
 async def run_interactive(model: str | None = None, debug: bool = False, continue_session: bool = False):
     """Run the interactive REPL using the new executor architecture."""
     config = load_config()
-    model_config = config.get_model_config(model) if model else config.get_main_model_config()
+    llm_config = config.get_model_config(model) if model else config.get_main_model_config()
 
     if debug:
-        log_debug("▷▷▷ llm [Model Config]", model_config.model_dump_json(exclude_none=True), style="yellow")
+        log_debug("▷▷▷ llm [Model Config]", llm_config.model_dump_json(exclude_none=True), style="yellow")
 
-    llm_client: LLMClientABC = create_llm_client(model_config)
+    llm_client: LLMClientABC = create_llm_client(llm_config)
     if debug:
         llm_client.enable_debug_mode()
 
@@ -28,7 +28,7 @@ async def run_interactive(model: str | None = None, debug: bool = False, continu
     event_queue: asyncio.Queue[Event] = asyncio.Queue()
 
     # Create executor with the LLM client
-    executor = Executor(event_queue, llm_client, debug_mode=debug)
+    executor = Executor(event_queue, llm_client, llm_config, debug_mode=debug)
 
     # Start executor in background
     executor_task = asyncio.create_task(executor.start())

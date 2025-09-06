@@ -14,7 +14,7 @@ from codex_mini.core.agent import Agent
 from codex_mini.core.prompt import get_system_prompt
 from codex_mini.core.tool import get_tool_schemas
 from codex_mini.llm.client import LLMClientABC
-from codex_mini.protocol.events import ErrorEvent, Event, TaskFinishEvent
+from codex_mini.protocol import events, llm_parameter
 from codex_mini.protocol.op import InitAgentOperation, InterruptOperation, Submission, UserInputOperation
 from codex_mini.protocol.tools import (
     BASH_TOOL_NAME,
@@ -35,9 +35,16 @@ class ExecutorContext:
     to access shared resources like the event queue and active sessions.
     """
 
-    def __init__(self, event_queue: asyncio.Queue[Event], llm_client: LLMClientABC, debug_mode: bool = False):
+    def __init__(
+        self,
+        event_queue: asyncio.Queue[events.Event],
+        llm_client: LLMClientABC,
+        llm_config: llm_parameter.LLMConfigParameter,
+        debug_mode: bool = False,
+    ):
         self.event_queue = event_queue
         self.llm_client = llm_client
+        self.llm_config = llm_config
         self.debug_mode = debug_mode
 
         # Track active agents by session ID
@@ -45,7 +52,7 @@ class ExecutorContext:
         # Track active tasks by submission ID
         self.active_tasks: dict[str, asyncio.Task[None]] = {}
 
-    async def emit_event(self, event: Event) -> None:
+    async def emit_event(self, event: events.Event) -> None:
         """Emit an event to the UI display system."""
         await self.event_queue.put(event)
 
@@ -66,6 +73,12 @@ class ExecutorContext:
                     [TODO_WRITE_TOOL_NAME, BASH_TOOL_NAME, READ_TOOL_NAME, EDIT_TOOL_NAME, MULTI_EDIT_TOOL_NAME]
                 ),
                 debug_mode=self.debug_mode,
+            )
+            await self.emit_event(
+                events.WelcomeEvent(
+                    work_dir=str(session.work_dir),
+                    llm_config=self.llm_config,
+                )
             )
             async for evt in agent.replay_history():
                 await self.emit_event(evt)
@@ -125,7 +138,7 @@ class ExecutorContext:
 
         # Emit interrupt confirmation event if needed
         if tasks_to_cancel:
-            await self.emit_event(TaskFinishEvent(session_id=operation.target_session_id or "all"))
+            await self.emit_event(events.TaskFinishEvent(session_id=operation.target_session_id or "all"))
 
     async def _run_agent_task(self, agent: Agent, user_input: str, task_id: str, session_id: str) -> None:
         """
@@ -146,13 +159,13 @@ class ExecutorContext:
             # Task was cancelled (likely due to interrupt)
             if self.debug_mode:
                 log_debug(f"Agent task {task_id} was cancelled", style="yellow")
-            await self.emit_event(TaskFinishEvent(session_id=session_id))
+            await self.emit_event(events.TaskFinishEvent(session_id=session_id))
 
         except Exception as e:
             # Handle any other exceptions
             if self.debug_mode:
                 log_debug(f"Agent task {task_id} failed: {str(e)}", style="red")
-            await self.emit_event(ErrorEvent(error_message=f"Agent task failed: {str(e)}"))
+            await self.emit_event(events.ErrorEvent(error_message=f"Agent task failed: {str(e)}"))
 
         finally:
             # Clean up the task from active tasks
@@ -169,8 +182,14 @@ class Executor:
     processing operations asynchronously and coordinating with agents.
     """
 
-    def __init__(self, event_queue: asyncio.Queue[Event], llm_client: LLMClientABC, debug_mode: bool = False):
-        self.context = ExecutorContext(event_queue, llm_client, debug_mode)
+    def __init__(
+        self,
+        event_queue: asyncio.Queue[events.Event],
+        llm_client: LLMClientABC,
+        llm_config: llm_parameter.LLMConfigParameter,
+        debug_mode: bool = False,
+    ):
+        self.context = ExecutorContext(event_queue, llm_client, llm_config, debug_mode)
         self.submission_queue: asyncio.Queue[Submission] = asyncio.Queue()
         self.running = False
         self.debug_mode = debug_mode
@@ -250,7 +269,7 @@ class Executor:
                 # Handle unexpected errors
                 if self.debug_mode:
                     log_debug(f"Executor error: {str(e)}", style="red")
-                await self.context.emit_event(ErrorEvent(error_message=f"Executor error: {str(e)}"))
+                await self.context.emit_event(events.ErrorEvent(error_message=f"Executor error: {str(e)}"))
 
     async def stop(self) -> None:
         """Stop the executor and clean up resources."""
@@ -283,7 +302,7 @@ class Executor:
         except Exception as e:
             if self.debug_mode:
                 log_debug(f"Failed to handle submission {submission.id}: {str(e)}", style="red")
-            await self.context.emit_event(ErrorEvent(error_message=f"Operation failed: {str(e)}"))
+            await self.context.emit_event(events.ErrorEvent(error_message=f"Operation failed: {str(e)}"))
         finally:
             # Signal completion of this submission
             if submission.id in self.task_completion_events:

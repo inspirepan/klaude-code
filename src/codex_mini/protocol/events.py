@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from codex_mini.protocol import model
+from codex_mini.protocol import llm_parameter, model
 
 """
 Event is how Agent Executor and UI Display communicate.
@@ -77,6 +77,11 @@ class UserMessageEvent(BaseModel):
     content: str
 
 
+class WelcomeEvent(BaseModel):
+    work_dir: str
+    llm_config: llm_parameter.LLMConfigParameter
+
+
 HistoryItemEvent = (
     ThinkingEvent | AssistantMessageEvent | ToolCallEvent | ToolResultEvent | UserMessageEvent | ResponseMetadataEvent
 )
@@ -99,4 +104,5 @@ Event = (
     | ReplayHistoryEvent
     | ErrorEvent
     | EndEvent
+    | WelcomeEvent
 )

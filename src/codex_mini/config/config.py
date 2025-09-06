@@ -50,6 +50,8 @@ class Config(BaseModel):
         if provider is None:
             raise ValueError(f"Unknown provider: {model.provider}")
 
+        provider.provider_params.provider_name = provider.provider_name
+
         return LLMConfigParameter(
             **provider.provider_params.model_dump(),
             **model.model_params.model_dump(),

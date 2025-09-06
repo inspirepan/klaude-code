@@ -3,6 +3,7 @@ from typing import Literal, override
 
 from rich.console import Console, RenderableType
 from rich.padding import Padding
+from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
@@ -80,6 +81,8 @@ class REPLDisplay(DisplayABC):
                 self.stage = "tool_result"
             case events.ReplayHistoryEvent() as e:
                 await self.replay_history(e.events)
+            case events.WelcomeEvent() as e:
+                self.display_welcome(e)
             case _:
                 self.console.print("[Event]", event.__class__.__name__, event)
 
@@ -411,6 +414,13 @@ class REPLDisplay(DisplayABC):
                 style="bright_black",
                 align="right",
                 characters="-",
+            )
+        )
+
+    def display_welcome(self, e: events.WelcomeEvent) -> None:
+        self.console.print(
+            Panel.fit(
+                Text.assemble((str(e.llm_config.model), "bold"), ("@", "dim"), (e.llm_config.provider_name, "dim")), border_style="grey70"
             )
         )
 
