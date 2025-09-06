@@ -3,7 +3,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from .config import Config
+from codex_mini.config import Config
 
 
 def mask_api_key(api_key: str | None) -> str:
