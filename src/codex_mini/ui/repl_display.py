@@ -103,6 +103,8 @@ class REPLDisplay(DisplayABC):
         Handle markdown bold syntax in thinking text.
         ```
         """
+        if len(e.content.strip()) == 0:
+            return
         if self.stage != "thinking":
             self.console.print(Text(THINKING_PREFIX, style=THINKING_STYLE))
         if e.content.count("**") == 2:
