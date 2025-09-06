@@ -55,8 +55,6 @@ class REPLDisplay(DisplayABC):
             case events.TaskFinishEvent():
                 pass
             case events.ThinkingDeltaEvent() as e:
-                if self.stage != "thinking":
-                    self.console.print(Text(self.stage, "red bold"))
                 self.display_thinking(e)
                 self.stage = "thinking"
             case events.ThinkingEvent() as e:
@@ -263,7 +261,6 @@ class REPLDisplay(DisplayABC):
         table.add_column(overflow="fold")
 
         # Track line numbers based on hunk headers
-        old_ln: int | None = None
         new_ln: int | None = None
 
         for line in lines:
@@ -273,15 +270,11 @@ class REPLDisplay(DisplayABC):
                     # Example: @@ -12,3 +12,4 @@ optional
                     header = line
                     parts = header.split()
-                    minus = parts[1]  # like '-12,3'
                     plus = parts[2]  # like '+12,4'
                     # strip leading +/- and split by comma
-                    old_start = int(minus[1:].split(",")[0])
                     new_start = int(plus[1:].split(",")[0])
-                    old_ln = old_start
                     new_ln = new_start
                 except Exception:
-                    old_ln = None
                     new_ln = None
                 grid.add_row("   … ", "")
                 continue
@@ -303,9 +296,7 @@ class REPLDisplay(DisplayABC):
             prefix = "     "
             kind = line[0]
             if kind == "-":
-                if old_ln is not None:
-                    prefix = f"{old_ln:>4} "
-                    old_ln += 1
+                pass
             elif kind == "+":
                 if new_ln is not None:
                     prefix = f"{new_ln:>4} "
@@ -313,9 +304,6 @@ class REPLDisplay(DisplayABC):
             else:  # context line ' '
                 if new_ln is not None:
                     prefix = f"{new_ln:>4} "
-                if old_ln is not None:
-                    old_ln += 1
-                if new_ln is not None:
                     new_ln += 1
 
             # Style only true diff content lines
