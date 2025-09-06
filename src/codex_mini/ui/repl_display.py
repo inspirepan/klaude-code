@@ -344,7 +344,7 @@ class REPLDisplay(DisplayABC):
                     case "completed":
                         mark = "✔"
                         mark_style = "green" if is_new_completed else "dim"
-                        text_style = "green strike" if is_new_completed else "dim strike"
+                        text_style = "green strike bold" if is_new_completed else "dim strike"
                 text = Text(todo.content)
                 text.stylize(text_style)
                 grid.add_row(
@@ -474,7 +474,7 @@ class REPLDisplay(DisplayABC):
         self.console.print(
             Rule(
                 title=Text(
-                    "LOADED {}".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(history_events.updated_at))),
+                    "LOADED ◷ {}".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(history_events.updated_at))),
                     style="bold green",
                 ),
                 characters="=",
