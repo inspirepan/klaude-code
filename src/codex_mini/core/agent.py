@@ -1,7 +1,6 @@
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
-from codex_mini.core.prompt import get_system_prompt
 from codex_mini.core.tool.tool_registry import run_tool
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.protocol import events, llm_parameter, model
@@ -14,14 +13,13 @@ class Agent:
         self,
         llm_client: LLMClientABC,
         session_id: str | None = None,
+        system_prompt: str | None = None,
         tools: list[llm_parameter.ToolSchema] | None = None,
         debug_mode: bool = False,
     ):
         work_dir: Path = Path.cwd()
         self.session: Session = (
-            Session(work_dir=work_dir, system_prompt=get_system_prompt(llm_client.model_name()))
-            if session_id is None
-            else Session.load(session_id)
+            Session(work_dir=work_dir, system_prompt=system_prompt) if session_id is None else Session.load(session_id)
         )
         self.llm_client: LLMClientABC = llm_client
         self.tools: list[llm_parameter.ToolSchema] | None = tools

@@ -7,6 +7,7 @@ from codex_mini import ui
 from codex_mini.config import load_config
 from codex_mini.config.list_model import display_models_and_providers
 from codex_mini.core import Agent
+from codex_mini.core.prompt import get_system_prompt
 from codex_mini.core.tool import BASH_TOOL_NAME, get_tool_schemas
 from codex_mini.llm import LLMClientABC, create_llm_client
 from codex_mini.protocol.events import EndEvent, Event
@@ -50,7 +51,10 @@ async def run_interactive(model: str | None = None, debug: bool = False):
                 continue
             if agent is None:
                 agent = Agent(
-                    llm_client=llm_client, tools=get_tool_schemas([BASH_TOOL_NAME]), debug_mode=debug
+                    llm_client=llm_client,
+                    tools=get_tool_schemas([BASH_TOOL_NAME]),
+                    system_prompt=get_system_prompt(llm_client.model_name()),
+                    debug_mode=debug,
                 )  # Initialize agent when first input received
             await forward_event(agent.run_task(user_input), q)
             await q.join()  # ensure events drained before next input

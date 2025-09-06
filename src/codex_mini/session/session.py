@@ -11,7 +11,7 @@ class Session(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     work_dir: Path
     conversation_history: list[ConversationItem] = Field(default_factory=list)
-    system_prompt: str = Field(default_factory=str)
+    system_prompt: str | None = None
     last_response_id: str | None = None
 
     @classmethod
