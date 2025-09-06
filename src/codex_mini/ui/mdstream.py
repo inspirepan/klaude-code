@@ -5,11 +5,9 @@ import io
 import time
 from typing import Any, ClassVar
 
-from rich import box
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.live import Live
 from rich.markdown import CodeBlock, Heading, Markdown
-from rich.panel import Panel
 from rich.rule import Rule
 from rich.style import Style
 from rich.syntax import Syntax
@@ -38,14 +36,16 @@ class LeftHeading(Heading):
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         text = self.text
         text.justify = "left"  # Override justification
-        if self.tag == "h1":
-            # Draw a border around h1s, but keep text left-aligned
-            yield Panel(
-                text,
-                box=box.SQUARE,
-                style="markdown.h1.border",
-            )
-        elif self.tag == "h2":
+        # if self.tag == "h1":
+        #     from rich.panel import Panel
+        #     from rich import box
+        #     # Draw a border around h1s, but keep text left-aligned
+        #     yield Panel(
+        #         text,
+        #         box=box.SQUARE,
+        #         style="markdown.h1.border",
+        #     )
+        if self.tag == "h2":
             text.stylize(Style(bold=True, underline=False))
             yield Rule(title=text, characters="-", style="markdown.h2.border", align="left")
         else:

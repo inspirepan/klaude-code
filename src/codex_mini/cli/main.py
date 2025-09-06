@@ -34,7 +34,6 @@ def _select_model_from_config(preferred: str | None = None) -> str | None:
         choices: list[questionary.Choice] = []
 
         max_model_name_length = max(len(m.model_name) for m in models)
-        print(max_model_name_length)
         for m in models:
             star = "★ " if m.model_name == config.main_model else "  "
             label = [
@@ -151,7 +150,8 @@ async def run_interactive(
     executor_task = asyncio.create_task(executor.start())
 
     # Set up UI components
-    display: ui.DisplayABC = ui.REPLDisplay() if not debug else ui.DebugEventDisplay()
+    repl_display = ui.REPLDisplay()
+    display: ui.DisplayABC = repl_display if not debug else ui.DebugEventDisplay(repl_display, write_to_file=True)
     input_provider: ui.InputProviderABC = ui.PromptToolkitInput()
 
     # Start UI display task

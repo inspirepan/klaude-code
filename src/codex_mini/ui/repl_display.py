@@ -19,6 +19,7 @@ CODE_THEME = "solarized-light"
 MARKDOWN_THEME = Theme(
     styles={
         "markdown.code": "medium_purple3",
+        "markdown.h1": "bold reverse white",
         "markdown.h1.border": "gray70",
         "markdown.h2.border": "gray70",
         "markdown.h3": "bold gray46",
@@ -28,8 +29,8 @@ MARKDOWN_THEME = Theme(
 THINKING_STYLE = "italic dim"
 THINKING_PREFIX = Text.from_markup("[not italic]◈[/not italic] Thinking...\n", style=THINKING_STYLE)
 TOOL_NAME_STYLE = "bold"
-DIFF_REMOVE_LINE_STYLE = "#333333 on #ffa8b4"
-DIFF_ADDED_LINE_STYLE = "#333333 on #69db7c"
+DIFF_REMOVE_LINE_STYLE = "reverse #ffa8b4"
+DIFF_ADDED_LINE_STYLE = "reverse #69db7c"
 
 
 class REPLDisplay(DisplayABC):
