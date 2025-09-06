@@ -1,28 +1,18 @@
 import asyncio
-from collections.abc import AsyncGenerator
 
 import typer
 
 from codex_mini import ui
 from codex_mini.config import load_config
 from codex_mini.config.list_model import display_models_and_providers
-from codex_mini.core import Agent
-from codex_mini.core.prompt import get_system_prompt
-from codex_mini.core.tool import BASH_TOOL_NAME, get_tool_schemas
+from codex_mini.core.executor import Executor
 from codex_mini.llm import LLMClientABC, create_llm_client
 from codex_mini.protocol.events import EndEvent, Event
 from codex_mini.trace import log, log_debug
 
 
-async def forward_event(gen: AsyncGenerator[Event, None], q: asyncio.Queue[Event]):
-    try:
-        async for event in gen:
-            await q.put(event)
-    except Exception as e:
-        raise e
-
-
 async def run_interactive(model: str | None = None, debug: bool = False):
+    """Run the interactive REPL using the new executor architecture."""
     config = load_config()
     model_config = config.get_model_config(model) if model else config.get_main_model_config()
 
@@ -33,35 +23,57 @@ async def run_interactive(model: str | None = None, debug: bool = False):
     if debug:
         llm_client.enable_debug_mode()
 
-    q: asyncio.Queue[Event] = asyncio.Queue()
+    # Create event queue for communication between executor and UI
+    event_queue: asyncio.Queue[Event] = asyncio.Queue()
 
+    # Create executor with the LLM client
+    executor = Executor(event_queue, llm_client, debug_mode=debug)
+
+    # Start executor in background
+    executor_task = asyncio.create_task(executor.start())
+
+    # Set up UI components
     display: ui.DisplayABC = ui.REPLDisplay() if not debug else ui.DebugEventDisplay()
     input_provider: ui.InputProviderABC = ui.PromptToolkitInput()
 
-    display_task = asyncio.create_task(display.consume_event_loop(q))
-
-    agent: Agent | None = None
+    # Start UI display task
+    display_task = asyncio.create_task(display.consume_event_loop(event_queue))
 
     try:
         await input_provider.start()
         async for user_input in input_provider.iter_inputs():
+            # Handle special commands
             if user_input.strip().lower() in {"exit", ":q", "quit"}:
                 break
-            if user_input.strip() == "":
+            elif user_input.strip() == "":
                 continue
-            if agent is None:
-                agent = Agent(
-                    llm_client=llm_client,
-                    tools=get_tool_schemas([BASH_TOOL_NAME]),
-                    system_prompt=get_system_prompt(llm_client.model_name()),
-                    debug_mode=debug,
-                )  # Initialize agent when first input received
-            await forward_event(agent.run_task(user_input), q)
-            await q.join()  # ensure events drained before next input
+            # Submit user input operation
+            submission_id = await executor.submit(
+                {
+                    "type": "user_input",
+                    "content": user_input,
+                    "session_id": None,  # Use default session
+                }
+            )
+            # Wait for this specific task to complete before accepting next input
+            await executor.wait_for_completion(submission_id)
+            # Ensure all UI events drained before next input
+            await event_queue.join()
+
     except KeyboardInterrupt:
-        log("Bye!")
+        log("Interrupted! Bye!")
+        # Send interrupt to stop any running tasks
+        try:
+            await executor.submit({"type": "interrupt", "target_session_id": None})
+        except:  # noqa: E722
+            pass  # Executor might already be stopping
     finally:
-        await q.put(EndEvent())
+        # Clean shutdown
+        await executor.stop()
+        executor_task.cancel()
+
+        # Signal UI to stop
+        await event_queue.put(EndEvent())
         await display_task
 
 
