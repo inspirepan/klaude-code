@@ -15,6 +15,9 @@ kb = KeyBindings()
 
 @kb.add("enter")
 def _(event):  # type: ignore
+    if len(event.current_buffer.text.strip()) == 0:  # type: ignore
+        event.current_buffer.insert_text("\n")  # type: ignore
+        return
     event.current_buffer.validate_and_handle()  # type: ignore
 
 
