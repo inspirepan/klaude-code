@@ -26,7 +26,7 @@ async def run_interactive(model: str | None = None, debug: bool = False):
     model_config = config.get_model_config(model) if model else config.get_main_model_config()
 
     if debug:
-        log_debug("▷▷▷ llm [Model Config]", model_config.model_dump_json(), style="yellow")
+        log_debug("▷▷▷ llm [Model Config]", model_config.model_dump_json(exclude_none=True), style="yellow")
 
     llm_client: LLMClientABC = create_llm_client(model_config)
     if debug:

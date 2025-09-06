@@ -164,12 +164,12 @@ class REPLDisplay(DisplayABC):
             rule_text += f" · [bold]{e.provider.lower()}[/bold]"
         if e.usage is not None:
             cached_token_str = (
-                f"([b]{format_number(e.usage.cached_tokens)}[/b] cached)" if e.usage.cached_tokens > 0 else ""
+                f" ([b]{format_number(e.usage.cached_tokens)}[/b] cached)" if e.usage.cached_tokens > 0 else ""
             )
             reasoning_token_str = (
-                f"([b]{format_number(e.usage.reasoning_tokens)}[/b] reasoning)" if e.usage.reasoning_tokens > 0 else ""
+                f" ([b]{format_number(e.usage.reasoning_tokens)}[/b] reasoning)" if e.usage.reasoning_tokens > 0 else ""
             )
-            rule_text += f" · token usage [b]{format_number(e.usage.input_tokens)}[/b] input {cached_token_str} [b]{format_number(e.usage.output_tokens)}[/b] output {reasoning_token_str}"
+            rule_text += f" · token usage [b]{format_number(e.usage.input_tokens)}[/b] input{cached_token_str} [b]{format_number(e.usage.output_tokens)}[/b] output{reasoning_token_str}"
         self.console.print(
             Rule(
                 Text.from_markup(rule_text, style="bright_black", overflow="fold"),
