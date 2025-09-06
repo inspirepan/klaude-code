@@ -125,6 +125,11 @@ class TodoItem(BaseModel):
     activeForm: str
 
 
+class TodoUIExtra(BaseModel):
+    todos: list[TodoItem]
+    new_completed: list[str]
+
+
 MessageItem = (
     UserMessageItem
     | AssistantMessageItem

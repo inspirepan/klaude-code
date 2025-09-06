@@ -9,8 +9,7 @@ from codex_mini.core.tool.tool_common import truncate_tool_output
 from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import ToolResultItem
-
-BASH_TOOL_NAME = "Bash"
+from codex_mini.protocol.tools import BASH_TOOL_NAME
 
 
 class SafetyCheckResult:

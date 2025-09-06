@@ -10,9 +10,7 @@ from codex_mini.core.tool.tool_context import current_session_var
 from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import ToolResultItem
-
-READ_TOOL_NAME = "Read"
-
+from codex_mini.protocol.tools import READ_TOOL_NAME
 
 SYSTEM_REMINDER_MALICIOUS = (
     "<system-reminder>\n"

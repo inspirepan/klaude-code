@@ -1,0 +1,5 @@
+BASH_TOOL_NAME = "Bash"
+EDIT_TOOL_NAME = "Edit"
+MULTI_EDIT_TOOL_NAME = "MultiEdit"
+READ_TOOL_NAME = "Read"
+TODO_WRITE_TOOL_NAME = "TodoWrite"

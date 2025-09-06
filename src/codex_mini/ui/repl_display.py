@@ -8,6 +8,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
+from codex_mini.protocol import model, tools
 from codex_mini.protocol.events import (
     AssistantMessageDeltaEvent,
     AssistantMessageEvent,
@@ -137,6 +138,17 @@ class REPLDisplay(DisplayABC):
             else:
                 self.console.print(Text(e.content, style=THINKING_STYLE), end="")
 
+    def render_error(self, error_msg: str) -> RenderableType:
+        grid = Table.grid()
+        table = Table.grid(padding=(0, 1))
+        table.add_column(width=1, no_wrap=True)
+        table.add_column(overflow="fold")
+        grid.add_row(
+            Text("✘ ", style="bold red"),
+            Text(self.truncate_display(error_msg), style="red"),
+        )
+        return grid
+
     def render_any_tool_call(self, tool_name: str, arguments: str, markup: str = "•") -> Text:
         render_result: Text = Text.assemble((markup, "bold"), " ", (tool_name, TOOL_NAME_STYLE), " ")
         if not arguments:
@@ -221,14 +233,16 @@ class REPLDisplay(DisplayABC):
 
     def display_tool_call(self, e: ToolCallEvent) -> None:
         match e.tool_name:
-            case "Read":
+            case tools.READ_TOOL_NAME:
                 self.console.print(self.render_read_tool_call(e.arguments))
-            case "Edit":
+            case tools.EDIT_TOOL_NAME:
                 self.console.print(self.render_edit_tool_call(e.arguments))
-            case "MultiEdit":
+            case tools.MULTI_EDIT_TOOL_NAME:
                 self.console.print(self.render_multi_edit_tool_call(e.arguments))
-            case "Bash":
+            case tools.BASH_TOOL_NAME:
                 self.console.print(self.render_any_tool_call(e.tool_name, e.arguments, ">"))
+            case tools.TODO_WRITE_TOOL_NAME:
+                self.console.print(self.render_any_tool_call("Update Todos", "", "☰"))
             case _:
                 self.console.print(self.render_any_tool_call(e.tool_name, e.arguments))
 
@@ -318,29 +332,60 @@ class REPLDisplay(DisplayABC):
 
         return out
 
-    def display_tool_call_result(self, e: ToolResultEvent) -> None:
-        if e.status == "error":
+    def render_todo(self, tr: ToolResultEvent) -> RenderableType:
+        if tr.ui_extra is None:
+            return self.render_error("(no content)")
+        try:
+            ui_extra = model.TodoUIExtra.model_validate_json(tr.ui_extra)
+
             grid = Table.grid()
             table = Table.grid(padding=(0, 1))
             table.add_column(width=1, no_wrap=True)
             table.add_column(overflow="fold")
-            grid.add_row(
-                Text("✘ ", style="bold red"),
-                Text(self.truncate_display(e.result), style="red"),
-            )
-            self.console.print(grid)
+
+            for todo in ui_extra.todos:
+                is_new_completed = todo.content in ui_extra.new_completed
+                match todo.status:
+                    case "pending":
+                        mark = "▢"
+                        mark_style = "bright_black"
+                        text_style = "bright_black"
+                    case "in_progress":
+                        mark = "◉"
+                        mark_style = "blue"
+                        text_style = "bold blue"
+                    case "completed":
+                        mark = "✔"
+                        mark_style = "green" if is_new_completed else "bright_black"
+                        text_style = "green strike" if is_new_completed else "bright_black strike"
+                grid.add_row(
+                    Text(f"{mark} ", style=f"bold {mark_style}"),
+                    Text(todo.content, style=text_style),
+                )
+            return grid
+
+        except json.JSONDecodeError as e:
+            return self.render_error(str(e))
+
+        return ""
+
+    def display_tool_call_result(self, e: ToolResultEvent) -> None:
+        if e.status == "error":
+            self.console.print(self.render_error(e.result))
             return
 
         match e.tool_name:
-            case "Read":
+            case tools.READ_TOOL_NAME:
                 pass
-            case "Edit" | "MultiEdit":
+            case tools.EDIT_TOOL_NAME | tools.MULTI_EDIT_TOOL_NAME:
                 self.console.print(
                     Padding.indent(
                         self.render_edit_diff(e),
                         level=2,
                     )
                 )
+            case tools.TODO_WRITE_TOOL_NAME:
+                self.console.print(self.render_todo(e))
             case _:
                 self.console.print(
                     Padding.indent(
@@ -402,9 +447,10 @@ class REPLDisplay(DisplayABC):
                         )
                     self.console.print(grid)
                     self.console.print()
-                case ToolCallEvent() | ToolResultEvent() as e:
+                case ToolCallEvent() as e:
                     await self.consume_event(e)
-                    self.console.print()
+                case ToolResultEvent() as e:
+                    await self.consume_event(e)
                 case ResponseMetadataEvent() as e:
                     self.display_metadata(e)
                     self.console.print()

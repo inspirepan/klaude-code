@@ -12,8 +12,7 @@ from codex_mini.core.tool.tool_context import current_session_var
 from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import ToolResultItem
-
-MULTI_EDIT_TOOL_NAME = "MultiEdit"
+from codex_mini.protocol.tools import MULTI_EDIT_TOOL_NAME
 
 
 def _is_directory(path: str) -> bool:
