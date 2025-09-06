@@ -6,10 +6,11 @@ from pathlib import Path
 
 @lru_cache(maxsize=1)
 def get_system_prompt(model_name: str) -> str:
+    prompt_path = "prompt_codex.md" if "gpt-5" in model_name else "prompt_claude_code.md"
     # Read md located in the same package directory
     return (
         files(__package__)
-        .joinpath("prompt.md")
+        .joinpath(prompt_path)
         .read_text(encoding="utf-8")
         .format(
             working_directory=str(Path.cwd()),

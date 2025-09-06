@@ -32,7 +32,8 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel.force-include]
-"src/codex_mini/core/prompt.md" = "codex_mini/core/prompt.md"
+"src/codex_mini/core/prompt_codex.md" = "codex_mini/core/prompt_codex.md"
+"src/codex_mini/core/prompt_claude_code.md" = "codex_mini/core/prompt_claude_code.md"
 
 [tool.ruff]
 line-length = 120

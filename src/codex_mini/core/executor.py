@@ -6,6 +6,7 @@ handling operations submitted from the CLI and coordinating with agents.
 """
 
 import asyncio
+from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
 
@@ -15,6 +16,7 @@ from codex_mini.core.tool import BASH_TOOL_NAME, EDIT_TOOL_NAME, MULTI_EDIT_TOOL
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.protocol.events import ErrorEvent, Event, TaskFinishEvent
 from codex_mini.protocol.op import InterruptOperation, Submission, UserInputOperation
+from codex_mini.session.session import Session
 from codex_mini.trace import log_debug
 
 
@@ -42,13 +44,17 @@ class ExecutorContext:
 
     async def handle_user_input(self, operation: UserInputOperation) -> None:
         """Handle a user input operation by running it through an agent."""
-        session_id = operation.session_id or "default"
-
+        session = (
+            Session(work_dir=Path.cwd(), system_prompt=get_system_prompt(self.llm_client.model_name()))
+            if operation.session_id is None
+            else Session.load(operation.session_id)
+        )
+        session_id = session.id
         # Get or create agent for this session
         if session_id not in self.active_agents:
             agent = Agent(
                 llm_client=self.llm_client,
-                session_id=session_id,
+                session=session,
                 tools=get_tool_schemas([BASH_TOOL_NAME, READ_TOOL_NAME, EDIT_TOOL_NAME, MULTI_EDIT_TOOL_NAME]),
                 system_prompt=get_system_prompt(self.llm_client.model_name()),
                 debug_mode=self.debug_mode,
