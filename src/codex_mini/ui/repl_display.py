@@ -25,7 +25,7 @@ MARKDOWN_THEME = Theme(
     }
 )
 THINKING_PREFIX = "✶ Thinking...\n"
-THINKING_STYLE = "italic bright_black"
+THINKING_STYLE = "italic dim"
 TOOL_NAME_STYLE = "bold"
 DIFF_REMOVE_LINE_STYLE = "#333333 on #ffa8b4"
 DIFF_ADDED_LINE_STYLE = "#333333 on #69db7c"
