@@ -351,9 +351,11 @@ class REPLDisplay(DisplayABC):
                         mark = "✔"
                         mark_style = "green" if is_new_completed else "dim"
                         text_style = "green strike" if is_new_completed else "dim strike"
+                text = Text(todo.content)
+                text.stylize(text_style)
                 grid.add_row(
                     Text(f"{mark} ", style=f"bold {mark_style}"),
-                    Text(todo.content, style=text_style),
+                    text,
                 )
             return grid
 
