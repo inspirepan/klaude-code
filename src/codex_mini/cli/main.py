@@ -12,6 +12,57 @@ from codex_mini.session import Session
 from codex_mini.trace import log, log_debug
 
 
+def _select_model_from_config(preferred: str | None = None) -> str | None:
+    """Interactive single-choice model selector.
+
+    Preferred flow uses questionary TUI when a TTY is available; otherwise
+    falls back to numeric input.
+    """
+    config = load_config()
+    models = config.model_list
+
+    if not models:
+        raise ValueError("No models configured. Please update your config.yaml")
+
+    names: list[str] = [m.model_name for m in models]
+    default_name: str | None = (
+        preferred if preferred in names else (config.main_model if config.main_model in names else None)
+    )
+
+    try:
+        import questionary
+
+        choices: list[questionary.Choice] = []
+        for m in models:
+            star = "★ " if m.model_name == config.main_model else "  "
+            label = [
+                ("class:text", f"{star}{m.model_name:<15}   → "),
+                ("class:b", m.model_params.model or "N/A"),
+                ("class:d", f" {m.provider}"),
+            ]
+            choices.append(questionary.Choice(title=label, value=m.model_name))
+
+        result = questionary.select(
+            message="Select a model:",
+            choices=choices,
+            default=default_name,
+            pointer="→",
+            instruction="↑↓ to move • Enter to select",
+            style=questionary.Style(
+                [
+                    ("text", ""),
+                    ("b", "bold"),
+                    ("d", "dim"),
+                ]
+            ),
+        ).ask()
+        if isinstance(result, str) and result in names:
+            return result
+    except Exception as e:
+        log_debug(f"Failed to use questionary, falling back to default model, {e}")
+        pass
+
+
 async def run_interactive(model: str | None = None, debug: bool = False, continue_session: bool = False):
     """Run the interactive REPL using the new executor architecture."""
     config = load_config()
@@ -111,10 +162,23 @@ def main_callback(
         "-m",
         help="Override model config name (uses main model by default)",
     ),
+    select_model: bool = typer.Option(
+        False,
+        "--select-model",
+        "-s",
+        help="Interactively choose a model at startup",
+    ),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
     continue_: bool = typer.Option(False, "--continue", "-c", help="Continue from latest session"),
 ):
     """Root command callback. Runs interactive mode when no subcommand provided."""
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
-        asyncio.run(run_interactive(model=model, debug=debug, continue_session=continue_))
+        chosen_model = model
+        if select_model:
+            # Prefer the explicitly provided model as default; otherwise main model
+            default_name = model or load_config().main_model
+            chosen_model = _select_model_from_config(preferred=default_name)
+            if chosen_model is None:
+                return
+        asyncio.run(run_interactive(model=chosen_model, debug=debug, continue_session=continue_))

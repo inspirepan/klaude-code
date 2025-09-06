@@ -55,6 +55,8 @@ class REPLDisplay(DisplayABC):
             case events.TaskFinishEvent():
                 pass
             case events.ThinkingDeltaEvent() as e:
+                if self.stage != "thinking":
+                    self.console.print(Text(self.stage, "red bold"))
                 self.display_thinking(e)
                 self.stage = "thinking"
             case events.ThinkingEvent() as e:
