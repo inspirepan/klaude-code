@@ -29,8 +29,8 @@ MARKDOWN_THEME = Theme(
 THINKING_STYLE = "italic dim"
 THINKING_PREFIX = Text.from_markup("[not italic]◈[/not italic] Thinking...\n", style=THINKING_STYLE)
 TOOL_NAME_STYLE = "bold"
-DIFF_REMOVE_LINE_STYLE = "reverse #ffa8b4"
-DIFF_ADDED_LINE_STYLE = "reverse #69db7c"
+DIFF_REMOVE_LINE_STYLE = "#333333 on #ffa8b4"
+DIFF_ADDED_LINE_STYLE = "#333333 on #69db7c"
 
 
 class REPLDisplay(DisplayABC):
@@ -252,8 +252,7 @@ class REPLDisplay(DisplayABC):
             return "\n".join(lines[:20]) + "\n... (more " + str(len(lines) - 20) + " lines are truncated)"
         return text
 
-    def render_edit_diff(self, e: events.ToolResultEvent) -> RenderableType:
-        diff_text = e.ui_extra or ""
+    def render_edit_diff(self, diff_text: str) -> RenderableType:
         if diff_text == "":
             return Text("")
 
@@ -373,13 +372,18 @@ class REPLDisplay(DisplayABC):
             case tools.EDIT_TOOL_NAME | tools.MULTI_EDIT_TOOL_NAME:
                 self.console.print(
                     Padding.indent(
-                        self.render_edit_diff(e),
+                        self.render_edit_diff(e.ui_extra or ""),
                         level=2,
                     )
                 )
             case tools.TODO_WRITE_TOOL_NAME:
                 self.console.print(self.render_todo(e))
             case _:
+                # handle bash `git diff`
+                if e.tool_name == tools.BASH_TOOL_NAME and e.result.startswith("diff --git"):
+                    self.console.print(self.render_edit_diff(e.result))
+                    return
+
                 self.console.print(
                     Padding.indent(
                         Text(
