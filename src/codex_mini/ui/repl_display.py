@@ -285,32 +285,33 @@ class REPLDisplay(DisplayABC):
             if line.startswith("--- ") or line.startswith("+++ "):
                 continue
 
-            # Hide completely blank diff lines (no content)
-            if line == "" or (line[0] in "+- " and len(line) == 1):
+            # Only handle unified diff hunk lines; ignore other metadata like
+            # "diff --git" or "index ..." which would otherwise skew counters.
+            if not line or line[:1] not in {" ", "+", "-"}:
                 continue
 
-            # Compute line number prefix
-            prefix = ""
-            if line.startswith("-"):
+            # Hide completely blank diff lines (no content beyond the marker)
+            if len(line) == 1:
+                continue
+
+            # Compute line number prefix and advance counters
+            prefix = "     "
+            kind = line[0]
+            if kind == "-":
                 if old_ln is not None:
                     prefix = f"{old_ln:>4} "
                     old_ln += 1
-                else:
-                    prefix = "     "
-            elif line.startswith("+"):
+            elif kind == "+":
                 if new_ln is not None:
                     prefix = f"{new_ln:>4} "
                     new_ln += 1
-                else:
-                    prefix = "     "
-            else:  # context line
+            else:  # context line ' '
                 if new_ln is not None:
                     prefix = f"{new_ln:>4} "
-                    new_ln += 1
-                else:
-                    prefix = "     "
                 if old_ln is not None:
                     old_ln += 1
+                if new_ln is not None:
+                    new_ln += 1
 
             # Style only true diff content lines
             if line.startswith("-"):

@@ -23,7 +23,7 @@ class Session(BaseModel):
     # FileTracker: track file path -> last modification time when last read/edited
     file_tracker: dict[str, float] = Field(default_factory=dict)
     # Todo list for the session
-    todos: list[TodoItem] = Field(default_factory=list)
+    todos: list[TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     # Timestamps (epoch seconds)
     created_at: float = Field(default_factory=lambda: time.time())
     updated_at: float = Field(default_factory=lambda: time.time())
