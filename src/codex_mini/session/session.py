@@ -8,7 +8,7 @@ from typing import ClassVar
 from pydantic import BaseModel, Field
 
 from codex_mini.protocol import model
-from codex_mini.protocol.model import ConversationItem
+from codex_mini.protocol.model import ConversationItem, TodoItem
 
 
 class Session(BaseModel):
@@ -22,6 +22,8 @@ class Session(BaseModel):
     last_response_id: str | None = None
     # FileTracker: track file path -> last modification time when last read/edited
     file_tracker: dict[str, float] = Field(default_factory=dict)
+    # Todo list for the session
+    todos: list[TodoItem] = Field(default_factory=list)
     # Timestamps (epoch seconds)
     created_at: float = Field(default_factory=lambda: time.time())
     updated_at: float = Field(default_factory=lambda: time.time())
@@ -90,6 +92,7 @@ class Session(BaseModel):
         child_session_ids = list(raw.get("child_session_ids", []))
         last_response_id = raw.get("last_response_id")
         file_tracker = dict(raw.get("file_tracker", {}))
+        todos: list[TodoItem] = [TodoItem(**item) for item in raw.get("todos", [])]
         created_at = float(raw.get("created_at", time.time()))
         updated_at = float(raw.get("updated_at", created_at))
 
@@ -101,6 +104,7 @@ class Session(BaseModel):
             child_session_ids=child_session_ids,
             last_response_id=last_response_id,
             file_tracker=file_tracker,
+            todos=todos,
             created_at=created_at,
             updated_at=updated_at,
         )
@@ -152,6 +156,7 @@ class Session(BaseModel):
             "child_session_ids": self.child_session_ids,
             "last_response_id": self.last_response_id,
             "file_tracker": self.file_tracker,
+            "todos": [todo.model_dump() for todo in self.todos],
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }

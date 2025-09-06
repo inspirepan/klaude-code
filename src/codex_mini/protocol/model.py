@@ -4,6 +4,7 @@ from typing import Iterable, Literal
 from pydantic import BaseModel
 
 RoleType = Literal["system", "developer", "user", "assistant", "tool"]
+TodoStatusType = Literal["pending", "in_progress", "completed"]
 
 
 """
@@ -116,6 +117,12 @@ class ResponseMetadataItem(BaseModel):
     usage: Usage | None = None
     model_name: str = ""
     provider: str | None = None  # OpenRouter's provider name
+
+
+class TodoItem(BaseModel):
+    content: str
+    status: TodoStatusType
+    activeForm: str
 
 
 MessageItem = (
