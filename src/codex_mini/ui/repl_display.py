@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 import time
@@ -57,6 +58,8 @@ class REPLDisplay(DisplayABC):
         self.accumulated_assistant_text = ""
         self.stage: Literal["waiting", "thinking", "assistant", "tool_call", "tool_result"] = "waiting"
         self.is_thinking_in_bold = False
+        self.assistant_debounce_interval: float = 0.05
+        self._assistant_debounce_task: asyncio.Task[None] | None = None
 
     @override
     async def consume_event(self, event: events.Event) -> None:
@@ -79,9 +82,10 @@ class REPLDisplay(DisplayABC):
                 if self.assistant_mdstream is None:
                     self.assistant_mdstream = MarkdownStream(mdargs={"code_theme": CODE_THEME}, theme=MARKDOWN_THEME)
                     self.stage = "assistant"
-                self.assistant_mdstream.update(self.accumulated_assistant_text.strip())
+                self._schedule_assistant_flush()
             case events.AssistantMessageEvent() as e:
                 if self.assistant_mdstream is not None:
+                    self._cancel_assistant_debounce()
                     self.assistant_mdstream.update(e.content.strip(), final=True)
                 self.accumulated_assistant_text = ""
                 self.assistant_mdstream = None
@@ -116,7 +120,26 @@ class REPLDisplay(DisplayABC):
         pass
 
     async def stop(self) -> None:
+        self._cancel_assistant_debounce()
         pass
+
+    def _cancel_assistant_debounce(self) -> None:
+        if self._assistant_debounce_task is not None and not self._assistant_debounce_task.done():
+            self._assistant_debounce_task.cancel()
+        self._assistant_debounce_task = None
+
+    def _schedule_assistant_flush(self) -> None:
+        self._cancel_assistant_debounce()
+        # debounce to batch markdown updates for assistant deltas
+        self._assistant_debounce_task = asyncio.create_task(self._debounced_flush_assistant())
+
+    async def _debounced_flush_assistant(self) -> None:
+        try:
+            await asyncio.sleep(self.assistant_debounce_interval)
+            if self.assistant_mdstream is not None:
+                self.assistant_mdstream.update(self.accumulated_assistant_text.strip())
+        except asyncio.CancelledError:
+            return
 
     def display_thinking(self, e: events.ThinkingDeltaEvent) -> None:
         """
