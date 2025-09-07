@@ -84,7 +84,7 @@ class OpenRouterProviderRouting(BaseModel):
 
 class OpenRouterPlugin(BaseModel):
     id: Literal["web"]
-    # Web search
+    # Web search, see: https://openrouter.ai/docs/features/web-search
     max_results: int | None = None
     search_prompt: str | None = None
 

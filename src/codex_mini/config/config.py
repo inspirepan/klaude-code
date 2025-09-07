@@ -8,6 +8,8 @@ from codex_mini.protocol.llm_parameter import (
     LLMConfigModelParameter,
     LLMConfigParameter,
     LLMConfigProviderParameter,
+    OpenRouterPlugin,
+    OpenRouterProviderRouting,
     Reasoning,
     Thinking,
 )
@@ -103,6 +105,14 @@ def get_example_config() -> Config:
                     temperature=1.0,
                     max_tokens=8192,
                     thinking=Thinking(type="enabled", budget_tokens=1024),
+                    provider_routing=OpenRouterProviderRouting(
+                        sort="throughput",
+                    ),
+                    plugins=[
+                        OpenRouterPlugin(
+                            id="web",
+                        )
+                    ],
                 ),
             ),
         ],
