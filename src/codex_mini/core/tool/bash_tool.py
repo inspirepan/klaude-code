@@ -109,6 +109,7 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
 
     # simple allow list
     if cmd0 in {
+        "env",
         "cat",
         "cd",
         "cp",
