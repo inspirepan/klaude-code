@@ -89,7 +89,6 @@ class EditTool(ToolABC):
                 },
                 "required": ["file_path", "old_string", "new_string"],
                 "additionalProperties": False,
-                "$schema": "http://json-schema.org/draft-07/schema#",
             },
         )
 

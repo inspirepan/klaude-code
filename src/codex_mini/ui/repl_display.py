@@ -70,7 +70,6 @@ class REPLDisplay(DisplayABC):
             case events.ThinkingDeltaEvent() as e:
                 if len(e.content.strip()) == 0:
                     return
-                e.content = e.content.replace("\n\n", "\n")
                 self.display_thinking(e)
                 self.stage = "thinking"
             case events.ThinkingEvent() as e:
@@ -123,7 +122,7 @@ class REPLDisplay(DisplayABC):
         """
         Handle markdown bold syntax in thinking text.
         """
-        content = e.content.replace("\r", "")
+        content = e.content.replace("\r", "").replace("\n\n", "\n")
         if len(content.strip()) == 0:
             return
         if self.stage != "thinking":
@@ -499,6 +498,7 @@ class REPLDisplay(DisplayABC):
                 border_style="grey70",
             )
         )
+        self.console.print()
 
     def render_at_pattern(
         self, text: str, at_style: str = USER_INPUT_AT_PATTERN_STYLE, other_style: str = USER_INPUT_STYLE

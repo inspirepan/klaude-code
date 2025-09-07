@@ -45,7 +45,6 @@ Params:
     "file_path"
   ],
   "additionalProperties": false,
-  "$schema": "http://json-schema.org/draft-07/schema#"
 }
 
 
@@ -94,7 +93,6 @@ Params:
     "new_string"
   ],
   "additionalProperties": false,
-  "$schema": "http://json-schema.org/draft-07/schema#"
 }
 
 ## MultiEdit
@@ -186,7 +184,6 @@ Params:
     "edits"
   ],
   "additionalProperties": false,
-  "$schema": "http://json-schema.org/draft-07/schema#"
 }
 
 

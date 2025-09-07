@@ -198,7 +198,10 @@ class ExecutorContext:
         except Exception as e:
             # Handle any other exceptions
             if self.debug_mode:
+                import traceback
+
                 log_debug(f"Agent task {task_id} failed: {str(e)}", style="red")
+                log_debug(traceback.format_exc(), style="red")
             await self.emit_event(events.ErrorEvent(error_message=f"Agent task failed: {str(e)}"))
 
         finally:

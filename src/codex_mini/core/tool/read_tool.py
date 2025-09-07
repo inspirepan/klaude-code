@@ -139,7 +139,6 @@ class ReadTool(ToolABC):
                 },
                 "required": ["file_path"],
                 "additionalProperties": False,
-                "$schema": "http://json-schema.org/draft-07/schema#",
             },
         )
 

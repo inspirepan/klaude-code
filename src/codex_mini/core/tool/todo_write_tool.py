@@ -70,7 +70,6 @@ class TodoWriteTool(ToolABC):
                 },
                 "required": ["todos"],
                 "additionalProperties": False,
-                "$schema": "http://json-schema.org/draft-07/schema#",
             },
         )
 

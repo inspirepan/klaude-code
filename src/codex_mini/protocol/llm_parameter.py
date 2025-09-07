@@ -35,11 +35,12 @@ class Reasoning(BaseModel):
 
 class Thinking(BaseModel):
     """
-    Claude Extended Thinking
+    Claude Extended Thinking & Gemini Thinking
     """
 
-    type: Literal["enabled", "disabled"]
+    type: Literal["enabled", "disabled"] | None = None
     budget_tokens: int | None = None
+    include_thoughts: bool | None = None
 
 
 class OpenRouterProviderRouting(BaseModel):
@@ -109,7 +110,7 @@ class LLMConfigModelParameter(BaseModel):
     # OpenAI GPT-5
     verbosity: Literal["low", "medium", "high"] | None = None
 
-    # Claude Extended Thinking
+    # Claude Extended Thinking & Gemini Thinking
     thinking: Thinking | None = None
 
     # OpenRouter Provider Routing Preferences

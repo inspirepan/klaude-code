@@ -129,7 +129,6 @@ class MultiEditTool(ToolABC):
                 },
                 "required": ["file_path", "edits"],
                 "additionalProperties": False,
-                "$schema": "http://json-schema.org/draft-07/schema#",
             },
         )
 
