@@ -58,12 +58,16 @@ A typical sequence of response items is:
 - Done
 
 A conversation history input contains:
-- [UserMessage]
+- [UserMessageItem]
 - [ReasoningItem]
-- [AssistantMessage]
+- [AssistantMessageItem]
 - [ToolCallItem]
 - [ToolResultItem]
 - [InterruptItem]
+- [DeveloperMessageItem]
+
+When adding a new item, please also modify the following:
+- session.py#_TypeMap
 """
 
 
@@ -85,6 +89,11 @@ class DeveloperMessageItem(BaseModel):
     id: str | None = None
     role: RoleType = "developer"
     content: str | None = None
+
+    # special fields for reminders UI
+    memory_paths: list[str] | None = None
+    external_file_changes: list[str] | None = None
+    todo_use: bool | None = None
 
 
 class UserMessageItem(BaseModel):
@@ -176,19 +185,22 @@ def group_response_items_gen(
     - Consecutive (ReasoningItem | AssistantMessage | ToolCallItem) are grouped together
     - Consecutive UserMessage are grouped together
     - Each ToolMessage is always a single group
+    - Each DeveloperMessage should attach to the previous UserMessage/ToolMessage group
     """
     buffer: list[ConversationItem] = []
     buffer_kind: Literal["assistant", "user", "tool", "other"] = "other"
 
     def kind_of(
         it: ConversationItem,
-    ) -> Literal["assistant", "user", "tool", "other"]:
+    ) -> Literal["assistant", "user", "tool", "developer", "other"]:
         if isinstance(it, (ReasoningItem, AssistantMessageItem, ToolCallItem)):
             return "assistant"
         if isinstance(it, UserMessageItem):
             return "user"
         if isinstance(it, ToolResultItem):
             return "tool"
+        if isinstance(it, DeveloperMessageItem):
+            return "developer"
         return "other"  # Metadata etc.
 
     for item in items:
@@ -205,6 +217,12 @@ def group_response_items_gen(
             yield ("tool", [item])
             continue
 
+        if k == "developer":
+            # DeveloperMessage: attach to UserMessage or ToolMessage as <system-reminder>
+            if buffer:
+                buffer.append(item)
+            continue
+
         if not buffer:
             buffer = [item]
             buffer_kind = k
@@ -219,3 +237,7 @@ def group_response_items_gen(
 
     if buffer:
         yield (buffer_kind, buffer)
+
+
+def todo_list_str(todos: list[TodoItem]) -> str:
+    return "[" + "\n".join(f"[{todo.status}] {todo.content}" for todo in todos) + "]\n"

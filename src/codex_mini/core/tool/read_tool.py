@@ -91,7 +91,10 @@ class ReadTool(ToolABC):
             args = ReadTool.ReadArguments.model_validate_json(arguments)
         except Exception as e:  # pragma: no cover - defensive
             return ToolResultItem(status="error", output=f"Invalid arguments: {e}")
+        return await cls.call_with_args(args)
 
+    @classmethod
+    async def call_with_args(cls, args: ReadTool.ReadArguments) -> ToolResultItem:
         # Accept relative path by resolving to absolute (schema encourages absolute)
         file_path = os.path.abspath(args.file_path)
 

@@ -7,6 +7,7 @@ from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import (
     AssistantMessageItem,
     ConversationItem,
+    DeveloperMessageItem,
     ReasoningItem,
     ToolCallItem,
     ToolResultItem,
@@ -65,6 +66,20 @@ def convert_history_to_input(
                             {
                                 "type": "input_text",
                                 "text": u.content,
+                            }
+                        ],
+                    }
+                )
+            case DeveloperMessageItem() as d:
+                items.append(
+                    {
+                        "type": "message",
+                        "role": "developer",
+                        "id": d.id,
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": d.content,
                             }
                         ],
                     }

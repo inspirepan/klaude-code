@@ -27,6 +27,8 @@ class Session(BaseModel):
     # Timestamps (epoch seconds)
     created_at: float = Field(default_factory=lambda: time.time())
     updated_at: float = Field(default_factory=lambda: time.time())
+    loaded_memory: list[str] = Field(default_factory=list)
+    need_todo_empty_reminder: bool = True
 
     # Internal: mapping for (de)serialization of conversation items
     _TypeMap: ClassVar[dict[str, type[BaseModel]]] = {
@@ -94,6 +96,7 @@ class Session(BaseModel):
         last_response_id = raw.get("last_response_id")
         file_tracker = dict(raw.get("file_tracker", {}))
         todos: list[TodoItem] = [TodoItem(**item) for item in raw.get("todos", [])]
+        loaded_memory = list(raw.get("loaded_memory", []))
         created_at = float(raw.get("created_at", time.time()))
         updated_at = float(raw.get("updated_at", created_at))
 
@@ -106,6 +109,7 @@ class Session(BaseModel):
             last_response_id=last_response_id,
             file_tracker=file_tracker,
             todos=todos,
+            loaded_memory=loaded_memory,
             created_at=created_at,
             updated_at=updated_at,
         )
@@ -158,6 +162,7 @@ class Session(BaseModel):
             "last_response_id": self.last_response_id,
             "file_tracker": self.file_tracker,
             "todos": [todo.model_dump() for todo in self.todos],
+            "loaded_memory": self.loaded_memory,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }

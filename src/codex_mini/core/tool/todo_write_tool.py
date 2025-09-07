@@ -1,12 +1,10 @@
-import json
-
 from pydantic import BaseModel
 
 from codex_mini.core.tool.tool_abc import ToolABC
 from codex_mini.core.tool.tool_context import current_session_var
 from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
-from codex_mini.protocol.model import TodoItem, TodoUIExtra, ToolResultItem
+from codex_mini.protocol.model import TodoItem, TodoUIExtra, ToolResultItem, todo_list_str
 from codex_mini.protocol.tools import TODO_WRITE_TOOL_NAME
 
 
@@ -99,14 +97,8 @@ class TodoWriteTool(ToolABC):
         # Find newly completed todos
         new_completed = get_new_completed_todos(session.todos, args.todos)
 
-        # Convert todos to dict format for storage
-        todos_data = [todo.model_dump() for todo in args.todos]
-
         # Store todos directly as TodoItem objects in session
         session.todos = args.todos
-
-        # Create the system reminder content
-        todos_json = json.dumps(todos_data, ensure_ascii=False)
 
         ui_extra = TodoUIExtra(todos=args.todos, new_completed=new_completed)
 
@@ -115,7 +107,7 @@ class TodoWriteTool(ToolABC):
 <system-reminder>
 Your todo list has changed. DO NOT mention this explicitly to the user. Here are the latest contents of your todo list:
 
-{todos_json}. Continue on with the tasks at hand if applicable.
+{todo_list_str(args.todos)}. Continue on with the tasks at hand if applicable.
 </system-reminder>"""
 
         return ToolResultItem(

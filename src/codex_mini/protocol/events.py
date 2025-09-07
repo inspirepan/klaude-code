@@ -50,6 +50,11 @@ class AssistantMessageEvent(BaseModel):
     annotations: list[model.Annotation] | None = None
 
 
+class DeveloperMessageEvent(BaseModel):
+    session_id: str
+    item: model.DeveloperMessageItem
+
+
 class ToolCallEvent(BaseModel):
     session_id: str
     response_id: str | None = None
@@ -95,6 +100,7 @@ HistoryItemEvent = (
     | UserMessageEvent
     | ResponseMetadataEvent
     | InterruptEvent
+    | DeveloperMessageEvent
 )
 
 
@@ -119,4 +125,5 @@ Event = (
     | WelcomeEvent
     | UserMessageEvent
     | InterruptEvent
+    | DeveloperMessageEvent
 )

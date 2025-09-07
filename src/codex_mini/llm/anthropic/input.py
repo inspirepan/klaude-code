@@ -30,7 +30,8 @@ def convert_history_to_input(
                                 "text": item.content + "\n",
                             }
                             for item in group
-                            if isinstance(item, model.UserMessageItem) and item.content is not None
+                            if isinstance(item, (model.UserMessageItem, model.DeveloperMessageItem))
+                            and item.content is not None
                         ],
                     }
                 )
@@ -38,6 +39,11 @@ def convert_history_to_input(
                 if len(group) == 0 or not isinstance(group[0], model.ToolResultItem):
                     continue
                 tool_result = group[0]
+                reminders: list[model.DeveloperMessageItem] = [
+                    i for i in group if isinstance(i, model.DeveloperMessageItem)
+                ]
+                reminders_str = "\n" + "\n".join(i.content for i in reminders if i.content)
+
                 messages.append(
                     {
                         "role": "user",
@@ -46,7 +52,7 @@ def convert_history_to_input(
                                 "type": "tool_result",
                                 "tool_use_id": tool_result.call_id,
                                 "is_error": tool_result.status == "error",
-                                "content": tool_result.output,
+                                "content": (tool_result.output or "") + reminders_str,
                             }
                         ],
                     }

@@ -9,6 +9,7 @@ from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import (
     AssistantMessageItem,
     ConversationItem,
+    DeveloperMessageItem,
     ToolCallItem,
     ToolResultItem,
     UserMessageItem,
@@ -40,10 +41,10 @@ def convert_history_to_input(
                         "content": [
                             {
                                 "type": "text",
-                                "text": item.content,
+                                "text": item.content + "\n",
                             }
                             for item in group
-                            if isinstance(item, UserMessageItem)
+                            if isinstance(item, (UserMessageItem, DeveloperMessageItem)) and item.content is not None
                         ],
                     }
                 )
@@ -51,13 +52,15 @@ def convert_history_to_input(
                 if len(group) == 0 or not isinstance(group[0], ToolResultItem):
                     continue
                 tool_result = group[0]
+                reminders: list[DeveloperMessageItem] = [i for i in group if isinstance(i, DeveloperMessageItem)]
+                reminders_str = "\n" + "\n".join(i.content for i in reminders if i.content)
                 messages.append(
                     {
                         "role": "tool",
                         "content": [
                             {
                                 "type": "text",
-                                "text": tool_result.output,
+                                "text": (tool_result.output or "") + reminders_str,
                             }
                         ],
                         "tool_call_id": tool_result.call_id,

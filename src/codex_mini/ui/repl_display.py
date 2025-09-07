@@ -1,9 +1,11 @@
 import json
 import re
 import time
+from pathlib import Path
 from typing import Literal, override
 
 from rich.console import Console, RenderableType
+from rich.markdown import Markdown
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.rule import Rule
@@ -11,7 +13,6 @@ from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
-from rich.markdown import Markdown
 
 from codex_mini.protocol import events, model, tools
 from codex_mini.ui.display_abc import DisplayABC
@@ -85,6 +86,8 @@ class REPLDisplay(DisplayABC):
                 self.assistant_mdstream = None
                 if e.annotations:
                     self.console.print(self.render_annotations(e.annotations))
+            case events.DeveloperMessageEvent() as e:
+                self.display_reminder(e)
             case events.ResponseMetadataEvent() as e:
                 self.display_metadata(e)
                 self.console.print()
@@ -162,6 +165,18 @@ class REPLDisplay(DisplayABC):
         )
         return grid
 
+    def render_path(self, path: str, style: str, is_directory: bool = False) -> Text:
+        """Render path with home shortcuts and relative path."""
+        if path.startswith(str(Path().cwd())):
+            path = path.replace(str(Path().cwd()), "").lstrip("/")
+        elif path.startswith(str(Path().home())):
+            path = path.replace(str(Path().home()), "~")
+        elif not path.startswith("/") and not path.startswith("."):
+            path = "./" + path
+        if is_directory:
+            path = path.rstrip("/") + "/"
+        return Text(path, style=style)
+
     def render_any_tool_call(self, tool_name: str, arguments: str, markup: str = "•") -> Text:
         render_result: Text = Text.assemble((markup, "bold"), " ", (tool_name, TOOL_NAME_STYLE), " ")
         if not arguments:
@@ -184,7 +199,7 @@ class REPLDisplay(DisplayABC):
             file_path = json_dict.get("file_path")
             limit = json_dict.get("limit", None)
             offset = json_dict.get("offset", None)
-            render_result = render_result.append(Text(file_path, "green"))
+            render_result = render_result.append(self.render_path(file_path, "green"))
             if limit is not None and offset is not None:
                 render_result = (
                     render_result.append_text(Text(" "))
@@ -220,7 +235,7 @@ class REPLDisplay(DisplayABC):
             render_result = (
                 render_result.append_text(Text("Create" if old_string == "" else "Edit", TOOL_NAME_STYLE))
                 .append_text(Text(" "))
-                .append_text(Text(file_path, "green"))
+                .append_text(self.render_path(file_path, "green"))
             )
         except json.JSONDecodeError:
             render_result = (
@@ -237,7 +252,7 @@ class REPLDisplay(DisplayABC):
             file_path = json_dict.get("file_path")
             edits = json_dict.get("edits", [])
             render_result = (
-                render_result.append_text(Text(file_path, "green"))
+                render_result.append_text(self.render_path(file_path, "green"))
                 .append_text(Text(" - "))
                 .append_text(Text(f"{len(edits)}", "bold green"))
                 .append_text(Text(" updates", "green"))
@@ -543,6 +558,8 @@ class REPLDisplay(DisplayABC):
                     MarkdownStream(
                         mdargs={"code_theme": CODE_THEME, "style": THINKING_STYLE}, theme=MARKDOWN_THEME
                     ).update(e.content.strip(), final=True)
+                case events.DeveloperMessageEvent() as e:
+                    self.display_reminder(e)
                 case events.UserMessageEvent() as e:
                     self.display_user_input(e)
                 case events.ToolCallEvent() as e:
@@ -593,3 +610,34 @@ class REPLDisplay(DisplayABC):
                     )
                     grid.add_row("", "")
         return grid
+
+    def display_reminder(self, e: events.DeveloperMessageEvent) -> None:
+        if e.item.memory_paths:
+            grid = self._create_grid()
+            for memory_path in e.item.memory_paths:
+                grid.add_row(
+                    Text("★", style="bold"),
+                    Text.assemble(("Reminder ", "bold"), self.render_path(memory_path, "green bold")),
+                )
+            self.console.print(grid)
+            self.console.print()
+
+        if e.item.external_file_changes:
+            grid = self._create_grid()
+            for file_path in e.item.external_file_changes:
+                grid.add_row(
+                    Text("★", style="bold"),
+                    Text.assemble(
+                        ("Hint ", "bold"),
+                        self.render_path(file_path, "green"),
+                        (" has changed, new content has been loaded to context", "dim"),
+                    ),
+                )
+            self.console.print(grid)
+            self.console.print()
+        if e.item.todo_use:
+            self.console.print(
+                Text("★", style="bold"),
+                Text("Hint ", "bold"),
+                Text("Todo hasn't been updated recently", "dim"),
+            )

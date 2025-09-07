@@ -12,6 +12,13 @@ from uuid import uuid4
 
 from codex_mini.core.agent import Agent
 from codex_mini.core.prompt import get_system_prompt
+from codex_mini.core.reminders import (
+    empty_todo_reminder,
+    file_changed_externally_reminder,
+    last_path_memory_reminder,
+    memory_reminder,
+    todo_not_used_recently_reminder,
+)
 from codex_mini.core.tool import get_tool_schemas
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.protocol import events, llm_parameter
@@ -75,6 +82,13 @@ class ExecutorContext:
                     [TODO_WRITE_TOOL_NAME, BASH_TOOL_NAME, READ_TOOL_NAME, EDIT_TOOL_NAME, MULTI_EDIT_TOOL_NAME]
                 ),
                 debug_mode=self.debug_mode,
+                reminders=[
+                    empty_todo_reminder,
+                    todo_not_used_recently_reminder,
+                    file_changed_externally_reminder,
+                    memory_reminder,
+                    last_path_memory_reminder,
+                ],
             )
             async for evt in agent.replay_history():
                 await self.emit_event(evt)

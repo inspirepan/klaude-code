@@ -1,4 +1,4 @@
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 
 from codex_mini.core.tool.tool_context import current_session_var
 from codex_mini.core.tool.tool_registry import run_tool
@@ -15,11 +15,13 @@ class Agent:
         session: Session,
         tools: list[llm_parameter.ToolSchema] | None = None,
         debug_mode: bool = False,
+        reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] = [],
     ):
         self.session: Session = session
         self.llm_client: LLMClientABC = llm_client
         self.tools: list[llm_parameter.ToolSchema] | None = tools
         self.debug_mode: bool = debug_mode
+        self.reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] = reminders
 
     def cancel(self) -> None:
         """Handle agent cancellation and persist an interrupt marker.
@@ -40,6 +42,8 @@ class Agent:
         accumulated_metadata: model.ResponseMetadataItem = model.ResponseMetadataItem(model_name="")
 
         while True:
+            async for event in self.process_reminders():
+                yield event
             turn_has_tool_call = False
             async for turn_event in self.run_turn():
                 match turn_event:
@@ -137,6 +141,13 @@ class Agent:
                     replay_events.append(
                         events.InterruptEvent(
                             session_id=self.session.id,
+                        )
+                    )
+                case model.DeveloperMessageItem() as dm:
+                    replay_events.append(
+                        events.DeveloperMessageEvent(
+                            session_id=self.session.id,
+                            item=dm,
                         )
                     )
                 case _:
@@ -240,3 +251,10 @@ class Agent:
                     session_id=self.session.id,
                     status=tool_result.status,
                 )
+
+    async def process_reminders(self) -> AsyncGenerator[events.DeveloperMessageEvent, None]:
+        for reminder in self.reminders:
+            item = await reminder(self.session)
+            if item is not None:
+                self.session.append_history([item])
+                yield events.DeveloperMessageEvent(session_id=self.session.id, item=item)
