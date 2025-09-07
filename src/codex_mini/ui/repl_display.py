@@ -118,16 +118,12 @@ class REPLDisplay(DisplayABC):
     async def stop(self) -> None:
         pass
 
-    def strip_ansi(self, text: str) -> str:
-        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
-        return ansi_escape.sub("", text)
-
     def display_thinking(self, e: events.ThinkingDeltaEvent) -> None:
         """
         Handle markdown bold syntax in thinking text.
         """
-        content = self.strip_ansi(e.content.strip())
-        if len(content) == 0:
+        content = e.content
+        if len(content.strip()) == 0:
             return
         if self.stage != "thinking":
             self.console.print(THINKING_PREFIX)
