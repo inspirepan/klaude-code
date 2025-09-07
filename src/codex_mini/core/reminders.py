@@ -3,10 +3,82 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from codex_mini.core.tool import read_tool
+from codex_mini.core.tool.read_tool import ReadTool
+from codex_mini.core.tool.bash_tool import BashTool
 from codex_mini.core.tool.tool_context import current_session_var
 from codex_mini.protocol import model, tools
 from codex_mini.session import Session
+
+
+def get_last_new_user_input(session: Session) -> str | None:
+    """Get last user input from conversation history. if there's a tool result after user input, return None"""
+    for item in reversed(session.conversation_history):
+        if isinstance(item, model.ToolResultItem):
+            return None
+        if isinstance(item, model.UserMessageItem):
+            return item.content
+    return None
+
+
+async def at_file_reader_reminder(session: Session) -> model.DeveloperMessageItem | None:
+    """Parse @foo/bar to read"""
+    last_user_input = get_last_new_user_input(session)
+    if not last_user_input or "@" not in last_user_input.strip():
+        return None
+
+    at_patterns: list[str] = []
+
+    for item in last_user_input.strip().split(" "):
+        if item.startswith("@"):
+            at_patterns.append(item.lower().strip("@"))
+
+    if len(at_patterns) == 0:
+        return None
+
+    at_files: dict[str, model.AtPatternParseResult] = {}  # path -> content
+
+    for pattern in at_patterns:
+        path = Path(pattern).resolve()
+        token = current_session_var.set(session)
+        try:
+            if path.exists() and path.is_file():
+                args = ReadTool.ReadArguments(file_path=str(path))
+                tool_result = await ReadTool.call_with_args(args)
+                at_files[str(path)] = model.AtPatternParseResult(
+                    path=str(path),
+                    tool_name=tools.READ_TOOL_NAME,
+                    result=tool_result.output or "",
+                    tool_args=args.model_dump_json(exclude_none=True),
+                    operation="Read",
+                )
+            elif path.exists() and path.is_dir():
+                args = BashTool.BashArguments(command=f"ls {path}")
+                tool_result = await BashTool.call_with_args(args)
+                at_files[str(path)] = model.AtPatternParseResult(
+                    path=str(path),
+                    tool_name=tools.BASH_TOOL_NAME,
+                    result=tool_result.output or "",
+                    tool_args=args.model_dump_json(exclude_none=True),
+                    operation="List",
+                )
+        finally:
+            current_session_var.reset(token)
+
+    if len(at_files) == 0:
+        return None
+
+    at_files_str = "\n\n".join(
+        [
+            f"""Called the {result.tool_name} tool with the following input: {result.tool_args}
+Result of calling the {result.tool_name} tool:
+{result.result}"""
+            for result in at_files.values()
+        ]
+    )
+    return model.DeveloperMessageItem(
+        content=f"""<system-reminder>{at_files_str}</system-reminder>""",
+        at_files=list(at_files.values()),
+    )
 
 
 async def empty_todo_reminder(session: Session) -> model.DeveloperMessageItem | None:
@@ -59,8 +131,8 @@ async def file_changed_externally_reminder(session: Session) -> model.DeveloperM
                 if Path(path).stat().st_mtime > mtime:
                     token = current_session_var.set(session)
                     try:
-                        tool_result = await read_tool.ReadTool.call_with_args(
-                            read_tool.ReadTool.ReadArguments(file_path=path)
+                        tool_result = await ReadTool.call_with_args(
+                            ReadTool.ReadArguments(file_path=path)
                         )  # This tool will update file tracker
                         if tool_result.status == "success":
                             changed_files.append((path, tool_result.output or ""))
@@ -235,4 +307,5 @@ ALL_REMINDERS = [
     file_changed_externally_reminder,
     memory_reminder,
     last_path_memory_reminder,
+    at_file_reader_reminder,
 ]

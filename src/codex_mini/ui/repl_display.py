@@ -36,9 +36,10 @@ TOOL_NAME_STYLE = "bold"
 DIFF_REMOVE_LINE_STYLE = "#333333 on #ffa8b4"
 DIFF_ADDED_LINE_STYLE = "#333333 on #69db7c"
 USER_INPUT_STYLE = "cyan"
-USER_INPUT_AT_PATTERN_STYLE = "r cyan"
-USER_INPUT_SLASH_COMMAND_PATTERN_STYLE = "r b blue"
+USER_INPUT_AT_PATTERN_STYLE = "reverse medium_purple3"
+USER_INPUT_SLASH_COMMAND_PATTERN_STYLE = "reverse bold blue"
 METADATA_STYLE = "steel_blue"
+REMINDER_STYLE = "medium_purple3 bold"
 
 
 class REPLDisplay(DisplayABC):
@@ -612,32 +613,52 @@ class REPLDisplay(DisplayABC):
         return grid
 
     def display_reminder(self, e: events.DeveloperMessageEvent) -> None:
-        if e.item.memory_paths:
+        has_anything_printed = False
+        if mp := e.item.memory_paths:
             grid = self._create_grid()
-            for memory_path in e.item.memory_paths:
+            for memory_path in mp:
                 grid.add_row(
-                    Text("★", style="bold"),
-                    Text.assemble(("Reminder ", "bold"), self.render_path(memory_path, "green bold")),
+                    Text("★", style=REMINDER_STYLE),
+                    Text.assemble(("Reminder ", REMINDER_STYLE), self.render_path(memory_path, "green bold")),
                 )
             self.console.print(grid)
-            self.console.print()
+            has_anything_printed = True
 
-        if e.item.external_file_changes:
+        if fc := e.item.external_file_changes:
             grid = self._create_grid()
-            for file_path in e.item.external_file_changes:
+            for file_path in fc:
                 grid.add_row(
-                    Text("★", style="bold"),
+                    Text("★", style=REMINDER_STYLE),
                     Text.assemble(
-                        ("Hint ", "bold"),
+                        ("Hint ", REMINDER_STYLE),
                         self.render_path(file_path, "green"),
                         (" has changed, new content has been loaded to context", "dim"),
                     ),
                 )
             self.console.print(grid)
-            self.console.print()
+            has_anything_printed = True
+
         if e.item.todo_use:
             self.console.print(
-                Text("★", style="bold"),
-                Text("Hint ", "bold"),
-                Text("Todo hasn't been updated recently", "dim"),
+                Text("★", style=REMINDER_STYLE),
+                Text("Hint ", REMINDER_STYLE),
+                Text("Todo hasn't been updated recently", REMINDER_STYLE),
             )
+            has_anything_printed = True
+
+        if e.item.at_files:
+            grid = self._create_grid()
+            for at_file in e.item.at_files:
+                grid.add_row(
+                    Text("★", style=REMINDER_STYLE),
+                    Text.assemble(
+                        (f"{at_file.operation} ", REMINDER_STYLE),
+                        self.render_path(at_file.path, "green"),
+                    ),
+                )
+            self.console.print(grid)
+            has_anything_printed = True
+
+        if has_anything_printed:
+            # self.console.print()
+            pass

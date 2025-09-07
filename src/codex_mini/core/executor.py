@@ -13,6 +13,7 @@ from uuid import uuid4
 from codex_mini.core.agent import Agent
 from codex_mini.core.prompt import get_system_prompt
 from codex_mini.core.reminders import (
+    at_file_reader_reminder,
     empty_todo_reminder,
     file_changed_externally_reminder,
     last_path_memory_reminder,
@@ -92,6 +93,7 @@ class ExecutorContext:
                     file_changed_externally_reminder,
                     memory_reminder,
                     last_path_memory_reminder,
+                    at_file_reader_reminder,
                 ],
             )
             async for evt in agent.replay_history():

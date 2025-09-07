@@ -41,6 +41,14 @@ class Annotation(BaseModel):
 
 Annotations = TypeAdapter(list[Annotation])
 
+
+class AtPatternParseResult(BaseModel):
+    path: str
+    tool_name: str
+    result: str
+    tool_args: str
+    operation: Literal["Read", "List"]
+
 """
 Models for LLM API input and response items.
 
@@ -94,6 +102,7 @@ class DeveloperMessageItem(BaseModel):
     memory_paths: list[str] | None = None
     external_file_changes: list[str] | None = None
     todo_use: bool | None = None
+    at_files: list[AtPatternParseResult] | None = None
 
 
 class UserMessageItem(BaseModel):

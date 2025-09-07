@@ -419,6 +419,10 @@ git commit -m "$(cat <<'EOF'
                 status="error",
                 output=f"Invalid arguments: {e}",
             )
+        return await cls.call_with_args(args)
+
+    @classmethod
+    async def call_with_args(cls, args: BashArguments) -> ToolResultItem:
         # Safety check: only execute commands proven as "known safe"
         result = is_safe_command(args.command)
         if not result.is_safe:
