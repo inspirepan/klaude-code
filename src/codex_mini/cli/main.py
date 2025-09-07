@@ -269,7 +269,7 @@ async def run_interactive(
             await event_queue.join()
 
     except KeyboardInterrupt:
-        log("Interrupted! Bye!")
+        log("Bye!")
         # Send interrupt to stop any running tasks
         try:
             await executor.submit({"type": "interrupt", "target_session_id": None})

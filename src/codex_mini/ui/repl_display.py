@@ -122,7 +122,7 @@ class REPLDisplay(DisplayABC):
         """
         Handle markdown bold syntax in thinking text.
         """
-        content = e.content
+        content = e.content.replace("\r", "")
         if len(content.strip()) == 0:
             return
         if self.stage != "thinking":
@@ -665,5 +665,4 @@ class REPLDisplay(DisplayABC):
             has_anything_printed = True
 
         if has_anything_printed:
-            # self.console.print()
-            pass
+            self.console.print()
