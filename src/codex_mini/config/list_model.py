@@ -1,4 +1,4 @@
-from rich.console import Console
+from rich.console import Console, Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -51,9 +51,10 @@ def display_models_and_providers(config: Config):
     # Display models section
     models_table = Table.grid(padding=(0, 1), expand=True)
     models_table.add_column(width=2, no_wrap=True)  # Status
-    models_table.add_column(no_wrap=True)  # Name
-    models_table.add_column(no_wrap=True)  # Model
-    models_table.add_column(no_wrap=True)  # Provider
+    models_table.add_column(overflow="fold", ratio=1)  # Name
+    models_table.add_column(overflow="fold", ratio=2)  # Model
+    models_table.add_column(overflow="fold", ratio=2)  # Provider
+    models_table.add_column(overflow="fold", ratio=3)  # Params
 
     # Add header
     models_table.add_row(
@@ -61,6 +62,7 @@ def display_models_and_providers(config: Config):
         Text("Name", style="bold green"),
         Text("Model", style="bold green"),
         Text("Provider", style="bold green"),
+        Text("Params", style="bold green"),
     )
 
     # Add models
@@ -72,8 +74,37 @@ def display_models_and_providers(config: Config):
         name = Text(model.model_name, style="yellow" if model.model_name == config.main_model else "cyan")
         model_name = Text(model.model_params.model or "N/A", style="")
         provider = Text(model.provider, style="")
-
-        models_table.add_row(status, name, model_name, provider)
+        params: list[Text] = []
+        if model.model_params.reasoning:
+            params.append(Text.assemble(("reason-effort", "dim"), ": ", model.model_params.reasoning.effort))
+            params.append(Text.assemble(("reason-summary", "dim"), ": ", model.model_params.reasoning.summary))
+        if model.model_params.verbosity:
+            params.append(Text.assemble(("verbosity", "dim"), ": ", model.model_params.verbosity))
+        if model.model_params.thinking:
+            params.append(
+                Text.assemble(
+                    ("thinking-budget-tokens", "dim"), ": ", str(model.model_params.thinking.budget_tokens or "N/A")
+                )
+            )
+        if model.model_params.provider_routing:
+            params.append(
+                Text.assemble(
+                    ("provider-routing", "dim"),
+                    ": ",
+                    model.model_params.provider_routing.model_dump_json(exclude_none=True),
+                )
+            )
+        if model.model_params.plugins:
+            params.append(
+                Text.assemble(
+                    ("plugins", "dim"),
+                    ": ",
+                    ", ".join([p.id for p in model.model_params.plugins]),
+                )
+            )
+        if len(params) == 0:
+            params.append(Text("N/A", style="dim"))
+        models_table.add_row(status, name, model_name, provider, Group(*params))
 
     # Create panels and display
     providers_panel = Panel(
