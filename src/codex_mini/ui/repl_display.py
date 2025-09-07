@@ -118,16 +118,21 @@ class REPLDisplay(DisplayABC):
     async def stop(self) -> None:
         pass
 
+    def strip_ansi(self, text: str) -> str:
+        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+        return ansi_escape.sub("", text)
+
     def display_thinking(self, e: events.ThinkingDeltaEvent) -> None:
         """
         Handle markdown bold syntax in thinking text.
         """
-        if len(e.content.strip()) == 0:
+        content = self.strip_ansi(e.content.strip())
+        if len(content) == 0:
             return
         if self.stage != "thinking":
             self.console.print(THINKING_PREFIX)
-        if e.content.count("**") == 2:
-            left_part, middle_part, right_part = e.content.split("**", maxsplit=2)
+        if content.count("**") == 2:
+            left_part, middle_part, right_part = content.split("**", maxsplit=2)
             if self.is_thinking_in_bold:
                 self.console.print(Text(left_part, style=f"bold {THINKING_STYLE}"), end="")
                 self.console.print(Text(middle_part, style=THINKING_STYLE), end="")
@@ -136,8 +141,8 @@ class REPLDisplay(DisplayABC):
                 self.console.print(Text(left_part, style=THINKING_STYLE), end="")
                 self.console.print(Text(middle_part, style=f"bold {THINKING_STYLE}"), end="")
                 self.console.print(Text(right_part, style=THINKING_STYLE), end="")
-        elif e.content.count("**") == 1:
-            left_part, right_part = e.content.split("**", maxsplit=1)
+        elif content.count("**") == 1:
+            left_part, right_part = content.split("**", maxsplit=1)
             if self.is_thinking_in_bold:
                 self.console.print(Text(left_part, style=f"bold {THINKING_STYLE}"), end="")
                 self.console.print(Text(right_part, style=THINKING_STYLE), end="")
@@ -147,9 +152,9 @@ class REPLDisplay(DisplayABC):
             self.is_thinking_in_bold = not self.is_thinking_in_bold
         else:
             if self.is_thinking_in_bold:
-                self.console.print(Text(e.content, style=f"bold {THINKING_STYLE}"), end="")
+                self.console.print(Text(content, style=f"bold {THINKING_STYLE}"), end="")
             else:
-                self.console.print(Text(e.content, style=THINKING_STYLE), end="")
+                self.console.print(Text(content, style=THINKING_STYLE), end="")
 
     def _create_grid(self) -> Table:
         """Create a standard two-column grid table to align the text in the second column."""
