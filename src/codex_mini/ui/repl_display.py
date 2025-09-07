@@ -648,9 +648,11 @@ class REPLDisplay(DisplayABC):
 
         if e.item.todo_use:
             self.console.print(
-                Text("★", style=Style(color=REMINDER_STYLE, bold=True)),
-                Text("Hint ", Style(color=REMINDER_STYLE, bold=True)),
-                Text("Todo hasn't been updated recently", Style(color=REMINDER_STYLE, bold=True)),
+                Text.assemble(
+                    Text("★ ", style=Style(color=REMINDER_STYLE, bold=True)),
+                    Text("Hint ", Style(color=REMINDER_STYLE, bold=True)),
+                    Text("Todo hasn't been updated recently", Style(color=REMINDER_STYLE, dim=True)),
+                )
             )
             has_anything_printed = True
 

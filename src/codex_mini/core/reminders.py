@@ -85,17 +85,18 @@ async def empty_todo_reminder(session: Session) -> model.DeveloperMessageItem | 
     """Remind agent to use TodoWrite tool if there are no todos in the session."""
     if (
         not session.todos or all(todo.status == "completed" for todo in session.todos)
-    ) and session.need_todo_empty_reminder:
-        session.need_todo_empty_reminder = False
+    ) and session.need_todo_empty_reminder_counter <= 0:
+        session.need_todo_empty_reminder_counter = 3
         return model.DeveloperMessageItem(
             content="""<system-reminder>This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.</system-reminder>"""
         )
+    session.need_todo_empty_reminder_counter -= 1
     return None
 
 
 async def todo_not_used_recently_reminder(session: Session) -> model.DeveloperMessageItem | None:
     """Remind agent to use TodoWrite tool if it hasn't been used recently. (continous 10 other tool calls)"""
-    if all(todo.status == "completed" for todo in session.todos):
+    if session.todos and all(todo.status == "completed" for todo in session.todos):
         return None
 
     other_tool_call_count_befor_last_todo = 0
