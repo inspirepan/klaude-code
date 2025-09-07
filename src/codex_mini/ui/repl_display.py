@@ -514,7 +514,7 @@ class REPLDisplay(DisplayABC):
         return Text(text, style=other_style)
 
     def display_interrupt(self, e: events.InterruptEvent) -> None:
-        self.console.print("\nINTERRUPTED\n", style="red reverse bold")
+        self.console.print("\n INTERRUPTED \n", style="red reverse bold")
 
     def display_user_input(self, e: events.UserMessageEvent) -> None:
         lines = e.content.split("\n")
@@ -578,13 +578,12 @@ class REPLDisplay(DisplayABC):
                 case events.InterruptEvent() as e:
                     self.display_interrupt(e)
         self.console.print(
-            Rule(
-                title=Text(
-                    "LOADED ◷ {}".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(history_events.updated_at))),
-                    style="bold green",
+            Text.assemble(
+                Text(" LOADED ", style="reverse bold green"),
+                Text(
+                    " ◷ {}".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(history_events.updated_at))),
+                    style="green",
                 ),
-                characters="=",
-                style="green",
             )
         )
         self.console.print()
