@@ -95,15 +95,19 @@ def _resume_select_session() -> str | None:
         choices: list[questionary.Choice] = []
         for s in sessions:
             first_user_message = s.first_user_message or "N/A"
+            msg_count_display = "N/A" if s.messages_count == -1 else str(s.messages_count)
+            model_display = s.model_name or "N/A"
 
             title = [
                 ("class:d", f"{_fmt(s.created_at):<16} "),
                 ("class:d", f"{_fmt(s.updated_at):<16} "),
+                ("class:b", f"{msg_count_display:>3}  "),
+                ("class:t", f"{model_display[:14] + '…' if len(model_display) > 14 else model_display:<15} "),
                 ("class:t", f"{first_user_message.strip().replace('\n', ' ↩ '):<50}"),
             ]
             choices.append(questionary.Choice(title=title, value=s.id))
         return questionary.select(
-            message=f"{' Created at':<17} {'Updated at':<16} {'First message':<50}",
+            message=f"{' Created at':<17} {'Updated at':<16} {'Msg':>3}  {'Model':<15} {'First message':<50}",
             choices=choices,
             pointer="→",
             instruction="↑↓ to move",
@@ -119,7 +123,11 @@ def _resume_select_session() -> str | None:
         log_debug(f"Failed to use questionary for session select, {e}")
         # Fallback: numbered prompt
         for i, s in enumerate(sessions, 1):
-            print(f"{i}. {_fmt(s.updated_at)}  {s.id}  {s.work_dir}")
+            msg_count_display = "N/A" if s.messages_count == -1 else str(s.messages_count)
+            model_display = s.model_name or "N/A"
+            print(
+                f"{i}. {_fmt(s.updated_at)}  {msg_count_display:>3} {model_display[:14] + '…' if len(model_display) > 14 else model_display:<15} {s.id}  {s.work_dir}"
+            )
         try:
             raw = input("Select a session number: ").strip()
             idx = int(raw)

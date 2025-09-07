@@ -71,10 +71,14 @@ class ExecutorContext:
         # Create agent if not exists
         if session_key not in self.active_agents:
             system_prompt = get_system_prompt(self.llm_client.model_name())
+            model_name = self.llm_client.model_name()
             if session_key == "default":
-                session = Session(work_dir=Path.cwd(), system_prompt=system_prompt)
+                session = Session(work_dir=Path.cwd(), system_prompt=system_prompt, model_name=model_name)
             else:
                 session = Session.load(session_key, system_prompt=system_prompt)
+                # Update model_name for loaded session if not set
+                if session.model_name is None:
+                    session.model_name = model_name
             agent = Agent(
                 llm_client=self.llm_client,
                 session=session,

@@ -57,7 +57,6 @@ async def file_changed_externally_reminder(session: Session) -> model.DeveloperM
         for path, mtime in session.file_tracker.items():
             try:
                 if Path(path).stat().st_mtime > mtime:
-                    print(f"File changed: {path} ", Path(path).stat().st_mtime, "  ", mtime)
                     token = current_session_var.set(session)
                     try:
                         tool_result = await read_tool.ReadTool.call_with_args(

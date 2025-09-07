@@ -24,6 +24,10 @@ class Session(BaseModel):
     file_tracker: dict[str, float] = Field(default_factory=dict)
     # Todo list for the session
     todos: list[TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    # Messages count
+    messages_count: int = Field(default=0)
+    # Model name used for this session
+    model_name: str | None = None
     # Timestamps (epoch seconds)
     created_at: float = Field(default_factory=lambda: time.time())
     updated_at: float = Field(default_factory=lambda: time.time())
@@ -99,6 +103,8 @@ class Session(BaseModel):
         loaded_memory = list(raw.get("loaded_memory", []))
         created_at = float(raw.get("created_at", time.time()))
         updated_at = float(raw.get("updated_at", created_at))
+        messages_count = int(raw.get("messages_count", 0))
+        model_name = raw.get("model_name")
 
         sess = Session(
             id=id,
@@ -112,6 +118,8 @@ class Session(BaseModel):
             loaded_memory=loaded_memory,
             created_at=created_at,
             updated_at=updated_at,
+            messages_count=messages_count,
+            model_name=model_name,
         )
 
         # Load conversation history from messages JSONL
@@ -139,6 +147,8 @@ class Session(BaseModel):
                     # Best-effort load; skip malformed lines
                     continue
             sess.conversation_history = history
+            # Update messages count based on loaded history
+            sess.messages_count = len(history)
 
         return sess
 
@@ -165,12 +175,16 @@ class Session(BaseModel):
             "loaded_memory": self.loaded_memory,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "messages_count": self.messages_count,
+            "model_name": self.model_name,
         }
         self._session_file().write_text(json.dumps(payload, ensure_ascii=False, indent=2))
 
     def append_history(self, items: Sequence[ConversationItem]):
         # Append to in-memory history
         self.conversation_history.extend(items)
+        # Update messages count
+        self.messages_count = len(self.conversation_history)
 
         # Incrementally persist to JSONL under messages directory
         messages_dir = self._messages_dir()
@@ -215,6 +229,8 @@ class Session(BaseModel):
         work_dir: str
         path: str
         first_user_message: str | None = None
+        messages_count: int = -1  # -1 indicates N/A
+        model_name: str | None = None
 
     @classmethod
     def list(cls) -> list[SessionMetaBrief]:
@@ -286,6 +302,12 @@ class Session(BaseModel):
             # Get first user message
             first_user_message = _get_first_user_message(sid, created)
 
+            # Get messages count from session data, no fallback
+            messages_count = int(data.get("messages_count", -1))  # -1 indicates N/A
+
+            # Get model name from session data
+            model_name = data.get("model_name")
+
             items.append(
                 Session.SessionMetaBrief(
                     id=sid,
@@ -294,6 +316,8 @@ class Session(BaseModel):
                     work_dir=work_dir,
                     path=str(p),
                     first_user_message=first_user_message,
+                    messages_count=messages_count,
+                    model_name=model_name,
                 )
             )
         # Sort by updated_at desc
