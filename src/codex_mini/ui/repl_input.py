@@ -57,7 +57,7 @@ def _(event):  # type: ignore
 
 
 class PromptToolkitInput(InputProviderABC):
-    def __init__(self, prompt: str = "┃ "):
+    def __init__(self, prompt: str = "▌ "):
         project = str(Path.cwd()).strip("/").replace("/", "-")
         history_path = Path.home() / ".config" / "codex-mini" / "project" / f"{project}" / "input_history.txt"
 

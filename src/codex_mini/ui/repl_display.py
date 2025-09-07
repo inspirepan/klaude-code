@@ -37,7 +37,7 @@ DIFF_REMOVE_LINE_STYLE = "#333333 on #ffa8b4"
 DIFF_ADDED_LINE_STYLE = "#333333 on #69db7c"
 USER_INPUT_STYLE = "cyan"
 USER_INPUT_AT_PATTERN_STYLE = "reverse medium_purple3"
-USER_INPUT_SLASH_COMMAND_PATTERN_STYLE = "reverse bold blue"
+USER_INPUT_SLASH_COMMAND_PATTERN_STYLE = "reverse bold cyan"
 METADATA_STYLE = "steel_blue"
 REMINDER_STYLE = "medium_purple3"
 
@@ -52,6 +52,7 @@ class REPLDisplay(DisplayABC):
                 }
             )
         )
+        self.console.push_theme(MARKDOWN_THEME)
         self.assistant_mdstream: MarkdownStream | None = None
         self.accumulated_assistant_text = ""
         self.stage: Literal["waiting", "thinking", "assistant", "tool_call", "tool_result"] = "waiting"
@@ -374,8 +375,8 @@ class REPLDisplay(DisplayABC):
                         text_style = "dim"
                     case "in_progress":
                         mark = "◉"
-                        mark_style = "blue"
-                        text_style = "bold blue"
+                        mark_style = "cyan"
+                        text_style = "bold cyan"
                     case "completed":
                         mark = "✔"
                         mark_style = "green" if is_new_completed else "dim"
@@ -539,7 +540,7 @@ class REPLDisplay(DisplayABC):
             render_lines = line_text.wrap(self.console, avail)
             for render_line in render_lines:
                 self.console.print(
-                    Text("┃", style=f"{USER_INPUT_STYLE} dim"),
+                    Text("▌", style=f"{USER_INPUT_STYLE} dim"),
                     render_line,
                 )
 
@@ -601,7 +602,7 @@ class REPLDisplay(DisplayABC):
                     url.stylize(
                         Style(color="blue", reverse=True, bold=True, underline=True, link=annotation.url_citation.url)
                     )
-                    grid.add_row(Text("⌕", style="bold blue"), url)
+                    grid.add_row(Text("○", style="bold blue"), url)
                     grid.add_row(
                         "",
                         Markdown(

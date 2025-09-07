@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import difflib
 import os
 from pathlib import Path
@@ -180,7 +181,7 @@ class MultiEditTool(ToolABC):
 
         # Load initial content (empty for new file case)
         if _file_exists(file_path):
-            before = _read_text(file_path)
+            before = await asyncio.to_thread(_read_text, file_path)
         else:
             before = ""
 
@@ -205,7 +206,7 @@ class MultiEditTool(ToolABC):
 
         # All edits valid; write to disk
         try:
-            _write_text(file_path, staged)
+            await asyncio.to_thread(_write_text, file_path, staged)
         except Exception as e:  # pragma: no cover
             return ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
 

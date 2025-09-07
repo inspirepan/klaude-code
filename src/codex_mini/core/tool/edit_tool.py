@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import difflib
 import os
 from pathlib import Path
@@ -178,7 +179,7 @@ class EditTool(ToolABC):
                 )
             # Create new file
             try:
-                _write_text(file_path, args.new_string)
+                await asyncio.to_thread(_write_text, file_path, args.new_string)
                 # Update tracker
                 if session is not None:
                     try:
@@ -191,7 +192,7 @@ class EditTool(ToolABC):
 
         # Edit existing file: validate and apply
         try:
-            before = _read_text(file_path)
+            before = await asyncio.to_thread(_read_text, file_path)
         except FileNotFoundError:
             return ToolResultItem(
                 status="error",
@@ -219,7 +220,7 @@ class EditTool(ToolABC):
 
         # Write back
         try:
-            _write_text(file_path, after)
+            await asyncio.to_thread(_write_text, file_path, after)
         except Exception as e:  # pragma: no cover
             return ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
 
