@@ -21,6 +21,17 @@ class Agent:
         self.tools: list[llm_parameter.ToolSchema] | None = tools
         self.debug_mode: bool = debug_mode
 
+    def cancel(self) -> None:
+        """Handle agent cancellation and persist an interrupt marker.
+
+        Appends a `model.InterruptItem` into the session history so that
+        interruptions are reflected in persisted conversation logs.
+        """
+        # Record an interrupt marker in the session history
+        self.session.append_history([model.InterruptItem()])
+        if self.debug_mode:
+            log_debug(f"Session {self.session.id} interrupted", style="yellow")
+
     async def run_task(self, user_input: str) -> AsyncGenerator[events.Event, None]:
         yield events.TaskStartEvent(session_id=self.session.id)
 
@@ -121,8 +132,15 @@ class Agent:
                             metadata=mt,
                         )
                     )
+                case model.InterruptItem():
+                    replay_events.append(
+                        events.InterruptEvent(
+                            session_id=self.session.id,
+                        )
+                    )
                 case _:
                     continue
+
         yield events.ReplayHistoryEvent(events=replay_events, updated_at=self.session.updated_at)
 
     async def run_turn(self) -> AsyncGenerator[events.Event, None]:

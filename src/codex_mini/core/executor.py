@@ -15,7 +15,7 @@ from codex_mini.core.prompt import get_system_prompt
 from codex_mini.core.tool import get_tool_schemas
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.protocol import events, llm_parameter
-from codex_mini.protocol.op import InitAgentOperation, InterruptOperation, Submission, UserInputOperation
+from codex_mini.protocol.op import InitAgentOperation, InterruptOperation, OperationType, Submission, UserInputOperation
 from codex_mini.protocol.tools import (
     BASH_TOOL_NAME,
     EDIT_TOOL_NAME,
@@ -51,6 +51,8 @@ class ExecutorContext:
         self.active_agents: dict[str, Agent] = {}
         # Track active tasks by submission ID
         self.active_tasks: dict[str, asyncio.Task[None]] = {}
+        # Track which session a task belongs to (submission ID -> session ID)
+        self.active_task_sessions: dict[str, str] = {}
 
     async def emit_event(self, event: events.Event) -> None:
         """Emit an event to the UI display system."""
@@ -100,44 +102,53 @@ class ExecutorContext:
         # emit user input event
         await self.emit_event(events.UserMessageEvent(content=operation.content, session_id=actual_session_id))
 
-        # Start task to process user input and wait for it to complete
+        # Start task to process user input (do NOT await here so the executor loop stays responsive)
         task: asyncio.Task[None] = asyncio.create_task(
             self._run_agent_task(agent, operation.content, operation.id, actual_session_id)
         )
         self.active_tasks[operation.id] = task
-
-        # Wait for the agent task to complete
-        await task
+        self.active_task_sessions[operation.id] = actual_session_id
+        # Do not await task here; completion will be tracked by the executor
 
     async def handle_interrupt(self, operation: InterruptOperation) -> None:
-        """Handle an interrupt operation by cancelling active tasks."""
+        """Handle an interrupt by invoking agent.cancel() and cancelling tasks."""
 
+        # Determine affected sessions
+        if operation.target_session_id is not None:
+            session_ids: list[str] = [operation.target_session_id]
+        else:
+            session_ids = list(self.active_agents.keys())
+
+        # Call cancel() on each affected agent to persist an interrupt marker
+        for sid in session_ids:
+            agent = self.active_agents.get(sid)
+            if agent is not None:
+                agent.cancel()
+
+        # emit interrupt event
+        await self.emit_event(events.InterruptEvent(session_id=operation.target_session_id or "all"))
+
+        # Find tasks to cancel (filter by target sessions if provided)
         tasks_to_cancel: list[tuple[str, asyncio.Task[None]]] = []
-        if operation.target_session_id:
-            # Interrupt tasks for specific session
-            for task_id, task in self.active_tasks.items():
-                # Find tasks belonging to the target session
-                # (We could store session mapping separately for more efficiency)
-                if not task.done():
+        for task_id, task in list(self.active_tasks.items()):
+            if task.done():
+                continue
+            if operation.target_session_id is None:
+                tasks_to_cancel.append((task_id, task))
+            else:
+                if self.active_task_sessions.get(task_id) == operation.target_session_id:
                     tasks_to_cancel.append((task_id, task))
 
-            if self.debug_mode:
-                log_debug(
-                    f"Interrupting {len(tasks_to_cancel)} tasks for session: {operation.target_session_id}",
-                    style="yellow",
-                )
-        else:
-            # Interrupt all active tasks
-            tasks_to_cancel = [(task_id, task) for task_id, task in self.active_tasks.items() if not task.done()]
-
-            if self.debug_mode:
-                log_debug(f"Interrupting all {len(tasks_to_cancel)} active tasks", style="yellow")
+        if self.debug_mode:
+            scope = operation.target_session_id or "all"
+            log_debug(f"Interrupting {len(tasks_to_cancel)} task(s) for: {scope}", style="yellow")
 
         # Cancel the tasks
         for task_id, task in tasks_to_cancel:
             task.cancel()
             # Remove from active tasks immediately
             self.active_tasks.pop(task_id, None)
+            self.active_task_sessions.pop(task_id, None)
 
         # Emit interrupt confirmation event if needed
         if tasks_to_cancel:
@@ -173,6 +184,7 @@ class ExecutorContext:
         finally:
             # Clean up the task from active tasks
             self.active_tasks.pop(task_id, None)
+            self.active_task_sessions.pop(task_id, None)
             if self.debug_mode:
                 log_debug(f"Cleaned up agent task {task_id}", style="cyan")
 
@@ -299,14 +311,34 @@ class Executor:
                     f"Handling submission {submission.id} of type {submission.operation.type.value}", style="cyan"
                 )
 
-            # Delegate to the operation's execute method
-            await submission.operation.execute(self.context)
+            # For user_input, execute quickly to spawn the agent task, then track completion
+            if submission.operation.type == OperationType.USER_INPUT:
+                # Execute to spawn the agent task in context
+                await submission.operation.execute(self.context)
+
+                async def _await_agent_and_complete() -> None:
+                    try:
+                        # Wait for the agent task tied to this submission id
+                        task = self.context.active_tasks.get(submission.id)
+                        if task is not None:
+                            await task
+                    finally:
+                        # Signal completion of this submission when agent task completes
+                        if submission.id in self.task_completion_events:
+                            self.task_completion_events[submission.id].set()
+
+                # Run in background so the submission loop can continue (e.g., to handle interrupts)
+                asyncio.create_task(_await_agent_and_complete())
+            else:
+                # Delegate to the operation's execute method (completes within this call)
+                await submission.operation.execute(self.context)
 
         except Exception as e:
             if self.debug_mode:
                 log_debug(f"Failed to handle submission {submission.id}: {str(e)}", style="red")
             await self.context.emit_event(events.ErrorEvent(error_message=f"Operation failed: {str(e)}"))
         finally:
-            # Signal completion of this submission
-            if submission.id in self.task_completion_events:
-                self.task_completion_events[submission.id].set()
+            # For non-user_input, mark completion now; for user_input, completion is set when agent task ends
+            if submission.operation.type != OperationType.USER_INPUT:
+                if submission.id in self.task_completion_events:
+                    self.task_completion_events[submission.id].set()

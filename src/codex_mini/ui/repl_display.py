@@ -35,6 +35,7 @@ DIFF_ADDED_LINE_STYLE = "#333333 on #69db7c"
 USER_INPUT_STYLE = "cyan"
 USER_INPUT_AT_PATTERN_STYLE = "r cyan"
 USER_INPUT_SLASH_COMMAND_PATTERN_STYLE = "r b blue"
+METADATA_STYLE = "steel_blue"
 
 
 class REPLDisplay(DisplayABC):
@@ -58,6 +59,8 @@ class REPLDisplay(DisplayABC):
             case events.TaskStartEvent():
                 pass
             case events.TaskFinishEvent():
+                pass
+            case events.EndEvent():
                 pass
             case events.ThinkingDeltaEvent() as e:
                 if len(e.content.strip()) == 0:
@@ -96,8 +99,10 @@ class REPLDisplay(DisplayABC):
                 self.console.print(self.render_error(e.error_message))
             case events.UserMessageEvent() as e:
                 self.display_user_input(e)
-            case _:
-                self.console.print("[Event]", event.__class__.__name__, event)
+            case events.InterruptEvent() as e:
+                self.display_interrupt(e)
+            # case _:
+            #     self.console.print("[Event]", event.__class__.__name__, event)
 
     async def start(self) -> None:
         pass
@@ -394,7 +399,6 @@ class REPLDisplay(DisplayABC):
 
     def display_metadata(self, e: events.ResponseMetadataEvent) -> None:
         metadata = e.metadata
-        METADATA_STYLE = "steel_blue"
         rule_text = Text()
         rule_text.append_text(Text(metadata.model_name, style=f"bold {METADATA_STYLE}"))
         if metadata.provider is not None:
@@ -476,6 +480,9 @@ class REPLDisplay(DisplayABC):
             return result
         return Text(text, style=other_style)
 
+    def display_interrupt(self, e: events.InterruptEvent) -> None:
+        self.console.print("\nINTERRUPTED\n", style="red reverse bold")
+
     def display_user_input(self, e: events.UserMessageEvent) -> None:
         lines = e.content.split("\n")
         first_line = True
@@ -531,6 +538,8 @@ class REPLDisplay(DisplayABC):
                 case events.ResponseMetadataEvent() as e:
                     self.display_metadata(e)
                     self.console.print()
+                case events.InterruptEvent() as e:
+                    self.display_interrupt(e)
         self.console.print(
             Rule(
                 title=Text(

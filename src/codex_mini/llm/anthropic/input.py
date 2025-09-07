@@ -27,10 +27,10 @@ def convert_history_to_input(
                         "content": [
                             {
                                 "type": "text",
-                                "text": item.content,
+                                "text": item.content + "\n",
                             }
                             for item in group
-                            if isinstance(item, model.UserMessageItem)
+                            if isinstance(item, model.UserMessageItem) and item.content is not None
                         ],
                     }
                 )

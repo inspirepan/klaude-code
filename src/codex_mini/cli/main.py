@@ -1,4 +1,10 @@
 import asyncio
+import os
+import select
+import sys
+import termios
+import threading
+import tty
 
 import typer
 
@@ -124,6 +130,67 @@ def _resume_select_session() -> str | None:
     return None
 
 
+def start_esc_interrupt_monitor(
+    executor: Executor, session_id: str | None
+) -> tuple[threading.Event, asyncio.Task[None]]:
+    """Start ESC monitoring thread: Detect pure ESC keypress, print `esc` once and submit interrupt operation.
+    Returns (stop_event, esc_task).
+    """
+    stop_event = threading.Event()
+    loop = asyncio.get_running_loop()
+
+    def _esc_monitor(stop: threading.Event) -> None:
+        try:
+            fd = sys.stdin.fileno()
+            old = termios.tcgetattr(fd)
+        except Exception as e:
+            log((f"esc monitor init error: {e}", "r red"))
+            return
+        try:
+            tty.setcbreak(fd)
+            while not stop.is_set():
+                r, _, _ = select.select([sys.stdin], [], [], 0.05)
+                if not r:
+                    continue
+                try:
+                    ch = os.read(fd, 1).decode(errors="ignore")
+                except Exception:
+                    continue
+                if ch == "\x1b":
+                    seq = ""
+                    r2, _, _ = select.select([sys.stdin], [], [], 0.005)
+                    while r2:
+                        try:
+                            seq += os.read(fd, 1).decode(errors="ignore")
+                        except Exception:
+                            break
+                        r2, _, _ = select.select([sys.stdin], [], [], 0.0)
+                    if seq == "":
+                        try:
+                            asyncio.run_coroutine_threadsafe(
+                                executor.submit(
+                                    {
+                                        "type": "interrupt",
+                                        "target_session_id": session_id,
+                                    }
+                                ),
+                                loop,
+                            )
+                        except Exception:
+                            pass
+                        stop.set()
+        except Exception as e:
+            log((f"esc monitor error: {e}", "r red"))
+        finally:
+            try:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old)
+            except Exception:
+                pass
+
+    esc_task: asyncio.Task[None] = asyncio.create_task(asyncio.to_thread(_esc_monitor, stop_event))
+    return stop_event, esc_task
+
+
 async def run_interactive(
     model: str | None = None,
     debug: bool = False,
@@ -178,8 +245,18 @@ async def run_interactive(
                     "session_id": session_id,
                 }
             )
+            # Esc monitor
+            stop_event, esc_task = start_esc_interrupt_monitor(executor, session_id)
             # Wait for this specific task to complete before accepting next input
-            await executor.wait_for_completion(submission_id)
+            try:
+                await executor.wait_for_completion(submission_id)
+            finally:
+                # Stop ESC monitor and wait for it to finish cleaning up TTY
+                stop_event.set()
+                try:
+                    await esc_task
+                except Exception:
+                    pass
             # Ensure all UI events drained before next input
             await event_queue.join()
 

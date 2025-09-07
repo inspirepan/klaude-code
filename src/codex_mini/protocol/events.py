@@ -82,8 +82,18 @@ class WelcomeEvent(BaseModel):
     llm_config: llm_parameter.LLMConfigParameter
 
 
+class InterruptEvent(BaseModel):
+    session_id: str
+
+
 HistoryItemEvent = (
-    ThinkingEvent | AssistantMessageEvent | ToolCallEvent | ToolResultEvent | UserMessageEvent | ResponseMetadataEvent
+    ThinkingEvent
+    | AssistantMessageEvent
+    | ToolCallEvent
+    | ToolResultEvent
+    | UserMessageEvent
+    | ResponseMetadataEvent
+    | InterruptEvent
 )
 
 
@@ -107,4 +117,5 @@ Event = (
     | EndEvent
     | WelcomeEvent
     | UserMessageEvent
+    | InterruptEvent
 )

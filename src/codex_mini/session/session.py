@@ -47,6 +47,7 @@ class Session(BaseModel):
         "StartItem": model.StartItem,
         "StreamErrorItem": model.StreamErrorItem,
         "ResponseMetadataItem": model.ResponseMetadataItem,
+        "InterruptItem": model.InterruptItem,
     }
 
     @staticmethod

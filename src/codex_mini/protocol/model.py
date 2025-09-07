@@ -7,6 +7,25 @@ RoleType = Literal["system", "developer", "user", "assistant", "tool"]
 TodoStatusType = Literal["pending", "in_progress", "completed"]
 
 
+class Usage(BaseModel):
+    input_tokens: int = 0
+    cached_tokens: int = 0
+    reasoning_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+
+
+class TodoItem(BaseModel):
+    content: str
+    status: TodoStatusType
+    activeForm: str
+
+
+class TodoUIExtra(BaseModel):
+    todos: list[TodoItem]
+    new_completed: list[str]
+
+
 """
 Models for LLM API input and response items.
 
@@ -29,11 +48,16 @@ A conversation history input contains:
 - [AssistantMessage]
 - [ToolCallItem]
 - [ToolResultItem]
+- [InterruptItem]
 """
 
 
 class StartItem(BaseModel):
     response_id: str
+
+
+class InterruptItem(BaseModel):
+    pass
 
 
 class SystemMessageItem(BaseModel):
@@ -104,30 +128,11 @@ class StreamErrorItem(BaseModel):
     error: str
 
 
-class Usage(BaseModel):
-    input_tokens: int = 0
-    cached_tokens: int = 0
-    reasoning_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-
-
 class ResponseMetadataItem(BaseModel):
     response_id: str | None = None
     usage: Usage | None = None
     model_name: str = ""
     provider: str | None = None  # OpenRouter's provider name
-
-
-class TodoItem(BaseModel):
-    content: str
-    status: TodoStatusType
-    activeForm: str
-
-
-class TodoUIExtra(BaseModel):
-    todos: list[TodoItem]
-    new_completed: list[str]
 
 
 MessageItem = (
@@ -144,7 +149,7 @@ MessageItem = (
 
 StreamItem = ThinkingTextDelta | AssistantMessageDelta
 
-ConversationItem = StartItem | StreamErrorItem | StreamItem | MessageItem | ResponseMetadataItem
+ConversationItem = StartItem | InterruptItem | StreamErrorItem | StreamItem | MessageItem | ResponseMetadataItem
 
 
 def group_response_items_gen(
