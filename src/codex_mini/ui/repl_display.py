@@ -394,24 +394,41 @@ class REPLDisplay(DisplayABC):
 
     def display_metadata(self, e: events.ResponseMetadataEvent) -> None:
         metadata = e.metadata
-        rule_text = f"[bold]{metadata.model_name}[/bold]"
+        METADATA_STYLE = "steel_blue"
+        rule_text = Text()
+        rule_text.append_text(Text(metadata.model_name, style=f"bold {METADATA_STYLE}"))
         if metadata.provider is not None:
-            rule_text += f" · [bold]{metadata.provider.lower()}[/bold]"
+            rule_text.append_text(Text(" "))
+            rule_text.append_text(Text(metadata.provider.lower(), style=f"{METADATA_STYLE}"))
         if metadata.usage is not None:
             cached_token_str = (
-                f", ([b]{format_number(metadata.usage.cached_tokens)}[/b] cached)"
+                Text.assemble((", ", "dim"), (format_number(metadata.usage.cached_tokens), METADATA_STYLE), " cached")
                 if metadata.usage.cached_tokens > 0
-                else ""
+                else Text("")
             )
             reasoning_token_str = (
-                f", ([b]{format_number(metadata.usage.reasoning_tokens)}[/b] reasoning)"
+                Text.assemble(
+                    (", ", "dim"), (format_number(metadata.usage.reasoning_tokens), METADATA_STYLE), " reasoning"
+                )
                 if metadata.usage.reasoning_tokens > 0
-                else ""
+                else Text("")
             )
-            rule_text += f" · token: [b]{format_number(metadata.usage.input_tokens)}[/b] input{cached_token_str}, [b]{format_number(metadata.usage.output_tokens)}[/b] output{reasoning_token_str}"
+            rule_text.append_text(
+                Text.assemble(
+                    (" → ", "dim"),
+                    (format_number(metadata.usage.input_tokens), METADATA_STYLE),
+                    (" input"),
+                    cached_token_str,
+                    (", ", "dim"),
+                    (format_number(metadata.usage.output_tokens), METADATA_STYLE),
+                    (" output"),
+                    reasoning_token_str,
+                    style=METADATA_STYLE,
+                )
+            )
         self.console.print(
             Rule(
-                Text.from_markup(rule_text, style="bright_black", overflow="fold"),
+                rule_text,
                 style="bright_black",
                 align="right",
                 characters="-",
