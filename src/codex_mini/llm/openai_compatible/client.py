@@ -136,6 +136,7 @@ class OpenAICompatibleClient(LLMClientABC):
             if delta.content and len(delta.content) > 0:
                 if stage == "reasoning":
                     yield model.ThinkingTextItem(thinking="".join(accumulated_reasoning), response_id=response_id)
+                    yield model.ReasoningItem(content="".join(accumulated_reasoning), response_id=response_id)
                 stage = "assistant"
                 accumulated_content.append(delta.content)
                 yield model.AssistantMessageDelta(
@@ -147,6 +148,7 @@ class OpenAICompatibleClient(LLMClientABC):
             if delta.tool_calls and len(delta.tool_calls) > 0:
                 if stage == "reasoning":
                     yield model.ThinkingTextItem(thinking="".join(accumulated_reasoning), response_id=response_id)
+                    yield model.ReasoningItem(content="".join(accumulated_reasoning), response_id=response_id)
                 elif stage == "assistant":
                     yield model.AssistantMessageItem(
                         content="".join(accumulated_content),
@@ -159,6 +161,7 @@ class OpenAICompatibleClient(LLMClientABC):
         # Finalize
         if stage == "reasoning":
             yield model.ThinkingTextItem(thinking="".join(accumulated_reasoning), response_id=response_id)
+            yield model.ReasoningItem(content="".join(accumulated_reasoning), response_id=response_id)
         elif stage == "assistant":
             yield model.AssistantMessageItem(
                 content="".join(accumulated_content),

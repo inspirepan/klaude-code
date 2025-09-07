@@ -261,11 +261,19 @@ class REPLDisplay(DisplayABC):
             case _:
                 self.console.print(self.render_any_tool_call(e.tool_name, e.arguments))
 
-    def truncate_display(self, text: str) -> str:
+    def truncate_display(self, text: str, max_lines: int = 20, max_line_length: int = 1000) -> str:
         lines = text.split("\n")
-        if len(lines) > 20:
-            return "\n".join(lines[:20]) + "\n... (and " + str(len(lines) - 20) + " more lines)"
-        return text
+        if len(lines) > max_lines:
+            lines = lines[:max_lines] + ["... (and " + str(len(lines) - max_lines) + " more lines)"]
+        for i, line in enumerate(lines):
+            if len(line) > max_line_length:
+                lines[i] = (
+                    line[:max_line_length]
+                    + "... (and "
+                    + str(len(line) - max_line_length)
+                    + " more characters in this line)"
+                )
+        return "\n".join(lines)
 
     def render_edit_diff(self, diff_text: str) -> RenderableType:
         if diff_text == "":
@@ -578,7 +586,10 @@ class REPLDisplay(DisplayABC):
                     grid.add_row(Text("⌕", style="bold blue"), url)
                     grid.add_row(
                         "",
-                        Markdown(annotation.url_citation.content, style="bright_black italic"),
+                        Markdown(
+                            self.truncate_display(annotation.url_citation.content, max_lines=30),
+                            style="bright_black italic",
+                        ),
                     )
                     grid.add_row("", "")
         return grid
