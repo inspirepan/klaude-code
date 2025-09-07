@@ -56,6 +56,8 @@ class OpenAICompatibleClient(LLMClientABC):
             extra_body["thinking"] = param.thinking.model_dump(exclude_none=True)
         if param.provider_routing:
             extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
+        if param.plugins:
+            extra_body["plugins"] = [p.model_dump(exclude_none=True) for p in param.plugins]
 
         if self.is_debug_mode():
             import json
@@ -86,6 +88,8 @@ class OpenAICompatibleClient(LLMClientABC):
         response_id: str | None = None
         metadata_item = model.ResponseMetadataItem()
 
+        turn_annotations: list[model.Annotation] | None = None
+
         async for event in await stream:
             if self.is_debug_mode():
                 log_debug("◁◁◁ stream [SSE]", str(event), style="blue")
@@ -103,6 +107,8 @@ class OpenAICompatibleClient(LLMClientABC):
             if len(event.choices) == 0:
                 continue
             delta = event.choices[0].delta
+
+            # Reasoning
             reasoning_content = ""
             if hasattr(delta, "reasoning") and getattr(delta, "reasoning"):
                 reasoning_content = getattr(delta, "reasoning")
@@ -115,6 +121,18 @@ class OpenAICompatibleClient(LLMClientABC):
                     thinking=reasoning_content,
                     response_id=response_id,
                 )
+
+            # Annotations (URL Citation)
+            if hasattr(delta, "annotations") and getattr(delta, "annotations"):
+                annotations = getattr(delta, "annotations")
+                if annotations:
+                    a = model.Annotations.validate_python(annotations)
+                    if not turn_annotations:
+                        turn_annotations = a
+                    else:
+                        turn_annotations.extend(a)
+
+            # Assistant
             if delta.content and len(delta.content) > 0:
                 if stage == "reasoning":
                     yield model.ThinkingTextItem(thinking="".join(accumulated_reasoning), response_id=response_id)
@@ -124,6 +142,8 @@ class OpenAICompatibleClient(LLMClientABC):
                     content=delta.content,
                     response_id=response_id,
                 )
+
+            # Tool
             if delta.tool_calls and len(delta.tool_calls) > 0:
                 if stage == "reasoning":
                     yield model.ThinkingTextItem(thinking="".join(accumulated_reasoning), response_id=response_id)
@@ -131,16 +151,19 @@ class OpenAICompatibleClient(LLMClientABC):
                     yield model.AssistantMessageItem(
                         content="".join(accumulated_content),
                         response_id=response_id,
+                        annotations=turn_annotations,
                     )
                 stage = "tool"
                 accumulated_tool_calls.add(delta.tool_calls)
 
+        # Finalize
         if stage == "reasoning":
             yield model.ThinkingTextItem(thinking="".join(accumulated_reasoning), response_id=response_id)
         elif stage == "assistant":
             yield model.AssistantMessageItem(
                 content="".join(accumulated_content),
                 response_id=response_id,
+                annotations=turn_annotations,
             )
         elif stage == "tool":
             for tool_call_item in accumulated_tool_calls.get():

@@ -7,9 +7,11 @@ from rich.console import Console, RenderableType
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.rule import Rule
+from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
+from rich.markdown import Markdown
 
 from codex_mini.protocol import events, model, tools
 from codex_mini.ui.display_abc import DisplayABC
@@ -81,6 +83,8 @@ class REPLDisplay(DisplayABC):
                     self.assistant_mdstream.update(e.content.strip(), final=True)
                 self.accumulated_assistant_text = ""
                 self.assistant_mdstream = None
+                if e.annotations:
+                    self.console.print(self.render_annotations(e.annotations))
             case events.ResponseMetadataEvent() as e:
                 self.display_metadata(e)
                 self.console.print()
@@ -458,6 +462,10 @@ class REPLDisplay(DisplayABC):
                 model_info.append_text(Text.assemble(("\n• provider-sort: ", "dim"), (str(pr.sort), "bold")))
             if pr.order:
                 model_info.append_text(Text.assemble(("\n• provider-order: ", "dim"), (">".join(pr.order), "bold")))
+        if pl := e.llm_config.plugins:
+            model_info.append_text(Text.assemble(("\n•", "green")))
+            for p in pl:
+                model_info.append_text(Text.assemble(" ", (p.id, "green bold")))
 
         self.console.print(
             Panel.fit(
@@ -520,6 +528,8 @@ class REPLDisplay(DisplayABC):
                     MarkdownStream(mdargs={"code_theme": CODE_THEME}, theme=MARKDOWN_THEME).update(
                         e.content.strip(), final=True
                     )
+                    if e.annotations:
+                        self.console.print(self.render_annotations(e.annotations))
                 case events.ThinkingEvent() as e:
                     self.console.print(THINKING_PREFIX)
                     MarkdownStream(
@@ -551,3 +561,24 @@ class REPLDisplay(DisplayABC):
             )
         )
         self.console.print()
+
+    def render_annotations(self, annotations: list[model.Annotation]) -> RenderableType:
+        grid = self._create_grid()
+        for annotation in annotations:
+            match annotation.type:
+                case "url_citation":
+                    if not annotation.url_citation:
+                        continue
+                    url = Text(
+                        annotation.url_citation.title,
+                    )
+                    url.stylize(
+                        Style(color="blue", reverse=True, bold=True, underline=True, link=annotation.url_citation.url)
+                    )
+                    grid.add_row(Text("⌕", style="bold blue"), url)
+                    grid.add_row(
+                        "",
+                        Markdown(annotation.url_citation.content, style="bright_black italic"),
+                    )
+                    grid.add_row("", "")
+        return grid

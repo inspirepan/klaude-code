@@ -47,6 +47,7 @@ class AssistantMessageEvent(BaseModel):
     response_id: str | None = None
     session_id: str
     content: str
+    annotations: list[model.Annotation] | None = None
 
 
 class ToolCallEvent(BaseModel):

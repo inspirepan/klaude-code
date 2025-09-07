@@ -1,7 +1,7 @@
 from collections.abc import Iterator
 from typing import Iterable, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 RoleType = Literal["system", "developer", "user", "assistant", "tool"]
 TodoStatusType = Literal["pending", "in_progress", "completed"]
@@ -25,6 +25,21 @@ class TodoUIExtra(BaseModel):
     todos: list[TodoItem]
     new_completed: list[str]
 
+
+class URLCitation(BaseModel):
+    url: str
+    title: str
+    content: str
+    start_index: int
+    end_index: int
+
+
+class Annotation(BaseModel):
+    type: Literal["url_citation"]
+    url_citation: URLCitation | None = None
+
+
+Annotations = TypeAdapter(list[Annotation])
 
 """
 Models for LLM API input and response items.
@@ -83,6 +98,7 @@ class AssistantMessageItem(BaseModel):
     role: RoleType = "assistant"
     content: str | None = None
     response_id: str | None = None
+    annotations: list[Annotation] | None = None
 
 
 class ThinkingTextDelta(BaseModel):

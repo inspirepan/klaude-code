@@ -82,6 +82,13 @@ class OpenRouterProviderRouting(BaseModel):
     experimental: Experimental | None = None
 
 
+class OpenRouterPlugin(BaseModel):
+    id: Literal["web"]
+    # Web search
+    max_results: int | None = None
+    search_prompt: str | None = None
+
+
 class LLMConfigProviderParameter(BaseModel):
     provider_name: str = ""
     protocol: LLMClientProtocol
@@ -108,10 +115,18 @@ class LLMConfigModelParameter(BaseModel):
     # OpenRouter Provider Routing Preferences
     provider_routing: OpenRouterProviderRouting | None = None
 
+    # OpenRouter Plugin (WebSearch etc.)
+    plugins: list[OpenRouterPlugin] | None = None
+
 
 class LLMConfigParameter(LLMConfigProviderParameter, LLMConfigModelParameter):
     """
     Parameter support in config yaml
+
+    When adding a new parameter, please also modify the following:
+    - llm_parameter.py#apply_config_defaults
+    - llm/*/client.py, handle the new parameter, e.g. add it to extra_body
+    - ui/repl_display.py#display_welcome, showing the new parameter
     """
 
     pass
@@ -150,6 +165,8 @@ def apply_config_defaults(param: LLMCallParameter, config: LLMConfigParameter) -
         param.thinking = config.thinking
     if param.provider_routing is None:
         param.provider_routing = config.provider_routing
+    if param.plugins is None:
+        param.plugins = config.plugins
 
     if param.model is None:
         raise ValueError("Model is required")

@@ -88,6 +88,7 @@ class Agent:
                             content=content,
                             response_id=am.response_id,
                             session_id=self.session.id,
+                            annotations=am.annotations,
                         )
                     )
                 case model.ToolCallItem() as tc:
@@ -195,6 +196,7 @@ class Agent:
                         content=item.content or "",
                         response_id=item.response_id,
                         session_id=self.session.id,
+                        annotations=item.annotations,
                     )
                 case model.ResponseMetadataItem() as item:
                     yield events.ResponseMetadataEvent(
