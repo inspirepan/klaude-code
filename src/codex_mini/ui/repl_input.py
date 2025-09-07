@@ -1,16 +1,27 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+import os
+import re
+import shutil
+import subprocess
+import time
+from collections.abc import AsyncIterator, Iterable
 from pathlib import Path
-from typing import override
+from typing import NamedTuple, override
 
 from prompt_toolkit import PromptSession
+from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.document import Document
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.styles import Style
 
 from .input_abc import InputProviderABC
 
 kb = KeyBindings()
+
+COMPLETION_SELECTED = "#5869f7"
+COMPLETION_MENU = "ansibrightblack"
 
 
 @kb.add("enter")
@@ -24,6 +35,25 @@ def _(event):  # type: ignore
 @kb.add("c-j")
 def _(event):  # type: ignore
     event.current_buffer.insert_text("\n")  # type: ignore
+
+
+@kb.add("backspace")
+def _(event):  # type: ignore
+    """Ensure completions refresh on backspace when editing an @token.
+
+    We delete the character before cursor (default behavior), then explicitly
+    trigger completion refresh if the caret is still within an @... token.
+    """
+    buf = event.current_buffer  # type: ignore
+    # Perform the default backspace behavior
+    buf.delete_before_cursor()  # type: ignore[reportUnknownMemberType]
+    # If the token pattern still applies, refresh completion popup
+    try:
+        text_before = buf.document.text_before_cursor  # type: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        if _AtFilesCompleter._AT_TOKEN_RE.search(text_before):  # type: ignore[reportPrivateUsage, reportUnknownArgumentType]
+            buf.start_completion(select_first=False)  # type: ignore[reportUnknownMemberType]
+    except Exception:
+        pass
 
 
 class PromptToolkitInput(InputProviderABC):
@@ -42,7 +72,21 @@ class PromptToolkitInput(InputProviderABC):
             multiline=True,
             prompt_continuation=prompt,
             key_bindings=kb,
+            completer=_AtFilesCompleter(),
+            complete_while_typing=True,
             erase_when_done=True,
+            style=Style.from_dict(
+                {
+                    "completion-menu": "bg:default",
+                    "completion-menu.border": "bg:default",
+                    "scrollbar.background": "bg:default",
+                    "scrollbar.button": "bg:default",
+                    "completion-menu.completion": f"bg:default fg:{COMPLETION_MENU}",
+                    "completion-menu.meta.completion": f"bg:default fg:{COMPLETION_MENU}",
+                    "completion-menu.completion.current": f"noreverse bg:default fg:{COMPLETION_SELECTED} bold",
+                    "completion-menu.meta.completion.current": f"bg:default fg:{COMPLETION_SELECTED} bold",
+                }
+            ),
         )
 
     async def start(self) -> None:  # noqa: D401
@@ -58,3 +102,265 @@ class PromptToolkitInput(InputProviderABC):
         while True:
             line: str = await self._session.prompt_async()
             yield line
+
+
+class _CmdResult(NamedTuple):
+    ok: bool
+    lines: list[str]
+
+
+class _AtFilesCompleter(Completer):
+    """Complete @path segments using fd or ripgrep.
+
+    Behavior:
+    - Only triggers when the cursor is after an "@..." token (until whitespace).
+    - If current working directory is inside a git repository, completes repo paths.
+    - Uses `fd` when available (files and directories), falls back to `rg --files` (files only).
+    - Debounces external commands and caches results to avoid excessive spawning.
+    - Inserts a trailing space after completion to stop further triggering.
+    """
+
+    _AT_TOKEN_RE = re.compile(r"(^|\s)@(?P<frag>[^\s]*)$")
+
+    def __init__(self, debounce_sec: float = 0.25, cache_ttl_sec: float = 10.0, max_results: int = 200):
+        self._debounce_sec = debounce_sec
+        self._cache_ttl = cache_ttl_sec
+        self._max_results = max_results
+
+        # Debounce/caching state
+        self._last_cmd_time: float = 0.0
+        self._last_query_key: str | None = None
+        self._last_results: list[str] = []
+        self._last_results_time: float = 0.0
+
+        # rg --files cache (used when fd is unavailable)
+        self._rg_file_list: list[str] | None = None
+        self._rg_file_list_time: float = 0.0
+
+    # ---- prompt_toolkit API ----
+    def get_completions(self, document: Document, complete_event) -> Iterable[Completion]:  # type: ignore[override]
+        text_before = document.text_before_cursor
+        m = self._AT_TOKEN_RE.search(text_before)
+        if not m:
+            return []  # type: ignore[reportUnknownVariableType]
+
+        frag = m.group("frag")  # text after '@' and before cursor (no spaces)
+        token_start_in_input = len(text_before) - len(f"@{frag}")
+
+        # Only attempt if inside a git repository
+        cwd = Path.cwd()
+        git_root = self._get_git_root(cwd)
+        if git_root is None:
+            return []  # type: ignore[reportUnknownVariableType]
+
+        # If no fragment yet, show lightweight suggestions from current directory
+        if frag.strip() == "":
+            suggestions = self._suggest_for_empty_fragment(git_root, cwd)
+            if not suggestions:
+                return []  # type: ignore[reportUnknownVariableType]
+            start_position = token_start_in_input - len(text_before)
+            for s in suggestions[: self._max_results]:
+                yield Completion(text=f"@{s} ", start_position=start_position, display=s)
+            return []  # type: ignore[reportUnknownVariableType]
+
+        # Gather suggestions with debounce/caching based on search keyword
+        suggestions = self._complete_paths(git_root, cwd, frag)
+        if not suggestions:
+            return []  # type: ignore[reportUnknownVariableType]
+
+        # Prepare Completion objects. Replace from the '@' character.
+        start_position = token_start_in_input - len(text_before)  # negative
+        for s in suggestions[: self._max_results]:
+            # Insert '@<path> ' so that subsequent typing does not keep triggering
+            yield Completion(text=f"@{s} ", start_position=start_position, display=s)
+
+    # ---- Core logic ----
+    def _complete_paths(self, git_root: Path, cwd: Path, keyword: str) -> list[str]:
+        now = time.monotonic()
+        key_norm = keyword.lower()
+        query_key = f"{git_root}::search::{key_norm}"
+
+        # Debounce: if called too soon again, filter last results
+        if self._last_results and self._last_query_key is not None:
+            prev = self._last_query_key
+            if self._same_scope(prev, query_key):
+                # Determine if query is narrowing or broadening
+                _, prev_kw = self._parse_query_key(prev)
+                _, cur_kw = self._parse_query_key(query_key)
+                is_narrowing = (
+                    prev_kw is not None
+                    and cur_kw is not None
+                    and len(cur_kw) >= len(prev_kw)
+                    and cur_kw.startswith(prev_kw)
+                )
+                if is_narrowing and (now - self._last_cmd_time) < self._debounce_sec:
+                    # For narrowing, fast-filter previous results to avoid expensive calls
+                    return self._filter_and_format(self._last_results, git_root, cwd, key_norm)
+
+        # Cache TTL: reuse cached results for same query within TTL
+        if self._last_results and self._last_query_key == query_key and now - self._last_results_time < self._cache_ttl:
+            return self._filter_and_format(self._last_results, git_root, cwd, key_norm)
+
+        # Prefer fd; otherwise fallback to rg --files
+        results: list[str] = []
+        if self._has_cmd("fd"):
+            # Use fd to search anywhere in full path (files and directories), case-insensitive
+            results = self._run_fd_search(git_root, key_norm)
+        elif self._has_cmd("rg"):
+            # Reuse rg file list cache aggressively
+            if self._rg_file_list is None or now - self._rg_file_list_time > max(self._cache_ttl, 30.0):
+                cmd = ["rg", "--files"]
+                r = self._run_cmd(cmd, cwd=git_root)
+                if r.ok:
+                    self._rg_file_list = r.lines
+                    self._rg_file_list_time = now
+                else:
+                    self._rg_file_list = []
+                    self._rg_file_list_time = now
+            # Filter by prefix at root level
+            all_files = self._rg_file_list or []
+            kn = key_norm
+            results = [p for p in all_files if kn in p.lower()]
+        else:
+            return []
+
+        # Update caches
+        self._last_cmd_time = now
+        self._last_query_key = query_key
+        self._last_results = results
+        self._last_results_time = now
+
+        return self._filter_and_format(results, git_root, cwd, key_norm)
+
+    def _filter_and_format(self, paths_from_root: list[str], git_root: Path, cwd: Path, keyword_norm: str) -> list[str]:
+        # Filter to keyword (case-insensitive) and rank by basename hit first, then path hit position, then length
+        kn = keyword_norm
+        out: list[tuple[str, tuple[int, int, int]]] = []
+        for p in paths_from_root:
+            pl = p.lower()
+            if kn not in pl:
+                continue
+            abs_path = (git_root / p).resolve()
+            rel_to_cwd = os.path.relpath(abs_path, cwd)
+            base = os.path.basename(p).lower()
+            base_pos = base.find(kn)
+            path_pos = pl.find(kn)
+            score = (0 if base_pos != -1 else 1, base_pos if base_pos != -1 else 10_000, path_pos, len(p))
+            # Append trailing slash for directories
+            if abs_path.is_dir() and not rel_to_cwd.endswith("/"):
+                rel_to_cwd = rel_to_cwd + "/"
+            out.append((rel_to_cwd, score))  # type: ignore[reportArgumentType]
+        # Sort by score
+        out.sort(key=lambda x: x[1])
+        # Unique while preserving order
+        seen: set[str] = set()
+        uniq: list[str] = []
+        for s, _ in out:
+            if s not in seen:
+                seen.add(s)
+                uniq.append(s)
+        return uniq
+
+    def _same_scope(self, prev_key: str, cur_key: str) -> bool:
+        # Consider same scope if they share same git root and one prefix startswith the other
+        try:
+            prev_root, prev_pref = prev_key.split("::", 1)
+            cur_root, cur_pref = cur_key.split("::", 1)
+        except ValueError:
+            return False
+        return prev_root == cur_root and (prev_pref.startswith(cur_pref) or cur_pref.startswith(prev_pref))
+
+    def _parse_query_key(self, key: str) -> tuple[str | None, str | None]:
+        try:
+            root, rest = key.split("::", 1)
+            tag, kw = rest.split("::", 1)
+            if tag != "search":
+                return root, None
+            return root, kw
+        except Exception:
+            return None, None
+
+    # ---- Utilities ----
+    def _get_git_root(self, start: Path) -> Path | None:
+        # Try git command first
+        try:
+            r = self._run_cmd(["git", "rev-parse", "--show-toplevel"], cwd=start)
+            if r.ok and r.lines:
+                return Path(r.lines[0]).resolve()
+        except Exception:
+            pass
+        # Fallback to walking up to find .git directory
+        p = start.resolve()
+        while True:
+            if (p / ".git").exists():
+                return p
+            if p.parent == p:
+                break
+            p = p.parent
+        return None
+
+    def _run_fd_search(self, git_root: Path, keyword_norm: str) -> list[str]:
+        # Use fd regex matching anywhere in the full path; escape user input
+        pattern = self._escape_regex(keyword_norm)
+        cmd = [
+            "fd",
+            "--color=never",
+            "--type",
+            "f",
+            "--type",
+            "d",
+            "--full-path",
+            "-i",
+            "--max-results",
+            str(self._max_results * 3),
+            "--exclude",
+            ".git",
+            pattern,
+            ".",
+        ]
+        r = self._run_cmd(cmd, cwd=git_root)
+        return r.lines if r.ok else []
+
+    def _escape_regex(self, s: str) -> str:
+        # Escape for fd (regex by default). Keep '/' as is for path boundaries.
+        return re.escape(s).replace("/", "/")
+
+    def _has_cmd(self, name: str) -> bool:
+        return shutil.which(name) is not None
+
+    def _suggest_for_empty_fragment(self, git_root: Path, cwd: Path) -> list[str]:
+        """Lightweight suggestions when user typed only '@': list cwd's children.
+
+        Avoids running external tools; shows immediate directories first, then files.
+        Hidden entries and '.git' are skipped to reduce noise.
+        """
+        items: list[str] = []
+        try:
+            for p in sorted(cwd.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
+                name = p.name
+                if name == ".git" or name.startswith("."):
+                    continue
+                rel = os.path.relpath(p, cwd)
+                if p.is_dir() and not rel.endswith("/"):
+                    rel += "/"
+                items.append(rel)
+        except Exception:
+            return []
+        return items[: min(self._max_results, 100)]
+
+    def _run_cmd(self, cmd: list[str], cwd: Path | None = None) -> _CmdResult:
+        try:
+            p = subprocess.run(
+                cmd,
+                cwd=str(cwd) if cwd else None,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=1.5,
+            )
+            if p.returncode == 0:
+                lines = [ln.strip() for ln in p.stdout.splitlines() if ln.strip()]
+                return _CmdResult(True, lines)
+            return _CmdResult(False, [])
+        except Exception:
+            return _CmdResult(False, [])
