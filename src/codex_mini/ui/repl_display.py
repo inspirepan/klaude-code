@@ -9,7 +9,7 @@ from rich.markdown import Markdown
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.rule import Rule
-from rich.style import Style
+from rich.style import Style, StyleType
 from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
@@ -39,7 +39,7 @@ USER_INPUT_STYLE = "cyan"
 USER_INPUT_AT_PATTERN_STYLE = "reverse medium_purple3"
 USER_INPUT_SLASH_COMMAND_PATTERN_STYLE = "reverse bold blue"
 METADATA_STYLE = "steel_blue"
-REMINDER_STYLE = "medium_purple3 bold"
+REMINDER_STYLE = "medium_purple3"
 
 
 class REPLDisplay(DisplayABC):
@@ -171,7 +171,7 @@ class REPLDisplay(DisplayABC):
         )
         return grid
 
-    def render_path(self, path: str, style: str, is_directory: bool = False) -> Text:
+    def render_path(self, path: str, style: StyleType, is_directory: bool = False) -> Text:
         """Render path with home shortcuts and relative path."""
         if path.startswith(str(Path().cwd())):
             path = path.replace(str(Path().cwd()), "").lstrip("/")
@@ -623,8 +623,11 @@ class REPLDisplay(DisplayABC):
             grid = self._create_grid()
             for memory_path in mp:
                 grid.add_row(
-                    Text("★", style=REMINDER_STYLE),
-                    Text.assemble(("Reminder ", REMINDER_STYLE), self.render_path(memory_path, "green bold")),
+                    Text("★", style=Style(color=REMINDER_STYLE, bold=True)),
+                    Text.assemble(
+                        ("Reminder ", Style(color=REMINDER_STYLE, bold=True)),
+                        self.render_path(memory_path, Style(color=REMINDER_STYLE, dim=True)),
+                    ),
                 )
             self.console.print(grid)
             has_anything_printed = True
@@ -633,10 +636,10 @@ class REPLDisplay(DisplayABC):
             grid = self._create_grid()
             for file_path in fc:
                 grid.add_row(
-                    Text("★", style=REMINDER_STYLE),
+                    Text("★", style=Style(color=REMINDER_STYLE, bold=True)),
                     Text.assemble(
-                        ("Hint ", REMINDER_STYLE),
-                        self.render_path(file_path, "green"),
+                        ("Hint ", Style(color=REMINDER_STYLE, bold=True)),
+                        self.render_path(file_path, Style(color=REMINDER_STYLE, dim=True)),
                         (" has changed, new content has been loaded to context", "dim"),
                     ),
                 )
@@ -645,9 +648,9 @@ class REPLDisplay(DisplayABC):
 
         if e.item.todo_use:
             self.console.print(
-                Text("★", style=REMINDER_STYLE),
-                Text("Hint ", REMINDER_STYLE),
-                Text("Todo hasn't been updated recently", REMINDER_STYLE),
+                Text("★", style=Style(color=REMINDER_STYLE, bold=True)),
+                Text("Hint ", Style(color=REMINDER_STYLE, bold=True)),
+                Text("Todo hasn't been updated recently", Style(color=REMINDER_STYLE, bold=True)),
             )
             has_anything_printed = True
 
@@ -655,10 +658,10 @@ class REPLDisplay(DisplayABC):
             grid = self._create_grid()
             for at_file in e.item.at_files:
                 grid.add_row(
-                    Text("★", style=REMINDER_STYLE),
+                    Text("★", style=Style(color=REMINDER_STYLE, bold=True)),
                     Text.assemble(
-                        (f"{at_file.operation} ", REMINDER_STYLE),
-                        self.render_path(at_file.path, "green"),
+                        (f"{at_file.operation} ", Style(color=REMINDER_STYLE, bold=True)),
+                        self.render_path(at_file.path, Style(color=REMINDER_STYLE, dim=True)),
                     ),
                 )
             self.console.print(grid)

@@ -95,7 +95,7 @@ async def empty_todo_reminder(session: Session) -> model.DeveloperMessageItem | 
 
 async def todo_not_used_recently_reminder(session: Session) -> model.DeveloperMessageItem | None:
     """Remind agent to use TodoWrite tool if it hasn't been used recently. (continous 10 other tool calls)"""
-    if not session.todos or all(todo.status == "completed" for todo in session.todos):
+    if all(todo.status == "completed" for todo in session.todos):
         return None
 
     other_tool_call_count_befor_last_todo = 0
