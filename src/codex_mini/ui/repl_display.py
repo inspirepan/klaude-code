@@ -240,7 +240,7 @@ class REPLDisplay(DisplayABC):
             case tools.MULTI_EDIT_TOOL_NAME:
                 self.console.print(self.render_multi_edit_tool_call(e.arguments))
             case tools.BASH_TOOL_NAME:
-                self.console.print(self.render_any_tool_call(e.tool_name, e.arguments, ">"))
+                self.console.print(self.render_any_tool_call(e.tool_name, e.arguments, "$"))
             case tools.TODO_WRITE_TOOL_NAME:
                 self.console.print(self.render_any_tool_call("Update Todos", "", "☰"))
             case _:
