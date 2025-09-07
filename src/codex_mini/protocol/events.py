@@ -106,4 +106,5 @@ Event = (
     | ErrorEvent
     | EndEvent
     | WelcomeEvent
+    | UserMessageEvent
 )

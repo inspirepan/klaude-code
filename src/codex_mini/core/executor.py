@@ -97,6 +97,9 @@ class ExecutorContext:
         agent = self.active_agents[session_key]
         actual_session_id = agent.session.id
 
+        # emit user input event
+        await self.emit_event(events.UserMessageEvent(content=operation.content, session_id=actual_session_id))
+
         # Start task to process user input and wait for it to complete
         task: asyncio.Task[None] = asyncio.create_task(
             self._run_agent_task(agent, operation.content, operation.id, actual_session_id)

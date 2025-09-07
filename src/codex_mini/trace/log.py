@@ -9,8 +9,10 @@ _debug_write_to_file = True
 _debug_log_file = "debug.log"
 
 
-def log(*objects: str | tuple[str, str]):
-    log_console.print(*((Text(obj[0], style=obj[1]) if isinstance(obj, tuple) else Text(obj)) for obj in objects))
+def log(*objects: str | tuple[str, str], style: str = ""):
+    log_console.print(
+        *((Text(obj[0], style=obj[1]) if isinstance(obj, tuple) else Text(obj)) for obj in objects), style=style
+    )
 
 
 def log_debug(*objects: str | tuple[str, str], style: str = "blue"):

@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from asyncio import Queue
 
 from codex_mini.protocol.events import EndEvent, Event
+from codex_mini.trace import log
 
 
 class DisplayABC(ABC):
@@ -26,5 +27,10 @@ class DisplayABC(ABC):
                     await self.stop()
                     break
                 await self.consume_event(event)
+            except Exception as e:
+                import traceback
+
+                log(f"Error in consume_event_loop, {e.__class__.__name__}, {e}", style="red")
+                log(traceback.format_exc(), style="red")
             finally:
                 q.task_done()

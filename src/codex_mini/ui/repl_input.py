@@ -42,6 +42,7 @@ class PromptToolkitInput(InputProviderABC):
             multiline=True,
             prompt_continuation=prompt,
             key_bindings=kb,
+            erase_when_done=True,
         )
 
     async def start(self) -> None:  # noqa: D401

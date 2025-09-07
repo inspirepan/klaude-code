@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from typing import Literal, override
 
@@ -31,6 +32,9 @@ THINKING_PREFIX = Text.from_markup("[not italic]◈[/not italic] Thinking...\n",
 TOOL_NAME_STYLE = "bold"
 DIFF_REMOVE_LINE_STYLE = "#333333 on #ffa8b4"
 DIFF_ADDED_LINE_STYLE = "#333333 on #69db7c"
+USER_INPUT_STYLE = "cyan"
+USER_INPUT_AT_PATTERN_STYLE = "r cyan"
+USER_INPUT_SLASH_COMMAND_PATTERN_STYLE = "r b blue"
 
 
 class REPLDisplay(DisplayABC):
@@ -52,7 +56,7 @@ class REPLDisplay(DisplayABC):
     async def consume_event(self, event: events.Event) -> None:
         match event:
             case events.TaskStartEvent():
-                self.console.print()
+                pass
             case events.TaskFinishEvent():
                 pass
             case events.ThinkingDeltaEvent() as e:
@@ -90,6 +94,8 @@ class REPLDisplay(DisplayABC):
                 self.display_welcome(e)
             case events.ErrorEvent() as e:
                 self.console.print(self.render_error(e.error_message))
+            case events.UserMessageEvent() as e:
+                self.display_user_input(e)
             case _:
                 self.console.print("[Event]", event.__class__.__name__, event)
 
@@ -439,6 +445,49 @@ class REPLDisplay(DisplayABC):
             )
         )
 
+    def render_at_pattern(
+        self, text: str, at_style: str = USER_INPUT_AT_PATTERN_STYLE, other_style: str = USER_INPUT_STYLE
+    ) -> Text:
+        if "@" in text:
+            parts = re.split(r"(\s+)", text)
+            result = Text("")
+            for s in parts:
+                if s.startswith("@"):
+                    result.append_text(Text(s, at_style))
+                else:
+                    result.append_text(Text(s, other_style))
+            return result
+        return Text(text, style=other_style)
+
+    def display_user_input(self, e: events.UserMessageEvent) -> None:
+        lines = e.content.split("\n")
+        first_line = True
+        for line in lines:
+            # render slash commands
+            if first_line and line.startswith("/"):
+                splits = line.split(" ", maxsplit=1)
+                if len(splits) <= 1:
+                    line_text = Text(line, style=USER_INPUT_SLASH_COMMAND_PATTERN_STYLE)
+                else:
+                    line_text = Text.assemble(
+                        (splits[0], USER_INPUT_SLASH_COMMAND_PATTERN_STYLE),
+                        " ",
+                        self.render_at_pattern(splits[1], USER_INPUT_AT_PATTERN_STYLE),
+                    )
+            else:
+                line_text = self.render_at_pattern(line, USER_INPUT_AT_PATTERN_STYLE)
+            first_line = False
+
+            avail = max(1, self.console.width - 2)
+            render_lines = line_text.wrap(self.console, avail)
+            for render_line in render_lines:
+                self.console.print(
+                    Text("┃", style=f"{USER_INPUT_STYLE} dim"),
+                    render_line,
+                )
+
+        self.console.print()
+
     async def replay_history(self, history_events: events.ReplayHistoryEvent) -> None:
         tool_call_dict: dict[str, events.ToolCallEvent] = {}
         for event in history_events.events:
@@ -453,15 +502,7 @@ class REPLDisplay(DisplayABC):
                         mdargs={"code_theme": CODE_THEME, "style": THINKING_STYLE}, theme=MARKDOWN_THEME
                     ).update(e.content.strip(), final=True)
                 case events.UserMessageEvent() as e:
-                    lines = e.content.split("\n")
-                    grid = self._create_grid()
-                    for line in lines:
-                        grid.add_row(
-                            Text("┃", style="bright_black"),
-                            Text(line, style="bright_black"),
-                        )
-                    self.console.print(grid)
-                    self.console.print()
+                    self.display_user_input(e)
                 case events.ToolCallEvent() as e:
                     tool_call_dict[e.tool_call_id] = e
                 case events.ToolResultEvent() as e:
