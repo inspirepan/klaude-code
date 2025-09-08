@@ -92,6 +92,11 @@ class InterruptEvent(BaseModel):
     session_id: str
 
 
+class TodoChangeEvent(BaseModel):
+    session_id: str
+    todos: list[model.TodoItem]
+
+
 HistoryItemEvent = (
     ThinkingEvent
     | AssistantMessageEvent
@@ -126,4 +131,5 @@ Event = (
     | UserMessageEvent
     | InterruptEvent
     | DeveloperMessageEvent
+    | TodoChangeEvent
 )

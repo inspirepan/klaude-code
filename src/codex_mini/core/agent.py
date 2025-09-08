@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from codex_mini.core.tool.tool_context import current_session_var
 from codex_mini.core.tool.tool_registry import run_tool
 from codex_mini.llm.client import LLMClientABC
-from codex_mini.protocol import events, llm_parameter, model
+from codex_mini.protocol import events, llm_parameter, model, tools
 from codex_mini.session import Session
 from codex_mini.trace import log_debug
 
@@ -251,6 +251,11 @@ class Agent:
                     session_id=self.session.id,
                     status=tool_result.status,
                 )
+                if tool_call.name == tools.TODO_WRITE_TOOL_NAME:
+                    yield events.TodoChangeEvent(
+                        session_id=self.session.id,
+                        todos=self.session.todos,
+                    )
 
     async def process_reminders(self) -> AsyncGenerator[events.DeveloperMessageEvent, None]:
         for reminder in self.reminders:

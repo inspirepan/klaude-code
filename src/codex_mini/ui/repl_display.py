@@ -114,6 +114,21 @@ class REPLDisplay(DisplayABC):
             case events.InterruptEvent() as e:
                 self.display_interrupt(e)
                 self.spinner.stop()
+            case events.TodoChangeEvent() as e:
+                active_form_status_text = ""
+                for todo in e.todos:
+                    if todo.status == "in_progress":
+                        if len(todo.activeForm) > 0:
+                            active_form_status_text = todo.activeForm
+                            break
+                        elif len(todo.content) > 0:
+                            active_form_status_text = todo.content
+                            break
+                if len(active_form_status_text) > 0:
+                    print(active_form_status_text)
+                    self.spinner.update(Text(active_form_status_text + " …", style=ThemeKey.METADATA_BOLD))
+                else:
+                    self.spinner.update(Text("Thinking …", style=ThemeKey.METADATA))
             # case _:
             #     self.console.print("[Event]", event.__class__.__name__, event)
 
