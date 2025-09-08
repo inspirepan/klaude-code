@@ -7,30 +7,21 @@ SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from codex_mini.protocol.model import (  # noqa: E402
-    group_response_items_gen,
-    UserMessageItem,
-    AssistantMessageItem,
-    DeveloperMessageItem,
-    ReasoningItem,
-    ToolCallItem,
-    ToolResultItem,
-    StartItem,
-    ResponseMetadataItem,
-    ConversationItem,
-)
+# noqa: E402
+from codex_mini.protocol import model  # noqa: E402
+from codex_mini.protocol.model import group_response_items_gen  # noqa: E402
 
 
 def test_group_response_items_gen():
     # Create test item variables for different types
-    user_item = UserMessageItem(content="User message")
-    assistant_item = AssistantMessageItem(content="Assistant message")
-    developer_item = DeveloperMessageItem(content="Developer message")
-    reasoning_item = ReasoningItem(content="Reasoning")
-    tool_call_item = ToolCallItem(call_id="call_1", name="test_tool", arguments="{}")
-    tool_result_item = ToolResultItem(call_id="call_1", output="result", status="success")
-    start_item = StartItem(response_id="resp_1")
-    metadata_item = ResponseMetadataItem(response_id="resp_1")
+    user_item = model.UserMessageItem(content="User message")
+    assistant_item = model.AssistantMessageItem(content="Assistant message")
+    developer_item = model.DeveloperMessageItem(content="Developer message")
+    reasoning_item = model.ReasoningItem(content="Reasoning")
+    tool_call_item = model.ToolCallItem(call_id="call_1", name="test_tool", arguments="{}")
+    tool_result_item = model.ToolResultItem(call_id="call_1", output="result", status="success")
+    start_item = model.StartItem(response_id="resp_1")
+    metadata_item = model.ResponseMetadataItem(response_id="resp_1")
 
     # Test case 1: Simple consecutive user messages
     input_1 = [user_item, user_item, user_item]
@@ -95,7 +86,7 @@ def test_group_response_items_gen():
     assert result_8 == expected_8
 
     # Test case 9: Empty input
-    input_9: list[ConversationItem] = []
+    input_9: list[model.ConversationItem] = []
     expected_9 = []
     result_9 = list(group_response_items_gen(input_9))
     assert result_9 == expected_9

@@ -6,6 +6,7 @@ import sys
 import termios
 import threading
 import tty
+from dataclasses import dataclass
 
 import typer
 
@@ -200,10 +201,15 @@ def start_esc_interrupt_monitor(
     return stop_event, esc_task
 
 
+@dataclass
+class UIArgs:
+    theme: str | None
+    light: bool | None
+    dark: bool | None
+
+
 async def run_interactive(
-    model: str | None = None,
-    debug: bool = False,
-    session_id: str | None = None,
+    model: str | None = None, debug: bool = False, session_id: str | None = None, ui_args: UIArgs | None = None
 ):
     """Run the interactive REPL using the new executor architecture."""
     config = load_config()
@@ -225,8 +231,21 @@ async def run_interactive(
     # Start executor in background
     executor_task = asyncio.create_task(executor.start())
 
+    theme: str | None = config.theme
+    if ui_args:
+        if ui_args.theme:
+            theme = ui_args.theme
+            old_theme = config.theme
+            config.theme = theme
+            if old_theme != theme:
+                await config.save()
+        elif ui_args.light:
+            theme = "light"
+        elif ui_args.dark:
+            theme = "dark"
+
     # Set up UI components
-    repl_display = ui.REPLDisplay()
+    repl_display = ui.REPLDisplay(theme=theme)
     display: ui.DisplayABC = repl_display if not debug else ui.DebugEventDisplay(repl_display, write_to_file=True)
     input_provider: ui.InputProviderABC = ui.PromptToolkitInput()
 
@@ -359,15 +378,22 @@ def main_callback(
         "-m",
         help="Override model config name (uses main model by default)",
     ),
+    continue_: bool = typer.Option(False, "--continue", "-c", help="Continue from latest session"),
+    resume: bool = typer.Option(False, "--resume", "-r", help="Select a session to resume for this project"),
     select_model: bool = typer.Option(
         False,
         "--select-model",
         "-s",
         help="Interactively choose a model at startup",
     ),
+    set_theme: str | None = typer.Option(
+        None,
+        "--set-theme",
+        help="Set UI theme (light or dark)",
+    ),
+    light: bool = typer.Option(False, "--light", help="Use light theme"),
+    dark: bool = typer.Option(False, "--dark", help="Use dark theme"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
-    continue_: bool = typer.Option(False, "--continue", "-c", help="Continue from latest session"),
-    resume: bool = typer.Option(False, "--resume", "-r", help="Select a session to resume for this project"),
 ):
     """Start interactive session when no subcommand provided."""
     # Only run interactive mode when no subcommand is invoked
@@ -389,11 +415,11 @@ def main_callback(
         # If user didn't pick, allow fallback to --continue
         if session_id is None and continue_:
             session_id = Session.most_recent_session_id()
-
         asyncio.run(
             run_interactive(
                 model=chosen_model,
                 debug=debug,
                 session_id=session_id,
+                ui_args=UIArgs(theme=set_theme, light=light, dark=dark),
             )
         )

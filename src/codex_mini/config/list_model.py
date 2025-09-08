@@ -42,9 +42,9 @@ def display_models_and_providers(config: Config):
     for provider in config.provider_list:
         status = Text("✓", style="green bold")
         name = Text(provider.provider_name, style="cyan")
-        protocol = Text(str(provider.provider_params.protocol.value), style="")
-        base_url = Text(provider.provider_params.base_url or "N/A", style="")
-        api_key = Text(mask_api_key(provider.provider_params.api_key), style="")
+        protocol = Text(str(provider.protocol.value), style="")
+        base_url = Text(provider.base_url or "N/A", style="")
+        api_key = Text(mask_api_key(provider.api_key), style="")
 
         providers_table.add_row(status, name, protocol, base_url, api_key)
 

@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 import yaml
@@ -24,15 +25,11 @@ class ModelConfig(BaseModel):
     model_params: LLMConfigModelParameter
 
 
-class ProviderConfig(BaseModel):
-    provider_name: str
-    provider_params: LLMConfigProviderParameter
-
-
 class Config(BaseModel):
-    provider_list: list[ProviderConfig]
+    provider_list: list[LLMConfigProviderParameter]
     model_list: list[ModelConfig]
     main_model: str
+    theme: str | None = None
 
     def get_main_model_config(self) -> LLMConfigParameter:
         return self.get_model_config(self.main_model)
@@ -52,37 +49,44 @@ class Config(BaseModel):
         if provider is None:
             raise ValueError(f"Unknown provider: {model.provider}")
 
-        provider.provider_params.provider_name = provider.provider_name
-
         return LLMConfigParameter(
-            **provider.provider_params.model_dump(),
+            **provider.model_dump(),
             **model.model_params.model_dump(),
         )
+
+    async def save(self) -> None:
+        """
+        Save config to file.
+        Notice: it won't preserve comments in the config file.
+        """
+        config_dict = self.model_dump(mode="json", exclude_none=True)
+
+        def _save_config() -> None:
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            _ = config_path.write_text(yaml.dump(config_dict, default_flow_style=False, sort_keys=False))
+
+        await asyncio.to_thread(_save_config)
 
 
 def get_example_config() -> Config:
     return Config(
         main_model="gpt-5",
         provider_list=[
-            ProviderConfig(
+            LLMConfigProviderParameter(
                 provider_name="openai",
-                provider_params=LLMConfigProviderParameter(
-                    protocol=LLMClientProtocol.RESPONSES,
-                    api_key="sk-1234567890",
-                    base_url="https://api.openai.com/v1",
-                    is_azure=False,
-                    azure_api_version="2023-03-15-preview",
-                ),
+                protocol=LLMClientProtocol.RESPONSES,
+                api_key="sk-1234567890",
+                base_url="https://api.openai.com/v1",
+                is_azure=False,
+                azure_api_version="2023-03-15-preview",
             ),
-            ProviderConfig(
+            LLMConfigProviderParameter(
                 provider_name="openrouter",
-                provider_params=LLMConfigProviderParameter(
-                    protocol=LLMClientProtocol.OPENAI,
-                    api_key="sk-1234567890",
-                    base_url="https://api.openrouter.com/v1",
-                    is_azure=False,
-                    azure_api_version="2023-03-15-preview",
-                ),
+                protocol=LLMClientProtocol.OPENAI,
+                api_key="sk-1234567890",
+                base_url="https://api.openrouter.com/v1",
+                is_azure=False,
+                azure_api_version="2023-03-15-preview",
             ),
         ],
         model_list=[

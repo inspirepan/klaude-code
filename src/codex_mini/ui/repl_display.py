@@ -14,43 +14,21 @@ from rich.status import Status
 from rich.style import Style, StyleType
 from rich.table import Table
 from rich.text import Text
-from rich.theme import Theme
 
 from codex_mini.protocol import events, model, tools
 from codex_mini.ui.display_abc import DisplayABC
 from codex_mini.ui.mdstream import MarkdownStream
+from codex_mini.ui.theme import ThemeKey, get_theme
 from codex_mini.ui.utils import format_number
 
-CODE_THEME = "solarized-light"
-MARKDOWN_THEME = Theme(
-    styles={
-        "markdown.code": "medium_purple3",
-        "markdown.h1": "bold reverse white",
-        "markdown.h1.border": "gray70",
-        "markdown.h2.border": "gray70",
-        "markdown.h3": "bold gray46",
-        "markdown.h4": "bold gray54",
-    }
-)
-THINKING_STYLE = "italic dim"
-THINKING_PREFIX = Text.from_markup("[not italic]◈[/not italic] Thinking...\n", style=THINKING_STYLE)
-TOOL_NAME_STYLE = "bold"
-DIFF_REMOVE_LINE_STYLE = "#333333 on #ffa8b4"
-DIFF_ADDED_LINE_STYLE = "#333333 on #69db7c"
-USER_INPUT_STYLE = "cyan"
-USER_INPUT_AT_PATTERN_STYLE = "reverse medium_purple3"
-USER_INPUT_SLASH_COMMAND_PATTERN_STYLE = "reverse bold cyan"
-METADATA_STYLE = "steel_blue"
-REMINDER_STYLE = "medium_purple3"
-INVALID_TOOL_CALL_ARGS_STYLE = "yellow"
+THINKING_PREFIX = Text.from_markup("[not italic]◈[/not italic] Thinking...\n", style=ThemeKey.THINKING)
 
 
 class REPLDisplay(DisplayABC):
-    def __init__(self):
-        self.console: Console = Console(
-            theme=Theme(styles={"diff.remove": DIFF_REMOVE_LINE_STYLE, "diff.add": DIFF_ADDED_LINE_STYLE})
-        )
-        self.console.push_theme(MARKDOWN_THEME)
+    def __init__(self, theme: str | None = None):
+        self.themes = get_theme(theme)
+        self.console: Console = Console(theme=self.themes.app_theme)
+        self.console.push_theme(self.themes.markdown_theme)
         self.stage: Literal["waiting", "thinking", "assistant", "tool_call", "tool_result"] = "waiting"
         self.is_thinking_in_bold = False
 
@@ -63,11 +41,11 @@ class REPLDisplay(DisplayABC):
         self.thinking_debounce_interval: float = 0.05
         self._thinking_debounce_task: asyncio.Task[None] | None = None
 
-        self.status_text = Text("Thinking …", style=Style(color=METADATA_STYLE))
+        self.status_text = Text("Thinking …", style=ThemeKey.METADATA)
         self.spinner: Status = self.console.status(
             self.status_text,
             spinner="bouncingBall",
-            spinner_style=Style(color=METADATA_STYLE),
+            spinner_style=ThemeKey.METADATA,
         )
 
     @override
@@ -94,7 +72,9 @@ class REPLDisplay(DisplayABC):
                 self.spinner.stop()
                 self.accumulated_assistant_text += e.content
                 if self.assistant_mdstream is None:
-                    self.assistant_mdstream = MarkdownStream(mdargs={"code_theme": CODE_THEME}, theme=MARKDOWN_THEME)
+                    self.assistant_mdstream = MarkdownStream(
+                        mdargs={"code_theme": self.themes.code_theme}, theme=self.themes.markdown_theme
+                    )
                     self.stage = "assistant"
                 self._schedule_assistant_flush()
             case events.AssistantMessageEvent() as e:
@@ -123,14 +103,17 @@ class REPLDisplay(DisplayABC):
                 self.spinner.start()
             case events.ReplayHistoryEvent() as e:
                 await self.replay_history(e)
+                self.spinner.stop()
             case events.WelcomeEvent() as e:
                 self.display_welcome(e)
             case events.ErrorEvent() as e:
                 self.console.print(self.render_error(e.error_message))
+                self.spinner.stop()
             case events.UserMessageEvent() as e:
                 self.display_user_input(e)
             case events.InterruptEvent() as e:
                 self.display_interrupt(e)
+                self.spinner.stop()
             # case _:
             #     self.console.print("[Event]", event.__class__.__name__, event)
 
@@ -197,27 +180,27 @@ class REPLDisplay(DisplayABC):
         if content.count("**") == 2:
             left_part, middle_part, right_part = content.split("**", maxsplit=2)
             if self.is_thinking_in_bold:
-                self.console.print(Text(left_part, style=f"bold {THINKING_STYLE}"), end="")
-                self.console.print(Text(middle_part, style=THINKING_STYLE), end="")
-                self.console.print(Text(right_part, style=f"bold {THINKING_STYLE}"), end="")
+                self.console.print(Text(left_part, style=ThemeKey.THINKING_BOLD), end="")
+                self.console.print(Text(middle_part, style=ThemeKey.THINKING), end="")
+                self.console.print(Text(right_part, style=ThemeKey.THINKING_BOLD), end="")
             else:
-                self.console.print(Text(left_part, style=THINKING_STYLE), end="")
-                self.console.print(Text(middle_part, style=f"bold {THINKING_STYLE}"), end="")
-                self.console.print(Text(right_part, style=THINKING_STYLE), end="")
+                self.console.print(Text(left_part, style=ThemeKey.THINKING), end="")
+                self.console.print(Text(middle_part, style=ThemeKey.THINKING_BOLD), end="")
+                self.console.print(Text(right_part, style=ThemeKey.THINKING), end="")
         elif content.count("**") == 1:
             left_part, right_part = content.split("**", maxsplit=1)
             if self.is_thinking_in_bold:
-                self.console.print(Text(left_part, style=f"bold {THINKING_STYLE}"), end="")
-                self.console.print(Text(right_part, style=THINKING_STYLE), end="")
+                self.console.print(Text(left_part, style=ThemeKey.THINKING_BOLD), end="")
+                self.console.print(Text(right_part, style=ThemeKey.THINKING), end="")
             else:
-                self.console.print(Text(left_part, style=THINKING_STYLE), end="")
-                self.console.print(Text(right_part, style=f"bold {THINKING_STYLE}"), end="")
+                self.console.print(Text(left_part, style=ThemeKey.THINKING), end="")
+                self.console.print(Text(right_part, style=ThemeKey.THINKING_BOLD), end="")
             self.is_thinking_in_bold = not self.is_thinking_in_bold
         else:
             if self.is_thinking_in_bold:
-                self.console.print(Text(content, style=f"bold {THINKING_STYLE}"), end="")
+                self.console.print(Text(content, style=ThemeKey.THINKING_BOLD), end="")
             else:
-                self.console.print(Text(content, style=THINKING_STYLE), end="")
+                self.console.print(Text(content, style=ThemeKey.THINKING), end="")
 
     def display_thinking(self, e: events.ThinkingDeltaEvent) -> None:
         content = e.content.replace("\r", "").replace("\n\n", "\n")
@@ -233,8 +216,8 @@ class REPLDisplay(DisplayABC):
     def render_error(self, error_msg: str) -> RenderableType:
         grid = self._create_grid()
         grid.add_row(
-            Text("✘", style="bold red"),
-            Text(self.truncate_display(error_msg), style="red"),
+            Text("✘", style=ThemeKey.ERROR_BOLD),
+            Text(self.truncate_display(error_msg), style=ThemeKey.ERROR),
         )
         return grid
 
@@ -251,7 +234,7 @@ class REPLDisplay(DisplayABC):
         return Text(path, style=style)
 
     def render_any_tool_call(self, tool_name: str, arguments: str, markup: str = "•") -> Text:
-        render_result: Text = Text.assemble((markup, "bold"), " ", (tool_name, TOOL_NAME_STYLE), " ")
+        render_result: Text = Text.assemble((markup, ThemeKey.TOOL_MARK), " ", (tool_name, ThemeKey.TOOL_NAME), " ")
         if not arguments:
             return render_result
         try:
@@ -259,79 +242,81 @@ class REPLDisplay(DisplayABC):
             if len(json_dict) == 0:
                 return render_result
             if len(json_dict) == 1:
-                return render_result.append_text(Text(str(next(iter(json_dict.values()))), "green"))
-            return render_result.append_text(Text(", ".join([f"{k}: {v}" for k, v in json_dict.items()]), "green"))
+                return render_result.append_text(Text(str(next(iter(json_dict.values()))), ThemeKey.TOOL_PARAM))
+            return render_result.append_text(
+                Text(", ".join([f"{k}: {v}" for k, v in json_dict.items()]), ThemeKey.TOOL_PARAM)
+            )
         except json.JSONDecodeError:
-            return render_result.append_text(Text(arguments, style=INVALID_TOOL_CALL_ARGS_STYLE))
+            return render_result.append_text(Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS))
 
     def render_read_tool_call(self, arguments: str) -> RenderableType:
         grid = self._create_grid()
-        render_result: Text = Text.assemble(("Read", TOOL_NAME_STYLE), " ")
+        render_result: Text = Text.assemble(("Read", ThemeKey.TOOL_NAME), " ")
         try:
             json_dict = json.loads(arguments)
             file_path = json_dict.get("file_path")
             limit = json_dict.get("limit", None)
             offset = json_dict.get("offset", None)
-            render_result = render_result.append(self.render_path(file_path, "green"))
+            render_result = render_result.append(self.render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH))
             if limit is not None and offset is not None:
                 render_result = (
                     render_result.append_text(Text(" "))
-                    .append_text(Text(str(offset), "bold green"))
-                    .append_text(Text(":", "green"))
-                    .append_text(Text(str(offset + limit - 1), "bold green"))
+                    .append_text(Text(str(offset), ThemeKey.TOOL_PARAM_BOLD))
+                    .append_text(Text(":", ThemeKey.TOOL_PARAM))
+                    .append_text(Text(str(offset + limit - 1), ThemeKey.TOOL_PARAM_BOLD))
                 )
             elif limit is not None:
                 render_result = (
                     render_result.append_text(Text(" "))
-                    .append_text(Text("1", "bold green"))
-                    .append_text(Text(":", "green"))
-                    .append_text(Text(str(limit), "bold green"))
+                    .append_text(Text("1", ThemeKey.TOOL_PARAM_BOLD))
+                    .append_text(Text(":", ThemeKey.TOOL_PARAM))
+                    .append_text(Text(str(limit), ThemeKey.TOOL_PARAM_BOLD))
                 )
             elif offset is not None:
                 render_result = (
                     render_result.append_text(Text(" "))
-                    .append_text(Text(str(offset), "bold green"))
-                    .append_text(Text(":", "green"))
-                    .append_text(Text("-", "bold green"))
+                    .append_text(Text(str(offset), ThemeKey.TOOL_PARAM_BOLD))
+                    .append_text(Text(":", ThemeKey.TOOL_PARAM))
+                    .append_text(Text("-", ThemeKey.TOOL_PARAM_BOLD))
                 )
         except json.JSONDecodeError:
-            render_result = render_result.append_text(Text(arguments, style=INVALID_TOOL_CALL_ARGS_STYLE))
-        grid.add_row(Text("←", "bold"), render_result)
+            render_result = render_result.append_text(Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS))
+        grid.add_row(Text("←", ThemeKey.TOOL_MARK), render_result)
         return grid
 
     def render_edit_tool_call(self, arguments: str) -> Text:
-        render_result: Text = Text.assemble(("→ ", "bold"))
+        render_result: Text = Text.assemble(("→ ", ThemeKey.TOOL_MARK))
         try:
             json_dict = json.loads(arguments)
             file_path = json_dict.get("file_path")
             old_string = json_dict.get("old_string", "")
             render_result = (
-                render_result.append_text(Text("Create" if old_string == "" else "Edit", TOOL_NAME_STYLE))
+                render_result.append_text(Text("Create" if old_string == "" else "Edit", ThemeKey.TOOL_NAME))
                 .append_text(Text(" "))
-                .append_text(self.render_path(file_path, "green"))
+                .append_text(self.render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH))
             )
         except json.JSONDecodeError:
             render_result = (
-                render_result.append_text(Text("Edit", TOOL_NAME_STYLE))
+                render_result.append_text(Text("Edit", ThemeKey.TOOL_NAME))
                 .append_text(Text(" "))
-                .append_text(Text(arguments, style=INVALID_TOOL_CALL_ARGS_STYLE))
+                .append_text(Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS))
             )
         return render_result
 
     def render_multi_edit_tool_call(self, arguments: str) -> Text:
-        render_result: Text = Text.assemble(("→ ", "bold"), ("MultiEdit", TOOL_NAME_STYLE), " ")
+        render_result: Text = Text.assemble(("→ ", ThemeKey.TOOL_MARK), ("MultiEdit", ThemeKey.TOOL_NAME), " ")
         try:
             json_dict = json.loads(arguments)
             file_path = json_dict.get("file_path")
             edits = json_dict.get("edits", [])
             render_result = (
-                render_result.append_text(self.render_path(file_path, "green"))
+                render_result.append_text(self.render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH))
                 .append_text(Text(" - "))
-                .append_text(Text(f"{len(edits)}", "bold green"))
-                .append_text(Text(" updates", "green"))
+                .append_text(Text(f"{len(edits)}", ThemeKey.TOOL_PARAM_BOLD))
+                .append_text(Text(" updates", ThemeKey.TOOL_PARAM_FILE_PATH))
             )
         except json.JSONDecodeError:
-            render_result = render_result.append_text(Text(arguments, style=INVALID_TOOL_CALL_ARGS_STYLE))
+            render_result = render_result.append_text(Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS))
         return render_result
 
     def display_tool_call(self, e: events.ToolCallEvent) -> None:
@@ -418,14 +403,15 @@ class REPLDisplay(DisplayABC):
 
             # Style only true diff content lines
             if line.startswith("-"):
-                line_style = "diff.remove"
+                line_style = ThemeKey.DIFF_REMOVE
             elif line.startswith("+"):
-                line_style = "diff.add"
+                line_style = ThemeKey.DIFF_ADD
             else:
-                line_style = ""
+                line_style = ThemeKey.TOOL_RESULT
             text = Text(line)
-            text.stylize(line_style)
-            grid.add_row(prefix, text)
+            if line_style:
+                text.stylize(line_style)
+            grid.add_row(Text(prefix, ThemeKey.TOOL_RESULT), text)
 
         return grid
 
@@ -441,20 +427,23 @@ class REPLDisplay(DisplayABC):
                 match todo.status:
                     case "pending":
                         mark = "▢"
-                        mark_style = "dim"
-                        text_style = "dim"
+                        mark_style = ThemeKey.TODO_PENDING_MARK
+                        text_style = ThemeKey.TODO_PENDING
                     case "in_progress":
                         mark = "◉"
-                        mark_style = "cyan"
-                        text_style = "bold cyan"
+                        mark_style = ThemeKey.TODO_IN_PROGRESS_MARK
+                        text_style = ThemeKey.TODO_IN_PROGRESS
                     case "completed":
                         mark = "✔"
-                        mark_style = "green" if is_new_completed else "dim"
-                        text_style = "green strike bold" if is_new_completed else "dim strike"
+                        mark_style = (
+                            ThemeKey.TODO_NEW_COMPLETED_MARK if is_new_completed else ThemeKey.TODO_COMPLETED_MARK
+                        )
+                        text_style = ThemeKey.TODO_NEW_COMPLETED if is_new_completed else ThemeKey.TODO_COMPLETED
                 text = Text(todo.content)
                 text.stylize(text_style)
+
                 grid.add_row(
-                    Text(mark, style=f"bold {mark_style}"),
+                    Text(mark, style=mark_style),
                     text,
                 )
             return grid
@@ -491,7 +480,7 @@ class REPLDisplay(DisplayABC):
                     Padding.indent(
                         Text(
                             self.truncate_display(e.result),
-                            style="grey50",
+                            style=ThemeKey.TOOL_RESULT,
                         ),
                         level=2,
                     )
@@ -500,40 +489,40 @@ class REPLDisplay(DisplayABC):
     def display_metadata(self, e: events.ResponseMetadataEvent) -> None:
         metadata = e.metadata
         rule_text = Text()
-        rule_text.append_text(Text(metadata.model_name, style=f"bold {METADATA_STYLE}"))
+        rule_text.append_text(Text(metadata.model_name, style=ThemeKey.METADATA_BOLD))
         if metadata.provider is not None:
             rule_text.append_text(Text(" "))
-            rule_text.append_text(Text(metadata.provider.lower(), style=f"{METADATA_STYLE}"))
+            rule_text.append_text(Text(metadata.provider.lower(), style=ThemeKey.METADATA))
         if metadata.usage is not None:
             cached_token_str = (
-                Text.assemble((", ", "dim"), (format_number(metadata.usage.cached_tokens), METADATA_STYLE), " cached")
+                Text.assemble((", ", ThemeKey.METADATA_DIM), format_number(metadata.usage.cached_tokens), " cached")
                 if metadata.usage.cached_tokens > 0
                 else Text("")
             )
             reasoning_token_str = (
                 Text.assemble(
-                    (", ", "dim"), (format_number(metadata.usage.reasoning_tokens), METADATA_STYLE), " reasoning"
+                    (", ", ThemeKey.METADATA_DIM), format_number(metadata.usage.reasoning_tokens), " reasoning"
                 )
                 if metadata.usage.reasoning_tokens > 0
                 else Text("")
             )
             rule_text.append_text(
                 Text.assemble(
-                    (" → ", "dim"),
-                    (format_number(metadata.usage.input_tokens), METADATA_STYLE),
+                    (" → ", ThemeKey.METADATA_DIM),
+                    (format_number(metadata.usage.input_tokens), ThemeKey.METADATA),
                     (" input"),
                     cached_token_str,
-                    (", ", "dim"),
-                    (format_number(metadata.usage.output_tokens), METADATA_STYLE),
+                    (", ", ThemeKey.METADATA_DIM),
+                    (format_number(metadata.usage.output_tokens), ThemeKey.METADATA),
                     (" output"),
                     reasoning_token_str,
-                    style=METADATA_STYLE,
+                    style=ThemeKey.METADATA,
                 )
             )
         self.console.print(
             Rule(
                 rule_text,
-                style="bright_black",
+                style=ThemeKey.LINES,
                 align="right",
                 characters="-",
             )
@@ -541,42 +530,70 @@ class REPLDisplay(DisplayABC):
 
     def display_welcome(self, e: events.WelcomeEvent) -> None:
         model_info = Text.assemble(
-            (str(e.llm_config.model), "bold"), (" @ ", "dim"), (e.llm_config.provider_name, "dim")
+            (str(e.llm_config.model), ThemeKey.WELCOME_HIGHLIGHT),
+            (" @ ", ThemeKey.WELCOME_INFO),
+            (e.llm_config.provider_name, ThemeKey.WELCOME_INFO),
         )
         if e.llm_config.reasoning is not None and e.llm_config.reasoning.effort:
             model_info.append_text(
-                Text.assemble(("\n• reasoning-effort: ", "dim"), (e.llm_config.reasoning.effort, "bold"))
+                Text.assemble(
+                    ("\n• reasoning-effort: ", ThemeKey.WELCOME_INFO),
+                    (e.llm_config.reasoning.effort, ThemeKey.WELCOME_HIGHLIGHT),
+                )
             )
         if e.llm_config.reasoning is not None and e.llm_config.reasoning.summary:
             model_info.append_text(
-                Text.assemble(("\n• reasoning-summary: ", "dim"), (e.llm_config.reasoning.summary, "bold"))
+                Text.assemble(
+                    ("\n• reasoning-summary: ", ThemeKey.WELCOME_INFO),
+                    (e.llm_config.reasoning.summary, ThemeKey.WELCOME_HIGHLIGHT),
+                )
             )
         if e.llm_config.thinking is not None and e.llm_config.thinking.budget_tokens:
             model_info.append_text(
-                Text.assemble(("\n• thinking-budget: ", "dim"), (str(e.llm_config.thinking.budget_tokens), "bold"))
+                Text.assemble(
+                    ("\n• thinking-budget: ", ThemeKey.WELCOME_INFO),
+                    (str(e.llm_config.thinking.budget_tokens), ThemeKey.WELCOME_HIGHLIGHT),
+                )
             )
         if e.llm_config.verbosity:
-            model_info.append_text(Text.assemble(("\n• verbosity: ", "dim"), (str(e.llm_config.verbosity), "bold")))
+            model_info.append_text(
+                Text.assemble(
+                    ("\n• verbosity: ", ThemeKey.WELCOME_INFO),
+                    (str(e.llm_config.verbosity), ThemeKey.WELCOME_HIGHLIGHT),
+                )
+            )
         if pr := e.llm_config.provider_routing:
             if pr.sort:
-                model_info.append_text(Text.assemble(("\n• provider-sort: ", "dim"), (str(pr.sort), "bold")))
+                model_info.append_text(
+                    Text.assemble(
+                        ("\n• provider-sort: ", ThemeKey.WELCOME_INFO), (str(pr.sort), ThemeKey.WELCOME_HIGHLIGHT)
+                    )
+                )
             if pr.order:
-                model_info.append_text(Text.assemble(("\n• provider-order: ", "dim"), (">".join(pr.order), "bold")))
+                model_info.append_text(
+                    Text.assemble(
+                        ("\n• provider-order: ", ThemeKey.WELCOME_INFO),
+                        (">".join(pr.order), ThemeKey.WELCOME_HIGHLIGHT),
+                    )
+                )
         if pl := e.llm_config.plugins:
-            model_info.append_text(Text.assemble(("\n•", "green")))
+            model_info.append_text(Text.assemble(("\n•", ThemeKey.WELCOME_INFO)))
             for p in pl:
-                model_info.append_text(Text.assemble(" ", (p.id, "green bold")))
+                model_info.append_text(Text.assemble(" ", (p.id, ThemeKey.WELCOME_HIGHLIGHT)))
 
         self.console.print(
             Panel.fit(
                 model_info,
-                border_style="grey70",
+                border_style=ThemeKey.LINES,
             )
         )
         self.console.print()
 
     def render_at_pattern(
-        self, text: str, at_style: str = USER_INPUT_AT_PATTERN_STYLE, other_style: str = USER_INPUT_STYLE
+        self,
+        text: str,
+        at_style: str = ThemeKey.USER_INPUT_AT_PATTERN,
+        other_style: str = ThemeKey.USER_INPUT,
     ) -> Text:
         if "@" in text:
             parts = re.split(r"(\s+)", text)
@@ -590,7 +607,7 @@ class REPLDisplay(DisplayABC):
         return Text(text, style=other_style)
 
     def display_interrupt(self, e: events.InterruptEvent) -> None:
-        self.console.print("\n INTERRUPTED \n", style="red reverse bold")
+        self.console.print("\n INTERRUPTED \n", style=ThemeKey.INTERRUPT)
 
     def display_user_input(self, e: events.UserMessageEvent) -> None:
         lines = e.content.split("\n")
@@ -600,22 +617,22 @@ class REPLDisplay(DisplayABC):
             if first_line and line.startswith("/"):
                 splits = line.split(" ", maxsplit=1)
                 if len(splits) <= 1:
-                    line_text = Text(line, style=USER_INPUT_SLASH_COMMAND_PATTERN_STYLE)
+                    line_text = Text(line, style=ThemeKey.USER_INPUT_SLASH_COMMAND)
                 else:
                     line_text = Text.assemble(
-                        (splits[0], USER_INPUT_SLASH_COMMAND_PATTERN_STYLE),
+                        (splits[0], ThemeKey.USER_INPUT_SLASH_COMMAND),
                         " ",
-                        self.render_at_pattern(splits[1], USER_INPUT_AT_PATTERN_STYLE),
+                        self.render_at_pattern(splits[1], ThemeKey.USER_INPUT_AT_PATTERN),
                     )
             else:
-                line_text = self.render_at_pattern(line, USER_INPUT_AT_PATTERN_STYLE)
+                line_text = self.render_at_pattern(line, ThemeKey.USER_INPUT_AT_PATTERN)
             first_line = False
 
             avail = max(1, self.console.width - 2)
             render_lines = line_text.wrap(self.console, avail)
             for render_line in render_lines:
                 self.console.print(
-                    Text("▌", style=f"{USER_INPUT_STYLE} dim"),
+                    Text("▌", style=ThemeKey.USER_INPUT_DIM),
                     render_line,
                 )
 
@@ -626,15 +643,19 @@ class REPLDisplay(DisplayABC):
         for event in history_events.events:
             match event:
                 case events.AssistantMessageEvent() as e:
-                    MarkdownStream(mdargs={"code_theme": CODE_THEME}, theme=MARKDOWN_THEME).update(
-                        e.content.strip(), final=True
-                    )
+                    MarkdownStream(
+                        mdargs={"code_theme": self.themes.code_theme}, theme=self.themes.markdown_theme
+                    ).update(e.content.strip(), final=True)
                     if e.annotations:
                         self.console.print(self.render_annotations(e.annotations))
                 case events.ThinkingEvent() as e:
                     self.console.print(THINKING_PREFIX)
                     MarkdownStream(
-                        mdargs={"code_theme": CODE_THEME, "style": THINKING_STYLE}, theme=MARKDOWN_THEME
+                        mdargs={
+                            "code_theme": self.themes.code_theme,
+                            "style": self.console.get_style(ThemeKey.THINKING),
+                        },
+                        theme=self.themes.markdown_theme,
                     ).update(e.content.strip(), final=True)
                 case events.DeveloperMessageEvent() as e:
                     self.display_reminder(e)
@@ -645,9 +666,10 @@ class REPLDisplay(DisplayABC):
                 case events.ToolResultEvent() as e:
                     tool_call_event = tool_call_dict.get(e.tool_call_id)
                     if tool_call_event is not None:
-                        await self.consume_event(tool_call_event)
+                        self.display_tool_call(tool_call_event)
                     tool_call_dict.pop(e.tool_call_id, None)
-                    await self.consume_event(e)
+                    self.display_tool_call_result(e)
+                    self.console.print()
                 case events.ResponseMetadataEvent() as e:
                     self.display_metadata(e)
                     self.console.print()
@@ -655,10 +677,10 @@ class REPLDisplay(DisplayABC):
                     self.display_interrupt(e)
         self.console.print(
             Text.assemble(
-                Text(" LOADED ", style="reverse bold green"),
+                Text(" LOADED ", style=ThemeKey.RESUME_FLAG),
                 Text(
                     " ◷ {}".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(history_events.updated_at))),
-                    style="green",
+                    style=ThemeKey.RESUME_INFO,
                 ),
             )
         )
@@ -675,70 +697,72 @@ class REPLDisplay(DisplayABC):
                         annotation.url_citation.title,
                     )
                     url.stylize(
-                        Style(color="blue", reverse=True, bold=True, underline=True, link=annotation.url_citation.url)
+                        Style(
+                            color=self.console.get_style(name=ThemeKey.ANNOTATION_URL).color,
+                            reverse=True,
+                            bold=True,
+                            underline=True,
+                            link=annotation.url_citation.url,
+                        )
                     )
-                    grid.add_row(Text("○", style="bold blue"), url)
+                    grid.add_row(Text("○", style=ThemeKey.ANNOTATION_URL_HIGHLIGHT), url)
                     grid.add_row(
                         "",
                         Markdown(
                             self.truncate_display(annotation.url_citation.content, max_lines=30),
-                            style="bright_black italic",
+                            style=ThemeKey.ANNOTATION_SEARCH_CONTENT,
                         ),
                     )
                     grid.add_row("", "")
         return grid
 
     def display_reminder(self, e: events.DeveloperMessageEvent) -> None:
-        has_anything_printed = False
         if mp := e.item.memory_paths:
             grid = self._create_grid()
             for memory_path in mp:
                 grid.add_row(
-                    Text("★", style=Style(color=REMINDER_STYLE, bold=True)),
+                    Text("★", style=ThemeKey.REMINDER_BOLD),
                     Text.assemble(
-                        ("Reminder ", Style(color=REMINDER_STYLE, bold=True)),
-                        self.render_path(memory_path, Style(color=REMINDER_STYLE, dim=True)),
+                        ("Reminder ", ThemeKey.REMINDER_BOLD),
+                        self.render_path(memory_path, ThemeKey.REMINDER_DIM),
                     ),
                 )
+                grid.add_row("", "")
             self.console.print(grid)
-            has_anything_printed = True
 
         if fc := e.item.external_file_changes:
             grid = self._create_grid()
             for file_path in fc:
                 grid.add_row(
-                    Text("★", style=Style(color=REMINDER_STYLE, bold=True)),
+                    Text("★", style=ThemeKey.REMINDER_BOLD),
                     Text.assemble(
-                        ("Hint ", Style(color=REMINDER_STYLE, bold=True)),
-                        self.render_path(file_path, Style(color=REMINDER_STYLE, dim=True)),
-                        (" has changed, new content has been loaded to context", "dim"),
+                        ("Hint ", ThemeKey.REMINDER_BOLD),
+                        self.render_path(file_path, ThemeKey.REMINDER_DIM),
+                        (" has changed, new content has been loaded to context", ThemeKey.REMINDER_DIM),
                     ),
                 )
+                grid.add_row("", "")
             self.console.print(grid)
-            has_anything_printed = True
 
         if e.item.todo_use:
             self.console.print(
                 Text.assemble(
-                    Text("★ ", style=Style(color=REMINDER_STYLE, bold=True)),
-                    Text("Hint ", Style(color=REMINDER_STYLE, bold=True)),
-                    Text("Todo hasn't been updated recently", Style(color=REMINDER_STYLE, dim=True)),
+                    Text("★ ", style=ThemeKey.REMINDER_BOLD),
+                    Text("Hint ", ThemeKey.REMINDER_BOLD),
+                    Text("Todo hasn't been updated recently", ThemeKey.REMINDER_DIM),
                 )
             )
-            has_anything_printed = True
+            self.console.print()
 
         if e.item.at_files:
             grid = self._create_grid()
             for at_file in e.item.at_files:
                 grid.add_row(
-                    Text("★", style=Style(color=REMINDER_STYLE, bold=True)),
+                    Text("★", style=ThemeKey.REMINDER_BOLD),
                     Text.assemble(
-                        (f"{at_file.operation} ", Style(color=REMINDER_STYLE, bold=True)),
-                        self.render_path(at_file.path, Style(color=REMINDER_STYLE, dim=True)),
+                        (f"{at_file.operation} ", ThemeKey.REMINDER_BOLD),
+                        self.render_path(at_file.path, ThemeKey.REMINDER_DIM),
                     ),
                 )
+                grid.add_row("", "")
             self.console.print(grid)
-            has_anything_printed = True
-
-        if has_anything_printed:
-            self.console.print()
