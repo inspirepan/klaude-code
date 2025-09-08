@@ -71,7 +71,7 @@ class OpenAICompatibleClient(LLMClientABC):
                     "max_tokens": param.thinking.budget_tokens
                 }  # OpenRouter: https://openrouter.ai/docs/use-cases/reasoning-tokens#anthropic-models-with-reasoning-tokens
             else:
-                extra_body["thinking"] = param.thinking.model_dump(exclude_none=True)
+                extra_body["thinking"] = param.thinking.model_dump(exclude_none=True)  # Claude or Gemini
         if param.provider_routing:
             extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
         if param.plugins:

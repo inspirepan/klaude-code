@@ -29,7 +29,7 @@ async def at_file_reader_reminder(session: Session) -> model.DeveloperMessageIte
     at_patterns: list[str] = []
 
     for item in last_user_input.strip().split(" "):
-        if item.startswith("@"):
+        if item.startswith("@") and len(item) > 1:
             at_patterns.append(item.lower().strip("@"))
 
     if len(at_patterns) == 0:

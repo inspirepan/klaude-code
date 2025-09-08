@@ -26,18 +26,7 @@ THINKING_PREFIX = Text.from_markup("[not italic]◈[/not italic] Thinking...\n",
 
 SPINNERS["claude"] = {
     "interval": 100,
-    "frames": [
-        "✶",
-        "✻",
-        "✽",
-        "✻",
-        "✶",
-        "✳",
-        "✢",
-        "·",
-        "✢",
-        "✳",
-    ],
+    "frames": ["✶", "✻", "✽", "✻", "✶", "✳", "✢", "·", "✢", "✳"],
 }
 
 
