@@ -136,6 +136,7 @@ class ReasoningItem(BaseModel):
     summary: list[str] | None = None
     content: str | None = None
     encrypted_content: str | None = None
+    format: str | None = None  # For OpenRouter's reasoning detail
 
 
 class ToolCallItem(BaseModel):

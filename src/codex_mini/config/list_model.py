@@ -79,7 +79,10 @@ def display_models_and_providers(config: Config):
         params: list[Text] = []
         if model.model_params.reasoning:
             params.append(Text.assemble(("reason-effort", ThemeKey.GREY1), ": ", model.model_params.reasoning.effort))
-            params.append(Text.assemble(("reason-summary", ThemeKey.GREY1), ": ", model.model_params.reasoning.summary))
+            if model.model_params.reasoning.summary is not None:
+                params.append(
+                    Text.assemble(("reason-summary", ThemeKey.GREY1), ": ", model.model_params.reasoning.summary)
+                )
         if model.model_params.verbosity:
             params.append(Text.assemble(("verbosity", ThemeKey.GREY1), ": ", model.model_params.verbosity))
         if model.model_params.thinking:

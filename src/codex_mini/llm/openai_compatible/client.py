@@ -3,6 +3,7 @@ from typing import Literal, override
 
 import httpx
 import openai
+from pydantic import BaseModel
 
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.llm.openai_compatible.input import convert_history_to_input, convert_tool_schema
@@ -15,7 +16,19 @@ from codex_mini.protocol.llm_parameter import (
     LLMConfigParameter,
     apply_config_defaults,
 )
-from codex_mini.trace import log_debug
+from codex_mini.trace import log, log_debug
+
+
+class ReasoningDetail(BaseModel):
+    """OpenRouter's https://openrouter.ai/docs/use-cases/reasoning-tokens#reasoning_details-array-structure"""
+
+    type: str
+    format: str
+    index: int
+    id: str | None = None
+    data: str | None = None  # OpenAI's encrypted content
+    summary: str | None = None
+    signature: str | None = None  # Claude's signature
 
 
 @register(LLMClientProtocol.OPENAI)
@@ -53,7 +66,12 @@ class OpenAICompatibleClient(LLMClientABC):
 
         extra_body = {}
         if param.thinking:
-            extra_body["thinking"] = param.thinking.model_dump(exclude_none=True)
+            if self.config.is_openrouter():
+                extra_body["reasoning"] = {
+                    "max_tokens": param.thinking.budget_tokens
+                }  # OpenRouter: https://openrouter.ai/docs/use-cases/reasoning-tokens#anthropic-models-with-reasoning-tokens
+            else:
+                extra_body["thinking"] = param.thinking.model_dump(exclude_none=True)
         if param.provider_routing:
             extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
         if param.plugins:
@@ -87,6 +105,10 @@ class OpenAICompatibleClient(LLMClientABC):
         accumulated_tool_calls: ToolCallAccumulatorABC = BasicToolCallAccumulator()
         response_id: str | None = None
         metadata_item = model.ResponseMetadataItem()
+
+        reasoning_encrypted_content: str | None = None
+        reasoning_format: str | None = None
+        reasoning_id: str | None = None
 
         turn_annotations: list[model.Annotation] | None = None
 
@@ -122,6 +144,27 @@ class OpenAICompatibleClient(LLMClientABC):
                     response_id=response_id,
                 )
 
+            if hasattr(delta, "reasoning_details") and getattr(delta, "reasoning_details"):
+                reasoning_details = getattr(delta, "reasoning_details")
+                for item in reasoning_details:
+                    try:
+                        reasoning_detail = ReasoningDetail.model_validate(item)
+                        if reasoning_detail.type == "reasoning.encrypted":
+                            # GPT-5
+                            reasoning_encrypted_content = reasoning_detail.data
+                            reasoning_id = reasoning_detail.id
+                            reasoning_format = reasoning_detail.format
+                            break
+                        elif reasoning_detail.type == "reasoning.text" and reasoning_detail.signature:
+                            # Claude
+                            reasoning_encrypted_content = reasoning_detail.signature
+                            reasoning_id = reasoning_detail.id
+                            reasoning_format = reasoning_detail.format
+                            break
+
+                    except Exception as e:
+                        log("reasoning_details error", str(e), style="red")
+
             # Annotations (URL Citation)
             if hasattr(delta, "annotations") and getattr(delta, "annotations"):
                 annotations = getattr(delta, "annotations")
@@ -136,7 +179,13 @@ class OpenAICompatibleClient(LLMClientABC):
             if delta.content and len(delta.content) > 0:
                 if stage == "reasoning":
                     yield model.ThinkingTextItem(thinking="".join(accumulated_reasoning), response_id=response_id)
-                    yield model.ReasoningItem(content="".join(accumulated_reasoning), response_id=response_id)
+                    yield model.ReasoningItem(
+                        id=reasoning_id,
+                        content="".join(accumulated_reasoning),
+                        response_id=response_id,
+                        encrypted_content=reasoning_encrypted_content,
+                        format=reasoning_format,
+                    )
                 stage = "assistant"
                 accumulated_content.append(delta.content)
                 yield model.AssistantMessageDelta(
@@ -148,7 +197,13 @@ class OpenAICompatibleClient(LLMClientABC):
             if delta.tool_calls and len(delta.tool_calls) > 0:
                 if stage == "reasoning":
                     yield model.ThinkingTextItem(thinking="".join(accumulated_reasoning), response_id=response_id)
-                    yield model.ReasoningItem(content="".join(accumulated_reasoning), response_id=response_id)
+                    yield model.ReasoningItem(
+                        id=reasoning_id,
+                        content="".join(accumulated_reasoning),
+                        response_id=response_id,
+                        encrypted_content=reasoning_encrypted_content,
+                        format=reasoning_format,
+                    )
                 elif stage == "assistant":
                     yield model.AssistantMessageItem(
                         content="".join(accumulated_content),
@@ -161,7 +216,13 @@ class OpenAICompatibleClient(LLMClientABC):
         # Finalize
         if stage == "reasoning":
             yield model.ThinkingTextItem(thinking="".join(accumulated_reasoning), response_id=response_id)
-            yield model.ReasoningItem(content="".join(accumulated_reasoning), response_id=response_id)
+            yield model.ReasoningItem(
+                id=reasoning_id,
+                content="".join(accumulated_reasoning),
+                response_id=response_id,
+                encrypted_content=reasoning_encrypted_content,
+                format=reasoning_format,
+            )
         elif stage == "assistant":
             yield model.AssistantMessageItem(
                 content="".join(accumulated_content),

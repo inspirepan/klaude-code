@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from typing import Literal, override
 
+from rich._spinners import SPINNERS
 from rich.console import Console, RenderableType
 from rich.markdown import Markdown
 from rich.padding import Padding
@@ -13,7 +14,6 @@ from rich.status import Status
 from rich.style import Style, StyleType
 from rich.table import Table
 from rich.text import Text
-from rich._spinners import SPINNERS
 
 from codex_mini.protocol import events, model, tools
 from codex_mini.ui.debouncer import Debouncer
@@ -73,7 +73,8 @@ class REPLDisplay(DisplayABC):
                 self.spinner.stop()
             case events.ThinkingDeltaEvent() as e:
                 self.spinner.stop()
-                if len(e.content.strip()) == 0:
+                if len(e.content.strip()) == 0 and self.stage != "thinking":
+                    # Filter leading empty delta events
                     return
                 self.accumulated_thinking_text += e.content
                 self.thinking_debouncer.schedule()
@@ -176,8 +177,6 @@ class REPLDisplay(DisplayABC):
         """
         Handle markdown bold syntax in thinking text.
         """
-        if len(content.strip()) == 0:
-            return
         if self.stage != "thinking":
             self.console.print(THINKING_PREFIX)
             self.stage = "thinking"
@@ -205,10 +204,6 @@ class REPLDisplay(DisplayABC):
                 self.console.print(Text(content, style=ThemeKey.THINKING_BOLD), end="")
             else:
                 self.console.print(Text(content, style=ThemeKey.THINKING), end="")
-
-    def display_thinking(self, e: events.ThinkingDeltaEvent) -> None:
-        content = e.content.replace("\r", "").replace("\n\n", "\n")
-        self._render_thinking_content(content)
 
     def _create_grid(self) -> Table:
         """Create a standard two-column grid table to align the text in the second column."""
@@ -731,9 +726,9 @@ class REPLDisplay(DisplayABC):
             grid = self._create_grid()
             for memory_path in mp:
                 grid.add_row(
-                    Text("⧉", style=ThemeKey.REMINDER_BOLD),
+                    Text("⧉ ", style=ThemeKey.REMINDER),
                     Text.assemble(
-                        ("Reminder ", ThemeKey.REMINDER_BOLD),
+                        # ("Reminder ", ThemeKey.REMINDER_BOLD),
                         self.render_path(memory_path, ThemeKey.REMINDER_DIM),
                     ),
                 )
@@ -744,7 +739,7 @@ class REPLDisplay(DisplayABC):
             grid = self._create_grid()
             for file_path in fc:
                 grid.add_row(
-                    Text("⧉", style=ThemeKey.REMINDER_BOLD),
+                    Text("⧉ ", style=ThemeKey.REMINDER),
                     Text.assemble(
                         ("Hint ", ThemeKey.REMINDER_BOLD),
                         self.render_path(file_path, ThemeKey.REMINDER_DIM),

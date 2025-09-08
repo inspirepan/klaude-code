@@ -30,7 +30,7 @@ class Reasoning(BaseModel):
     """
 
     effort: Literal["high", "medium", "low", "minimal"]
-    summary: Literal["auto", "concise", "detailed"]
+    summary: Literal["auto", "concise", "detailed"] | None = None
 
 
 class Thinking(BaseModel):
@@ -97,6 +97,9 @@ class LLMConfigProviderParameter(BaseModel):
     api_key: str | None = None
     is_azure: bool = False
     azure_api_version: str | None = None
+
+    def is_openrouter(self) -> bool:
+        return self.base_url == "https://openrouter.ai/api/v1"
 
 
 class LLMConfigModelParameter(BaseModel):

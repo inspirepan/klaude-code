@@ -10,6 +10,7 @@ from codex_mini.protocol.model import (
     AssistantMessageItem,
     ConversationItem,
     DeveloperMessageItem,
+    ReasoningItem,
     ToolCallItem,
     ToolResultItem,
     UserMessageItem,
@@ -97,6 +98,19 @@ def convert_history_to_input(
                                     },
                                 }
                             )
+                        case ReasoningItem() as r:
+                            if r.encrypted_content and len(r.encrypted_content) > 0:
+                                # https://openrouter.ai/docs/use-cases/reasoning-tokens#advanced-usage-reasoning-chain-of-thought
+                                assistant_message["reasoning_details"] = [
+                                    {
+                                        "id": r.id,
+                                        "type": "reasoning.encrypted",
+                                        "data": r.encrypted_content,
+                                        "format": r.format,
+                                        "index": 0,
+                                    }
+                                ]
+
                         case _:
                             # Ignore reasoning
                             pass
