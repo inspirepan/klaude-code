@@ -82,23 +82,44 @@ Result of calling the {result.tool_name} tool:
 
 
 async def empty_todo_reminder(session: Session) -> model.DeveloperMessageItem | None:
-    """Remind agent to use TodoWrite tool if there are no todos in the session."""
-    if (
-        not session.todos or all(todo.status == "completed" for todo in session.todos)
-    ) and session.need_todo_empty_reminder_counter <= 0:
-        session.need_todo_empty_reminder_counter = 3
+    """Remind agent to use TodoWrite tool when todos are empty/all completed.
+
+    Behavior:
+    - First time in empty state (counter == 0): trigger reminder and set cooldown (e.g., 3).
+    - While remaining in empty state with counter > 0: decrement each turn, no reminder.
+    - Do not decrement/reset while todos are non-empty (cooldown only counts during empty state).
+    """
+
+    empty_or_all_done = (not session.todos) or all(todo.status == "completed" for todo in session.todos)
+
+    # Only count down and possibly trigger when empty/all-done
+    if not empty_or_all_done:
+        return None
+
+    if session.need_todo_empty_cooldown_counter == 0:
+        session.need_todo_empty_cooldown_counter = 3
         return model.DeveloperMessageItem(
             content="""<system-reminder>This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.</system-reminder>"""
         )
-    session.need_todo_empty_reminder_counter -= 1
+
+    if session.need_todo_empty_cooldown_counter > 0:
+        session.need_todo_empty_cooldown_counter -= 1
     return None
 
 
 async def todo_not_used_recently_reminder(session: Session) -> model.DeveloperMessageItem | None:
-    """Remind agent to use TodoWrite tool if it hasn't been used recently. (continous 10 other tool calls)"""
+    """Remind agent to use TodoWrite tool if it hasn't been used recently (>=10 other tool calls), with cooldown.
+
+    Cooldown behavior:
+    - When condition becomes active (>=10 non-todo tool calls since last TodoWrite) and counter == 0: trigger reminder, set counter = 3.
+    - While condition remains active and counter > 0: decrement each turn, do not remind.
+    - When condition not active: do nothing to the counter (no decrement), and do not remind.
+    """
+    # If all todos completed, skip reminder entirely
     if session.todos and all(todo.status == "completed" for todo in session.todos):
         return None
 
+    # Count non-todo tool calls since the last TodoWrite
     other_tool_call_count_befor_last_todo = 0
     for item in reversed(session.conversation_history):
         if isinstance(item, model.ToolCallItem):
@@ -108,7 +129,13 @@ async def todo_not_used_recently_reminder(session: Session) -> model.DeveloperMe
             if other_tool_call_count_befor_last_todo >= 10:
                 break
 
-    if other_tool_call_count_befor_last_todo >= 10:
+    not_used_recently = other_tool_call_count_befor_last_todo >= 10
+
+    if not not_used_recently:
+        return None
+
+    if session.need_todo_not_used_cooldown_counter == 0:
+        session.need_todo_not_used_cooldown_counter = 3
         return model.DeveloperMessageItem(
             content=f"""<system-reminder>
 The TodoWrite tool hasn't been used recently. If you're working on tasks that would benefit from tracking progress, consider using the TodoWrite tool to track progress. Also consider cleaning up the todo list if has become stale and no longer matches what you are working on. Only use it if it's relevant to the current work. This is just a gentle reminder - ignore if not applicable.
@@ -119,6 +146,9 @@ Here are the existing contents of your todo list:
 {model.todo_list_str(session.todos)}</system-reminder>""",
             todo_use=True,
         )
+
+    if session.need_todo_not_used_cooldown_counter > 0:
+        session.need_todo_not_used_cooldown_counter -= 1
     return None
 
 

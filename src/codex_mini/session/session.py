@@ -32,7 +32,8 @@ class Session(BaseModel):
     created_at: float = Field(default_factory=lambda: time.time())
     updated_at: float = Field(default_factory=lambda: time.time())
     loaded_memory: list[str] = Field(default_factory=list)
-    need_todo_empty_reminder_counter: int = Field(exclude=True, default=0)
+    need_todo_empty_cooldown_counter: int = Field(exclude=True, default=0)
+    need_todo_not_used_cooldown_counter: int = Field(exclude=True, default=0)
 
     # Internal: mapping for (de)serialization of conversation items
     _TypeMap: ClassVar[dict[str, type[BaseModel]]] = {
