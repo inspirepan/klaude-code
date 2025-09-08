@@ -57,9 +57,9 @@ class REPLDisplay(DisplayABC):
         self.thinking_debouncer = Debouncer(interval=0.1, callback=self._flush_thinking_buffer)
 
         self.spinner: Status = self.console.status(
-            Text("Thinking …", style=ThemeKey.METADATA),
+            Text("Thinking …", style=ThemeKey.SPINNER_STATUS),
             spinner="claude",
-            spinner_style=ThemeKey.METADATA,
+            spinner_style=ThemeKey.SPINNER_STATUS,
         )
 
     @override
@@ -139,9 +139,9 @@ class REPLDisplay(DisplayABC):
                             active_form_status_text = todo.content
                             break
                 if len(active_form_status_text) > 0:
-                    self.spinner.update(Text(active_form_status_text + " …", style=ThemeKey.METADATA_BOLD))
+                    self.spinner.update(Text(active_form_status_text + " …", style=ThemeKey.SPINNER_STATUS_BOLD))
                 else:
-                    self.spinner.update(Text("Thinking …", style=ThemeKey.METADATA))
+                    self.spinner.update(Text("Thinking …", style=ThemeKey.SPINNER_STATUS))
             # case _:
             #     self.console.print("[Event]", event.__class__.__name__, event)
 

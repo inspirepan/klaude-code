@@ -11,6 +11,7 @@ class Palette:
     green: str
     cyan: str
     blue: str
+    orange: str
     grey_blue: str
     grey1: str
     grey2: str
@@ -27,6 +28,7 @@ LIGHT_PALETTE = Palette(
     green="green",
     cyan="cyan",
     blue="dodger_blue1",
+    orange="#de7356",
     grey_blue="steel_blue",
     grey1="dim",
     grey2="grey50",
@@ -43,6 +45,7 @@ DARK_PALETTE = Palette(
     green="sea_green3",
     cyan="cyan",
     blue="dodger_blue1",
+    orange="#e6704e",
     grey_blue="steel_blue",
     grey1="gray70",
     grey2="gray58",
@@ -67,6 +70,9 @@ class ThemeKey(str, Enum):
     METADATA = "metadata"
     METADATA_DIM = "metadata.dim"
     METADATA_BOLD = "metadata.bold"
+    # SPINNER_STATUS
+    SPINNER_STATUS = "spinner.status"
+    SPINNER_STATUS_BOLD = "spinner.status.bold"
     # USER_INPUT
     USER_INPUT = "user.input"
     USER_INPUT_DIM = "user.input.dim"
@@ -112,6 +118,7 @@ class ThemeKey(str, Enum):
     GREEN = "green"
     CYAN = "cyan"
     BLUE = "blue"
+    ORANGE = "orange"
     GREY_BLUE = "grey_blue"
     GREY1 = "grey1"
     GREY2 = "grey2"
@@ -154,6 +161,9 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.METADATA.value: palette.grey_blue,
                 ThemeKey.METADATA_DIM.value: "dim " + palette.grey_blue,
                 ThemeKey.METADATA_BOLD.value: "bold " + palette.grey_blue,
+                # SPINNER_STATUS
+                ThemeKey.SPINNER_STATUS.value: palette.orange,
+                ThemeKey.SPINNER_STATUS_BOLD.value: "bold " + palette.orange,
                 # REMINDER
                 ThemeKey.REMINDER.value: palette.purple,
                 ThemeKey.REMINDER_BOLD.value: "bold " + palette.purple,
@@ -199,6 +209,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.GREY2.value: palette.grey2,
                 ThemeKey.GREY3.value: palette.grey3,
                 ThemeKey.PURPLE.value: palette.purple,
+                ThemeKey.ORANGE.value: palette.orange,
             }
         ),
         markdown_theme=Theme(
@@ -236,6 +247,9 @@ APP_THEME = Theme(
         ThemeKey.METADATA.value: "steel_blue",
         ThemeKey.METADATA_DIM.value: "dim steel_blue",
         ThemeKey.METADATA_BOLD.value: "bold steel_blue",
+        # SPINNER_STATUS
+        ThemeKey.SPINNER_STATUS.value: "orange1",
+        ThemeKey.SPINNER_STATUS_BOLD.value: "bold orange1",
         # REMINDER
         ThemeKey.REMINDER.value: "medium_purple3",
         ThemeKey.REMINDER_BOLD.value: "bold medium_purple3",
