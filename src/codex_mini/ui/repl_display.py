@@ -344,7 +344,7 @@ class REPLDisplay(DisplayABC):
                 )
         return "\n".join(lines)
 
-    def render_edit_diff(self, diff_text: str) -> RenderableType:
+    def render_edit_diff(self, diff_text: str, show_file_name: bool = False) -> RenderableType:
         if diff_text == "":
             return Text("")
 
@@ -355,6 +355,15 @@ class REPLDisplay(DisplayABC):
         new_ln: int | None = None
 
         for line in lines:
+            # Parse file name from diff headers
+            if show_file_name and line.startswith("+++ "):
+                # Extract file name from +++ b/path header
+                file_name = line[4:].split("/", 1)[-1] if "/" in line[4:] else line[4:]
+                file_text = self.render_path(file_name, "bold")
+                grid.add_row("", "")
+                grid.add_row(Text("   ±", style=ThemeKey.TOOL_MARK), file_text)
+                continue
+
             # Parse hunk headers to reset counters: @@ -l,s +l,s @@
             if line.startswith("@@"):
                 try:
@@ -367,7 +376,7 @@ class REPLDisplay(DisplayABC):
                     new_ln = new_start
                 except Exception:
                     new_ln = None
-                grid.add_row("   …", "")
+                grid.add_row(Text("   …", style=ThemeKey.TOOL_RESULT), "")
                 continue
 
             # Skip file header lines entirely
@@ -467,7 +476,7 @@ class REPLDisplay(DisplayABC):
             case _:
                 # handle bash `git diff`
                 if e.tool_name == tools.BASH_TOOL_NAME and e.result.startswith("diff --git"):
-                    self.console.print(self.render_edit_diff(e.result))
+                    self.console.print(self.render_edit_diff(e.result, show_file_name=True))
                     return
 
                 if len(e.result.strip()) == 0:
