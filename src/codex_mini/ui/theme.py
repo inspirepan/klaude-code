@@ -106,6 +106,17 @@ class ThemeKey(str, Enum):
     ANNOTATION_URL = "annotation.url"
     ANNOTATION_URL_HIGHLIGHT = "annotation.url.highlight"
     ANNOTATION_SEARCH_CONTENT = "annotation.search_content"
+    # PALETTE COLORS - Direct palette passthrough
+    RED = "red"
+    YELLOW = "yellow" 
+    GREEN = "green"
+    CYAN = "cyan"
+    BLUE = "blue"
+    GREY_BLUE = "grey_blue"
+    GREY1 = "grey1"
+    GREY2 = "grey2"
+    GREY3 = "grey3"
+    PURPLE = "purple"
 
     def __str__(self) -> str:
         return self.value
@@ -163,7 +174,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TODO_COMPLETED_MARK.value: "bold " + palette.grey1,
                 ThemeKey.TODO_IN_PROGRESS_MARK.value: "bold " + palette.blue,
                 ThemeKey.TODO_NEW_COMPLETED_MARK.value: "bold " + palette.green,
-                ThemeKey.TODO_PENDING.value: palette.grey1 + " bold",
+                ThemeKey.TODO_PENDING.value: palette.grey1,
                 ThemeKey.TODO_COMPLETED.value: palette.grey1 + " strike",
                 ThemeKey.TODO_IN_PROGRESS.value: "bold " + palette.blue,
                 ThemeKey.TODO_NEW_COMPLETED.value: "bold strike " + palette.green,
@@ -177,6 +188,17 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.ANNOTATION_URL.value: palette.blue,
                 ThemeKey.ANNOTATION_URL_HIGHLIGHT.value: "bold " + palette.blue,
                 ThemeKey.ANNOTATION_SEARCH_CONTENT.value: "italic " + palette.grey2,
+                # PALETTE COLORS
+                ThemeKey.RED.value: palette.red,
+                ThemeKey.YELLOW.value: palette.yellow,
+                ThemeKey.GREEN.value: palette.green,
+                ThemeKey.CYAN.value: palette.cyan,
+                ThemeKey.BLUE.value: palette.blue,
+                ThemeKey.GREY_BLUE.value: palette.grey_blue,
+                ThemeKey.GREY1.value: palette.grey1,
+                ThemeKey.GREY2.value: palette.grey2,
+                ThemeKey.GREY3.value: palette.grey3,
+                ThemeKey.PURPLE.value: palette.purple,
             }
         ),
         markdown_theme=Theme(

@@ -4,6 +4,7 @@ from rich.table import Table
 from rich.text import Text
 
 from codex_mini.config import Config
+from codex_mini.ui.theme import ThemeKey, get_theme
 
 
 def mask_api_key(api_key: str | None) -> str:
@@ -19,7 +20,8 @@ def mask_api_key(api_key: str | None) -> str:
 
 def display_models_and_providers(config: Config):
     """Display models and providers configuration using rich formatting"""
-    console = Console()
+    themes = get_theme(config.theme)
+    console = Console(theme=themes.app_theme)
 
     # Display providers section
     providers_table = Table.grid(padding=(0, 1), expand=True)
@@ -32,16 +34,16 @@ def display_models_and_providers(config: Config):
     # Add header
     providers_table.add_row(
         Text("", style="bold"),
-        Text("Name", style="bold green"),
-        Text("Protocol", style="bold green"),
-        Text("Base URL", style="bold green"),
-        Text("API Key", style="bold green"),
+        Text("Name", style=f"bold {ThemeKey.GREEN}"),
+        Text("Protocol", style=f"bold {ThemeKey.GREEN}"),
+        Text("Base URL", style=f"bold {ThemeKey.GREEN}"),
+        Text("API Key", style=f"bold {ThemeKey.GREEN}"),
     )
 
     # Add providers
     for provider in config.provider_list:
-        status = Text("✓", style="green bold")
-        name = Text(provider.provider_name, style="cyan")
+        status = Text("✓", style=f"bold {ThemeKey.GREEN}")
+        name = Text(provider.provider_name, style=ThemeKey.CYAN)
         protocol = Text(str(provider.protocol.value), style="")
         base_url = Text(provider.base_url or "N/A", style="")
         api_key = Text(mask_api_key(provider.api_key), style="")
@@ -59,37 +61,39 @@ def display_models_and_providers(config: Config):
     # Add header
     models_table.add_row(
         Text("", style="bold"),
-        Text("Name", style="bold green"),
-        Text("Model", style="bold green"),
-        Text("Provider", style="bold green"),
-        Text("Params", style="bold green"),
+        Text("Name", style=f"bold {ThemeKey.GREEN}"),
+        Text("Model", style=f"bold {ThemeKey.GREEN}"),
+        Text("Provider", style=f"bold {ThemeKey.GREEN}"),
+        Text("Params", style=f"bold {ThemeKey.GREEN}"),
     )
 
     # Add models
     for model in config.model_list:
-        status = Text("✓", style="green bold")
+        status = Text("✓", style=f"bold {ThemeKey.GREEN}")
         if model.model_name == config.main_model:
-            status = Text("★", style="yellow bold")  # Mark main model
+            status = Text("★", style=f"bold {ThemeKey.YELLOW}")  # Mark main model
 
-        name = Text(model.model_name, style="yellow" if model.model_name == config.main_model else "cyan")
+        name = Text(model.model_name, style=ThemeKey.YELLOW if model.model_name == config.main_model else ThemeKey.CYAN)
         model_name = Text(model.model_params.model or "N/A", style="")
         provider = Text(model.provider, style="")
         params: list[Text] = []
         if model.model_params.reasoning:
-            params.append(Text.assemble(("reason-effort", "dim"), ": ", model.model_params.reasoning.effort))
-            params.append(Text.assemble(("reason-summary", "dim"), ": ", model.model_params.reasoning.summary))
+            params.append(Text.assemble(("reason-effort", ThemeKey.GREY1), ": ", model.model_params.reasoning.effort))
+            params.append(Text.assemble(("reason-summary", ThemeKey.GREY1), ": ", model.model_params.reasoning.summary))
         if model.model_params.verbosity:
-            params.append(Text.assemble(("verbosity", "dim"), ": ", model.model_params.verbosity))
+            params.append(Text.assemble(("verbosity", ThemeKey.GREY1), ": ", model.model_params.verbosity))
         if model.model_params.thinking:
             params.append(
                 Text.assemble(
-                    ("thinking-budget-tokens", "dim"), ": ", str(model.model_params.thinking.budget_tokens or "N/A")
+                    ("thinking-budget-tokens", ThemeKey.GREY1),
+                    ": ",
+                    str(model.model_params.thinking.budget_tokens or "N/A"),
                 )
             )
         if model.model_params.provider_routing:
             params.append(
                 Text.assemble(
-                    ("provider-routing", "dim"),
+                    ("provider-routing", ThemeKey.GREY1),
                     ": ",
                     model.model_params.provider_routing.model_dump_json(exclude_none=True),
                 )
@@ -97,28 +101,28 @@ def display_models_and_providers(config: Config):
         if model.model_params.plugins:
             params.append(
                 Text.assemble(
-                    ("plugins", "dim"),
+                    ("plugins", ThemeKey.GREY1),
                     ": ",
                     ", ".join([p.id for p in model.model_params.plugins]),
                 )
             )
         if len(params) == 0:
-            params.append(Text("N/A", style="dim"))
+            params.append(Text("N/A", style=ThemeKey.GREY1))
         models_table.add_row(status, name, model_name, provider, Group(*params))
 
     # Create panels and display
     providers_panel = Panel(
         providers_table,
-        title="[bold white]Providers Configuration[/bold white]",
-        border_style="gray70",
+        title=Text("Providers Configuration", style="white bold"),
+        border_style=ThemeKey.GREY3,
         padding=(0, 1),
         title_align="left",
     )
 
     models_panel = Panel(
         models_table,
-        title="[bold white]Models Configuration[/bold white]",
-        border_style="gray70",
+        title=Text("Models Configuration", style="white bold"),
+        border_style=ThemeKey.GREY3,
         padding=(0, 1),
         title_align="left",
     )
@@ -129,4 +133,4 @@ def display_models_and_providers(config: Config):
 
     # Display main model info
     console.print()
-    console.print(f"[bold]Default Model:[/bold] [yellow]{config.main_model}[/yellow]")
+    console.print(Text.assemble(("Default Model: ", "bold"), (config.main_model, ThemeKey.YELLOW)))
