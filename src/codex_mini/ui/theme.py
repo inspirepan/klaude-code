@@ -50,7 +50,7 @@ DARK_PALETTE = Palette(
     purple="light_steel_blue",
     diff_add="#ffffff on #005e24",
     diff_remove="#ffffff on #702f37",
-    code_theme="solarized-dark",
+    code_theme="github-dark",
 )
 
 
@@ -108,7 +108,7 @@ class ThemeKey(str, Enum):
     ANNOTATION_SEARCH_CONTENT = "annotation.search_content"
     # PALETTE COLORS - Direct palette passthrough
     RED = "red"
-    YELLOW = "yellow" 
+    YELLOW = "yellow"
     GREEN = "green"
     CYAN = "cyan"
     BLUE = "blue"

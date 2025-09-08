@@ -583,6 +583,12 @@ class REPLDisplay(DisplayABC):
                         ("\n• provider-sort: ", ThemeKey.WELCOME_INFO), (str(pr.sort), ThemeKey.WELCOME_HIGHLIGHT)
                     )
                 )
+            if pr.only:
+                model_info.append_text(
+                    Text.assemble(
+                        ("\n• provider-only: ", ThemeKey.WELCOME_INFO), (">".join(pr.only), ThemeKey.WELCOME_HIGHLIGHT)
+                    )
+                )
             if pr.order:
                 model_info.append_text(
                     Text.assemble(
