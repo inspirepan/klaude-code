@@ -63,7 +63,7 @@ class REPLDisplay(DisplayABC):
         self.thinking_debounce_interval: float = 0.05
         self._thinking_debounce_task: asyncio.Task[None] | None = None
 
-        self.status_text = Text("Thinking …", style=Style(color=METADATA_STYLE, dim=True))
+        self.status_text = Text("Thinking …", style=Style(color=METADATA_STYLE))
         self.spinner: Status = self.console.status(
             self.status_text,
             spinner="bouncingBall",
