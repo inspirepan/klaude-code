@@ -196,12 +196,16 @@ class Agent:
                 case model.ReasoningItem() as item:
                     turn_reasoning_item = item
                 case model.AssistantMessageDelta() as item:
+                    if item.content.strip() == "":
+                        continue
                     yield events.AssistantMessageDeltaEvent(
                         content=item.content,
                         response_id=item.response_id,
                         session_id=self.session.id,
                     )
                 case model.AssistantMessageItem() as item:
+                    if not item.content or item.content.strip() == "":
+                        continue
                     turn_assistant_message = item
                     yield events.AssistantMessageEvent(
                         content=item.content or "",
