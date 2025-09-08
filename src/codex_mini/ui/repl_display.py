@@ -51,12 +51,14 @@ class REPLDisplay(DisplayABC):
             theme=Theme(styles={"diff.remove": DIFF_REMOVE_LINE_STYLE, "diff.add": DIFF_ADDED_LINE_STYLE})
         )
         self.console.push_theme(MARKDOWN_THEME)
-        self.assistant_mdstream: MarkdownStream | None = None
-        self.accumulated_assistant_text = ""
         self.stage: Literal["waiting", "thinking", "assistant", "tool_call", "tool_result"] = "waiting"
         self.is_thinking_in_bold = False
+
+        self.assistant_mdstream: MarkdownStream | None = None
+        self.accumulated_assistant_text = ""
         self.assistant_debounce_interval: float = 0.05
         self._assistant_debounce_task: asyncio.Task[None] | None = None
+
         self.accumulated_thinking_text = ""
         self.thinking_debounce_interval: float = 0.05
         self._thinking_debounce_task: asyncio.Task[None] | None = None
@@ -544,6 +546,10 @@ class REPLDisplay(DisplayABC):
         if e.llm_config.reasoning is not None and e.llm_config.reasoning.effort:
             model_info.append_text(
                 Text.assemble(("\n• reasoning-effort: ", "dim"), (e.llm_config.reasoning.effort, "bold"))
+            )
+        if e.llm_config.reasoning is not None and e.llm_config.reasoning.summary:
+            model_info.append_text(
+                Text.assemble(("\n• reasoning-summary: ", "dim"), (e.llm_config.reasoning.summary, "bold"))
             )
         if e.llm_config.thinking is not None and e.llm_config.thinking.budget_tokens:
             model_info.append_text(
