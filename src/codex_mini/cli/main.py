@@ -1,6 +1,7 @@
 import asyncio
 import os
 import select
+import subprocess
 import sys
 import termios
 import threading
@@ -9,7 +10,7 @@ import tty
 import typer
 
 from codex_mini import ui
-from codex_mini.config import load_config
+from codex_mini.config import config_path, load_config
 from codex_mini.config.list_model import display_models_and_providers
 from codex_mini.core.executor import Executor
 from codex_mini.llm import LLMClientABC, create_llm_client
@@ -299,6 +300,56 @@ def list_models():
     display_models_and_providers(config)
 
 
+@app.command("config")
+def edit_config():
+    """Open the configuration file in $EDITOR or default system editor"""
+    editor = os.environ.get("EDITOR")
+
+    # If no EDITOR is set, try common editor names
+    if not editor:
+        # Try common editors in order of preference
+        for cmd in [
+            "zed",
+            "code",
+            "nvim",
+            "vim",
+            "nano",
+            "vi",
+        ]:
+            try:
+                subprocess.run(["which", cmd], check=True, capture_output=True)
+                editor = cmd
+                break
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                continue
+
+    # If no editor found, try platform-specific defaults
+    if not editor:
+        if sys.platform == "darwin":  # macOS
+            editor = "open"
+        elif sys.platform == "win32":  # Windows
+            editor = "notepad"
+        else:  # Linux and other Unix systems
+            editor = "xdg-open"
+
+    # Ensure config file exists
+    load_config()
+
+    try:
+        if editor in ["open", "xdg-open"]:
+            # For open/xdg-open, we need to pass the file directly
+            subprocess.run([editor, str(config_path)], check=True)
+        else:
+            subprocess.run([editor, str(config_path)], check=True)
+    except subprocess.CalledProcessError as e:
+        log(f"[red]Error: Failed to open editor: {e}[/red]")
+        raise typer.Exit(1)
+    except FileNotFoundError:
+        log(f"[red]Error: Editor '{editor}' not found[/red]")
+        log("Please install a text editor or set your $EDITOR environment variable")
+        raise typer.Exit(1)
+
+
 @app.callback(invoke_without_command=True)
 def main_callback(
     ctx: typer.Context,
@@ -318,7 +369,7 @@ def main_callback(
     continue_: bool = typer.Option(False, "--continue", "-c", help="Continue from latest session"),
     resume: bool = typer.Option(False, "--resume", "-r", help="Select a session to resume for this project"),
 ):
-    """Root command callback. Runs interactive mode when no subcommand provided."""
+    """Start interactive session when no subcommand provided."""
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
         chosen_model = model
