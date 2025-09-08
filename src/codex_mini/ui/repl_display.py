@@ -731,7 +731,7 @@ class REPLDisplay(DisplayABC):
             grid = self._create_grid()
             for memory_path in mp:
                 grid.add_row(
-                    Text("★", style=ThemeKey.REMINDER_BOLD),
+                    Text("⧉", style=ThemeKey.REMINDER_BOLD),
                     Text.assemble(
                         ("Reminder ", ThemeKey.REMINDER_BOLD),
                         self.render_path(memory_path, ThemeKey.REMINDER_DIM),
@@ -744,7 +744,7 @@ class REPLDisplay(DisplayABC):
             grid = self._create_grid()
             for file_path in fc:
                 grid.add_row(
-                    Text("★", style=ThemeKey.REMINDER_BOLD),
+                    Text("⧉", style=ThemeKey.REMINDER_BOLD),
                     Text.assemble(
                         ("Hint ", ThemeKey.REMINDER_BOLD),
                         self.render_path(file_path, ThemeKey.REMINDER_DIM),
