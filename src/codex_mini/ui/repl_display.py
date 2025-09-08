@@ -125,7 +125,6 @@ class REPLDisplay(DisplayABC):
                             active_form_status_text = todo.content
                             break
                 if len(active_form_status_text) > 0:
-                    print(active_form_status_text)
                     self.spinner.update(Text(active_form_status_text + " …", style=ThemeKey.METADATA_BOLD))
                 else:
                     self.spinner.update(Text("Thinking …", style=ThemeKey.METADATA))
