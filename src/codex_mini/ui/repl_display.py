@@ -10,6 +10,7 @@ from rich.markdown import Markdown
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.rule import Rule
+from rich.status import Status
 from rich.style import Style, StyleType
 from rich.table import Table
 from rich.text import Text
@@ -41,17 +42,13 @@ USER_INPUT_AT_PATTERN_STYLE = "reverse medium_purple3"
 USER_INPUT_SLASH_COMMAND_PATTERN_STYLE = "reverse bold cyan"
 METADATA_STYLE = "steel_blue"
 REMINDER_STYLE = "medium_purple3"
+INVALID_TOOL_CALL_ARGS_STYLE = "yellow"
 
 
 class REPLDisplay(DisplayABC):
     def __init__(self):
         self.console: Console = Console(
-            theme=Theme(
-                styles={
-                    "diff.remove": DIFF_REMOVE_LINE_STYLE,
-                    "diff.add": DIFF_ADDED_LINE_STYLE,
-                }
-            )
+            theme=Theme(styles={"diff.remove": DIFF_REMOVE_LINE_STYLE, "diff.add": DIFF_ADDED_LINE_STYLE})
         )
         self.console.push_theme(MARKDOWN_THEME)
         self.assistant_mdstream: MarkdownStream | None = None
@@ -60,24 +57,39 @@ class REPLDisplay(DisplayABC):
         self.is_thinking_in_bold = False
         self.assistant_debounce_interval: float = 0.05
         self._assistant_debounce_task: asyncio.Task[None] | None = None
+        self.accumulated_thinking_text = ""
+        self.thinking_debounce_interval: float = 0.05
+        self._thinking_debounce_task: asyncio.Task[None] | None = None
+
+        self.status_text = Text("Thinking …", style=Style(color=METADATA_STYLE, dim=True))
+        self.spinner: Status = self.console.status(
+            self.status_text,
+            spinner="bouncingBall",
+            spinner_style=Style(color=METADATA_STYLE),
+        )
 
     @override
     async def consume_event(self, event: events.Event) -> None:
         match event:
             case events.TaskStartEvent():
-                pass
+                self.spinner.start()
             case events.TaskFinishEvent():
-                pass
+                self.spinner.stop()
             case events.EndEvent():
-                pass
+                self.spinner.stop()
             case events.ThinkingDeltaEvent() as e:
+                self.spinner.stop()
                 if len(e.content.strip()) == 0:
                     return
-                self.display_thinking(e)
-                self.stage = "thinking"
+                self.accumulated_thinking_text += e.content
+                self._schedule_thinking_flush()
             case events.ThinkingEvent() as e:
+                self._cancel_thinking_debounce()
+                self._flush_thinking_buffer()
                 self.console.print("\n")
+                self.spinner.start()
             case events.AssistantMessageDeltaEvent() as e:
+                self.spinner.stop()
                 self.accumulated_assistant_text += e.content
                 if self.assistant_mdstream is None:
                     self.assistant_mdstream = MarkdownStream(mdargs={"code_theme": CODE_THEME}, theme=MARKDOWN_THEME)
@@ -91,18 +103,22 @@ class REPLDisplay(DisplayABC):
                 self.assistant_mdstream = None
                 if e.annotations:
                     self.console.print(self.render_annotations(e.annotations))
+                self.spinner.start()
             case events.DeveloperMessageEvent() as e:
                 self.display_reminder(e)
             case events.ResponseMetadataEvent() as e:
                 self.display_metadata(e)
                 self.console.print()
             case events.ToolCallEvent() as e:
+                self.spinner.stop()
                 self.display_tool_call(e)
                 self.stage = "tool_call"
             case events.ToolResultEvent() as e:
+                self.spinner.stop()
                 self.display_tool_call_result(e)
                 self.console.print()
                 self.stage = "tool_result"
+                self.spinner.start()
             case events.ReplayHistoryEvent() as e:
                 await self.replay_history(e)
             case events.WelcomeEvent() as e:
@@ -121,6 +137,7 @@ class REPLDisplay(DisplayABC):
 
     async def stop(self) -> None:
         self._cancel_assistant_debounce()
+        self._cancel_thinking_debounce()
         pass
 
     def _cancel_assistant_debounce(self) -> None:
@@ -141,15 +158,40 @@ class REPLDisplay(DisplayABC):
         except asyncio.CancelledError:
             return
 
-    def display_thinking(self, e: events.ThinkingDeltaEvent) -> None:
+    def _cancel_thinking_debounce(self) -> None:
+        if self._thinking_debounce_task is not None and not self._thinking_debounce_task.done():
+            self._thinking_debounce_task.cancel()
+        self._thinking_debounce_task = None
+
+    def _schedule_thinking_flush(self) -> None:
+        self._cancel_thinking_debounce()
+        # debounce to batch console updates for thinking deltas
+        self._thinking_debounce_task = asyncio.create_task(self._debounced_flush_thinking())
+
+    async def _debounced_flush_thinking(self) -> None:
+        try:
+            await asyncio.sleep(self.thinking_debounce_interval)
+            self._flush_thinking_buffer()
+        except asyncio.CancelledError:
+            return
+
+    def _flush_thinking_buffer(self) -> None:
+        content = self.accumulated_thinking_text.replace("\r", "").replace("\n\n", "\n")
+        if len(content.strip()) == 0:
+            self.accumulated_thinking_text = ""
+            return
+        self._render_thinking_content(content)
+        self.accumulated_thinking_text = ""
+
+    def _render_thinking_content(self, content: str) -> None:
         """
         Handle markdown bold syntax in thinking text.
         """
-        content = e.content.replace("\r", "").replace("\n\n", "\n")
         if len(content.strip()) == 0:
             return
         if self.stage != "thinking":
             self.console.print(THINKING_PREFIX)
+            self.stage = "thinking"
         if content.count("**") == 2:
             left_part, middle_part, right_part = content.split("**", maxsplit=2)
             if self.is_thinking_in_bold:
@@ -174,6 +216,10 @@ class REPLDisplay(DisplayABC):
                 self.console.print(Text(content, style=f"bold {THINKING_STYLE}"), end="")
             else:
                 self.console.print(Text(content, style=THINKING_STYLE), end="")
+
+    def display_thinking(self, e: events.ThinkingDeltaEvent) -> None:
+        content = e.content.replace("\r", "").replace("\n\n", "\n")
+        self._render_thinking_content(content)
 
     def _create_grid(self) -> Table:
         """Create a standard two-column grid table to align the text in the second column."""
@@ -214,7 +260,7 @@ class REPLDisplay(DisplayABC):
                 return render_result.append_text(Text(str(next(iter(json_dict.values()))), "green"))
             return render_result.append_text(Text(", ".join([f"{k}: {v}" for k, v in json_dict.items()]), "green"))
         except json.JSONDecodeError:
-            return render_result.append_text(Text(arguments))
+            return render_result.append_text(Text(arguments, style=INVALID_TOOL_CALL_ARGS_STYLE))
 
     def render_read_tool_call(self, arguments: str) -> RenderableType:
         grid = self._create_grid()
@@ -247,7 +293,7 @@ class REPLDisplay(DisplayABC):
                     .append_text(Text("-", "bold green"))
                 )
         except json.JSONDecodeError:
-            render_result = render_result.append_text(Text(arguments))
+            render_result = render_result.append_text(Text(arguments, style=INVALID_TOOL_CALL_ARGS_STYLE))
         grid.add_row(Text("←", "bold"), render_result)
         return grid
 
@@ -266,7 +312,7 @@ class REPLDisplay(DisplayABC):
             render_result = (
                 render_result.append_text(Text("Edit", TOOL_NAME_STYLE))
                 .append_text(Text(" "))
-                .append_text(Text(arguments))
+                .append_text(Text(arguments, style=INVALID_TOOL_CALL_ARGS_STYLE))
             )
         return render_result
 
@@ -283,7 +329,7 @@ class REPLDisplay(DisplayABC):
                 .append_text(Text(" updates", "green"))
             )
         except json.JSONDecodeError:
-            render_result = render_result.append_text(Text(arguments))
+            render_result = render_result.append_text(Text(arguments, style=INVALID_TOOL_CALL_ARGS_STYLE))
         return render_result
 
     def display_tool_call(self, e: events.ToolCallEvent) -> None:
