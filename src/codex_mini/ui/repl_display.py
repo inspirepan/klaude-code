@@ -352,14 +352,14 @@ class REPLDisplay(DisplayABC):
     def truncate_display(self, text: str, max_lines: int = 20, max_line_length: int = 1000) -> str:
         lines = text.split("\n")
         if len(lines) > max_lines:
-            lines = lines[:max_lines] + ["... (and " + str(len(lines) - max_lines) + " more lines)"]
+            lines = lines[:max_lines] + ["... (more " + str(len(lines) - max_lines) + " lines)"]
         for i, line in enumerate(lines):
             if len(line) > max_line_length:
                 lines[i] = (
                     line[:max_line_length]
-                    + "... (and "
+                    + "... (more "
                     + str(len(line) - max_line_length)
-                    + " more characters in this line)"
+                    + " characters in this line)"
                 )
         return "\n".join(lines)
 
