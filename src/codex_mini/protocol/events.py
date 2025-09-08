@@ -25,6 +25,25 @@ class TaskFinishEvent(BaseModel):
     session_id: str
 
 
+class TurnStartEvent(BaseModel):
+    """For now, this event is used for UI flush developer message buffer"""
+
+    session_id: str
+
+class TurnEndEvent(BaseModel):
+    session_id: str
+
+
+class TurnToolCallStartEvent(BaseModel):
+    """For UI changing status text"""
+
+    session_id: str
+    response_id: str | None = None
+    tool_call_id: str
+    tool_name: str
+    arguments: str
+
+
 class ThinkingDeltaEvent(BaseModel):
     session_id: str
     response_id: str | None = None
@@ -51,6 +70,8 @@ class AssistantMessageEvent(BaseModel):
 
 
 class DeveloperMessageEvent(BaseModel):
+    """DeveloperMessages are reminders in user messages or tool results, see: core/reminders.py"""
+
     session_id: str
     item: model.DeveloperMessageItem
 
@@ -74,6 +95,8 @@ class ToolResultEvent(BaseModel):
 
 
 class ResponseMetadataEvent(BaseModel):
+    """Showing model name & usage tokens"""
+
     session_id: str
     metadata: model.ResponseMetadataItem
 
@@ -132,4 +155,7 @@ Event = (
     | InterruptEvent
     | DeveloperMessageEvent
     | TodoChangeEvent
+    | TurnStartEvent
+    | TurnEndEvent
+    | TurnToolCallStartEvent
 )

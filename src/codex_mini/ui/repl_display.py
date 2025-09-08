@@ -45,6 +45,8 @@ class REPLDisplay(DisplayABC):
         self.accumulated_thinking_text = ""
         self.thinking_debouncer = Debouncer(interval=0.05, callback=self._flush_thinking_buffer)
 
+        self.developer_message_buffer: list[events.DeveloperMessageEvent] = []
+
         self.spinner: Status = self.console.status(
             Text("Thinking …", style=ThemeKey.SPINNER_STATUS),
             spinner="claude",
@@ -54,12 +56,19 @@ class REPLDisplay(DisplayABC):
     @override
     async def consume_event(self, event: events.Event) -> None:
         match event:
+            case events.ReplayHistoryEvent() as e:
+                await self.replay_history(e)
+                self.spinner.stop()
+            case events.WelcomeEvent() as e:
+                self.display_welcome(e)
+            case events.UserMessageEvent() as e:
+                self.display_user_input(e)
             case events.TaskStartEvent():
                 self.spinner.start()
-            case events.TaskFinishEvent():
-                self.spinner.stop()
-            case events.EndEvent():
-                self.spinner.stop()
+            case events.DeveloperMessageEvent() as e:
+                self.developer_message_buffer.append(e)
+            case events.TurnStartEvent() as e:
+                self._flush_developer_buffer()
             case events.ThinkingDeltaEvent() as e:
                 self.spinner.stop()
                 if len(e.content.strip()) == 0 and self.stage != "thinking":
@@ -93,11 +102,8 @@ class REPLDisplay(DisplayABC):
                 if e.annotations:
                     self.console.print(self.render_annotations(e.annotations))
                 self.spinner.start()
-            case events.DeveloperMessageEvent() as e:
-                self.display_reminder(e)
-            case events.ResponseMetadataEvent() as e:
-                self.display_metadata(e)
-                self.console.print()
+            case events.TurnToolCallStartEvent() as e:
+                pass
             case events.ToolCallEvent() as e:
                 self.spinner.stop()
                 self.display_tool_call(e)
@@ -108,19 +114,9 @@ class REPLDisplay(DisplayABC):
                 self.console.print()
                 self.stage = "tool_result"
                 self.spinner.start()
-            case events.ReplayHistoryEvent() as e:
-                await self.replay_history(e)
-                self.spinner.stop()
-            case events.WelcomeEvent() as e:
-                self.display_welcome(e)
-            case events.ErrorEvent() as e:
-                self.console.print(self.render_error(e.error_message))
-                self.spinner.stop()
-            case events.UserMessageEvent() as e:
-                self.display_user_input(e)
-            case events.InterruptEvent() as e:
-                self.display_interrupt(e)
-                self.spinner.stop()
+            case events.ResponseMetadataEvent() as e:
+                self.display_metadata(e)
+                self.console.print()
             case events.TodoChangeEvent() as e:
                 active_form_status_text = ""
                 for todo in e.todos:
@@ -135,6 +131,18 @@ class REPLDisplay(DisplayABC):
                     self.spinner.update(Text(active_form_status_text + " …", style=ThemeKey.SPINNER_STATUS_BOLD))
                 else:
                     self.spinner.update(Text("Thinking …", style=ThemeKey.SPINNER_STATUS))
+            case events.TurnEndEvent():
+                pass
+            case events.TaskFinishEvent():
+                self.spinner.stop()
+            case events.InterruptEvent() as e:
+                self.display_interrupt(e)
+                self.spinner.stop()
+            case events.ErrorEvent() as e:
+                self.console.print(self.render_error(e.error_message))
+                self.spinner.stop()
+            case events.EndEvent():
+                self.spinner.stop()
             # case _:
             #     self.console.print("[Event]", event.__class__.__name__, event)
 
@@ -710,18 +718,24 @@ class REPLDisplay(DisplayABC):
                     grid.add_row("", "")
         return grid
 
+    def _flush_developer_buffer(self) -> None:
+        if len(self.developer_message_buffer) == 0:
+            return
+        for e in self.developer_message_buffer:
+            self.display_reminder(e)
+        self.developer_message_buffer.clear()
+        self.console.print()
+
     def display_reminder(self, e: events.DeveloperMessageEvent) -> None:
         if mp := e.item.memory_paths:
             grid = self._create_grid()
             for memory_path in mp:
                 grid.add_row(
-                    Text("⧉ ", style=ThemeKey.REMINDER),
+                    Text("✪ ", style=ThemeKey.REMINDER),
                     Text.assemble(
-                        # ("Reminder ", ThemeKey.REMINDER_BOLD),
                         self.render_path(memory_path, ThemeKey.REMINDER_DIM),
                     ),
                 )
-                grid.add_row("", "")
             self.console.print(grid)
 
         if fc := e.item.external_file_changes:
@@ -735,7 +749,6 @@ class REPLDisplay(DisplayABC):
                         (" has changed, new content has been loaded to context", ThemeKey.REMINDER_DIM),
                     ),
                 )
-                grid.add_row("", "")
             self.console.print(grid)
 
         if e.item.todo_use:
@@ -746,17 +759,15 @@ class REPLDisplay(DisplayABC):
                     Text("Todo hasn't been updated recently", ThemeKey.REMINDER_DIM),
                 )
             )
-            self.console.print()
 
         if e.item.at_files:
             grid = self._create_grid()
             for at_file in e.item.at_files:
                 grid.add_row(
-                    Text("★", style=ThemeKey.REMINDER_BOLD),
+                    Text("⧉ ", style=ThemeKey.REMINDER_BOLD),
                     Text.assemble(
                         (f"{at_file.operation} ", ThemeKey.REMINDER_BOLD),
                         self.render_path(at_file.path, ThemeKey.REMINDER_DIM),
                     ),
                 )
-                grid.add_row("", "")
             self.console.print(grid)

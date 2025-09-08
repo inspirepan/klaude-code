@@ -156,6 +156,9 @@ class Agent:
         yield events.ReplayHistoryEvent(events=replay_events, updated_at=self.session.updated_at)
 
     async def run_turn(self) -> AsyncGenerator[events.Event, None]:
+        yield events.TurnStartEvent(
+            session_id=self.session.id,
+        )
         # TODO: If LLM API error occurred, we will discard (not append to history) and retry
         turn_reasoning_item: model.ReasoningItem | None = None
         turn_assistant_message: model.AssistantMessageItem | None = None
@@ -256,6 +259,7 @@ class Agent:
                         session_id=self.session.id,
                         todos=self.session.todos,
                     )
+        yield events.TurnEndEvent(session_id=self.session.id)
 
     async def process_reminders(self) -> AsyncGenerator[events.DeveloperMessageEvent, None]:
         for reminder in self.reminders:
