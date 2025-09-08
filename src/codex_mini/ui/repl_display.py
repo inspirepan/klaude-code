@@ -51,10 +51,10 @@ class REPLDisplay(DisplayABC):
 
         self.assistant_mdstream: MarkdownStream | None = None
         self.accumulated_assistant_text = ""
-        self.assistant_debouncer = Debouncer(interval=0.1, callback=self._flush_assistant_buffer)
+        self.assistant_debouncer = Debouncer(interval=0.05, callback=self._flush_assistant_buffer)
 
         self.accumulated_thinking_text = ""
-        self.thinking_debouncer = Debouncer(interval=0.1, callback=self._flush_thinking_buffer)
+        self.thinking_debouncer = Debouncer(interval=0.05, callback=self._flush_thinking_buffer)
 
         self.spinner: Status = self.console.status(
             Text("Thinking …", style=ThemeKey.SPINNER_STATUS),
@@ -83,6 +83,9 @@ class REPLDisplay(DisplayABC):
                 self.console.print("\n")
                 self.spinner.start()
             case events.AssistantMessageDeltaEvent() as e:
+                if len(e.content.strip()) == 0 and self.stage != "assistant":
+                    # Filter leading empty delta events
+                    return
                 self.spinner.stop()
                 self.accumulated_assistant_text += e.content
                 if self.assistant_mdstream is None:
@@ -452,8 +455,6 @@ class REPLDisplay(DisplayABC):
         except json.JSONDecodeError as e:
             return self.render_error(str(e))
 
-        return ""
-
     def display_tool_call_result(self, e: events.ToolResultEvent) -> None:
         if e.status == "error":
             self.console.print(self.render_error(e.result))
@@ -477,6 +478,8 @@ class REPLDisplay(DisplayABC):
                     self.console.print(self.render_edit_diff(e.result))
                     return
 
+                if len(e.result.strip()) == 0:
+                    e.result = "(no content)"
                 self.console.print(
                     Padding.indent(
                         Text(
