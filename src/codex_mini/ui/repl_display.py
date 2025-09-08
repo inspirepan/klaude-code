@@ -13,6 +13,7 @@ from rich.status import Status
 from rich.style import Style, StyleType
 from rich.table import Table
 from rich.text import Text
+from rich._spinners import SPINNERS
 
 from codex_mini.protocol import events, model, tools
 from codex_mini.ui.debouncer import Debouncer
@@ -22,6 +23,22 @@ from codex_mini.ui.theme import ThemeKey, get_theme
 from codex_mini.ui.utils import format_number
 
 THINKING_PREFIX = Text.from_markup("[not italic]◈[/not italic] Thinking...\n", style=ThemeKey.THINKING)
+
+SPINNERS["claude"] = {
+    "interval": 100,
+    "frames": [
+        "✶",
+        "✻",
+        "✽",
+        "✻",
+        "✶",
+        "✳",
+        "✢",
+        "·",
+        "✢",
+        "✳",
+    ],
+}
 
 
 class REPLDisplay(DisplayABC):
@@ -39,10 +56,9 @@ class REPLDisplay(DisplayABC):
         self.accumulated_thinking_text = ""
         self.thinking_debouncer = Debouncer(interval=0.1, callback=self._flush_thinking_buffer)
 
-        self.status_text = Text("Thinking …", style=ThemeKey.METADATA)
         self.spinner: Status = self.console.status(
-            self.status_text,
-            spinner="bouncingBall",
+            Text("Thinking …", style=ThemeKey.METADATA),
+            spinner="claude",
             spinner_style=ThemeKey.METADATA,
         )
 
