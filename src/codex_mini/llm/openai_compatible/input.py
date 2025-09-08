@@ -60,7 +60,11 @@ def convert_history_to_input(
                         "content": [
                             {
                                 "type": "text",
-                                "text": (tool_result.output or "") + reminders_str,
+                                "text": (
+                                    tool_result.output
+                                    or "<system-reminder>Tool ran without output or errors</system-reminder>"
+                                )
+                                + reminders_str,
                             }
                         ],
                         "tool_call_id": tool_result.call_id,
