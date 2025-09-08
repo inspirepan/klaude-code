@@ -1,4 +1,3 @@
-import asyncio
 import json
 import re
 import time
@@ -16,6 +15,7 @@ from rich.table import Table
 from rich.text import Text
 
 from codex_mini.protocol import events, model, tools
+from codex_mini.ui.debouncer import Debouncer
 from codex_mini.ui.display_abc import DisplayABC
 from codex_mini.ui.mdstream import MarkdownStream
 from codex_mini.ui.theme import ThemeKey, get_theme
@@ -34,12 +34,10 @@ class REPLDisplay(DisplayABC):
 
         self.assistant_mdstream: MarkdownStream | None = None
         self.accumulated_assistant_text = ""
-        self.assistant_debounce_interval: float = 0.05
-        self._assistant_debounce_task: asyncio.Task[None] | None = None
+        self.assistant_debouncer = Debouncer(interval=0.1, callback=self._flush_assistant_buffer)
 
         self.accumulated_thinking_text = ""
-        self.thinking_debounce_interval: float = 0.05
-        self._thinking_debounce_task: asyncio.Task[None] | None = None
+        self.thinking_debouncer = Debouncer(interval=0.1, callback=self._flush_thinking_buffer)
 
         self.status_text = Text("Thinking …", style=ThemeKey.METADATA)
         self.spinner: Status = self.console.status(
@@ -62,10 +60,10 @@ class REPLDisplay(DisplayABC):
                 if len(e.content.strip()) == 0:
                     return
                 self.accumulated_thinking_text += e.content
-                self._schedule_thinking_flush()
+                self.thinking_debouncer.schedule()
             case events.ThinkingEvent() as e:
-                self._cancel_thinking_debounce()
-                self._flush_thinking_buffer()
+                self.thinking_debouncer.cancel()
+                await self._flush_thinking_buffer()
                 self.console.print("\n")
                 self.spinner.start()
             case events.AssistantMessageDeltaEvent() as e:
@@ -76,10 +74,10 @@ class REPLDisplay(DisplayABC):
                         mdargs={"code_theme": self.themes.code_theme}, theme=self.themes.markdown_theme
                     )
                     self.stage = "assistant"
-                self._schedule_assistant_flush()
+                self.assistant_debouncer.schedule()
             case events.AssistantMessageEvent() as e:
                 if self.assistant_mdstream is not None:
-                    self._cancel_assistant_debounce()
+                    self.assistant_debouncer.cancel()
                     self.assistant_mdstream.update(e.content.strip(), final=True)
                 self.accumulated_assistant_text = ""
                 self.assistant_mdstream = None
@@ -135,46 +133,19 @@ class REPLDisplay(DisplayABC):
         pass
 
     async def stop(self) -> None:
-        self._cancel_assistant_debounce()
-        self._cancel_thinking_debounce()
+        await self.assistant_debouncer.flush()
+        await self.thinking_debouncer.flush()
+        self.assistant_debouncer.cancel()
+        self.thinking_debouncer.cancel()
         pass
 
-    def _cancel_assistant_debounce(self) -> None:
-        if self._assistant_debounce_task is not None and not self._assistant_debounce_task.done():
-            self._assistant_debounce_task.cancel()
-        self._assistant_debounce_task = None
+    async def _flush_assistant_buffer(self) -> None:
+        """Flush assistant buffer"""
+        if self.assistant_mdstream is not None:
+            self.assistant_mdstream.update(self.accumulated_assistant_text.strip())
 
-    def _schedule_assistant_flush(self) -> None:
-        self._cancel_assistant_debounce()
-        # debounce to batch markdown updates for assistant deltas
-        self._assistant_debounce_task = asyncio.create_task(self._debounced_flush_assistant())
-
-    async def _debounced_flush_assistant(self) -> None:
-        try:
-            await asyncio.sleep(self.assistant_debounce_interval)
-            if self.assistant_mdstream is not None:
-                self.assistant_mdstream.update(self.accumulated_assistant_text.strip())
-        except asyncio.CancelledError:
-            return
-
-    def _cancel_thinking_debounce(self) -> None:
-        if self._thinking_debounce_task is not None and not self._thinking_debounce_task.done():
-            self._thinking_debounce_task.cancel()
-        self._thinking_debounce_task = None
-
-    def _schedule_thinking_flush(self) -> None:
-        self._cancel_thinking_debounce()
-        # debounce to batch console updates for thinking deltas
-        self._thinking_debounce_task = asyncio.create_task(self._debounced_flush_thinking())
-
-    async def _debounced_flush_thinking(self) -> None:
-        try:
-            await asyncio.sleep(self.thinking_debounce_interval)
-            self._flush_thinking_buffer()
-        except asyncio.CancelledError:
-            return
-
-    def _flush_thinking_buffer(self) -> None:
+    async def _flush_thinking_buffer(self) -> None:
+        """Flush thinking buffer"""
         content = self.accumulated_thinking_text.replace("\r", "").replace("\n\n", "\n")
         if len(content.strip()) == 0:
             self.accumulated_thinking_text = ""
