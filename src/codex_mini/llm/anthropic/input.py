@@ -16,7 +16,15 @@ from codex_mini.protocol import llm_parameter, model
 
 def convert_history_to_input(
     history: list[model.ConversationItem],
+    model_name: str | None,
 ) -> list[BetaMessageParam]:
+    """
+    Convert a list of conversation items to a list of beta message params.
+
+    Args:
+        history: List of conversation items.
+        model_name: Model name. Used to verify that signatures are valid for the same model
+    """
     messages: list[BetaMessageParam] = []
     for group_kind, group in model.group_response_items_gen(history):
         match group_kind:
@@ -81,13 +89,14 @@ def convert_history_to_input(
                                 }
                             )
                         case model.ReasoningItem() as r:
-                            assistant_message["content"].append(
-                                {
-                                    "type": "thinking",
-                                    "thinking": r.content,
-                                    "signature": r.encrypted_content,
-                                }
-                            )
+                            if r.encrypted_content and len(r.encrypted_content) > 0 and model_name == r.model:
+                                assistant_message["content"].append(
+                                    {
+                                        "type": "thinking",
+                                        "thinking": r.content,
+                                        "signature": r.encrypted_content,
+                                    }
+                                )
                         case _:
                             pass
 

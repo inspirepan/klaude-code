@@ -62,7 +62,7 @@ class ResponsesClient(LLMClientABC):
 
         response_id: str | None = None
 
-        inputs = convert_history_to_input(param.input)
+        inputs = convert_history_to_input(param.input, param.model)
 
         if self.is_debug_mode():
             import json
@@ -117,6 +117,7 @@ class ResponsesClient(LLMClientABC):
                                 content="\n".join([content.text for content in item.content]) if item.content else None,
                                 encrypted_content=item.encrypted_content,
                                 response_id=response_id,
+                                model=param.model,
                             )
                         case responses.ResponseOutputMessage() as item:
                             yield AssistantMessageItem(

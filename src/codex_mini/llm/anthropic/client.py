@@ -48,7 +48,7 @@ class AnthropicClient(LLMClientABC):
     async def call(self, param: LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         param = apply_config_defaults(param, self.config)
 
-        messages = convert_history_to_input(param.input)
+        messages = convert_history_to_input(param.input, param.model)
         tools = convert_tool_schema(param.tools)
         system = convert_system_to_input(param.system)
 
@@ -121,6 +121,7 @@ class AnthropicClient(LLMClientABC):
                                 content=full_thinking,
                                 encrypted_content=delta.signature,
                                 response_id=response_id,
+                                model=param.model,
                             )
                         case BetaTextDelta() as delta:
                             accumulated_content.append(delta.text)

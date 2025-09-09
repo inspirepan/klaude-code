@@ -61,7 +61,7 @@ class OpenAICompatibleClient(LLMClientABC):
     @override
     async def call(self, param: LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         param = apply_config_defaults(param, self.config)
-        messages = convert_history_to_input(param.input, param.system)
+        messages = convert_history_to_input(param.input, param.system, param.model)
         tools = convert_tool_schema(param.tools)
 
         extra_body = {}
@@ -185,6 +185,7 @@ class OpenAICompatibleClient(LLMClientABC):
                         response_id=response_id,
                         encrypted_content=reasoning_encrypted_content,
                         format=reasoning_format,
+                        model=param.model,
                     )
                 stage = "assistant"
                 accumulated_content.append(delta.content)
@@ -203,6 +204,7 @@ class OpenAICompatibleClient(LLMClientABC):
                         response_id=response_id,
                         encrypted_content=reasoning_encrypted_content,
                         format=reasoning_format,
+                        model=param.model,
                     )
                 elif stage == "assistant":
                     yield model.AssistantMessageItem(
@@ -222,6 +224,7 @@ class OpenAICompatibleClient(LLMClientABC):
                 response_id=response_id,
                 encrypted_content=reasoning_encrypted_content,
                 format=reasoning_format,
+                model=param.model,
             )
         elif stage == "assistant":
             yield model.AssistantMessageItem(

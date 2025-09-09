@@ -137,6 +137,7 @@ class ReasoningItem(BaseModel):
     content: str | None = None
     encrypted_content: str | None = None
     format: str | None = None  # For OpenRouter's reasoning detail
+    model: str | None  # Prevent mixing encrypted_content from different models
 
 
 class ToolCallItem(BaseModel):

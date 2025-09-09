@@ -30,6 +30,7 @@ class TurnStartEvent(BaseModel):
 
     session_id: str
 
+
 class TurnEndEvent(BaseModel):
     session_id: str
 

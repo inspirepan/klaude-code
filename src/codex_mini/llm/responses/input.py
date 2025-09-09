@@ -17,12 +17,21 @@ from codex_mini.protocol.model import (
 
 def convert_history_to_input(
     history: list[ConversationItem],
+    model_name: str | None = None,
 ) -> responses.ResponseInputParam:
+    """
+    Convert a list of conversation items to a list of response input params.
+
+    Args:
+        history: List of conversation items.
+        model_name: Model name. Used to verify that signatures are valid for the same model.
+    """
     items: list[responses.ResponseInputItemParam] = []
     for item in history:
         match item:
             case ReasoningItem() as item:
-                # items.append(convert_reasoning_item(item))
+                # if item.encrypted_content and len(item.encrypted_content) > 0 and model_name == item.model:
+                #   items.append(convert_reasoning_item(item))
                 pass
             case ToolCallItem() as t:
                 items.append(

@@ -17,7 +17,7 @@ def test_group_response_items_gen():
     user_item = model.UserMessageItem(content="User message")
     assistant_item = model.AssistantMessageItem(content="Assistant message")
     developer_item = model.DeveloperMessageItem(content="Developer message")
-    reasoning_item = model.ReasoningItem(content="Reasoning")
+    reasoning_item = model.ReasoningItem(content="Reasoning", model="gpt-5")
     tool_call_item = model.ToolCallItem(call_id="call_1", name="test_tool", arguments="{}")
     tool_result_item = model.ToolResultItem(call_id="call_1", output="result", status="success")
     start_item = model.StartItem(response_id="resp_1")

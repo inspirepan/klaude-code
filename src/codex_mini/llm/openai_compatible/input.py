@@ -21,7 +21,16 @@ from codex_mini.protocol.model import (
 def convert_history_to_input(
     history: list[ConversationItem],
     system: str | None = None,
+    model_name: str | None = None,
 ) -> list[chat.ChatCompletionMessageParam]:
+    """
+    Convert a list of conversation items to a list of chat completion message params.
+
+    Args:
+        history: List of conversation items.
+        system: System message.
+        model_name: Model name. Used to verify that signatures are valid for the same model.
+    """
     messages: list[chat.ChatCompletionMessageParam] = (
         [
             {
@@ -99,7 +108,7 @@ def convert_history_to_input(
                                 }
                             )
                         case ReasoningItem() as r:
-                            if r.encrypted_content and len(r.encrypted_content) > 0:
+                            if r.encrypted_content and len(r.encrypted_content) > 0 and model_name == r.model:
                                 # https://openrouter.ai/docs/use-cases/reasoning-tokens#advanced-usage-reasoning-chain-of-thought
                                 assistant_message["reasoning_details"] = [
                                     {
