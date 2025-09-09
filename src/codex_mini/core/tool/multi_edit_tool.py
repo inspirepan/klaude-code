@@ -13,7 +13,7 @@ from codex_mini.core.tool.tool_context import current_session_var
 from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import ToolResultItem
-from codex_mini.protocol.tools import MULTI_EDIT_TOOL_NAME
+from codex_mini.protocol.tools import MULTI_EDIT
 
 
 def _is_directory(path: str) -> bool:
@@ -42,7 +42,7 @@ def _write_text(path: str, content: str) -> None:
         f.write(content)
 
 
-@register(MULTI_EDIT_TOOL_NAME)
+@register(MULTI_EDIT)
 class MultiEditTool(ToolABC):
     class MultiEditEditItem(BaseModel):
         old_string: str
@@ -56,7 +56,7 @@ class MultiEditTool(ToolABC):
     @classmethod
     def schema(cls) -> ToolSchema:
         return ToolSchema(
-            name=MULTI_EDIT_TOOL_NAME,
+            name=MULTI_EDIT,
             type="function",
             description=(
                 "This is a tool for making multiple edits to a single file in one operation. It is built on top of the Edit tool and allows you to perform multiple find-and-replace operations efficiently. Prefer this tool over the Edit tool when you need to make multiple edits to the same file.\n\n"

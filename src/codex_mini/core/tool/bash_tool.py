@@ -9,7 +9,7 @@ from codex_mini.core.tool.tool_common import truncate_tool_output
 from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import ToolResultItem
-from codex_mini.protocol.tools import BASH_TOOL_NAME
+from codex_mini.protocol.tools import BASH
 
 
 class SafetyCheckResult:
@@ -329,12 +329,12 @@ def is_safe_command(command: str) -> SafetyCheckResult:
     return SafetyCheckResult(False, "Failed to parse command")
 
 
-@register(BASH_TOOL_NAME)
+@register(BASH)
 class BashTool(ToolABC):
     @classmethod
     def schema(cls) -> ToolSchema:
         return ToolSchema(
-            name=BASH_TOOL_NAME,
+            name=BASH,
             type="function",
             description="""Runs a shell command and returns its output.
 

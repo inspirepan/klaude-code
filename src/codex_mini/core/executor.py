@@ -21,15 +21,8 @@ from codex_mini.core.reminders import (
 )
 from codex_mini.core.tool import get_tool_schemas
 from codex_mini.llm.client import LLMClientABC
-from codex_mini.protocol import events, llm_parameter, model
+from codex_mini.protocol import events, llm_parameter, model, tools
 from codex_mini.protocol.op import InitAgentOperation, InterruptOperation, Operation, Submission, UserInputOperation
-from codex_mini.protocol.tools import (
-    BASH_TOOL_NAME,
-    EDIT_TOOL_NAME,
-    MULTI_EDIT_TOOL_NAME,
-    READ_TOOL_NAME,
-    TODO_WRITE_TOOL_NAME,
-)
 from codex_mini.session.session import Session
 from codex_mini.trace import log_debug
 
@@ -78,7 +71,7 @@ class ExecutorContext:
                 llm_client=self.llm_client,
                 session=session,
                 tools=get_tool_schemas(
-                    [TODO_WRITE_TOOL_NAME, BASH_TOOL_NAME, READ_TOOL_NAME, EDIT_TOOL_NAME, MULTI_EDIT_TOOL_NAME]
+                    [tools.TODO_WRITE, tools.BASH, tools.READ, tools.EDIT, tools.MULTI_EDIT, tools.EXIT_PLAN_MODE]
                 ),
                 debug_mode=self.debug_mode,
                 reminders=[

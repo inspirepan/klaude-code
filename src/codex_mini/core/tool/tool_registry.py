@@ -46,7 +46,7 @@ async def run_tool(tool_call: ToolCallItem) -> ToolResultItem:
     except Exception as e:
         return ToolResultItem(
             call_id=tool_call.call_id,
-            output=f"Tool {tool_call.name} execution error: {e}",
+            output=f"Tool {tool_call.name} execution error: {e.__class__.__name__} {e}",
             status="error",
             tool_name=tool_call.name,
         )

@@ -321,15 +321,15 @@ class REPLDisplay(DisplayABC):
 
     def display_tool_call(self, e: events.ToolCallEvent) -> None:
         match e.tool_name:
-            case tools.READ_TOOL_NAME:
+            case tools.READ:
                 self.console.print(self.render_read_tool_call(e.arguments))
-            case tools.EDIT_TOOL_NAME:
+            case tools.EDIT:
                 self.console.print(self.render_edit_tool_call(e.arguments))
-            case tools.MULTI_EDIT_TOOL_NAME:
+            case tools.MULTI_EDIT:
                 self.console.print(self.render_multi_edit_tool_call(e.arguments))
-            case tools.BASH_TOOL_NAME:
+            case tools.BASH:
                 self.console.print(self.render_any_tool_call(e.tool_name, e.arguments, "$"))
-            case tools.TODO_WRITE_TOOL_NAME:
+            case tools.TODO_WRITE:
                 self.console.print(self.render_any_tool_call("Update Todos", "", "☰"))
             case _:
                 self.console.print(self.render_any_tool_call(e.tool_name, e.arguments))
@@ -466,20 +466,20 @@ class REPLDisplay(DisplayABC):
             return
 
         match e.tool_name:
-            case tools.READ_TOOL_NAME:
+            case tools.READ:
                 pass
-            case tools.EDIT_TOOL_NAME | tools.MULTI_EDIT_TOOL_NAME:
+            case tools.EDIT | tools.MULTI_EDIT:
                 self.console.print(
                     Padding.indent(
                         self.render_edit_diff(e.ui_extra or ""),
                         level=2,
                     )
                 )
-            case tools.TODO_WRITE_TOOL_NAME:
+            case tools.TODO_WRITE:
                 self.console.print(self.render_todo(e))
             case _:
                 # handle bash `git diff`
-                if e.tool_name == tools.BASH_TOOL_NAME and e.result.startswith("diff --git"):
+                if e.tool_name == tools.BASH and e.result.startswith("diff --git"):
                     self.console.print(self.render_edit_diff(e.result, show_file_name=True))
                     return
 

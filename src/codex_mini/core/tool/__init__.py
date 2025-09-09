@@ -1,5 +1,6 @@
 from .bash_tool import BashTool
 from .edit_tool import EditTool
+from .exit_plan_mode import ExitPlanMode
 from .multi_edit_tool import MultiEditTool
 from .read_tool import ReadTool
 from .todo_write_tool import TodoWriteTool
@@ -11,6 +12,7 @@ __all__ = [
     "EditTool",
     "MultiEditTool",
     "TodoWriteTool",
+    "ExitPlanMode",
     "get_tool_schemas",
     "run_tool",
 ]

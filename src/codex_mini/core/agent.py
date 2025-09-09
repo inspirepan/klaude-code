@@ -1,7 +1,7 @@
 from collections.abc import AsyncGenerator, Awaitable, Callable
 
 from codex_mini.core.prompt import get_system_prompt
-from codex_mini.core.tool.tool_context import current_session_var
+from codex_mini.core.tool.tool_context import current_exit_plan_mode_callback, current_session_var
 from codex_mini.core.tool.tool_registry import run_tool
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.protocol import events, llm_parameter, model, tools
@@ -17,12 +17,16 @@ class Agent:
         tools: list[llm_parameter.ToolSchema] | None = None,
         debug_mode: bool = False,
         reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] = [],
+        executor_llm_client: LLMClientABC | None = None,
     ):
         self.session: Session = session
         self.tools: list[llm_parameter.ToolSchema] | None = tools
         self.debug_mode: bool = debug_mode
         self.reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] = reminders
         self.set_llm_client(llm_client)
+        self.executor_llm_client = (
+            executor_llm_client  # Used for the feature: Plan in GPT-5, Act in Sonnet4, hold the executor LLM client
+        )
 
     def cancel(self) -> None:
         """Handle agent cancellation and persist an interrupt marker.
@@ -48,9 +52,11 @@ class Agent:
             turn_has_tool_call = False
             async for turn_event in self.run_turn():
                 match turn_event:
-                    case events.ToolCallEvent() as metadata:
+                    case events.ToolCallEvent() as tc:
                         turn_has_tool_call = True
-                        yield metadata
+                        yield tc
+                    case events.ToolResultEvent() as tr:
+                        yield tr
                     case events.ResponseMetadataEvent() as e:
                         metadata = e.metadata
                         if metadata.usage is not None:
@@ -168,11 +174,13 @@ class Agent:
                     response_id=tool_call.response_id,
                     session_id=self.session.id,
                 )
-                token = current_session_var.set(self.session)
+                session_token = current_session_var.set(self.session)
+                exit_plan_mode_token = current_exit_plan_mode_callback.set(self.exit_plan_mode)
                 try:
                     tool_result: model.ToolResultItem = await run_tool(tool_call)
                 finally:
-                    current_session_var.reset(token)
+                    current_session_var.reset(session_token)
+                    current_exit_plan_mode_callback.reset(exit_plan_mode_token)
                 self.session.append_history([tool_result])
                 yield events.ToolResultEvent(
                     tool_call_id=tool_call.call_id,
@@ -183,7 +191,7 @@ class Agent:
                     session_id=self.session.id,
                     status=tool_result.status,
                 )
-                if tool_call.name == tools.TODO_WRITE_TOOL_NAME:
+                if tool_call.name == tools.TODO_WRITE:
                     yield events.TodoChangeEvent(
                         session_id=self.session.id,
                         todos=self.session.todos,
@@ -199,5 +207,13 @@ class Agent:
 
     def set_llm_client(self, llm_client: LLMClientABC) -> None:
         self.llm_client = llm_client
-        self.session.model_name = llm_client.model_name()
-        self.session.system_prompt = get_system_prompt(llm_client.model_name())
+        self.session.model_name = llm_client.model_name
+        self.session.system_prompt = get_system_prompt(llm_client.model_name)
+
+    def exit_plan_mode(self) -> str:
+        """Exit plan mode and switch back to executor LLM client, return a message for tool result"""
+        self.session.is_in_plan_mode = False
+        if self.executor_llm_client is not None:
+            self.set_llm_client(self.executor_llm_client)
+            return f"switched back to executor model: {self.executor_llm_client.model_name}"
+        return ""

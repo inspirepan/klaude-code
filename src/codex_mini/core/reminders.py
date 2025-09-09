@@ -46,7 +46,7 @@ async def at_file_reader_reminder(session: Session) -> model.DeveloperMessageIte
                 tool_result = await ReadTool.call_with_args(args)
                 at_files[str(path)] = model.AtPatternParseResult(
                     path=str(path),
-                    tool_name=tools.READ_TOOL_NAME,
+                    tool_name=tools.READ,
                     result=tool_result.output or "",
                     tool_args=args.model_dump_json(exclude_none=True),
                     operation="Read",
@@ -56,7 +56,7 @@ async def at_file_reader_reminder(session: Session) -> model.DeveloperMessageIte
                 tool_result = await BashTool.call_with_args(args)
                 at_files[str(path)] = model.AtPatternParseResult(
                     path=str(path),
-                    tool_name=tools.BASH_TOOL_NAME,
+                    tool_name=tools.BASH,
                     result=tool_result.output or "",
                     tool_args=args.model_dump_json(exclude_none=True),
                     operation="List",
@@ -123,7 +123,7 @@ async def todo_not_used_recently_reminder(session: Session) -> model.DeveloperMe
     other_tool_call_count_befor_last_todo = 0
     for item in reversed(session.conversation_history):
         if isinstance(item, model.ToolCallItem):
-            if item.name == tools.TODO_WRITE_TOOL_NAME:
+            if item.name == tools.TODO_WRITE:
                 break
             other_tool_call_count_befor_last_todo += 1
             if other_tool_call_count_befor_last_todo >= 10:
@@ -258,14 +258,14 @@ async def last_path_memory_reminder(session: Session) -> model.DeveloperMessageI
         return None
     paths: list[str] = []
     for tool_call in tool_calls:
-        if tool_call.name in (tools.READ_TOOL_NAME, tools.EDIT_TOOL_NAME, tools.MULTI_EDIT_TOOL_NAME):
+        if tool_call.name in (tools.READ, tools.EDIT, tools.MULTI_EDIT):
             try:
                 json_dict = json.loads(tool_call.arguments)
                 if path := json_dict.get("file_path", ""):
                     paths.append(path)
             except json.JSONDecodeError:
                 continue
-        elif tool_call.name == tools.BASH_TOOL_NAME:
+        elif tool_call.name == tools.BASH:
             # TODO: haiku check file path
             pass
     paths = list(set(paths))

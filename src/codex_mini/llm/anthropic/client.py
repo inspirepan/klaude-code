@@ -174,6 +174,3 @@ class AnthropicClient(LLMClientABC):
                     )
                 case _:
                     pass
-
-    def model_name(self) -> str:
-        return str(self.get_llm_config().model)

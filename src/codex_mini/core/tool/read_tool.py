@@ -12,7 +12,7 @@ from codex_mini.core.tool.tool_context import current_session_var
 from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import ToolResultItem
-from codex_mini.protocol.tools import READ_TOOL_NAME
+from codex_mini.protocol.tools import READ
 
 SYSTEM_REMINDER_MALICIOUS = (
     "<system-reminder>\n"
@@ -96,7 +96,7 @@ def _read_segment(options: ReadOptions) -> ReadSegmentResult:
     )
 
 
-@register(READ_TOOL_NAME)
+@register(READ)
 class ReadTool(ToolABC):
     class ReadArguments(BaseModel):
         file_path: str
@@ -106,7 +106,7 @@ class ReadTool(ToolABC):
     @classmethod
     def schema(cls) -> ToolSchema:
         return ToolSchema(
-            name=READ_TOOL_NAME,
+            name=READ,
             type="function",
             description=(
                 "Reads a file from the local filesystem. You can access any file directly by using this tool.\n"

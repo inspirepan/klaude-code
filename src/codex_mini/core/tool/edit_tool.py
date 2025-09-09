@@ -12,7 +12,7 @@ from codex_mini.core.tool.tool_context import current_session_var
 from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import ToolResultItem
-from codex_mini.protocol.tools import EDIT_TOOL_NAME
+from codex_mini.protocol.tools import EDIT
 
 
 def _is_directory(path: str) -> bool:
@@ -41,7 +41,7 @@ def _write_text(path: str, content: str) -> None:
         f.write(content)
 
 
-@register(EDIT_TOOL_NAME)
+@register(EDIT)
 class EditTool(ToolABC):
     class EditArguments(BaseModel):
         file_path: str
@@ -52,7 +52,7 @@ class EditTool(ToolABC):
     @classmethod
     def schema(cls) -> ToolSchema:
         return ToolSchema(
-            name=EDIT_TOOL_NAME,
+            name=EDIT,
             type="function",
             description=(
                 "Performs exact string replacements in files.\n\n"

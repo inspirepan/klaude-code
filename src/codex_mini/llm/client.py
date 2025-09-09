@@ -33,6 +33,6 @@ class LLMClientABC(ABC):
     def get_llm_config(self) -> LLMConfigParameter:
         return self._config
 
-    @abstractmethod
+    @property
     def model_name(self) -> str:
-        raise NotImplementedError
+        return self._config.model or ""

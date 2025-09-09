@@ -5,7 +5,7 @@ from codex_mini.core.tool.tool_context import current_session_var
 from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import TodoItem, TodoUIExtra, ToolResultItem, todo_list_str
-from codex_mini.protocol.tools import TODO_WRITE_TOOL_NAME
+from codex_mini.protocol.tools import TODO_WRITE
 
 
 def get_new_completed_todos(old_todos: list[TodoItem], new_todos: list[TodoItem]) -> list[str]:
@@ -42,12 +42,12 @@ class TodoWriteArguments(BaseModel):
     todos: list[TodoItem]
 
 
-@register(TODO_WRITE_TOOL_NAME)
+@register(TODO_WRITE)
 class TodoWriteTool(ToolABC):
     @classmethod
     def schema(cls) -> ToolSchema:
         return ToolSchema(
-            name=TODO_WRITE_TOOL_NAME,
+            name=TODO_WRITE,
             type="function",
             description="""Use this tool to create and manage a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
 It also helps the user understand the progress of the task and overall progress of their requests.

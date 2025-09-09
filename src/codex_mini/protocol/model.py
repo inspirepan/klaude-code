@@ -158,11 +158,11 @@ class ToolCallItem(BaseModel):
 
 
 class ToolResultItem(BaseModel):
-    call_id: str = ""
+    call_id: str = ""  # This field will auto set by tool registry's run_tool
     output: str | None = None
     status: Literal["success", "error"]
-    tool_name: str | None = None
-    ui_extra: str | None = None  # extra data for UI display, e.g. diff render
+    tool_name: str | None = None  # This field will auto set by tool registry's run_tool
+    ui_extra: str | None = None  # Extra data for UI display, e.g. diff render
 
 
 class AssistantMessageDelta(BaseModel):
