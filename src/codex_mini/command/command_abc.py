@@ -1,7 +1,17 @@
 from abc import ABC, abstractmethod
-from typing import Any
 
-from codex_mini.protocol.events import Event
+from pydantic import BaseModel
+
+from codex_mini.core import Agent
+from codex_mini.protocol.commands import CommandName
+from codex_mini.protocol.events import DeveloperMessageEvent
+
+
+class CommandResult(BaseModel):
+    """Result of a command execution."""
+
+    agent_input: str | None = None  # Input to be submitted to agent, or None if no input needed
+    events: list[DeveloperMessageEvent] | None = None  # List of UI events to display immediately
 
 
 class CommandABC(ABC):
@@ -9,7 +19,7 @@ class CommandABC(ABC):
 
     @property
     @abstractmethod
-    def name(self) -> str:
+    def name(self) -> CommandName:
         """Command name without the leading slash."""
         pass
 
@@ -20,7 +30,7 @@ class CommandABC(ABC):
         pass
 
     @abstractmethod
-    async def run(self, raw: str, session_id: str | None) -> tuple[dict[str, Any] | None, list[Event]]:
+    async def run(self, raw: str, agent: Agent) -> CommandResult:
         """
         Execute the command.
 
@@ -29,7 +39,6 @@ class CommandABC(ABC):
             session_id: Current session ID, may be None if no session initialized yet
 
         Returns:
-            operation_data: Dictionary to submit to executor, or None if no operation needed
-            events: List of UI events to display immediately
+            CommandResult: Result of the command execution
         """
         pass

@@ -9,6 +9,7 @@ import asyncio
 from pathlib import Path
 from uuid import uuid4
 
+from codex_mini.command.registry import dispatch_command
 from codex_mini.core.agent import Agent
 from codex_mini.core.prompt import get_system_prompt
 from codex_mini.core.reminders import (
@@ -21,7 +22,7 @@ from codex_mini.core.reminders import (
 )
 from codex_mini.core.tool import get_tool_schemas
 from codex_mini.llm.client import LLMClientABC
-from codex_mini.protocol import events, llm_parameter
+from codex_mini.protocol import events, llm_parameter, model
 from codex_mini.protocol.op import InitAgentOperation, InterruptOperation, Operation, Submission, UserInputOperation
 from codex_mini.protocol.tools import (
     BASH_TOOL_NAME,
@@ -121,13 +122,24 @@ class ExecutorContext:
         # emit user input event
         await self.emit_event(events.UserMessageEvent(content=operation.content, session_id=actual_session_id))
 
-        # Start task to process user input (do NOT await here so the executor loop stays responsive)
-        task: asyncio.Task[None] = asyncio.create_task(
-            self._run_agent_task(agent, operation.content, operation.id, actual_session_id)
-        )
-        self.active_tasks[operation.id] = task
-        self.active_task_sessions[operation.id] = actual_session_id
-        # Do not await task here; completion will be tracked by the executor
+        result = await dispatch_command(operation.content, agent)
+        if not result.agent_input:
+            # If this command do not need run agent, we should append user message to session history here
+            agent.session.append_history([model.UserMessageItem(content=operation.content)])
+
+        if result.events:
+            agent.session.append_history([evt.item for evt in result.events])
+            for evt in result.events:
+                await self.emit_event(evt)
+
+        if result.agent_input:
+            # Start task to process user input (do NOT await here so the executor loop stays responsive)
+            task: asyncio.Task[None] = asyncio.create_task(
+                self._run_agent_task(agent, result.agent_input, operation.id, actual_session_id)
+            )
+            self.active_tasks[operation.id] = task
+            self.active_task_sessions[operation.id] = actual_session_id
+            # Do not await task here; completion will be tracked by the executor
 
     async def handle_interrupt(self, operation: InterruptOperation) -> None:
         """Handle an interrupt by invoking agent.cancel() and cancelling tasks."""

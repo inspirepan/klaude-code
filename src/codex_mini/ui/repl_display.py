@@ -16,6 +16,7 @@ from rich.table import Table
 from rich.text import Text
 
 from codex_mini.protocol import events, model, tools
+from codex_mini.protocol.commands import CommandName
 from codex_mini.ui.debouncer import Debouncer
 from codex_mini.ui.display_abc import DisplayABC
 from codex_mini.ui.mdstream import MarkdownStream
@@ -67,6 +68,9 @@ class REPLDisplay(DisplayABC):
                 self.spinner.start()
             case events.DeveloperMessageEvent() as e:
                 self.developer_message_buffer.append(e)
+                # If it's command output, flush it immediately
+                if e.item.command_output:
+                    self._flush_developer_buffer()
             case events.TurnStartEvent() as e:
                 self._flush_developer_buffer()
             case events.ThinkingDeltaEvent() as e:
@@ -620,24 +624,29 @@ class REPLDisplay(DisplayABC):
     def display_interrupt(self, e: events.InterruptEvent) -> None:
         self.console.print("\n INTERRUPTED \n", style=ThemeKey.INTERRUPT)
 
+    def is_valid_slash_command(self, command: str) -> bool:
+        try:
+            CommandName(command)
+            return True
+        except ValueError:
+            return False
+
     def display_user_input(self, e: events.UserMessageEvent) -> None:
         lines = e.content.split("\n")
-        first_line = True
-        for line in lines:
-            # render slash commands
-            if first_line and line.startswith("/"):
+        for i, line in enumerate(lines):
+            line_text = self.render_at_pattern(line, ThemeKey.USER_INPUT_AT_PATTERN)  # 默认处理
+
+            if i == 0 and line.startswith("/"):
                 splits = line.split(" ", maxsplit=1)
-                if len(splits) <= 1:
-                    line_text = Text(line, style=ThemeKey.USER_INPUT_SLASH_COMMAND)
-                else:
-                    line_text = Text.assemble(
-                        (splits[0], ThemeKey.USER_INPUT_SLASH_COMMAND),
-                        " ",
-                        self.render_at_pattern(splits[1], ThemeKey.USER_INPUT_AT_PATTERN),
-                    )
-            else:
-                line_text = self.render_at_pattern(line, ThemeKey.USER_INPUT_AT_PATTERN)
-            first_line = False
+                if self.is_valid_slash_command(splits[0][1:]):
+                    if len(splits) <= 1:
+                        line_text = Text(line, style=ThemeKey.USER_INPUT_SLASH_COMMAND)
+                    else:
+                        line_text = Text.assemble(
+                            (splits[0], ThemeKey.USER_INPUT_SLASH_COMMAND),
+                            " ",
+                            self.render_at_pattern(splits[1], ThemeKey.USER_INPUT_AT_PATTERN),
+                        )
 
             avail = max(1, self.console.width - 2)
             render_lines = line_text.wrap(self.console, avail)
@@ -669,7 +678,7 @@ class REPLDisplay(DisplayABC):
                         theme=self.themes.markdown_theme,
                     ).update(e.content.strip(), final=True)
                 case events.DeveloperMessageEvent() as e:
-                    self.display_reminder(e)
+                    self.display_developer_message(e)
                 case events.UserMessageEvent() as e:
                     self.display_user_input(e)
                 case events.ToolCallEvent() as e:
@@ -731,11 +740,11 @@ class REPLDisplay(DisplayABC):
         if len(self.developer_message_buffer) == 0:
             return
         for e in self.developer_message_buffer:
-            self.display_reminder(e)
+            self.display_developer_message(e)
         self.developer_message_buffer.clear()
         self.console.print()
 
-    def display_reminder(self, e: events.DeveloperMessageEvent) -> None:
+    def display_developer_message(self, e: events.DeveloperMessageEvent) -> None:
         if mp := e.item.memory_paths:
             grid = self._create_grid()
             for memory_path in mp:
@@ -780,3 +789,39 @@ class REPLDisplay(DisplayABC):
                     ),
                 )
             self.console.print(grid)
+
+        if e.item.command_output:
+            self.display_command_output(e)
+
+    def display_command_output(self, e: events.DeveloperMessageEvent) -> None:
+        if not e.item.command_output:
+            return
+        print("\033[1A\033[K", end="")  # Clear previous empty line
+        match e.item.command_output.command_name:
+            case CommandName.DIFF:
+                if e.item.content is None:
+                    self.console.print(
+                        Padding.indent(
+                            Text(
+                                "(no content)",
+                                style=ThemeKey.TOOL_RESULT,
+                            ),
+                            level=2,
+                        )
+                    )
+                else:
+                    self.console.print(self.render_edit_diff(e.item.content, show_file_name=True))
+            case CommandName.HELP:
+                self.console.print(Padding.indent(Text.from_markup(e.item.content or ""), level=2))
+            case _:
+                if e.item.content is None:
+                    e.item.content = "(no content)"
+                self.console.print(
+                    Padding.indent(
+                        Text(
+                            self.truncate_display(e.item.content),
+                            style=ThemeKey.TOOL_RESULT if not e.item.command_output.is_error else ThemeKey.ERROR,
+                        ),
+                        level=2,
+                    )
+                )

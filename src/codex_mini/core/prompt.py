@@ -19,3 +19,8 @@ def get_system_prompt(model_name: str) -> str:
             model_name=model_name,
         )
     )
+
+
+@lru_cache(maxsize=1)
+def get_init_prompt() -> str:
+    return files(__package__).joinpath("prompt_init.md").read_text(encoding="utf-8")

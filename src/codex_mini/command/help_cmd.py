@@ -1,35 +1,46 @@
-from typing import Any
-
-from codex_mini.command.command_abc import CommandABC
-from codex_mini.protocol.events import DeveloperMessageEvent, Event
-from codex_mini.protocol.model import DeveloperMessageItem
+from codex_mini.command.command_abc import CommandABC, CommandResult
+from codex_mini.core import Agent
+from codex_mini.protocol.commands import CommandName
+from codex_mini.protocol.events import DeveloperMessageEvent
+from codex_mini.protocol.model import CommandOutput, DeveloperMessageItem
 
 
 class HelpCommand(CommandABC):
     """Display help information for all available slash commands."""
 
     @property
-    def name(self) -> str:
-        return "help"
+    def name(self) -> CommandName:
+        return CommandName.HELP
 
     @property
     def summary(self) -> str:
-        return "Show help and available commands"
+        return "show help and available commands"
 
-    async def run(self, raw: str, session_id: str | None) -> tuple[dict[str, Any] | None, list[Event]]:
+    async def run(self, raw: str, agent: Agent) -> CommandResult:
+        lines: list[str] = [
+            """
+Usage:
+  [b]@[/b] to mention file
+  [b]esc[/b] to interrupt agent task
+  [b]shift-enter[/b] or [b]ctrl-j[/b] for new line
+  [b]--continue[/b] or [b]--resume[/b] to continue an old session
+  [b]--select-model[/b] to switch model
+
+Available slash commands:"""
+        ]
+
         # Import here to avoid circular dependency
         from .registry import get_commands
 
         commands = get_commands()
 
-        if not commands:
-            help_text = "No available slash commands."
-        else:
-            lines = ["Available slash commands:", ""]
+        if commands:
             for cmd_name, cmd_obj in sorted(commands.items()):
-                lines.append(f"  /{cmd_name} — {cmd_obj.summary}")
-            help_text = "\n".join(lines)
+                lines.append(f"  [b]/{cmd_name}[/b] — {cmd_obj.summary}")
 
-        event = DeveloperMessageEvent(session_id=session_id or "default", item=DeveloperMessageItem(content=help_text))
+        event = DeveloperMessageEvent(
+            session_id=agent.session.id,
+            item=DeveloperMessageItem(content="\n".join(lines), command_output=CommandOutput(command_name=self.name)),
+        )
 
-        return None, [event]
+        return CommandResult(events=[event])

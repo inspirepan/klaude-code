@@ -3,6 +3,8 @@ from typing import Iterable, Literal
 
 from pydantic import BaseModel, TypeAdapter
 
+from codex_mini.protocol.commands import CommandName
+
 RoleType = Literal["system", "developer", "user", "assistant", "tool"]
 TodoStatusType = Literal["pending", "in_progress", "completed"]
 
@@ -48,6 +50,12 @@ class AtPatternParseResult(BaseModel):
     result: str
     tool_args: str
     operation: Literal["Read", "List"]
+
+
+class CommandOutput(BaseModel):
+    command_name: CommandName
+    ui_extra: str | None = None
+    is_error: bool = False
 
 
 """
@@ -97,13 +105,14 @@ class SystemMessageItem(BaseModel):
 class DeveloperMessageItem(BaseModel):
     id: str | None = None
     role: RoleType = "developer"
-    content: str | None = None
+    content: str | None = None  # For LLM input
 
-    # special fields for reminders UI
+    # Special fields for reminders UI
     memory_paths: list[str] | None = None
     external_file_changes: list[str] | None = None
     todo_use: bool | None = None
     at_files: list[AtPatternParseResult] | None = None
+    command_output: CommandOutput | None = None
 
 
 class UserMessageItem(BaseModel):
