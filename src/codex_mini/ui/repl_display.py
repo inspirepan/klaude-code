@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Literal, override
 
 from rich._spinners import SPINNERS
-from rich.console import Console, RenderableType
+from rich.console import Console, Group, RenderableType
 from rich.markdown import Markdown
 from rich.padding import Padding
 from rich.panel import Panel
@@ -19,7 +19,7 @@ from codex_mini.protocol import events, model, tools
 from codex_mini.protocol.commands import CommandName
 from codex_mini.ui.debouncer import Debouncer
 from codex_mini.ui.display_abc import DisplayABC
-from codex_mini.ui.mdstream import MarkdownStream
+from codex_mini.ui.mdstream import MarkdownStream, NoInsetMarkdown
 from codex_mini.ui.theme import ThemeKey, get_theme
 from codex_mini.ui.utils import format_number
 
@@ -319,6 +319,23 @@ class REPLDisplay(DisplayABC):
             render_result = render_result.append_text(Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS))
         return render_result
 
+    def render_plan(self, arguments: str) -> RenderableType:
+        try:
+            json_dict = json.loads(arguments)
+            plan = json_dict.get("plan", "")
+            return Group(
+                Text.assemble(("¶ ", ThemeKey.TOOL_MARK), ("Plan", ThemeKey.TOOL_NAME)),
+                Panel.fit(NoInsetMarkdown(plan, code_theme=self.themes.code_theme)),
+            )
+
+        except json.JSONDecodeError:
+            return Text.assemble(
+                ("¶ ", ThemeKey.TOOL_MARK),
+                ("Plan", ThemeKey.TOOL_NAME),
+                " ",
+                Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS),
+            )
+
     def display_tool_call(self, e: events.ToolCallEvent) -> None:
         match e.tool_name:
             case tools.READ:
@@ -331,6 +348,8 @@ class REPLDisplay(DisplayABC):
                 self.console.print(self.render_any_tool_call(e.tool_name, e.arguments, "$"))
             case tools.TODO_WRITE:
                 self.console.print(self.render_any_tool_call("Update Todos", "", "☰"))
+            case tools.EXIT_PLAN_MODE:
+                self.console.print(self.render_plan(e.arguments))
             case _:
                 self.console.print(self.render_any_tool_call(e.tool_name, e.arguments))
 
@@ -461,7 +480,7 @@ class REPLDisplay(DisplayABC):
             return self.render_error(str(e))
 
     def display_tool_call_result(self, e: events.ToolResultEvent) -> None:
-        if e.status == "error":
+        if e.status == "error" and not e.ui_extra:
             self.console.print(self.render_error(e.result))
             return
 
@@ -477,6 +496,11 @@ class REPLDisplay(DisplayABC):
                 )
             case tools.TODO_WRITE:
                 self.console.print(self.render_todo(e))
+            case tools.EXIT_PLAN_MODE:
+                if e.status == "success":
+                    self.console.print(Padding.indent(Text(" Approved ", ThemeKey.TOOL_APPROVED), level=1))
+                else:
+                    self.console.print(Padding.indent(Text(" Rejected ", ThemeKey.TOOL_APPROVED), level=1))
             case _:
                 # handle bash `git diff`
                 if e.tool_name == tools.BASH and e.result.startswith("diff --git"):
