@@ -320,6 +320,7 @@ class REPLDisplay(DisplayABC):
         return render_result
 
     def render_plan(self, arguments: str) -> RenderableType:
+        # Plan mode
         try:
             json_dict = json.loads(arguments)
             plan = json_dict.get("plan", "")
@@ -497,8 +498,16 @@ class REPLDisplay(DisplayABC):
             case tools.TODO_WRITE:
                 self.console.print(self.render_todo(e))
             case tools.EXIT_PLAN_MODE:
+                # Plan mode
                 if e.status == "success":
                     self.console.print(Padding.indent(Text(" Approved ", ThemeKey.TOOL_APPROVED), level=1))
+                    grid = self._create_grid()
+                    grid.add_row(
+                        Text("↓", style=ThemeKey.METADATA),
+                        Text(e.ui_extra or "N/A", style=ThemeKey.METADATA_BOLD),
+                    )
+                    self.console.print()
+                    self.console.print(grid)
                 else:
                     self.console.print(Padding.indent(Text(" Rejected ", ThemeKey.TOOL_APPROVED), level=1))
             case _:
@@ -776,7 +785,7 @@ class REPLDisplay(DisplayABC):
             grid = self._create_grid()
             for memory_path in mp:
                 grid.add_row(
-                    Text("✪ ", style=ThemeKey.REMINDER),
+                    Text("✪", style=ThemeKey.REMINDER),
                     Text.assemble(
                         self.render_path(memory_path, ThemeKey.REMINDER_DIM),
                     ),
@@ -850,6 +859,15 @@ class REPLDisplay(DisplayABC):
                     self.console.print(self.render_edit_diff(e.item.content, show_file_name=True))
             case CommandName.HELP:
                 self.console.print(Padding.indent(Text.from_markup(e.item.content or ""), level=2))
+            case CommandName.PLAN:
+                # Plan mode
+                self.console.print()
+                grid = self._create_grid()
+                grid.add_row(
+                    Text("↓", style=ThemeKey.METADATA),
+                    Text(e.item.command_output.ui_extra or "N/A", style=ThemeKey.METADATA_BOLD),
+                )
+                self.console.print(grid)
             case _:
                 if e.item.content is None:
                     e.item.content = "(no content)"

@@ -29,6 +29,7 @@ class Config(BaseModel):
     provider_list: list[LLMConfigProviderParameter]
     model_list: list[ModelConfig]
     main_model: str
+    plan_model: str | None = None
     theme: str | None = None
 
     def get_main_model_config(self) -> LLMConfigParameter:

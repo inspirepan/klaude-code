@@ -30,7 +30,7 @@ class RefreshTerminalCommand(CommandABC):
             events=[
                 events.WelcomeEvent(
                     work_dir=str(agent.session.work_dir),
-                    llm_config=agent.llm_client.get_llm_config(),
+                    llm_config=agent.get_llm_client().get_llm_config(),
                 ),
                 events.ReplayHistoryEvent(
                     events=agent.session.get_history_item(),

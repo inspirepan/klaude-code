@@ -15,6 +15,7 @@ from codex_mini.command.registry import is_interactive_command
 from codex_mini.config import config_path, load_config
 from codex_mini.config.list_model import display_models_and_providers
 from codex_mini.config.select_model import select_model_from_config
+from codex_mini.core.agent import AgentLLMClients
 from codex_mini.core.executor import Executor
 from codex_mini.llm import LLMClientABC, create_llm_client
 from codex_mini.protocol import op
@@ -161,19 +162,26 @@ async def run_interactive(
 
     config = load_config()
     llm_config = config.get_model_config(model) if model else config.get_main_model_config()
-
-    if debug:
-        log_debug("▷▷▷ llm [Model Config]", llm_config.model_dump_json(exclude_none=True), style="yellow")
-
     llm_client: LLMClientABC = create_llm_client(llm_config)
     if debug:
+        log_debug("▷▷▷ llm [Model Config]", llm_config.model_dump_json(exclude_none=True), style="yellow")
         llm_client.enable_debug_mode()
+
+    llm_clients = AgentLLMClients(main=llm_client)
+
+    if config.plan_model:
+        plan_llm_config = config.get_model_config(config.plan_model)
+        plan_llm_client = create_llm_client(plan_llm_config)
+        llm_clients.plan = plan_llm_client
+        if debug:
+            log_debug("▷▷▷ llm [Plan Model Config]", plan_llm_config.model_dump_json(exclude_none=True), style="yellow")
+            plan_llm_client.enable_debug_mode()
 
     # Create event queue for communication between executor and UI
     event_queue: asyncio.Queue[Event] = asyncio.Queue()
 
     # Create executor with the LLM client
-    executor = Executor(event_queue, llm_client, llm_config, debug_mode=debug)
+    executor = Executor(event_queue, llm_clients, llm_config, debug_mode=debug)
 
     # Start executor in background
     executor_task = asyncio.create_task(executor.start())

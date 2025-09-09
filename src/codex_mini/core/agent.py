@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator, Awaitable, Callable
+from dataclasses import dataclass
 
 from codex_mini.core.prompt import get_system_prompt
 from codex_mini.core.tool.tool_context import current_exit_plan_mode_callback, current_session_var
@@ -9,24 +10,28 @@ from codex_mini.session import Session
 from codex_mini.trace import log_debug
 
 
+@dataclass
+class AgentLLMClients:
+    main: LLMClientABC
+    plan: LLMClientABC | None = None
+    fast: LLMClientABC | None = None  # Not used for now
+
+
 class Agent:
     def __init__(
         self,
-        llm_client: LLMClientABC,
+        llm_clients: AgentLLMClients,
         session: Session,
         tools: list[llm_parameter.ToolSchema] | None = None,
         debug_mode: bool = False,
         reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] = [],
-        executor_llm_client: LLMClientABC | None = None,
     ):
         self.session: Session = session
         self.tools: list[llm_parameter.ToolSchema] | None = tools
         self.debug_mode: bool = debug_mode
         self.reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] = reminders
-        self.set_llm_client(llm_client)
-        self.executor_llm_client = (
-            executor_llm_client  # Used for the feature: Plan in GPT-5, Act in Sonnet4, hold the executor LLM client
-        )
+        self.llm_clients = llm_clients
+        self.set_llm_client(llm_clients.main)
 
     def cancel(self) -> None:
         """Handle agent cancellation and persist an interrupt marker.
@@ -101,7 +106,7 @@ class Agent:
         current_response_id: str | None = None
         store_at_remote = False  # This is the 'store' parameter of OpenAI Responses API for storing history at OpenAI, currently always False
 
-        async for response_item in self.llm_client.call(
+        async for response_item in self.get_llm_client().call(
             llm_parameter.LLMCallParameter(
                 input=self.session.conversation_history,
                 system=self.session.system_prompt,
@@ -206,14 +211,30 @@ class Agent:
                 yield events.DeveloperMessageEvent(session_id=self.session.id, item=item)
 
     def set_llm_client(self, llm_client: LLMClientABC) -> None:
-        self.llm_client = llm_client
+        if self.session.is_in_plan_mode:
+            self.llm_clients.plan = llm_client
+        else:
+            self.llm_clients.main = llm_client
         self.session.model_name = llm_client.model_name
         self.session.system_prompt = get_system_prompt(llm_client.model_name)
+
+    def get_llm_client(self) -> LLMClientABC:
+        if self.session.is_in_plan_mode and self.llm_clients.plan:
+            return self.llm_clients.plan
+        else:
+            return self.llm_clients.main
 
     def exit_plan_mode(self) -> str:
         """Exit plan mode and switch back to executor LLM client, return a message for tool result"""
         self.session.is_in_plan_mode = False
-        if self.executor_llm_client is not None:
-            self.set_llm_client(self.executor_llm_client)
-            return f"switched back to executor model: {self.executor_llm_client.model_name}"
+        self.set_llm_client(self.llm_clients.main)
+        if self.llm_clients.plan is not None and self.llm_clients.plan.model_name != self.llm_clients.main.model_name:
+            return self.llm_clients.main.model_name
         return ""
+
+    def enter_plan_mode(self) -> str:
+        self.session.is_in_plan_mode = True
+        if self.llm_clients.plan is not None:
+            self.set_llm_client(self.llm_clients.plan)
+            return self.llm_clients.plan.model_name
+        return self.llm_clients.main.model_name

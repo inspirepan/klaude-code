@@ -10,7 +10,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from codex_mini.command import dispatch_command
-from codex_mini.core.agent import Agent
+from codex_mini.core.agent import Agent, AgentLLMClients
 from codex_mini.core.reminders import (
     at_file_reader_reminder,
     empty_todo_reminder,
@@ -20,7 +20,6 @@ from codex_mini.core.reminders import (
     todo_not_used_recently_reminder,
 )
 from codex_mini.core.tool import get_tool_schemas
-from codex_mini.llm.client import LLMClientABC
 from codex_mini.protocol import events, llm_parameter, model, tools
 from codex_mini.protocol.op import InitAgentOperation, InterruptOperation, Operation, Submission, UserInputOperation
 from codex_mini.session.session import Session
@@ -38,12 +37,12 @@ class ExecutorContext:
     def __init__(
         self,
         event_queue: asyncio.Queue[events.Event],
-        llm_client: LLMClientABC,
+        llm_clients: AgentLLMClients,
         llm_config: llm_parameter.LLMConfigParameter,
         debug_mode: bool = False,
     ):
         self.event_queue = event_queue
-        self.llm_client = llm_client
+        self.llm_clients = llm_clients
         self.llm_config = llm_config
         self.debug_mode = debug_mode
 
@@ -68,7 +67,7 @@ class ExecutorContext:
             else:
                 session = Session.load(session_key)
             agent = Agent(
-                llm_client=self.llm_client,
+                llm_clients=self.llm_clients,
                 session=session,
                 tools=get_tool_schemas(
                     [tools.TODO_WRITE, tools.BASH, tools.READ, tools.EDIT, tools.MULTI_EDIT, tools.EXIT_PLAN_MODE]
@@ -226,11 +225,11 @@ class Executor:
     def __init__(
         self,
         event_queue: asyncio.Queue[events.Event],
-        llm_client: LLMClientABC,
+        llm_clients: AgentLLMClients,
         llm_config: llm_parameter.LLMConfigParameter,
         debug_mode: bool = False,
     ):
-        self.context = ExecutorContext(event_queue, llm_client, llm_config, debug_mode)
+        self.context = ExecutorContext(event_queue, llm_clients, llm_config, debug_mode)
         self.submission_queue: asyncio.Queue[Submission] = asyncio.Queue()
         self.running = False
         self.debug_mode = debug_mode
