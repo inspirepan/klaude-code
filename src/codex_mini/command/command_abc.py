@@ -36,6 +36,11 @@ class CommandABC(ABC):
         """Whether this command is interactive."""
         return False
 
+    @property
+    def support_addition_params(self) -> bool:
+        """Whether this command support additional parameters."""
+        return False
+
     @abstractmethod
     async def run(self, raw: str, agent: Agent) -> CommandResult:
         """

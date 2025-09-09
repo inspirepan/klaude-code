@@ -12,6 +12,7 @@ from typing import NamedTuple, cast, override
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.document import Document
+from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
@@ -151,7 +152,9 @@ class _SlashCommandCompleter(Completer):
         # Filter commands that match the fragment
         for cmd_name, cmd_obj in commands.items():
             if cmd_name.startswith(frag):
-                display_text = f"{cmd_name} — {cmd_obj.summary}"
+                display_text = HTML(
+                    f"<b>{cmd_name}</b>{' [additional instructions]' if cmd_obj.support_addition_params else ''} — {cmd_obj.summary}"
+                )
                 completion_text = f"/{cmd_name} "
                 yield Completion(text=completion_text, start_position=start_position, display=display_text)
 

@@ -13,7 +13,12 @@ class InitCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "initialize a new CLAUDE.md file with codebase documentation"
+        # return "initialize a new CLAUDE.md file with codebase documentation"
+        return "create an AGENTS.md file with instructions for Codex"
+
+    @property
+    def support_addition_params(self) -> bool:
+        return True
 
     async def run(self, raw: str, agent: Agent) -> CommandResult:
         input = get_init_prompt()
