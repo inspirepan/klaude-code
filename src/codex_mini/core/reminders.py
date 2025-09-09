@@ -154,7 +154,6 @@ Here are the existing contents of your todo list:
 
 async def file_changed_externally_reminder(session: Session) -> model.DeveloperMessageItem | None:
     """Remind agent about user/linter' changes to the files in FileTracker, provding the newest content of the file."""
-    # TODO
     changed_files: list[tuple[str, str]] = []
     if session.file_tracker and len(session.file_tracker) > 0:
         for path, mtime in session.file_tracker.items():

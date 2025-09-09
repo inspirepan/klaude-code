@@ -27,6 +27,7 @@ class Session(BaseModel):
     # Messages count
     messages_count: int = Field(default=0)
     # Model name used for this session
+    # Used in list method SessionMetaBrief
     model_name: str | None = None
     # Timestamps (epoch seconds)
     created_at: float = Field(default_factory=lambda: time.time())
@@ -83,13 +84,13 @@ class Session(BaseModel):
         return self._messages_dir() / f"{prefix}-{self.id}.jsonl"
 
     @classmethod
-    def load(cls, id: str, system_prompt: str | None = None) -> "Session":
+    def load(cls, id: str) -> "Session":
         # Load session metadata
         sessions_dir = cls._sessions_dir()
         session_candidates = sorted(sessions_dir.glob(f"*-{id}.json"), key=lambda p: p.stat().st_mtime, reverse=True)
         if not session_candidates:
             # No existing session; create a new one
-            return Session(id=id, work_dir=Path.cwd(), system_prompt=system_prompt)
+            return Session(id=id, work_dir=Path.cwd())
         session_path = session_candidates[0]
 
         raw = json.loads(session_path.read_text())
@@ -110,7 +111,6 @@ class Session(BaseModel):
         sess = Session(
             id=id,
             work_dir=Path(work_dir_str),
-            system_prompt=system_prompt,
             is_root_session=is_root_session,
             child_session_ids=child_session_ids,
             last_response_id=last_response_id,

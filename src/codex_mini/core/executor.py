@@ -11,7 +11,6 @@ from uuid import uuid4
 
 from codex_mini.command.registry import dispatch_command
 from codex_mini.core.agent import Agent
-from codex_mini.core.prompt import get_system_prompt
 from codex_mini.core.reminders import (
     at_file_reader_reminder,
     empty_todo_reminder,
@@ -71,15 +70,10 @@ class ExecutorContext:
         session_key = operation.session_id or "default"
         # Create agent if not exists
         if session_key not in self.active_agents:
-            system_prompt = get_system_prompt(self.llm_client.model_name())
-            model_name = self.llm_client.model_name()
             if session_key == "default":
-                session = Session(work_dir=Path.cwd(), system_prompt=system_prompt, model_name=model_name)
+                session = Session(work_dir=Path.cwd())
             else:
-                session = Session.load(session_key, system_prompt=system_prompt)
-                # Update model_name for loaded session if not set
-                if session.model_name is None:
-                    session.model_name = model_name
+                session = Session.load(session_key)
             agent = Agent(
                 llm_client=self.llm_client,
                 session=session,
@@ -121,6 +115,7 @@ class ExecutorContext:
 
         # emit user input event
         await self.emit_event(events.UserMessageEvent(content=operation.content, session_id=actual_session_id))
+        await self.event_queue.join()
 
         result = await dispatch_command(operation.content, agent)
         if not result.agent_input:
@@ -128,7 +123,9 @@ class ExecutorContext:
             agent.session.append_history([model.UserMessageItem(content=operation.content)])
 
         if result.events:
-            agent.session.append_history([evt.item for evt in result.events])
+            agent.session.append_history(
+                [evt.item for evt in result.events if isinstance(evt, events.DeveloperMessageEvent)]
+            )
             for evt in result.events:
                 await self.emit_event(evt)
 

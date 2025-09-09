@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator, Awaitable, Callable
 
+from codex_mini.core.prompt import get_system_prompt
 from codex_mini.core.tool.tool_context import current_session_var
 from codex_mini.core.tool.tool_registry import run_tool
 from codex_mini.llm.client import LLMClientABC
@@ -18,10 +19,10 @@ class Agent:
         reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] = [],
     ):
         self.session: Session = session
-        self.llm_client: LLMClientABC = llm_client
         self.tools: list[llm_parameter.ToolSchema] | None = tools
         self.debug_mode: bool = debug_mode
         self.reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] = reminders
+        self.set_llm_client(llm_client)
 
     def cancel(self) -> None:
         """Handle agent cancellation and persist an interrupt marker.
@@ -267,3 +268,8 @@ class Agent:
             if item is not None:
                 self.session.append_history([item])
                 yield events.DeveloperMessageEvent(session_id=self.session.id, item=item)
+
+    def set_llm_client(self, llm_client: LLMClientABC) -> None:
+        self.llm_client = llm_client
+        self.session.model_name = llm_client.model_name()
+        self.session.system_prompt = get_system_prompt(llm_client.model_name())

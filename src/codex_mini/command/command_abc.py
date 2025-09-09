@@ -4,14 +4,16 @@ from pydantic import BaseModel
 
 from codex_mini.core import Agent
 from codex_mini.protocol.commands import CommandName
-from codex_mini.protocol.events import DeveloperMessageEvent
+from codex_mini.protocol.events import DeveloperMessageEvent, ReplayHistoryEvent, WelcomeEvent
 
 
 class CommandResult(BaseModel):
     """Result of a command execution."""
 
     agent_input: str | None = None  # Input to be submitted to agent, or None if no input needed
-    events: list[DeveloperMessageEvent] | None = None  # List of UI events to display immediately
+    events: list[DeveloperMessageEvent | WelcomeEvent | ReplayHistoryEvent] | None = (
+        None  # List of UI events to display immediately
+    )
 
 
 class CommandABC(ABC):
@@ -28,6 +30,11 @@ class CommandABC(ABC):
     def summary(self) -> str:
         """Brief description of what this command does."""
         pass
+
+    @property
+    def is_interactive(self) -> bool:
+        """Whether this command is interactive."""
+        return False
 
     @abstractmethod
     async def run(self, raw: str, agent: Agent) -> CommandResult:

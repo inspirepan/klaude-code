@@ -11,66 +11,16 @@ from dataclasses import dataclass
 import typer
 
 from codex_mini import ui
+from codex_mini.command.registry import is_interactive_command
 from codex_mini.config import config_path, load_config
 from codex_mini.config.list_model import display_models_and_providers
+from codex_mini.config.select_model import select_model_from_config
 from codex_mini.core.executor import Executor
 from codex_mini.llm import LLMClientABC, create_llm_client
 from codex_mini.protocol import op
 from codex_mini.protocol.events import EndEvent, Event
 from codex_mini.session import Session
 from codex_mini.trace import log, log_debug
-
-
-def _select_model_from_config(preferred: str | None = None) -> str | None:
-    """
-    Interactive single-choice model selector.
-    for `--select-model`
-    """
-    config = load_config()
-    models = config.model_list
-
-    if not models:
-        raise ValueError("No models configured. Please update your config.yaml")
-
-    names: list[str] = [m.model_name for m in models]
-    default_name: str | None = (
-        preferred if preferred in names else (config.main_model if config.main_model in names else None)
-    )
-
-    try:
-        import questionary
-
-        choices: list[questionary.Choice] = []
-
-        max_model_name_length = max(len(m.model_name) for m in models)
-        for m in models:
-            star = "★ " if m.model_name == config.main_model else "  "
-            label = [
-                ("class:t", f"{star}{m.model_name:<{max_model_name_length}}   → "),
-                ("class:b", m.model_params.model or "N/A"),
-                ("class:d", f" {m.provider}"),
-            ]
-            choices.append(questionary.Choice(title=label, value=m.model_name))
-
-        result = questionary.select(
-            message="Select a model:",
-            choices=choices,
-            default=default_name,
-            pointer="→",
-            instruction="↑↓ to move • Enter to select",
-            style=questionary.Style(
-                [
-                    ("t", ""),
-                    ("b", "bold"),
-                    ("d", "dim"),
-                ]
-            ),
-        ).ask()
-        if isinstance(result, str) and result in names:
-            return result
-    except Exception as e:
-        log_debug(f"Failed to use questionary, falling back to default model, {e}")
-        pass
 
 
 def _resume_select_session() -> str | None:
@@ -208,6 +158,7 @@ async def run_interactive(
     model: str | None = None, debug: bool = False, session_id: str | None = None, ui_args: UIArgs | None = None
 ):
     """Run the interactive REPL using the new executor architecture."""
+
     config = load_config()
     llm_config = config.get_model_config(model) if model else config.get_main_model_config()
 
@@ -263,18 +214,23 @@ async def run_interactive(
                 continue
             # Submit user input operation
             submission_id = await executor.submit(op.UserInputOperation(content=user_input, session_id=session_id))
-            # Esc monitor
-            stop_event, esc_task = start_esc_interrupt_monitor(executor, session_id)
-            # Wait for this specific task to complete before accepting next input
-            try:
+            # If it's an interactive command (e.g., /model), avoid starting the ESC monitor
+            # to prevent TTY conflicts with interactive prompts (questionary/prompt_toolkit).
+            if is_interactive_command(user_input):
                 await executor.wait_for_completion(submission_id)
-            finally:
-                # Stop ESC monitor and wait for it to finish cleaning up TTY
-                stop_event.set()
+            else:
+                # Esc monitor for long-running, interruptible operations
+                stop_event, esc_task = start_esc_interrupt_monitor(executor, session_id)
+                # Wait for this specific task to complete before accepting next input
                 try:
-                    await esc_task
-                except Exception:
-                    pass
+                    await executor.wait_for_completion(submission_id)
+                finally:
+                    # Stop ESC monitor and wait for it to finish cleaning up TTY
+                    stop_event.set()
+                    try:
+                        await esc_task
+                    except Exception:
+                        pass
             # Ensure all UI events drained before next input
             await event_queue.join()
 
@@ -392,7 +348,7 @@ def main_callback(
         if select_model:
             # Prefer the explicitly provided model as default; otherwise main model
             default_name = model or load_config().main_model
-            chosen_model = _select_model_from_config(preferred=default_name)
+            chosen_model = select_model_from_config(preferred=default_name)
             if chosen_model is None:
                 return
 

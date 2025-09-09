@@ -77,3 +77,18 @@ async def dispatch_command(raw: str, agent: Agent) -> CommandResult:
                 )
             ]
         )
+
+
+def is_interactive_command(raw: str) -> bool:
+    if not raw.startswith("/"):
+        return False
+    splits = raw.split(" ", maxsplit=1)
+    command_name_raw = splits[0][1:]
+    try:
+        command_name = CommandName(command_name_raw)
+    except ValueError:
+        return False
+    if command_name not in _COMMANDS:
+        return False
+    command = _COMMANDS[command_name]
+    return command.is_interactive
