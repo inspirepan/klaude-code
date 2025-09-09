@@ -44,9 +44,7 @@ class DiffCommand(CommandABC):
                 # No changes
                 event = DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=DeveloperMessageItem(
-                        content="No changes", command_output=CommandOutput(command_name=self.name)
-                    ),
+                    item=DeveloperMessageItem(content="", command_output=CommandOutput(command_name=self.name)),
                 )
                 return CommandResult(events=[event])
 

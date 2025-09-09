@@ -803,7 +803,7 @@ class REPLDisplay(DisplayABC):
                     self.console.print(
                         Padding.indent(
                             Text(
-                                "(no content)",
+                                "(no changes)",
                                 style=ThemeKey.TOOL_RESULT,
                             ),
                             level=2,
