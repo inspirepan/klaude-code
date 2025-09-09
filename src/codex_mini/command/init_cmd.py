@@ -1,9 +1,11 @@
 from codex_mini.command.command_abc import CommandABC, CommandResult
+from codex_mini.command.registry import register_command
 from codex_mini.core import Agent
 from codex_mini.core.prompt import get_init_prompt
 from codex_mini.protocol.commands import CommandName
 
 
+@register_command
 class InitCommand(CommandABC):
     """Initialize a new CLAUDE.md file with codebase documentation"""
 

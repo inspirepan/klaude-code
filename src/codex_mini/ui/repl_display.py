@@ -663,22 +663,24 @@ class REPLDisplay(DisplayABC):
         for event in history_events.events:
             match event:
                 case events.AssistantMessageEvent() as e:
-                    MarkdownStream(
-                        mdargs={"code_theme": self.themes.code_theme}, theme=self.themes.markdown_theme
-                    ).update(e.content.strip(), final=True)
+                    if len(e.content.strip()) > 0:
+                        MarkdownStream(
+                            mdargs={"code_theme": self.themes.code_theme}, theme=self.themes.markdown_theme
+                        ).update(e.content.strip(), final=True)
                     if e.annotations:
                         self.console.print(self.render_annotations(e.annotations))
                 case events.ThinkingEvent() as e:
-                    self.console.print(THINKING_PREFIX)
-                    MarkdownStream(
-                        mdargs={
-                            "code_theme": self.themes.code_theme,
-                            "style": self.console.get_style(ThemeKey.THINKING),
-                        },
-                        theme=self.themes.markdown_theme,
-                    ).update(e.content.strip(), final=True)
+                    if len(e.content.strip()) > 0:
+                        self.console.print(THINKING_PREFIX)
+                        MarkdownStream(
+                            mdargs={
+                                "code_theme": self.themes.code_theme,
+                                "style": self.console.get_style(ThemeKey.THINKING),
+                            },
+                            theme=self.themes.markdown_theme,
+                        ).update(e.content.strip(), final=True)
                 case events.DeveloperMessageEvent() as e:
-                    self.display_developer_message(e)
+                    self.display_developer_message(e, with_ending_line=True)
                 case events.UserMessageEvent() as e:
                     self.display_user_input(e)
                 case events.ToolCallEvent() as e:
@@ -695,15 +697,16 @@ class REPLDisplay(DisplayABC):
                     self.console.print()
                 case events.InterruptEvent() as e:
                     self.display_interrupt(e)
-        self.console.print(
-            Text.assemble(
-                Text(" LOADED ", style=ThemeKey.RESUME_FLAG),
-                Text(
-                    " ◷ {}".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(history_events.updated_at))),
-                    style=ThemeKey.RESUME_INFO,
-                ),
+        if history_events.is_load:
+            self.console.print(
+                Text.assemble(
+                    Text(" LOADED ", style=ThemeKey.RESUME_FLAG),
+                    Text(
+                        " ◷ {}".format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(history_events.updated_at))),
+                        style=ThemeKey.RESUME_INFO,
+                    ),
+                )
             )
-        )
         self.console.print()
 
     def render_annotations(self, annotations: list[model.Annotation]) -> RenderableType:
@@ -744,7 +747,7 @@ class REPLDisplay(DisplayABC):
         self.developer_message_buffer.clear()
         self.console.print()
 
-    def display_developer_message(self, e: events.DeveloperMessageEvent) -> None:
+    def display_developer_message(self, e: events.DeveloperMessageEvent, with_ending_line: bool = False) -> None:
         if mp := e.item.memory_paths:
             grid = self._create_grid()
             for memory_path in mp:
@@ -755,6 +758,8 @@ class REPLDisplay(DisplayABC):
                     ),
                 )
             self.console.print(grid)
+            if with_ending_line:
+                self.console.print()
 
         if fc := e.item.external_file_changes:
             grid = self._create_grid()
@@ -768,6 +773,8 @@ class REPLDisplay(DisplayABC):
                     ),
                 )
             self.console.print(grid)
+            if with_ending_line:
+                self.console.print()
 
         if e.item.todo_use:
             self.console.print(
@@ -777,6 +784,8 @@ class REPLDisplay(DisplayABC):
                     Text("Todo hasn't been updated recently", ThemeKey.REMINDER_DIM),
                 )
             )
+            if with_ending_line:
+                self.console.print()
 
         if e.item.at_files:
             grid = self._create_grid()
@@ -789,9 +798,13 @@ class REPLDisplay(DisplayABC):
                     ),
                 )
             self.console.print(grid)
+            if with_ending_line:
+                self.console.print()
 
         if e.item.command_output:
             self.display_command_output(e)
+            if with_ending_line:
+                self.console.print()
 
     def display_command_output(self, e: events.DeveloperMessageEvent) -> None:
         if not e.item.command_output:

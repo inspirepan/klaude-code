@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from codex_mini.command.command_abc import CommandResult
 from codex_mini.core.agent import Agent
@@ -11,10 +11,14 @@ if TYPE_CHECKING:
 
 _COMMANDS: dict[CommandName, "CommandABC"] = {}
 
+T = TypeVar("T", bound="CommandABC")
 
-def register_command(command: "CommandABC") -> None:
-    """Register a command in the global registry."""
-    _COMMANDS[command.name] = command
+
+def register_command(cls: type[T]) -> type[T]:
+    """Decorator to register a command class in the global registry."""
+    instance = cls()
+    _COMMANDS[instance.name] = instance
+    return cls
 
 
 def get_commands() -> dict[CommandName, "CommandABC"]:
@@ -25,23 +29,6 @@ def get_commands() -> dict[CommandName, "CommandABC"]:
 def get_command_names() -> list[CommandName]:
     """Get all registered command names for completion."""
     return list(_COMMANDS.keys())
-
-
-def initialize_builtin_commands() -> None:
-    """Initialize and register all built-in commands."""
-    from .diff_cmd import DiffCommand
-    from .help_cmd import HelpCommand
-    from .init_cmd import InitCommand
-    from .model_cmd import ModelCommand
-
-    register_command(HelpCommand())
-    register_command(ModelCommand())
-    register_command(DiffCommand())
-    register_command(InitCommand())
-
-
-# Initialize built-in commands on module import
-initialize_builtin_commands()
 
 
 async def dispatch_command(raw: str, agent: Agent) -> CommandResult:

@@ -1,6 +1,7 @@
 import asyncio
 
 from codex_mini.command.command_abc import CommandABC, CommandResult
+from codex_mini.command.registry import register_command
 from codex_mini.config import load_config
 from codex_mini.config.select_model import select_model_from_config
 from codex_mini.core import Agent
@@ -11,6 +12,7 @@ from codex_mini.protocol.model import CommandOutput, DeveloperMessageItem
 from codex_mini.trace.log import log_debug
 
 
+@register_command
 class ModelCommand(CommandABC):
     """Display or change the model configuration."""
 

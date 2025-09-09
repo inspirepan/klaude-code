@@ -30,8 +30,7 @@ from codex_mini.trace import log_debug
 @register(LLMClientProtocol.ANTHROPIC)
 class AnthropicClient(LLMClientABC):
     def __init__(self, config: LLMConfigParameter):
-        super().__init__()
-        self.config: LLMConfigParameter = config
+        super().__init__(config)
         client = anthropic.AsyncAnthropic(
             api_key=config.api_key,
             base_url=config.base_url,
@@ -46,7 +45,7 @@ class AnthropicClient(LLMClientABC):
 
     @override
     async def call(self, param: LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
-        param = apply_config_defaults(param, self.config)
+        param = apply_config_defaults(param, self.get_llm_config())
 
         messages = convert_history_to_input(param.input, param.model)
         tools = convert_tool_schema(param.tools)
@@ -177,4 +176,4 @@ class AnthropicClient(LLMClientABC):
                     pass
 
     def model_name(self) -> str:
-        return str(self.config.model)
+        return str(self.get_llm_config().model)

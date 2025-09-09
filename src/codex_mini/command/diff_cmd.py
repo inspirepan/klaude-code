@@ -2,12 +2,14 @@ import subprocess
 from pathlib import Path
 
 from codex_mini.command.command_abc import CommandABC, CommandResult
+from codex_mini.command.registry import register_command
 from codex_mini.core import Agent
 from codex_mini.protocol.commands import CommandName
 from codex_mini.protocol.events import DeveloperMessageEvent
 from codex_mini.protocol.model import CommandOutput, DeveloperMessageItem
 
 
+@register_command
 class DiffCommand(CommandABC):
     """Show git diff for the current repository."""
 

@@ -9,7 +9,7 @@ import asyncio
 from pathlib import Path
 from uuid import uuid4
 
-from codex_mini.command.registry import dispatch_command
+from codex_mini.command import dispatch_command
 from codex_mini.core.agent import Agent
 from codex_mini.core.reminders import (
     at_file_reader_reminder,

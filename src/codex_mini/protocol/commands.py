@@ -8,6 +8,7 @@ class CommandName(str, Enum):
     MODEL = "model"
     COMPACT = "compact"
     PLAN = "plan"
+    REFRESH_TERMINAL = "refresh_terminal"
 
     def __str__(self) -> str:
         return self.value

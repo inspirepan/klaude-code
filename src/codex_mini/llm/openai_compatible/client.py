@@ -34,8 +34,7 @@ class ReasoningDetail(BaseModel):
 @register(LLMClientProtocol.OPENAI)
 class OpenAICompatibleClient(LLMClientABC):
     def __init__(self, config: LLMConfigParameter):
-        super().__init__()
-        self.config: LLMConfigParameter = config
+        super().__init__(config)
         if config.is_azure:
             if not config.base_url:
                 raise ValueError("Azure endpoint is required")
@@ -60,13 +59,13 @@ class OpenAICompatibleClient(LLMClientABC):
 
     @override
     async def call(self, param: LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
-        param = apply_config_defaults(param, self.config)
+        param = apply_config_defaults(param, self.get_llm_config())
         messages = convert_history_to_input(param.input, param.system, param.model)
         tools = convert_tool_schema(param.tools)
 
         extra_body = {}
         if param.thinking:
-            if self.config.is_openrouter():
+            if self.get_llm_config().is_openrouter():
                 extra_body["reasoning"] = {
                     "max_tokens": param.thinking.budget_tokens
                 }  # OpenRouter: https://openrouter.ai/docs/use-cases/reasoning-tokens#anthropic-models-with-reasoning-tokens
@@ -240,7 +239,7 @@ class OpenAICompatibleClient(LLMClientABC):
         yield metadata_item
 
     def model_name(self) -> str:
-        return str(self.config.model)
+        return str(self.get_llm_config().model)
 
 
 def convert_usage(usage: openai.types.CompletionUsage) -> model.Usage:

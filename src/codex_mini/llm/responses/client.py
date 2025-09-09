@@ -32,8 +32,7 @@ from codex_mini.trace import log_debug
 @register(LLMClientProtocol.RESPONSES)
 class ResponsesClient(LLMClientABC):
     def __init__(self, config: LLMConfigParameter):
-        super().__init__()
-        self.config: LLMConfigParameter = config
+        super().__init__(config)
         if config.is_azure:
             if not config.base_url:
                 raise ValueError("Azure endpoint is required")
@@ -58,7 +57,7 @@ class ResponsesClient(LLMClientABC):
 
     @override
     async def call(self, param: LLMCallParameter) -> AsyncGenerator[ConversationItem, None]:
-        param = apply_config_defaults(param, self.config)
+        param = apply_config_defaults(param, self.get_llm_config())
 
         response_id: str | None = None
 
@@ -160,4 +159,4 @@ class ResponsesClient(LLMClientABC):
                     pass
 
     def model_name(self) -> str:
-        return str(self.config.model)
+        return str(self.get_llm_config().model)

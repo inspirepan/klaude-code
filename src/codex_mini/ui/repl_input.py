@@ -17,7 +17,7 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 
-from codex_mini.command.registry import get_commands
+from codex_mini.command import get_commands
 from codex_mini.ui.input_abc import InputProviderABC
 
 kb = KeyBindings()

@@ -1,13 +1,13 @@
 import json
 import time
 import uuid
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import ClassVar
 
 from pydantic import BaseModel, Field
 
-from codex_mini.protocol import model
+from codex_mini.protocol import events, model
 from codex_mini.protocol.model import ConversationItem, TodoItem
 
 
@@ -222,6 +222,63 @@ class Session(BaseModel):
             except Exception:
                 continue
         return latest_id
+
+    def get_history_item(self) -> Iterable[events.HistoryItemEvent]:
+        for it in self.conversation_history:
+            match it:
+                case model.AssistantMessageItem() as am:
+                    content = am.content or ""
+                    yield events.AssistantMessageEvent(
+                        content=content,
+                        response_id=am.response_id,
+                        session_id=self.id,
+                        annotations=am.annotations,
+                    )
+
+                case model.ToolCallItem() as tc:
+                    yield events.ToolCallEvent(
+                        tool_call_id=tc.call_id,
+                        tool_name=tc.name,
+                        arguments=tc.arguments,
+                        response_id=tc.response_id,
+                        session_id=self.id,
+                    )
+                case model.ToolResultItem() as tr:
+                    yield events.ToolResultEvent(
+                        tool_call_id=tr.call_id,
+                        tool_name=str(tr.tool_name),
+                        result=tr.output or "",
+                        ui_extra=tr.ui_extra,
+                        session_id=self.id,
+                        status=tr.status,
+                    )
+
+                case model.UserMessageItem() as um:
+                    yield events.UserMessageEvent(
+                        content=um.content or "",
+                        session_id=self.id,
+                    )
+                case model.ReasoningItem() as ri:
+                    yield events.ThinkingEvent(
+                        content=ri.content or ("\n".join(ri.summary or [])),
+                        session_id=self.id,
+                    )
+                case model.ResponseMetadataItem() as mt:
+                    yield events.ResponseMetadataEvent(
+                        session_id=self.id,
+                        metadata=mt,
+                    )
+                case model.InterruptItem():
+                    yield events.InterruptEvent(
+                        session_id=self.id,
+                    )
+                case model.DeveloperMessageItem() as dm:
+                    yield events.DeveloperMessageEvent(
+                        session_id=self.id,
+                        item=dm,
+                    )
+                case _:
+                    continue
 
     class SessionMetaBrief(BaseModel):
         id: str
