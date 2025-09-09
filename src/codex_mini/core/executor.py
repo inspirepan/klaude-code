@@ -18,6 +18,7 @@ from codex_mini.core.reminders import (
     last_path_memory_reminder,
     memory_reminder,
     todo_not_used_recently_reminder,
+    plan_mode_reminder,
 )
 from codex_mini.core.tool import get_tool_schemas
 from codex_mini.protocol import events, llm_parameter, model, tools
@@ -80,6 +81,7 @@ class ExecutorContext:
                     memory_reminder,
                     last_path_memory_reminder,
                     at_file_reader_reminder,
+                    plan_mode_reminder,
                 ],
             )
             async for evt in agent.replay_history():
