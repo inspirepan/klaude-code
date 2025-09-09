@@ -30,7 +30,11 @@ class DiffCommand(CommandABC):
                 # Git command failed (maybe not a git repo)
                 error_msg = result.stderr.strip() or "git diff command failed"
                 event = DeveloperMessageEvent(
-                    session_id=agent.session.id, item=DeveloperMessageItem(content=f"Error: {error_msg}")
+                    session_id=agent.session.id,
+                    item=DeveloperMessageItem(
+                        content=f"Error: {error_msg}",
+                        command_output=CommandOutput(command_name=self.name, is_error=True),
+                    ),
                 )
                 return CommandResult(events=[event])
 
@@ -39,7 +43,10 @@ class DiffCommand(CommandABC):
             if not diff_output:
                 # No changes
                 event = DeveloperMessageEvent(
-                    session_id=agent.session.id, item=DeveloperMessageItem(content="No changes")
+                    session_id=agent.session.id,
+                    item=DeveloperMessageItem(
+                        content="No changes", command_output=CommandOutput(command_name=self.name)
+                    ),
                 )
                 return CommandResult(events=[event])
 
@@ -52,14 +59,27 @@ class DiffCommand(CommandABC):
 
         except subprocess.TimeoutExpired:
             event = DeveloperMessageEvent(
-                session_id=agent.session.id, item=DeveloperMessageItem(content="Error: git diff command timeout")
+                session_id=agent.session.id,
+                item=DeveloperMessageItem(
+                    content="Error: git diff command timeout",
+                    command_output=CommandOutput(command_name=self.name, is_error=True),
+                ),
             )
             return CommandResult(events=[event])
         except FileNotFoundError:
             event = DeveloperMessageEvent(
-                session_id=agent.session.id, item=DeveloperMessageItem(content="Error: git command not found")
+                session_id=agent.session.id,
+                item=DeveloperMessageItem(
+                    content="Error: git command not found",
+                    command_output=CommandOutput(command_name=self.name, is_error=True),
+                ),
             )
             return CommandResult(events=[event])
         except Exception as e:
-            event = DeveloperMessageEvent(session_id=agent.session.id, item=DeveloperMessageItem(content=f"Error：{e}"))
+            event = DeveloperMessageEvent(
+                session_id=agent.session.id,
+                item=DeveloperMessageItem(
+                    content=f"Error：{e}", command_output=CommandOutput(command_name=self.name, is_error=True)
+                ),
+            )
             return CommandResult(events=[event])
