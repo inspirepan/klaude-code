@@ -799,7 +799,7 @@ class REPLDisplay(DisplayABC):
         print("\033[1A\033[K", end="")  # Clear previous empty line
         match e.item.command_output.command_name:
             case CommandName.DIFF:
-                if e.item.content is None:
+                if e.item.content is None or len(e.item.content) == 0:
                     self.console.print(
                         Padding.indent(
                             Text(
