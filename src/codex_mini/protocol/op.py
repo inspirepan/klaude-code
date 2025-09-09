@@ -8,8 +8,9 @@ that the executor uses to handle different types of requests.
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from codex_mini.core.executor import ExecutorContext
@@ -27,7 +28,7 @@ class Operation(BaseModel, ABC):
     """Base class for all operations that can be submitted to the executor."""
 
     type: OperationType
-    id: str  # Unique identifier for this operation
+    id: str = Field(default_factory=lambda: uuid4().hex)
 
     @abstractmethod
     async def execute(self, context: "ExecutorContext") -> None:

@@ -7,7 +7,6 @@ handling operations submitted from the CLI and coordinating with agents.
 
 import asyncio
 from pathlib import Path
-from typing import Any, cast
 from uuid import uuid4
 
 from codex_mini.core.agent import Agent
@@ -23,7 +22,7 @@ from codex_mini.core.reminders import (
 from codex_mini.core.tool import get_tool_schemas
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.protocol import events, llm_parameter
-from codex_mini.protocol.op import InitAgentOperation, InterruptOperation, OperationType, Submission, UserInputOperation
+from codex_mini.protocol.op import InitAgentOperation, InterruptOperation, Operation, Submission, UserInputOperation
 from codex_mini.protocol.tools import (
     BASH_TOOL_NAME,
     EDIT_TOOL_NAME,
@@ -235,44 +234,28 @@ class Executor:
         self.debug_mode = debug_mode
         self.task_completion_events: dict[str, asyncio.Event] = {}
 
-    async def submit(self, operation_data: dict[str, Any]) -> str:
+    async def submit(self, operation: Operation) -> str:
         """
         Submit an operation to the executor for processing.
 
         Args:
-            operation_data: Dictionary containing operation type and parameters
+            operation: Operation to submit
 
         Returns:
             Unique submission ID for tracking
         """
-        submission_id = str(uuid4())
 
-        # Create the appropriate operation based on type
-        op_type = cast(str | None, operation_data.get("type"))
-        if op_type == "user_input":
-            content = cast(str, operation_data["content"])  # required
-            session_id = cast(str | None, operation_data.get("session_id"))
-            operation = UserInputOperation(id=submission_id, content=content, session_id=session_id)
-        elif op_type == "interrupt":
-            target_session_id = cast(str | None, operation_data.get("target_session_id"))
-            operation = InterruptOperation(id=submission_id, target_session_id=target_session_id)
-        elif op_type == "init_agent":
-            session_id = cast(str | None, operation_data.get("session_id"))
-            operation = InitAgentOperation(id=submission_id, session_id=session_id)
-        else:
-            raise ValueError(f"Unsupported operation type: {op_type}")
-
-        submission = Submission(id=submission_id, operation=operation)
+        submission = Submission(id=operation.id, operation=operation)
         await self.submission_queue.put(submission)
 
         # Create completion event for tracking
         completion_event = asyncio.Event()
-        self.task_completion_events[submission_id] = completion_event
+        self.task_completion_events[operation.id] = completion_event
 
         if self.debug_mode:
-            log_debug(f"Submitted operation {op_type} with ID {submission_id}", style="blue")
+            log_debug(f"Submitted operation {operation.type} with ID {operation.id}", style="blue")
 
-        return submission_id
+        return operation.id
 
     async def wait_for_completion(self, submission_id: str) -> None:
         """Wait for a specific submission to complete."""
@@ -336,34 +319,29 @@ class Executor:
                     f"Handling submission {submission.id} of type {submission.operation.type.value}", style="cyan"
                 )
 
-            # For user_input, execute quickly to spawn the agent task, then track completion
-            if submission.operation.type == OperationType.USER_INPUT:
                 # Execute to spawn the agent task in context
-                await submission.operation.execute(self.context)
+            await submission.operation.execute(self.context)
 
-                async def _await_agent_and_complete() -> None:
-                    try:
-                        # Wait for the agent task tied to this submission id
-                        task = self.context.active_tasks.get(submission.id)
-                        if task is not None:
-                            await task
-                    finally:
-                        # Signal completion of this submission when agent task completes
-                        if submission.id in self.task_completion_events:
-                            self.task_completion_events[submission.id].set()
+            async def _await_agent_and_complete() -> None:
+                try:
+                    # Wait for the agent task tied to this submission id
+                    task = self.context.active_tasks.get(submission.id)
+                    if task is not None:
+                        await task
+                finally:
+                    # Signal completion of this submission when agent task completes
+                    if submission.id in self.task_completion_events:
+                        self.task_completion_events[submission.id].set()
 
                 # Run in background so the submission loop can continue (e.g., to handle interrupts)
-                asyncio.create_task(_await_agent_and_complete())
-            else:
-                # Delegate to the operation's execute method (completes within this call)
-                await submission.operation.execute(self.context)
+
+            asyncio.create_task(_await_agent_and_complete())
 
         except Exception as e:
             if self.debug_mode:
                 log_debug(f"Failed to handle submission {submission.id}: {str(e)}", style="red")
             await self.context.emit_event(events.ErrorEvent(error_message=f"Operation failed: {str(e)}"))
-        finally:
-            # For non-user_input, mark completion now; for user_input, completion is set when agent task ends
-            if submission.operation.type != OperationType.USER_INPUT:
-                if submission.id in self.task_completion_events:
-                    self.task_completion_events[submission.id].set()
+            # Set completion event even on error to prevent wait_for_completion from hanging
+            completion_event = self.task_completion_events.get(submission.id)
+            if completion_event is not None:
+                completion_event.set()

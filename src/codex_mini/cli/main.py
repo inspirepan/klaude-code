@@ -15,6 +15,7 @@ from codex_mini.config import config_path, load_config
 from codex_mini.config.list_model import display_models_and_providers
 from codex_mini.core.executor import Executor
 from codex_mini.llm import LLMClientABC, create_llm_client
+from codex_mini.protocol import op
 from codex_mini.protocol.events import EndEvent, Event
 from codex_mini.session import Session
 from codex_mini.trace import log, log_debug
@@ -178,12 +179,7 @@ def start_esc_interrupt_monitor(
                     if seq == "":
                         try:
                             asyncio.run_coroutine_threadsafe(
-                                executor.submit(
-                                    {
-                                        "type": "interrupt",
-                                        "target_session_id": session_id,
-                                    }
-                                ),
+                                executor.submit(op.InterruptOperation(target_session_id=session_id)),
                                 loop,
                             )
                         except Exception:
@@ -254,7 +250,7 @@ async def run_interactive(
 
     try:
         # Init Agent
-        init_id = await executor.submit({"type": "init_agent", "session_id": session_id})
+        init_id = await executor.submit(op.InitAgentOperation(session_id=session_id))
         await executor.wait_for_completion(init_id)
         await event_queue.join()
         # Input
@@ -266,13 +262,7 @@ async def run_interactive(
             elif user_input.strip() == "":
                 continue
             # Submit user input operation
-            submission_id = await executor.submit(
-                {
-                    "type": "user_input",
-                    "content": user_input,
-                    "session_id": session_id,
-                }
-            )
+            submission_id = await executor.submit(op.UserInputOperation(content=user_input, session_id=session_id))
             # Esc monitor
             stop_event, esc_task = start_esc_interrupt_monitor(executor, session_id)
             # Wait for this specific task to complete before accepting next input
@@ -292,7 +282,7 @@ async def run_interactive(
         log("Bye!")
         # Send interrupt to stop any running tasks
         try:
-            await executor.submit({"type": "interrupt", "target_session_id": None})
+            await executor.submit(op.InterruptOperation(target_session_id=None))
         except:  # noqa: E722
             pass  # Executor might already be stopping
     finally:
