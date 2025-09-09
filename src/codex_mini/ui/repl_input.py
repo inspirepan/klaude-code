@@ -150,7 +150,7 @@ class _SlashCommandCompleter(Completer):
         commands = get_commands()
 
         # Filter commands that match the fragment
-        for cmd_name, cmd_obj in commands.items():
+        for cmd_name, cmd_obj in sorted(commands.items(), key=lambda x: x[1].name):
             if cmd_name.startswith(frag):
                 display_text = HTML(
                     f"<b>{cmd_name}</b>{' [additional instructions]' if cmd_obj.support_addition_params else ''} — {cmd_obj.summary}"
