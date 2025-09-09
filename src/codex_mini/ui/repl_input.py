@@ -7,7 +7,7 @@ import subprocess
 import time
 from collections.abc import AsyncIterator, Iterable
 from pathlib import Path
-from typing import NamedTuple, override
+from typing import NamedTuple, cast, override
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
@@ -16,7 +16,8 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 
-from .input_abc import InputProviderABC
+from codex_mini.command.registry import get_commands
+from codex_mini.ui.input_abc import InputProviderABC
 
 kb = KeyBindings()
 
@@ -50,7 +51,17 @@ def _(event):  # type: ignore
     # If the token pattern still applies, refresh completion popup
     try:
         text_before = buf.document.text_before_cursor  # type: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        # Check for both @ tokens and / tokens (slash commands on first line only)
+        should_refresh = False
         if _AtFilesCompleter._AT_TOKEN_RE.search(text_before):  # type: ignore[reportPrivateUsage, reportUnknownArgumentType]
+            should_refresh = True
+        elif buf.document.cursor_position_row == 0:  # type: ignore[reportUnknownMemberType]
+            # Check for slash command pattern without accessing protected attribute
+            text_before_str = cast(str, text_before or "")
+            if text_before_str.strip().startswith("/") and " " not in text_before_str:
+                should_refresh = True
+
+        if should_refresh:
             buf.start_completion(select_first=False)  # type: ignore[reportUnknownMemberType]
     except Exception:
         pass
@@ -72,7 +83,7 @@ class PromptToolkitInput(InputProviderABC):
             multiline=True,
             prompt_continuation=prompt,
             key_bindings=kb,
-            completer=_AtFilesCompleter(),
+            completer=_ComboCompleter(),
             complete_while_typing=True,
             erase_when_done=True,
             style=Style.from_dict(
@@ -107,6 +118,67 @@ class PromptToolkitInput(InputProviderABC):
 class _CmdResult(NamedTuple):
     ok: bool
     lines: list[str]
+
+
+class _SlashCommandCompleter(Completer):
+    """Complete slash commands at the beginning of the first line.
+
+    Behavior:
+    - Only triggers when cursor is on first line and text matches /...
+    - Shows available slash commands with descriptions
+    - Inserts trailing space after completion
+    """
+
+    _SLASH_TOKEN_RE = re.compile(r"^/(?P<frag>\S*)$")
+
+    def get_completions(self, document: Document, complete_event) -> Iterable[Completion]:  # type: ignore[override]
+        # Only complete on first line
+        if document.cursor_position_row != 0:
+            return iter([])
+
+        text_before = document.current_line_before_cursor
+        m = self._SLASH_TOKEN_RE.search(text_before)
+        if not m:
+            return iter([])
+
+        frag = m.group("frag")
+        token_start = len(text_before) - len(f"/{frag}")
+        start_position = token_start - len(text_before)  # negative offset
+
+        # Get available commands
+        commands = get_commands()
+
+        # Filter commands that match the fragment
+        for cmd_name, cmd_obj in commands.items():
+            if cmd_name.startswith(frag):
+                display_text = f"{cmd_name} — {cmd_obj.summary}"
+                completion_text = f"/{cmd_name} "
+                yield Completion(text=completion_text, start_position=start_position, display=display_text)
+
+    def is_slash_command_context(self, document: Document) -> bool:
+        """Check if current context is a slash command."""
+        if document.cursor_position_row != 0:
+            return False
+        text_before = document.current_line_before_cursor
+        return bool(self._SLASH_TOKEN_RE.search(text_before))
+
+
+class _ComboCompleter(Completer):
+    """Combined completer that handles both @ file paths and / slash commands."""
+
+    def __init__(self) -> None:
+        self._at_completer = _AtFilesCompleter()
+        self._slash_completer = _SlashCommandCompleter()
+
+    def get_completions(self, document: Document, complete_event) -> Iterable[Completion]:  # type: ignore[override]
+        # Try slash command completion first (only on first line)
+        if document.cursor_position_row == 0:
+            if self._slash_completer.is_slash_command_context(document):
+                yield from self._slash_completer.get_completions(document, complete_event)
+                return
+
+        # Fall back to @ file completion
+        yield from self._at_completer.get_completions(document, complete_event)
 
 
 class _AtFilesCompleter(Completer):
