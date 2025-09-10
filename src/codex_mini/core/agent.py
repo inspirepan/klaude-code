@@ -46,7 +46,7 @@ class Agent:
             log_debug(f"Session {self.session.id} interrupted", style="yellow")
 
     async def run_task(self, user_input: str) -> AsyncGenerator[events.Event, None]:
-        yield events.TaskStartEvent(session_id=self.session.id)
+        yield events.TaskStartEvent(session_id=self.session.id, is_sub_agent=not self.session.is_root_session)
 
         self.session.append_history([model.UserMessageItem(content=user_input)])
 

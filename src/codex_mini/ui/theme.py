@@ -136,6 +136,7 @@ class Themes:
     app_theme: Theme
     markdown_theme: Theme
     code_theme: str
+    sub_agent_colors: list[ThemeKey]
 
 
 def get_theme(theme: str | None = None) -> Themes:
@@ -229,6 +230,13 @@ def get_theme(theme: str | None = None) -> Themes:
             }
         ),
         code_theme=palette.code_theme,
+        sub_agent_colors=[
+            ThemeKey.YELLOW,
+            ThemeKey.GREEN,
+            ThemeKey.BLUE,
+            ThemeKey.PURPLE,
+            ThemeKey.ORANGE,
+        ],
     )
 
 

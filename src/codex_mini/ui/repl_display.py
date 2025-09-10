@@ -1,12 +1,13 @@
 import json
 import re
 import time
+from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, override
+from typing import Any, Literal, override
 
 from rich._spinners import SPINNERS
 from rich.console import Console, Group, RenderableType
-from rich.markdown import Markdown
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.rule import Rule
@@ -20,6 +21,7 @@ from codex_mini.protocol.commands import CommandName
 from codex_mini.ui.debouncer import Debouncer
 from codex_mini.ui.display_abc import DisplayABC
 from codex_mini.ui.mdstream import MarkdownStream, NoInsetMarkdown
+from codex_mini.ui.quote import Quote
 from codex_mini.ui.theme import ThemeKey, get_theme
 from codex_mini.ui.utils import format_number
 
@@ -31,6 +33,12 @@ SPINNERS["claude"] = {
 }
 
 
+@dataclass
+class SessionStatus:
+    is_subagent: bool = False
+    color: str | None = None
+
+
 class REPLDisplay(DisplayABC):
     def __init__(self, theme: str | None = None):
         self.themes = get_theme(theme)
@@ -40,13 +48,17 @@ class REPLDisplay(DisplayABC):
         self.is_thinking_in_bold = False
 
         self.assistant_mdstream: MarkdownStream | None = None
-        self.accumulated_assistant_text = ""
+        self.accumulated_assistant_text = ""  # Not support parallel assistant delta yet
         self.assistant_debouncer = Debouncer(interval=0.05, callback=self._flush_assistant_buffer)
 
-        self.accumulated_thinking_text = ""
+        self.accumulated_thinking_text = ""  # Not support parallel thinking delta yet
         self.thinking_debouncer = Debouncer(interval=0.05, callback=self._flush_thinking_buffer)
 
         self.developer_message_buffer: list[events.DeveloperMessageEvent] = []
+
+        self.session_map: dict[str, SessionStatus] = {}
+        self.current_session_status: SessionStatus | None = None
+        self.subagent_color_index = 0
 
         self.spinner: Status = self.console.status(
             Text("Thinking …", style=ThemeKey.SPINNER_STATUS),
@@ -64,8 +76,11 @@ class REPLDisplay(DisplayABC):
                 self.display_welcome(e)
             case events.UserMessageEvent() as e:
                 self.display_user_input(e)
-            case events.TaskStartEvent():
+            case events.TaskStartEvent() as e:
                 self.spinner.start()
+                self.session_map[e.session_id] = SessionStatus(
+                    is_subagent=e.is_sub_agent, color=self.pick_sub_agent_color() if e.is_sub_agent else None
+                )
             case events.DeveloperMessageEvent() as e:
                 if self.need_display_developer_message(e):
                     # If has anything to display, send it to buffer
@@ -76,6 +91,8 @@ class REPLDisplay(DisplayABC):
             case events.TurnStartEvent() as e:
                 self._flush_developer_buffer()
             case events.ThinkingDeltaEvent() as e:
+                if self.is_sub_agent_session(e.session_id):
+                    return
                 self.spinner.stop()
                 if len(e.content.strip()) == 0 and self.stage != "thinking":
                     # Filter leading empty delta events
@@ -83,11 +100,15 @@ class REPLDisplay(DisplayABC):
                 self.accumulated_thinking_text += e.content
                 self.thinking_debouncer.schedule()
             case events.ThinkingEvent() as e:
+                if self.is_sub_agent_session(e.session_id):
+                    return
                 self.thinking_debouncer.cancel()
                 await self._flush_thinking_buffer()
-                self.console.print("\n")
+                self.print("\n")
                 self.spinner.start()
             case events.AssistantMessageDeltaEvent() as e:
+                if self.is_sub_agent_session(e.session_id):
+                    return
                 if len(e.content.strip()) == 0 and self.stage != "assistant":
                     # Filter leading empty delta events
                     return
@@ -100,29 +121,34 @@ class REPLDisplay(DisplayABC):
                     self.stage = "assistant"
                 self.assistant_debouncer.schedule()
             case events.AssistantMessageEvent() as e:
+                if self.is_sub_agent_session(e.session_id):
+                    return
                 if self.assistant_mdstream is not None:
                     self.assistant_debouncer.cancel()
                     self.assistant_mdstream.update(e.content.strip(), final=True)
                 self.accumulated_assistant_text = ""
                 self.assistant_mdstream = None
                 if e.annotations:
-                    self.console.print(self.render_annotations(e.annotations))
+                    self.print(self.render_annotations(e.annotations))
                 self.spinner.start()
             case events.TurnToolCallStartEvent() as e:
                 pass
             case events.ToolCallEvent() as e:
                 self.spinner.stop()
-                self.display_tool_call(e)
+                with self.session_print_context(e.session_id):
+                    self.display_tool_call(e)
                 self.stage = "tool_call"
             case events.ToolResultEvent() as e:
                 self.spinner.stop()
-                self.display_tool_call_result(e)
-                self.console.print()
+                with self.session_print_context(e.session_id):
+                    self.display_tool_call_result(e)
+                    self.print()
                 self.stage = "tool_result"
                 self.spinner.start()
             case events.ResponseMetadataEvent() as e:
-                self.display_metadata(e)
-                self.console.print()
+                with self.session_print_context(e.session_id):
+                    self.display_metadata(e)
+                    self.print()
             case events.TodoChangeEvent() as e:
                 active_form_status_text = ""
                 for todo in e.todos:
@@ -145,12 +171,12 @@ class REPLDisplay(DisplayABC):
                 self.display_interrupt(e)
                 self.spinner.stop()
             case events.ErrorEvent() as e:
-                self.console.print(self.render_error(e.error_message))
+                self.print(self.render_error(e.error_message))
                 self.spinner.stop()
             case events.EndEvent():
                 self.spinner.stop()
             # case _:
-            #     self.console.print("[Event]", event.__class__.__name__, event)
+            #     self.print("[Event]", event.__class__.__name__, event)
 
     async def start(self) -> None:
         pass
@@ -161,6 +187,38 @@ class REPLDisplay(DisplayABC):
         self.assistant_debouncer.cancel()
         self.thinking_debouncer.cancel()
         pass
+
+    def is_sub_agent_session(self, session_id: str) -> bool:
+        return session_id in self.session_map and self.session_map[session_id].is_subagent
+
+    def pick_sub_agent_color(self, switch: bool = False) -> ThemeKey:
+        if switch:
+            self.subagent_color_index = (self.subagent_color_index + 1) % len(self.themes.sub_agent_colors)
+        return self.themes.sub_agent_colors[self.subagent_color_index]
+
+    @contextmanager
+    def session_print_context(self, session_id: str):
+        """Context manager for subagent QuoteStyle"""
+        old = self.current_session_status
+        if session_id in self.session_map:
+            self.current_session_status = self.session_map[session_id]
+        try:
+            yield
+        finally:
+            self.current_session_status = old
+
+    def print(self, *objects: Any, style: StyleType | None = None, end: str = "\n"):
+        if (
+            self.current_session_status
+            and self.current_session_status.is_subagent
+            and self.current_session_status.color
+        ):
+            if objects:
+                self.console.print(Quote(*objects, prefix="▌", style=self.current_session_status.color))
+            else:
+                self.console.print(Quote("", prefix="▌", style=self.current_session_status.color))
+        else:
+            self.console.print(*objects, style=style, end=end)
 
     async def _flush_assistant_buffer(self) -> None:
         """Flush assistant buffer"""
@@ -181,32 +239,32 @@ class REPLDisplay(DisplayABC):
         Handle markdown bold syntax in thinking text.
         """
         if self.stage != "thinking":
-            self.console.print(THINKING_PREFIX)
+            self.print(THINKING_PREFIX)
             self.stage = "thinking"
         if content.count("**") == 2:
             left_part, middle_part, right_part = content.split("**", maxsplit=2)
             if self.is_thinking_in_bold:
-                self.console.print(Text(left_part, style=ThemeKey.THINKING_BOLD), end="")
-                self.console.print(Text(middle_part, style=ThemeKey.THINKING), end="")
-                self.console.print(Text(right_part, style=ThemeKey.THINKING_BOLD), end="")
+                self.print(Text(left_part, style=ThemeKey.THINKING_BOLD), end="")
+                self.print(Text(middle_part, style=ThemeKey.THINKING), end="")
+                self.print(Text(right_part, style=ThemeKey.THINKING_BOLD), end="")
             else:
-                self.console.print(Text(left_part, style=ThemeKey.THINKING), end="")
-                self.console.print(Text(middle_part, style=ThemeKey.THINKING_BOLD), end="")
-                self.console.print(Text(right_part, style=ThemeKey.THINKING), end="")
+                self.print(Text(left_part, style=ThemeKey.THINKING), end="")
+                self.print(Text(middle_part, style=ThemeKey.THINKING_BOLD), end="")
+                self.print(Text(right_part, style=ThemeKey.THINKING), end="")
         elif content.count("**") == 1:
             left_part, right_part = content.split("**", maxsplit=1)
             if self.is_thinking_in_bold:
-                self.console.print(Text(left_part, style=ThemeKey.THINKING_BOLD), end="")
-                self.console.print(Text(right_part, style=ThemeKey.THINKING), end="")
+                self.print(Text(left_part, style=ThemeKey.THINKING_BOLD), end="")
+                self.print(Text(right_part, style=ThemeKey.THINKING), end="")
             else:
-                self.console.print(Text(left_part, style=ThemeKey.THINKING), end="")
-                self.console.print(Text(right_part, style=ThemeKey.THINKING_BOLD), end="")
+                self.print(Text(left_part, style=ThemeKey.THINKING), end="")
+                self.print(Text(right_part, style=ThemeKey.THINKING_BOLD), end="")
             self.is_thinking_in_bold = not self.is_thinking_in_bold
         else:
             if self.is_thinking_in_bold:
-                self.console.print(Text(content, style=ThemeKey.THINKING_BOLD), end="")
+                self.print(Text(content, style=ThemeKey.THINKING_BOLD), end="")
             else:
-                self.console.print(Text(content, style=ThemeKey.THINKING), end="")
+                self.print(Text(content, style=ThemeKey.THINKING), end="")
 
     def _create_grid(self) -> Table:
         """Create a standard two-column grid table to align the text in the second column."""
@@ -328,7 +386,7 @@ class REPLDisplay(DisplayABC):
             plan = json_dict.get("plan", "")
             return Group(
                 Text.assemble(("¶ ", ThemeKey.TOOL_MARK), ("Plan", ThemeKey.TOOL_NAME)),
-                Panel.fit(NoInsetMarkdown(plan, code_theme=self.themes.code_theme)),
+                Panel.fit(NoInsetMarkdown(plan, code_theme=self.themes.code_theme), border_style=ThemeKey.LINES),
             )
 
         except json.JSONDecodeError:
@@ -339,22 +397,52 @@ class REPLDisplay(DisplayABC):
                 Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS),
             )
 
+    def render_task_call(self, e: events.ToolCallEvent) -> RenderableType:
+        # SubAgent
+        try:
+            json_dict = json.loads(e.arguments)
+            description = json_dict.get("description", "")
+            prompt = json_dict.get("prompt", "")
+
+            return Group(
+                Text.assemble(
+                    ("↓ ", ThemeKey.TOOL_MARK),
+                    ("Task", ThemeKey.TOOL_NAME),
+                    " ",
+                    Text(f" {description} ", style=f"{self.pick_sub_agent_color(switch=True)} reverse bold"),
+                ),
+                Quote(
+                    Text(prompt + "\n", style=self.pick_sub_agent_color()),
+                    style=self.pick_sub_agent_color(),
+                ),
+            )
+
+        except json.JSONDecodeError:
+            return Text.assemble(
+                ("↓ ", ThemeKey.TOOL_MARK),
+                ("Task", ThemeKey.TOOL_NAME),
+                " ",
+                Text(e.arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS),
+            )
+
     def display_tool_call(self, e: events.ToolCallEvent) -> None:
         match e.tool_name:
             case tools.READ:
-                self.console.print(self.render_read_tool_call(e.arguments))
+                self.print(self.render_read_tool_call(e.arguments))
             case tools.EDIT:
-                self.console.print(self.render_edit_tool_call(e.arguments))
+                self.print(self.render_edit_tool_call(e.arguments))
             case tools.MULTI_EDIT:
-                self.console.print(self.render_multi_edit_tool_call(e.arguments))
+                self.print(self.render_multi_edit_tool_call(e.arguments))
             case tools.BASH:
-                self.console.print(self.render_any_tool_call(e.tool_name, e.arguments, "$"))
+                self.print(self.render_any_tool_call(e.tool_name, e.arguments, "$"))
             case tools.TODO_WRITE:
-                self.console.print(self.render_any_tool_call("Update Todos", "", "☰"))
+                self.print(self.render_any_tool_call("Update Todos", "", "☰"))
             case tools.EXIT_PLAN_MODE:
-                self.console.print(self.render_plan(e.arguments))
+                self.print(self.render_plan(e.arguments))
+            case tools.TASK:
+                self.print(self.render_task_call(e))
             case _:
-                self.console.print(self.render_any_tool_call(e.tool_name, e.arguments))
+                self.print(self.render_any_tool_call(e.tool_name, e.arguments))
 
     def truncate_display(self, text: str, max_lines: int = 20, max_line_length: int = 1000) -> str:
         lines = text.split("\n")
@@ -482,45 +570,53 @@ class REPLDisplay(DisplayABC):
         except json.JSONDecodeError as e:
             return self.render_error(str(e))
 
+    def render_task_result(self, e: events.ToolResultEvent) -> RenderableType:
+        return Quote(
+            Panel.fit(NoInsetMarkdown(e.result, code_theme=self.themes.code_theme), border_style=ThemeKey.LINES),
+            style=self.pick_sub_agent_color(),
+        )
+
     def display_tool_call_result(self, e: events.ToolResultEvent) -> None:
         if e.status == "error" and not e.ui_extra:
-            self.console.print(self.render_error(e.result))
+            self.print(self.render_error(e.result))
             return
 
         match e.tool_name:
             case tools.READ:
                 pass
             case tools.EDIT | tools.MULTI_EDIT:
-                self.console.print(
+                self.print(
                     Padding.indent(
                         self.render_edit_diff(e.ui_extra or ""),
                         level=2,
                     )
                 )
             case tools.TODO_WRITE:
-                self.console.print(self.render_todo(e))
+                self.print(self.render_todo(e))
             case tools.EXIT_PLAN_MODE:
                 # Plan mode
                 if e.status == "success":
-                    self.console.print(Padding.indent(Text(" Approved ", ThemeKey.TOOL_APPROVED), level=1))
+                    self.print(Padding.indent(Text(" Approved ", ThemeKey.TOOL_APPROVED), level=1))
                     grid = self._create_grid()
                     grid.add_row(
                         Text("↓", style=ThemeKey.METADATA),
                         Text(e.ui_extra or "N/A", style=ThemeKey.METADATA_BOLD),
                     )
-                    self.console.print()
-                    self.console.print(grid)
+                    self.print()
+                    self.print(grid)
                 else:
-                    self.console.print(Padding.indent(Text(" Rejected ", ThemeKey.TOOL_APPROVED), level=1))
+                    self.print(Padding.indent(Text(" Rejected ", ThemeKey.TOOL_APPROVED), level=1))
+            case tools.TASK:
+                self.print(self.render_task_result(e))
             case _:
                 # handle bash `git diff`
                 if e.tool_name == tools.BASH and e.result.startswith("diff --git"):
-                    self.console.print(self.render_edit_diff(e.result, show_file_name=True))
+                    self.print(self.render_edit_diff(e.result, show_file_name=True))
                     return
 
                 if len(e.result.strip()) == 0:
                     e.result = "(no content)"
-                self.console.print(
+                self.print(
                     Padding.indent(
                         Text(
                             self.truncate_display(e.result),
@@ -563,7 +659,7 @@ class REPLDisplay(DisplayABC):
                     style=ThemeKey.METADATA,
                 )
             )
-        self.console.print(
+        self.print(
             Rule(
                 rule_text,
                 style=ThemeKey.LINES,
@@ -631,13 +727,13 @@ class REPLDisplay(DisplayABC):
             for p in pl:
                 model_info.append_text(Text.assemble(" ", (p.id, ThemeKey.WELCOME_HIGHLIGHT)))
 
-        self.console.print(
+        self.print(
             Panel.fit(
                 model_info,
                 border_style=ThemeKey.LINES,
             )
         )
-        self.console.print()
+        self.print()
 
     def render_at_pattern(
         self,
@@ -657,7 +753,7 @@ class REPLDisplay(DisplayABC):
         return Text(text, style=other_style)
 
     def display_interrupt(self, e: events.InterruptEvent) -> None:
-        self.console.print("\n INTERRUPTED \n", style=ThemeKey.INTERRUPT)
+        self.print("\n INTERRUPTED \n", style=ThemeKey.INTERRUPT)
 
     def is_valid_slash_command(self, command: str) -> bool:
         try:
@@ -683,15 +779,15 @@ class REPLDisplay(DisplayABC):
                             self.render_at_pattern(splits[1], ThemeKey.USER_INPUT_AT_PATTERN),
                         )
 
-            avail = max(1, self.console.width - 2)
-            render_lines = line_text.wrap(self.console, avail)
-            for render_line in render_lines:
-                self.console.print(
-                    Text("▌", style=ThemeKey.USER_INPUT_DIM),
-                    render_line,
+            self.print(
+                Quote(
+                    line_text,
+                    prefix="▌ ",
+                    style=ThemeKey.USER_INPUT_DIM,
                 )
+            )
 
-        self.console.print()
+        self.print()
 
     async def replay_history(self, history_events: events.ReplayHistoryEvent) -> None:
         tool_call_dict: dict[str, events.ToolCallEvent] = {}
@@ -703,10 +799,10 @@ class REPLDisplay(DisplayABC):
                             mdargs={"code_theme": self.themes.code_theme}, theme=self.themes.markdown_theme
                         ).update(e.content.strip(), final=True)
                     if e.annotations:
-                        self.console.print(self.render_annotations(e.annotations))
+                        self.print(self.render_annotations(e.annotations))
                 case events.ThinkingEvent() as e:
                     if len(e.content.strip()) > 0:
-                        self.console.print(THINKING_PREFIX)
+                        self.print(THINKING_PREFIX)
                         MarkdownStream(
                             mdargs={
                                 "code_theme": self.themes.code_theme,
@@ -726,14 +822,14 @@ class REPLDisplay(DisplayABC):
                         self.display_tool_call(tool_call_event)
                     tool_call_dict.pop(e.tool_call_id, None)
                     self.display_tool_call_result(e)
-                    self.console.print()
+                    self.print()
                 case events.ResponseMetadataEvent() as e:
                     self.display_metadata(e)
-                    self.console.print()
+                    self.print()
                 case events.InterruptEvent() as e:
                     self.display_interrupt(e)
         if history_events.is_load:
-            self.console.print(
+            self.print(
                 Text.assemble(
                     Text(" LOADED ", style=ThemeKey.RESUME_FLAG),
                     Text(
@@ -742,7 +838,7 @@ class REPLDisplay(DisplayABC):
                     ),
                 )
             )
-        self.console.print()
+        self.print()
 
     def render_annotations(self, annotations: list[model.Annotation]) -> RenderableType:
         grid = self._create_grid()
@@ -766,7 +862,7 @@ class REPLDisplay(DisplayABC):
                     grid.add_row(Text("○", style=ThemeKey.ANNOTATION_URL_HIGHLIGHT), url)
                     grid.add_row(
                         "",
-                        Markdown(
+                        NoInsetMarkdown(
                             self.truncate_display(annotation.url_citation.content, max_lines=30),
                             style=ThemeKey.ANNOTATION_SEARCH_CONTENT,
                         ),
@@ -777,10 +873,12 @@ class REPLDisplay(DisplayABC):
     def _flush_developer_buffer(self) -> None:
         if len(self.developer_message_buffer) == 0:
             return
-        for e in self.developer_message_buffer:
-            self.display_developer_message(e)
-        self.developer_message_buffer.clear()
-        self.console.print()
+
+        with self.session_print_context(self.developer_message_buffer[0].session_id):
+            for e in self.developer_message_buffer:
+                self.display_developer_message(e)
+            self.developer_message_buffer.clear()
+            self.print()
 
     def need_display_developer_message(self, e: events.DeveloperMessageEvent) -> bool:
         return (
@@ -801,9 +899,9 @@ class REPLDisplay(DisplayABC):
                         self.render_path(memory_path, ThemeKey.REMINDER_DIM),
                     ),
                 )
-            self.console.print(grid)
+            self.print(grid)
             if with_ending_line:
-                self.console.print()
+                self.print()
 
         if fc := e.item.external_file_changes:
             grid = self._create_grid()
@@ -816,12 +914,12 @@ class REPLDisplay(DisplayABC):
                         (" has changed, new content has been loaded to context", ThemeKey.REMINDER_DIM),
                     ),
                 )
-            self.console.print(grid)
+            self.print(grid)
             if with_ending_line:
-                self.console.print()
+                self.print()
 
         if e.item.todo_use:
-            self.console.print(
+            self.print(
                 Text.assemble(
                     Text("★ ", style=ThemeKey.REMINDER_BOLD),
                     Text("Hint ", ThemeKey.REMINDER_BOLD),
@@ -829,7 +927,7 @@ class REPLDisplay(DisplayABC):
                 )
             )
             if with_ending_line:
-                self.console.print()
+                self.print()
 
         if e.item.at_files:
             grid = self._create_grid()
@@ -841,14 +939,14 @@ class REPLDisplay(DisplayABC):
                         self.render_path(at_file.path, ThemeKey.REMINDER_DIM),
                     ),
                 )
-            self.console.print(grid)
+            self.print(grid)
             if with_ending_line:
-                self.console.print()
+                self.print()
 
         if e.item.command_output:
             self.display_command_output(e)
             if with_ending_line:
-                self.console.print()
+                self.print()
 
     def display_command_output(self, e: events.DeveloperMessageEvent) -> None:
         if not e.item.command_output:
@@ -857,7 +955,7 @@ class REPLDisplay(DisplayABC):
         match e.item.command_output.command_name:
             case CommandName.DIFF:
                 if e.item.content is None or len(e.item.content) == 0:
-                    self.console.print(
+                    self.print(
                         Padding.indent(
                             Text(
                                 "(no changes)",
@@ -867,22 +965,22 @@ class REPLDisplay(DisplayABC):
                         )
                     )
                 else:
-                    self.console.print(self.render_edit_diff(e.item.content, show_file_name=True))
+                    self.print(self.render_edit_diff(e.item.content, show_file_name=True))
             case CommandName.HELP:
-                self.console.print(Padding.indent(Text.from_markup(e.item.content or ""), level=2))
+                self.print(Padding.indent(Text.from_markup(e.item.content or ""), level=2))
             case CommandName.PLAN:
                 # Plan mode
-                self.console.print()
+                self.print()
                 grid = self._create_grid()
                 grid.add_row(
                     Text("↓", style=ThemeKey.METADATA),
                     Text(e.item.command_output.ui_extra or "N/A", style=ThemeKey.METADATA_BOLD),
                 )
-                self.console.print(grid)
+                self.print(grid)
             case _:
                 if e.item.content is None:
                     e.item.content = "(no content)"
-                self.console.print(
+                self.print(
                     Padding.indent(
                         Text(
                             self.truncate_display(e.item.content),

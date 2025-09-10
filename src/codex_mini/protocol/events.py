@@ -20,6 +20,7 @@ class ErrorEvent(BaseModel):
 
 class TaskStartEvent(BaseModel):
     session_id: str
+    is_sub_agent: bool = False
 
 
 class TaskFinishEvent(BaseModel):

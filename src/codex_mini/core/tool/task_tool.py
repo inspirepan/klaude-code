@@ -69,8 +69,9 @@ class TaskTool(ToolABC):
             return ToolResultItem(status="error", output="No subtask runner available in this context")
 
         try:
-            result_text = await runner(args.prompt)
+            result_text, session_id = await runner(args.prompt)
         except Exception as e:  # safeguard
             return ToolResultItem(status="error", output=f"Failed to run subtask: {e}")
 
-        return ToolResultItem(status="success", output=result_text or "")
+        # This session_id in ui_extra is for replay history
+        return ToolResultItem(status="success", output=result_text or "", ui_extra=session_id)
