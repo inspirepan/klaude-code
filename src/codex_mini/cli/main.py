@@ -177,6 +177,14 @@ async def run_interactive(
             log_debug("▷▷▷ llm [Plan Model Config]", plan_llm_config.model_dump_json(exclude_none=True), style="yellow")
             plan_llm_client.enable_debug_mode()
 
+    if config.task_model:
+        task_llm_config = config.get_model_config(config.task_model)
+        task_llm_client = create_llm_client(task_llm_config)
+        llm_clients.task = task_llm_client
+        if debug:
+            log_debug("▷▷▷ llm [Task Model Config]", task_llm_config.model_dump_json(exclude_none=True), style="yellow")
+            task_llm_client.enable_debug_mode()
+
     # Create event queue for communication between executor and UI
     event_queue: asyncio.Queue[Event] = asyncio.Queue()
 
