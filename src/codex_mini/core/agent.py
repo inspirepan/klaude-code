@@ -33,13 +33,33 @@ class Agent:
         self.reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] = reminders
         self.llm_clients = llm_clients
         self.set_llm_client(llm_clients.main)
+        # Track tool calls that are pending or in-progress within the current turn
+        # Keyed by tool_call_id
+        self.turn_pending_tool_calls: dict[str, model.ToolCallItem] = {}
 
     def cancel(self) -> None:
-        """Handle agent cancellation and persist an interrupt marker.
+        """Handle agent cancellation and persist an interrupt marker and tool cancellations.
 
-        Appends a `model.InterruptItem` into the session history so that
-        interruptions are reflected in persisted conversation logs.
+        - Appends an `InterruptItem` into the session history so interruptions are reflected
+          in persisted conversation logs.
+        - For any tool calls that are pending or in-progress in the current turn, append a
+          synthetic ToolResultItem with error status to indicate cancellation.
         """
+        # For any pending tool calls, persist a cancel result
+        if self.turn_pending_tool_calls:
+            for _, tool_call in list(self.turn_pending_tool_calls.items()):
+                # Create a synthetic error result indicating cancellation
+                cancel_result = model.ToolResultItem(
+                    call_id=tool_call.call_id,
+                    output="(cancelled)",
+                    status="error",
+                    tool_name=tool_call.name,
+                    ui_extra=None,
+                )
+                self.session.append_history([cancel_result])
+            # Clear pending map after recording cancellation results
+            self.turn_pending_tool_calls.clear()
+
         # Record an interrupt marker in the session history
         self.session.append_history([model.InterruptItem()])
         if self.debug_mode:
@@ -110,6 +130,8 @@ class Agent:
         yield events.TurnStartEvent(
             session_id=self.session.id,
         )
+        # Start a fresh pending map for this turn
+        self.turn_pending_tool_calls.clear()
         # TODO: If LLM API error occurred, we will discard (not append to history) and retry
         turn_reasoning_item: model.ReasoningItem | None = None
         turn_assistant_message: model.AssistantMessageItem | None = None
@@ -169,6 +191,8 @@ class Agent:
                         metadata=item,
                     )
                 case model.ToolCallItem() as item:
+                    # Track pending tool calls so we can persist cancel results if interrupted
+                    self.turn_pending_tool_calls[item.call_id] = item
                     turn_tool_calls.append(item)
                 case _:
                     pass
@@ -212,6 +236,8 @@ class Agent:
                         session_id=self.session.id,
                         todos=self.session.todos,
                     )
+                # Remove from pending once a result is produced
+                self.turn_pending_tool_calls.pop(tool_call.call_id, None)
         yield events.TurnEndEvent(session_id=self.session.id)
 
     async def process_reminders(self) -> AsyncGenerator[events.DeveloperMessageEvent, None]:
