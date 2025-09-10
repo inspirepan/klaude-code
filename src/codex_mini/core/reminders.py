@@ -55,7 +55,7 @@ async def at_file_reader_reminder(session: Session) -> model.DeveloperMessageIte
                 args = BashTool.BashArguments(command=f"ls {path}")
                 tool_result = await BashTool.call_with_args(args)
                 at_files[str(path)] = model.AtPatternParseResult(
-                    path=str(path),
+                    path=str(path) + "/",
                     tool_name=tools.BASH,
                     result=tool_result.output or "",
                     tool_args=args.model_dump_json(exclude_none=True),

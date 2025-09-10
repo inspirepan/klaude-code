@@ -898,10 +898,10 @@ class REPLDisplay(DisplayABC):
             grid = self._create_grid()
             for memory_path in mp:
                 grid.add_row(
-                    Text("  ⎿ ", style=ThemeKey.REMINDER),
+                    Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD),
                     Text.assemble(
-                        ("Load memory ", ThemeKey.REMINDER_BOLD),
-                        self.render_path(memory_path, ThemeKey.REMINDER),
+                        ("Load memory ", ThemeKey.REMINDER),
+                        self.render_path(memory_path, ThemeKey.REMINDER_BOLD),
                     ),
                 )
             self.print(grid)
@@ -910,10 +910,10 @@ class REPLDisplay(DisplayABC):
             grid = self._create_grid()
             for file_path in fc:
                 grid.add_row(
-                    Text("  ⎿ ", style=ThemeKey.REMINDER),
+                    Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD),
                     Text.assemble(
-                        ("Read ", ThemeKey.REMINDER_BOLD),
-                        self.render_path(file_path, ThemeKey.REMINDER),
+                        ("Read ", ThemeKey.REMINDER),
+                        self.render_path(file_path, ThemeKey.REMINDER_BOLD),
                         (" after external changes", ThemeKey.REMINDER),
                     ),
                 )
@@ -923,7 +923,7 @@ class REPLDisplay(DisplayABC):
             self.print(
                 Text.assemble(
                     Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD),
-                    Text("Reminded ", ThemeKey.REMINDER_BOLD),
+                    Text("Reminded ", ThemeKey.REMINDER),
                     Text("Todo hasn't been updated recently", ThemeKey.REMINDER),
                 )
             )
@@ -934,8 +934,8 @@ class REPLDisplay(DisplayABC):
                 grid.add_row(
                     Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD),
                     Text.assemble(
-                        (f"{at_file.operation} ", ThemeKey.REMINDER_BOLD),
-                        self.render_path(at_file.path, ThemeKey.REMINDER),
+                        (f"{at_file.operation} ", ThemeKey.REMINDER),
+                        self.render_path(at_file.path, ThemeKey.REMINDER_BOLD),
                     ),
                 )
             self.print(grid)
