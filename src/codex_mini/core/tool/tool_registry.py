@@ -3,6 +3,7 @@ from typing import Callable, TypeVar
 from codex_mini.core.tool.tool_abc import ToolABC
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import ToolCallItem, ToolResultItem
+from codex_mini.protocol import tools
 
 _REGISTRY: dict[str, type[ToolABC]] = {}
 
@@ -50,3 +51,33 @@ async def run_tool(tool_call: ToolCallItem) -> ToolResultItem:
             status="error",
             tool_name=tool_call.name,
         )
+
+
+def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
+    if "gpt-5" in model_name:
+        return get_tool_schemas(
+            [
+                # tools.TODO_WRITE,
+                tools.BASH,
+                tools.READ,
+                tools.EDIT,
+                tools.MULTI_EDIT,
+                tools.EXIT_PLAN_MODE,
+                # tools.TASK,
+            ]
+        )
+    return get_tool_schemas(
+        [
+            tools.TODO_WRITE,
+            tools.BASH,
+            tools.READ,
+            tools.EDIT,
+            tools.MULTI_EDIT,
+            tools.EXIT_PLAN_MODE,
+            tools.TASK,
+        ]
+    )
+
+
+def get_sub_agent_tools(model_name: str) -> list[ToolSchema]:
+    return get_tool_schemas([tools.BASH, tools.READ, tools.EDIT, tools.MULTI_EDIT])

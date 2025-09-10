@@ -20,9 +20,9 @@ from codex_mini.core.reminders import (
     plan_mode_reminder,
     todo_not_used_recently_reminder,
 )
-from codex_mini.core.tool import get_tool_schemas
+from codex_mini.core.tool import get_main_agent_tools, get_sub_agent_tools
 from codex_mini.core.tool.tool_context import current_run_subtask_callback
-from codex_mini.protocol import events, llm_parameter, model, tools
+from codex_mini.protocol import events, llm_parameter, model
 from codex_mini.protocol.op import InitAgentOperation, InterruptOperation, Operation, Submission, UserInputOperation
 from codex_mini.session.session import Session
 from codex_mini.trace import log_debug
@@ -71,17 +71,7 @@ class ExecutorContext:
             agent = Agent(
                 llm_clients=self.llm_clients,
                 session=session,
-                tools=get_tool_schemas(
-                    [
-                        tools.TODO_WRITE,
-                        tools.BASH,
-                        tools.READ,
-                        tools.EDIT,
-                        tools.MULTI_EDIT,
-                        tools.EXIT_PLAN_MODE,
-                        tools.TASK,
-                    ]
-                ),
+                tools=get_main_agent_tools(self.llm_clients.main.model_name),
                 debug_mode=self.debug_mode,
                 reminders=[
                     empty_todo_reminder,
@@ -257,14 +247,7 @@ class ExecutorContext:
         child_agent = Agent(
             llm_clients=child_llm_clients,
             session=child_session,
-            tools=get_tool_schemas(
-                [
-                    tools.BASH,
-                    tools.READ,
-                    tools.EDIT,
-                    tools.MULTI_EDIT,
-                ]
-            ),
+            tools=get_sub_agent_tools(child_llm_clients.main.model_name),
             debug_mode=self.debug_mode,
             reminders=[
                 file_changed_externally_reminder,
