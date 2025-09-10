@@ -134,14 +134,13 @@ class REPLDisplay(DisplayABC):
             case events.TurnToolCallStartEvent() as e:
                 pass
             case events.ToolCallEvent() as e:
-                self.spinner.stop()
                 with self.session_print_context(e.session_id):
                     self.display_tool_call(e)
                 self.stage = "tool_call"
             case events.ToolResultEvent() as e:
-                self.spinner.stop()
                 if self.is_sub_agent_session(e.session_id):
                     return
+                self.spinner.stop()
                 self.display_tool_call_result(e)
                 self.print()
                 self.stage = "tool_result"
@@ -670,7 +669,7 @@ class REPLDisplay(DisplayABC):
             Rule(
                 rule_text,
                 style=ThemeKey.LINES,
-                align="right",
+                align="left",
                 characters="-",
             )
         )
