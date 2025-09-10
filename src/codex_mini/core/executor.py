@@ -144,7 +144,8 @@ class ExecutorContext:
         for sid in session_ids:
             agent = self.active_agents.get(sid)
             if agent is not None:
-                agent.cancel()
+                for evt in agent.cancel():
+                    await self.emit_event(evt)
 
         # emit interrupt event
         await self.emit_event(events.InterruptEvent(session_id=operation.target_session_id or "all"))

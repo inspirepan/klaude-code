@@ -1,4 +1,4 @@
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable
 from dataclasses import dataclass
 
 from codex_mini.core.prompt import get_system_prompt
@@ -37,7 +37,7 @@ class Agent:
         # Keyed by tool_call_id
         self.turn_pending_tool_calls: dict[str, model.ToolCallItem] = {}
 
-    def cancel(self) -> None:
+    def cancel(self) -> Iterable[events.Event]:
         """Handle agent cancellation and persist an interrupt marker and tool cancellations.
 
         - Appends an `InterruptItem` into the session history so interruptions are reflected
@@ -49,12 +49,21 @@ class Agent:
         if self.turn_pending_tool_calls:
             for _, tool_call in list(self.turn_pending_tool_calls.items()):
                 # Create a synthetic error result indicating cancellation
+                output = "[Request interrupted by user for tool use]"
                 cancel_result = model.ToolResultItem(
                     call_id=tool_call.call_id,
-                    output="(cancelled)",
+                    output=output,
                     status="error",
                     tool_name=tool_call.name,
                     ui_extra=None,
+                )
+                yield events.ToolResultEvent(
+                    session_id=self.session.id,
+                    response_id=tool_call.response_id,
+                    tool_call_id=tool_call.call_id,
+                    tool_name=tool_call.name,
+                    result=output,
+                    status="error",
                 )
                 self.session.append_history([cancel_result])
             # Clear pending map after recording cancellation results
