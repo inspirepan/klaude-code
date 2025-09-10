@@ -911,9 +911,9 @@ class REPLDisplay(DisplayABC):
                 grid.add_row(
                     Text("  ⎿ ", style=ThemeKey.REMINDER),
                     Text.assemble(
-                        ("Hint ", ThemeKey.REMINDER_BOLD),
+                        ("Read ", ThemeKey.REMINDER_BOLD),
                         self.render_path(file_path, ThemeKey.REMINDER),
-                        (" has changed, new content has been loaded to context", ThemeKey.REMINDER),
+                        (" after external changes", ThemeKey.REMINDER),
                     ),
                 )
             self.print(grid)
@@ -922,7 +922,7 @@ class REPLDisplay(DisplayABC):
             self.print(
                 Text.assemble(
                     Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD),
-                    Text("Hint ", ThemeKey.REMINDER_BOLD),
+                    Text("Reminded ", ThemeKey.REMINDER_BOLD),
                     Text("Todo hasn't been updated recently", ThemeKey.REMINDER),
                 )
             )
