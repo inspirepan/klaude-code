@@ -279,7 +279,7 @@ class REPLDisplay(DisplayABC):
     def render_error(self, error_msg: str) -> RenderableType:
         grid = self._create_grid()
         grid.add_row(
-            Text("✘", style=ThemeKey.ERROR_BOLD),
+            Text("  ✘", style=ThemeKey.ERROR_BOLD),
             Text(self.truncate_display(error_msg), style=ThemeKey.ERROR),
         )
         return grid
@@ -634,7 +634,7 @@ class REPLDisplay(DisplayABC):
 
     def display_metadata(self, e: events.ResponseMetadataEvent) -> None:
         metadata = e.metadata
-        rule_text = Text()
+        rule_text = Text("↑ ", style=ThemeKey.METADATA_BOLD)
         rule_text.append_text(Text(metadata.model_name, style=ThemeKey.METADATA_BOLD))
         if metadata.provider is not None:
             rule_text.append_text(Text(" "))
@@ -654,7 +654,7 @@ class REPLDisplay(DisplayABC):
             )
             rule_text.append_text(
                 Text.assemble(
-                    (" → ", ThemeKey.METADATA_DIM),
+                    (" · ", ThemeKey.METADATA_DIM),
                     (format_number(metadata.usage.input_tokens), ThemeKey.METADATA),
                     (" input"),
                     cached_token_str,
@@ -793,6 +793,14 @@ class REPLDisplay(DisplayABC):
             )
 
     async def replay_history(self, history_events: events.ReplayHistoryEvent) -> None:
+        if history_events.is_load:
+            self.print()
+            self.print(
+                Text.assemble(
+                    Text(" LOADING ", style=ThemeKey.RESUME_FLAG),
+                )
+            )
+        self.print()
         tool_call_dict: dict[str, events.ToolCallEvent] = {}
         for event in history_events.events:
             match event:
@@ -834,6 +842,7 @@ class REPLDisplay(DisplayABC):
                 case events.InterruptEvent() as e:
                     self.display_interrupt(e)
         if history_events.is_load:
+            self.print()
             self.print(
                 Text.assemble(
                     Text(" LOADED ", style=ThemeKey.RESUME_FLAG),
