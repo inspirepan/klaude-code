@@ -175,7 +175,9 @@ class OpenAICompatibleClient(LLMClientABC):
                         turn_annotations.extend(a)
 
             # Assistant
-            if delta.content and len(delta.content) > 0:
+            if delta.content and (
+                stage == "assistant" or delta.content.strip()
+            ):  # Process all content in assistant stage, filter empty content in reasoning stage
                 if stage == "reasoning":
                     yield model.ThinkingTextItem(thinking="".join(accumulated_reasoning), response_id=response_id)
                     yield model.ReasoningItem(
