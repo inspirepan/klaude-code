@@ -634,7 +634,8 @@ class REPLDisplay(DisplayABC):
 
     def display_metadata(self, e: events.ResponseMetadataEvent) -> None:
         metadata = e.metadata
-        rule_text = Text("↑ ", style=ThemeKey.METADATA_BOLD)
+        rule_text = Text()
+        rule_text.append_text(Text("↑ ", style=ThemeKey.METADATA_BOLD))
         rule_text.append_text(Text(metadata.model_name, style=ThemeKey.METADATA_BOLD))
         if metadata.provider is not None:
             rule_text.append_text(Text(" "))
