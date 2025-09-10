@@ -1,9 +1,9 @@
 from typing import Callable, TypeVar
 
 from codex_mini.core.tool.tool_abc import ToolABC
+from codex_mini.protocol import tools
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import ToolCallItem, ToolResultItem
-from codex_mini.protocol import tools
 
 _REGISTRY: dict[str, type[ToolABC]] = {}
 

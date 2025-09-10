@@ -21,7 +21,7 @@ from codex_mini.core.reminders import (
     todo_not_used_recently_reminder,
 )
 from codex_mini.core.tool import get_main_agent_tools, get_sub_agent_tools
-from codex_mini.core.tool.tool_context import current_run_subtask_callback
+from codex_mini.core.tool.tool_context import SubAgentResult, current_run_subtask_callback
 from codex_mini.protocol import events, llm_parameter, model
 from codex_mini.protocol.op import InitAgentOperation, InterruptOperation, Operation, Submission, UserInputOperation
 from codex_mini.session.session import Session
@@ -189,7 +189,7 @@ class ExecutorContext:
                 log_debug(f"Starting agent task {task_id} for session {session_id}", style="green")
 
             # Inject subtask runner into tool context for nested Task tool usage
-            async def _runner(prompt: str) -> tuple[str, str]:
+            async def _runner(prompt: str) -> SubAgentResult:
                 return await self._run_subagent_task(agent, prompt)
 
             token = current_run_subtask_callback.set(_runner)
@@ -224,7 +224,7 @@ class ExecutorContext:
             if self.debug_mode:
                 log_debug(f"Cleaned up agent task {task_id}", style="cyan")
 
-    async def _run_subagent_task(self, parent_agent: Agent, prompt: str) -> tuple[str, str]:
+    async def _run_subagent_task(self, parent_agent: Agent, prompt: str) -> SubAgentResult:
         """Run a nested sub-agent task and return the final task_result text.
 
         - Creates a child session linked to the parent session
@@ -266,10 +266,12 @@ class ExecutorContext:
                     result = event.task_result
                     break  # Subagent cannot nested
                 await self.emit_event(event)
-            return result, child_session.id
+            return SubAgentResult(task_result=result, session_id=child_session.id)
         except Exception as e:
             log_debug(f"Subagent task failed: [{e.__class__.__name__}] {str(e)}", style="red")
-            return f"Subagent task failed: [{e.__class__.__name__}] {str(e)}", ""
+            return SubAgentResult(
+                task_result=f"Subagent task failed: [{e.__class__.__name__}] {str(e)}", session_id="", error=True
+            )
 
 
 class Executor:
