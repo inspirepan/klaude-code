@@ -57,7 +57,7 @@ class ModelCommand(CommandABC):
                 DeveloperMessageEvent(
                     session_id=agent.session.id,
                     item=DeveloperMessageItem(
-                        content=f"Switched to model: {selected_model}",
+                        content=f"switched to model: {selected_model}",
                         command_output=CommandOutput(command_name=self.name),
                     ),
                 ),

@@ -29,7 +29,7 @@ class TaskFinishEvent(BaseModel):
 
 
 class TurnStartEvent(BaseModel):
-    """For now, this event is used for UI flush developer message buffer"""
+    """For now, this event is used for UI to flush developer message buffer and print an empty line"""
 
     session_id: str
 
@@ -126,6 +126,7 @@ class TodoChangeEvent(BaseModel):
 
 HistoryItemEvent = (
     ThinkingEvent
+    | TurnStartEvent  # This event is used for UI to print new empty line
     | AssistantMessageEvent
     | ToolCallEvent
     | ToolResultEvent

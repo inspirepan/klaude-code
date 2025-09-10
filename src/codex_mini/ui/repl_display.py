@@ -796,6 +796,8 @@ class REPLDisplay(DisplayABC):
         tool_call_dict: dict[str, events.ToolCallEvent] = {}
         for event in history_events.events:
             match event:
+                case events.TurnStartEvent() as e:
+                    self.print()
                 case events.AssistantMessageEvent() as e:
                     if len(e.content.strip()) > 0:
                         MarkdownStream(
@@ -805,7 +807,6 @@ class REPLDisplay(DisplayABC):
                         self.print(self.render_annotations(e.annotations))
                 case events.ThinkingEvent() as e:
                     if len(e.content.strip()) > 0:
-                        self.print()
                         self.print(THINKING_PREFIX)
                         MarkdownStream(
                             mdargs={
@@ -827,7 +828,6 @@ class REPLDisplay(DisplayABC):
                     tool_call_dict.pop(e.tool_call_id, None)
                     # TODO: Replay Sub-Agent Events
                     self.display_tool_call_result(e)
-                    self.print()
                 case events.ResponseMetadataEvent() as e:
                     self.display_metadata(e)
                     self.print()
@@ -945,7 +945,6 @@ class REPLDisplay(DisplayABC):
     def display_command_output(self, e: events.DeveloperMessageEvent) -> None:
         if not e.item.command_output:
             return
-        print("\033[1A\033[K", end="")  # Clear previous empty line
         match e.item.command_output.command_name:
             case CommandName.DIFF:
                 if e.item.content is None or len(e.item.content) == 0:
@@ -982,3 +981,4 @@ class REPLDisplay(DisplayABC):
                         level=2,
                     )
                 )
+        self.print()

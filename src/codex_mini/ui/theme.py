@@ -52,7 +52,7 @@ DARK_PALETTE = Palette(
     grey3="gray30",
     purple="light_steel_blue",
     diff_add="#ffffff on #005e24",
-    diff_remove="#ffffff on #702f37",
+    diff_remove="#ffffff on #72211c",
     code_theme="github-dark",
 )
 

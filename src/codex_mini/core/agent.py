@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable
 from dataclasses import dataclass
+from typing import Literal
 
 from codex_mini.core.prompt import get_system_prompt
 from codex_mini.core.tool.tool_context import current_exit_plan_mode_callback, current_session_var
@@ -10,12 +11,24 @@ from codex_mini.session import Session
 from codex_mini.trace import log_debug
 
 
+# Constant for cancellation message
+CANCEL_OUTPUT = "[Request interrupted by user for tool use]"
+
+
 @dataclass
 class AgentLLMClients:
     main: LLMClientABC
     plan: LLMClientABC | None = None
     fast: LLMClientABC | None = None  # Not used for now
     task: LLMClientABC | None = None
+
+
+@dataclass
+class UnfinishedToolCallItem:
+    """Tracks an inflight tool call and its execution status."""
+
+    tool_call_item: model.ToolCallItem
+    status: Literal["pending", "in_progress"]
 
 
 class Agent:
@@ -35,7 +48,7 @@ class Agent:
         self.set_llm_client(llm_clients.main)
         # Track tool calls that are pending or in-progress within the current turn
         # Keyed by tool_call_id
-        self.turn_pending_tool_calls: dict[str, model.ToolCallItem] = {}
+        self.turn_inflight_tool_calls: dict[str, UnfinishedToolCallItem] = {}
 
     def cancel(self) -> Iterable[events.Event]:
         """Handle agent cancellation and persist an interrupt marker and tool cancellations.
@@ -45,29 +58,38 @@ class Agent:
         - For any tool calls that are pending or in-progress in the current turn, append a
           synthetic ToolResultItem with error status to indicate cancellation.
         """
-        # For any pending tool calls, persist a cancel result
-        if self.turn_pending_tool_calls:
-            for _, tool_call in list(self.turn_pending_tool_calls.items()):
-                # Create a synthetic error result indicating cancellation
-                output = "[Request interrupted by user for tool use]"
+        # Persist cancel results for pending tool calls
+        if self.turn_inflight_tool_calls:
+            for _, unfinished in list(self.turn_inflight_tool_calls.items()):
+                # Create synthetic error result for cancellation
+                tc = unfinished.tool_call_item
                 cancel_result = model.ToolResultItem(
-                    call_id=tool_call.call_id,
-                    output=output,
+                    call_id=tc.call_id,
+                    output=CANCEL_OUTPUT,
                     status="error",
-                    tool_name=tool_call.name,
+                    tool_name=tc.name,
                     ui_extra=None,
                 )
+                if unfinished.status == "pending":
+                    # Emit ToolCallEvent for pending calls before error result
+                    yield events.ToolCallEvent(
+                        session_id=self.session.id,
+                        response_id=tc.response_id,
+                        tool_call_id=tc.call_id,
+                        tool_name=tc.name,
+                        arguments=tc.arguments,
+                    )
                 yield events.ToolResultEvent(
                     session_id=self.session.id,
-                    response_id=tool_call.response_id,
-                    tool_call_id=tool_call.call_id,
-                    tool_name=tool_call.name,
-                    result=output,
+                    response_id=tc.response_id,
+                    tool_call_id=tc.call_id,
+                    tool_name=tc.name,
+                    result=CANCEL_OUTPUT,
                     status="error",
                 )
                 self.session.append_history([cancel_result])
-            # Clear pending map after recording cancellation results
-            self.turn_pending_tool_calls.clear()
+            # Clear pending map after recording cancellations
+            self.turn_inflight_tool_calls.clear()
 
         # Record an interrupt marker in the session history
         self.session.append_history([model.InterruptItem()])
@@ -139,8 +161,8 @@ class Agent:
         yield events.TurnStartEvent(
             session_id=self.session.id,
         )
-        # Start a fresh pending map for this turn
-        self.turn_pending_tool_calls.clear()
+        # Clear pending map for new turn
+        self.turn_inflight_tool_calls.clear()
         # TODO: If LLM API error occurred, we will discard (not append to history) and retry
         turn_reasoning_item: model.ReasoningItem | None = None
         turn_assistant_message: model.AssistantMessageItem | None = None
@@ -200,8 +222,10 @@ class Agent:
                         metadata=item,
                     )
                 case model.ToolCallItem() as item:
-                    # Track pending tool calls so we can persist cancel results if interrupted
-                    self.turn_pending_tool_calls[item.call_id] = item
+                    # Track tool calls for cancellation handling
+                    self.turn_inflight_tool_calls[item.call_id] = UnfinishedToolCallItem(
+                        tool_call_item=item, status="pending"
+                    )
                     turn_tool_calls.append(item)
                 case _:
                     pass
@@ -226,6 +250,7 @@ class Agent:
                 session_token = current_session_var.set(self.session)
                 exit_plan_mode_token = current_exit_plan_mode_callback.set(self.exit_plan_mode)
                 try:
+                    self.turn_inflight_tool_calls[tool_call.call_id].status = "in_progress"
                     tool_result: model.ToolResultItem = await run_tool(tool_call)
                 finally:
                     current_session_var.reset(session_token)
@@ -245,8 +270,8 @@ class Agent:
                         session_id=self.session.id,
                         todos=self.session.todos,
                     )
-                # Remove from pending once a result is produced
-                self.turn_pending_tool_calls.pop(tool_call.call_id, None)
+                # Remove from pending after result is produced
+                self.turn_inflight_tool_calls.pop(tool_call.call_id, None)
         yield events.TurnEndEvent(session_id=self.session.id)
 
     async def process_reminders(self) -> AsyncGenerator[events.DeveloperMessageEvent, None]:

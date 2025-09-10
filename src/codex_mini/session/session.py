@@ -226,8 +226,23 @@ class Session(BaseModel):
                 continue
         return latest_id
 
+    def need_turn_start(self, prev_item: model.ConversationItem | None, item: model.ConversationItem) -> bool:
+        # Emit TurnStartEvent when a new turn starts to show an empty line in replay history
+        if not isinstance(item, model.ReasoningItem | model.AssistantMessageItem | model.ToolCallItem):
+            return False
+        if prev_item is None:
+            return True
+        if isinstance(prev_item, model.UserMessageItem | model.ToolResultItem | model.DeveloperMessageItem):
+            return True
+        return False
+
     def get_history_item(self) -> Iterable[events.HistoryItemEvent]:
+        prev_item: model.ConversationItem | None = None
         for it in self.conversation_history:
+            if self.need_turn_start(prev_item, it):
+                yield events.TurnStartEvent(
+                    session_id=self.id,
+                )
             match it:
                 case model.AssistantMessageItem() as am:
                     content = am.content or ""
@@ -282,6 +297,7 @@ class Session(BaseModel):
                     )
                 case _:
                     continue
+            prev_item = it
 
     class SessionMetaBrief(BaseModel):
         id: str
