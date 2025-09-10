@@ -25,7 +25,7 @@ from codex_mini.ui.quote import Quote
 from codex_mini.ui.theme import ThemeKey, get_theme
 from codex_mini.ui.utils import format_number
 
-THINKING_PREFIX = Text.from_markup("[not italic]◈[/not italic] Thinking...\n", style=ThemeKey.THINKING)
+THINKING_PREFIX = Text.from_markup("[not italic]◈[/not italic] Thinking …", style=ThemeKey.THINKING)
 
 SPINNERS["claude"] = {
     "interval": 100,
@@ -901,7 +901,7 @@ class REPLDisplay(DisplayABC):
             grid = self._create_grid()
             for memory_path in mp:
                 grid.add_row(
-                    Text("✪", style=ThemeKey.REMINDER),
+                    Text("⧉ ", style=ThemeKey.REMINDER),
                     Text.assemble(
                         self.render_path(memory_path, ThemeKey.REMINDER),
                     ),

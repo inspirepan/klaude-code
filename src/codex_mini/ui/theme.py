@@ -40,14 +40,14 @@ LIGHT_PALETTE = Palette(
 )
 
 DARK_PALETTE = Palette(
-    red="red",
+    red="indian_red",
     yellow="yellow",
     green="sea_green3",
     cyan="cyan",
     blue="dodger_blue1",
     orange="#e6704e",
     grey_blue="steel_blue",
-    grey1="gray70",
+    grey1="#99aabb",
     grey2="gray58",
     grey3="gray30",
     purple="light_steel_blue",
