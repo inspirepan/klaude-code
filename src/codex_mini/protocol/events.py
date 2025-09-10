@@ -24,6 +24,7 @@ class TaskStartEvent(BaseModel):
 
 class TaskFinishEvent(BaseModel):
     session_id: str
+    task_result: str
 
 
 class TurnStartEvent(BaseModel):

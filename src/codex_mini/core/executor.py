@@ -174,7 +174,9 @@ class ExecutorContext:
 
         # Emit interrupt confirmation event if needed
         if tasks_to_cancel:
-            await self.emit_event(events.TaskFinishEvent(session_id=operation.target_session_id or "all"))
+            await self.emit_event(
+                events.TaskFinishEvent(session_id=operation.target_session_id or "all", task_result="task cancelled")
+            )
 
     async def _run_agent_task(self, agent: Agent, user_input: str, task_id: str, session_id: str) -> None:
         """
@@ -195,7 +197,7 @@ class ExecutorContext:
             # Task was cancelled (likely due to interrupt)
             if self.debug_mode:
                 log_debug(f"Agent task {task_id} was cancelled", style="yellow")
-            await self.emit_event(events.TaskFinishEvent(session_id=session_id))
+            await self.emit_event(events.TaskFinishEvent(session_id=session_id, task_result="task cancelled"))
 
         except Exception as e:
             # Handle any other exceptions

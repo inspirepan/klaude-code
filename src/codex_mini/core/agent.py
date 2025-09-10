@@ -50,6 +50,7 @@ class Agent:
         self.session.append_history([model.UserMessageItem(content=user_input)])
 
         accumulated_metadata: model.ResponseMetadataItem = model.ResponseMetadataItem(model_name="")
+        last_assistant_message: events.AssistantMessageEvent | None = None
 
         while True:
             async for event in self.process_reminders():
@@ -62,6 +63,10 @@ class Agent:
                         yield tc
                     case events.ToolResultEvent() as tr:
                         yield tr
+                    case events.AssistantMessageEvent() as am:
+                        if am.content.strip() != "":
+                            last_assistant_message = am
+                        yield am
                     case events.ResponseMetadataEvent() as e:
                         metadata = e.metadata
                         if metadata.usage is not None:
@@ -85,7 +90,10 @@ class Agent:
 
         yield events.ResponseMetadataEvent(metadata=accumulated_metadata, session_id=self.session.id)
         self.session.append_history([accumulated_metadata])
-        yield events.TaskFinishEvent(session_id=self.session.id)
+        yield events.TaskFinishEvent(
+            session_id=self.session.id,
+            task_result=last_assistant_message.content if last_assistant_message else "",
+        )
 
     async def replay_history(self) -> AsyncGenerator[events.Event, None]:
         """Yield UI events reconstructed from saved conversation history."""
