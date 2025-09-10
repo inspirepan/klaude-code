@@ -900,6 +900,7 @@ class REPLDisplay(DisplayABC):
                 grid.add_row(
                     Text("  ⎿ ", style=ThemeKey.REMINDER),
                     Text.assemble(
+                        ("Load memory ", ThemeKey.REMINDER_BOLD),
                         self.render_path(memory_path, ThemeKey.REMINDER),
                     ),
                 )
