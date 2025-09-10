@@ -234,7 +234,7 @@ class REPLDisplay(DisplayABC):
         if len(content.strip()) == 0:
             self.accumulated_thinking_text = ""
             return
-        self._render_thinking_content(content + "|")
+        self._render_thinking_content(content)
         self.accumulated_thinking_text = ""
 
     def _render_thinking_content(self, content: str) -> None:
