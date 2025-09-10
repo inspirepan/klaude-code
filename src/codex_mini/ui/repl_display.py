@@ -884,9 +884,9 @@ class REPLDisplay(DisplayABC):
         with self.session_print_context(self.developer_message_buffer[0].session_id):
             for e in self.developer_message_buffer:
                 self.display_developer_message(e)
-            self.developer_message_buffer.clear()
             if not self.is_sub_agent_session(self.developer_message_buffer[0].session_id):
                 self.print()
+            self.developer_message_buffer.clear()
 
     def need_display_developer_message(self, e: events.DeveloperMessageEvent) -> bool:
         return (
