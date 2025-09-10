@@ -140,9 +140,10 @@ class REPLDisplay(DisplayABC):
                 self.stage = "tool_call"
             case events.ToolResultEvent() as e:
                 self.spinner.stop()
-                with self.session_print_context(e.session_id):
-                    self.display_tool_call_result(e)
-                    self.print()
+                if self.is_sub_agent_session(e.session_id):
+                    return
+                self.display_tool_call_result(e)
+                self.print()
                 self.stage = "tool_result"
                 self.spinner.start()
             case events.ResponseMetadataEvent() as e:
@@ -233,7 +234,7 @@ class REPLDisplay(DisplayABC):
         if len(content.strip()) == 0:
             self.accumulated_thinking_text = ""
             return
-        self._render_thinking_content(content)
+        self._render_thinking_content(content + "|")
         self.accumulated_thinking_text = ""
 
     def _render_thinking_content(self, content: str) -> None:
@@ -884,7 +885,8 @@ class REPLDisplay(DisplayABC):
             for e in self.developer_message_buffer:
                 self.display_developer_message(e)
             self.developer_message_buffer.clear()
-            self.print()
+            if not self.is_sub_agent_session(self.developer_message_buffer[0].session_id):
+                self.print()
 
     def need_display_developer_message(self, e: events.DeveloperMessageEvent) -> bool:
         return (
