@@ -25,7 +25,7 @@ from codex_mini.ui.quote import Quote
 from codex_mini.ui.theme import ThemeKey, get_theme
 from codex_mini.ui.utils import format_number
 
-THINKING_PREFIX = Text.from_markup("[not italic]◈[/not italic] Thinking …", style=ThemeKey.THINKING)
+THINKING_PREFIX = Text.from_markup("[not italic]✳[/not italic] Thinking …", style=ThemeKey.THINKING)
 
 SPINNERS["claude"] = {
     "interval": 100,
@@ -759,7 +759,7 @@ class REPLDisplay(DisplayABC):
         return Text(text, style=other_style)
 
     def display_interrupt(self, e: events.InterruptEvent) -> None:
-        self.print("\n INTERRUPTED \n", style=ThemeKey.INTERRUPT)
+        self.print(" INTERRUPTED \n", style=ThemeKey.INTERRUPT)
 
     def is_valid_slash_command(self, command: str) -> bool:
         try:
