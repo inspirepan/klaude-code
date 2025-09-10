@@ -296,21 +296,26 @@ class REPLDisplay(DisplayABC):
             path = path.rstrip("/") + "/"
         return Text(path, style=style)
 
-    def render_any_tool_call(self, tool_name: str, arguments: str, markup: str = "•") -> Text:
-        render_result: Text = Text.assemble((markup, ThemeKey.TOOL_MARK), " ", (tool_name, ThemeKey.TOOL_NAME), " ")
+    def render_any_tool_call(self, tool_name: str, arguments: str, markup: str = "•") -> RenderableType:
+        grid = self._create_grid()
+
+        tool_name_column = Text.assemble((markup, ThemeKey.TOOL_MARK), " ", (tool_name, ThemeKey.TOOL_NAME))
+        arguments_column = Text("")
         if not arguments:
-            return render_result
+            grid.add_row(tool_name_column, arguments_column)
+            return grid
         try:
             json_dict = json.loads(arguments)
             if len(json_dict) == 0:
-                return render_result
-            if len(json_dict) == 1:
-                return render_result.append_text(Text(str(next(iter(json_dict.values()))), ThemeKey.TOOL_PARAM))
-            return render_result.append_text(
-                Text(", ".join([f"{k}: {v}" for k, v in json_dict.items()]), ThemeKey.TOOL_PARAM)
-            )
+                arguments_column = Text("", ThemeKey.TOOL_PARAM)
+            elif len(json_dict) == 1:
+                arguments_column = Text(str(next(iter(json_dict.values()))), ThemeKey.TOOL_PARAM)
+            else:
+                arguments_column = Text(", ".join([f"{k}: {v}" for k, v in json_dict.items()]), ThemeKey.TOOL_PARAM)
         except json.JSONDecodeError:
-            return render_result.append_text(Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS))
+            arguments_column = Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS)
+        grid.add_row(tool_name_column, arguments_column)
+        return grid
 
     def render_read_tool_call(self, arguments: str) -> RenderableType:
         grid = self._create_grid()

@@ -56,12 +56,12 @@ def _resume_select_session() -> str | None:
                 ("class:d", f"{_fmt(s.created_at):<16} "),
                 ("class:d", f"{_fmt(s.updated_at):<16} "),
                 ("class:b", f"{msg_count_display:>3}  "),
-                ("class:t", f"{model_display[:14] + '…' if len(model_display) > 14 else model_display:<15} "),
+                ("class:t", f"{model_display[:14] + '…' if len(model_display) > 14 else model_display:<15}  "),
                 ("class:t", f"{first_user_message.strip().replace('\n', ' ↩ '):<50}"),
             ]
             choices.append(questionary.Choice(title=title, value=s.id))
         return questionary.select(
-            message=f"{' Created at':<17} {'Updated at':<16} {'Msg':>3}  {'Model':<15} {'First message':<50}",
+            message=f"{' Created at':<17} {'Updated at':<16} {'Msg':>3}  {'Model':<15}  {'First message':<50}",
             choices=choices,
             pointer="→",
             instruction="↑↓ to move",
