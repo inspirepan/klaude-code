@@ -36,7 +36,7 @@ SPINNERS["claude"] = {
 @dataclass
 class SessionStatus:
     is_subagent: bool = False
-    color: str | None = None
+    color: Style | None = None
 
 
 class REPLDisplay(DisplayABC):
@@ -191,10 +191,10 @@ class REPLDisplay(DisplayABC):
     def is_sub_agent_session(self, session_id: str) -> bool:
         return session_id in self.session_map and self.session_map[session_id].is_subagent
 
-    def pick_sub_agent_color(self, switch: bool = False) -> ThemeKey:
+    def pick_sub_agent_color(self, switch: bool = False) -> Style:
         if switch:
             self.subagent_color_index = (self.subagent_color_index + 1) % len(self.themes.sub_agent_colors)
-        return self.themes.sub_agent_colors[self.subagent_color_index]
+        return self.console.get_style(self.themes.sub_agent_colors[self.subagent_color_index])
 
     @contextmanager
     def session_print_context(self, session_id: str):
@@ -411,7 +411,10 @@ class REPLDisplay(DisplayABC):
                     ("↓ ", ThemeKey.TOOL_MARK),
                     ("Task", ThemeKey.TOOL_NAME),
                     " ",
-                    Text(f" {description} ", style=f"{self.pick_sub_agent_color(switch=True)} reverse bold"),
+                    Text(
+                        f" {description} ",
+                        style=Style(color=self.pick_sub_agent_color(switch=True).color, bold=True, reverse=True),
+                    ),
                 ),
                 Quote(
                     Text(prompt + "\n", style=self.pick_sub_agent_color()),

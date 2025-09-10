@@ -115,17 +115,17 @@ class ThemeKey(str, Enum):
     ANNOTATION_URL_HIGHLIGHT = "annotation.url.highlight"
     ANNOTATION_SEARCH_CONTENT = "annotation.search_content"
     # PALETTE COLORS - Direct palette passthrough
-    RED = "red"
-    YELLOW = "yellow"
-    GREEN = "green"
-    CYAN = "cyan"
-    BLUE = "blue"
-    ORANGE = "orange"
+    RED = "r"
+    YELLOW = "y"
+    GREEN = "g"
+    CYAN = "c"
+    BLUE = "b"
+    ORANGE = "o"
     GREY_BLUE = "grey_blue"
     GREY1 = "grey1"
     GREY2 = "grey2"
     GREY3 = "grey3"
-    PURPLE = "purple"
+    PURPLE = "p"
 
     def __str__(self) -> str:
         return self.value
