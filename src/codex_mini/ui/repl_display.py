@@ -67,7 +67,9 @@ class REPLDisplay(DisplayABC):
             case events.TaskStartEvent():
                 self.spinner.start()
             case events.DeveloperMessageEvent() as e:
-                self.developer_message_buffer.append(e)
+                if self.need_display_developer_message(e):
+                    # If has anything to display, send it to buffer
+                    self.developer_message_buffer.append(e)
                 # If it's command output, flush it immediately
                 if e.item.command_output:
                     self._flush_developer_buffer()
@@ -779,6 +781,15 @@ class REPLDisplay(DisplayABC):
             self.display_developer_message(e)
         self.developer_message_buffer.clear()
         self.console.print()
+
+    def need_display_developer_message(self, e: events.DeveloperMessageEvent) -> bool:
+        return (
+            bool(e.item.memory_paths)
+            or bool(e.item.external_file_changes)
+            or bool(e.item.todo_use)
+            or bool(e.item.at_files)
+            or bool(e.item.command_output)
+        )
 
     def display_developer_message(self, e: events.DeveloperMessageEvent, with_ending_line: bool = False) -> None:
         if mp := e.item.memory_paths:

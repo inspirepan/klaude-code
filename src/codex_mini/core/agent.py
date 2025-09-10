@@ -228,9 +228,23 @@ class Agent:
         """Exit plan mode and switch back to executor LLM client, return a message for tool result"""
         self.session.is_in_plan_mode = False
         self.set_llm_client(self.llm_clients.main)
-        if self.llm_clients.plan is not None and self.llm_clients.plan.model_name != self.llm_clients.main.model_name:
-            return self.llm_clients.main.model_name
-        return ""
+        # TODO: If model is switched here, for Claude, the following error may occur
+        # because Claude does not allow losing thinking during consecutive assistant and tool_result conversation turns when extended thinking is enabled
+        #
+        # The solution is to insert a user_message after the tool_message of exit_plan_mode
+        # when exiting plan mode. The content can be arbitrary, such as "Continue executing
+        # the plan"
+        #
+        # [BadRequestError] Error code: 400 - {'error': {'message':
+        # '-4316: messages.1.content.0.type: Expected `thinking` or `redacted_thinking`,
+        # but found `text`. When `thinking` is enabled, a final `assistant` message must
+        # start with a thinking block (preceeding the lastmost set of `tool_use` and
+        # `tool_result` blocks). We recommend you include thinking blocks from previous
+        # turns. To avoid this requirement, disable `thinking`. Please consult our
+        # documentation at https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking',
+        # 'code': '-4003'}}
+
+        return self.llm_clients.main.model_name
 
     def enter_plan_mode(self) -> str:
         self.session.is_in_plan_mode = True
