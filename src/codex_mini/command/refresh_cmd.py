@@ -33,6 +33,7 @@ class RefreshTerminalCommand(CommandABC):
                     llm_config=agent.get_llm_client().get_llm_config(),
                 ),
                 events.ReplayHistoryEvent(
+                    session_id=agent.session.id,
                     events=agent.session.get_history_item(),
                     updated_at=agent.session.updated_at,
                     is_load=False,

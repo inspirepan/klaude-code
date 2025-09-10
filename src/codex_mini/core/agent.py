@@ -102,7 +102,9 @@ class Agent:
         if len(self.session.conversation_history) == 0:
             return
 
-        yield events.ReplayHistoryEvent(events=self.session.get_history_item(), updated_at=self.session.updated_at)
+        yield events.ReplayHistoryEvent(
+            events=self.session.get_history_item(), updated_at=self.session.updated_at, session_id=self.session.id
+        )
 
     async def run_turn(self) -> AsyncGenerator[events.Event, None]:
         yield events.TurnStartEvent(

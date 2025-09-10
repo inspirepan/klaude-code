@@ -237,7 +237,6 @@ class Session(BaseModel):
                         session_id=self.id,
                         annotations=am.annotations,
                     )
-
                 case model.ToolCallItem() as tc:
                     yield events.ToolCallEvent(
                         tool_call_id=tc.call_id,
@@ -255,6 +254,7 @@ class Session(BaseModel):
                         session_id=self.id,
                         status=tr.status,
                     )
+                    # TODO: Replay Sub-Agent Events
 
                 case model.UserMessageItem() as um:
                     yield events.UserMessageEvent(

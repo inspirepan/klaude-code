@@ -201,6 +201,7 @@ class REPLDisplay(DisplayABC):
         """Context manager for subagent QuoteStyle"""
         old = self.current_session_status
         if session_id in self.session_map:
+            # For sub-agent
             self.current_session_status = self.session_map[session_id]
         try:
             yield
@@ -213,10 +214,11 @@ class REPLDisplay(DisplayABC):
             and self.current_session_status.is_subagent
             and self.current_session_status.color
         ):
+            # If it's sub-agent
             if objects:
-                self.console.print(Quote(*objects, prefix="▌", style=self.current_session_status.color))
+                self.console.print(Quote(*objects, style=self.current_session_status.color))
             else:
-                self.console.print(Quote("", prefix="▌", style=self.current_session_status.color))
+                self.console.print(Quote("", style=self.current_session_status.color))
         else:
             self.console.print(*objects, style=style, end=end)
 
@@ -398,7 +400,7 @@ class REPLDisplay(DisplayABC):
             )
 
     def render_task_call(self, e: events.ToolCallEvent) -> RenderableType:
-        # SubAgent
+        # For sub-agent
         try:
             json_dict = json.loads(e.arguments)
             description = json_dict.get("description", "")
@@ -571,8 +573,9 @@ class REPLDisplay(DisplayABC):
             return self.render_error(str(e))
 
     def render_task_result(self, e: events.ToolResultEvent) -> RenderableType:
+        # For sub-agent
         return Quote(
-            Panel.fit(NoInsetMarkdown(e.result, code_theme=self.themes.code_theme), border_style=ThemeKey.LINES),
+            NoInsetMarkdown(e.result, code_theme=self.themes.code_theme),
             style=self.pick_sub_agent_color(),
         )
 
@@ -782,7 +785,6 @@ class REPLDisplay(DisplayABC):
             self.print(
                 Quote(
                     line_text,
-                    prefix="▌ ",
                     style=ThemeKey.USER_INPUT_DIM,
                 )
             )
@@ -821,6 +823,7 @@ class REPLDisplay(DisplayABC):
                     if tool_call_event is not None:
                         self.display_tool_call(tool_call_event)
                     tool_call_dict.pop(e.tool_call_id, None)
+                    # TODO: Replay Sub-Agent Events
                     self.display_tool_call_result(e)
                     self.print()
                 case events.ResponseMetadataEvent() as e:

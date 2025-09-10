@@ -235,7 +235,6 @@ def get_theme(theme: str | None = None) -> Themes:
             ThemeKey.GREEN,
             ThemeKey.BLUE,
             ThemeKey.PURPLE,
-            ThemeKey.ORANGE,
         ],
     )
 

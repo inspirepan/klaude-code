@@ -137,6 +137,7 @@ HistoryItemEvent = (
 
 
 class ReplayHistoryEvent(BaseModel):
+    session_id: str
     events: Iterable[HistoryItemEvent]
     updated_at: float
     is_load: bool = True
