@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.scripts]
-codex-mini = "codex_mini.cli.main:app"
+cdx = "codex_mini.cli.main:app"
 
 [tool.hatch.build]
 sources = ["src"]

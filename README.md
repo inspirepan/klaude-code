@@ -6,7 +6,7 @@ A repository for showing how to make a simple Agent CLI using OpenAI's Response 
 
 ```bash
 uv sync
-uv run codex-mini [--model <name>] [--select-model] [--debug] [--continue]
+uv run cdx [--model <name>] [--select-model] [--debug] [--continue]
 ```
 
 - `--model`/`-m`: select a model by logical name (must match `model_name` in your config). If omitted, uses the `main_model` from config.
@@ -17,26 +17,26 @@ uv run codex-mini [--model <name>] [--select-model] [--debug] [--continue]
 List configured providers and models:
 
 ```bash
-uv run codex-mini list
+uv run cdx list
 ```
 
 Examples:
 
 ```bash
 # Start with the default main model
-uv run codex-mini
+uv run cdx
 
 # Start and interactively choose a model
-uv run codex-mini -s
+uv run cdx -s
 
 # Prefer sonnet-4 by default, but confirm interactively
-uv run codex-mini -m sonnet-4 -s
+uv run cdx -m sonnet-4 -s
 
 # Start with an explicit model silently
-uv run codex-mini -m gpt-5
+uv run cdx -m gpt-5
 
 # Continue from the latest session
-uv run codex-mini -c
+uv run cdx -c
 ```
 
 # Config
