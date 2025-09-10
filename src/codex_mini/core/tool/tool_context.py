@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Awaitable
 from contextvars import ContextVar
 
 from codex_mini.session.session import Session
@@ -14,4 +14,10 @@ current_session_var: ContextVar[Session | None] = ContextVar("current_session", 
 # The callable returns a message string describing the switch.
 current_exit_plan_mode_callback: ContextVar[Callable[[], str] | None] = ContextVar(
     "current_deactivate_plan_mode_callback", default=None
+)
+
+# Holds a handle to run a nested subtask (sub-agent) from within a tool call.
+# The callable takes a prompt string and returns the final task_result string.
+current_run_subtask_callback: ContextVar[Callable[[str], Awaitable[str]] | None] = ContextVar(
+    "current_run_subtask_callback", default=None
 )

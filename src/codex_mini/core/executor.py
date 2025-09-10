@@ -21,6 +21,7 @@ from codex_mini.core.reminders import (
     plan_mode_reminder,
 )
 from codex_mini.core.tool import get_tool_schemas
+from codex_mini.core.tool.tool_context import current_run_subtask_callback
 from codex_mini.protocol import events, llm_parameter, model, tools
 from codex_mini.protocol.op import InitAgentOperation, InterruptOperation, Operation, Submission, UserInputOperation
 from codex_mini.session.session import Session
@@ -71,7 +72,15 @@ class ExecutorContext:
                 llm_clients=self.llm_clients,
                 session=session,
                 tools=get_tool_schemas(
-                    [tools.TODO_WRITE, tools.BASH, tools.READ, tools.EDIT, tools.MULTI_EDIT, tools.EXIT_PLAN_MODE]
+                    [
+                        tools.TODO_WRITE,
+                        tools.BASH,
+                        tools.READ,
+                        tools.EDIT,
+                        tools.MULTI_EDIT,
+                        tools.EXIT_PLAN_MODE,
+                        tools.TASK,
+                    ]
                 ),
                 debug_mode=self.debug_mode,
                 reminders=[
@@ -189,9 +198,17 @@ class ExecutorContext:
             if self.debug_mode:
                 log_debug(f"Starting agent task {task_id} for session {session_id}", style="green")
 
-            # Forward all events from the agent to the UI
-            async for event in agent.run_task(user_input):
-                await self.emit_event(event)
+            # Inject subtask runner into tool context for nested Task tool usage
+            async def _runner(prompt: str) -> str:
+                return await self._run_subagent_task(agent, prompt)
+
+            token = current_run_subtask_callback.set(_runner)
+            try:
+                # Forward all events from the agent to the UI
+                async for event in agent.run_task(user_input):
+                    await self.emit_event(event)
+            finally:
+                current_run_subtask_callback.reset(token)
 
         except asyncio.CancelledError:
             # Task was cancelled (likely due to interrupt)
@@ -216,6 +233,60 @@ class ExecutorContext:
             self.active_task_sessions.pop(task_id, None)
             if self.debug_mode:
                 log_debug(f"Cleaned up agent task {task_id}", style="cyan")
+
+    async def _run_subagent_task(self, parent_agent: Agent, prompt: str) -> str:
+        """Run a nested sub-agent task and return the final task_result text.
+
+        - Creates a child session linked to the parent session
+        - Streams the child agent's events to the same event queue
+        - Returns the last assistant message content as the result
+        """
+        # Create a child session under the same workdir
+        parent_session = parent_agent.session
+        child_session = Session(work_dir=parent_session.work_dir)
+        child_session.is_root_session = False
+        # Link relationship and persist parent change
+        parent_session.child_session_ids.append(child_session.id)
+        parent_session.save()
+
+        # Build a fresh AgentLLMClients wrapper to avoid mutating parent's pointers
+        child_llm_clients = AgentLLMClients(
+            main=self.llm_clients.task or self.llm_clients.main, fast=self.llm_clients.fast
+        )
+
+        child_agent = Agent(
+            llm_clients=child_llm_clients,
+            session=child_session,
+            tools=get_tool_schemas(
+                [
+                    tools.BASH,
+                    tools.READ,
+                    tools.EDIT,
+                    tools.MULTI_EDIT,
+                ]
+            ),
+            debug_mode=self.debug_mode,
+            reminders=[
+                file_changed_externally_reminder,
+                memory_reminder,
+                last_path_memory_reminder,
+                at_file_reader_reminder,
+            ],
+        )
+
+        try:
+            # Not emit the subtask's user input since task tool call is already rendered
+            result: str = ""
+            async for event in child_agent.run_task(prompt):
+                # Capture TaskFinishEvent content for return
+                if isinstance(event, events.TaskFinishEvent):
+                    result = event.task_result
+                    break  # Subagent cannot nested
+                await self.emit_event(event)
+            return result
+        except Exception as e:
+            log_debug(f"Subagent task failed: [{e.__class__.__name__}] {str(e)}", style="red")
+            return f"Subagent task failed: [{e.__class__.__name__}] {str(e)}"
 
 
 class Executor:

@@ -15,6 +15,7 @@ class AgentLLMClients:
     main: LLMClientABC
     plan: LLMClientABC | None = None
     fast: LLMClientABC | None = None  # Not used for now
+    task: LLMClientABC | None = None
 
 
 class Agent:
@@ -224,7 +225,9 @@ class Agent:
         else:
             self.llm_clients.main = llm_client
         self.session.model_name = llm_client.model_name
-        self.session.system_prompt = get_system_prompt(llm_client.model_name)
+        self.session.system_prompt = get_system_prompt(
+            llm_client.model_name, "main" if self.session.is_root_session else "task"
+        )
 
     def get_llm_client(self) -> LLMClientABC:
         if self.session.is_in_plan_mode and self.llm_clients.plan:
