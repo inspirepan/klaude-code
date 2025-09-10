@@ -10,7 +10,6 @@ from codex_mini.protocol import events, llm_parameter, model, tools
 from codex_mini.session import Session
 from codex_mini.trace import log_debug
 
-
 # Constant for cancellation message
 CANCEL_OUTPUT = "[Request interrupted by user for tool use]"
 

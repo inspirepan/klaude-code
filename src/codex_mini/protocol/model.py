@@ -20,7 +20,7 @@ class Usage(BaseModel):
 class TodoItem(BaseModel):
     content: str
     status: TodoStatusType
-    activeForm: str
+    activeForm: str = ""
 
 
 class TodoUIExtra(BaseModel):

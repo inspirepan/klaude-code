@@ -930,13 +930,12 @@ class REPLDisplay(DisplayABC):
             self.print(grid)
 
         if e.item.todo_use:
-            self.print(
-                Text.assemble(
-                    Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD),
-                    Text("Reminded ", ThemeKey.REMINDER),
-                    Text("Todo hasn't been updated recently", ThemeKey.REMINDER),
-                )
+            grid = self._create_grid()
+            grid.add_row(
+                Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD),
+                Text("Todo hasn't been updated recently", ThemeKey.REMINDER),
             )
+            self.print(grid)
 
         if e.item.at_files:
             grid = self._create_grid()
