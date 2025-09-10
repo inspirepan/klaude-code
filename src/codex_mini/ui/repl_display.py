@@ -90,6 +90,8 @@ class REPLDisplay(DisplayABC):
                     self._flush_developer_buffer()
             case events.TurnStartEvent() as e:
                 self._flush_developer_buffer()
+                with self.session_print_context(e.session_id):
+                    self.print()
             case events.ThinkingDeltaEvent() as e:
                 if self.is_sub_agent_session(e.session_id):
                     return
@@ -142,7 +144,6 @@ class REPLDisplay(DisplayABC):
                     return
                 self.spinner.stop()
                 self.display_tool_call_result(e)
-                self.print()
                 self.stage = "tool_result"
                 self.spinner.start()
             case events.ResponseMetadataEvent() as e:
@@ -417,7 +418,7 @@ class REPLDisplay(DisplayABC):
                     ),
                 ),
                 Quote(
-                    Text(prompt + "\n", style=self.pick_sub_agent_color()),
+                    Text(prompt, style=self.pick_sub_agent_color()),
                     style=self.pick_sub_agent_color(),
                 ),
             )
@@ -608,7 +609,6 @@ class REPLDisplay(DisplayABC):
                         Text("↓", style=ThemeKey.METADATA),
                         Text(e.ui_extra or "N/A", style=ThemeKey.METADATA_BOLD),
                     )
-                    self.print()
                     self.print(grid)
                 else:
                     self.print(Padding.indent(Text(" Rejected ", ThemeKey.TOOL_APPROVED), level=1))
@@ -792,8 +792,6 @@ class REPLDisplay(DisplayABC):
                 )
             )
 
-        self.print()
-
     async def replay_history(self, history_events: events.ReplayHistoryEvent) -> None:
         tool_call_dict: dict[str, events.ToolCallEvent] = {}
         for event in history_events.events:
@@ -807,6 +805,7 @@ class REPLDisplay(DisplayABC):
                         self.print(self.render_annotations(e.annotations))
                 case events.ThinkingEvent() as e:
                     if len(e.content.strip()) > 0:
+                        self.print()
                         self.print(THINKING_PREFIX)
                         MarkdownStream(
                             mdargs={
@@ -816,7 +815,7 @@ class REPLDisplay(DisplayABC):
                             theme=self.themes.markdown_theme,
                         ).update(e.content.strip(), final=True)
                 case events.DeveloperMessageEvent() as e:
-                    self.display_developer_message(e, with_ending_line=True)
+                    self.display_developer_message(e)
                 case events.UserMessageEvent() as e:
                     self.display_user_input(e)
                 case events.ToolCallEvent() as e:
@@ -883,8 +882,6 @@ class REPLDisplay(DisplayABC):
         with self.session_print_context(self.developer_message_buffer[0].session_id):
             for e in self.developer_message_buffer:
                 self.display_developer_message(e)
-            if not self.is_sub_agent_session(self.developer_message_buffer[0].session_id):
-                self.print()
             self.developer_message_buffer.clear()
 
     def need_display_developer_message(self, e: events.DeveloperMessageEvent) -> bool:
@@ -896,64 +893,54 @@ class REPLDisplay(DisplayABC):
             or bool(e.item.command_output)
         )
 
-    def display_developer_message(self, e: events.DeveloperMessageEvent, with_ending_line: bool = False) -> None:
+    def display_developer_message(self, e: events.DeveloperMessageEvent) -> None:
         if mp := e.item.memory_paths:
             grid = self._create_grid()
             for memory_path in mp:
                 grid.add_row(
-                    Text("⧉ ", style=ThemeKey.REMINDER),
+                    Text("  ⎿ ", style=ThemeKey.REMINDER),
                     Text.assemble(
                         self.render_path(memory_path, ThemeKey.REMINDER),
                     ),
                 )
             self.print(grid)
-            if with_ending_line:
-                self.print()
 
         if fc := e.item.external_file_changes:
             grid = self._create_grid()
             for file_path in fc:
                 grid.add_row(
-                    Text("⧉ ", style=ThemeKey.REMINDER),
+                    Text("  ⎿ ", style=ThemeKey.REMINDER),
                     Text.assemble(
                         ("Hint ", ThemeKey.REMINDER_BOLD),
                         self.render_path(file_path, ThemeKey.REMINDER),
-                        (" has changed, new content has been loaded to context", ThemeKey.REMINDER_DIM),
+                        (" has changed, new content has been loaded to context", ThemeKey.REMINDER),
                     ),
                 )
             self.print(grid)
-            if with_ending_line:
-                self.print()
 
         if e.item.todo_use:
             self.print(
                 Text.assemble(
-                    Text("★ ", style=ThemeKey.REMINDER_BOLD),
+                    Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD),
                     Text("Hint ", ThemeKey.REMINDER_BOLD),
-                    Text("Todo hasn't been updated recently", ThemeKey.REMINDER_DIM),
+                    Text("Todo hasn't been updated recently", ThemeKey.REMINDER),
                 )
             )
-            if with_ending_line:
-                self.print()
 
         if e.item.at_files:
             grid = self._create_grid()
             for at_file in e.item.at_files:
                 grid.add_row(
-                    Text("⧉ ", style=ThemeKey.REMINDER_BOLD),
+                    Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD),
                     Text.assemble(
                         (f"{at_file.operation} ", ThemeKey.REMINDER_BOLD),
                         self.render_path(at_file.path, ThemeKey.REMINDER),
                     ),
                 )
             self.print(grid)
-            if with_ending_line:
-                self.print()
 
         if e.item.command_output:
             self.display_command_output(e)
-            if with_ending_line:
-                self.print()
 
     def display_command_output(self, e: events.DeveloperMessageEvent) -> None:
         if not e.item.command_output:
@@ -977,7 +964,6 @@ class REPLDisplay(DisplayABC):
                 self.print(Padding.indent(Text.from_markup(e.item.content or ""), level=2))
             case CommandName.PLAN:
                 # Plan mode
-                self.print()
                 grid = self._create_grid()
                 grid.add_row(
                     Text("↓", style=ThemeKey.METADATA),

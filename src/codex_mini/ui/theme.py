@@ -81,7 +81,6 @@ class ThemeKey(str, Enum):
     # REMINDER
     REMINDER = "reminder"
     REMINDER_BOLD = "reminder.bold"
-    REMINDER_DIM = "reminder.dim"
     # TOOL
     INVALID_TOOL_CALL_ARGS = "tool.invalid_tool_call_args"
     TOOL_NAME = "tool.name"
@@ -168,9 +167,11 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.SPINNER_STATUS.value: "",
                 ThemeKey.SPINNER_STATUS_BOLD.value: "bold",
                 # REMINDER
-                ThemeKey.REMINDER.value: palette.purple,
-                ThemeKey.REMINDER_BOLD.value: "bold " + palette.purple,
-                ThemeKey.REMINDER_DIM.value: "dim " + palette.purple,
+                # ThemeKey.REMINDER.value: palette.purple,
+                # ThemeKey.REMINDER_BOLD.value: "bold " + palette.purple,
+                # ThemeKey.REMINDER_DIM.value: "dim " + palette.purple,
+                ThemeKey.REMINDER.value: palette.grey1,
+                ThemeKey.REMINDER_BOLD.value: "bold " + palette.grey1,
                 # TOOL
                 ThemeKey.INVALID_TOOL_CALL_ARGS.value: palette.yellow,
                 ThemeKey.TOOL_NAME.value: "bold",
@@ -237,63 +238,3 @@ def get_theme(theme: str | None = None) -> Themes:
             ThemeKey.PURPLE,
         ],
     )
-
-
-APP_THEME = Theme(
-    styles={
-        ThemeKey.LINES.value: "grey70",
-        # DIFF
-        ThemeKey.DIFF_REMOVE.value: "#333333 on #ffa8b4",
-        ThemeKey.DIFF_ADD.value: "#333333 on #69db7c",
-        # ERROR
-        ThemeKey.ERROR.value: "red",
-        ThemeKey.ERROR_BOLD.value: "bold red",
-        ThemeKey.INTERRUPT.value: "reverse bold red",
-        # USER_INPUT
-        ThemeKey.USER_INPUT.value: "cyan",
-        ThemeKey.USER_INPUT_DIM.value: "cyan dim",
-        ThemeKey.USER_INPUT_AT_PATTERN.value: "reverse medium_purple3",
-        ThemeKey.USER_INPUT_SLASH_COMMAND.value: "reverse bold cyan",
-        # METADATA
-        ThemeKey.METADATA.value: "steel_blue",
-        ThemeKey.METADATA_DIM.value: "dim steel_blue",
-        ThemeKey.METADATA_BOLD.value: "bold steel_blue",
-        # SPINNER_STATUS
-        ThemeKey.SPINNER_STATUS.value: "orange1",
-        ThemeKey.SPINNER_STATUS_BOLD.value: "bold orange1",
-        # REMINDER
-        ThemeKey.REMINDER.value: "medium_purple3",
-        ThemeKey.REMINDER_BOLD.value: "bold medium_purple3",
-        ThemeKey.REMINDER_DIM.value: "dim medium_purple3",
-        # TOOL
-        ThemeKey.INVALID_TOOL_CALL_ARGS.value: "yellow",
-        ThemeKey.TOOL_NAME.value: "bold",
-        ThemeKey.TOOL_PARAM_FILE_PATH.value: "green",
-        ThemeKey.TOOL_PARAM.value: "green",
-        ThemeKey.TOOL_PARAM_BOLD.value: "bold green",
-        ThemeKey.TOOL_RESULT.value: "grey50",
-        ThemeKey.TOOL_MARK.value: "bold",
-        # THINKING
-        ThemeKey.THINKING.value: "italic dim",
-        ThemeKey.THINKING_BOLD.value: "bold italic dim",
-        # TODO_ITEM
-        ThemeKey.TODO_PENDING_MARK.value: "bold dim",
-        ThemeKey.TODO_COMPLETED_MARK.value: "bold dim",
-        ThemeKey.TODO_IN_PROGRESS_MARK.value: "bold dodger_blue1",
-        ThemeKey.TODO_NEW_COMPLETED_MARK.value: "bold green",
-        ThemeKey.TODO_PENDING.value: "dim bold",
-        ThemeKey.TODO_COMPLETED.value: "dim strike",
-        ThemeKey.TODO_IN_PROGRESS.value: "dodger_blue1 bold",
-        ThemeKey.TODO_NEW_COMPLETED.value: "green bold strike",
-        # WELCOME
-        ThemeKey.WELCOME_HIGHLIGHT.value: "bold",
-        ThemeKey.WELCOME_INFO.value: "dim",
-        # RESUME
-        ThemeKey.RESUME_FLAG.value: "green bold reverse",
-        ThemeKey.RESUME_INFO.value: "green",
-        # URL
-        ThemeKey.ANNOTATION_URL.value: "blue",
-        ThemeKey.ANNOTATION_URL_HIGHLIGHT.value: "bold blue",
-        ThemeKey.ANNOTATION_SEARCH_CONTENT.value: "bright_black italic",
-    }
-)
