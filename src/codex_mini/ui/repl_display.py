@@ -903,7 +903,7 @@ class REPLDisplay(DisplayABC):
                 grid.add_row(
                     Text("✪", style=ThemeKey.REMINDER),
                     Text.assemble(
-                        self.render_path(memory_path, ThemeKey.REMINDER_DIM),
+                        self.render_path(memory_path, ThemeKey.REMINDER),
                     ),
                 )
             self.print(grid)
@@ -917,7 +917,7 @@ class REPLDisplay(DisplayABC):
                     Text("⧉ ", style=ThemeKey.REMINDER),
                     Text.assemble(
                         ("Hint ", ThemeKey.REMINDER_BOLD),
-                        self.render_path(file_path, ThemeKey.REMINDER_DIM),
+                        self.render_path(file_path, ThemeKey.REMINDER),
                         (" has changed, new content has been loaded to context", ThemeKey.REMINDER_DIM),
                     ),
                 )
@@ -943,7 +943,7 @@ class REPLDisplay(DisplayABC):
                     Text("⧉ ", style=ThemeKey.REMINDER_BOLD),
                     Text.assemble(
                         (f"{at_file.operation} ", ThemeKey.REMINDER_BOLD),
-                        self.render_path(at_file.path, ThemeKey.REMINDER_DIM),
+                        self.render_path(at_file.path, ThemeKey.REMINDER),
                     ),
                 )
             self.print(grid)

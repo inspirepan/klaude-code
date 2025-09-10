@@ -66,7 +66,35 @@ class ResponsesClient(LLMClientABC):
         if self.is_debug_mode():
             import json
 
-            log_debug("▷▷▷ llm [Payload Messages]", json.dumps(inputs, indent=2, ensure_ascii=False), style="yellow")
+            payload: dict[str, object] = {
+                "model": str(param.model),
+                "tool_choice": "auto",
+                "parallel_tool_calls": False,
+                "include": [
+                    "reasoning.encrypted_content",
+                ],
+                "store": param.store,
+                "previous_response_id": param.previous_response_id,
+                "stream": True,
+                "temperature": param.temperature,
+                "max_output_tokens": param.max_tokens,
+                "input": inputs,
+                "instructions": param.system,
+                "tools": convert_tool_schema(param.tools),
+                "text": {
+                    "verbosity": param.verbosity,
+                },
+                "reasoning": {
+                    "effort": param.reasoning.effort,
+                    "summary": param.reasoning.summary,
+                }
+                if param.reasoning
+                else None,
+            }
+            # Remove None values
+            payload = {k: v for k, v in payload.items() if v is not None}
+
+            log_debug("▷▷▷ llm [Complete Payload]", json.dumps(payload, indent=2, ensure_ascii=False), style="yellow")
 
         stream = self.client.responses.create(
             model=str(param.model),

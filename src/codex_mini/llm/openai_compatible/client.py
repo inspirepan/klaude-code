@@ -79,10 +79,23 @@ class OpenAICompatibleClient(LLMClientABC):
         if self.is_debug_mode():
             import json
 
-            log_debug("▷▷▷ llm [Payload Messages]", json.dumps(messages, indent=2, ensure_ascii=False), style="yellow")
-            log_debug(
-                "▷▷▷ llm [Payload Extra Body]", json.dumps(extra_body, indent=2, ensure_ascii=False), style="yellow"
-            )
+            payload: dict[str, object] = {
+                "model": str(param.model),
+                "tool_choice": "auto",
+                "parallel_tool_calls": True,
+                "stream": True,
+                "messages": messages,
+                "temperature": param.temperature,
+                "max_tokens": param.max_tokens,
+                "tools": tools,
+                "reasoning_effort": param.reasoning.effort if param.reasoning else None,
+                "verbosity": param.verbosity,
+                **extra_body,
+            }
+            # Remove None values
+            payload = {k: v for k, v in payload.items() if v is not None}
+
+            log_debug("▷▷▷ llm [Complete Payload]", json.dumps(payload, indent=2, ensure_ascii=False), style="yellow")
 
         stream = self.client.chat.completions.create(
             model=str(param.model),

@@ -54,7 +54,35 @@ class AnthropicClient(LLMClientABC):
         if self.is_debug_mode():
             import json
 
-            log_debug("▷▷▷ llm [Payload Messages]", json.dumps(messages, indent=2, ensure_ascii=False), style="yellow")
+            thinking_config_dict = (
+                {
+                    "type": param.thinking.type,
+                    "budget_tokens": param.thinking.budget_tokens
+                    or llm_parameter.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
+                }
+                if param.thinking and param.thinking.type == "enabled"
+                else {"type": "disabled"}
+            )
+
+            payload: dict[str, object] = {
+                "model": str(param.model),
+                "tool_choice": {
+                    "type": "auto",
+                    "disable_parallel_tool_use": False,
+                },
+                "stream": True,
+                "max_tokens": param.max_tokens or llm_parameter.DEFAULT_MAX_TOKENS,
+                "temperature": param.temperature or llm_parameter.DEFAULT_TEMPERATURE,
+                "messages": messages,
+                "system": system,
+                "tools": tools,
+                "betas": ["interleaved-thinking-2025-05-14", "context-1m-2025-08-07"],
+                "thinking": thinking_config_dict,
+            }
+            # Remove None values
+            payload = {k: v for k, v in payload.items() if v is not None}
+
+            log_debug("▷▷▷ llm [Complete Payload]", json.dumps(payload, indent=2, ensure_ascii=False), style="yellow")
 
         stream = self.client.beta.messages.create(
             model=str(param.model),
