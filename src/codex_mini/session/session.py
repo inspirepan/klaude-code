@@ -215,6 +215,9 @@ class Session(BaseModel):
         for p in sessions_dir.glob("*.json"):
             try:
                 data = json.loads(p.read_text())
+                # Filter out non-root sessions
+                if not data.get("is_root_session", True):
+                    continue
                 sid = str(data.get("id", p.stem))
                 ts = float(data.get("updated_at", 0.0))
                 if ts <= 0:
@@ -370,6 +373,9 @@ class Session(BaseModel):
                 data = json.loads(p.read_text())
             except Exception:
                 # Skip unreadable files
+                continue
+            # Filter out non-root sessions
+            if not data.get("is_root_session", True):
                 continue
             sid = str(data.get("id", p.stem))
             created = float(data.get("created_at", p.stat().st_mtime))
