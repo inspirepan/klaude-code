@@ -19,6 +19,7 @@ from prompt_toolkit.styles import Style
 
 from codex_mini.command import get_commands
 from codex_mini.ui.input_abc import InputProviderABC
+from codex_mini.ui.utils import show_path_with_tilde
 
 kb = KeyBindings()
 
@@ -103,6 +104,7 @@ class PromptToolkitInput(InputProviderABC):
             completer=_ComboCompleter(),
             complete_while_typing=True,
             erase_when_done=True,
+            placeholder=[("ansibrightblack italic", f"  Working at {show_path_with_tilde()}")],
             style=Style.from_dict(
                 {
                     "completion-menu": "bg:default",
