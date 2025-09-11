@@ -28,10 +28,26 @@ COMPLETION_MENU = "ansibrightblack"
 
 @kb.add("enter")
 def _(event):  # type: ignore
-    if len(event.current_buffer.text.strip()) == 0:  # type: ignore
-        event.current_buffer.insert_text("\n")  # type: ignore
+    buf = event.current_buffer  # type: ignore
+    doc = buf.document  # type: ignore
+
+    # If VS Code/Windsurf/Cursor sent a "\\" sentinel before Enter (Shift+Enter mapping),
+    # treat it as a request for a newline instead of submit.
+    # This allows Shift+Enter to insert a newline in our multiline prompt.
+    try:
+        if doc.text_before_cursor.endswith("\\"):  # type: ignore[reportUnknownMemberType]
+            buf.delete_before_cursor()  # remove the sentinel backslash  # type: ignore[reportUnknownMemberType]
+            buf.insert_text("\n")  # type: ignore[reportUnknownMemberType]
+            return
+    except Exception:
+        # Fall through to default behavior if anything goes wrong
+        pass
+
+    # If the entire buffer is whitespace-only, insert a newline rather than submitting.
+    if len(buf.text.strip()) == 0:  # type: ignore
+        buf.insert_text("\n")  # type: ignore
         return
-    event.current_buffer.validate_and_handle()  # type: ignore
+    buf.validate_and_handle()  # type: ignore
 
 
 @kb.add("c-j")

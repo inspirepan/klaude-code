@@ -133,7 +133,7 @@ class TerminalSetupCommand(CommandABC):
         "key": "shift+enter",
         "command": "workbench.action.terminal.sendSequence",
         "args": {
-            "text": "\r\n"
+            "text": "\\\r\n"
         },
         "when": "terminalFocus"
     }"""
