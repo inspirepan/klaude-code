@@ -1,12 +1,15 @@
 import json
 import re
+import os
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, override
 
+from rich import box
 from rich._spinners import SPINNERS
+from rich.box import Box
 from rich.console import Console, Group, RenderableType
 from rich.padding import Padding
 from rich.panel import Panel
@@ -44,6 +47,13 @@ class REPLDisplay(DisplayABC):
         self.themes = get_theme(theme)
         self.console: Console = Console(theme=self.themes.app_theme)
         self.console.push_theme(self.themes.markdown_theme)
+        self.term_program = os.environ.get("TERM_PROGRAM", "").lower()
+        self.spinner: Status = self.console.status(
+            Text("Thinking …", style=ThemeKey.SPINNER_STATUS),
+            spinner="claude",
+            spinner_style=ThemeKey.SPINNER_STATUS,
+        )
+
         self.stage: Literal["waiting", "thinking", "assistant", "tool_call", "tool_result"] = "waiting"
         self.is_thinking_in_bold = False
 
@@ -59,12 +69,6 @@ class REPLDisplay(DisplayABC):
         self.session_map: dict[str, SessionStatus] = {}
         self.current_session_status: SessionStatus | None = None
         self.subagent_color_index = 0
-
-        self.spinner: Status = self.console.status(
-            Text("Thinking …", style=ThemeKey.SPINNER_STATUS),
-            spinner="claude",
-            spinner_style=ThemeKey.SPINNER_STATUS,
-        )
 
     @override
     async def consume_event(self, event: events.Event) -> None:
@@ -196,6 +200,11 @@ class REPLDisplay(DisplayABC):
         if switch:
             self.subagent_color_index = (self.subagent_color_index + 1) % len(self.themes.sub_agent_colors)
         return self.console.get_style(self.themes.sub_agent_colors[self.subagent_color_index])
+
+    def box_style(self) -> Box:
+        if self.term_program == "warpterminal":
+            return box.SQUARE
+        return box.ROUNDED
 
     @contextmanager
     def session_print_context(self, session_id: str):
@@ -394,7 +403,11 @@ class REPLDisplay(DisplayABC):
             plan = json_dict.get("plan", "")
             return Group(
                 Text.assemble(("¶ ", ThemeKey.TOOL_MARK), ("Plan", ThemeKey.TOOL_NAME)),
-                Panel.fit(NoInsetMarkdown(plan, code_theme=self.themes.code_theme), border_style=ThemeKey.LINES),
+                Panel.fit(
+                    NoInsetMarkdown(plan, code_theme=self.themes.code_theme),
+                    border_style=ThemeKey.LINES,
+                    box=self.box_style(),
+                ),
             )
 
         except json.JSONDecodeError:
@@ -743,6 +756,7 @@ class REPLDisplay(DisplayABC):
             Panel.fit(
                 model_info,
                 border_style=ThemeKey.LINES,
+                box=self.box_style(),
             )
         )
         self.print()
