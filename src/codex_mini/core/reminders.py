@@ -11,13 +11,17 @@ from codex_mini.session import Session
 
 
 def get_last_new_user_input(session: Session) -> str | None:
-    """Get last user input from conversation history. if there's a tool result after user input, return None"""
+    """Get last user input & developer message (CLAUDE.md) from conversation history. if there's a tool result after user input, return None"""
+    result: list[str] = []
     for item in reversed(session.conversation_history):
         if isinstance(item, model.ToolResultItem):
             return None
         if isinstance(item, model.UserMessageItem):
-            return item.content
-    return None
+            result.append(item.content or "")
+            break
+        if isinstance(item, model.DeveloperMessageItem):
+            result.append(item.content or "")
+    return "\n\n".join(result)
 
 
 async def at_file_reader_reminder(session: Session) -> model.DeveloperMessageItem | None:
@@ -28,7 +32,7 @@ async def at_file_reader_reminder(session: Session) -> model.DeveloperMessageIte
 
     at_patterns: list[str] = []
 
-    for item in last_user_input.strip().split(" "):
+    for item in last_user_input.strip().split():
         if item.startswith("@") and len(item) > 1:
             at_patterns.append(item.lower().strip("@"))
 
