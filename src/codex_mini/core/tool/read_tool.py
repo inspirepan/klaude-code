@@ -227,8 +227,8 @@ class ReadTool(ToolABC):
 
         # Build display with numbering and reminders
         lines_out: list[str] = [_format_numbered_line(no, content) for no, content in read_result.selected_lines]
-        if read_result.total_lines > 0:
-            lines_out.append(f"... (more {read_result.total_lines} lines are truncated)")
+        if read_result.remaining_selected_beyond_cap > 0:
+            lines_out.append(f"... (more {read_result.remaining_selected_beyond_cap} lines are truncated)")
         read_result_str = "\n".join(lines_out)
         if read_result_str:
             read_result_str += "\n\n" + SYSTEM_REMINDER_MALICIOUS
