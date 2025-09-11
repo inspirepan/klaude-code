@@ -31,6 +31,7 @@ class Config(BaseModel):
     main_model: str
     plan_model: str | None = None
     task_model: str | None = None
+    oracle_model: str | None = None
     theme: str | None = None
 
     def get_main_model_config(self) -> LLMConfigParameter:

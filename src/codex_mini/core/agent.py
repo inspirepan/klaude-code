@@ -20,6 +20,15 @@ class AgentLLMClients:
     plan: LLMClientABC | None = None
     fast: LLMClientABC | None = None  # Not used for now
     task: LLMClientABC | None = None
+    oracle: LLMClientABC | None = None
+
+    def get_sub_agent_client(self, sub_agent_type: tools.SubAgentType) -> LLMClientABC:
+        if sub_agent_type == tools.SubAgentType.TASK:
+            return self.task or self.main
+        elif sub_agent_type == tools.SubAgentType.ORACLE:
+            return self.oracle or self.main
+        else:
+            return self.main
 
 
 @dataclass
@@ -44,7 +53,6 @@ class Agent:
         self.debug_mode: bool = debug_mode
         self.reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] = reminders
         self.llm_clients = llm_clients
-        self.set_llm_client(llm_clients.main)
         # Track tool calls that are pending or in-progress within the current turn
         # Keyed by tool_call_id
         self.turn_inflight_tool_calls: dict[str, UnfinishedToolCallItem] = {}
@@ -96,7 +104,11 @@ class Agent:
             log_debug(f"Session {self.session.id} interrupted", style="yellow")
 
     async def run_task(self, user_input: str) -> AsyncGenerator[events.Event, None]:
-        yield events.TaskStartEvent(session_id=self.session.id, is_sub_agent=not self.session.is_root_session)
+        yield events.TaskStartEvent(
+            session_id=self.session.id,
+            is_sub_agent=not self.session.is_root_session,
+            sub_agent_type=self.session.sub_agent_type,
+        )
 
         self.session.append_history([model.UserMessageItem(content=user_input)])
 
@@ -280,15 +292,20 @@ class Agent:
                 self.session.append_history([item])
                 yield events.DeveloperMessageEvent(session_id=self.session.id, item=item)
 
+    def sync_system_prompt(self, sub_agent_type: tools.SubAgentType | None = None) -> None:
+        if sub_agent_type == tools.SubAgentType.TASK:
+            self.session.system_prompt = get_system_prompt(self.llm_clients.main.model_name, "task")
+        elif sub_agent_type == tools.SubAgentType.ORACLE:
+            self.session.system_prompt = get_system_prompt(self.llm_clients.main.model_name, "oracle")
+        else:
+            self.session.system_prompt = get_system_prompt(self.llm_clients.main.model_name, "main")
+
     def set_llm_client(self, llm_client: LLMClientABC) -> None:
         if self.session.is_in_plan_mode:
             self.llm_clients.plan = llm_client
         else:
             self.llm_clients.main = llm_client
         self.session.model_name = llm_client.model_name
-        self.session.system_prompt = get_system_prompt(
-            llm_client.model_name, "main" if self.session.is_root_session else "task"
-        )
 
     def get_llm_client(self) -> LLMClientABC:
         if self.session.is_in_plan_mode and self.llm_clients.plan:
@@ -299,7 +316,6 @@ class Agent:
     def exit_plan_mode(self) -> str:
         """Exit plan mode and switch back to executor LLM client, return a message for tool result"""
         self.session.is_in_plan_mode = False
-        self.set_llm_client(self.llm_clients.main)
         # TODO: If model is switched here, for Claude, the following error may occur
         # because Claude does not allow losing thinking during consecutive assistant and tool_result conversation turns when extended thinking is enabled
         #
@@ -321,6 +337,6 @@ class Agent:
     def enter_plan_mode(self) -> str:
         self.session.is_in_plan_mode = True
         if self.llm_clients.plan is not None:
-            self.set_llm_client(self.llm_clients.plan)
+            self.sync_system_prompt()
             return self.llm_clients.plan.model_name
         return self.llm_clients.main.model_name

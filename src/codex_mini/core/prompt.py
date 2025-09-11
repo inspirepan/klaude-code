@@ -16,6 +16,8 @@ def get_system_prompt(model_name: str, key: str = "main") -> str:
             prompt_path = "prompt_claude_code.md"
     elif key == "task":
         prompt_path = "prompt_subagent.md"
+    elif key == "oracle":
+        prompt_path = "prompt_oracle.md"
     # Read md located in the same package directory
     return (
         files(__package__)

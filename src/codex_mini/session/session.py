@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from codex_mini.protocol import events, model
 from codex_mini.protocol.model import ConversationItem, TodoItem
+from codex_mini.protocol.tools import SubAgentType
 
 
 class Session(BaseModel):
@@ -17,6 +18,7 @@ class Session(BaseModel):
     conversation_history: list[ConversationItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     system_prompt: str | None = None
     is_root_session: bool = True
+    sub_agent_type: SubAgentType | None = None
     child_session_ids: list[str] = Field(default_factory=list)
     # Last response id: for OpenAI Responses API
     last_response_id: str | None = None
@@ -101,6 +103,7 @@ class Session(BaseModel):
         # Basic fields (conversation history is loaded separately)
         work_dir_str = raw.get("work_dir", str(Path.cwd()))
         is_root_session = bool(raw.get("is_root_session", True))
+        sub_agent_type = raw.get("sub_agent_type")
         child_session_ids = list(raw.get("child_session_ids", []))
         last_response_id = raw.get("last_response_id")
         file_tracker = dict(raw.get("file_tracker", {}))
@@ -115,6 +118,7 @@ class Session(BaseModel):
             id=id,
             work_dir=Path(work_dir_str),
             is_root_session=is_root_session,
+            sub_agent_type=SubAgentType(sub_agent_type) if sub_agent_type else None,
             child_session_ids=child_session_ids,
             last_response_id=last_response_id,
             file_tracker=file_tracker,
@@ -172,6 +176,7 @@ class Session(BaseModel):
             "id": self.id,
             "work_dir": str(self.work_dir),
             "is_root_session": self.is_root_session,
+            "sub_agent_type": self.sub_agent_type,
             "child_session_ids": self.child_session_ids,
             "last_response_id": self.last_response_id,
             "file_tracker": self.file_tracker,

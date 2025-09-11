@@ -75,9 +75,13 @@ def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
             tools.MULTI_EDIT,
             tools.EXIT_PLAN_MODE,
             tools.TASK,
+            tools.ORACLE,
         ]
     )
 
 
-def get_sub_agent_tools(model_name: str) -> list[ToolSchema]:
-    return get_tool_schemas([tools.BASH, tools.READ, tools.EDIT, tools.MULTI_EDIT])
+def get_sub_agent_tools(model_name: str, sub_agent_type: tools.SubAgentType) -> list[ToolSchema]:
+    if sub_agent_type == tools.SubAgentType.TASK:
+        return get_tool_schemas([tools.BASH, tools.READ, tools.EDIT, tools.MULTI_EDIT])
+    elif sub_agent_type == tools.SubAgentType.ORACLE:
+        return get_tool_schemas([tools.READ, tools.BASH])

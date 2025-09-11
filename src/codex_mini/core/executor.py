@@ -24,6 +24,7 @@ from codex_mini.core.tool import get_main_agent_tools, get_sub_agent_tools
 from codex_mini.core.tool.tool_context import SubAgentResult, current_run_subtask_callback
 from codex_mini.protocol import events, llm_parameter, model
 from codex_mini.protocol.op import InitAgentOperation, InterruptOperation, Operation, Submission, UserInputOperation
+from codex_mini.protocol.tools import SubAgentType
 from codex_mini.session.session import Session
 from codex_mini.trace import log_debug
 
@@ -83,6 +84,7 @@ class ExecutorContext:
                     plan_mode_reminder,
                 ],
             )
+            agent.sync_system_prompt()
             async for evt in agent.replay_history():
                 await self.emit_event(evt)
             await self.emit_event(
@@ -190,8 +192,8 @@ class ExecutorContext:
                 log_debug(f"Starting agent task {task_id} for session {session_id}", style="green")
 
             # Inject subtask runner into tool context for nested Task tool usage
-            async def _runner(prompt: str) -> SubAgentResult:
-                return await self._run_subagent_task(agent, prompt)
+            async def _runner(prompt: str, sub_agent_type: SubAgentType) -> SubAgentResult:
+                return await self._run_subagent_task(agent, prompt, sub_agent_type)
 
             token = current_run_subtask_callback.set(_runner)
             try:
@@ -225,7 +227,9 @@ class ExecutorContext:
             if self.debug_mode:
                 log_debug(f"Cleaned up agent task {task_id}", style="cyan")
 
-    async def _run_subagent_task(self, parent_agent: Agent, prompt: str) -> SubAgentResult:
+    async def _run_subagent_task(
+        self, parent_agent: Agent, prompt: str, sub_agent_type: SubAgentType
+    ) -> SubAgentResult:
         """Run a nested sub-agent task and return the final task_result text.
 
         - Creates a child session linked to the parent session
@@ -236,19 +240,20 @@ class ExecutorContext:
         parent_session = parent_agent.session
         child_session = Session(work_dir=parent_session.work_dir)
         child_session.is_root_session = False
+        child_session.sub_agent_type = sub_agent_type
         # Link relationship and persist parent change
         parent_session.child_session_ids.append(child_session.id)
         parent_session.save()
 
         # Build a fresh AgentLLMClients wrapper to avoid mutating parent's pointers
         child_llm_clients = AgentLLMClients(
-            main=self.llm_clients.task or self.llm_clients.main, fast=self.llm_clients.fast
+            main=self.llm_clients.get_sub_agent_client(sub_agent_type), fast=self.llm_clients.fast
         )
 
         child_agent = Agent(
             llm_clients=child_llm_clients,
             session=child_session,
-            tools=get_sub_agent_tools(child_llm_clients.main.model_name),
+            tools=get_sub_agent_tools(child_llm_clients.main.model_name, sub_agent_type),
             debug_mode=self.debug_mode,
             reminders=[
                 file_changed_externally_reminder,
@@ -257,6 +262,7 @@ class ExecutorContext:
                 at_file_reader_reminder,
             ],
         )
+        child_agent.sync_system_prompt(sub_agent_type)
 
         try:
             # Not emit the subtask's user input since task tool call is already rendered

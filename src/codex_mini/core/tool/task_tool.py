@@ -5,7 +5,7 @@ from codex_mini.core.tool.tool_context import current_run_subtask_callback
 from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import ToolResultItem
-from codex_mini.protocol.tools import TASK
+from codex_mini.protocol.tools import TASK, SubAgentType
 
 
 class TaskArguments(BaseModel):
@@ -69,7 +69,7 @@ class TaskTool(ToolABC):
             return ToolResultItem(status="error", output="No subtask runner available in this context")
 
         try:
-            result = await runner(args.prompt)
+            result = await runner(args.prompt, SubAgentType.TASK)
         except Exception as e:  # safeguard
             return ToolResultItem(status="error", output=f"Failed to run subtask: {e}")
 

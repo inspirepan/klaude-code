@@ -1,7 +1,8 @@
 from .bash_tool import BashTool
 from .edit_tool import EditTool
-from .exit_plan_mode import ExitPlanMode
+from .exit_plan_mode import ExitPlanModeTool
 from .multi_edit_tool import MultiEditTool
+from .oracle_tool import OracleTool
 from .read_tool import ReadTool
 from .task_tool import TaskTool
 from .todo_write_tool import TodoWriteTool
@@ -14,7 +15,8 @@ __all__ = [
     "MultiEditTool",
     "TaskTool",
     "TodoWriteTool",
-    "ExitPlanMode",
+    "ExitPlanModeTool",
+    "OracleTool",
     "get_tool_schemas",
     "run_tool",
     "get_sub_agent_tools",

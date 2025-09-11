@@ -185,6 +185,16 @@ async def run_interactive(
             log_debug("▷▷▷ llm [Task Model Config]", task_llm_config.model_dump_json(exclude_none=True), style="yellow")
             task_llm_client.enable_debug_mode()
 
+    if config.oracle_model:
+        oracle_llm_config = config.get_model_config(config.oracle_model)
+        oracle_llm_client = create_llm_client(oracle_llm_config)
+        llm_clients.oracle = oracle_llm_client
+        if debug:
+            log_debug(
+                "▷▷▷ llm [Oracle Model Config]", oracle_llm_config.model_dump_json(exclude_none=True), style="yellow"
+            )
+            oracle_llm_client.enable_debug_mode()
+
     # Create event queue for communication between executor and UI
     event_queue: asyncio.Queue[Event] = asyncio.Queue()
 

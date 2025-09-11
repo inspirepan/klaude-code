@@ -13,7 +13,7 @@ class ExitPlanModeArguments(BaseModel):
 
 
 @register(EXIT_PLAN_MODE)
-class ExitPlanMode(ToolABC):
+class ExitPlanModeTool(ToolABC):
     @classmethod
     def schema(cls) -> ToolSchema:
         return ToolSchema(

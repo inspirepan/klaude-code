@@ -145,3 +145,7 @@ def display_models_and_providers(config: Config):
     # Display plan model if configured
     if config.plan_model:
         console.print(Text.assemble(("Plan Model: ", "bold"), (config.plan_model, ThemeKey.YELLOW)))
+
+    # Display oracle model if configured
+    if config.oracle_model:
+        console.print(Text.assemble(("Oracle Model: ", "bold"), (config.oracle_model, ThemeKey.YELLOW)))

@@ -36,6 +36,7 @@ dev = [
 "src/codex_mini/core/prompt_claude_code.md" = "codex_mini/core/prompt_claude_code.md"
 "src/codex_mini/core/prompt_init.md" = "codex_mini/core/prompt_init.md"
 "src/codex_mini/core/prompt_subagent.md" = "codex_mini/core/prompt_subagent.md"
+"src/codex_mini/core/prompt_oracle.md" = "codex_mini/core/prompt_oracle.md"
 
 [tool.ruff]
 line-length = 120

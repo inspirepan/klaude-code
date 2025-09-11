@@ -40,6 +40,7 @@ SPINNERS["claude"] = {
 class SessionStatus:
     is_subagent: bool = False
     color: Style | None = None
+    sub_agent_type: tools.SubAgentType | None = None
 
 
 class REPLDisplay(DisplayABC):
@@ -69,6 +70,7 @@ class REPLDisplay(DisplayABC):
         self.session_map: dict[str, SessionStatus] = {}
         self.current_session_status: SessionStatus | None = None
         self.subagent_color_index = 0
+        self.subagent_color: Style = self.pick_sub_agent_color()
 
     @override
     async def consume_event(self, event: events.Event) -> None:
@@ -83,7 +85,9 @@ class REPLDisplay(DisplayABC):
             case events.TaskStartEvent() as e:
                 self.spinner.start()
                 self.session_map[e.session_id] = SessionStatus(
-                    is_subagent=e.is_sub_agent, color=self.pick_sub_agent_color() if e.is_sub_agent else None
+                    is_subagent=e.is_sub_agent,
+                    color=self.get_sub_agent_color() if e.is_sub_agent else None,
+                    sub_agent_type=e.sub_agent_type,
                 )
             case events.DeveloperMessageEvent() as e:
                 if self.need_display_developer_message(e):
@@ -196,10 +200,16 @@ class REPLDisplay(DisplayABC):
     def is_sub_agent_session(self, session_id: str) -> bool:
         return session_id in self.session_map and self.session_map[session_id].is_subagent
 
-    def pick_sub_agent_color(self, switch: bool = False) -> Style:
-        if switch:
+    def pick_sub_agent_color(self, sub_agent_type: str | None = None) -> Style:
+        if sub_agent_type and sub_agent_type == tools.SubAgentType.ORACLE:
+            self.subagent_color = self.console.get_style(ThemeKey.RED)
+        else:
             self.subagent_color_index = (self.subagent_color_index + 1) % len(self.themes.sub_agent_colors)
-        return self.console.get_style(self.themes.sub_agent_colors[self.subagent_color_index])
+            self.subagent_color = self.console.get_style(self.themes.sub_agent_colors[self.subagent_color_index])
+        return self.subagent_color
+
+    def get_sub_agent_color(self) -> Style:
+        return self.subagent_color
 
     def box_style(self) -> Box:
         if self.term_program == "warpterminal":
@@ -428,16 +438,20 @@ class REPLDisplay(DisplayABC):
             return Group(
                 Text.assemble(
                     ("↓ ", ThemeKey.TOOL_MARK),
-                    ("Task", ThemeKey.TOOL_NAME),
+                    (e.tool_name, ThemeKey.TOOL_NAME),
                     " ",
                     Text(
                         f" {description} ",
-                        style=Style(color=self.pick_sub_agent_color(switch=True).color, bold=True, reverse=True),
+                        style=Style(
+                            color=self.pick_sub_agent_color(sub_agent_type=e.tool_name).color,
+                            bold=True,
+                            reverse=True,
+                        ),
                     ),
                 ),
                 Quote(
-                    Text(prompt, style=self.pick_sub_agent_color()),
-                    style=self.pick_sub_agent_color(),
+                    Text(prompt, style=self.get_sub_agent_color()),
+                    style=self.get_sub_agent_color(),
                 ),
             )
 
@@ -463,7 +477,7 @@ class REPLDisplay(DisplayABC):
                 self.print(self.render_any_tool_call("Update Todos", "", "☰"))
             case tools.EXIT_PLAN_MODE:
                 self.print(self.render_plan(e.arguments))
-            case tools.TASK:
+            case tools.TASK | tools.ORACLE:
                 self.print(self.render_task_call(e))
             case _:
                 self.print(self.render_any_tool_call(e.tool_name, e.arguments))
@@ -598,7 +612,7 @@ class REPLDisplay(DisplayABC):
         # For sub-agent
         return Quote(
             NoInsetMarkdown(e.result, code_theme=self.themes.code_theme),
-            style=self.pick_sub_agent_color(),
+            style=self.get_sub_agent_color(),
         )
 
     def display_tool_call_result(self, e: events.ToolResultEvent) -> None:
@@ -630,7 +644,7 @@ class REPLDisplay(DisplayABC):
                     self.print(grid)
                 else:
                     self.print(Padding.indent(Text(" Rejected ", ThemeKey.TOOL_APPROVED), level=1))
-            case tools.TASK:
+            case tools.TASK | tools.ORACLE:
                 self.print(self.render_task_result(e))
             case _:
                 # handle bash `git diff`

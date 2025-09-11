@@ -51,6 +51,7 @@ class ModelCommand(CommandABC):
 
         llm_client = create_llm_client(llm_config)
         agent.set_llm_client(llm_client)
+        agent.sync_system_prompt()
 
         return CommandResult(
             events=[

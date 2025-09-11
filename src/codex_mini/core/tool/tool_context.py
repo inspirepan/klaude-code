@@ -4,6 +4,7 @@ from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
 
+from codex_mini.protocol.tools import SubAgentType
 from codex_mini.session.session import Session
 
 # Holds the current Session for tool execution context.
@@ -26,7 +27,8 @@ class SubAgentResult:
 
 
 # Holds a handle to run a nested subtask (sub-agent) from within a tool call.
-# The callable takes a prompt string and returns the final task_result string and session_id str.
-current_run_subtask_callback: ContextVar[Callable[[str], Awaitable[SubAgentResult]] | None] = ContextVar(
+# The callable takes a prompt string and a sub-agent type string
+# returns the final task_result string and session_id str.
+current_run_subtask_callback: ContextVar[Callable[[str, SubAgentType], Awaitable[SubAgentResult]] | None] = ContextVar(
     "current_run_subtask_callback", default=None
 )
