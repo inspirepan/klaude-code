@@ -137,3 +137,11 @@ def display_models_and_providers(config: Config):
     # Display main model info
     console.print()
     console.print(Text.assemble(("Default Model: ", "bold"), (config.main_model, ThemeKey.YELLOW)))
+
+    # Display task model if configured
+    if config.task_model:
+        console.print(Text.assemble(("Task Model: ", "bold"), (config.task_model, ThemeKey.YELLOW)))
+
+    # Display plan model if configured
+    if config.plan_model:
+        console.print(Text.assemble(("Plan Model: ", "bold"), (config.plan_model, ThemeKey.YELLOW)))

@@ -132,6 +132,7 @@ class LLMConfigParameter(LLMConfigProviderParameter, LLMConfigModelParameter):
     - llm/*/client.py, handle the new parameter, e.g. add it to extra_body
     - ui/repl_display.py#display_welcome
     - config/list_models.py#display_models_and_providers
+    - config/select_model.py#select_model_from_config
     """
 
     pass
