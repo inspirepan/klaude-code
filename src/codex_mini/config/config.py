@@ -81,15 +81,13 @@ def get_example_config() -> Config:
                 api_key="sk-1234567890",
                 base_url="https://api.openai.com/v1",
                 is_azure=False,
-                azure_api_version="2023-03-15-preview",
+                azure_api_version="2025-04-01-preview",
             ),
             LLMConfigProviderParameter(
                 provider_name="openrouter",
                 protocol=LLMClientProtocol.OPENAI,
                 api_key="sk-1234567890",
                 base_url="https://api.openrouter.com/v1",
-                is_azure=False,
-                azure_api_version="2023-03-15-preview",
             ),
         ],
         model_list=[

@@ -8,7 +8,7 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
     for `--select-model`
     """
     config = load_config()
-    models = config.model_list
+    models = sorted(config.model_list, key=lambda m: m.model_name.lower())
 
     if not models:
         raise ValueError("No models configured. Please update your config.yaml")
