@@ -101,7 +101,10 @@ class REPLDisplay(DisplayABC):
                 with self.session_print_context(e.session_id):
                     self.print()
             case events.ThinkingDeltaEvent() as e:
-                if self.is_sub_agent_session(e.session_id):
+                if (
+                    self.is_sub_agent_session(e.session_id)
+                    and self.session_map[e.session_id].sub_agent_type != tools.ORACLE
+                ):
                     return
                 self.spinner.stop()
                 if len(e.content.strip()) == 0 and self.stage != "thinking":
@@ -110,7 +113,10 @@ class REPLDisplay(DisplayABC):
                 self.accumulated_thinking_text += e.content
                 self.thinking_debouncer.schedule()
             case events.ThinkingEvent() as e:
-                if self.is_sub_agent_session(e.session_id):
+                if (
+                    self.is_sub_agent_session(e.session_id)
+                    and self.session_map[e.session_id].sub_agent_type != tools.ORACLE
+                ):
                     return
                 self.thinking_debouncer.cancel()
                 await self._flush_thinking_buffer()

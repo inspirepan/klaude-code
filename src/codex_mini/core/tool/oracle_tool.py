@@ -41,7 +41,9 @@ WHEN NOT TO USE THE ORACLE:
 
 USAGE GUIDELINES:
 1. Be specific about what you want the Oracle to review, plan, or debug
-2. Provide relevant context about what you're trying to achieve. If you know that 3 files are involved, list them with @<file_path> and they will be attached.
+2. Provide relevant context about what you're trying to achieve. If you know that 3 files are involved, list them.
+3. Use `@<file_path>` so the file content will automatically be attached to the prompt.
+
 
 EXAMPLES:
 - "Review the authentication system architecture and suggest improvements"
