@@ -50,7 +50,7 @@ class REPLDisplay(DisplayABC):
         self.console.push_theme(self.themes.markdown_theme)
         self.term_program = os.environ.get("TERM_PROGRAM", "").lower()
         self.spinner: Status = self.console.status(
-            Text("Thinking …", style=ThemeKey.SPINNER_STATUS),
+            self._create_status_text("Thinking …", ThemeKey.SPINNER_STATUS),
             spinner="claude",
             spinner_style=ThemeKey.SPINNER_STATUS,
         )
@@ -169,9 +169,11 @@ class REPLDisplay(DisplayABC):
                             active_form_status_text = todo.content
                             break
                 if len(active_form_status_text) > 0:
-                    self.spinner.update(Text(active_form_status_text + " …", style=ThemeKey.SPINNER_STATUS_BOLD))
+                    self.spinner.update(
+                        self._create_status_text(active_form_status_text + " …", ThemeKey.SPINNER_STATUS_BOLD)
+                    )
                 else:
-                    self.spinner.update(Text("Thinking …", style=ThemeKey.SPINNER_STATUS))
+                    self.spinner.update(self._create_status_text("Thinking …", ThemeKey.SPINNER_STATUS))
             case events.TurnEndEvent():
                 pass
             case events.TaskFinishEvent():
@@ -202,7 +204,7 @@ class REPLDisplay(DisplayABC):
 
     def pick_sub_agent_color(self, sub_agent_type: str | None = None) -> Style:
         if sub_agent_type and sub_agent_type == tools.SubAgentType.ORACLE:
-            self.subagent_color = self.console.get_style(ThemeKey.RED)
+            self.subagent_color = self.console.get_style(ThemeKey.ORANGE)
         else:
             self.subagent_color_index = (self.subagent_color_index + 1) % len(self.themes.sub_agent_colors)
             self.subagent_color = self.console.get_style(self.themes.sub_agent_colors[self.subagent_color_index])
@@ -210,6 +212,13 @@ class REPLDisplay(DisplayABC):
 
     def get_sub_agent_color(self) -> Style:
         return self.subagent_color
+
+    def _create_status_text(self, main_text: str, main_style: ThemeKey) -> Text:
+        """Create status text with main text and (esc to interrupt) suffix in grey2 color."""
+        result = Text()
+        result.append(main_text, style=main_style)
+        result.append(" (esc to interrupt)", style=ThemeKey.GREY2)
+        return result
 
     def box_style(self) -> Box:
         if self.term_program == "warpterminal":
