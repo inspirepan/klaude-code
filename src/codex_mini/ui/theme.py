@@ -62,6 +62,8 @@ class ThemeKey(str, Enum):
     # DIFF
     DIFF_REMOVE = "diff.remove"
     DIFF_ADD = "diff.add"
+    DIFF_STATS_ADD = "diff.stats.add"
+    DIFF_STATS_REMOVE = "diff.stats.remove"
     # ERROR
     ERROR = "error"
     ERROR_BOLD = "error.bold"
@@ -150,6 +152,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 # DIFF
                 ThemeKey.DIFF_REMOVE.value: palette.diff_remove,
                 ThemeKey.DIFF_ADD.value: palette.diff_add,
+                ThemeKey.DIFF_STATS_ADD.value: palette.green,
+                ThemeKey.DIFF_STATS_REMOVE.value: palette.red,
                 # ERROR
                 ThemeKey.ERROR.value: palette.red,
                 ThemeKey.ERROR_BOLD.value: "bold " + palette.red,

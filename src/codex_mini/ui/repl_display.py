@@ -521,14 +521,50 @@ class REPLDisplay(DisplayABC):
         # Track line numbers based on hunk headers
         new_ln: int | None = None
 
-        for line in lines:
+        for i, line in enumerate(lines):
             # Parse file name from diff headers
             if show_file_name and line.startswith("+++ "):
-                # Extract file name from +++ b/path header
-                file_name = line[4:].split("/", 1)[-1] if "/" in line[4:] else line[4:]
+                # Extract file name from +++ header with proper handling of /dev/null
+                raw = line[4:].strip()
+                if raw == "/dev/null":
+                    file_name = raw
+                elif raw.startswith(("a/", "b/")):
+                    file_name = raw[2:]
+                else:
+                    file_name = raw
+
                 file_text = self.render_path(file_name, "bold")
+
+                # Count actual +/- lines for this file from i+1 onwards
+                file_additions = 0
+                file_deletions = 0
+                for remaining_line in lines[i + 1 :]:
+                    if remaining_line.startswith("diff --git"):
+                        break
+                    elif remaining_line.startswith("+") and not remaining_line.startswith("+++"):
+                        file_additions += 1
+                    elif remaining_line.startswith("-") and not remaining_line.startswith("---"):
+                        file_deletions += 1
+
+                # Create stats text
+                stats_text = Text()
+                if file_additions > 0:
+                    stats_text.append(f"+{file_additions}", style=ThemeKey.DIFF_STATS_ADD)
+                if file_deletions > 0:
+                    if file_additions > 0:
+                        stats_text.append(" ")
+                    stats_text.append(f"-{file_deletions}", style=ThemeKey.DIFF_STATS_REMOVE)
+
+                # Combine file name and stats
+                file_line = Text()
+                file_line.append_text(file_text)
+                if stats_text.plain:
+                    file_line.append(" (")
+                    file_line.append_text(stats_text)
+                    file_line.append(")")
+
                 grid.add_row("", "")
-                grid.add_row(Text("   ±", style=ThemeKey.TOOL_MARK), file_text)
+                grid.add_row(Text("   ±", style=ThemeKey.TOOL_MARK), file_line)
                 continue
 
             # Parse hunk headers to reset counters: @@ -l,s +l,s @@
