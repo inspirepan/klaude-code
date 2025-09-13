@@ -1,5 +1,6 @@
 from codex_mini.config.config import load_config
-from codex_mini.trace import log_debug
+from codex_mini.trace import log
+from codex_mini.ui.searchable_text import SearchableFormattedList
 
 
 def select_model_from_config(preferred: str | None = None) -> str | None:
@@ -26,12 +27,14 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
         max_model_name_length = max(len(m.model_name) for m in models)
         for m in models:
             star = "★ " if m.model_name == config.main_model else "  "
-            label = [
+            fragments = [
                 ("class:t", f"{star}{m.model_name:<{max_model_name_length}}   → "),
                 ("class:b", m.model_params.model or "N/A"),
                 ("class:d", f" {m.provider}"),
             ]
-            choices.append(questionary.Choice(title=label, value=m.model_name))
+            # Provide a formatted title for display and a plain text for search.
+            title = SearchableFormattedList(fragments)
+            choices.append(questionary.Choice(title=title, value=m.model_name))
 
         try:
             result = questionary.select(
@@ -40,11 +43,17 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
                 default=default_name,
                 pointer="→",
                 instruction="↑↓ to move • Enter to select",
+                use_jk_keys=False,
+                use_search_filter=True,
                 style=questionary.Style(
                     [
                         ("t", ""),
                         ("b", "bold"),
                         ("d", "dim"),
+                        # search filter colors at the bottom
+                        ("search_success", "noinherit fg:ansigreen"),
+                        ("search_none", "noinherit fg:ansired"),
+                        ("question-mark", "fg:ansigreen"),
                     ]
                 ),
             ).ask()
@@ -53,5 +62,5 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
         except KeyboardInterrupt:
             return None
     except Exception as e:
-        log_debug(f"Failed to use questionary, falling back to default model, {e}")
-        pass
+        log(f"Failed to use questionary, falling back to default model, {e}")
+        return preferred
