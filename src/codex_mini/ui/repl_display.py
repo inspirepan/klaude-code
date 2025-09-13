@@ -1,7 +1,7 @@
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Literal, override
+from typing import Any, Iterator, Literal, override
 
 from rich import box
 from rich.box import Box
@@ -11,12 +11,10 @@ from rich.status import Status
 from rich.style import Style, StyleType
 
 from codex_mini.protocol import events, tools
-
 from codex_mini.ui.debouncer import Debouncer
 from codex_mini.ui.display_abc import DisplayABC
 from codex_mini.ui.mdstream import MarkdownStream, NoInsetMarkdown
 from codex_mini.ui.quote import Quote
-
 from codex_mini.ui.renderers import annotations as r_annotations
 from codex_mini.ui.renderers import developer as r_developer
 from codex_mini.ui.renderers import diffs as r_diffs
@@ -62,7 +60,8 @@ class REPLDisplay(DisplayABC):
 
         self.session_map: dict[str, SessionStatus] = {}
         self.current_session_status: SessionStatus | None = None
-        self.subagent_color_index = 0
+        # Start at -1 so the first pick uses index 0
+        self.subagent_color_index = -1
         self.subagent_color: Style = self.pick_sub_agent_color()
 
     @override
@@ -140,6 +139,17 @@ class REPLDisplay(DisplayABC):
                 if self.assistant_mdstream is not None:
                     self.assistant_debouncer.cancel()
                     self.assistant_mdstream.update(e.content.strip(), final=True)
+                else:
+                    # Fallback for non-streamed assistant messages
+                    content = e.content.strip()
+                    if content:
+                        self.print(
+                            NoInsetMarkdown(
+                                content,
+                                code_theme=self.themes.code_theme,
+                            )
+                        )
+                        self.print()
                 self.accumulated_assistant_text = ""
                 self.assistant_mdstream = None
                 if e.annotations:
@@ -193,9 +203,11 @@ class REPLDisplay(DisplayABC):
             # case _:
             #     self.print("[Event]", event.__class__.__name__, event)
 
+    @override
     async def start(self) -> None:
         pass
 
+    @override
     async def stop(self) -> None:
         await self.assistant_debouncer.flush()
         await self.thinking_debouncer.flush()
@@ -206,7 +218,7 @@ class REPLDisplay(DisplayABC):
     def is_sub_agent_session(self, session_id: str) -> bool:
         return session_id in self.session_map and self.session_map[session_id].is_subagent
 
-    def pick_sub_agent_color(self, sub_agent_type: str | None = None) -> Style:
+    def pick_sub_agent_color(self, sub_agent_type: tools.SubAgentType | None = None) -> Style:
         if sub_agent_type and sub_agent_type == tools.SubAgentType.ORACLE:
             self.subagent_color = self.console.get_style(ThemeKey.ORANGE)
         else:
@@ -217,14 +229,13 @@ class REPLDisplay(DisplayABC):
     def get_sub_agent_color(self) -> Style:
         return self.subagent_color
 
-
     def box_style(self) -> Box:
         if self.term_program == "warpterminal":
             return box.SQUARE
         return box.ROUNDED
 
     @contextmanager
-    def session_print_context(self, session_id: str):
+    def session_print_context(self, session_id: str) -> Iterator[None]:
         """Context manager for subagent QuoteStyle"""
         old = self.current_session_status
         if session_id in self.session_map:
@@ -271,10 +282,9 @@ class REPLDisplay(DisplayABC):
             self.print(r_thinking.thinking_prefix())
             self.stage = "thinking"
         self.print(r_thinking.render_thinking_content(content, self.is_thinking_in_bold), end="")
-        # Toggle bold state if single pair of ** is present
-        if content.count("**") == 1:
+        # Toggle bold state when an odd number of '**' markers are seen
+        if content.count("**") % 2 == 1:
             self.is_thinking_in_bold = not self.is_thinking_in_bold
-
 
     def display_tool_call(self, e: events.ToolCallEvent) -> None:
         match e.tool_name:
@@ -294,7 +304,7 @@ class REPLDisplay(DisplayABC):
                 )
             case tools.TASK | tools.ORACLE:
                 # Display parent session's Task tool call before sub-agent session's TaskStartEvent arrives. Since session ID is unavailable here, pick a new subagent color here instead of consuming TaskStartEvent
-                color = self.pick_sub_agent_color(sub_agent_type=e.tool_name).color
+                color = self.pick_sub_agent_color(sub_agent_type=tools.SubAgentType(e.tool_name)).color
                 self.print(r_tools.render_task_call(e, color))
             case _:
                 self.print(r_tools.render_any_tool_call(e.tool_name, e.arguments))
@@ -306,6 +316,7 @@ class REPLDisplay(DisplayABC):
 
         match e.tool_name:
             case tools.READ:
+                # Not display read tool result
                 pass
             case tools.EDIT | tools.MULTI_EDIT:
                 self.print(
