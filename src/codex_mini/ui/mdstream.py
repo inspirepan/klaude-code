@@ -71,11 +71,15 @@ class MarkdownStream:
     in new markdown text.
     """
 
-    def __init__(self, mdargs: dict[str, Any] | None = None, theme: Theme | None = None):
+    def __init__(
+        self, mdargs: dict[str, Any] | None = None, theme: Theme | None = None, console: Console | None = None
+    ):
         """Initialize the markdown stream.
 
         Args:
             mdargs (dict, optional): Additional arguments to pass to rich Markdown renderer
+            theme (Theme, optional): Theme for rendering markdown
+            console (Console, optional): External console to use for rendering
         """
         self.printed: list[str] = []  # Stores lines that have already been printed
 
@@ -94,6 +98,7 @@ class MarkdownStream:
         self.live_window: int = 6  # Number of lines to keep visible at bottom
 
         self.theme = theme
+        self.console = console
 
     def _render_markdown_to_lines(self, text: str) -> list[str]:
         """Render markdown text to a list of lines.
@@ -106,9 +111,20 @@ class MarkdownStream:
         """
         # Render the markdown to a string buffer
         string_io = io.StringIO()
-        console = Console(file=string_io, force_terminal=True, theme=self.theme)
+        # Use external console for consistent theming, or create temporary one
+        if self.console is not None:
+            # Use external console settings but render to string_io
+            temp_console = Console(
+                file=string_io,
+                force_terminal=True,
+                theme=self.theme,
+                width=self.console.options.max_width,
+            )
+        else:
+            temp_console = Console(file=string_io, force_terminal=True, theme=self.theme)
+
         markdown = NoInsetMarkdown(text, **self.mdargs)
-        console.print(markdown)
+        temp_console.print(markdown)
         output = string_io.getvalue()
 
         # Split rendered output into lines
@@ -141,7 +157,11 @@ class MarkdownStream:
         """
         # On the first call, stop the spinner and start the Live renderer
         if not getattr(self, "_live_started", False):
-            self.live = Live(Text(""), refresh_per_second=1.0 / self.min_delay)
+            self.live = Live(
+                Text(""),
+                refresh_per_second=1.0 / self.min_delay,
+                console=self.console,  # Use external console if provided
+            )
             self.live.start()
             self._live_started = True
 

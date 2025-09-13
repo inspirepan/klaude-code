@@ -133,7 +133,9 @@ class REPLDisplay(DisplayABC):
                 self.accumulated_assistant_text += e.content
                 if self.assistant_mdstream is None:
                     self.assistant_mdstream = MarkdownStream(
-                        mdargs={"code_theme": self.themes.code_theme}, theme=self.themes.markdown_theme
+                        mdargs={"code_theme": self.themes.code_theme},
+                        theme=self.themes.markdown_theme,
+                        console=self.console,
                     )
                     self.stage = "assistant"
                 self.assistant_debouncer.schedule()
@@ -896,21 +898,24 @@ class REPLDisplay(DisplayABC):
                     self.print()
                 case events.AssistantMessageEvent() as e:
                     if len(e.content.strip()) > 0:
-                        MarkdownStream(
-                            mdargs={"code_theme": self.themes.code_theme}, theme=self.themes.markdown_theme
-                        ).update(e.content.strip(), final=True)
+                        self.console.print(
+                            NoInsetMarkdown(
+                                e.content.strip(),
+                                code_theme=self.themes.code_theme,
+                            )
+                        )
                     if e.annotations:
                         self.print(self.render_annotations(e.annotations))
                 case events.ThinkingEvent() as e:
                     if len(e.content.strip()) > 0:
                         self.print(THINKING_PREFIX)
-                        MarkdownStream(
-                            mdargs={
-                                "code_theme": self.themes.code_theme,
-                                "style": self.console.get_style(ThemeKey.THINKING),
-                            },
-                            theme=self.themes.markdown_theme,
-                        ).update(e.content.strip(), final=True)
+                        self.console.print(
+                            NoInsetMarkdown(
+                                e.content.strip(),
+                                code_theme=self.themes.code_theme,
+                                style=self.console.get_style(ThemeKey.THINKING),
+                            )
+                        )
                 case events.DeveloperMessageEvent() as e:
                     self.display_developer_message(e)
                 case events.UserMessageEvent() as e:
