@@ -15,6 +15,7 @@ class Usage(BaseModel):
     reasoning_tokens: int = 0
     output_tokens: int = 0
     total_tokens: int = 0
+    context_usage_percent: float | None = None
 
 
 class TodoItem(BaseModel):

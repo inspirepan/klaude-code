@@ -100,6 +100,7 @@ def get_example_config() -> Config:
                     max_tokens=8192,
                     verbosity="medium",
                     reasoning=Reasoning(effort="high", summary="auto"),
+                    context_limit=400000,
                 ),
             ),
             ModelConfig(
@@ -118,6 +119,7 @@ def get_example_config() -> Config:
                             id="web",
                         )
                     ],
+                    context_limit=200000,
                 ),
             ),
         ],

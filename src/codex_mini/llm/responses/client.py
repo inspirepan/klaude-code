@@ -171,12 +171,17 @@ class ResponsesClient(LLMClientABC):
                 case responses.ResponseCompletedEvent() as event:
                     usage: Usage | None = None
                     if event.response.usage is not None:
+                        total_tokens = event.response.usage.total_tokens
+                        context_usage_percent = (
+                            (total_tokens / param.context_limit) * 100 if param.context_limit else None
+                        )
                         usage = Usage(
                             input_tokens=event.response.usage.input_tokens,
                             cached_tokens=event.response.usage.input_tokens_details.cached_tokens,
                             reasoning_tokens=event.response.usage.output_tokens_details.reasoning_tokens,
                             output_tokens=event.response.usage.output_tokens,
-                            total_tokens=event.response.usage.total_tokens,
+                            total_tokens=total_tokens,
+                            context_usage_percent=context_usage_percent,
                         )
                     yield ResponseMetadataItem(
                         usage=usage,

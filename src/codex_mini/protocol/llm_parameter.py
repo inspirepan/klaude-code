@@ -106,6 +106,7 @@ class LLMConfigModelParameter(BaseModel):
     model: str | None = None
     temperature: float | None = None
     max_tokens: int | None = None
+    context_limit: int | None = None
 
     # OpenAI Reasoning
     reasoning: Reasoning | None = None
@@ -163,6 +164,8 @@ def apply_config_defaults(param: LLMCallParameter, config: LLMConfigParameter) -
         param.temperature = config.temperature
     if param.max_tokens is None:
         param.max_tokens = config.max_tokens
+    if param.context_limit is None:
+        param.context_limit = config.context_limit
     if param.reasoning is None:
         param.reasoning = config.reasoning
     if param.verbosity is None:
@@ -185,5 +188,11 @@ def apply_config_defaults(param: LLMCallParameter, config: LLMConfigParameter) -
 
     if param.model in {"gpt-5-2025-08-07", "gpt-5"}:
         param.temperature = 1.0  # Required for GPT-5
+        if param.context_limit is None:
+            param.context_limit = 400000
+
+    if param.model and "sonnet" in param.model.lower():
+        if param.context_limit is None:
+            param.context_limit = 200000
 
     return param

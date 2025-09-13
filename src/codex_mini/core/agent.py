@@ -112,7 +112,9 @@ class Agent:
 
         self.session.append_history([model.UserMessageItem(content=user_input)])
 
-        accumulated_metadata: model.ResponseMetadataItem = model.ResponseMetadataItem(model_name=self.get_llm_client().model_name)
+        accumulated_metadata: model.ResponseMetadataItem = model.ResponseMetadataItem(
+            model_name=self.get_llm_client().model_name
+        )
         last_assistant_message: events.AssistantMessageEvent | None = None
 
         while True:
@@ -140,6 +142,8 @@ class Agent:
                             accumulated_metadata.usage.reasoning_tokens += metadata.usage.reasoning_tokens
                             accumulated_metadata.usage.output_tokens += metadata.usage.output_tokens
                             accumulated_metadata.usage.total_tokens += metadata.usage.total_tokens
+                            if metadata.usage.context_usage_percent is not None:
+                                accumulated_metadata.usage.context_usage_percent = metadata.usage.context_usage_percent
                         if metadata.provider is not None:
                             accumulated_metadata.provider = metadata.provider
                         if metadata.model_name:

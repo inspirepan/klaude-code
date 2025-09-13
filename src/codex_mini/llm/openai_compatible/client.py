@@ -132,7 +132,7 @@ class OpenAICompatibleClient(LLMClientABC):
                 accumulated_tool_calls.response_id = response_id
                 yield model.StartItem(response_id=response_id)
             if event.usage is not None and event.usage.completion_tokens is not None:  # pyright: ignore[reportUnnecessaryComparison] gcp gemini will return None usage field
-                metadata_item.usage = convert_usage(event.usage)
+                metadata_item.usage = convert_usage(event.usage, param.context_limit)
             if event.model:
                 metadata_item.model_name = event.model
             if provider := getattr(event, "provider", None):
@@ -254,12 +254,15 @@ class OpenAICompatibleClient(LLMClientABC):
         yield metadata_item
 
 
-def convert_usage(usage: openai.types.CompletionUsage) -> model.Usage:
+def convert_usage(usage: openai.types.CompletionUsage, context_limit: int | None = None) -> model.Usage:
+    total_tokens = usage.total_tokens
+    context_usage_percent = (total_tokens / context_limit) * 100 if context_limit else None
     return model.Usage(
         input_tokens=usage.prompt_tokens,
         cached_tokens=(usage.prompt_tokens_details.cached_tokens if usage.prompt_tokens_details else 0) or 0,
         reasoning_tokens=(usage.completion_tokens_details.reasoning_tokens if usage.completion_tokens_details else 0)
         or 0,
         output_tokens=usage.completion_tokens,
-        total_tokens=usage.total_tokens,
+        total_tokens=total_tokens,
+        context_usage_percent=context_usage_percent,
     )

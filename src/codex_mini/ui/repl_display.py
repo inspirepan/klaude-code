@@ -741,6 +741,11 @@ class REPLDisplay(DisplayABC):
                 if metadata.usage.reasoning_tokens > 0
                 else Text("")
             )
+            context_usage_str = (
+                Text.assemble((", ", ThemeKey.METADATA_DIM), f"{metadata.usage.context_usage_percent:.1f}%", " context")
+                if metadata.usage.context_usage_percent is not None
+                else Text("")
+            )
             rule_text.append_text(
                 Text.assemble(
                     (" · ", ThemeKey.METADATA_DIM),
@@ -751,6 +756,7 @@ class REPLDisplay(DisplayABC):
                     (format_number(metadata.usage.output_tokens), ThemeKey.METADATA),
                     (" output"),
                     reasoning_token_str,
+                    context_usage_str,
                     style=ThemeKey.METADATA,
                 )
             )
