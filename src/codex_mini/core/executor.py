@@ -22,7 +22,14 @@ from codex_mini.core.reminders import (
 from codex_mini.core.tool import get_main_agent_tools, get_sub_agent_tools
 from codex_mini.core.tool.tool_context import SubAgentResult, current_run_subtask_callback
 from codex_mini.protocol import events, llm_parameter, model
-from codex_mini.protocol.op import InitAgentOperation, InterruptOperation, Operation, Submission, UserInputOperation
+from codex_mini.protocol.op import (
+    EndOperation,
+    InitAgentOperation,
+    InterruptOperation,
+    Operation,
+    Submission,
+    UserInputOperation,
+)
 from codex_mini.protocol.tools import SubAgentType
 from codex_mini.session.session import Session
 from codex_mini.trace import log_debug
@@ -111,7 +118,6 @@ class ExecutorContext:
 
         # emit user input event
         await self.emit_event(events.UserMessageEvent(content=operation.content, session_id=operation.session_id))
-        await self.event_queue.join()
 
         result = await dispatch_command(operation.content, agent)
         if not result.agent_input:
@@ -343,6 +349,13 @@ class Executor:
             try:
                 # Wait for next submission
                 submission = await self.submission_queue.get()
+
+                # Check for end operation to gracefully exit
+                if isinstance(submission.operation, EndOperation):
+                    if self.debug_mode:
+                        log_debug("Received EndOperation, stopping executor", style="yellow")
+                    break
+
                 await self._handle_submission(submission)
 
             except asyncio.CancelledError:
@@ -365,6 +378,15 @@ class Executor:
         for task in self.context.active_tasks.values():
             if not task.done():
                 task.cancel()
+
+        # Send EndOperation to wake up the start() loop
+        try:
+            end_operation = EndOperation()
+            submission = Submission(id=end_operation.id, operation=end_operation)
+            await self.submission_queue.put(submission)
+        except Exception as e:
+            if self.debug_mode:
+                log_debug(f"Failed to send EndOperation: {str(e)}", style="red")
 
         if self.debug_mode:
             log_debug("Executor stopped", style="yellow")

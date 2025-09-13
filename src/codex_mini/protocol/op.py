@@ -22,6 +22,7 @@ class OperationType(Enum):
     USER_INPUT = "user_input"
     INTERRUPT = "interrupt"
     INIT_AGENT = "init_agent"
+    END = "end"
 
 
 class Operation(BaseModel, ABC):
@@ -67,6 +68,16 @@ class InitAgentOperation(Operation):
 
     async def execute(self, context: "ExecutorContext") -> None:
         await context.handle_init_agent(self)
+
+
+class EndOperation(Operation):
+    """Operation for gracefully stopping the executor."""
+
+    type: OperationType = OperationType.END
+
+    async def execute(self, context: "ExecutorContext") -> None:
+        """Execute end operation - this is a no-op, just signals the executor to stop."""
+        pass
 
 
 class Submission(BaseModel):

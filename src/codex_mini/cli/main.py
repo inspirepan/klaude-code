@@ -258,8 +258,8 @@ async def run_interactive(
                         await esc_task
                     except Exception:
                         pass
-            # Ensure all UI events drained before next input
-            await event_queue.join()
+            # Note: Removed event_queue.join() to prevent global blocking
+            # UI events will be processed asynchronously
 
     except KeyboardInterrupt:
         log("Bye!")
