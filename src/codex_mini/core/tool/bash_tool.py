@@ -221,7 +221,7 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
         return SafetyCheckResult(True)
 
     # Build tools and linters - allow all subcommands
-    if cmd0 in {"cargo", "uv", "go", "ruff", "pyright", "make", "isort"}:
+    if cmd0 in {"cargo", "uv", "go", "ruff", "pyright", "make", "isort", "npm", "pnpm", "bun"}:
         return SafetyCheckResult(True)
 
     if cmd0 == "sed":
@@ -349,6 +349,7 @@ Allowed commands:
 - Version control: git (local operations only - add/branch/checkout/commit/diff/log/merge/reset/restore/revert/show/stash/status etc.)
   Note: Remote operations (push/pull/fetch/clone) are blocked
 - Build tools & linters: cargo/uv/go/ruff/pyright/make (all subcommands)
+- Package managers: npm/pnpm/bun (all subcommands)
 - Search: find (without -exec/-delete/-f* print options), fd (without -x/--exec), rg (without --pre/--hostname-bin/--search-zip/-z)
 - Command sequences: joined by &&, ||, ;, |
 

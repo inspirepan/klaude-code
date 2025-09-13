@@ -160,7 +160,9 @@ def render_task_call(e: events.ToolCallEvent, color: Color | None = None) -> Ren
         task = json_dict.get("task", "")
 
         desc = Text(f" {description} ", style=Style(color=color, bold=True, reverse=True))
-        body = Quote(Text("\n".join(filter(None, [context, task, prompt]))), style=Style(color=color))
+        body = Quote(
+            Text("\n".join(filter(None, [context, task, prompt])), style=Style(color=color)), style=Style(color=color)
+        )
         return Group(Text.assemble(("↓ ", ThemeKey.TOOL_MARK), (e.tool_name, ThemeKey.TOOL_NAME), " ", desc), body)
 
     except json.JSONDecodeError:
@@ -195,7 +197,7 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
                     text_style = ThemeKey.TODO_NEW_COMPLETED if is_new_completed else ThemeKey.TODO_COMPLETED
             text = Text(todo.content, style=text_style)
             grid.add_row(Text(mark, style=mark_style), text)
-        return grid
+        return Padding.indent(grid, level=2)
     except json.JSONDecodeError as e:
         return Text(str(e), style=ThemeKey.ERROR)
 
