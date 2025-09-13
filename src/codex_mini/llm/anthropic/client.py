@@ -126,7 +126,9 @@ class AnthropicClient(LLMClientABC):
                 case BetaRawMessageStartEvent() as event:
                     response_id = event.message.id
                     cached_tokens = event.message.usage.cache_read_input_tokens or 0
-                    input_tokens = event.message.usage.input_tokens or 0
+                    input_tokens = (event.message.usage.input_tokens or 0) + (
+                        event.message.usage.cache_creation_input_tokens or 0
+                    )
                     output_tokens = event.message.usage.output_tokens or 0
                     yield model.StartItem(response_id=response_id)
                 case BetaRawContentBlockDeltaEvent() as event:
@@ -187,7 +189,7 @@ class AnthropicClient(LLMClientABC):
                         current_tool_call_id = None
                         current_tool_inputs = None
                 case BetaRawMessageDeltaEvent() as event:
-                    input_tokens += event.usage.input_tokens or 0
+                    input_tokens += (event.usage.input_tokens or 0) + (event.usage.cache_creation_input_tokens or 0)
                     output_tokens += event.usage.output_tokens or 0
                     cached_tokens += event.usage.cache_read_input_tokens or 0
                     total_tokens = input_tokens + cached_tokens + output_tokens
