@@ -121,6 +121,7 @@ class REPLDisplay(DisplayABC):
                 self.thinking_debouncer.cancel()
                 await self._flush_thinking_buffer()
                 self.print("\n")
+                self.is_thinking_in_bold = False
                 self.spinner.start()
             case events.AssistantMessageDeltaEvent() as e:
                 if self.is_sub_agent_session(e.session_id):

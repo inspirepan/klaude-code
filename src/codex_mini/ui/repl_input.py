@@ -19,7 +19,7 @@ from prompt_toolkit.styles import Style
 
 from codex_mini.command import get_commands
 from codex_mini.ui.input_abc import InputProviderABC
-from codex_mini.ui.utils import show_path_with_tilde
+from codex_mini.ui.utils import get_current_git_branch, show_path_with_tilde
 
 kb = KeyBindings()
 
@@ -95,6 +95,12 @@ class PromptToolkitInput(InputProviderABC):
         if not history_path.exists():
             history_path.touch()
 
+        # Build placeholder text with path and git branch info
+        placeholder_text = f"  Working at {show_path_with_tilde()}"
+        git_branch = get_current_git_branch()
+        if git_branch:
+            placeholder_text += f" [{git_branch}]"
+
         self._session: PromptSession[str] = PromptSession(
             prompt,
             history=FileHistory(history_path),
@@ -104,7 +110,7 @@ class PromptToolkitInput(InputProviderABC):
             completer=_ComboCompleter(),
             complete_while_typing=True,
             erase_when_done=True,
-            placeholder=[("ansibrightblack italic", f"  Working at {show_path_with_tilde()}")],
+            placeholder=[("ansibrightblack italic", placeholder_text)],
             style=Style.from_dict(
                 {
                     "completion-menu": "bg:default",
