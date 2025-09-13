@@ -910,18 +910,20 @@ class REPLDisplay(DisplayABC):
                                 code_theme=self.themes.code_theme,
                             )
                         )
+                        self.print()
                     if e.annotations:
                         self.print(self.render_annotations(e.annotations))
                 case events.ThinkingEvent() as e:
                     if len(e.content.strip()) > 0:
                         self.print(THINKING_PREFIX)
-                        self.console.print(
+                        self.print(
                             NoInsetMarkdown(
                                 e.content.strip(),
                                 code_theme=self.themes.code_theme,
                                 style=self.console.get_style(ThemeKey.THINKING),
                             )
                         )
+                        self.print()
                 case events.DeveloperMessageEvent() as e:
                     self.display_developer_message(e)
                 case events.UserMessageEvent() as e:
