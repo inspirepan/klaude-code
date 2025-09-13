@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from codex_mini.core.tool.tool_abc import ToolABC
 from codex_mini.core.tool.tool_context import current_run_subtask_callback
@@ -9,8 +9,10 @@ from codex_mini.protocol.tools import ORACLE, SubAgentType
 
 
 class OracleArguments(BaseModel):
-    description: str
-    prompt: str
+    context: str = Field(default="")
+    files: list[str] = Field(default_factory=list)
+    task: str
+    description: str = Field(default="")
 
 
 @register(ORACLE)
@@ -41,8 +43,7 @@ WHEN NOT TO USE THE ORACLE:
 
 USAGE GUIDELINES:
 1. Be specific about what you want the Oracle to review, plan, or debug
-2. Provide relevant context about what you're trying to achieve. If you know that 3 files are involved, list them.
-3. Use `@<file_path>` so the file content will automatically be attached to the prompt.
+2. Provide relevant context about what you're trying to achieve. If you know that any files are involved, list them and they will be attached.
 
 
 EXAMPLES:
@@ -52,19 +53,27 @@ EXAMPLES:
 - "Review this API design and suggest better patterns"""
             ),
             parameters={
-                "type": "object",
                 "properties": {
-                    "description": {
+                    "context": {
+                        "description": "Optional context about the current situation, what you've tried, or background information that would help the Oracle provide better guidance.",
                         "type": "string",
-                        "description": "A short (3-5 word) description of the task",
                     },
-                    "prompt": {
+                    "files": {
+                        "description": "Optional list of specific file paths (text files, images) that the Oracle should examine as part of its analysis. These files will be attached to the Oracle input.",
+                        "items": {"type": "string"},
+                        "type": "array",
+                    },
+                    "task": {
+                        "description": "The task or question you want the Oracle to help with. Be specific about what kind of guidance, review, or planning you need.",
                         "type": "string",
-                        "description": "The task for the agent to perform",
+                    },
+                    "description": {
+                        "description": "A short (3-5 word) description of the task",
+                        "type": "string",
                     },
                 },
-                "required": ["description", "prompt"],
-                "additionalProperties": False,
+                "required": ["task", "description"],
+                "type": "object",
             },
         )
 
@@ -79,8 +88,16 @@ EXAMPLES:
         if runner is None:
             return ToolResultItem(status="error", output="No subtask runner available in this context")
 
+        prompt = f"""Context: {args.context}
+
+Task: {args.task}
+"""
+        if len(args.files) > 0:
+            files_str = "\n".join(f"@{file}" for file in args.files)
+            prompt += f"\nRelated files to review:\n{files_str}"
+
         try:
-            result = await runner(args.prompt, SubAgentType.ORACLE)
+            result = await runner(prompt, SubAgentType.ORACLE)
         except Exception as e:  # safeguard
             return ToolResultItem(status="error", output=f"Failed to run subtask: {e}")
 

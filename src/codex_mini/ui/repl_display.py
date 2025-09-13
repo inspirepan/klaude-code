@@ -50,7 +50,7 @@ class REPLDisplay(DisplayABC):
         self.console.push_theme(self.themes.markdown_theme)
         self.term_program = os.environ.get("TERM_PROGRAM", "").lower()
         self.spinner: Status = self.console.status(
-            self._create_status_text("Thinking …", ThemeKey.SPINNER_STATUS),
+            self._create_status_text("Thinking …", ThemeKey.SPINNER_STATUS_BOLD),
             spinner="claude",
             spinner_style=ThemeKey.SPINNER_STATUS,
         )
@@ -180,7 +180,7 @@ class REPLDisplay(DisplayABC):
                         self._create_status_text(active_form_status_text + " …", ThemeKey.SPINNER_STATUS_BOLD)
                     )
                 else:
-                    self.spinner.update(self._create_status_text("Thinking …", ThemeKey.SPINNER_STATUS))
+                    self.spinner.update(self._create_status_text("Thinking …", ThemeKey.SPINNER_STATUS_BOLD))
             case events.TurnEndEvent():
                 pass
             case events.TaskFinishEvent():
@@ -450,6 +450,8 @@ class REPLDisplay(DisplayABC):
             json_dict = json.loads(e.arguments)
             description = json_dict.get("description", "")
             prompt = json_dict.get("prompt", "")
+            context = json_dict.get("context", "")
+            task = json_dict.get("task", "")
 
             return Group(
                 Text.assemble(
@@ -466,7 +468,7 @@ class REPLDisplay(DisplayABC):
                     ),
                 ),
                 Quote(
-                    Text(prompt, style=self.get_sub_agent_color()),
+                    Text("\n".join([context, task, prompt]), style=self.get_sub_agent_color()),
                     style=self.get_sub_agent_color(),
                 ),
             )
