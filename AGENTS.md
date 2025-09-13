@@ -47,3 +47,4 @@ Tests are located in the `tests/` directory. Configuration files include `pyproj
 - Common types: `feat`, `fix`, `refactor`, `chore`
 - Examples: `feat(core): support model switching during runtime`, `fix(ui): slash command completion`
 - Keep commits atomic and focused on single changes
+- **Use English only** for commit messages

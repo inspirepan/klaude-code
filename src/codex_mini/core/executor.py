@@ -84,10 +84,10 @@ class ExecutorContext:
                 reminders=[
                     empty_todo_reminder,
                     todo_not_used_recently_reminder,
-                    file_changed_externally_reminder,
                     memory_reminder,
                     last_path_memory_reminder,
                     at_file_reader_reminder,
+                    file_changed_externally_reminder,
                     plan_mode_reminder,
                 ],
             )
@@ -257,10 +257,10 @@ class ExecutorContext:
             tools=get_sub_agent_tools(child_llm_clients.main.model_name, sub_agent_type),
             debug_mode=self.debug_mode,
             reminders=[
-                file_changed_externally_reminder,
                 memory_reminder,
                 last_path_memory_reminder,
                 at_file_reader_reminder,
+                file_changed_externally_reminder,
             ],
         )
         child_agent.sync_system_prompt(sub_agent_type)

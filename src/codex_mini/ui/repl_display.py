@@ -470,7 +470,7 @@ class REPLDisplay(DisplayABC):
                     ),
                 ),
                 Quote(
-                    Text("\n".join([context, task, prompt]), style=self.get_sub_agent_color()),
+                    Text("\n".join(filter(None, [context, task, prompt])), style=self.get_sub_agent_color()),
                     style=self.get_sub_agent_color(),
                 ),
             )
@@ -904,7 +904,7 @@ class REPLDisplay(DisplayABC):
                     self.print()
                 case events.AssistantMessageEvent() as e:
                     if len(e.content.strip()) > 0:
-                        self.console.print(
+                        self.print(
                             NoInsetMarkdown(
                                 e.content.strip(),
                                 code_theme=self.themes.code_theme,
