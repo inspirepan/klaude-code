@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import NamedTuple, cast, override
 
 from prompt_toolkit import PromptSession
-from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.completion import Completer, Completion, ThreadedCompleter
 from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
@@ -107,7 +107,7 @@ class PromptToolkitInput(InputProviderABC):
             multiline=True,
             prompt_continuation=prompt,
             key_bindings=kb,
-            completer=_ComboCompleter(),
+            completer=ThreadedCompleter(_ComboCompleter()),
             complete_while_typing=True,
             erase_when_done=True,
             placeholder=[("ansibrightblack italic", placeholder_text)],
