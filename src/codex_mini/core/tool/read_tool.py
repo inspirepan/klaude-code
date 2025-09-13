@@ -230,11 +230,8 @@ class ReadTool(ToolABC):
         if read_result.remaining_selected_beyond_cap > 0:
             lines_out.append(f"... (more {read_result.remaining_selected_beyond_cap} lines are truncated)")
         read_result_str = "\n".join(lines_out)
-        if read_result_str:
-            read_result_str += "\n\n" + SYSTEM_REMINDER_MALICIOUS
-        else:
-            # Empty content case: show only reminder
-            read_result_str = SYSTEM_REMINDER_MALICIOUS
+        # if read_result_str:
+        # read_result_str += "\n\n" + SYSTEM_REMINDER_MALICIOUS
 
         # Update FileTracker with last modified time
         session = current_session_var.get()
