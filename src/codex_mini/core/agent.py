@@ -112,7 +112,7 @@ class Agent:
 
         self.session.append_history([model.UserMessageItem(content=user_input)])
 
-        accumulated_metadata: model.ResponseMetadataItem = model.ResponseMetadataItem(model_name="")
+        accumulated_metadata: model.ResponseMetadataItem = model.ResponseMetadataItem(model_name=self.get_llm_client().model_name)
         last_assistant_message: events.AssistantMessageEvent | None = None
 
         while True:

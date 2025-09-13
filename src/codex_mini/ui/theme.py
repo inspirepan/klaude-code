@@ -27,7 +27,7 @@ LIGHT_PALETTE = Palette(
     yellow="yellow",
     green="green",
     cyan="cyan",
-    blue="dodger_blue1",
+    blue="#3678b7",
     orange="#de7356",
     grey_blue="steel_blue",
     grey1="#667e90",
@@ -161,7 +161,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 # USER_INPUT
                 ThemeKey.USER_INPUT.value: palette.cyan,
                 ThemeKey.USER_INPUT_DIM.value: palette.cyan + " dim",
-                ThemeKey.USER_INPUT_AT_PATTERN.value: "reverse " + palette.purple,
+                ThemeKey.USER_INPUT_AT_PATTERN.value: palette.purple + " bold",
                 ThemeKey.USER_INPUT_SLASH_COMMAND.value: "reverse bold " + palette.cyan,
                 # METADATA
                 ThemeKey.METADATA.value: palette.grey_blue,
