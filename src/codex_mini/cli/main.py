@@ -6,6 +6,7 @@ import sys
 import termios
 import threading
 import tty
+import uuid
 from dataclasses import dataclass
 
 import typer
@@ -387,6 +388,9 @@ def main_callback(
         # If user didn't pick, allow fallback to --continue
         if session_id is None and continue_:
             session_id = Session.most_recent_session_id()
+        # If still no session_id, generate a new one for a new session
+        if session_id is None:
+            session_id = uuid.uuid4().hex
         asyncio.run(
             run_interactive(
                 model=chosen_model,

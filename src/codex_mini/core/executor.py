@@ -6,7 +6,6 @@ handling operations submitted from the CLI and coordinating with agents.
 """
 
 import asyncio
-from pathlib import Path
 from uuid import uuid4
 
 from codex_mini.command import dispatch_command
@@ -62,13 +61,14 @@ class ExecutorContext:
 
     async def handle_init_agent(self, operation: InitAgentOperation) -> None:
         """Initialize an agent for a session and replay history to UI."""
-        session_key = operation.session_id or "default"
+        if operation.session_id is None:
+            raise ValueError("session_id cannot be None")
+
+        # Load or create session first
+        session = Session.load(operation.session_id)
+
         # Create agent if not exists
-        if session_key not in self.active_agents:
-            if session_key == "default":
-                session = Session(work_dir=Path.cwd())
-            else:
-                session = Session.load(session_key)
+        if operation.session_id not in self.active_agents:
             agent = Agent(
                 llm_clients=self.llm_clients,
                 session=session,
@@ -93,23 +93,24 @@ class ExecutorContext:
                     llm_config=self.llm_config,
                 )
             )
-            self.active_agents[session_key] = agent
+            self.active_agents[operation.session_id] = agent
             if self.debug_mode:
-                log_debug(f"Initialized agent for session: {session.id}", style="cyan")
+                log_debug(f"Initialized agent for session: {operation.session_id}", style="cyan")
 
     async def handle_user_input(self, operation: UserInputOperation) -> None:
         """Handle a user input operation by running it through an agent."""
 
-        session_key = operation.session_id or "default"
+        if operation.session_id is None:
+            raise ValueError("session_id cannot be None")
+
         # Ensure initialized via init_agent
-        if session_key not in self.active_agents:
+        if operation.session_id not in self.active_agents:
             await self.handle_init_agent(InitAgentOperation(id=str(uuid4()), session_id=operation.session_id))
 
-        agent = self.active_agents[session_key]
-        actual_session_id = agent.session.id
+        agent = self.active_agents[operation.session_id]
 
         # emit user input event
-        await self.emit_event(events.UserMessageEvent(content=operation.content, session_id=actual_session_id))
+        await self.emit_event(events.UserMessageEvent(content=operation.content, session_id=operation.session_id))
         await self.event_queue.join()
 
         result = await dispatch_command(operation.content, agent)
@@ -127,10 +128,10 @@ class ExecutorContext:
         if result.agent_input:
             # Start task to process user input (do NOT await here so the executor loop stays responsive)
             task: asyncio.Task[None] = asyncio.create_task(
-                self._run_agent_task(agent, result.agent_input, operation.id, actual_session_id)
+                self._run_agent_task(agent, result.agent_input, operation.id, operation.session_id)
             )
             self.active_tasks[operation.id] = task
-            self.active_task_sessions[operation.id] = actual_session_id
+            self.active_task_sessions[operation.id] = operation.session_id
             # Do not await task here; completion will be tracked by the executor
 
     async def handle_interrupt(self, operation: InterruptOperation) -> None:
@@ -173,12 +174,6 @@ class ExecutorContext:
             # Remove from active tasks immediately
             self.active_tasks.pop(task_id, None)
             self.active_task_sessions.pop(task_id, None)
-
-        # Emit interrupt confirmation event if needed
-        if tasks_to_cancel:
-            await self.emit_event(
-                events.TaskFinishEvent(session_id=operation.target_session_id or "all", task_result="task cancelled")
-            )
 
     async def _run_agent_task(self, agent: Agent, user_input: str, task_id: str, session_id: str) -> None:
         """
