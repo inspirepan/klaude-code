@@ -195,7 +195,8 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
                     mark = "✔"
                     mark_style = ThemeKey.TODO_NEW_COMPLETED_MARK if is_new_completed else ThemeKey.TODO_COMPLETED_MARK
                     text_style = ThemeKey.TODO_NEW_COMPLETED if is_new_completed else ThemeKey.TODO_COMPLETED
-            text = Text(todo.content, style=text_style)
+            text = Text(todo.content)
+            text.stylize(text_style)
             grid.add_row(Text(mark, style=mark_style), text)
         return Padding.indent(grid, level=2)
     except json.JSONDecodeError as e:
