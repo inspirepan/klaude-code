@@ -18,6 +18,7 @@ from codex_mini.config.list_model import display_models_and_providers
 from codex_mini.config.select_model import select_model_from_config
 from codex_mini.core.agent import AgentLLMClients
 from codex_mini.core.executor import Executor
+from codex_mini.core.tool.tool_context import set_read_unrestricted
 from codex_mini.llm import LLMClientABC, create_llm_client
 from codex_mini.protocol import op
 from codex_mini.protocol.events import EndEvent, Event
@@ -157,9 +158,16 @@ class UIArgs:
 
 
 async def run_interactive(
-    model: str | None = None, debug: bool = False, session_id: str | None = None, ui_args: UIArgs | None = None
+    model: str | None = None,
+    debug: bool = False,
+    session_id: str | None = None,
+    ui_args: UIArgs | None = None,
+    unrestricted_read: bool = False,
 ):
     """Run the interactive REPL using the new executor architecture."""
+
+    # Set read limits policy
+    set_read_unrestricted(unrestricted_read)
 
     config = load_config()
     llm_config = config.get_model_config(model) if model else config.get_main_model_config()
@@ -367,6 +375,7 @@ def main_callback(
     light: bool = typer.Option(False, "--light", help="Use light theme"),
     dark: bool = typer.Option(False, "--dark", help="Use dark theme"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
+    unrestricted_read: bool = typer.Option(False, "--unrestricted-read", "-u", help="Remove all read limits for files"),
 ):
     """Start interactive session when no subcommand provided."""
     # Only run interactive mode when no subcommand is invoked
@@ -397,5 +406,6 @@ def main_callback(
                 debug=debug,
                 session_id=session_id,
                 ui_args=UIArgs(theme=set_theme, light=light, dark=dark),
+                unrestricted_read=unrestricted_read,
             )
         )

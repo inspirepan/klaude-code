@@ -32,3 +32,15 @@ class SubAgentResult:
 current_run_subtask_callback: ContextVar[Callable[[str, SubAgentType], Awaitable[SubAgentResult]] | None] = ContextVar(
     "current_run_subtask_callback", default=None
 )
+
+
+@dataclass(frozen=True)
+class ReadLimits:
+    unrestricted: bool = False
+
+
+read_limits_var: ContextVar[ReadLimits] = ContextVar("read_limits", default=ReadLimits())
+
+
+def set_read_unrestricted(unrestricted: bool) -> None:
+    read_limits_var.set(ReadLimits(unrestricted=unrestricted))

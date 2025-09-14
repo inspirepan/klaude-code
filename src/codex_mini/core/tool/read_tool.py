@@ -8,7 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from codex_mini.core.tool.tool_abc import ToolABC
-from codex_mini.core.tool.tool_context import current_session_var
+from codex_mini.core.tool.tool_context import current_session_var, read_limits_var
 from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import ToolResultItem
@@ -50,8 +50,8 @@ class ReadOptions:
     file_path: str
     offset: int
     limit: int | None
-    char_limit_per_line: int = 2000
-    global_line_cap: int = 2000
+    char_limit_per_line: int | None = 2000
+    global_line_cap: int | None = 2000
 
 
 @dataclass
@@ -77,14 +77,14 @@ def _read_segment(options: ReadOptions) -> ReadSegmentResult:
             selected_lines_count += 1
             content = raw_line.rstrip("\n")
             original_len = len(content)
-            if original_len > options.char_limit_per_line:
+            if options.char_limit_per_line is not None and original_len > options.char_limit_per_line:
                 truncated_chars = original_len - options.char_limit_per_line
                 content = (
                     content[: options.char_limit_per_line]
                     + f" ... (more {truncated_chars} characters in this line are truncated)"
                 )
             selected_chars += len(content) + 1
-            if len(selected_lines) < options.global_line_cap:
+            if options.global_line_cap is None or len(selected_lines) < options.global_line_cap:
                 selected_lines.append((line_no, content))
             else:
                 remaining_selected_beyond_cap += 1
@@ -151,9 +151,20 @@ class ReadTool(ToolABC):
         return await cls.call_with_args(args)
 
     @classmethod
+    def _effective_limits(cls) -> tuple[int | None, int | None, int | None, int | None]:
+        """Return effective limits based on current policy: char_per_line, global_line_cap, max_chars, max_kb"""
+        policy = read_limits_var.get()
+        if policy.unrestricted:
+            return None, None, None, None
+        return CHAR_LIMIT_PER_LINE, GLOBAL_LINE_CAP, MAX_CHARS, MAX_KB
+
+    @classmethod
     async def call_with_args(cls, args: ReadTool.ReadArguments) -> ToolResultItem:
         # Accept relative path by resolving to absolute (schema encourages absolute)
         file_path = os.path.abspath(args.file_path)
+
+        # Get effective limits based on policy
+        char_per_line, line_cap, max_chars, max_kb = cls._effective_limits()
 
         # Common file errors
         if _is_directory(file_path):
@@ -163,17 +174,17 @@ class ReadTool(ToolABC):
         if not _file_exists(file_path):
             return ToolResultItem(status="error", output="<tool_use_error>File does not exist.</tool_use_error>")
 
-        # If file is too large and no pagination provided
+        # If file is too large and no pagination provided (only check if limits are enabled)
         try:
             size_bytes = Path(file_path).stat().st_size
         except Exception:
             size_bytes = 0
-        if args.offset is None and args.limit is None and size_bytes > MAX_KB * 1024:
+        if max_kb is not None and args.offset is None and args.limit is None and size_bytes > max_kb * 1024:
             size_kb = size_bytes / 1024.0
             return ToolResultItem(
                 status="error",
                 output=(
-                    f"File content ({size_kb:.1f}KB) exceeds maximum allowed size ({MAX_KB}KB). Please use offset and limit parameters to read specific portions of the file, or use the `rg` command to search for specific content."
+                    f"File content ({size_kb:.1f}KB) exceeds maximum allowed size ({max_kb}KB). Please use offset and limit parameters to read specific portions of the file, or use the `rg` command to search for specific content."
                 ),
             )
 
@@ -192,8 +203,8 @@ class ReadTool(ToolABC):
                     file_path=file_path,
                     offset=offset,
                     limit=limit,
-                    char_limit_per_line=CHAR_LIMIT_PER_LINE,
-                    global_line_cap=GLOBAL_LINE_CAP,
+                    char_limit_per_line=char_per_line,
+                    global_line_cap=line_cap,
                 ),
             )
 
@@ -216,12 +227,12 @@ class ReadTool(ToolABC):
                     pass
             return ToolResultItem(status="success", output=warn)
 
-        # After limit/offset, if total selected chars exceed 60000, error
-        if read_result.selected_chars_count > MAX_CHARS:
+        # After limit/offset, if total selected chars exceed limit, error (only check if limits are enabled)
+        if max_chars is not None and read_result.selected_chars_count > max_chars:
             return ToolResultItem(
                 status="error",
                 output=(
-                    f"File content ({read_result.selected_chars_count} chars) exceeds maximum allowed tokens ({MAX_CHARS}). Please use offset and limit parameters to read specific portions of the file, or use the `rg` command to search for specific content."
+                    f"File content ({read_result.selected_chars_count} chars) exceeds maximum allowed tokens ({max_chars}). Please use offset and limit parameters to read specific portions of the file, or use the `rg` command to search for specific content."
                 ),
             )
 
