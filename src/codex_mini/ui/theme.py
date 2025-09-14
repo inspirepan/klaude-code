@@ -122,7 +122,6 @@ class ThemeKey(str, Enum):
     CYAN = "c"
     BLUE = "b"
     ORANGE = "o"
-    GREY_BLUE = "grey_blue"
     GREY1 = "grey1"
     GREY2 = "grey2"
     GREY3 = "grey3"
@@ -171,9 +170,6 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.SPINNER_STATUS.value: "",
                 ThemeKey.SPINNER_STATUS_BOLD.value: "bold",
                 # REMINDER
-                # ThemeKey.REMINDER.value: palette.purple,
-                # ThemeKey.REMINDER_BOLD.value: "bold " + palette.purple,
-                # ThemeKey.REMINDER_DIM.value: "dim " + palette.purple,
                 ThemeKey.REMINDER.value: palette.grey1,
                 ThemeKey.REMINDER_BOLD.value: "bold " + palette.grey1,
                 # TOOL
@@ -214,7 +210,6 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.GREEN.value: palette.green,
                 ThemeKey.CYAN.value: palette.cyan,
                 ThemeKey.BLUE.value: palette.blue,
-                ThemeKey.GREY_BLUE.value: palette.grey_blue,
                 ThemeKey.GREY1.value: palette.grey1,
                 ThemeKey.GREY2.value: palette.grey2,
                 ThemeKey.GREY3.value: palette.grey3,
