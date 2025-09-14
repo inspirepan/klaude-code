@@ -267,7 +267,7 @@ class REPLDisplay(DisplayABC):
 
     async def _flush_thinking_buffer(self) -> None:
         """Flush thinking buffer"""
-        content = self.accumulated_thinking_text.replace("\r", "").replace("\n\n", "\n")
+        content = self.accumulated_thinking_text.replace("\r", "")
         if len(content.strip()) == 0:
             self.accumulated_thinking_text = ""
             return

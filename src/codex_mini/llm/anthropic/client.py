@@ -142,10 +142,6 @@ class AnthropicClient(LLMClientABC):
                         case BetaSignatureDelta() as delta:
                             full_thinking = "".join(accumulated_thinking)
                             accumulated_thinking.clear()
-                            yield model.ThinkingTextItem(
-                                thinking=full_thinking,
-                                response_id=response_id,
-                            )
                             yield model.ReasoningItem(
                                 content=full_thinking,
                                 encrypted_content=delta.signature,

@@ -12,28 +12,26 @@ def render_thinking_content(content: str, is_bold: bool) -> RenderableType:
     """
     Stateless renderer for streaming thinking content.
 
-    Applies markdown-like bold toggling based on current state and '**' markers
-    in the fragment, but does not modify or return state.
+    Rules:
+    - `is_bold` is the initial bold state for the fragment.
+    - Each occurrence of "**" toggles the bold state.
+    - Supports any number of "**" markers, including adjacent markers.
     """
     out = Text()
-    if content.count("**") == 2:
-        left_part, middle_part, right_part = content.split("**", maxsplit=2)
-        if is_bold:
-            out.append_text(Text(left_part, style=ThemeKey.THINKING_BOLD))
-            out.append_text(Text(middle_part, style=ThemeKey.THINKING))
-            out.append_text(Text(right_part, style=ThemeKey.THINKING_BOLD))
-        else:
-            out.append_text(Text(left_part, style=ThemeKey.THINKING))
-            out.append_text(Text(middle_part, style=ThemeKey.THINKING_BOLD))
-            out.append_text(Text(right_part, style=ThemeKey.THINKING))
-    elif content.count("**") == 1:
-        left_part, right_part = content.split("**", maxsplit=1)
-        if is_bold:
-            out.append_text(Text(left_part, style=ThemeKey.THINKING_BOLD))
-            out.append_text(Text(right_part, style=ThemeKey.THINKING))
-        else:
-            out.append_text(Text(left_part, style=ThemeKey.THINKING))
-            out.append_text(Text(right_part, style=ThemeKey.THINKING_BOLD))
-    else:
+
+    # Fast path: no markers, render with current state
+    if "**" not in content:
         out.append_text(Text(content, style=ThemeKey.THINKING_BOLD if is_bold else ThemeKey.THINKING))
+        return out
+
+    # Split by "**" and alternate styles segment by segment
+    segments = content.split("**")
+    current_bold = is_bold
+    for segment in segments:
+        style = ThemeKey.THINKING_BOLD if current_bold else ThemeKey.THINKING
+        if segment:
+            out.append_text(Text(segment, style=style))
+        # Toggle after each boundary (even if segment is empty)
+        current_bold = not current_bold
+
     return out

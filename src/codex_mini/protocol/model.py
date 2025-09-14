@@ -65,9 +65,6 @@ Models for LLM API input and response items.
 A typical sequence of response items is:
 - [StartItem]
 - [ThinkingTextDelta] × n
-- [ThinkingTextItem]
-- [ThinkingTextDelta] × n # OpenAI's Reasoning Summary has multiple parts
-- [ThinkingTextItem]
 - [ReasoningItem]
 - [AssistantMessageDelta] × n
 - [AssistantMessageItem]
@@ -135,11 +132,6 @@ class ThinkingTextDelta(BaseModel):
     thinking: str
 
 
-class ThinkingTextItem(BaseModel):
-    response_id: str | None = None
-    thinking: str
-
-
 class ReasoningItem(BaseModel):
     id: str | None = None
     response_id: str | None = None
@@ -187,7 +179,6 @@ MessageItem = (
     | AssistantMessageItem
     | SystemMessageItem
     | DeveloperMessageItem
-    | ThinkingTextItem
     | ReasoningItem
     | ToolCallItem
     | ToolResultItem

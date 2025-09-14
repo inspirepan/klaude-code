@@ -46,12 +46,12 @@ class Agent:
         session: Session,
         tools: list[llm_parameter.ToolSchema] | None = None,
         debug_mode: bool = False,
-        reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] = [],
+        reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] | None = None,
     ):
         self.session: Session = session
         self.tools: list[llm_parameter.ToolSchema] | None = tools
         self.debug_mode: bool = debug_mode
-        self.reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] = reminders
+        self.reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] | None = reminders
         self.llm_clients = llm_clients
         # Track tool calls that are pending or in-progress within the current turn
         # Keyed by tool_call_id
@@ -209,14 +209,15 @@ class Agent:
                         response_id=item.response_id,
                         session_id=self.session.id,
                     )
-                case model.ThinkingTextItem() as item:
-                    yield events.ThinkingEvent(
-                        content=item.thinking,
-                        response_id=item.response_id,
-                        session_id=self.session.id,
-                    )
                 case model.ReasoningItem() as item:
                     turn_reasoning_item = item
+                    thinking = "\n".join(item.summary) if item.summary else item.content
+                    if thinking:
+                        yield events.ThinkingEvent(
+                            content=thinking,
+                            response_id=item.response_id,
+                            session_id=self.session.id,
+                        )
                 case model.AssistantMessageDelta() as item:
                     yield events.AssistantMessageDeltaEvent(
                         content=item.content,
@@ -290,6 +291,8 @@ class Agent:
         yield events.TurnEndEvent(session_id=self.session.id)
 
     async def process_reminders(self) -> AsyncGenerator[events.DeveloperMessageEvent, None]:
+        if self.reminders is None:
+            return
         for reminder in self.reminders:
             item = await reminder(self.session)
             if item is not None:

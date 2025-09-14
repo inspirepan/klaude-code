@@ -22,7 +22,6 @@ from codex_mini.protocol.model import (
     ResponseMetadataItem,
     StartItem,
     ThinkingTextDelta,
-    ThinkingTextItem,
     ToolCallItem,
     Usage,
 )
@@ -122,6 +121,8 @@ class ResponsesClient(LLMClientABC):
             else None,
         )
 
+        is_first_thinking_delta = True
+
         async for event in await stream:
             if self.is_debug_mode():
                 log_debug(f"◁◁◁ stream [SSE {event.type}]", str(event), style="blue")
@@ -130,17 +131,27 @@ class ResponsesClient(LLMClientABC):
                     response_id = event.response.id
                     yield StartItem(response_id=response_id)
                 case responses.ResponseReasoningSummaryTextDeltaEvent() as event:
-                    yield ThinkingTextDelta(thinking=event.delta, response_id=response_id)
+                    pass
                 case responses.ResponseReasoningSummaryTextDoneEvent() as event:
-                    yield ThinkingTextItem(thinking=event.text, response_id=response_id)
+                    thinking_text = event.text
+                    if is_first_thinking_delta:
+                        thinking_text = "\n" + event.text
+                    else:
+                        thinking_text = "\n\n" + event.text
+                    yield ThinkingTextDelta(
+                        thinking=thinking_text,
+                        response_id=response_id,
+                    )
+                    is_first_thinking_delta = False
                 case responses.ResponseTextDeltaEvent() as event:
                     yield AssistantMessageDelta(content=event.delta, response_id=response_id)
                 case responses.ResponseOutputItemDoneEvent() as event:
                     match event.item:
                         case responses.ResponseReasoningItem() as item:
+                            summary = [summary.text for summary in item.summary]
                             yield ReasoningItem(
                                 id=item.id,
-                                summary=[summary.text for summary in item.summary],
+                                summary=summary,
                                 content="\n".join([content.text for content in item.content]) if item.content else None,
                                 encrypted_content=item.encrypted_content,
                                 response_id=response_id,

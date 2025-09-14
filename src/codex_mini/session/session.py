@@ -49,7 +49,6 @@ class Session(BaseModel):
         "UserMessageItem": model.UserMessageItem,
         "AssistantMessageItem": model.AssistantMessageItem,
         # Reasoning/Thinking
-        "ThinkingTextItem": model.ThinkingTextItem,
         "ReasoningItem": model.ReasoningItem,
         # Tools
         "ToolCallItem": model.ToolCallItem,

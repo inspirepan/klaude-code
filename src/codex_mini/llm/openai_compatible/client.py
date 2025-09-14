@@ -192,7 +192,6 @@ class OpenAICompatibleClient(LLMClientABC):
                 stage == "assistant" or delta.content.strip()
             ):  # Process all content in assistant stage, filter empty content in reasoning stage
                 if stage == "reasoning":
-                    yield model.ThinkingTextItem(thinking="".join(accumulated_reasoning), response_id=response_id)
                     yield model.ReasoningItem(
                         id=reasoning_id,
                         content="".join(accumulated_reasoning),
@@ -211,7 +210,6 @@ class OpenAICompatibleClient(LLMClientABC):
             # Tool
             if delta.tool_calls and len(delta.tool_calls) > 0:
                 if stage == "reasoning":
-                    yield model.ThinkingTextItem(thinking="".join(accumulated_reasoning), response_id=response_id)
                     yield model.ReasoningItem(
                         id=reasoning_id,
                         content="".join(accumulated_reasoning),
@@ -231,7 +229,6 @@ class OpenAICompatibleClient(LLMClientABC):
 
         # Finalize
         if stage == "reasoning":
-            yield model.ThinkingTextItem(thinking="".join(accumulated_reasoning), response_id=response_id)
             yield model.ReasoningItem(
                 id=reasoning_id,
                 content="".join(accumulated_reasoning),
