@@ -36,7 +36,7 @@ LIGHT_PALETTE = Palette(
     purple="medium_purple3",
     diff_add="#333333 on #69db7c",
     diff_remove="#333333 on #ffa8b4",
-    code_theme="solarized-light",
+    code_theme="ansi_light",
 )
 
 DARK_PALETTE = Palette(
@@ -53,7 +53,7 @@ DARK_PALETTE = Palette(
     purple="light_steel_blue",
     diff_add="#ffffff on #005e24",
     diff_remove="#ffffff on #72211c",
-    code_theme="github-dark",
+    code_theme="ansi_dark",
 )
 
 
