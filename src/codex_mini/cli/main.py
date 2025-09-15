@@ -6,8 +6,11 @@ import sys
 import termios
 import threading
 import tty
+from rich.text import Text
 import uuid
 from dataclasses import dataclass
+import signal
+import time
 
 import typer
 
@@ -234,6 +237,30 @@ async def run_interactive(
     # Start UI display task
     display_task = asyncio.create_task(display.consume_event_loop(event_queue))
 
+    # --- Custom Ctrl+C handler: double-press within 2s to exit, single press shows toast ---
+    last_sigint_time: float = 0.0
+    original_sigint = signal.getsignal(signal.SIGINT)
+
+    def _show_toast_once() -> None:
+        try:
+            # Keep message short; avoid interfering with spinner layout
+            repl_display.print(Text(" Press ctrl+c again to exit ", style="bold yellow reverse"))
+        except Exception:
+            # Fallback if themed print is unavailable
+            print("Press ctrl+c again to exit", file=sys.stderr)
+
+    def _sigint_handler(signum, frame):  # type: ignore[no-untyped-def]
+        nonlocal last_sigint_time
+        now = time.monotonic()
+        if now - last_sigint_time <= 2:
+            # Second press within window: exit by raising KeyboardInterrupt
+            raise KeyboardInterrupt
+        # First press: remember and show toast
+        last_sigint_time = now
+        _show_toast_once()
+
+    signal.signal(signal.SIGINT, _sigint_handler)  # type: ignore[assignment]
+
     try:
         # Init Agent
         init_id = await executor.submit(op.InitAgentOperation(session_id=session_id))
@@ -277,6 +304,11 @@ async def run_interactive(
         except:  # noqa: E722
             pass  # Executor might already be stopping
     finally:
+        try:
+            # Restore original SIGINT handler
+            signal.signal(signal.SIGINT, original_sigint)
+        except Exception:
+            pass
         # Clean shutdown
         await executor.stop()
         executor_task.cancel()
