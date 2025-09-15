@@ -1,18 +1,18 @@
 import asyncio
 import os
 import select
+import signal
 import subprocess
 import sys
 import termios
 import threading
+import time
 import tty
-from rich.text import Text
 import uuid
 from dataclasses import dataclass
-import signal
-import time
 
 import typer
+from rich.text import Text
 
 from codex_mini import ui
 from codex_mini.command.registry import is_interactive_command
@@ -166,6 +166,7 @@ async def run_interactive(
     session_id: str | None = None,
     ui_args: UIArgs | None = None,
     unrestricted_read: bool = False,
+    vanilla: bool = False,
 ):
     """Run the interactive REPL using the new executor architecture."""
 
@@ -211,7 +212,7 @@ async def run_interactive(
     event_queue: asyncio.Queue[Event] = asyncio.Queue()
 
     # Create executor with the LLM client
-    executor = Executor(event_queue, llm_clients, llm_config, debug_mode=debug)
+    executor = Executor(event_queue, llm_clients, llm_config, debug_mode=debug, vanilla=vanilla)
 
     # Start executor in background
     executor_task = asyncio.create_task(executor.start())
@@ -408,6 +409,7 @@ def main_callback(
     dark: bool = typer.Option(False, "--dark", help="Use dark theme"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
     unrestricted_read: bool = typer.Option(False, "--unrestricted-read", "-u", help="Remove all read limits for files"),
+    vanilla: bool = typer.Option(False, "--vanilla", help="Use simple system prompt"),
 ):
     """Start interactive session when no subcommand provided."""
     # Only run interactive mode when no subcommand is invoked
@@ -439,5 +441,6 @@ def main_callback(
                 session_id=session_id,
                 ui_args=UIArgs(theme=set_theme, light=light, dark=dark),
                 unrestricted_read=unrestricted_read,
+                vanilla=vanilla,
             )
         )

@@ -47,12 +47,14 @@ class Agent:
         tools: list[llm_parameter.ToolSchema] | None = None,
         debug_mode: bool = False,
         reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] | None = None,
+        vanilla: bool = False,
     ):
         self.session: Session = session
         self.tools: list[llm_parameter.ToolSchema] | None = tools
         self.debug_mode: bool = debug_mode
         self.reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] | None = reminders
         self.llm_clients = llm_clients
+        self.vanilla = vanilla
         # Track tool calls that are pending or in-progress within the current turn
         # Keyed by tool_call_id
         self.turn_inflight_tool_calls: dict[str, UnfinishedToolCallItem] = {}
@@ -301,6 +303,10 @@ class Agent:
                 yield events.DeveloperMessageEvent(session_id=self.session.id, item=item)
 
     def sync_system_prompt(self, sub_agent_type: tools.SubAgentType | None = None) -> None:
+        if self.vanilla:
+            self.session.system_prompt = "You're a help assistant"
+            return
+
         if sub_agent_type == tools.SubAgentType.TASK:
             self.session.system_prompt = get_system_prompt(self.llm_clients.main.model_name, "task")
         elif sub_agent_type == tools.SubAgentType.ORACLE:

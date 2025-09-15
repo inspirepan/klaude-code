@@ -49,11 +49,13 @@ class ExecutorContext:
         llm_clients: AgentLLMClients,
         llm_config: llm_parameter.LLMConfigParameter,
         debug_mode: bool = False,
+        vanilla: bool = False,
     ):
         self.event_queue = event_queue
         self.llm_clients = llm_clients
         self.llm_config = llm_config
         self.debug_mode = debug_mode
+        self.vanilla = vanilla
 
         # Track active agents by session ID
         self.active_agents: dict[str, Agent] = {}
@@ -81,6 +83,7 @@ class ExecutorContext:
                 session=session,
                 tools=get_main_agent_tools(self.llm_clients.main.model_name),
                 debug_mode=self.debug_mode,
+                vanilla=self.vanilla,
                 reminders=[
                     empty_todo_reminder,
                     todo_not_used_recently_reminder,
@@ -256,6 +259,7 @@ class ExecutorContext:
             session=child_session,
             tools=get_sub_agent_tools(child_llm_clients.main.model_name, sub_agent_type),
             debug_mode=self.debug_mode,
+            vanilla=self.vanilla,
             reminders=[
                 memory_reminder,
                 last_path_memory_reminder,
@@ -296,8 +300,9 @@ class Executor:
         llm_clients: AgentLLMClients,
         llm_config: llm_parameter.LLMConfigParameter,
         debug_mode: bool = False,
+        vanilla: bool = False,
     ):
-        self.context = ExecutorContext(event_queue, llm_clients, llm_config, debug_mode)
+        self.context = ExecutorContext(event_queue, llm_clients, llm_config, debug_mode, vanilla)
         self.submission_queue: asyncio.Queue[Submission] = asyncio.Queue()
         self.running = False
         self.debug_mode = debug_mode
