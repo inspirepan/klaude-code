@@ -186,6 +186,10 @@ class REPLDisplay(DisplayABC):
             case events.TaskFinishEvent():
                 self.spinner.stop()
             case events.InterruptEvent() as e:
+                if self.assistant_mdstream is not None:
+                    self.assistant_mdstream.update(self.accumulated_assistant_text, final=True)
+                    self.assistant_mdstream = None
+                    self.accumulated_assistant_text = ""
                 self.print(r_user_input.render_interrupt())
                 self.spinner.stop()
             case events.ErrorEvent() as e:
