@@ -56,8 +56,6 @@ class REPLDisplay(DisplayABC):
         self.accumulated_thinking_text = ""  # Not support parallel thinking delta yet
         self.thinking_debouncer = Debouncer(interval=0.05, callback=self._flush_thinking_buffer)
 
-        self.developer_message_buffer: list[events.DeveloperMessageEvent] = []
-
         self.session_map: dict[str, SessionStatus] = {}
         self.current_session_status: SessionStatus | None = None
         # Start at -1 so the first pick uses index 0
@@ -85,13 +83,8 @@ class REPLDisplay(DisplayABC):
                 )
             case events.DeveloperMessageEvent() as e:
                 if self.need_display_developer_message(e):
-                    # If has anything to display, send it to buffer
-                    self.developer_message_buffer.append(e)
-                # If it's command output, flush it immediately
-                if e.item.command_output:
-                    self._flush_developer_buffer()
+                    self.display_developer_message(e)
             case events.TurnStartEvent() as e:
-                self._flush_developer_buffer()
                 with self.session_print_context(e.session_id):
                     self.print()
             case events.ThinkingDeltaEvent() as e:
@@ -383,7 +376,8 @@ class REPLDisplay(DisplayABC):
                         )
                         self.print()
                 case events.DeveloperMessageEvent() as e:
-                    self.display_developer_message(e)
+                    if self.need_display_developer_message(e):
+                        self.display_developer_message(e)
                 case events.UserMessageEvent() as e:
                     self.print(r_user_input.render_user_input(e.content))
                 case events.ToolCallEvent() as e:
@@ -404,17 +398,6 @@ class REPLDisplay(DisplayABC):
             self.print()
             self.print(r_metadata.render_resume_loaded(history_events.updated_at))
         self.print()
-
-    # render_annotations moved to renderers.annotations
-
-    def _flush_developer_buffer(self) -> None:
-        if len(self.developer_message_buffer) == 0:
-            return
-
-        with self.session_print_context(self.developer_message_buffer[0].session_id):
-            for e in self.developer_message_buffer:
-                self.display_developer_message(e)
-            self.developer_message_buffer.clear()
 
     def need_display_developer_message(self, e: events.DeveloperMessageEvent) -> bool:
         return (
