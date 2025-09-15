@@ -114,11 +114,12 @@ class MarkdownStream:
         # Use external console for consistent theming, or create temporary one
         if self.console is not None:
             # Use external console settings but render to string_io
+            # Use the console's actual width to avoid reflow glitches.
             temp_console = Console(
                 file=string_io,
                 force_terminal=True,
                 theme=self.theme,
-                width=self.console.options.max_width,
+                width=self.console.width,
             )
         else:
             temp_console = Console(file=string_io, force_terminal=True, theme=self.theme)
@@ -183,33 +184,37 @@ class MarkdownStream:
         # Set min_delay to render time plus a small buffer
         self.min_delay = min(max(render_time * 10, 1.0 / 20), 2)
 
-        num_lines = len(lines)
+        # Determine the number of stable lines (clamped to non-negative)
+        total = len(lines)
+        stable_count = total if final else max(0, total - self.live_window)
 
-        # How many lines have "left" the live window and are now considered stable?
-        # Or if final, consider all lines to be stable.
-        if not final:
-            num_lines -= self.live_window
+        # If console width changes mid-stream, previously printed line breaks
+        # may no longer match. Reset the printed cache in that case to avoid
+        # duplicating content.
+        if self.console is not None:
+            current_width = self.console.width
+            # Store last width on the instance; default to None
+            if not hasattr(self, "_last_width"):
+                self._last_width = current_width
+            elif self._last_width != current_width:
+                self.printed = []
+                self._last_width = current_width
 
-        # If we have stable content to display...
-        if final or num_lines > 0:
-            # How many stable lines do we need to newly show above the live window?
-            num_printed = len(self.printed)
-            show = num_lines - num_printed
-
-            # Skip if no new lines to show above live window
-            if show <= 0:
-                return
-
-            # Get the new lines and display them
-            show = lines[num_printed:num_lines]
-            show = "".join(show)
-            show = Text.from_ansi(show)
+        # Print any new stable lines above the live window
+        num_printed = len(self.printed)
+        to_show = stable_count - num_printed
+        if to_show > 0:
+            chunk = "".join(lines[num_printed:stable_count])
+            renderable = Text.from_ansi(chunk)
             live = self.live
             assert live is not None
-            live.console.print(show)  # to the console above the live area
+            live.console.print(renderable)
+            self.printed = lines[:stable_count]
 
-            # Update our record of printed lines
-            self.printed = lines[:num_lines]
+        # Always refresh the live window with the latest unstable tail
+        window_lines = lines[stable_count:]
+        window_text = Text.from_ansi("".join(window_lines)) if window_lines else Text("")
+        self.live.update(window_text)
 
         # Handle final update cleanup
         if final:
@@ -219,14 +224,6 @@ class MarkdownStream:
             live.stop()
             self.live = None
             return
-
-        # Update the live window with remaining lines
-        rest = lines[num_lines:]
-        rest = "".join(rest)
-        rest = Text.from_ansi(rest)
-        live = self.live
-        assert live is not None
-        live.update(rest)
 
     def find_minimal_suffix(self, text: str, match_lines: int = 50) -> None:
         """

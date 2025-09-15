@@ -263,7 +263,9 @@ class REPLDisplay(DisplayABC):
     async def _flush_assistant_buffer(self) -> None:
         """Flush assistant buffer"""
         if self.assistant_mdstream is not None:
-            self.assistant_mdstream.update(self.accumulated_assistant_text.strip())
+            # Do not strip here; stripping can cause transient shrink of text,
+            # which breaks the stable/live window split and leads to duplicates.
+            self.assistant_mdstream.update(self.accumulated_assistant_text)
 
     async def _flush_thinking_buffer(self) -> None:
         """Flush thinking buffer"""
