@@ -48,13 +48,16 @@ def render_user_input(content: str) -> RenderableType:
             splits = line.split(" ", maxsplit=1)
             if _is_valid_slash_command(splits[0][1:]):
                 if len(splits) <= 1:
-                    line_text = Text(line, style=ThemeKey.USER_INPUT_SLASH_COMMAND)
+                    renderables.append(Text(f" {line} ", style=ThemeKey.USER_INPUT_SLASH_COMMAND))
+                    continue
                 else:
                     line_text = Text.assemble(
-                        (splits[0], ThemeKey.USER_INPUT_SLASH_COMMAND),
+                        (f" {splits[0]} ", ThemeKey.USER_INPUT_SLASH_COMMAND),
                         " ",
                         render_at_pattern(splits[1]),
                     )
+                    renderables.append(line_text)
+                    continue
 
         renderables.append(Quote(line_text, style=ThemeKey.USER_INPUT_DIM))
     return Group(*renderables)

@@ -161,7 +161,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.USER_INPUT.value: palette.cyan,
                 ThemeKey.USER_INPUT_DIM.value: palette.cyan + " dim",
                 ThemeKey.USER_INPUT_AT_PATTERN.value: palette.purple + " bold",
-                ThemeKey.USER_INPUT_SLASH_COMMAND.value: "bold " + palette.blue,
+                ThemeKey.USER_INPUT_SLASH_COMMAND.value: "bold reverse " + palette.blue,
                 # METADATA
                 ThemeKey.METADATA.value: palette.grey_blue,
                 ThemeKey.METADATA_DIM.value: "dim " + palette.grey_blue,
