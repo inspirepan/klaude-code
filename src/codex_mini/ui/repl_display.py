@@ -82,8 +82,8 @@ class REPLDisplay(DisplayABC):
                     sub_agent_type=e.sub_agent_type,
                 )
             case events.DeveloperMessageEvent() as e:
-                if self.need_display_developer_message(e):
-                    self.display_developer_message(e)
+                self.display_developer_message(e)
+                self.display_command_output(e)
             case events.TurnStartEvent() as e:
                 with self.session_print_context(e.session_id):
                     self.print()
@@ -376,8 +376,8 @@ class REPLDisplay(DisplayABC):
                         )
                         self.print()
                 case events.DeveloperMessageEvent() as e:
-                    if self.need_display_developer_message(e):
-                        self.display_developer_message(e)
+                    self.display_developer_message(e)
+                    self.display_command_output(e)
                 case events.UserMessageEvent() as e:
                     self.print(r_user_input.render_user_input(e.content))
                 case events.ToolCallEvent() as e:
@@ -399,23 +399,15 @@ class REPLDisplay(DisplayABC):
             self.print(r_metadata.render_resume_loaded(history_events.updated_at))
         self.print()
 
-    def need_display_developer_message(self, e: events.DeveloperMessageEvent) -> bool:
-        return (
-            bool(e.item.memory_paths)
-            or bool(e.item.external_file_changes)
-            or bool(e.item.todo_use)
-            or bool(e.item.at_files)
-            or bool(e.item.command_output)
-        )
-
     def display_developer_message(self, e: events.DeveloperMessageEvent) -> None:
+        if not e.item.memory_paths and not e.item.external_file_changes and not e.item.todo_use and not e.item.at_files:
+            return
         with self.session_print_context(e.session_id):
             self.print(r_developer.render_developer_message(e))
-            if e.item.command_output:
-                self.display_command_output(e)
 
     def display_command_output(self, e: events.DeveloperMessageEvent) -> None:
         if not e.item.command_output:
             return
-        self.print(r_developer.render_command_output(e))
-        self.print()
+        with self.session_print_context(e.session_id):
+            self.print(r_developer.render_command_output(e))
+            self.print()
