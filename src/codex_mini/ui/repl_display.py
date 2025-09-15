@@ -409,9 +409,10 @@ class REPLDisplay(DisplayABC):
         )
 
     def display_developer_message(self, e: events.DeveloperMessageEvent) -> None:
-        self.print(r_developer.render_developer_message(e))
-        if e.item.command_output:
-            self.display_command_output(e)
+        with self.session_print_context(e.session_id):
+            self.print(r_developer.render_developer_message(e))
+            if e.item.command_output:
+                self.display_command_output(e)
 
     def display_command_output(self, e: events.DeveloperMessageEvent) -> None:
         if not e.item.command_output:
