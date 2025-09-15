@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 from collections.abc import AsyncIterator, Iterable
 from pathlib import Path
@@ -20,6 +21,22 @@ from prompt_toolkit.styles import Style
 from codex_mini.command import get_commands
 from codex_mini.ui.input_abc import InputProviderABC
 from codex_mini.ui.utils import get_current_git_branch, show_path_with_tilde
+
+
+def _set_cursor_style(code: int) -> None:
+    """Set cursor style via DECSCUSR (CSI Ps SP q).
+
+    Common values:
+      0/1: blinking block, 2: steady block,
+      3: blinking underline, 4: steady underline,
+      5: blinking bar, 6: steady bar
+    """
+    try:
+        if sys.stdout.isatty():
+            os.write(1, f"\x1b[{code} q".encode())
+    except Exception:
+        pass
+
 
 kb = KeyBindings()
 
@@ -96,7 +113,7 @@ class PromptToolkitInput(InputProviderABC):
             history_path.touch()
 
         # Build placeholder text with path and git branch info
-        placeholder_text = f"  Working at {show_path_with_tilde()}"
+        placeholder_text = f" Working at {show_path_with_tilde()}"
         git_branch = get_current_git_branch()
         if git_branch:
             placeholder_text += f" [{git_branch}]"
@@ -126,12 +143,10 @@ class PromptToolkitInput(InputProviderABC):
         )
 
     async def start(self) -> None:  # noqa: D401
-        # No setup needed for prompt_toolkit session
-        pass
+        _set_cursor_style(5)
 
     async def stop(self) -> None:  # noqa: D401
-        # No teardown needed
-        pass
+        _set_cursor_style(0)  # restore terminal default
 
     @override
     async def iter_inputs(self) -> AsyncIterator[str]:
