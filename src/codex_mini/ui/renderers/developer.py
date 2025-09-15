@@ -77,7 +77,9 @@ def render_command_output(e: events.DeveloperMessageEvent) -> RenderableType:
             grid = create_grid()
             grid.add_row(
                 Text("↓", style=ThemeKey.METADATA),
-                Text(e.item.command_output.ui_extra or "N/A", style=ThemeKey.METADATA_BOLD),
+                Text("plan with ", style=ThemeKey.METADATA).append_text(
+                    Text(e.item.command_output.ui_extra or "N/A", style=ThemeKey.METADATA_BOLD)
+                ),
             )
             return grid
         case _:

@@ -212,7 +212,12 @@ def render_exit_plan_result(status: str, ui_extra: Optional[str]) -> RenderableT
     grid = create_grid()
     if status == "success":
         approved = Padding.indent(Text(" Approved ", ThemeKey.TOOL_APPROVED), level=1)
-        grid.add_row(Text("↓", style=ThemeKey.METADATA), Text(ui_extra or "N/A", style=ThemeKey.METADATA_BOLD))
+        grid.add_row(
+            Text("↓", style=ThemeKey.METADATA),
+            Text("execute with ", style=ThemeKey.METADATA).append_text(
+                Text(ui_extra or "N/A", style=ThemeKey.METADATA_BOLD)
+            ),
+        )
         return Group(approved, grid)
     else:
         rejected = Padding.indent(Text(" Rejected ", ThemeKey.TOOL_REJECTED), level=1)
