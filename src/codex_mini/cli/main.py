@@ -336,23 +336,26 @@ def edit_config():
     """Open the configuration file in $EDITOR or default system editor"""
     editor = os.environ.get("EDITOR")
 
-    # If no EDITOR is set, try common editor names
+    # If no EDITOR is set, prioritize TextEdit on macOS
     if not editor:
-        # Try common editors in order of preference
-        for cmd in [
-            "zed",
-            "code",
-            "nvim",
-            "vim",
-            "nano",
-            "vi",
-        ]:
-            try:
-                subprocess.run(["which", cmd], check=True, capture_output=True)
-                editor = cmd
-                break
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                continue
+        if sys.platform == "darwin":  # macOS
+            editor = "open -a TextEdit"
+        else:
+            # Try common editors in order of preference on other platforms
+            for cmd in [
+                "zed",
+                "code",
+                "nvim",
+                "vim",
+                "nano",
+                "vi",
+            ]:
+                try:
+                    subprocess.run(["which", cmd], check=True, capture_output=True)
+                    editor = cmd
+                    break
+                except (subprocess.CalledProcessError, FileNotFoundError):
+                    continue
 
     # If no editor found, try platform-specific defaults
     if not editor:
@@ -367,7 +370,9 @@ def edit_config():
     load_config()
 
     try:
-        if editor in ["open", "xdg-open"]:
+        if editor == "open -a TextEdit":
+            subprocess.run(["open", "-a", "TextEdit", str(config_path)], check=True)
+        elif editor in ["open", "xdg-open"]:
             # For open/xdg-open, we need to pass the file directly
             subprocess.run([editor, str(config_path)], check=True)
         else:

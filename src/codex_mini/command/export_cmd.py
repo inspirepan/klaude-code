@@ -51,15 +51,19 @@ class ExportCommand(CommandABC):
         # Get editor
         editor = os.environ.get("EDITOR")
 
-        # If no EDITOR is set, try common editor names
+        # If no EDITOR is set, prioritize TextEdit on macOS
         if not editor:
-            for cmd in ["zed", "code", "nvim", "vim", "nano", "vi"]:
-                try:
-                    subprocess.run(["which", cmd], check=True, capture_output=True)
-                    editor = cmd
-                    break
-                except (subprocess.CalledProcessError, FileNotFoundError):
-                    continue
+            if sys.platform == "darwin":  # macOS
+                editor = "open -a TextEdit"
+            else:
+                # Try common editor names on other platforms
+                for cmd in ["zed", "code", "nvim", "vim", "nano", "vi"]:
+                    try:
+                        subprocess.run(["which", cmd], check=True, capture_output=True)
+                        editor = cmd
+                        break
+                    except (subprocess.CalledProcessError, FileNotFoundError):
+                        continue
 
         # If no editor found, try platform-specific defaults
         if not editor:
@@ -77,7 +81,9 @@ class ExportCommand(CommandABC):
                 tmp_path = tmp_file.name
 
             # Open with editor
-            if editor in ["open", "xdg-open"]:
+            if editor == "open -a TextEdit":
+                subprocess.run(["open", "-a", "TextEdit", tmp_path], check=True)
+            elif editor in ["open", "xdg-open"]:
                 subprocess.run([editor, tmp_path], check=True)
             else:
                 subprocess.run([editor, tmp_path], check=True)
