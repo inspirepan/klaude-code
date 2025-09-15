@@ -56,6 +56,7 @@ class Agent:
         # Track tool calls that are pending or in-progress within the current turn
         # Keyed by tool_call_id
         self.turn_inflight_tool_calls: dict[str, UnfinishedToolCallItem] = {}
+        self.session.model_name = llm_clients.main.model_name
 
     def cancel(self) -> Iterable[events.Event]:
         """Handle agent cancellation and persist an interrupt marker and tool cancellations.
