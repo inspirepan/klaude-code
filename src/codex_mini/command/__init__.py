@@ -1,6 +1,7 @@
 from .clear_cmd import ClearCommand
 from .command_abc import CommandABC, CommandResult
 from .diff_cmd import DiffCommand
+from .export_cmd import ExportCommand
 from .help_cmd import HelpCommand
 from .init_cmd import InitCommand
 from .model_cmd import ModelCommand
@@ -15,6 +16,7 @@ __all__ = [
     "HelpCommand",
     "InitCommand",
     "ModelCommand",
+    "ExportCommand",
     "PlanCommand",
     "RefreshTerminalCommand",
     "TerminalSetupCommand",

@@ -11,6 +11,7 @@ class CommandName(str, Enum):
     REFRESH_TERMINAL = "refresh-terminal"
     CLEAR = "clear"
     TERMINAL_SETUP = "terminal-setup"
+    EXPORT = "export"
 
     def __str__(self) -> str:
         return self.value
