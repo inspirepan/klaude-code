@@ -27,6 +27,136 @@ def _is_valid_sed_n_arg(s: str | None) -> bool:
     return bool(re.fullmatch(r"\d+(,\d+)?p", s))
 
 
+def _is_safe_rm_argv(argv: list[str]) -> SafetyCheckResult:
+    """Check safety of rm command arguments."""
+    # Enforce strict safety rules for rm operands
+    # - Forbid absolute paths, tildes, wildcards (*?[), and trailing '/'
+    # - Resolve each operand with realpath and ensure it stays under CWD
+    # - If -r/-R/-rf/-fr present: only allow relative paths whose targets
+    #   exist and are not symbolic links
+
+    cwd = os.getcwd()
+    workspace_root = os.path.realpath(cwd)
+
+    recursive = False
+    end_of_opts = False
+    operands: list[str] = []
+
+    for arg in argv[1:]:
+        if not end_of_opts and arg == "--":
+            end_of_opts = True
+            continue
+
+        if not end_of_opts and arg.startswith("-") and arg != "-":
+            # Parse short or long options
+            if arg.startswith("--"):
+                # Recognize common long options
+                if arg == "--recursive":
+                    recursive = True
+                # Other long options are ignored for safety purposes
+                continue
+            # Combined short options like -rf
+            for ch in arg[1:]:
+                if ch in ("r", "R"):
+                    recursive = True
+            continue
+
+        # Operand (path)
+        operands.append(arg)
+
+    # Reject dangerous operand patterns
+    wildcard_chars = {"*", "?", "["}
+
+    for op in operands:
+        # Disallow absolute paths
+        if os.path.isabs(op):
+            return SafetyCheckResult(False, f"rm: Absolute path not allowed: '{op}'")
+        # Disallow tildes
+        if op.startswith("~") or "/~/" in op or "~/" in op:
+            return SafetyCheckResult(False, f"rm: Tilde expansion not allowed: '{op}'")
+        # Disallow wildcards
+        if any(c in op for c in wildcard_chars):
+            return SafetyCheckResult(False, f"rm: Wildcards not allowed: '{op}'")
+        # Disallow trailing slash (avoid whole-dir deletes)
+        if op.endswith("/"):
+            return SafetyCheckResult(False, f"rm: Trailing slash not allowed: '{op}'")
+
+        # Resolve and ensure stays within workspace_root
+        op_abs = os.path.realpath(os.path.join(cwd, op))
+        try:
+            if os.path.commonpath([op_abs, workspace_root]) != workspace_root:
+                return SafetyCheckResult(False, f"rm: Path escapes workspace: '{op}' -> '{op_abs}'")
+        except Exception as e:
+            # Different drives or resolution errors
+            return SafetyCheckResult(False, f"rm: Path resolution failed for '{op}': {e}")
+
+        if recursive:
+            # For recursive deletion, require operand exists and is not a symlink
+            op_lpath = os.path.join(cwd, op)
+            if not os.path.exists(op_lpath):
+                return SafetyCheckResult(False, f"rm -r: Target does not exist: '{op}'")
+            if os.path.islink(op_lpath):
+                return SafetyCheckResult(False, f"rm -r: Cannot delete symlink recursively: '{op}'")
+
+    # If no operands provided, allow (harmless, will fail at runtime)
+    return SafetyCheckResult(True)
+
+
+def _is_safe_trash_argv(argv: list[str]) -> SafetyCheckResult:
+    """Check safety of trash command arguments."""
+    # Apply similar safety rules as rm but slightly more permissive
+    # - Forbid absolute paths, tildes, wildcards (*?[), and trailing '/'
+    # - Resolve each operand with realpath and ensure it stays under CWD
+    # - Unlike rm, allow symlinks since trash is less destructive
+
+    cwd = os.getcwd()
+    workspace_root = os.path.realpath(cwd)
+
+    end_of_opts = False
+    operands: list[str] = []
+
+    for arg in argv[1:]:
+        if not end_of_opts and arg == "--":
+            end_of_opts = True
+            continue
+
+        if not end_of_opts and arg.startswith("-") and arg != "-":
+            # Skip options for trash command
+            continue
+
+        # Operand (path)
+        operands.append(arg)
+
+    # Reject dangerous operand patterns
+    wildcard_chars = {"*", "?", "["}
+
+    for op in operands:
+        # Disallow absolute paths
+        if os.path.isabs(op):
+            return SafetyCheckResult(False, f"trash: Absolute path not allowed: '{op}'")
+        # Disallow tildes
+        if op.startswith("~") or "/~/" in op or "~/" in op:
+            return SafetyCheckResult(False, f"trash: Tilde expansion not allowed: '{op}'")
+        # Disallow wildcards
+        if any(c in op for c in wildcard_chars):
+            return SafetyCheckResult(False, f"trash: Wildcards not allowed: '{op}'")
+        # Disallow trailing slash (avoid whole-dir operations)
+        if op.endswith("/"):
+            return SafetyCheckResult(False, f"trash: Trailing slash not allowed: '{op}'")
+
+        # Resolve and ensure stays within workspace_root
+        op_abs = os.path.realpath(os.path.join(cwd, op))
+        try:
+            if os.path.commonpath([op_abs, workspace_root]) != workspace_root:
+                return SafetyCheckResult(False, f"trash: Path escapes workspace: '{op}' -> '{op_abs}'")
+        except Exception as e:
+            # Different drives or resolution errors
+            return SafetyCheckResult(False, f"trash: Path resolution failed for '{op}': {e}")
+
+    # If no operands provided, allow (harmless, will fail at runtime)
+    return SafetyCheckResult(True)
+
+
 def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
     if not argv:
         return SafetyCheckResult(False, "Empty command")
@@ -35,77 +165,11 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
 
     # Special handling for rm to prevent dangerous operations
     if cmd0 == "rm":
-        # Enforce strict safety rules for rm operands
-        # - Forbid absolute paths, tildes, wildcards (*?[), and trailing '/'
-        # - Resolve each operand with realpath and ensure it stays under CWD
-        # - If -r/-R/-rf/-fr present: only allow relative paths whose targets
-        #   exist and are not symbolic links
+        return _is_safe_rm_argv(argv)
 
-        cwd = os.getcwd()
-        workspace_root = os.path.realpath(cwd)
-
-        recursive = False
-        end_of_opts = False
-        operands: list[str] = []
-
-        for arg in argv[1:]:
-            if not end_of_opts and arg == "--":
-                end_of_opts = True
-                continue
-
-            if not end_of_opts and arg.startswith("-") and arg != "-":
-                # Parse short or long options
-                if arg.startswith("--"):
-                    # Recognize common long options
-                    if arg == "--recursive":
-                        recursive = True
-                    # Other long options are ignored for safety purposes
-                    continue
-                # Combined short options like -rf
-                for ch in arg[1:]:
-                    if ch in ("r", "R"):
-                        recursive = True
-                continue
-
-            # Operand (path)
-            operands.append(arg)
-
-        # Reject dangerous operand patterns
-        wildcard_chars = {"*", "?", "["}
-
-        for op in operands:
-            # Disallow absolute paths
-            if os.path.isabs(op):
-                return SafetyCheckResult(False, f"rm: Absolute path not allowed: '{op}'")
-            # Disallow tildes
-            if op.startswith("~") or "/~/" in op or "~/" in op:
-                return SafetyCheckResult(False, f"rm: Tilde expansion not allowed: '{op}'")
-            # Disallow wildcards
-            if any(c in op for c in wildcard_chars):
-                return SafetyCheckResult(False, f"rm: Wildcards not allowed: '{op}'")
-            # Disallow trailing slash (avoid whole-dir deletes)
-            if op.endswith("/"):
-                return SafetyCheckResult(False, f"rm: Trailing slash not allowed: '{op}'")
-
-            # Resolve and ensure stays within workspace_root
-            op_abs = os.path.realpath(os.path.join(cwd, op))
-            try:
-                if os.path.commonpath([op_abs, workspace_root]) != workspace_root:
-                    return SafetyCheckResult(False, f"rm: Path escapes workspace: '{op}' -> '{op_abs}'")
-            except Exception as e:
-                # Different drives or resolution errors
-                return SafetyCheckResult(False, f"rm: Path resolution failed for '{op}': {e}")
-
-            if recursive:
-                # For recursive deletion, require operand exists and is not a symlink
-                op_lpath = os.path.join(cwd, op)
-                if not os.path.exists(op_lpath):
-                    return SafetyCheckResult(False, f"rm -r: Target does not exist: '{op}'")
-                if os.path.islink(op_lpath):
-                    return SafetyCheckResult(False, f"rm -r: Cannot delete symlink recursively: '{op}'")
-
-        # If no operands provided, allow (harmless, will fail at runtime)
-        return SafetyCheckResult(True)
+    # Special handling for trash to prevent dangerous operations
+    if cmd0 == "trash":
+        return _is_safe_trash_argv(argv)
 
     # simple allow list
     if cmd0 in {
@@ -126,6 +190,7 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
         "pwd",
         "tail",
         "touch",
+        "trash",
         "tree",
         "true",
         "wc",
@@ -342,9 +407,10 @@ class BashTool(ToolABC):
 - When searching for text or files, prefer using `rg`, `rg --files` or `fd` respectively because `rg` and `fd` is much faster than alternatives like `grep` and `find`. (If these command is not found, then use alternatives.)
 
 Allowed commands:
-- File operations: cat/cd/cp/date/echo/false/file/grep/head/ls/mkdir/mv/nl/pwd/rm/tail/touch/tree/true/wc/which
+- File operations: cat/cd/cp/date/echo/false/file/grep/head/ls/mkdir/mv/nl/pwd/rm/tail/touch/trash/tree/true/wc/which
   Note: rm restrictions — only relative paths under CWD; forbid absolute paths, tildes, wildcards (*?[), and trailing '/';
         with -r/-R, targets must exist and not be symlinks.
+  Note: trash restrictions — only relative paths under CWD; forbid absolute paths, tildes, wildcards (*?[), and trailing '/'.
 - Text processing: sed (simple replacements and line printing)
 - Version control: git (local operations only - add/branch/checkout/commit/diff/log/merge/reset/restore/revert/show/stash/status etc.)
   Note: Remote operations (push/pull/fetch/clone) are blocked
