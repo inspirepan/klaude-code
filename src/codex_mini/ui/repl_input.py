@@ -42,6 +42,7 @@ kb = KeyBindings()
 
 COMPLETION_SELECTED = "#5869f7"
 COMPLETION_MENU = "ansibrightblack"
+INPUT_PROMPT_STYLE = "ansicyan"
 
 
 @kb.add("enter")
@@ -119,10 +120,10 @@ class PromptToolkitInput(InputProviderABC):
             placeholder_text += f" [{git_branch}]"
 
         self._session: PromptSession[str] = PromptSession(
-            prompt,
+            [(INPUT_PROMPT_STYLE, prompt)],
             history=FileHistory(history_path),
             multiline=True,
-            prompt_continuation=prompt,
+            prompt_continuation=[(INPUT_PROMPT_STYLE, prompt)],
             key_bindings=kb,
             completer=ThreadedCompleter(_ComboCompleter()),
             complete_while_typing=True,
