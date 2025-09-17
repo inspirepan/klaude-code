@@ -275,7 +275,7 @@ class OpenAICompatibleClient(LLMClientABC):
 
             if last_token_time is not None and metadata_item.usage.output_tokens > 0:
                 time_duration = last_token_time - first_token_time
-                if time_duration > 0:
+                if time_duration >= 0.15:
                     metadata_item.usage.throughput_tps = metadata_item.usage.output_tokens / time_duration
 
         yield metadata_item

@@ -212,7 +212,7 @@ class ResponsesClient(LLMClientABC):
                             and event.response.usage.output_tokens > 0
                         ):
                             time_duration = last_token_time - first_token_time
-                            if time_duration > 0:
+                            if time_duration >= 0.15:
                                 throughput_tps = event.response.usage.output_tokens / time_duration
 
                         usage = Usage(
