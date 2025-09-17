@@ -1,3 +1,4 @@
+import time
 from collections.abc import AsyncGenerator
 from typing import override
 
@@ -46,6 +47,10 @@ class AnthropicClient(LLMClientABC):
     @override
     async def call(self, param: LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         param = apply_config_defaults(param, self.get_llm_config())
+
+        request_start_time = time.time()
+        first_token_time: float | None = None
+        last_token_time: float | None = None
 
         messages = convert_history_to_input(param.input, param.model)
         tools = convert_tool_schema(param.tools)
@@ -134,12 +139,18 @@ class AnthropicClient(LLMClientABC):
                 case BetaRawContentBlockDeltaEvent() as event:
                     match event.delta:
                         case BetaThinkingDelta() as delta:
+                            if first_token_time is None:
+                                first_token_time = time.time()
+                            last_token_time = time.time()
                             accumulated_thinking.append(delta.thinking)
                             yield model.ThinkingTextDelta(
                                 thinking=delta.thinking,
                                 response_id=response_id,
                             )
                         case BetaSignatureDelta() as delta:
+                            if first_token_time is None:
+                                first_token_time = time.time()
+                            last_token_time = time.time()
                             full_thinking = "".join(accumulated_thinking)
                             accumulated_thinking.clear()
                             yield model.ReasoningItem(
@@ -149,12 +160,18 @@ class AnthropicClient(LLMClientABC):
                                 model=param.model,
                             )
                         case BetaTextDelta() as delta:
+                            if first_token_time is None:
+                                first_token_time = time.time()
+                            last_token_time = time.time()
                             accumulated_content.append(delta.text)
                             yield model.AssistantMessageDelta(
                                 content=delta.text,
                                 response_id=response_id,
                             )
                         case BetaInputJSONDelta() as delta:
+                            if first_token_time is None:
+                                first_token_time = time.time()
+                            last_token_time = time.time()
                             if current_tool_inputs is not None:
                                 current_tool_inputs.append(delta.partial_json)
                         case _:
@@ -195,6 +212,18 @@ class AnthropicClient(LLMClientABC):
                         )
                     else:
                         context_usage_percent = None
+
+                    throughput_tps: float | None = None
+                    first_token_latency_ms: float | None = None
+
+                    if first_token_time is not None:
+                        first_token_latency_ms = (first_token_time - request_start_time) * 1000
+
+                    if first_token_time is not None and last_token_time is not None and output_tokens > 0:
+                        time_duration = last_token_time - first_token_time
+                        if time_duration > 0:
+                            throughput_tps = output_tokens / time_duration
+
                     yield model.ResponseMetadataItem(
                         usage=model.Usage(
                             input_tokens=input_tokens,
@@ -202,6 +231,8 @@ class AnthropicClient(LLMClientABC):
                             cached_tokens=cached_tokens,
                             total_tokens=total_tokens,
                             context_usage_percent=context_usage_percent,
+                            throughput_tps=throughput_tps,
+                            first_token_latency_ms=first_token_latency_ms,
                         ),
                         response_id=response_id,
                         model_name=str(param.model),

@@ -1,3 +1,4 @@
+import time
 from collections.abc import AsyncGenerator
 from typing import override
 
@@ -58,6 +59,9 @@ class ResponsesClient(LLMClientABC):
     async def call(self, param: LLMCallParameter) -> AsyncGenerator[ConversationItem, None]:
         param = apply_config_defaults(param, self.get_llm_config())
 
+        request_start_time = time.time()
+        first_token_time: float | None = None
+        last_token_time: float | None = None
         response_id: str | None = None
 
         inputs = convert_history_to_input(param.input, param.model)
@@ -133,6 +137,9 @@ class ResponsesClient(LLMClientABC):
                 case responses.ResponseReasoningSummaryTextDeltaEvent() as event:
                     pass
                 case responses.ResponseReasoningSummaryTextDoneEvent() as event:
+                    if first_token_time is None:
+                        first_token_time = time.time()
+                    last_token_time = time.time()
                     thinking_text = event.text
                     if is_first_thinking_delta:
                         thinking_text = "\n" + event.text
@@ -144,6 +151,9 @@ class ResponsesClient(LLMClientABC):
                     )
                     is_first_thinking_delta = False
                 case responses.ResponseTextDeltaEvent() as event:
+                    if first_token_time is None:
+                        first_token_time = time.time()
+                    last_token_time = time.time()
                     yield AssistantMessageDelta(content=event.delta, response_id=response_id)
                 case responses.ResponseOutputItemDoneEvent() as event:
                     match event.item:
@@ -170,6 +180,9 @@ class ResponsesClient(LLMClientABC):
                                 response_id=response_id,
                             )
                         case responses.ResponseFunctionToolCall() as item:
+                            if first_token_time is None:
+                                first_token_time = time.time()
+                            last_token_time = time.time()
                             yield ToolCallItem(
                                 name=item.name,
                                 arguments=item.arguments,
@@ -186,6 +199,22 @@ class ResponsesClient(LLMClientABC):
                         context_usage_percent = (
                             (total_tokens / param.context_limit) * 100 if param.context_limit else None
                         )
+
+                        throughput_tps: float | None = None
+                        first_token_latency_ms: float | None = None
+
+                        if first_token_time is not None:
+                            first_token_latency_ms = (first_token_time - request_start_time) * 1000
+
+                        if (
+                            first_token_time is not None
+                            and last_token_time is not None
+                            and event.response.usage.output_tokens > 0
+                        ):
+                            time_duration = last_token_time - first_token_time
+                            if time_duration > 0:
+                                throughput_tps = event.response.usage.output_tokens / time_duration
+
                         usage = Usage(
                             input_tokens=event.response.usage.input_tokens,
                             cached_tokens=event.response.usage.input_tokens_details.cached_tokens,
@@ -193,6 +222,8 @@ class ResponsesClient(LLMClientABC):
                             output_tokens=event.response.usage.output_tokens,
                             total_tokens=total_tokens,
                             context_usage_percent=context_usage_percent,
+                            throughput_tps=throughput_tps,
+                            first_token_latency_ms=first_token_latency_ms,
                         )
                     yield ResponseMetadataItem(
                         usage=usage,

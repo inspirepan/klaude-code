@@ -16,6 +16,8 @@ class Usage(BaseModel):
     output_tokens: int = 0
     total_tokens: int = 0
     context_usage_percent: float | None = None
+    throughput_tps: float | None = None
+    first_token_latency_ms: float | None = None
 
 
 class TodoItem(BaseModel):

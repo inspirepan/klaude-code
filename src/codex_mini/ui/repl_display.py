@@ -97,7 +97,8 @@ class REPLDisplay(DisplayABC):
                 if len(e.content.strip()) == 0 and self.stage != "thinking":
                     # Filter leading empty delta events
                     return
-                if len(self.accumulated_thinking_text) == 0:
+                if len(self.accumulated_thinking_text) == 0 and self.stage != "thinking":
+                    # Filter leading \n\n\n\n
                     self.accumulated_thinking_text += e.content.lstrip()
                 else:
                     self.accumulated_thinking_text += e.content

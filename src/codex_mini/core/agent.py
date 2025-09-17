@@ -39,6 +39,13 @@ class UnfinishedToolCallItem:
     status: Literal["pending", "in_progress"]
 
 
+@dataclass
+class _MetadataMergeState:
+    accumulated: "model.ResponseMetadataItem"
+    throughput_weighted_sum: float = 0.0
+    throughput_tracked_tokens: int = 0
+
+
 class Agent:
     def __init__(
         self,
@@ -115,8 +122,8 @@ class Agent:
 
         self.session.append_history([model.UserMessageItem(content=user_input)])
 
-        accumulated_metadata: model.ResponseMetadataItem = model.ResponseMetadataItem(
-            model_name=self.get_llm_client().model_name
+        metadata_merge_state = _MetadataMergeState(
+            accumulated=model.ResponseMetadataItem(model_name=self.get_llm_client().model_name)
         )
         last_assistant_message: events.AssistantMessageEvent | None = None
 
@@ -136,27 +143,25 @@ class Agent:
                             last_assistant_message = am
                         yield am
                     case events.ResponseMetadataEvent() as e:
-                        metadata = e.metadata
-                        if metadata.usage is not None:
-                            if accumulated_metadata.usage is None:
-                                accumulated_metadata.usage = model.Usage()
-                            accumulated_metadata.usage.input_tokens += metadata.usage.input_tokens
-                            accumulated_metadata.usage.cached_tokens += metadata.usage.cached_tokens
-                            accumulated_metadata.usage.reasoning_tokens += metadata.usage.reasoning_tokens
-                            accumulated_metadata.usage.output_tokens += metadata.usage.output_tokens
-                            accumulated_metadata.usage.total_tokens += metadata.usage.total_tokens
-                            if metadata.usage.context_usage_percent is not None:
-                                accumulated_metadata.usage.context_usage_percent = metadata.usage.context_usage_percent
-                        if metadata.provider is not None:
-                            accumulated_metadata.provider = metadata.provider
-                        if metadata.model_name:
-                            accumulated_metadata.model_name = metadata.model_name
-                        if metadata.response_id:
-                            accumulated_metadata.response_id = metadata.response_id
+                        self._merge_turn_metadata(
+                            metadata_merge_state,
+                            e.metadata,
+                        )
                     case _ as metadata:
                         yield metadata
             if not turn_has_tool_call:
                 break
+
+        accumulated_metadata = metadata_merge_state.accumulated
+
+        if accumulated_metadata.usage is not None:
+            if metadata_merge_state.throughput_tracked_tokens > 0:
+                accumulated_metadata.usage.throughput_tps = (
+                    metadata_merge_state.throughput_weighted_sum
+                    / metadata_merge_state.throughput_tracked_tokens
+                )
+            else:
+                accumulated_metadata.usage.throughput_tps = None
 
         yield events.ResponseMetadataEvent(metadata=accumulated_metadata, session_id=self.session.id)
         self.session.append_history([accumulated_metadata])
@@ -164,6 +169,47 @@ class Agent:
             session_id=self.session.id,
             task_result=last_assistant_message.content if last_assistant_message else "",
         )
+
+    def _merge_turn_metadata(
+        self,
+        state: _MetadataMergeState,
+        turn_metadata: model.ResponseMetadataItem,
+    ) -> None:
+        accumulated_metadata = state.accumulated
+        usage = turn_metadata.usage
+        if usage is not None:
+            if accumulated_metadata.usage is None:
+                accumulated_metadata.usage = model.Usage()
+            accumulated_usage = accumulated_metadata.usage
+            accumulated_usage.input_tokens += usage.input_tokens
+            accumulated_usage.cached_tokens += usage.cached_tokens
+            accumulated_usage.reasoning_tokens += usage.reasoning_tokens
+            accumulated_usage.output_tokens += usage.output_tokens
+            accumulated_usage.total_tokens += usage.total_tokens
+            if usage.context_usage_percent is not None:
+                accumulated_usage.context_usage_percent = usage.context_usage_percent
+
+            if usage.first_token_latency_ms is not None:
+                if accumulated_usage.first_token_latency_ms is None:
+                    accumulated_usage.first_token_latency_ms = usage.first_token_latency_ms
+                else:
+                    accumulated_usage.first_token_latency_ms = min(
+                        accumulated_usage.first_token_latency_ms,
+                        usage.first_token_latency_ms,
+                    )
+
+            if usage.throughput_tps is not None:
+                current_output = usage.output_tokens
+                if current_output > 0:
+                    state.throughput_weighted_sum += usage.throughput_tps * current_output
+                    state.throughput_tracked_tokens += current_output
+
+        if turn_metadata.provider is not None:
+            accumulated_metadata.provider = turn_metadata.provider
+        if turn_metadata.model_name:
+            accumulated_metadata.model_name = turn_metadata.model_name
+        if turn_metadata.response_id:
+            accumulated_metadata.response_id = turn_metadata.response_id
 
     async def replay_history(self) -> AsyncGenerator[events.Event, None]:
         """Yield UI events reconstructed from saved conversation history."""

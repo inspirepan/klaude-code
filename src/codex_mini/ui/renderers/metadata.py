@@ -34,6 +34,18 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
             if metadata.usage.context_usage_percent is not None
             else Text("")
         )
+
+        throughput_str = (
+            Text.assemble((", ", ThemeKey.METADATA_DIM), f"{metadata.usage.throughput_tps:.1f}", " tps")
+            if metadata.usage.throughput_tps is not None
+            else Text("")
+        )
+        latency_str = (
+            Text.assemble((", ", ThemeKey.METADATA_DIM), f"{metadata.usage.first_token_latency_ms:.0f} ms", " latency")
+            if metadata.usage.first_token_latency_ms is not None
+            else Text("")
+        )
+
         rule_text.append_text(
             Text.assemble(
                 (" · ", ThemeKey.METADATA_DIM),
@@ -45,6 +57,8 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
                 (" output"),
                 reasoning_token_str,
                 context_usage_str,
+                throughput_str,
+                latency_str,
                 style=ThemeKey.METADATA,
             )
         )

@@ -1,3 +1,4 @@
+import time
 from collections.abc import AsyncGenerator
 from typing import Literal, override
 
@@ -62,6 +63,10 @@ class OpenAICompatibleClient(LLMClientABC):
         param = apply_config_defaults(param, self.get_llm_config())
         messages = convert_history_to_input(param.input, param.system, param.model)
         tools = convert_tool_schema(param.tools)
+
+        request_start_time = time.time()
+        first_token_time: float | None = None
+        last_token_time: float | None = None
 
         extra_body = {}
         if param.thinking:
@@ -149,6 +154,9 @@ class OpenAICompatibleClient(LLMClientABC):
             if hasattr(delta, "reasoning_content") and getattr(delta, "reasoning_content"):
                 reasoning_content = getattr(delta, "reasoning_content")
             if reasoning_content:
+                if first_token_time is None:
+                    first_token_time = time.time()
+                last_token_time = time.time()
                 stage = "reasoning"
                 accumulated_reasoning.append(reasoning_content)
                 yield model.ThinkingTextDelta(
@@ -191,6 +199,9 @@ class OpenAICompatibleClient(LLMClientABC):
             if delta.content and (
                 stage == "assistant" or delta.content.strip()
             ):  # Process all content in assistant stage, filter empty content in reasoning stage
+                if first_token_time is None:
+                    first_token_time = time.time()
+                last_token_time = time.time()
                 if stage == "reasoning":
                     yield model.ReasoningItem(
                         id=reasoning_id,
@@ -209,6 +220,9 @@ class OpenAICompatibleClient(LLMClientABC):
 
             # Tool
             if delta.tool_calls and len(delta.tool_calls) > 0:
+                if first_token_time is None:
+                    first_token_time = time.time()
+                last_token_time = time.time()
                 if stage == "reasoning":
                     yield model.ReasoningItem(
                         id=reasoning_id,
@@ -248,6 +262,16 @@ class OpenAICompatibleClient(LLMClientABC):
                 yield tool_call_item
 
         metadata_item.response_id = response_id
+
+        # Calculate performance metrics if we have timing data
+        if metadata_item.usage and first_token_time is not None:
+            metadata_item.usage.first_token_latency_ms = (first_token_time - request_start_time) * 1000
+
+            if last_token_time is not None and metadata_item.usage.output_tokens > 0:
+                time_duration = last_token_time - first_token_time
+                if time_duration > 0:
+                    metadata_item.usage.throughput_tps = metadata_item.usage.output_tokens / time_duration
+
         yield metadata_item
 
 
@@ -262,4 +286,6 @@ def convert_usage(usage: openai.types.CompletionUsage, context_limit: int | None
         output_tokens=usage.completion_tokens,
         total_tokens=total_tokens,
         context_usage_percent=context_usage_percent,
+        throughput_tps=None,
+        first_token_latency_ms=None,
     )
