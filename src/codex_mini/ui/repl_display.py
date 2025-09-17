@@ -222,10 +222,10 @@ class REPLDisplay(DisplayABC):
 
     def pick_sub_agent_color(self, sub_agent_type: tools.SubAgentType | None = None) -> Style:
         if sub_agent_type and sub_agent_type == tools.SubAgentType.ORACLE:
-            self.subagent_color = self.console.get_style(ThemeKey.ORANGE)
+            self.subagent_color = self.console.get_style(ThemeKey.SUB_AGENT_ORACLE)
         else:
             self.subagent_color_index = (self.subagent_color_index + 1) % len(self.themes.sub_agent_colors)
-            self.subagent_color = self.console.get_style(self.themes.sub_agent_colors[self.subagent_color_index])
+            self.subagent_color = self.themes.sub_agent_colors[self.subagent_color_index]
         return self.subagent_color
 
     def get_sub_agent_color(self) -> Style:

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 
+from rich.style import Style
 from rich.theme import Theme
 
 
@@ -75,6 +76,8 @@ class ThemeKey(str, Enum):
     # SPINNER_STATUS
     SPINNER_STATUS = "spinner.status"
     SPINNER_STATUS_BOLD = "spinner.status.bold"
+    # STATUS
+    STATUS_HINT = "status.hint"
     # USER_INPUT
     USER_INPUT = "user.input"
     USER_INPUT_DIM = "user.input.dim"
@@ -115,17 +118,15 @@ class ThemeKey(str, Enum):
     ANNOTATION_URL = "annotation.url"
     ANNOTATION_URL_HIGHLIGHT = "annotation.url.highlight"
     ANNOTATION_SEARCH_CONTENT = "annotation.search_content"
-    # PALETTE COLORS - Direct palette passthrough
-    RED = "r"
-    YELLOW = "y"
-    GREEN = "g"
-    CYAN = "c"
-    BLUE = "b"
-    ORANGE = "o"
-    GREY1 = "grey1"
-    GREY2 = "grey2"
-    GREY3 = "grey3"
-    PURPLE = "p"
+    # SUB_AGENT
+    SUB_AGENT_ORACLE = "sub_agent.oracle"
+    # CONFIGURATION DISPLAY
+    CONFIG_TABLE_HEADER = "config.table.header"
+    CONFIG_STATUS_OK = "config.status.ok"
+    CONFIG_STATUS_PRIMARY = "config.status.primary"
+    CONFIG_ITEM_NAME = "config.item.name"
+    CONFIG_PARAM_LABEL = "config.param.label"
+    CONFIG_PANEL_BORDER = "config.panel.border"
 
     def __str__(self) -> str:
         return self.value
@@ -136,7 +137,7 @@ class Themes:
     app_theme: Theme
     markdown_theme: Theme
     code_theme: str
-    sub_agent_colors: list[ThemeKey]
+    sub_agent_colors: list[Style]
 
 
 def get_theme(theme: str | None = None) -> Themes:
@@ -169,6 +170,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 # SPINNER_STATUS
                 ThemeKey.SPINNER_STATUS.value: "",
                 ThemeKey.SPINNER_STATUS_BOLD.value: "bold",
+                # STATUS
+                ThemeKey.STATUS_HINT.value: palette.grey2,
                 # REMINDER
                 ThemeKey.REMINDER.value: palette.grey1,
                 ThemeKey.REMINDER_BOLD.value: "bold " + palette.grey1,
@@ -204,22 +207,20 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.ANNOTATION_URL.value: palette.blue,
                 ThemeKey.ANNOTATION_URL_HIGHLIGHT.value: "bold " + palette.blue,
                 ThemeKey.ANNOTATION_SEARCH_CONTENT.value: "italic " + palette.grey2,
-                # PALETTE COLORS
-                ThemeKey.RED.value: palette.red,
-                ThemeKey.YELLOW.value: palette.yellow,
-                ThemeKey.GREEN.value: palette.green,
-                ThemeKey.CYAN.value: palette.cyan,
-                ThemeKey.BLUE.value: palette.blue,
-                ThemeKey.GREY1.value: palette.grey1,
-                ThemeKey.GREY2.value: palette.grey2,
-                ThemeKey.GREY3.value: palette.grey3,
-                ThemeKey.PURPLE.value: palette.purple,
-                ThemeKey.ORANGE.value: palette.orange,
+                # SUB_AGENT
+                ThemeKey.SUB_AGENT_ORACLE.value: palette.orange,
+                # CONFIGURATION DISPLAY
+                ThemeKey.CONFIG_TABLE_HEADER.value: palette.green,
+                ThemeKey.CONFIG_STATUS_OK.value: palette.green,
+                ThemeKey.CONFIG_STATUS_PRIMARY.value: palette.yellow,
+                ThemeKey.CONFIG_ITEM_NAME.value: palette.cyan,
+                ThemeKey.CONFIG_PARAM_LABEL.value: palette.grey1,
+                ThemeKey.CONFIG_PANEL_BORDER.value: palette.grey3,
             }
         ),
         markdown_theme=Theme(
             styles={
-                "markdown.code": palette.purple,
+                "markdown.code": palette.grey1,
                 "markdown.h1": "bold reverse",
                 "markdown.h1.border": palette.grey3,
                 "markdown.h2.border": palette.grey3,
@@ -231,9 +232,9 @@ def get_theme(theme: str | None = None) -> Themes:
         ),
         code_theme=palette.code_theme,
         sub_agent_colors=[
-            ThemeKey.YELLOW,
-            ThemeKey.GREEN,
-            ThemeKey.BLUE,
-            ThemeKey.PURPLE,
+            Style(color=palette.yellow),
+            Style(color=palette.green),
+            Style(color=palette.blue),
+            Style(color=palette.purple),
         ],
     )
