@@ -424,7 +424,7 @@ def exec_command(
     dark: bool = typer.Option(False, "--dark", help="Use dark theme"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
     unrestricted_read: bool = typer.Option(False, "--unrestricted-read", "-u", help="Remove all read limits for files"),
-    vanilla: bool = typer.Option(False, "--vanilla", help="Use simple system prompt"),
+    vanilla: bool = typer.Option(False, "--vanilla", help="Use 'You're a help assistant' as system prompt"),
 ):
     """Execute non-interactively with provided input."""
 
@@ -501,7 +501,7 @@ def main_callback(
     dark: bool = typer.Option(False, "--dark", help="Use dark theme"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
     unrestricted_read: bool = typer.Option(False, "--unrestricted-read", "-u", help="Remove all read limits for files"),
-    vanilla: bool = typer.Option(False, "--vanilla", help="Use simple system prompt"),
+    vanilla: bool = typer.Option(False, "--vanilla", help="Use 'You're a help assistant' as system prompt"),
 ):
     """Start interactive session when no subcommand provided."""
     # Only run interactive mode when no subcommand is invoked

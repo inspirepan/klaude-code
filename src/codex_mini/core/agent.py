@@ -45,6 +45,7 @@ class _MetadataMergeState:
     throughput_weighted_sum: float = 0.0
     throughput_tracked_tokens: int = 0
 
+type Reminder = Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]
 
 class Agent:
     def __init__(
@@ -53,13 +54,13 @@ class Agent:
         session: Session,
         tools: list[llm_parameter.ToolSchema] | None = None,
         debug_mode: bool = False,
-        reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] | None = None,
+        reminders: list[Reminder] | None = None,
         vanilla: bool = False,
     ):
         self.session: Session = session
         self.tools: list[llm_parameter.ToolSchema] | None = tools
         self.debug_mode: bool = debug_mode
-        self.reminders: list[Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]] | None = reminders
+        self.reminders: list[Reminder] | None = reminders
         self.llm_clients = llm_clients
         self.vanilla = vanilla
         # Track tool calls that are pending or in-progress within the current turn

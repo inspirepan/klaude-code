@@ -9,7 +9,7 @@ import asyncio
 from uuid import uuid4
 
 from codex_mini.command import dispatch_command
-from codex_mini.core.agent import Agent, AgentLLMClients
+from codex_mini.core.agent import Agent, AgentLLMClients, Reminder
 from codex_mini.core.reminders import (
     at_file_reader_reminder,
     empty_todo_reminder,
@@ -76,6 +76,20 @@ class ExecutorContext:
         # Load or create session first
         session = Session.load(operation.session_id)
 
+        system_reminders: list[Reminder] = (
+            [
+                empty_todo_reminder,
+                todo_not_used_recently_reminder,
+                memory_reminder,
+                last_path_memory_reminder,
+                at_file_reader_reminder,
+                file_changed_externally_reminder,
+                plan_mode_reminder,
+            ]
+            if not self.vanilla
+            else [at_file_reader_reminder]
+        )  # Use simple reminders in vanilla mode
+
         # Create agent if not exists
         if operation.session_id not in self.active_agents:
             agent = Agent(
@@ -84,15 +98,7 @@ class ExecutorContext:
                 tools=get_main_agent_tools(self.llm_clients.main.model_name),
                 debug_mode=self.debug_mode,
                 vanilla=self.vanilla,
-                reminders=[
-                    empty_todo_reminder,
-                    todo_not_used_recently_reminder,
-                    memory_reminder,
-                    last_path_memory_reminder,
-                    at_file_reader_reminder,
-                    file_changed_externally_reminder,
-                    plan_mode_reminder,
-                ],
+                reminders=system_reminders,
             )
             agent.sync_system_prompt()
             async for evt in agent.replay_history():
