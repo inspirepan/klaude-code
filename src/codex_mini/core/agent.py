@@ -157,8 +157,7 @@ class Agent:
         if accumulated_metadata.usage is not None:
             if metadata_merge_state.throughput_tracked_tokens > 0:
                 accumulated_metadata.usage.throughput_tps = (
-                    metadata_merge_state.throughput_weighted_sum
-                    / metadata_merge_state.throughput_tracked_tokens
+                    metadata_merge_state.throughput_weighted_sum / metadata_merge_state.throughput_tracked_tokens
                 )
             else:
                 accumulated_metadata.usage.throughput_tps = None

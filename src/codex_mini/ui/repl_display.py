@@ -24,6 +24,7 @@ from codex_mini.ui.renderers import status as r_status
 from codex_mini.ui.renderers import thinking as r_thinking
 from codex_mini.ui.renderers import tools as r_tools
 from codex_mini.ui.renderers import user_input as r_user_input
+from codex_mini.ui.renderers.common import truncate_display
 from codex_mini.ui.theme import ThemeKey, get_theme
 
 
@@ -197,7 +198,7 @@ class REPLDisplay(DisplayABC):
                 self.print(r_user_input.render_interrupt())
                 self.spinner.stop()
             case events.ErrorEvent() as e:
-                self.print(r_errors.render_error(e.error_message))
+                self.print(r_errors.render_error(self.console.render_str(truncate_display(e.error_message))))
                 self.spinner.stop()
             case events.EndEvent():
                 self.spinner.stop()
@@ -314,7 +315,7 @@ class REPLDisplay(DisplayABC):
 
     def display_tool_call_result(self, e: events.ToolResultEvent) -> None:
         if e.status == "error" and not e.ui_extra:
-            self.print(r_errors.render_error(e.result))
+            self.print(r_errors.render_error(self.console.render_str(truncate_display(e.result))))
             return
 
         match e.tool_name:

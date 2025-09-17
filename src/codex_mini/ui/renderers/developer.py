@@ -20,11 +20,15 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
 
     if mp := e.item.memory_paths:
         grid = create_grid()
-        for memory_path in mp:
-            grid.add_row(
-                Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD),
-                Text.assemble(("Load memory ", ThemeKey.REMINDER), render_path(memory_path, ThemeKey.REMINDER_BOLD)),
-            )
+        grid.add_row(
+            Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD),
+            Text.assemble(
+                ("Load memory ", ThemeKey.REMINDER),
+                Text(", ", ThemeKey.REMINDER).join(
+                    render_path(memory_path, ThemeKey.REMINDER_BOLD) for memory_path in mp
+                ),
+            ),
+        )
         parts.append(grid)
 
     if fc := e.item.external_file_changes:
