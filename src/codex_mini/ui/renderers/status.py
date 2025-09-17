@@ -4,7 +4,7 @@ from rich.text import Text
 from codex_mini.ui.theme import ThemeKey
 
 SPINNERS["claude"] = {
-    "interval": 100,
+    "interval": 150,
     "frames": ["✶", "✻", "✽", "✻", "✶", "✳", "✢", "·", "✢", "✳"],
 }
 
