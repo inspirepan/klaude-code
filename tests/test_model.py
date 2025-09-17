@@ -1,15 +1,5 @@
-import sys
-from pathlib import Path
-
-# Ensure we can import from src/
-ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = ROOT / "src"
-if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-# noqa: E402
-from codex_mini.protocol import model  # noqa: E402
-from codex_mini.protocol.model import group_response_items_gen  # noqa: E402
+from codex_mini.protocol import model
+from codex_mini.protocol.model import group_response_items_gen
 
 
 def test_group_response_items_gen():

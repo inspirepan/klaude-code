@@ -68,7 +68,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
         if metadata.usage.first_token_latency_ms is not None:
             usage_parts.append(
                 Text.assemble(
-                    ("avg latency: ", ThemeKey.METADATA),
+                    ("avg first token latency: ", ThemeKey.METADATA),
                     (f"{metadata.usage.first_token_latency_ms:.0f} ms", ThemeKey.METADATA_BOLD),
                 )
             )

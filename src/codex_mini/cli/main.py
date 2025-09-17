@@ -17,6 +17,7 @@ from rich.text import Text
 from codex_mini import ui
 from codex_mini.command.registry import is_interactive_command
 from codex_mini.config import config_path, load_config
+from codex_mini.config.config import Config
 from codex_mini.config.list_model import display_models_and_providers
 from codex_mini.config.select_model import select_model_from_config
 from codex_mini.core.agent import AgentLLMClients
@@ -25,6 +26,7 @@ from codex_mini.core.tool.tool_context import set_read_unrestricted
 from codex_mini.llm import LLMClientABC, create_llm_client
 from codex_mini.protocol import op
 from codex_mini.protocol.events import EndEvent, Event
+from codex_mini.protocol.llm_parameter import LLMConfigParameter
 from codex_mini.session import Session
 from codex_mini.trace import log, log_debug
 
@@ -160,23 +162,41 @@ class UIArgs:
     dark: bool | None
 
 
-async def run_interactive(
-    model: str | None = None,
-    debug: bool = False,
-    session_id: str | None = None,
-    ui_args: UIArgs | None = None,
-    unrestricted_read: bool = False,
-    vanilla: bool = False,
-):
-    """Run the interactive REPL using the new executor architecture."""
+@dataclass
+class AppInitConfig:
+    """Configuration for initializing the application components."""
 
+    model: str | None
+    debug: bool
+    ui_args: UIArgs | None
+    unrestricted_read: bool
+    vanilla: bool
+
+
+@dataclass
+class AppComponents:
+    """Initialized application components."""
+
+    config: Config
+    llm_clients: AgentLLMClients
+    llm_config: LLMConfigParameter
+    executor: Executor
+    executor_task: asyncio.Task[None]
+    event_queue: asyncio.Queue[Event]
+    display: ui.DisplayABC
+    display_task: asyncio.Task[None]
+    theme: str | None
+
+
+async def initialize_app_components(init_config: AppInitConfig) -> AppComponents:
+    """Initialize all application components (LLM clients, executor, UI)."""
     # Set read limits policy
-    set_read_unrestricted(unrestricted_read)
+    set_read_unrestricted(init_config.unrestricted_read)
 
     config = load_config()
-    llm_config = config.get_model_config(model) if model else config.get_main_model_config()
+    llm_config = config.get_model_config(init_config.model) if init_config.model else config.get_main_model_config()
     llm_client: LLMClientABC = create_llm_client(llm_config)
-    if debug:
+    if init_config.debug:
         log_debug("▷▷▷ llm [Model Config]", llm_config.model_dump_json(exclude_none=True), style="yellow")
         llm_client.enable_debug_mode()
 
@@ -186,7 +206,7 @@ async def run_interactive(
         plan_llm_config = config.get_model_config(config.plan_model)
         plan_llm_client = create_llm_client(plan_llm_config)
         llm_clients.plan = plan_llm_client
-        if debug:
+        if init_config.debug:
             log_debug("▷▷▷ llm [Plan Model Config]", plan_llm_config.model_dump_json(exclude_none=True), style="yellow")
             plan_llm_client.enable_debug_mode()
 
@@ -194,7 +214,7 @@ async def run_interactive(
         task_llm_config = config.get_model_config(config.task_model)
         task_llm_client = create_llm_client(task_llm_config)
         llm_clients.task = task_llm_client
-        if debug:
+        if init_config.debug:
             log_debug("▷▷▷ llm [Task Model Config]", task_llm_config.model_dump_json(exclude_none=True), style="yellow")
             task_llm_client.enable_debug_mode()
 
@@ -202,7 +222,7 @@ async def run_interactive(
         oracle_llm_config = config.get_model_config(config.oracle_model)
         oracle_llm_client = create_llm_client(oracle_llm_config)
         llm_clients.oracle = oracle_llm_client
-        if debug:
+        if init_config.debug:
             log_debug(
                 "▷▷▷ llm [Oracle Model Config]", oracle_llm_config.model_dump_json(exclude_none=True), style="yellow"
             )
@@ -212,31 +232,98 @@ async def run_interactive(
     event_queue: asyncio.Queue[Event] = asyncio.Queue()
 
     # Create executor with the LLM client
-    executor = Executor(event_queue, llm_clients, llm_config, debug_mode=debug, vanilla=vanilla)
+    executor = Executor(event_queue, llm_clients, llm_config, debug_mode=init_config.debug, vanilla=init_config.vanilla)
 
     # Start executor in background
     executor_task = asyncio.create_task(executor.start())
 
     theme: str | None = config.theme
-    if ui_args:
-        if ui_args.theme:
-            theme = ui_args.theme
-            old_theme = config.theme
-            config.theme = theme
-            if old_theme != theme:
-                await config.save()
-        elif ui_args.light:
+    if init_config.ui_args:
+        if init_config.ui_args.theme:
+            theme = init_config.ui_args.theme
+        elif init_config.ui_args.light:
             theme = "light"
-        elif ui_args.dark:
+        elif init_config.ui_args.dark:
             theme = "dark"
 
     # Set up UI components
     repl_display = ui.REPLDisplay(theme=theme)
-    display: ui.DisplayABC = repl_display if not debug else ui.DebugEventDisplay(repl_display, write_to_file=True)
-    input_provider: ui.InputProviderABC = ui.PromptToolkitInput()
+    display: ui.DisplayABC = (
+        repl_display if not init_config.debug else ui.DebugEventDisplay(repl_display, write_to_file=True)
+    )
 
     # Start UI display task
     display_task = asyncio.create_task(display.consume_event_loop(event_queue))
+
+    return AppComponents(
+        config=config,
+        llm_clients=llm_clients,
+        llm_config=llm_config,
+        executor=executor,
+        executor_task=executor_task,
+        event_queue=event_queue,
+        display=display,
+        display_task=display_task,
+        theme=theme,
+    )
+
+
+async def cleanup_app_components(components: AppComponents) -> None:
+    """Clean up all application components."""
+    # Clean shutdown
+    await components.executor.stop()
+    components.executor_task.cancel()
+
+    # Signal UI to stop
+    await components.event_queue.put(EndEvent())
+    await components.display_task
+
+
+async def run_exec(init_config: AppInitConfig, input_content: str) -> None:
+    """Run a single command non-interactively using the provided configuration."""
+
+    components = await initialize_app_components(init_config)
+
+    try:
+        # Generate a new session ID for exec mode
+        session_id = uuid.uuid4().hex
+
+        # Init Agent
+        init_id = await components.executor.submit(op.InitAgentOperation(session_id=session_id))
+        await components.executor.wait_for_completion(init_id)
+        await components.event_queue.join()
+
+        # Submit the input content directly
+        submission_id = await components.executor.submit(
+            op.UserInputOperation(content=input_content, session_id=session_id)
+        )
+        await components.executor.wait_for_completion(submission_id)
+
+    except KeyboardInterrupt:
+        log("Bye!")
+        # Send interrupt to stop any running tasks
+        try:
+            await components.executor.submit(op.InterruptOperation(target_session_id=None))
+        except:  # noqa: E722
+            pass  # Executor might already be stopping
+    finally:
+        await cleanup_app_components(components)
+
+
+async def run_interactive(init_config: AppInitConfig, session_id: str | None = None) -> None:
+    """Run the interactive REPL using the provided configuration."""
+
+    components = await initialize_app_components(init_config)
+
+    # Special handling for interactive mode theme saving
+    if init_config.ui_args and init_config.ui_args.theme:
+        old_theme = components.config.theme
+        components.config.theme = components.theme
+        if old_theme != components.theme:
+            await components.config.save()
+
+    # Set up input provider for interactive mode
+    input_provider: ui.InputProviderABC = ui.PromptToolkitInput()
 
     # --- Custom Ctrl+C handler: double-press within 2s to exit, single press shows toast ---
     last_sigint_time: float = 0.0
@@ -245,7 +332,10 @@ async def run_interactive(
     def _show_toast_once() -> None:
         try:
             # Keep message short; avoid interfering with spinner layout
-            repl_display.print(Text(" Press ctrl+c again to exit ", style="bold yellow reverse"))
+            if hasattr(components.display, "print"):
+                components.display.print(Text(" Press ctrl+c again to exit ", style="bold yellow reverse"))  # type: ignore[attr-defined]
+            else:
+                print("Press ctrl+c again to exit", file=sys.stderr)
         except Exception:
             # Fallback if themed print is unavailable
             print("Press ctrl+c again to exit", file=sys.stderr)
@@ -264,9 +354,9 @@ async def run_interactive(
 
     try:
         # Init Agent
-        init_id = await executor.submit(op.InitAgentOperation(session_id=session_id))
-        await executor.wait_for_completion(init_id)
-        await event_queue.join()
+        init_id = await components.executor.submit(op.InitAgentOperation(session_id=session_id))
+        await components.executor.wait_for_completion(init_id)
+        await components.event_queue.join()
         # Input
         await input_provider.start()
         async for user_input in input_provider.iter_inputs():
@@ -276,17 +366,19 @@ async def run_interactive(
             elif user_input.strip() == "":
                 continue
             # Submit user input operation
-            submission_id = await executor.submit(op.UserInputOperation(content=user_input, session_id=session_id))
+            submission_id = await components.executor.submit(
+                op.UserInputOperation(content=user_input, session_id=session_id)
+            )
             # If it's an interactive command (e.g., /model), avoid starting the ESC monitor
             # to prevent TTY conflicts with interactive prompts (questionary/prompt_toolkit).
             if is_interactive_command(user_input):
-                await executor.wait_for_completion(submission_id)
+                await components.executor.wait_for_completion(submission_id)
             else:
                 # Esc monitor for long-running, interruptible operations
-                stop_event, esc_task = start_esc_interrupt_monitor(executor, session_id)
+                stop_event, esc_task = start_esc_interrupt_monitor(components.executor, session_id)
                 # Wait for this specific task to complete before accepting next input
                 try:
-                    await executor.wait_for_completion(submission_id)
+                    await components.executor.wait_for_completion(submission_id)
                 finally:
                     # Stop ESC monitor and wait for it to finish cleaning up TTY
                     stop_event.set()
@@ -299,7 +391,7 @@ async def run_interactive(
         log("Bye!")
         # Send interrupt to stop any running tasks
         try:
-            await executor.submit(op.InterruptOperation(target_session_id=None))
+            await components.executor.submit(op.InterruptOperation(target_session_id=None))
         except:  # noqa: E722
             pass  # Executor might already be stopping
     finally:
@@ -308,13 +400,7 @@ async def run_interactive(
             signal.signal(signal.SIGINT, original_sigint)
         except Exception:
             pass
-        # Clean shutdown
-        await executor.stop()
-        executor_task.cancel()
-
-        # Signal UI to stop
-        await event_queue.put(EndEvent())
-        await display_task
+        await cleanup_app_components(components)
 
 
 app = typer.Typer(
@@ -386,6 +472,78 @@ def edit_config():
         raise typer.Exit(1)
 
 
+@app.command("exec")
+def exec_command(
+    input_content: str = typer.Argument("", help="Input message to execute"),
+    model: str | None = typer.Option(
+        None,
+        "--model",
+        "-m",
+        help="Override model config name (uses main model by default)",
+    ),
+    select_model: bool = typer.Option(
+        False,
+        "--select-model",
+        "-s",
+        help="Interactively choose a model at startup",
+    ),
+    set_theme: str | None = typer.Option(
+        None,
+        "--set-theme",
+        help="Set UI theme (light or dark)",
+    ),
+    light: bool = typer.Option(False, "--light", help="Use light theme"),
+    dark: bool = typer.Option(False, "--dark", help="Use dark theme"),
+    debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
+    unrestricted_read: bool = typer.Option(False, "--unrestricted-read", "-u", help="Remove all read limits for files"),
+    vanilla: bool = typer.Option(False, "--vanilla", help="Use simple system prompt"),
+):
+    """Execute non-interactively with provided input."""
+
+    parts: list[str] = []
+
+    # Handle stdin input
+    if not sys.stdin.isatty():
+        try:
+            stdin = sys.stdin.read().rstrip("\n")
+            if stdin:
+                parts.append(stdin)
+        except Exception as e:
+            log(f"[red]Error reading from stdin: {e}[/red]")
+            raise typer.Exit(1)
+    else:
+        log("[red]Error: No stdin input available[/red]")
+        raise typer.Exit(1)
+
+    if input_content:
+        parts.append(input_content)
+
+    input_content = "\n".join(parts)
+
+    chosen_model = model
+    if select_model:
+        # Prefer the explicitly provided model as default; otherwise main model
+        default_name = model or load_config().main_model
+        chosen_model = select_model_from_config(preferred=default_name)
+        if chosen_model is None:
+            return
+
+    init_config = AppInitConfig(
+        model=chosen_model,
+        debug=debug,
+        ui_args=UIArgs(theme=set_theme, light=light, dark=dark),
+        unrestricted_read=unrestricted_read,
+        vanilla=vanilla,
+    )
+
+    asyncio.run(
+        run_exec(
+            init_config=init_config,
+            input_content=input_content,
+        )
+    )
+
+
 @app.callback(invoke_without_command=True)
 def main_callback(
     ctx: typer.Context,
@@ -417,6 +575,7 @@ def main_callback(
     """Start interactive session when no subcommand provided."""
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
+        # Interactive mode
         chosen_model = model
         if select_model:
             # Prefer the explicitly provided model as default; otherwise main model
@@ -437,13 +596,18 @@ def main_callback(
         # If still no session_id, generate a new one for a new session
         if session_id is None:
             session_id = uuid.uuid4().hex
+
+        init_config = AppInitConfig(
+            model=chosen_model,
+            debug=debug,
+            ui_args=UIArgs(theme=set_theme, light=light, dark=dark),
+            unrestricted_read=unrestricted_read,
+            vanilla=vanilla,
+        )
+
         asyncio.run(
             run_interactive(
-                model=chosen_model,
-                debug=debug,
+                init_config=init_config,
                 session_id=session_id,
-                ui_args=UIArgs(theme=set_theme, light=light, dark=dark),
-                unrestricted_read=unrestricted_read,
-                vanilla=vanilla,
             )
         )

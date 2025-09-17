@@ -2,7 +2,9 @@
 
 A repository for showing how to make a simple Agent CLI using OpenAI's Response API / Anthropic's Official API / OpenRouter's API
 
-# Usage
+## Usage
+
+### Interactive Mode
 
 ```bash
 uv sync
@@ -13,6 +15,25 @@ uv run cdx [--model <name>] [--select-model] [--debug] [--continue]
 - `--select-model`/`-s`: interactively choose a model at startup. If `-m` is provided, it becomes the default selection.
 - `--debug`/`-d`: verbose logs, debug display, and LLM client debugging.
 - `--continue`/`-c`: continue from the most recent session.
+- `--resume`/`-r`: select a specific session to resume from a list.
+
+
+### Non-Interactive Mode (exec)
+
+Execute a single command without starting the interactive REPL:
+
+```bash
+# Direct input
+cdx exec "what is 2+2?"
+
+# Pipe input
+echo "hello world" | cdx exec
+
+# With options
+cdx exec "explain this code" --model gpt-4 --debug
+```
+
+### List Models
 
 List configured providers and models:
 
@@ -20,25 +41,13 @@ List configured providers and models:
 uv run cdx list
 ```
 
-Examples:
+### Configuration
+
+An example config will be created in `~/.config/codex-mini/config.yaml` when first run. You can edit it directly or use `uv run cdx config` to open it in your default editor.
+
+
+Open the configuration file in your default editor:
 
 ```bash
-# Start with the default main model
-uv run cdx
-
-# Start and interactively choose a model
-uv run cdx -s
-
-# Prefer sonnet-4 by default, but confirm interactively
-uv run cdx -m sonnet-4 -s
-
-# Start with an explicit model silently
-uv run cdx -m gpt-5
-
-# Continue from the latest session
-uv run cdx -c
+uv run cdx config
 ```
-
-# Config
-An example config of Responses API will be created in `~/.config/codex-mini/config.yaml` when first run.
-
