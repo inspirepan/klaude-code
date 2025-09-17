@@ -147,6 +147,12 @@ class OpenAICompatibleClient(LLMClientABC):
                 continue
             delta = event.choices[0].delta
 
+            # Support Kimi K2'2 usage field in choice
+            if hasattr(event.choices[0], "usage") and getattr(event.choices[0], "usage"):
+                metadata_item.usage = convert_usage(
+                    openai.types.CompletionUsage.model_validate(getattr(event.choices[0], "usage")), param.context_limit
+                )
+
             # Reasoning
             reasoning_content = ""
             if hasattr(delta, "reasoning") and getattr(delta, "reasoning"):
