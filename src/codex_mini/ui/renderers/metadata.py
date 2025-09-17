@@ -2,7 +2,6 @@ from rich import box
 from rich.box import Box
 from rich.console import Group, RenderableType
 from rich.panel import Panel
-from rich.rule import Rule
 from rich.text import Text
 
 from codex_mini.protocol import events
@@ -12,57 +11,72 @@ from codex_mini.ui.utils import format_number
 
 def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
     metadata = e.metadata
-    rule_text = Text()
-    rule_text.append_text(Text("↑ ", style=ThemeKey.METADATA_BOLD))
-    rule_text.append_text(Text(metadata.model_name, style=ThemeKey.METADATA_BOLD))
+    metadata_text = Text()
+    metadata_text.append_text(Text("↑ ", style=ThemeKey.METADATA_BOLD)).append_text(
+        Text(metadata.model_name, style=ThemeKey.METADATA_BOLD)
+    )
     if metadata.provider is not None:
-        rule_text.append_text(Text(" "))
-        rule_text.append_text(Text(metadata.provider.lower(), style=ThemeKey.METADATA))
+        metadata_text.append_text(Text(" ")).append_text(Text(metadata.provider.lower(), style=ThemeKey.METADATA))
+
+    usage_parts: list[Text] = []
+
     if metadata.usage is not None:
-        cached_token_str = (
-            Text.assemble((", ", ThemeKey.METADATA_DIM), format_number(metadata.usage.cached_tokens), " cached")
-            if metadata.usage.cached_tokens > 0
-            else Text("")
-        )
-        reasoning_token_str = (
-            Text.assemble((", ", ThemeKey.METADATA_DIM), format_number(metadata.usage.reasoning_tokens), " reasoning")
-            if metadata.usage.reasoning_tokens > 0
-            else Text("")
-        )
-        context_usage_str = (
-            Text.assemble((", ", ThemeKey.METADATA_DIM), f"{metadata.usage.context_usage_percent:.1f}%", " context")
-            if metadata.usage.context_usage_percent is not None
-            else Text("")
-        )
-
-        throughput_str = (
-            Text.assemble((", ", ThemeKey.METADATA_DIM), f"{metadata.usage.throughput_tps:.1f}", " tps")
-            if metadata.usage.throughput_tps is not None
-            else Text("")
-        )
-        latency_str = (
-            Text.assemble((", ", ThemeKey.METADATA_DIM), f"{metadata.usage.first_token_latency_ms:.0f} ms", " latency")
-            if metadata.usage.first_token_latency_ms is not None
-            else Text("")
-        )
-
-        rule_text.append_text(
+        usage_parts.append(
             Text.assemble(
-                (" · ", ThemeKey.METADATA_DIM),
-                (format_number(metadata.usage.input_tokens), ThemeKey.METADATA),
-                (" input"),
-                cached_token_str,
-                (", ", ThemeKey.METADATA_DIM),
-                (format_number(metadata.usage.output_tokens), ThemeKey.METADATA),
-                (" output"),
-                reasoning_token_str,
-                context_usage_str,
-                throughput_str,
-                latency_str,
-                style=ThemeKey.METADATA,
+                (format_number(metadata.usage.input_tokens), ThemeKey.METADATA_BOLD), (" input", ThemeKey.METADATA)
             )
         )
-    return Rule(rule_text, style=ThemeKey.LINES, align="left", characters="-")
+
+        if metadata.usage.cached_tokens > 0:
+            usage_parts.append(
+                Text.assemble(
+                    (format_number(metadata.usage.cached_tokens), ThemeKey.METADATA_BOLD),
+                    (" cached", ThemeKey.METADATA),
+                )
+            )
+
+        usage_parts.append(
+            Text.assemble(
+                (format_number(metadata.usage.output_tokens), ThemeKey.METADATA_BOLD), (" output", ThemeKey.METADATA)
+            )
+        )
+
+        if metadata.usage.reasoning_tokens > 0:
+            usage_parts.append(
+                Text.assemble(
+                    (format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA_BOLD),
+                    (" reasoning", ThemeKey.METADATA),
+                )
+            )
+
+        if metadata.usage.context_usage_percent is not None:
+            usage_parts.append(
+                Text.assemble(
+                    (f"{metadata.usage.context_usage_percent:.1f}", ThemeKey.METADATA_BOLD),
+                    ("% context", ThemeKey.METADATA),
+                )
+            )
+
+        if metadata.usage.throughput_tps is not None:
+            usage_parts.append(
+                Text.assemble(
+                    (f"{metadata.usage.throughput_tps:.1f}", ThemeKey.METADATA_BOLD),
+                    (" tps", ThemeKey.METADATA),
+                )
+            )
+
+        if metadata.usage.first_token_latency_ms is not None:
+            usage_parts.append(
+                Text.assemble(
+                    ("avg latency: ", ThemeKey.METADATA),
+                    (f"{metadata.usage.first_token_latency_ms:.0f} ms", ThemeKey.METADATA_BOLD),
+                )
+            )
+
+    metadata_text.append_text(Text(" · ", style=ThemeKey.METADATA)).append_text(
+        Text(", ", style=ThemeKey.METADATA).join(usage_parts)
+    )
+    return metadata_text
 
 
 def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> RenderableType:
