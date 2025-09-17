@@ -424,24 +424,20 @@ def edit_config():
 
     # If no EDITOR is set, prioritize TextEdit on macOS
     if not editor:
-        if sys.platform == "darwin":  # macOS
-            editor = "open -a TextEdit"
-        else:
-            # Try common editors in order of preference on other platforms
-            for cmd in [
-                "zed",
-                "code",
-                "nvim",
-                "vim",
-                "nano",
-                "vi",
-            ]:
-                try:
-                    subprocess.run(["which", cmd], check=True, capture_output=True)
-                    editor = cmd
-                    break
-                except (subprocess.CalledProcessError, FileNotFoundError):
-                    continue
+        # Try common editors in order of preference on other platforms
+        for cmd in [
+            "zed",
+            "nvim",
+            "code",
+            "vim",
+            "nano",
+        ]:
+            try:
+                subprocess.run(["which", cmd], check=True, capture_output=True)
+                editor = cmd
+                break
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                continue
 
     # If no editor found, try platform-specific defaults
     if not editor:
@@ -464,10 +460,10 @@ def edit_config():
         else:
             subprocess.run([editor, str(config_path)], check=True)
     except subprocess.CalledProcessError as e:
-        log(f"[red]Error: Failed to open editor: {e}[/red]")
+        log((f"Error: Failed to open editor: {e}", "red"))
         raise typer.Exit(1)
     except FileNotFoundError:
-        log(f"[red]Error: Editor '{editor}' not found[/red]")
+        log((f"Error: Editor '{editor}' not found", "red"))
         log("Please install a text editor or set your $EDITOR environment variable")
         raise typer.Exit(1)
 
@@ -509,16 +505,19 @@ def exec_command(
             if stdin:
                 parts.append(stdin)
         except Exception as e:
-            log(f"[red]Error reading from stdin: {e}[/red]")
+            log((f"Error reading from stdin: {e}", "red"))
             raise typer.Exit(1)
     else:
-        log("[red]Error: No stdin input available[/red]")
+        log(("Error: No stdin input available", "red"))
         raise typer.Exit(1)
 
     if input_content:
         parts.append(input_content)
 
     input_content = "\n".join(parts)
+    if len(input_content) == 0:
+        log(("Error: No input content provided", "red"))
+        raise typer.Exit(1)
 
     chosen_model = model
     if select_model:
