@@ -23,13 +23,33 @@ class DiffCommand(CommandABC):
 
     async def run(self, raw: str, agent: Agent) -> CommandResult:
         try:
+            # Check if current directory is in a git repository
+            git_check = subprocess.run(
+                ["git", "rev-parse", "--is-inside-work-tree"],
+                cwd=Path.cwd(),
+                capture_output=True,
+                text=True,
+                timeout=5.0,
+            )
+
+            if git_check.returncode != 0:
+                # Not in a git repository
+                event = DeveloperMessageEvent(
+                    session_id=agent.session.id,
+                    item=DeveloperMessageItem(
+                        content="No in a git repo",
+                        command_output=CommandOutput(command_name=self.name, is_error=True),
+                    ),
+                )
+                return CommandResult(events=[event])
+
             # Run git diff in current directory
             result = subprocess.run(
                 ["git", "diff", "HEAD"], cwd=Path.cwd(), capture_output=True, text=True, timeout=10.0
             )
 
             if result.returncode != 0:
-                # Git command failed (maybe not a git repo)
+                # Git command failed
                 error_msg = result.stderr.strip() or "git diff command failed"
                 event = DeveloperMessageEvent(
                     session_id=agent.session.id,
@@ -42,18 +62,45 @@ class DiffCommand(CommandABC):
 
             diff_output = result.stdout.strip()
 
-            if not diff_output:
-                # No changes
+            # Get untracked files
+            untracked_result = subprocess.run(
+                ["git", "ls-files", "--others", "--exclude-standard"],
+                cwd=Path.cwd(),
+                capture_output=True,
+                text=True,
+                timeout=10.0,
+            )
+
+            untracked_files = untracked_result.stdout.strip()
+
+            # Combine diff output and untracked files
+            output_parts: list[str] = []
+
+            if diff_output:
+                output_parts.append(diff_output)
+
+            if untracked_files:
+                untracked_lines = untracked_files.split("\n")
+                untracked_section = "git ls-files --others --exclude-standard\n" + "\n".join(
+                    f"{file}" for file in untracked_lines
+                )
+                output_parts.append(untracked_section)
+
+            if not output_parts:
+                # No changes and no untracked files
                 event = DeveloperMessageEvent(
                     session_id=agent.session.id,
                     item=DeveloperMessageItem(content="", command_output=CommandOutput(command_name=self.name)),
                 )
                 return CommandResult(events=[event])
 
-            # Has changes - create ToolResultEvent to leverage existing diff rendering
+            # Has changes or untracked files
+            combined_output = "\n\n".join(output_parts)
             event = DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=DeveloperMessageItem(content=diff_output, command_output=CommandOutput(command_name=self.name)),
+                item=DeveloperMessageItem(
+                    content=combined_output, command_output=CommandOutput(command_name=self.name)
+                ),
             )
             return CommandResult(events=[event])
 

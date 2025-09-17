@@ -16,8 +16,28 @@ def render_edit_diff(diff_text: str, show_file_name: bool = False) -> Renderable
 
     # Track line numbers based on hunk headers
     new_ln: Optional[int] = None
+    # Track if we're in untracked files section
+    in_untracked_section = False
 
     for i, line in enumerate(lines):
+        # Check for untracked files section header
+        if line == "git ls-files --others --exclude-standard":
+            in_untracked_section = True
+            grid.add_row("", "")
+            grid.add_row("", Text("Untracked files:", style=ThemeKey.TOOL_MARK))
+            grid.add_row("", "")
+            continue
+
+        # Handle untracked files
+        if in_untracked_section:
+            # If we hit a new section or empty line, we're done with untracked files
+            if line.startswith("diff --git") or line.strip() == "":
+                in_untracked_section = False
+            elif line.strip():  # Non-empty line in untracked section
+                file_text = Text(line.strip(), style=ThemeKey.TOOL_PARAM_BOLD)
+                grid.add_row(Text("   +", style=ThemeKey.TOOL_PARAM_BOLD), file_text)
+                continue
+
         # Parse file name from diff headers
         if show_file_name and line.startswith("+++ "):
             # Extract file name from +++ header with proper handling of /dev/null
