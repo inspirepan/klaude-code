@@ -45,7 +45,9 @@ class _MetadataMergeState:
     throughput_weighted_sum: float = 0.0
     throughput_tracked_tokens: int = 0
 
+
 type Reminder = Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]
+
 
 class Agent:
     def __init__(

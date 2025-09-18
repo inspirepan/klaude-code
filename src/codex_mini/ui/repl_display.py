@@ -52,10 +52,10 @@ class REPLDisplay(DisplayABC):
 
         self.assistant_mdstream: MarkdownStream | None = None
         self.accumulated_assistant_text = ""  # Not support parallel assistant delta yet
-        self.assistant_debouncer = Debouncer(interval=0.1, callback=self._flush_assistant_buffer)
+        self.assistant_debouncer = Debouncer(interval=1 / 20, callback=self._flush_assistant_buffer)
 
         self.accumulated_thinking_text = ""  # Not support parallel thinking delta yet
-        self.thinking_debouncer = Debouncer(interval=0.1, callback=self._flush_thinking_buffer)
+        self.thinking_debouncer = Debouncer(interval=1 / 20, callback=self._flush_thinking_buffer)
 
         self.session_map: dict[str, SessionStatus] = {}
         self.current_session_status: SessionStatus | None = None
@@ -156,6 +156,7 @@ class REPLDisplay(DisplayABC):
             case events.TurnToolCallStartEvent() as e:
                 pass
             case events.ToolCallEvent() as e:
+                self.finish_assistant_stream()
                 with self.session_print_context(e.session_id):
                     self.display_tool_call(e)
                 self.stage = "tool_call"
@@ -190,13 +191,11 @@ class REPLDisplay(DisplayABC):
                 pass
             case events.TaskFinishEvent():
                 self.spinner.stop()
+                self.finish_assistant_stream()
             case events.InterruptEvent() as e:
-                if self.assistant_mdstream is not None:
-                    self.assistant_mdstream.update(self.accumulated_assistant_text, final=True)
-                    self.assistant_mdstream = None
-                    self.accumulated_assistant_text = ""
-                self.print(r_user_input.render_interrupt())
                 self.spinner.stop()
+                self.finish_assistant_stream()
+                self.print(r_user_input.render_interrupt())
             case events.ErrorEvent() as e:
                 self.print(r_errors.render_error(self.console.render_str(truncate_display(e.error_message))))
                 self.spinner.stop()
@@ -216,6 +215,13 @@ class REPLDisplay(DisplayABC):
         self.assistant_debouncer.cancel()
         self.thinking_debouncer.cancel()
         pass
+
+    def finish_assistant_stream(self):
+        if self.assistant_mdstream is not None:
+            self.assistant_debouncer.cancel()
+            self.assistant_mdstream.update(self.accumulated_assistant_text, final=True)
+            self.assistant_mdstream = None
+            self.accumulated_assistant_text = ""
 
     def is_sub_agent_session(self, session_id: str) -> bool:
         return session_id in self.session_map and self.session_map[session_id].is_subagent

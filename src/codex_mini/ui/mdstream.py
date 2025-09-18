@@ -1,6 +1,4 @@
 # copy from https://github.com/Aider-AI/aider/blob/main/aider/mdstream.py
-from __future__ import annotations
-
 import io
 import time
 from typing import Any, ClassVar
@@ -36,15 +34,6 @@ class LeftHeading(Heading):
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         text = self.text
         text.justify = "left"  # Override justification
-        # if self.tag == "h1":
-        #     from rich.panel import Panel
-        #     from rich import box
-        #     # Draw a border around h1s, but keep text left-aligned
-        #     yield Panel(
-        #         text,
-        #         box=box.SQUARE,
-        #         style="markdown.h1.border",
-        #     )
         if self.tag == "h2":
             text.stylize(Style(bold=True, underline=False))
             yield Rule(title=text, characters="-", style="markdown.h2.border", align="left")
@@ -95,10 +84,10 @@ class MarkdownStream:
         # Streaming control
         self.when: float = 0.0  # Timestamp of last update
         self.min_delay: float = 1.0 / 20  # Minimum time between updates (20fps)
-        self.live_window: int = 6  # Number of lines to keep visible at bottom
+        self.live_window: int = 20  # Number of lines to keep visible at bottom
 
         self.theme = theme
-        self.console = console
+        self.console = console or Console()
 
     def _render_markdown_to_lines(self, text: str) -> list[str]:
         """Render markdown text to a list of lines.
@@ -112,17 +101,14 @@ class MarkdownStream:
         # Render the markdown to a string buffer
         string_io = io.StringIO()
         # Use external console for consistent theming, or create temporary one
-        if self.console is not None:
-            # Use external console settings but render to string_io
-            # Use the console's actual width to avoid reflow glitches.
-            temp_console = Console(
-                file=string_io,
-                force_terminal=True,
-                theme=self.theme,
-                width=self.console.width,
-            )
-        else:
-            temp_console = Console(file=string_io, force_terminal=True, theme=self.theme)
+        # Use external console settings but render to string_io
+        # Use the console's actual width to avoid reflow glitches.
+        temp_console = Console(
+            file=string_io,
+            force_terminal=True,
+            theme=self.theme,
+            width=self.console.width,
+        )
 
         markdown = NoInsetMarkdown(text, **self.mdargs)
         temp_console.print(markdown)
@@ -188,17 +174,13 @@ class MarkdownStream:
         total = len(lines)
         stable_count = total if final else max(0, total - self.live_window)
 
-        # If console width changes mid-stream, previously printed line breaks
-        # may no longer match. Reset the printed cache in that case to avoid
-        # duplicating content.
-        if self.console is not None:
-            current_width = self.console.width
-            # Store last width on the instance; default to None
-            if not hasattr(self, "_last_width"):
-                self._last_width = current_width
-            elif self._last_width != current_width:
-                self.printed = []
-                self._last_width = current_width
+        current_width = self.console.width
+        # Store last width on the instance; default to None
+        if not hasattr(self, "_last_width"):
+            self._last_width = current_width
+        elif self._last_width != current_width:
+            self.printed = []
+            self._last_width = current_width
 
         # Print any new stable lines above the live window
         num_printed = len(self.printed)
@@ -206,9 +188,7 @@ class MarkdownStream:
         if to_show > 0:
             chunk = "".join(lines[num_printed:stable_count])
             renderable = Text.from_ansi(chunk)
-            live = self.live
-            assert live is not None
-            live.console.print(renderable)
+            self.console.print(renderable)
             self.printed = lines[:stable_count]
 
         # Always refresh the live window with the latest unstable tail
