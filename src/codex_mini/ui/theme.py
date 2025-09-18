@@ -190,11 +190,11 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.THINKING_BOLD.value: "bold italic " + palette.grey1,
                 # TODO_ITEM
                 ThemeKey.TODO_PENDING_MARK.value: "bold " + palette.grey1,
-                ThemeKey.TODO_COMPLETED_MARK.value: "bold " + palette.grey1,
+                ThemeKey.TODO_COMPLETED_MARK.value: "bold " + palette.grey3,
                 ThemeKey.TODO_IN_PROGRESS_MARK.value: "bold " + palette.blue,
                 ThemeKey.TODO_NEW_COMPLETED_MARK.value: "bold " + palette.green,
                 ThemeKey.TODO_PENDING.value: palette.grey1,
-                ThemeKey.TODO_COMPLETED.value: palette.grey1 + " strike",
+                ThemeKey.TODO_COMPLETED.value: palette.grey3 + " strike",
                 ThemeKey.TODO_IN_PROGRESS.value: "bold " + palette.blue,
                 ThemeKey.TODO_NEW_COMPLETED.value: "bold strike " + palette.green,
                 # WELCOME
