@@ -245,85 +245,39 @@ def get_theme(theme: str) -> Theme:
         {
             ColorStyle.CLAUDE: theme_colors[ThemeColorEnum.CLAUDE],
             # Messages
-            ColorStyle.AI_CONTENT: theme_colors.get(
-                ColorStyle.AI_CONTENT, theme_colors[ThemeColorEnum.PRIMARY]
-            ),
-            ColorStyle.AI_THINKING: theme_colors.get(
-                ColorStyle.AI_THINKING, theme_colors[ThemeColorEnum.TERTIARY]
-            ),
-            ColorStyle.AI_MARK: theme_colors.get(
-                ColorStyle.AI_MARK, theme_colors[ThemeColorEnum.HIGHLIGHT]
-            ),
-            ColorStyle.TOOL_NAME: theme_colors.get(
-                ColorStyle.TOOL_NAME, theme_colors[ThemeColorEnum.PRIMARY]
-            ),
-            ColorStyle.USER_MESSAGE: theme_colors.get(
-                ColorStyle.USER_MESSAGE, theme_colors[ThemeColorEnum.SECONDARY]
-            ),
+            ColorStyle.AI_CONTENT: theme_colors.get(ColorStyle.AI_CONTENT, theme_colors[ThemeColorEnum.PRIMARY]),
+            ColorStyle.AI_THINKING: theme_colors.get(ColorStyle.AI_THINKING, theme_colors[ThemeColorEnum.TERTIARY]),
+            ColorStyle.AI_MARK: theme_colors.get(ColorStyle.AI_MARK, theme_colors[ThemeColorEnum.HIGHLIGHT]),
+            ColorStyle.TOOL_NAME: theme_colors.get(ColorStyle.TOOL_NAME, theme_colors[ThemeColorEnum.PRIMARY]),
+            ColorStyle.USER_MESSAGE: theme_colors.get(ColorStyle.USER_MESSAGE, theme_colors[ThemeColorEnum.SECONDARY]),
             # Markdown
-            ColorStyle.HEADER_1: theme_colors.get(
-                ColorStyle.HEADER_1, theme_colors[ThemeColorEnum.HIGHLIGHT]
-            ),
-            ColorStyle.HEADER_2: theme_colors.get(
-                ColorStyle.HEADER_2, theme_colors[ThemeColorEnum.HIGHLIGHT]
-            ),
-            ColorStyle.HEADER_3: theme_colors.get(
-                ColorStyle.HEADER_3, theme_colors[ThemeColorEnum.HIGHLIGHT]
-            ),
-            ColorStyle.HEADER_4: theme_colors.get(
-                ColorStyle.HEADER_4, theme_colors[ThemeColorEnum.HIGHLIGHT]
-            ),
-            ColorStyle.INLINE_CODE: theme_colors.get(
-                ColorStyle.INLINE_CODE, theme_colors[ThemeColorEnum.PURPLE]
-            ),
+            ColorStyle.HEADER_1: theme_colors.get(ColorStyle.HEADER_1, theme_colors[ThemeColorEnum.HIGHLIGHT]),
+            ColorStyle.HEADER_2: theme_colors.get(ColorStyle.HEADER_2, theme_colors[ThemeColorEnum.HIGHLIGHT]),
+            ColorStyle.HEADER_3: theme_colors.get(ColorStyle.HEADER_3, theme_colors[ThemeColorEnum.HIGHLIGHT]),
+            ColorStyle.HEADER_4: theme_colors.get(ColorStyle.HEADER_4, theme_colors[ThemeColorEnum.HIGHLIGHT]),
+            ColorStyle.INLINE_CODE: theme_colors.get(ColorStyle.INLINE_CODE, theme_colors[ThemeColorEnum.PURPLE]),
             # Status
-            ColorStyle.STATUS: theme_colors.get(
-                ColorStyle.STATUS, theme_colors[ThemeColorEnum.CLAUDE]
-            ),
-            ColorStyle.ERROR: theme_colors.get(
-                ColorStyle.ERROR, theme_colors[ThemeColorEnum.RED]
-            ),
-            ColorStyle.SUCCESS: theme_colors.get(
-                ColorStyle.SUCCESS, theme_colors[ThemeColorEnum.GREEN]
-            ),
-            ColorStyle.WARNING: theme_colors.get(
-                ColorStyle.WARNING, theme_colors[ThemeColorEnum.YELLOW]
-            ),
-            ColorStyle.INFO: theme_colors.get(
-                ColorStyle.INFO, theme_colors[ThemeColorEnum.BLUE]
-            ),
+            ColorStyle.STATUS: theme_colors.get(ColorStyle.STATUS, theme_colors[ThemeColorEnum.CLAUDE]),
+            ColorStyle.ERROR: theme_colors.get(ColorStyle.ERROR, theme_colors[ThemeColorEnum.RED]),
+            ColorStyle.SUCCESS: theme_colors.get(ColorStyle.SUCCESS, theme_colors[ThemeColorEnum.GREEN]),
+            ColorStyle.WARNING: theme_colors.get(ColorStyle.WARNING, theme_colors[ThemeColorEnum.YELLOW]),
+            ColorStyle.INFO: theme_colors.get(ColorStyle.INFO, theme_colors[ThemeColorEnum.BLUE]),
             # Basic
-            ColorStyle.HIGHLIGHT: theme_colors.get(
-                ColorStyle.HIGHLIGHT, theme_colors[ThemeColorEnum.HIGHLIGHT]
-            ),
-            ColorStyle.MAIN: theme_colors.get(
-                ColorStyle.HIGHLIGHT, theme_colors[ThemeColorEnum.SECONDARY]
-            ),
-            ColorStyle.HINT: theme_colors.get(
-                ColorStyle.HINT, theme_colors[ThemeColorEnum.TERTIARY]
-            ),
-            ColorStyle.LINE: theme_colors.get(
-                ColorStyle.LINE, theme_colors[ThemeColorEnum.QUATERNARY]
-            ),
+            ColorStyle.HIGHLIGHT: theme_colors.get(ColorStyle.HIGHLIGHT, theme_colors[ThemeColorEnum.HIGHLIGHT]),
+            ColorStyle.MAIN: theme_colors.get(ColorStyle.HIGHLIGHT, theme_colors[ThemeColorEnum.SECONDARY]),
+            ColorStyle.HINT: theme_colors.get(ColorStyle.HINT, theme_colors[ThemeColorEnum.TERTIARY]),
+            ColorStyle.LINE: theme_colors.get(ColorStyle.LINE, theme_colors[ThemeColorEnum.QUATERNARY]),
             # Todos
-            ColorStyle.TODO_COMPLETED: theme_colors.get(
-                ColorStyle.TODO_COMPLETED, theme_colors[ThemeColorEnum.GREEN]
-            ),
+            ColorStyle.TODO_COMPLETED: theme_colors.get(ColorStyle.TODO_COMPLETED, theme_colors[ThemeColorEnum.GREEN]),
             ColorStyle.TODO_IN_PROGRESS: theme_colors.get(
                 ColorStyle.TODO_IN_PROGRESS, theme_colors[ThemeColorEnum.BLUE]
             ),
             # Diff
-            ColorStyle.DIFF_REMOVED_LINE: theme_colors[
-                ThemeColorEnum.DIFF_REMOVED_LINE
-            ],
+            ColorStyle.DIFF_REMOVED_LINE: theme_colors[ThemeColorEnum.DIFF_REMOVED_LINE],
             ColorStyle.DIFF_ADDED_LINE: theme_colors[ThemeColorEnum.DIFF_ADDED_LINE],
-            ColorStyle.DIFF_REMOVED_CHAR: theme_colors[
-                ThemeColorEnum.DIFF_REMOVED_CHAR
-            ],
+            ColorStyle.DIFF_REMOVED_CHAR: theme_colors[ThemeColorEnum.DIFF_REMOVED_CHAR],
             ColorStyle.DIFF_ADDED_CHAR: theme_colors[ThemeColorEnum.DIFF_ADDED_CHAR],
-            ColorStyle.CONTEXT_LINE: theme_colors.get(
-                ColorStyle.CONTEXT_LINE, theme_colors[ThemeColorEnum.SECONDARY]
-            ),
+            ColorStyle.CONTEXT_LINE: theme_colors.get(ColorStyle.CONTEXT_LINE, theme_colors[ThemeColorEnum.SECONDARY]),
             # User Input
             ColorStyle.INPUT_PLACEHOLDER: theme_colors.get(
                 ColorStyle.INPUT_PLACEHOLDER, theme_colors[ThemeColorEnum.TERTIARY]
@@ -335,39 +289,17 @@ def get_theme(theme: str) -> Theme:
                 ColorStyle.COMPLETION_SELECTED, theme_colors[ThemeColorEnum.PURPLE]
             ),
             # Input Mode
-            ColorStyle.BASH_MODE: theme_colors.get(
-                ColorStyle.BASH_MODE, theme_colors[ThemeColorEnum.MAGENTA]
-            ),
-            ColorStyle.MEMORY_MODE: theme_colors.get(
-                ColorStyle.MEMORY_MODE, theme_colors[ThemeColorEnum.PURPLE]
-            ),
-            ColorStyle.PLAN_MODE: theme_colors.get(
-                ColorStyle.PLAN_MODE, theme_colors[ThemeColorEnum.CYAN]
-            ),
+            ColorStyle.BASH_MODE: theme_colors.get(ColorStyle.BASH_MODE, theme_colors[ThemeColorEnum.MAGENTA]),
+            ColorStyle.MEMORY_MODE: theme_colors.get(ColorStyle.MEMORY_MODE, theme_colors[ThemeColorEnum.PURPLE]),
+            ColorStyle.PLAN_MODE: theme_colors.get(ColorStyle.PLAN_MODE, theme_colors[ThemeColorEnum.CYAN]),
             # Markdown styles
-            "markdown.code": theme_colors.get(
-                ColorStyle.INLINE_CODE, theme_colors[ThemeColorEnum.PURPLE]
-            ),
-            "markdown.item.bullet": theme_colors.get(
-                ColorStyle.HINT, theme_colors[ThemeColorEnum.TERTIARY]
-            ),
-            "markdown.item.number": theme_colors.get(
-                ColorStyle.HINT, theme_colors[ThemeColorEnum.TERTIARY]
-            ),
-            "markdown.block_quote": theme_colors.get(
-                ColorStyle.INFO, theme_colors[ThemeColorEnum.BLUE]
-            ),
-            "markdown.h1": theme_colors.get(
-                ColorStyle.HEADER_1, theme_colors[ThemeColorEnum.HIGHLIGHT]
-            ),
-            "markdown.h2": theme_colors.get(
-                ColorStyle.HEADER_2, theme_colors[ThemeColorEnum.HIGHLIGHT]
-            ),
-            "markdown.h3": theme_colors.get(
-                ColorStyle.HEADER_3, theme_colors[ThemeColorEnum.HIGHLIGHT]
-            ),
-            "markdown.h4": theme_colors.get(
-                ColorStyle.HEADER_4, theme_colors[ThemeColorEnum.HIGHLIGHT]
-            ),
+            "markdown.code": theme_colors.get(ColorStyle.INLINE_CODE, theme_colors[ThemeColorEnum.PURPLE]),
+            "markdown.item.bullet": theme_colors.get(ColorStyle.HINT, theme_colors[ThemeColorEnum.TERTIARY]),
+            "markdown.item.number": theme_colors.get(ColorStyle.HINT, theme_colors[ThemeColorEnum.TERTIARY]),
+            "markdown.block_quote": theme_colors.get(ColorStyle.INFO, theme_colors[ThemeColorEnum.BLUE]),
+            "markdown.h1": theme_colors.get(ColorStyle.HEADER_1, theme_colors[ThemeColorEnum.HIGHLIGHT]),
+            "markdown.h2": theme_colors.get(ColorStyle.HEADER_2, theme_colors[ThemeColorEnum.HIGHLIGHT]),
+            "markdown.h3": theme_colors.get(ColorStyle.HEADER_3, theme_colors[ThemeColorEnum.HIGHLIGHT]),
+            "markdown.h4": theme_colors.get(ColorStyle.HEADER_4, theme_colors[ThemeColorEnum.HIGHLIGHT]),
         }
     )
