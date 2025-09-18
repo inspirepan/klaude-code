@@ -1,7 +1,17 @@
 # Minimal Agent CLI
 
-A repository for showing how to make a simple Agent CLI using OpenAI's Response API / Anthropic's Official API / OpenRouter's API, like Claude Code & Codex
+A repository for showing how to make a simple Agent CLI using OpenAI's Response API / Anthropic API / OpenRouter's API, like Claude Code & Codex
 
+## Features
+- Handling OpenAI Responses API, Anthropic API, OpenAI Compatible API
+- Model Selection
+- Slash Commands
+- Python Rich UI
+- Session Management
+- Coding Agent Tools & SubAgents
+- Claude Code's `<system-reminder>`
+- Headless Mode
+- YAML Configuration for Providers & Models
 
 
 ## Usage
@@ -20,7 +30,7 @@ uv run cdx [--model <name>] [--select-model] [--debug] [--continue]
 - `--resume`/`-r`: select a specific session to resume from a list.
 
 
-### Non-Interactive Mode (exec)
+### Non-Interactive Headless Mode (exec)
 
 Execute a single command without starting the interactive REPL:
 
@@ -30,9 +40,6 @@ cdx exec "what is 2+2?"
 
 # Pipe input
 echo "hello world" | cdx exec
-
-# With options
-cdx exec "explain this code" --model gpt-4 --debug
 ```
 
 ### List Models
@@ -45,11 +52,13 @@ uv run cdx list
 
 ### Configuration
 
-An example config will be created in `~/.config/codex-mini/config.yaml` when first run. You can edit it directly or use `uv run cdx config` to open it in your default editor.
+An example config will be created in `~/.config/codex-mini/config.yaml` when first run.
 
 
-Open the configuration file in your default editor:
+Open the configuration file in editor:
 
 ```bash
 uv run cdx config
 ```
+
+
