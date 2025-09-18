@@ -52,10 +52,10 @@ class REPLDisplay(DisplayABC):
 
         self.assistant_mdstream: MarkdownStream | None = None
         self.accumulated_assistant_text = ""  # Not support parallel assistant delta yet
-        self.assistant_debouncer = Debouncer(interval=0.05, callback=self._flush_assistant_buffer)
+        self.assistant_debouncer = Debouncer(interval=0.1, callback=self._flush_assistant_buffer)
 
         self.accumulated_thinking_text = ""  # Not support parallel thinking delta yet
-        self.thinking_debouncer = Debouncer(interval=0.05, callback=self._flush_thinking_buffer)
+        self.thinking_debouncer = Debouncer(interval=0.1, callback=self._flush_thinking_buffer)
 
         self.session_map: dict[str, SessionStatus] = {}
         self.current_session_status: SessionStatus | None = None
