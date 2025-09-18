@@ -8,7 +8,7 @@ def create_grid() -> Table:
     return grid
 
 
-def truncate_display(text: str, max_lines: int = 20, max_line_length: int = 1000) -> str:
+def truncate_display(text: str, max_lines: int = 10, max_line_length: int = 1000) -> str:
     lines = text.split("\n")
     if len(lines) > max_lines:
         lines = lines[:max_lines] + ["... (more " + str(len(lines) - max_lines) + " lines)"]
