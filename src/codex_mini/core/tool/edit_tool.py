@@ -172,12 +172,22 @@ class EditTool(ToolABC):
         # Creation cases
         if args.old_string == "":
             if _file_exists(file_path):
-                return ToolResultItem(
-                    status="error",
-                    output="<tool_use_error>Cannot create new file - file already exists.</tool_use_error>",
-                )
-            # Create new file
+                # Check if the existing file is empty, if so, allow overwriting
+                try:
+                    existing_content = await asyncio.to_thread(_read_text, file_path)
+                    if existing_content.strip() != "":
+                        return ToolResultItem(
+                            status="error",
+                            output="<tool_use_error>Cannot create new file - file already exists and is not empty.</tool_use_error>",
+                        )
+                except Exception:
+                    return ToolResultItem(
+                        status="error",
+                        output="<tool_use_error>Cannot read existing file to check if it's empty.</tool_use_error>",
+                    )
+            # Create new file or overwrite empty file
             try:
+                was_existing = _file_exists(file_path)
                 await asyncio.to_thread(_write_text, file_path, args.new_string)
                 # Update tracker
                 if session is not None:
@@ -185,7 +195,10 @@ class EditTool(ToolABC):
                         session.file_tracker[file_path] = Path(file_path).stat().st_mtime
                     except Exception:
                         pass
-                return ToolResultItem(status="success", output=f"File created successfully at: {file_path}")
+                if was_existing:
+                    return ToolResultItem(status="success", output=f"Empty file overwritten successfully at: {file_path}")
+                else:
+                    return ToolResultItem(status="success", output=f"File created successfully at: {file_path}")
             except Exception as e:  # pragma: no cover
                 return ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
 
