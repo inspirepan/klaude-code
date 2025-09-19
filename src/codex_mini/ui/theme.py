@@ -52,8 +52,8 @@ DARK_PALETTE = Palette(
     grey2="gray58",
     grey3="gray30",
     purple="light_steel_blue",
-    diff_add="#ffffff on #005e24",
-    diff_remove="#ffffff on #72211c",
+    diff_add="#7fd963",
+    diff_remove="#f26d78",
     code_theme="ansi_dark",
 )
 

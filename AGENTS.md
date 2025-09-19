@@ -21,10 +21,10 @@ Tests are located in the `tests/` directory. Configuration files include `pyproj
 
 ## Build, Test, and Development Commands
 
-- `isort . && ruff format`: Format and sort imports
-- `pytest`: Run tests
-- `pyright`: Type checking in strict mode
-- `uv run`: Execute Python scripts with the project's virtual environment
+- `uv run isort . && uv run ruff format`: Format and sort imports
+- `uv run pytest`: Run tests
+- `uv run pyright`: Type checking in strict mode
+- `uv run cdx ...`: Execute CLI with the project's virtual environment
 
 ## Coding Style & Naming Conventions
 

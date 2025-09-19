@@ -124,14 +124,11 @@ def render_edit_diff(diff_text: str, show_file_name: bool = False) -> Renderable
 
         # Style only true diff content lines
         if line.startswith("-"):
-            line_style = ThemeKey.DIFF_REMOVE
+            text = Text.assemble(("-", ThemeKey.TOOL_RESULT), (line[1:], ThemeKey.DIFF_REMOVE))
         elif line.startswith("+"):
-            line_style = ThemeKey.DIFF_ADD
+            text = Text.assemble(("+", ThemeKey.TOOL_RESULT), (line[1:], ThemeKey.DIFF_ADD))
         else:
-            line_style = ThemeKey.TOOL_RESULT
-        text = Text(line)
-        if line_style:
-            text.stylize(line_style)
+            text = Text(line, style=ThemeKey.TOOL_RESULT)
         grid.add_row(Text(prefix, ThemeKey.TOOL_RESULT), text)
 
     return grid
