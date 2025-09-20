@@ -1,17 +1,21 @@
 # copy from https://github.com/Aider-AI/aider/blob/main/aider/mdstream.py
-import io
+import re
 import time
+from types import TracebackType
 from typing import Any, ClassVar
 
-from rich.console import Console, ConsoleOptions, Group, RenderResult
+from rich.console import Console, ConsoleOptions, Group, RenderResult, RenderableType
 from rich.live import Live
 from rich.markdown import CodeBlock, Heading, Markdown
 from rich.rule import Rule
+from rich.spinner import Spinner
 from rich.style import Style
 from rich.syntax import Syntax
 from rich.text import Text
 from rich.theme import Theme
-from rich.spinner import Spinner
+
+_H2_RE = re.compile(r"^##(?!#)(?:\s+|$)")
+_CODE_FENCE_PREFIXES = {"```", "~~~"}
 
 
 class NoInsetCodeBlock(CodeBlock):
@@ -54,12 +58,11 @@ class NoInsetMarkdown(Markdown):
 
 
 class MarkdownStream:
-    """Streaming markdown renderer that progressively displays content with a live updating window.
+    """A tool for streaming markdown rendering by h2 headings.
 
-    Uses rich.console and rich.live to render markdown content with smooth scrolling
-    and partial updates. Maintains a sliding window of visible content while streaming
-    in new markdown text.
-    """
+    Always uses a Live window to display the current paragraph during streaming output.
+    When a new h2 heading is detected, the previous paragraph is fixed to the console,
+    and a new Live is started for the next paragraph."""
 
     def __init__(
         self,
@@ -75,145 +78,148 @@ class MarkdownStream:
             theme (Theme, optional): Theme for rendering markdown
             console (Console, optional): External console to use for rendering
         """
-        self.printed: list[str] = []  # Stores lines that have already been printed
-
-        if mdargs:
-            self.mdargs: dict[str, Any] = mdargs
-        else:
-            self.mdargs = {}
-
-        # Defer Live creation until the first update.
-        self.live: Live | None = None
-        self._live_started: bool = False
-
-        # Streaming control
-        self.when: float = 0.0  # Timestamp of last update
-        self.min_delay: float = 1.0 / 20  # Minimum time between updates (20fps)
-        self.live_window: int = 20  # Number of lines to keep visible at bottom
+        self.mdargs: dict[str, Any] = dict(mdargs) if mdargs else {}
 
         self.theme = theme
-        self.console = console or Console()
+        self.console = console or Console(theme=theme)
 
+        # Live management
+        self.live: Live | None = None
         self.spinner = spinner
 
-    def _render_markdown_to_lines(self, text: str) -> list[str]:
-        """Render markdown text to a list of lines.
+        # Segment management
+        self.completed_segments: list[str] = []
+        self.when: float = 0.0
+        self.min_delay: float = 1.0 / 20
 
-        Args:
-            text (str): Markdown text to render
+    def _split_segments(self, text: str) -> list[str]:
+        """Split markdown into semantic segments by h2 headings."""
 
-        Returns:
-            list: List of rendered lines with line endings preserved
-        """
-        # Render the markdown to a string buffer
-        string_io = io.StringIO()
-        # Use external console for consistent theming, or create temporary one
-        # Use external console settings but render to string_io
-        # Use the console's actual width to avoid reflow glitches.
-        temp_console = Console(
-            file=string_io,
-            force_terminal=True,
-            theme=self.theme,
-            width=self.console.width,
+        if not text:
+            return []
+
+        lines = text.splitlines(keepends=True)
+        segments: list[str] = []
+        current: list[str] = []
+        in_code_block = False
+
+        def flush() -> None:
+            if current:
+                segments.append("".join(current))
+                current.clear()
+
+        for line in lines:
+            stripped = line.lstrip()
+            fence = stripped[:3]
+            if fence in _CODE_FENCE_PREFIXES:
+                in_code_block = not in_code_block
+                current.append(line)
+                continue
+
+            if not in_code_block and _H2_RE.match(stripped):
+                flush()
+                current.append(line)
+            else:
+                current.append(line)
+
+        flush()
+
+        return segments
+
+    def _start_live(self, renderable: RenderableType) -> None:
+        if self.live is not None:
+            return
+        self.live = Live(
+            renderable,
+            refresh_per_second=1.0 / self.min_delay,
+            console=self.console,
+            transient=True,
         )
+        self.live.start()
 
-        markdown = NoInsetMarkdown(text, **self.mdargs)
-        temp_console.print(markdown)
-        output = string_io.getvalue()
-
-        # Split rendered output into lines
-        return output.splitlines(keepends=True)
-
-    def __del__(self) -> None:
-        """Destructor to ensure Live display is properly cleaned up."""
-        if self.live:
-            try:
-                self.live.stop()
-            except Exception:
-                pass  # Ignore any errors during cleanup
-
-    def update(self, text: str, final: bool = False) -> None:
-        """Update the displayed markdown content.
-
-        Args:
-            text (str): The markdown text received so far
-            final (bool): If True, this is the final update and we should clean up
-
-        Splits the output into "stable" older lines and the "last few" lines
-        which aren't considered stable. They may shift around as new chunks
-        are appended to the markdown text.
-
-        The stable lines emit to the console above the Live window.
-        The unstable lines emit into the Live window so they can be repainted.
-
-        Markdown going to the console works better in terminal scrollback buffers.
-        The live window doesn't play nice with terminal scrollback.
-        """
-        # On the first call, stop the spinner and start the Live renderer
-        if not getattr(self, "_live_started", False):
-            self.live = Live(
-                Text(""),
-                refresh_per_second=1.0 / self.min_delay,
-                console=self.console,  # Use external console if provided
-            )
-            self.live.start()
-            self._live_started = True
-
-        # If live rendering isn't available (e.g., after a final update), stop.
+    def _stop_live(self) -> None:
         if self.live is None:
             return
+        live = self.live
+        self.live = None
+        try:
+            live.stop()
+        except Exception:
+            pass
 
+    def _render_markdown(self, text: str) -> RenderableType:
+        return NoInsetMarkdown(text, **self.mdargs) if text.strip() else Text()
+
+    def _live_renderable(self, text: str, final: bool) -> RenderableType:
+        markdown_renderable = self._render_markdown(text)
+        if self.spinner and not final:
+            return Group(markdown_renderable, Text(), self.spinner)
+        return markdown_renderable
+
+    def _finalize_segment(self, text: str) -> None:
+        self._stop_live()
+        renderable: RenderableType = self._render_markdown(text)
+        self.console.print(renderable)
+        self.console.print()
+        self.completed_segments.append(text)
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    def close(self) -> None:
+        self._stop_live()
+
+    def __enter__(self) -> "MarkdownStream":
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> bool | None:
+        self.close()
+        return None
+
+    def update(self, text: str, final: bool = False) -> None:
+        """Update rendering state based on current content.
+
+        Args:
+            text: Full markdown content received so far.
+            final: If True, indicates content is finished and Live should be closed.
+        """
         now = time.time()
-        # Throttle updates to maintain smooth rendering
         if not final and now - self.when < self.min_delay:
             return
         self.when = now
 
-        # Measure render time and adjust min_delay to maintain smooth rendering
-        start = time.time()
-        lines = self._render_markdown_to_lines(text)
-        render_time = time.time() - start
+        segments = self._split_segments(text)
 
-        # Set min_delay to render time plus a small buffer
-        self.min_delay = min(max(render_time * 10, 1.0 / 20), 2)
-
-        # Determine the number of stable lines (clamped to non-negative)
-        total = len(lines)
-        stable_count = total if final else max(0, total - self.live_window)
-
-        current_width = self.console.width
-        # Store last width on the instance; default to None
-        if not hasattr(self, "_last_width"):
-            self._last_width = current_width
-        elif self._last_width != current_width:
-            self.printed = []
-            self._last_width = current_width
-
-        # Print any new stable lines above the live window
-        num_printed = len(self.printed)
-        to_show = stable_count - num_printed
-        if to_show > 0:
-            chunk = "".join(lines[num_printed:stable_count])
-            renderable = Text.from_ansi(chunk)
-            self.console.print(renderable)
-            self.printed = lines[:stable_count]
-
-        # Always refresh the live window with the latest unstable tail
-        window_lines = lines[stable_count:]
-        window_text = Text.from_ansi("".join(window_lines)) if window_lines else Text("")
-        self.live.update(Group(window_text, self.spinner) if self.spinner else window_text)
-
-        # Handle final update cleanup
-        if final:
-            live = self.live
-            assert live is not None
-            live.update(Text(""))
-            live.stop()
-            self.live = None
+        if not segments:
+            if final:
+                self._stop_live()
+            elif self.live is not None:
+                self.live.update(self._live_renderable("", final))
             return
 
-    def find_minimal_suffix(self, text: str, match_lines: int = 50) -> None:
-        """
-        Splits text into chunks on blank lines "\n\n".
-        """
-        return None
+        finalized_count = len(segments) if final else max(len(segments) - 1, 0)
+        for idx in range(finalized_count):
+            if idx < len(self.completed_segments):
+                continue
+            segment_text = segments[idx]
+            self._finalize_segment(segment_text)
+
+        has_active_segment = finalized_count < len(segments)
+        if has_active_segment:
+            active_text = segments[finalized_count]
+            renderable = self._live_renderable(active_text, final)
+            if self.live is None:
+                self._start_live(renderable)
+            else:
+                self.live.update(renderable)
+        else:
+            if final:
+                self._stop_live()

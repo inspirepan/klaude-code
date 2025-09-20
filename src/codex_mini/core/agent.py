@@ -289,10 +289,6 @@ class Agent:
                         metadata=item,
                     )
                 case model.ToolCallItem() as item:
-                    # Track tool calls for cancellation handling
-                    self.turn_inflight_tool_calls[item.call_id] = UnfinishedToolCallItem(
-                        tool_call_item=item, status="pending"
-                    )
                     turn_tool_calls.append(item)
                 case _:
                     pass
@@ -303,6 +299,11 @@ class Agent:
                 self.session.append_history([turn_assistant_message])
             if turn_tool_calls:
                 self.session.append_history(turn_tool_calls)
+                # Track tool calls for cancellation handling
+                for item in turn_tool_calls:
+                    self.turn_inflight_tool_calls[item.call_id] = UnfinishedToolCallItem(
+                        tool_call_item=item, status="pending"
+                    )
         if current_response_id is not None:
             self.session.last_response_id = current_response_id
         if turn_tool_calls:

@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.padding import Padding
 from rich.status import Status
 from rich.style import Style, StyleType
-from rich.spinner import Spinner
+from rich.text import Text
 
 from codex_mini.protocol import events, tools
 from codex_mini.ui.debouncer import Debouncer
@@ -43,7 +43,7 @@ class REPLDisplay(DisplayABC):
         self.console.push_theme(self.themes.markdown_theme)
         self.term_program = os.environ.get("TERM_PROGRAM", "").lower()
         self.spinner: Status = self.console.status(
-            r_status.render_status_text("Thinking …", ThemeKey.SPINNER_STATUS),
+            r_status.render_status_text("Thinking …", ThemeKey.SPINNER_STATUS_BOLD),
             spinner=r_status.spinner_name(),
             spinner_style=ThemeKey.SPINNER_STATUS,
         )
@@ -53,7 +53,7 @@ class REPLDisplay(DisplayABC):
 
         self.assistant_mdstream: MarkdownStream | None = None
         self.accumulated_assistant_text = ""  # Not support parallel assistant delta yet
-        self.assistant_debouncer = Debouncer(interval=1 / 10, callback=self._flush_assistant_buffer)
+        self.assistant_debouncer = Debouncer(interval=1 / 20, callback=self._flush_assistant_buffer)
 
         self.accumulated_thinking_text = ""  # Not support parallel thinking delta yet
         self.thinking_debouncer = Debouncer(interval=1 / 20, callback=self._flush_thinking_buffer)
@@ -129,11 +129,7 @@ class REPLDisplay(DisplayABC):
                         mdargs={"code_theme": self.themes.code_theme},
                         theme=self.themes.markdown_theme,
                         console=self.console,
-                        spinner=Spinner(
-                            r_status.spinner_name(),
-                            r_status.render_status_text("Thinking …", ThemeKey.SPINNER_STATUS),
-                            style=ThemeKey.SPINNER_STATUS,
-                        ),
+                        spinner=self.spinner.renderable,
                     )
                     self.stage = "assistant"
                 self.assistant_debouncer.schedule()
@@ -192,7 +188,7 @@ class REPLDisplay(DisplayABC):
                         r_status.render_status_text(active_form_status_text + " …", ThemeKey.SPINNER_STATUS_BOLD)
                     )
                 else:
-                    self.spinner.update(r_status.render_status_text("Thinking …", ThemeKey.SPINNER_STATUS))
+                    self.spinner.update(r_status.render_status_text("Thinking …", ThemeKey.SPINNER_STATUS_BOLD))
             case events.TurnEndEvent():
                 pass
             case events.TaskFinishEvent():
@@ -327,7 +323,7 @@ class REPLDisplay(DisplayABC):
 
     def display_tool_call_result(self, e: events.ToolResultEvent) -> None:
         if e.status == "error" and not e.ui_extra:
-            self.print(r_errors.render_error(self.console.render_str(truncate_display(e.result))))
+            self.print(r_errors.render_error(Text(truncate_display(e.result))))
             return
 
         match e.tool_name:
