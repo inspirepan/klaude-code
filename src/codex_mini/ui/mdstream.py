@@ -3,7 +3,7 @@ import io
 import time
 from typing import Any, ClassVar
 
-from rich.console import Console, ConsoleOptions, RenderResult
+from rich.console import Console, ConsoleOptions, Group, RenderResult
 from rich.live import Live
 from rich.markdown import CodeBlock, Heading, Markdown
 from rich.rule import Rule
@@ -11,6 +11,7 @@ from rich.style import Style
 from rich.syntax import Syntax
 from rich.text import Text
 from rich.theme import Theme
+from rich.spinner import Spinner
 
 
 class NoInsetCodeBlock(CodeBlock):
@@ -61,7 +62,11 @@ class MarkdownStream:
     """
 
     def __init__(
-        self, mdargs: dict[str, Any] | None = None, theme: Theme | None = None, console: Console | None = None
+        self,
+        mdargs: dict[str, Any] | None = None,
+        theme: Theme | None = None,
+        console: Console | None = None,
+        spinner: Spinner | None = None,
     ):
         """Initialize the markdown stream.
 
@@ -88,6 +93,8 @@ class MarkdownStream:
 
         self.theme = theme
         self.console = console or Console()
+
+        self.spinner = spinner
 
     def _render_markdown_to_lines(self, text: str) -> list[str]:
         """Render markdown text to a list of lines.
@@ -194,7 +201,7 @@ class MarkdownStream:
         # Always refresh the live window with the latest unstable tail
         window_lines = lines[stable_count:]
         window_text = Text.from_ansi("".join(window_lines)) if window_lines else Text("")
-        self.live.update(window_text)
+        self.live.update(Group(window_text, self.spinner) if self.spinner else window_text)
 
         # Handle final update cleanup
         if final:

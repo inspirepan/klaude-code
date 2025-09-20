@@ -26,7 +26,7 @@ class Palette:
 LIGHT_PALETTE = Palette(
     red="red",
     yellow="yellow",
-    green="green",
+    green="spring_green4",
     cyan="cyan",
     blue="#3678b7",
     orange="#ce6346",
@@ -168,8 +168,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.METADATA_DIM.value: "dim " + palette.grey_blue,
                 ThemeKey.METADATA_BOLD.value: "bold " + palette.grey_blue,
                 # SPINNER_STATUS
-                ThemeKey.SPINNER_STATUS.value: "",
-                ThemeKey.SPINNER_STATUS_BOLD.value: "bold",
+                ThemeKey.SPINNER_STATUS.value: palette.green,
+                ThemeKey.SPINNER_STATUS_BOLD.value: "bold " + palette.green,
                 # STATUS
                 ThemeKey.STATUS_HINT.value: palette.grey2,
                 # REMINDER

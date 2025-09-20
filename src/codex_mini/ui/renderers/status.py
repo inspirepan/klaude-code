@@ -3,10 +3,18 @@ from rich.text import Text
 
 from codex_mini.ui.theme import ThemeKey
 
-SPINNERS["claude"] = {
-    "interval": 150,
-    "frames": ["✶", "✻", "✽", "✻", "✶", "✳", "✢", "·", "✢", "✳"],
-}
+SPINNERS.update(
+    {
+        "claude": {
+            "interval": 100,
+            "frames": ["✶", "✻", "✽", "✻", "✶", "✳", "✢", "·", "✢", "✳"],
+        }
+    }
+)
+
+
+def spinner_name() -> str:
+    return "claude"
 
 
 def render_status_text(main_text: str, main_style: ThemeKey) -> Text:
