@@ -196,26 +196,23 @@ class MarkdownStream:
         if not final:
             num_lines -= self.live_window
 
-        # If we have stable content to display...
+        # If there is new stable content, append only the new part
+        # Update Live window to prevent visual duplication
         if final or num_lines > 0:
-            # How many stable lines do we need to newly show above the live window?
+            # Lines to append to stable area
             num_printed = len(self.printed)
-            show = num_lines - num_printed
+            to_append_count = num_lines - num_printed
 
-            # Skip if no new lines to show above live window
-            if show <= 0:
-                return
+            if to_append_count > 0:
+                # Print new stable lines above Live window
+                append_chunk = lines[num_printed:num_lines]
+                append_chunk_text = Text.from_ansi("".join(append_chunk))
+                live = self.live
+                assert live is not None
+                live.console.print(append_chunk_text)  # Print above Live area
 
-            # Get the new lines and display them
-            show = lines[num_printed:num_lines]
-            show = "".join(show)
-            show = Text.from_ansi(show)
-            live = self.live
-            assert live is not None
-            live.console.print(show)  # to the console above the live area
-
-            # Update our record of printed lines
-            self.printed = lines[:num_lines]
+                # Track printed stable lines
+                self.printed = lines[:num_lines]
 
         # Handle final update cleanup
         if final:
@@ -226,7 +223,8 @@ class MarkdownStream:
             self.live = None
             return
 
-        # Update the live window with remaining lines
+        # Update Live window to prevent timing issues
+        # with console.print above
         rest = lines[num_lines:]
         rest = "".join(rest)
         rest = Text.from_ansi(rest)
