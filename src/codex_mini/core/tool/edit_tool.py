@@ -196,7 +196,9 @@ class EditTool(ToolABC):
                     except Exception:
                         pass
                 if was_existing:
-                    return ToolResultItem(status="success", output=f"Empty file overwritten successfully at: {file_path}")
+                    return ToolResultItem(
+                        status="success", output=f"Empty file overwritten successfully at: {file_path}"
+                    )
                 else:
                     return ToolResultItem(status="success", output=f"File created successfully at: {file_path}")
             except Exception as e:  # pragma: no cover
