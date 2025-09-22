@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -14,6 +15,23 @@ from codex_mini.protocol.model import AssistantMessageItem, CommandOutput, Devel
 @register_command
 class ExportCommand(CommandABC):
     """Export the last assistant message markdown content to editor"""
+
+    def _sanitize_filename(self, filename: str) -> str:
+        """Sanitize filename by removing invalid characters"""
+        # Remove or replace invalid characters for cross-platform compatibility
+        # Invalid chars: < > : " | ? * \ / and control characters
+        sanitized = re.sub(r'[<>:"|?*\\/]', '_', filename)
+        # Remove control characters
+        sanitized = re.sub(r'[\x00-\x1f\x7f]', '', sanitized)
+        # Remove leading/trailing whitespace and dots
+        sanitized = sanitized.strip(' .')
+        # Ensure filename is not empty and not too long
+        if not sanitized:
+            sanitized = "exported"
+        # Limit length to 100 characters
+        if len(sanitized) > 100:
+            sanitized = sanitized[:100]
+        return sanitized
 
     @property
     def name(self) -> CommandName:
@@ -75,10 +93,18 @@ class ExportCommand(CommandABC):
                 editor = "xdg-open"
 
         try:
-            # Create temporary file
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8") as tmp_file:
-                tmp_file.write(last_assistant_message.content)
-                tmp_path = tmp_file.name
+            # Create file based on raw input
+            if raw and raw.strip():
+                # Use specified filename in current directory
+                sanitized_filename = self._sanitize_filename(raw.strip())
+                tmp_path = f"{sanitized_filename}.md"
+                with open(tmp_path, "w", encoding="utf-8") as file:
+                    file.write(last_assistant_message.content)
+            else:
+                # Create temporary file
+                with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8") as tmp_file:
+                    tmp_file.write(last_assistant_message.content)
+                    tmp_path = tmp_file.name
 
             # Open with editor
             if editor == "open -a TextEdit":
@@ -93,7 +119,7 @@ class ExportCommand(CommandABC):
                     DeveloperMessageEvent(
                         session_id=agent.session.id,
                         item=DeveloperMessageItem(
-                            content=f"opened last assistant message in editor: {tmp_path}",
+                            content=f"opened assistant message in editor: {tmp_path}",
                             command_output=CommandOutput(command_name=self.name),
                         ),
                     )
