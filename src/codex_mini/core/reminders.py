@@ -119,8 +119,12 @@ async def todo_not_used_recently_reminder(session: Session) -> model.DeveloperMe
     - While condition remains active and counter > 0: decrement each turn, do not remind.
     - When condition not active: do nothing to the counter (no decrement), and do not remind.
     """
+
+    if not session.todos:
+        return None
+
     # If all todos completed, skip reminder entirely
-    if session.todos and all(todo.status == "completed" for todo in session.todos):
+    if all(todo.status == "completed" for todo in session.todos):
         return None
 
     # Count non-todo tool calls since the last TodoWrite
