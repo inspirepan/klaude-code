@@ -244,3 +244,59 @@ class MarkdownStream:
         Splits text into chunks on blank lines "\n\n".
         """
         return None
+
+
+class MarkdownStream2:
+    def __init__(
+        self,
+        mdargs: dict[str, Any] | None = None,
+        theme: Theme | None = None,
+        console: Console | None = None,
+        spinner: Spinner | None = None,
+    ) -> None:
+        self.mdargs: dict[str, Any] = mdargs or {}
+        self.theme = theme
+        self.console = console
+        self.spinner: Spinner | None = spinner
+
+        self.live: Live | None = None
+        self._live_started: bool = False
+
+    def __del__(self) -> None:
+        if self.live:
+            try:
+                self.live.stop()
+            except Exception:
+                pass
+
+    def _renderable(self, text: str, final: bool) -> RenderableType:
+        md = NoInsetMarkdown(text, **self.mdargs)
+        if not final and self.spinner:
+            return Group(md, Text(), self.spinner)
+        return md
+
+    def update(self, text: str, final: bool = False) -> None:
+        console = self.console or Console(theme=self.theme)
+
+        if not self._live_started:
+            self.live = Live(
+                self._renderable(text, final=False),
+                console=console,
+                refresh_per_second=20,
+                transient=False,
+            )
+            self.live.start()
+            self._live_started = True
+            if final:
+                self.live.stop()
+                self.live = None
+                console.print()
+            return
+
+        live = self.live
+        if live is None:
+            return
+        live.update(self._renderable(text, final))
+        if final:
+            live.stop()
+            self.live = None

@@ -503,7 +503,7 @@ def main_callback(
     unrestricted_read: bool = typer.Option(False, "--unrestricted-read", "-u", help="Remove all read limits for files"),
     vanilla: bool = typer.Option(False, "--vanilla", help="Use 'You're a help assistant' as system prompt"),
 ):
-    """Start interactive session when no subcommand provided."""
+    """Codex CLI Minimal"""
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
         # Interactive mode
