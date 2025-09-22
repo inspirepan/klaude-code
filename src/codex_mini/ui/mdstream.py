@@ -196,7 +196,7 @@ class MarkdownStream:
         # How many lines have "left" the live window and are now considered stable?
         # Or if final, consider all lines to be stable.
         if not final:
-            num_lines -= self.live_window
+            num_lines = max(num_lines - self.live_window, 0)
 
         # If there is new stable content, append only the new part
         # Update Live window to prevent visual duplication
