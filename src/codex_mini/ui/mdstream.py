@@ -15,6 +15,8 @@ from rich.syntax import Syntax
 from rich.text import Text
 from rich.theme import Theme
 
+from codex_mini.ui.live import CropAboveLive
+
 
 class NoInsetCodeBlock(CodeBlock):
     """A code block with syntax highlighting and no padding."""
@@ -279,7 +281,7 @@ class MarkdownStream2:
         console = self.console or Console(theme=self.theme)
 
         if not self._live_started:
-            self.live = Live(
+            self.live = CropAboveLive(
                 self._renderable(text, final=False),
                 console=console,
                 refresh_per_second=20,
