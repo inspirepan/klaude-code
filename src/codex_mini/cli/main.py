@@ -106,6 +106,7 @@ class AppInitConfig:
     ui_args: UIArgs | None
     unrestricted_read: bool
     vanilla: bool
+    is_exec_mode: bool = False
 
 
 @dataclass
@@ -186,10 +187,14 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
             theme = "dark"
 
     # Set up UI components
-    repl_display = ui.REPLDisplay(theme=theme)
-    display: ui.DisplayABC = (
-        repl_display if not init_config.debug else ui.DebugEventDisplay(repl_display, write_to_file=True)
-    )
+    display: ui.DisplayABC
+    if init_config.is_exec_mode:
+        # Use ExecDisplay for exec mode - only shows task results
+        display = ui.ExecDisplay()
+    else:
+        # Use REPLDisplay for interactive mode
+        repl_display = ui.REPLDisplay(theme=theme)
+        display = repl_display if not init_config.debug else ui.DebugEventDisplay(repl_display, write_to_file=True)
 
     # Start UI display task
     display_task = asyncio.create_task(display.consume_event_loop(event_queue))
@@ -507,6 +512,7 @@ def exec_command(
         ui_args=UIArgs(theme=set_theme, light=light, dark=dark),
         unrestricted_read=unrestricted_read,
         vanilla=vanilla,
+        is_exec_mode=True,
     )
 
     asyncio.run(
