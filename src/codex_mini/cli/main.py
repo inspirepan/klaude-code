@@ -10,6 +10,7 @@ import time
 import tty
 import uuid
 from dataclasses import dataclass
+import json
 
 import typer
 from rich.text import Text
@@ -99,6 +100,8 @@ class AppInitConfig:
     """Configuration for initializing the application components."""
 
     model: str | None
+    # If provided, this overrides main agent's model configuration
+    llm_config_override: LLMConfigParameter | None
     debug: bool
     ui_args: UIArgs | None
     unrestricted_read: bool
@@ -126,7 +129,11 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     set_read_unrestricted(init_config.unrestricted_read)
 
     config = load_config()
-    llm_config = config.get_model_config(init_config.model) if init_config.model else config.get_main_model_config()
+    # Resolve main agent LLM config with override support
+    if init_config.llm_config_override is not None:
+        llm_config = init_config.llm_config_override
+    else:
+        llm_config = config.get_model_config(init_config.model) if init_config.model else config.get_main_model_config()
     llm_client: LLMClientABC = create_llm_client(llm_config)
     if init_config.debug:
         log_debug("▷▷▷ llm [Model Config]", llm_config.model_dump_json(exclude_none=True), style="yellow")
@@ -209,6 +216,24 @@ async def cleanup_app_components(components: AppComponents) -> None:
     # Signal UI to stop
     await components.event_queue.put(EndEvent())
     await components.display_task
+
+
+def parse_llm_config_override(model_config_json: str | None, debug: bool) -> LLMConfigParameter | None:
+    """Parse LLMConfigParameter from JSON string.
+
+    Returns None when no JSON provided. Exits with code 2 on validation error.
+    """
+    if not model_config_json:
+        return None
+    try:
+        cfg = LLMConfigParameter.model_validate_json(model_config_json)
+        if debug:
+            pretty = json.dumps(json.loads(model_config_json), ensure_ascii=False)
+            log_debug("▷▷▷ cli [Model Config JSON Override]", pretty, style="yellow")
+        return cfg
+    except Exception as e:
+        log((f"Invalid --model-config-json: {e}", "red"))
+        raise typer.Exit(2)
 
 
 async def run_exec(init_config: AppInitConfig, input_content: str) -> None:
@@ -408,20 +433,35 @@ def exec_command(
         "--model",
         "-m",
         help="Override model config name (uses main model by default)",
+        rich_help_panel="LLM",
+    ),
+    model_config_json: str | None = typer.Option(
+        None,
+        "--model-config-json",
+        help=(
+            "Override main agent model config using a JSON string of LLMConfigParameter. "
+            "Takes precedence over --model. Also reads CODEX_MODEL_CONFIG_JSON. "
+            'Example: {"protocol":"responses","api_key":"sk-...",'
+            '"base_url":"https://api.openai.com/v1","model":"gpt-5"}'
+        ),
+        envvar="CODEX_MODEL_CONFIG_JSON",
+        rich_help_panel="LLM",
     ),
     select_model: bool = typer.Option(
         False,
         "--select-model",
         "-s",
         help="Interactively choose a model at startup",
+        rich_help_panel="LLM",
     ),
     set_theme: str | None = typer.Option(
         None,
         "--set-theme",
         help="Set UI theme (light or dark)",
+        rich_help_panel="Theme",
     ),
-    light: bool = typer.Option(False, "--light", help="Use light theme"),
-    dark: bool = typer.Option(False, "--dark", help="Use dark theme"),
+    light: bool = typer.Option(False, "--light", help="Use light theme", rich_help_panel="Theme"),
+    dark: bool = typer.Option(False, "--dark", help="Use dark theme", rich_help_panel="Theme"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
     unrestricted_read: bool = typer.Option(False, "--unrestricted-read", "-u", help="Remove all read limits for files"),
     vanilla: bool = typer.Option(False, "--vanilla", help="Use 'You're a help assistant' as system prompt"),
@@ -438,10 +478,6 @@ def exec_command(
                 parts.append(stdin)
         except Exception as e:
             log((f"Error reading from stdin: {e}", "red"))
-            raise typer.Exit(1)
-    else:
-        log(("Error: No stdin input available", "red"))
-        raise typer.Exit(1)
 
     if input_content:
         parts.append(input_content)
@@ -451,16 +487,22 @@ def exec_command(
         log(("Error: No input content provided", "red"))
         raise typer.Exit(1)
 
-    chosen_model = model
-    if select_model:
+    # Parse model-config override if provided
+    llm_config_override: LLMConfigParameter | None = parse_llm_config_override(model_config_json, debug)
+
+    chosen_model = model if llm_config_override is None else None
+    if select_model and llm_config_override is None:
         # Prefer the explicitly provided model as default; otherwise main model
         default_name = model or load_config().main_model
         chosen_model = select_model_from_config(preferred=default_name)
         if chosen_model is None:
             return
+    elif select_model and llm_config_override is not None:
+        log(("--select-model ignored due to --model-config-json override", "yellow"))
 
     init_config = AppInitConfig(
         model=chosen_model,
+        llm_config_override=llm_config_override,
         debug=debug,
         ui_args=UIArgs(theme=set_theme, light=light, dark=dark),
         unrestricted_read=unrestricted_read,
@@ -483,6 +525,17 @@ def main_callback(
         "--model",
         "-m",
         help="Override model config name (uses main model by default)",
+        rich_help_panel="LLM",
+    ),
+    model_config_json: str | None = typer.Option(
+        None,
+        "--model-config-json",
+        help=(
+            "Override main agent model config using a JSON string of LLMConfigParameter. "
+            "Takes precedence over --model. "
+        ),
+        envvar="CODEX_MODEL_CONFIG_JSON",
+        rich_help_panel="LLM",
     ),
     continue_: bool = typer.Option(False, "--continue", "-c", help="Continue from latest session"),
     resume: bool = typer.Option(False, "--resume", "-r", help="Select a session to resume for this project"),
@@ -491,14 +544,16 @@ def main_callback(
         "--select-model",
         "-s",
         help="Interactively choose a model at startup",
+        rich_help_panel="LLM",
     ),
     set_theme: str | None = typer.Option(
         None,
         "--set-theme",
         help="Set UI theme (light or dark)",
+        rich_help_panel="Theme",
     ),
-    light: bool = typer.Option(False, "--light", help="Use light theme"),
-    dark: bool = typer.Option(False, "--dark", help="Use dark theme"),
+    light: bool = typer.Option(False, "--light", help="Use light theme", rich_help_panel="Theme"),
+    dark: bool = typer.Option(False, "--dark", help="Use dark theme", rich_help_panel="Theme"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
     unrestricted_read: bool = typer.Option(False, "--unrestricted-read", "-u", help="Remove all read limits for files"),
     vanilla: bool = typer.Option(False, "--vanilla", help="Use 'You're a help assistant' as system prompt"),
@@ -507,13 +562,18 @@ def main_callback(
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
         # Interactive mode
-        chosen_model = model
-        if select_model:
+        # Parse model-config override if provided
+        llm_config_override: LLMConfigParameter | None = parse_llm_config_override(model_config_json, debug)
+
+        chosen_model = model if llm_config_override is None else None
+        if select_model and llm_config_override is None:
             # Prefer the explicitly provided model as default; otherwise main model
             default_name = model or load_config().main_model
             chosen_model = select_model_from_config(preferred=default_name)
             if chosen_model is None:
                 return
+        elif select_model and llm_config_override is not None:
+            log(("--select-model ignored due to --model-config-json override", "yellow"))
 
         # Resolve session id before entering asyncio loop
         session_id: str | None = None
@@ -530,6 +590,7 @@ def main_callback(
 
         init_config = AppInitConfig(
             model=chosen_model,
+            llm_config_override=llm_config_override,
             debug=debug,
             ui_args=UIArgs(theme=set_theme, light=light, dark=dark),
             unrestricted_read=unrestricted_read,
