@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import select
 import signal
@@ -10,7 +11,6 @@ import time
 import tty
 import uuid
 from dataclasses import dataclass
-import json
 
 import typer
 from rich.text import Text

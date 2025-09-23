@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from rich._loop import loop_last
-from rich.console import Console, ConsoleOptions, RenderResult, RenderableType
+from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
 from rich.live import Live
 from rich.segment import Segment
 

@@ -322,17 +322,17 @@ class _AtFilesCompleter(Completer):
             # Use fd to search anywhere in full path (files and directories), case-insensitive
             results = self._run_fd_search(git_root, key_norm)
         elif self._has_cmd("rg"):
-            # Reuse rg file list cache aggressively
+            # Use rg to search only in current directory
             if self._rg_file_list is None or now - self._rg_file_list_time > max(self._cache_ttl, 30.0):
                 cmd = ["rg", "--files"]
-                r = self._run_cmd(cmd, cwd=git_root)
+                r = self._run_cmd(cmd, cwd=cwd)  # Search from current directory
                 if r.ok:
                     self._rg_file_list = r.lines
                     self._rg_file_list_time = now
                 else:
                     self._rg_file_list = []
                     self._rg_file_list_time = now
-            # Filter by prefix at root level
+            # Filter by keyword
             all_files = self._rg_file_list or []
             kn = key_norm
             results = [p for p in all_files if kn in p.lower()]
@@ -349,20 +349,25 @@ class _AtFilesCompleter(Completer):
 
     def _filter_and_format(self, paths_from_root: list[str], git_root: Path, cwd: Path, keyword_norm: str) -> list[str]:
         # Filter to keyword (case-insensitive) and rank by basename hit first, then path hit position, then length
+        # Since both fd and rg now search from current directory, all paths are relative to cwd
         kn = keyword_norm
         out: list[tuple[str, tuple[int, int, int]]] = []
         for p in paths_from_root:
             pl = p.lower()
             if kn not in pl:
                 continue
-            abs_path = (git_root / p).resolve()
-            rel_to_cwd = os.path.relpath(abs_path, cwd)
+
+            # Use path directly since it's already relative to current directory
+            rel_to_cwd = p
+
             base = os.path.basename(p).lower()
             base_pos = base.find(kn)
             path_pos = pl.find(kn)
             score = (0 if base_pos != -1 else 1, base_pos if base_pos != -1 else 10_000, path_pos, len(p))
+
             # Append trailing slash for directories
-            if abs_path.is_dir() and not rel_to_cwd.endswith("/"):
+            full_path = cwd / rel_to_cwd
+            if full_path.is_dir() and not rel_to_cwd.endswith("/"):
                 rel_to_cwd = rel_to_cwd + "/"
             out.append((rel_to_cwd, score))  # type: ignore[reportArgumentType]
         # Sort by score
@@ -416,6 +421,7 @@ class _AtFilesCompleter(Completer):
 
     def _run_fd_search(self, git_root: Path, keyword_norm: str) -> list[str]:
         # Use fd regex matching anywhere in the full path; escape user input
+        # Fixed to search only in current working directory
         pattern = self._escape_regex(keyword_norm)
         cmd = [
             "fd",
@@ -433,7 +439,8 @@ class _AtFilesCompleter(Completer):
             pattern,
             ".",
         ]
-        r = self._run_cmd(cmd, cwd=git_root)
+        # Run fd from current working directory instead of git root
+        r = self._run_cmd(cmd, cwd=Path.cwd())
         return r.lines if r.ok else []
 
     def _escape_regex(self, s: str) -> str:
