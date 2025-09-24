@@ -48,3 +48,10 @@ Tests are located in the `tests/` directory. Configuration files include `pyproj
 - Examples: `feat(core): support model switching during runtime`, `fix(ui): slash command completion`
 - Keep commits atomic and focused on single changes
 - **Use English only** for commit messages
+
+
+## Agent Configuration for Different Models
+
+- Prompts are configured via `get_system_prompt` in `src/codex_mini/core/prompt.py`
+- Tools are configured via `get_main_agent_tools` and `get_sub_agent_tools` in `src/codex_mini/core/tool/tool_registry.py`
+- Reminders are configured via `get_main_agent_reminders` and `get_sub_agent_reminders` in `src/codex_mini/core/reminders.py`
