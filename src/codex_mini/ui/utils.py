@@ -1,5 +1,13 @@
+import re
 import subprocess
 from pathlib import Path
+
+LEADING_NEWLINES_REGEX = re.compile(r"^\n{2,}")
+
+
+def remove_leading_newlines(text: str) -> str:
+    """Collapse leading newline runs at the start to a single newline."""
+    return LEADING_NEWLINES_REGEX.sub("\n", text)
 
 
 def format_number(tokens: int) -> str:

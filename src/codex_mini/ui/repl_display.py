@@ -1,7 +1,6 @@
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass
-import re
 from typing import Any, Iterator, Literal, override
 
 from rich import box
@@ -28,6 +27,7 @@ from codex_mini.ui.renderers import tools as r_tools
 from codex_mini.ui.renderers import user_input as r_user_input
 from codex_mini.ui.renderers.common import truncate_display
 from codex_mini.ui.theme import ThemeKey, get_theme
+from codex_mini.ui.utils import remove_leading_newlines
 
 
 @dataclass
@@ -35,14 +35,6 @@ class SessionStatus:
     is_subagent: bool = False
     color: Style | None = None
     sub_agent_type: tools.SubAgentType | None = None
-
-
-# Remove leading newlines
-LEADING_NEWLINES_REGEX = re.compile(r"^\n{2,}")
-
-
-def remove_leading_newlines(text: str) -> str:
-    return LEADING_NEWLINES_REGEX.sub("", text)
 
 
 class REPLDisplay(DisplayABC):

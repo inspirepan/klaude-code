@@ -277,7 +277,6 @@ class Session(BaseModel):
                         status=tr.status,
                     )
                     # TODO: Replay Sub-Agent Events
-
                 case model.UserMessageItem() as um:
                     yield events.UserMessageEvent(
                         content=um.content or "",

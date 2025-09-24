@@ -54,18 +54,6 @@ async def run_tool(tool_call: ToolCallItem) -> ToolResultItem:
 
 
 def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
-    if "gpt-5" in model_name:
-        return get_tool_schemas(
-            [
-                # tools.TODO_WRITE,
-                tools.BASH,
-                tools.READ,
-                tools.EDIT,
-                tools.MULTI_EDIT,
-                tools.EXIT_PLAN_MODE,
-                # tools.TASK,
-            ]
-        )
     return get_tool_schemas(
         [
             tools.TODO_WRITE,
