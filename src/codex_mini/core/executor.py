@@ -9,15 +9,11 @@ import asyncio
 from uuid import uuid4
 
 from codex_mini.command import dispatch_command
-from codex_mini.core.agent import Agent, AgentLLMClients, Reminder
+from codex_mini.core.agent import Agent, AgentLLMClients
 from codex_mini.core.reminders import (
-    at_file_reader_reminder,
-    empty_todo_reminder,
-    file_changed_externally_reminder,
-    last_path_memory_reminder,
-    memory_reminder,
-    plan_mode_reminder,
-    todo_not_used_recently_reminder,
+    Reminder,
+    get_main_agent_reminders,
+    get_sub_agent_reminders,
 )
 from codex_mini.core.tool import get_main_agent_tools, get_sub_agent_tools
 from codex_mini.core.tool.tool_context import SubAgentResult, current_run_subtask_callback
@@ -76,19 +72,7 @@ class ExecutorContext:
         # Load or create session first
         session = Session.load(operation.session_id)
 
-        system_reminders: list[Reminder] = (
-            [
-                empty_todo_reminder,
-                todo_not_used_recently_reminder,
-                memory_reminder,
-                last_path_memory_reminder,
-                at_file_reader_reminder,
-                file_changed_externally_reminder,
-                plan_mode_reminder,
-            ]
-            if not self.vanilla
-            else [at_file_reader_reminder]
-        )  # Use simple reminders in vanilla mode
+        system_reminders: list[Reminder] = get_main_agent_reminders(self.vanilla, self.llm_clients.main.model_name)
 
         # Create agent if not exists
         if operation.session_id not in self.active_agents:
@@ -266,12 +250,7 @@ class ExecutorContext:
             tools=get_sub_agent_tools(child_llm_clients.main.model_name, sub_agent_type),
             debug_mode=self.debug_mode,
             vanilla=self.vanilla,
-            reminders=[
-                memory_reminder,
-                last_path_memory_reminder,
-                at_file_reader_reminder,
-                file_changed_externally_reminder,
-            ],
+            reminders=get_sub_agent_reminders(self.vanilla, child_llm_clients.main.model_name),
         )
         child_agent.sync_system_prompt(sub_agent_type)
 

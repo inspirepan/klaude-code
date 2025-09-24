@@ -8,6 +8,9 @@ from codex_mini.core.tool.read_tool import ReadTool
 from codex_mini.core.tool.tool_context import current_session_var
 from codex_mini.protocol import model, tools
 from codex_mini.session import Session
+from typing import Awaitable, Callable
+
+type Reminder = Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]
 
 
 def get_last_new_user_input(session: Session) -> str | None:
@@ -358,3 +361,39 @@ ALL_REMINDERS = [
     at_file_reader_reminder,
     plan_mode_reminder,
 ]
+
+
+def get_main_agent_reminders(vanilla: bool, model_name: str) -> list[Reminder]:
+    if vanilla:
+        return [at_file_reader_reminder]
+
+    reminders: list[Reminder] = []
+
+    # For GPT-5, we do not show empty todo and todo not used recently reminders
+    if "gpt-5" not in model_name:
+        reminders.append(empty_todo_reminder)
+        reminders.append(todo_not_used_recently_reminder)
+
+    reminders.extend(
+        [
+            memory_reminder,
+            last_path_memory_reminder,
+            at_file_reader_reminder,
+            file_changed_externally_reminder,
+            plan_mode_reminder,
+        ]
+    )
+
+    return reminders
+
+
+def get_sub_agent_reminders(vanilla: bool, model_name: str) -> list[Reminder]:
+    if vanilla:
+        return [at_file_reader_reminder]
+
+    reminders: list[Reminder] = []
+    reminders.extend(
+        [memory_reminder, last_path_memory_reminder, at_file_reader_reminder, file_changed_externally_reminder]
+    )
+
+    return reminders

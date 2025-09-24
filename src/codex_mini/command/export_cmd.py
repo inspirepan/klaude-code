@@ -20,11 +20,11 @@ class ExportCommand(CommandABC):
         """Sanitize filename by removing invalid characters"""
         # Remove or replace invalid characters for cross-platform compatibility
         # Invalid chars: < > : " | ? * \ / and control characters
-        sanitized = re.sub(r'[<>:"|?*\\/]', '_', filename)
+        sanitized = re.sub(r'[<>:"|?*\\/]', "_", filename)
         # Remove control characters
-        sanitized = re.sub(r'[\x00-\x1f\x7f]', '', sanitized)
+        sanitized = re.sub(r"[\x00-\x1f\x7f]", "", sanitized)
         # Remove leading/trailing whitespace and dots
-        sanitized = sanitized.strip(' .')
+        sanitized = sanitized.strip(" .")
         # Ensure filename is not empty and not too long
         if not sanitized:
             sanitized = "exported"

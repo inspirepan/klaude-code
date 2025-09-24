@@ -1,8 +1,9 @@
-from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable
+from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass
 from typing import Literal
 
 from codex_mini.core.prompt import get_system_prompt
+from codex_mini.core.reminders import Reminder
 from codex_mini.core.tool.tool_context import current_exit_plan_mode_callback, current_session_var
 from codex_mini.core.tool.tool_registry import run_tool
 from codex_mini.llm.client import LLMClientABC
@@ -44,9 +45,6 @@ class _MetadataMergeState:
     accumulated: "model.ResponseMetadataItem"
     throughput_weighted_sum: float = 0.0
     throughput_tracked_tokens: int = 0
-
-
-type Reminder = Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]
 
 
 class Agent:
