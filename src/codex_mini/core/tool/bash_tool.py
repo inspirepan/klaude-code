@@ -359,6 +359,24 @@ def _parse_word_only_commands_sequence(
     return commands, ""
 
 
+def strip_bash_lc(command: str) -> str:
+    """Extract the actual command from bash -lc format if present."""
+    try:
+        # Parse the command into tokens
+        argv = shlex.split(command, posix=True)
+
+        # Check if it's a bash -lc command
+        if len(argv) >= 3 and argv[0] == "bash" and argv[1] == "-lc":
+            # Return the actual command (third argument)
+            return argv[2]
+
+        # If not bash -lc format, return original command
+        return command
+    except ValueError:
+        # If parsing fails, return original command
+        return command
+
+
 def is_safe_command(command: str) -> SafetyCheckResult:
     """Conservatively determine if a command is known-safe."""
     # First, try direct exec-style argv safety (e.g., "ls -l").
@@ -490,19 +508,23 @@ git commit -m "$(cat <<'EOF'
 
     @classmethod
     async def call_with_args(cls, args: BashArguments) -> ToolResultItem:
+        # Extract the actual command from bash -lc format if present
+        command_str = strip_bash_lc(args.command)
+
         # Safety check: only execute commands proven as "known safe"
-        result = is_safe_command(args.command)
+        result = is_safe_command(command_str)
         if not result.is_safe:
             return ToolResultItem(
                 status="error",
                 output=f"Command rejected: {result.error_msg}",
             )
+
         # Run the command using bash -lc so shell semantics work (pipes, &&, etc.)
         # Capture stdout/stderr, respect timeout, and return a ToolMessage.
         import asyncio
         import subprocess
 
-        cmd = ["bash", "-lc", args.command]
+        cmd = ["bash", "-lc", command_str]
         timeout_sec = max(0.0, args.timeout_ms / 1000.0)
 
         try:
@@ -546,7 +568,7 @@ git commit -m "$(cat <<'EOF'
         except subprocess.TimeoutExpired:
             return ToolResultItem(
                 status="error",
-                output=f"Timeout after {args.timeout_ms} ms running: {args.command}",
+                output=f"Timeout after {args.timeout_ms} ms running: {command_str}",
             )
         except FileNotFoundError:
             return ToolResultItem(
