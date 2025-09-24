@@ -124,7 +124,6 @@ class ResponsesClient(LLMClientABC):
             else None,
             extra_headers={"extra": json.dumps({"session_id": param.session_id})},
         )
-        is_first_thinking_delta = True
 
         async for event in await stream:
             if self.is_debug_mode():
@@ -134,21 +133,15 @@ class ResponsesClient(LLMClientABC):
                     response_id = event.response.id
                     yield StartItem(response_id=response_id)
                 case responses.ResponseReasoningSummaryTextDeltaEvent() as event:
-                    pass
-                case responses.ResponseReasoningSummaryTextDoneEvent() as event:
                     if first_token_time is None:
                         first_token_time = time.time()
                     last_token_time = time.time()
-                    thinking_text = event.text
-                    if is_first_thinking_delta:
-                        thinking_text = "\n" + event.text
-                    else:
-                        thinking_text = "\n\n" + event.text
+                case responses.ResponseReasoningSummaryTextDoneEvent() as event:
+                    last_token_time = time.time()
                     yield ThinkingTextDelta(
-                        thinking=thinking_text,
+                        thinking="\n\n" + event.text,
                         response_id=response_id,
                     )
-                    is_first_thinking_delta = False
                 case responses.ResponseTextDeltaEvent() as event:
                     if first_token_time is None:
                         first_token_time = time.time()

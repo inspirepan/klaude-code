@@ -1,6 +1,7 @@
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass
+import re
 from typing import Any, Iterator, Literal, override
 
 from rich import box
@@ -34,6 +35,14 @@ class SessionStatus:
     is_subagent: bool = False
     color: Style | None = None
     sub_agent_type: tools.SubAgentType | None = None
+
+
+# Remove leading newlines
+LEADING_NEWLINES_REGEX = re.compile(r"^\n{2,}")
+
+
+def remove_leading_newlines(text: str) -> str:
+    return LEADING_NEWLINES_REGEX.sub("", text)
 
 
 class REPLDisplay(DisplayABC):
@@ -100,8 +109,8 @@ class REPLDisplay(DisplayABC):
                     # Filter leading empty delta events
                     return
                 if len(self.accumulated_thinking_text) == 0 and self.stage != "thinking":
-                    # Filter leading \n\n\n\n
-                    self.accumulated_thinking_text += e.content.lstrip()
+                    # Filter leading multiple newlines
+                    self.accumulated_thinking_text += remove_leading_newlines(e.content)
                 else:
                     self.accumulated_thinking_text += e.content
                 self.thinking_debouncer.schedule()
