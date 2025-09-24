@@ -241,6 +241,7 @@ class Agent:
                 tools=self.tools,
                 previous_response_id=self.session.last_response_id if store_at_remote else None,
                 store=store_at_remote,
+                session_id=self.session.id,
             )
         ):
             if self.debug_mode:

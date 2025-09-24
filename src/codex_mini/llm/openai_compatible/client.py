@@ -1,3 +1,4 @@
+import json
 import time
 from collections.abc import AsyncGenerator
 from typing import Literal, override
@@ -83,8 +84,6 @@ class OpenAICompatibleClient(LLMClientABC):
             extra_body["plugins"] = [p.model_dump(exclude_none=True) for p in param.plugins]
 
         if self.is_debug_mode():
-            import json
-
             payload: dict[str, object] = {
                 "model": str(param.model),
                 "tool_choice": "auto",
@@ -115,6 +114,7 @@ class OpenAICompatibleClient(LLMClientABC):
             reasoning_effort=param.reasoning.effort if param.reasoning else None,
             verbosity=param.verbosity,
             extra_body=extra_body,  # pyright: ignore[reportUnknownArgumentType]
+            extra_headers={"extra": json.dumps({"session_id": param.session_id})},
         )
 
         stage: Literal["waiting", "reasoning", "assistant", "tool", "done"] = "waiting"

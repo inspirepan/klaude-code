@@ -10,11 +10,7 @@ from uuid import uuid4
 
 from codex_mini.command import dispatch_command
 from codex_mini.core.agent import Agent, AgentLLMClients
-from codex_mini.core.reminders import (
-    Reminder,
-    get_main_agent_reminders,
-    get_sub_agent_reminders,
-)
+from codex_mini.core.reminders import Reminder, get_main_agent_reminders, get_sub_agent_reminders
 from codex_mini.core.tool import get_main_agent_tools, get_sub_agent_tools
 from codex_mini.core.tool.tool_context import SubAgentResult, current_run_subtask_callback
 from codex_mini.protocol import events, llm_parameter, model

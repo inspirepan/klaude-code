@@ -156,6 +156,8 @@ class LLMCallParameter(LLMConfigModelParameter):
     store: bool = True
     previous_response_id: str | None = None
 
+    session_id: str | None = None
+
 
 def apply_config_defaults(param: LLMCallParameter, config: LLMConfigParameter) -> LLMCallParameter:
     if param.model is None:

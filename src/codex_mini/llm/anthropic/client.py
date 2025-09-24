@@ -1,3 +1,4 @@
+import json
 import time
 from collections.abc import AsyncGenerator
 from typing import override
@@ -57,8 +58,6 @@ class AnthropicClient(LLMClientABC):
         system = convert_system_to_input(param.system)
 
         if self.is_debug_mode():
-            import json
-
             thinking_config_dict = (
                 {
                     "type": param.thinking.type,
@@ -110,6 +109,7 @@ class AnthropicClient(LLMClientABC):
             else anthropic.types.ThinkingConfigDisabledParam(
                 type="disabled",
             ),
+            extra_headers={"extra": json.dumps({"session_id": param.session_id})},
         )
 
         accumulated_thinking: list[str] = []

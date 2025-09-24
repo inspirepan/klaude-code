@@ -30,8 +30,8 @@ def convert_history_to_input(
     for item in history:
         match item:
             case ReasoningItem() as item:
-                # if item.encrypted_content and len(item.encrypted_content) > 0 and model_name == item.model:
-                #   items.append(convert_reasoning_item(item))
+                if item.encrypted_content and len(item.encrypted_content) > 0 and model_name == item.model:
+                    items.append(convert_reasoning_item(item))
                 pass
             case ToolCallItem() as t:
                 items.append(

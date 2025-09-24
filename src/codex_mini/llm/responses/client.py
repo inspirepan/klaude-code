@@ -1,3 +1,4 @@
+import json
 import time
 from collections.abc import AsyncGenerator
 from typing import override
@@ -67,8 +68,6 @@ class ResponsesClient(LLMClientABC):
         inputs = convert_history_to_input(param.input, param.model)
 
         if self.is_debug_mode():
-            import json
-
             payload: dict[str, object] = {
                 "model": str(param.model),
                 "tool_choice": "auto",
@@ -123,8 +122,8 @@ class ResponsesClient(LLMClientABC):
             }
             if param.reasoning
             else None,
+            extra_headers={"extra": json.dumps({"session_id": param.session_id})},
         )
-
         is_first_thinking_delta = True
 
         async for event in await stream:
