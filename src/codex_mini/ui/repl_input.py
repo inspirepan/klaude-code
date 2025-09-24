@@ -237,7 +237,7 @@ class _AtFilesCompleter(Completer):
 
     _AT_TOKEN_RE = re.compile(r"(^|\s)@(?P<frag>[^\s]*)$")
 
-    def __init__(self, debounce_sec: float = 0.25, cache_ttl_sec: float = 10.0, max_results: int = 200):
+    def __init__(self, debounce_sec: float = 0.25, cache_ttl_sec: float = 10.0, max_results: int = 20):
         self._debounce_sec = debounce_sec
         self._cache_ttl = cache_ttl_sec
         self._max_results = max_results
@@ -310,11 +310,11 @@ class _AtFilesCompleter(Completer):
                 )
                 if is_narrowing and (now - self._last_cmd_time) < self._debounce_sec:
                     # For narrowing, fast-filter previous results to avoid expensive calls
-                    return self._filter_and_format(self._last_results, git_root, cwd, key_norm)
+                    return self._filter_and_format(self._last_results, cwd, key_norm)
 
         # Cache TTL: reuse cached results for same query within TTL
         if self._last_results and self._last_query_key == query_key and now - self._last_results_time < self._cache_ttl:
-            return self._filter_and_format(self._last_results, git_root, cwd, key_norm)
+            return self._filter_and_format(self._last_results, cwd, key_norm)
 
         # Prefer fd; otherwise fallback to rg --files
         results: list[str] = []
@@ -344,10 +344,9 @@ class _AtFilesCompleter(Completer):
         self._last_query_key = query_key
         self._last_results = results
         self._last_results_time = now
+        return self._filter_and_format(results, cwd, key_norm)
 
-        return self._filter_and_format(results, git_root, cwd, key_norm)
-
-    def _filter_and_format(self, paths_from_root: list[str], git_root: Path, cwd: Path, keyword_norm: str) -> list[str]:
+    def _filter_and_format(self, paths_from_root: list[str], cwd: Path, keyword_norm: str) -> list[str]:
         # Filter to keyword (case-insensitive) and rank by basename hit first, then path hit position, then length
         # Since both fd and rg now search from current directory, all paths are relative to cwd
         kn = keyword_norm
@@ -358,8 +357,7 @@ class _AtFilesCompleter(Completer):
                 continue
 
             # Use path directly since it's already relative to current directory
-            rel_to_cwd = p
-
+            rel_to_cwd = p.lstrip("./")
             base = os.path.basename(p).lower()
             base_pos = base.find(kn)
             path_pos = pl.find(kn)
