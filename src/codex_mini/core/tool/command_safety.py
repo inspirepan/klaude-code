@@ -488,16 +488,140 @@ def _parse_word_only_commands_sequence(
     return commands, ""
 
 
+def _find_unquoted_token(command: str, token: str) -> int | None:
+    """Locate token position ensuring it appears outside quoted regions."""
+
+    in_single = False
+    in_double = False
+    i = 0
+    length = len(command)
+
+    while i < length:
+        ch = command[i]
+        if ch == "\\":
+            i += 2
+            continue
+        if ch == "'" and not in_double:
+            in_single = not in_single
+            i += 1
+            continue
+        if ch == '"' and not in_single:
+            in_double = not in_double
+            i += 1
+            continue
+
+        if not in_single and not in_double and command.startswith(token, i):
+            before_ok = i == 0 or command[i - 1].isspace()
+            after_idx = i + len(token)
+            after_ok = after_idx >= length or command[after_idx].isspace()
+            if before_ok and after_ok:
+                return i
+        i += 1
+
+    return None
+
+
+def _split_script_tail(tail: str) -> tuple[str | None, list[str]]:
+    """Split the -c tail into script and remaining tokens."""
+
+    tail = tail.lstrip()
+    if not tail:
+        return None, []
+
+    if tail[0] in {'"', "'"}:
+        quote = tail[0]
+        escaped = False
+        in_single = False
+        in_double = False
+        i = 1
+        while i < len(tail):
+            ch = tail[i]
+            if escaped:
+                escaped = False
+                i += 1
+                continue
+            if ch == "\\":
+                escaped = True
+                i += 1
+                continue
+            if ch == "'" and quote == '"':
+                in_single = not in_single
+                i += 1
+                continue
+            if ch == '"' and quote == "'":
+                in_double = not in_double
+                i += 1
+                continue
+            if ch == quote and not in_single and not in_double:
+                script = tail[1:i]
+                rest = tail[i + 1 :].lstrip()
+                break
+            i += 1
+        else:
+            # Unterminated quote: treat the remainder as script
+            return tail[1:], []
+    else:
+        match = re.search(r"\s", tail)
+        if match:
+            script = tail[: match.start()]
+            rest = tail[match.end() :].lstrip()
+        else:
+            return tail, []
+
+    if not rest:
+        return script, []
+
+    try:
+        rest_tokens = shlex.split(rest, posix=True)
+    except ValueError:
+        rest_tokens = rest.split()
+
+    return script, rest_tokens
+
+
+def _split_bash_lc_relaxed(command: str) -> list[str] | None:
+    """Attempt relaxed parsing for bash -lc commands with inline scripts."""
+
+    idx = _find_unquoted_token(command, "-c")
+    if idx is None:
+        return None
+
+    head = command[:idx].strip()
+    try:
+        head_tokens = shlex.split(head, posix=True) if head else []
+    except ValueError:
+        return None
+
+    flag = "-c"
+    tail = command[idx + len(flag) :]
+    script, rest_tokens = _split_script_tail(tail)
+
+    result: list[str] = head_tokens + [flag]
+    if script is not None:
+        result.append(script)
+    result.extend(rest_tokens)
+    return result
+
+
 def strip_bash_lc_argv(argv: list[str]) -> list[str]:
     """Extract the actual command from bash -lc format if present in argv list."""
     if len(argv) >= 3 and argv[0] == "bash" and argv[1] == "-lc":
-        # For bash -lc, the third argument contains the actual command
-        # Parse it back into argv format
+        command = argv[2]
         try:
-            return shlex.split(argv[2], posix=True)
+            parsed = shlex.split(command, posix=True)
         except ValueError:
+            relaxed = _split_bash_lc_relaxed(command)
+            if relaxed:
+                return relaxed
             # If parsing fails, return the original command string as single item
-            return [argv[2]]
+            return [command]
+        if "-c" in parsed:
+            idx = parsed.index("-c")
+            if len(parsed) > idx + 2:
+                relaxed = _split_bash_lc_relaxed(command)
+                if relaxed:
+                    return relaxed
+        return parsed
 
     # If not bash -lc format, return original argv
     return argv
