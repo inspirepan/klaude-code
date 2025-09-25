@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from typing import Optional
 
 from rich import box
@@ -172,6 +173,70 @@ def render_task_call(e: events.ToolCallEvent, color: Color | None = None) -> Ren
             " ",
             Text(e.arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS),
         )
+
+
+def _looks_like_apply_patch(command: list[str] | None) -> bool:
+    if not command:
+        return False
+    first = command[0]
+    if first == "apply_patch":
+        return True
+    if first == "bash" and len(command) >= 3 and command[1] == "-lc":
+        script = command[2].lstrip()
+        return script.startswith("apply_patch")
+    return False
+
+
+def _should_show_workdir(workdir: str) -> bool:
+    normalized = workdir.strip()
+    if normalized == ".":
+        return False
+    try:
+        cwd = Path.cwd().resolve()
+        candidate = Path(normalized).expanduser()
+        if not candidate.is_absolute():
+            candidate = (cwd / candidate).resolve()
+        return candidate != cwd
+    except Exception:
+        return True
+
+
+def render_shell_tool_call(arguments: str) -> RenderableType:
+    try:
+        payload = json.loads(arguments)
+    except json.JSONDecodeError:
+        return Text.assemble(
+            ("> ", ThemeKey.TOOL_MARK),
+            ("Run Command", ThemeKey.TOOL_NAME),
+            " ",
+            Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS),
+        )
+
+    command: list[str] | None = payload.get("command")
+    workdir = payload.get("workdir", ".")
+
+    if not isinstance(command, list):
+        return Text.assemble(
+            ("> ", ThemeKey.TOOL_MARK),
+            ("Run Command", ThemeKey.TOOL_NAME),
+            " ",
+            Text(str(payload), style=ThemeKey.INVALID_TOOL_CALL_ARGS),
+        )
+
+    if _looks_like_apply_patch(command):
+        return Text.assemble(("→ ", ThemeKey.TOOL_MARK), ("Apply Patch", ThemeKey.TOOL_NAME))
+
+    render_result: Text = Text.assemble(("> ", ThemeKey.TOOL_MARK), ("Run Command", ThemeKey.TOOL_NAME))
+    render_result = render_result.append_text(Text(f" {command}", ThemeKey.TOOL_PARAM))
+
+    if isinstance(workdir, str) and _should_show_workdir(workdir):
+        render_result = (
+            render_result.append_text(Text(" ", ThemeKey.TOOL_PARAM))
+            .append_text(Text("\nworkdir=", ThemeKey.TOOL_PARAM_BOLD))
+            .append_text(render_path(workdir, ThemeKey.TOOL_PARAM_FILE_PATH, is_directory=True))
+        )
+
+    return render_result
 
 
 def render_todo(tr: events.ToolResultEvent) -> RenderableType:

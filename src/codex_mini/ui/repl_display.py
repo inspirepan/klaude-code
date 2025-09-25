@@ -311,7 +311,7 @@ class REPLDisplay(DisplayABC):
             case tools.BASH:
                 self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments, ">"))
             case tools.SHELL:
-                self.print(r_tools.render_generic_tool_call("Run Command", e.arguments, ">"))
+                self.print(r_tools.render_shell_tool_call(e.arguments))
             case tools.TODO_WRITE:
                 self.print(r_tools.render_generic_tool_call("Update Todos", "", "▣"))
             case tools.UPDATE_PLAN:
