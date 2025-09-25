@@ -166,9 +166,9 @@ class ShellTool(ToolABC):
         if not os.path.isabs(workdir):
             workdir = os.path.abspath(workdir)
         if not os.path.exists(workdir):
-            raise ValueError(f"Working directory does not exist: {workdir}")
+            return os.getcwd()
         if not os.path.isdir(workdir):
-            raise ValueError(f"Working directory is not a directory: {workdir}")
+            return os.getcwd()
         return workdir
 
     @staticmethod

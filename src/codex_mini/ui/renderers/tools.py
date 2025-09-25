@@ -226,17 +226,17 @@ def render_shell_tool_call(arguments: str) -> RenderableType:
     if _looks_like_apply_patch(command):
         return Text.assemble(("→ ", ThemeKey.TOOL_MARK), ("Apply Patch", ThemeKey.TOOL_NAME))
 
-    render_result: Text = Text.assemble(("> ", ThemeKey.TOOL_MARK), ("Run Command", ThemeKey.TOOL_NAME))
-    render_result = render_result.append_text(Text(f" {command}", ThemeKey.TOOL_PARAM))
+    grid = create_grid()
+    tool_name_column: Text = Text.assemble(("> ", ThemeKey.TOOL_MARK), ("Run Command", ThemeKey.TOOL_NAME))
+    arg_column = Text(f"{command}", ThemeKey.TOOL_PARAM)
 
     if isinstance(workdir, str) and _should_show_workdir(workdir):
-        render_result = (
-            render_result.append_text(Text(" ", ThemeKey.TOOL_PARAM))
-            .append_text(Text("\nworkdir=", ThemeKey.TOOL_PARAM_BOLD))
-            .append_text(render_path(workdir, ThemeKey.TOOL_PARAM_FILE_PATH, is_directory=True))
+        arg_column = arg_column.append_text(Text("\nworkdir = ", ThemeKey.TOOL_PARAM_BOLD)).append_text(
+            render_path(workdir, ThemeKey.TOOL_PARAM_FILE_PATH, is_directory=True)
         )
 
-    return render_result
+    grid.add_row(tool_name_column, arg_column)
+    return grid
 
 
 def render_todo(tr: events.ToolResultEvent) -> RenderableType:
