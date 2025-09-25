@@ -61,6 +61,7 @@ DARK_PALETTE = Palette(
 class ThemeKey(str, Enum):
     LINES = "lines"
     # DIFF
+    DIFF_FILE_NAME = "diff.file_name"
     DIFF_REMOVE = "diff.remove"
     DIFF_ADD = "diff.add"
     DIFF_STATS_ADD = "diff.stats.add"
@@ -151,6 +152,7 @@ def get_theme(theme: str | None = None) -> Themes:
             styles={
                 ThemeKey.LINES.value: palette.grey3,
                 # DIFF
+                ThemeKey.DIFF_FILE_NAME.value: palette.blue,
                 ThemeKey.DIFF_REMOVE.value: palette.diff_remove,
                 ThemeKey.DIFF_ADD.value: palette.diff_add,
                 ThemeKey.DIFF_STATS_ADD.value: palette.green,
@@ -190,7 +192,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.THINKING.value: "italic " + palette.grey1,
                 ThemeKey.THINKING_BOLD.value: "bold italic " + palette.grey1,
                 # TODO_ITEM
-                ThemeKey.TODO_EXPLANATION.value: palette.orange,
+                ThemeKey.TODO_EXPLANATION.value: palette.grey1 + " italic",
                 ThemeKey.TODO_PENDING_MARK.value: "bold " + palette.grey1,
                 ThemeKey.TODO_COMPLETED_MARK.value: "bold " + palette.grey3,
                 ThemeKey.TODO_IN_PROGRESS_MARK.value: "bold " + palette.blue,

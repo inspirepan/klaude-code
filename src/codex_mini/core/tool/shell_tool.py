@@ -40,11 +40,6 @@ class ShellTool(ToolABC):
                         "items": {"type": "string"},
                         "description": "The command to execute",
                     },
-                    "workdir": {
-                        "type": "string",
-                        "description": "The working directory to execute the command in",
-                        "default": ".",
-                    },
                     "timeout_ms": {
                         "type": "integer",
                         "description": "The timeout for the command in milliseconds, default is 60000",

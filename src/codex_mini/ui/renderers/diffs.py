@@ -56,7 +56,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
             else:
                 file_name = raw
 
-            file_text = Text(file_name, style="bold")
+            file_text = Text(file_name, style=ThemeKey.DIFF_FILE_NAME)
 
             # Count actual +/- lines for this file from i+1 onwards
             file_additions = 0
@@ -79,7 +79,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
                 stats_text.append(f"-{file_deletions}", style=ThemeKey.DIFF_STATS_REMOVE)
 
             # Combine file name and stats
-            file_line = Text()
+            file_line = Text(style=ThemeKey.DIFF_FILE_NAME)
             file_line.append_text(file_text)
             if stats_text.plain:
                 file_line.append(" (")
@@ -96,7 +96,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
             else:
                 file_mark = "±"
 
-            grid.add_row(Text(f"   {file_mark}", style=ThemeKey.TOOL_MARK), file_line)
+            grid.add_row(Text(f"   {file_mark}", style=ThemeKey.DIFF_FILE_NAME), file_line)
             has_rendered_file_header = True
             has_rendered_diff_content = False
             continue
