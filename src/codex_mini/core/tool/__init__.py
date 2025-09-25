@@ -6,9 +6,9 @@ from .oracle_tool import OracleTool
 from .read_tool import ReadTool
 from .shell_tool import ShellTool
 from .task_tool import TaskTool
-from .update_plan_tool import UpdatePlanTool
 from .todo_write_tool import TodoWriteTool
 from .tool_registry import get_main_agent_tools, get_sub_agent_tools, get_tool_schemas, run_tool
+from .update_plan_tool import UpdatePlanTool
 
 __all__ = [
     "BashTool",
