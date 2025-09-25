@@ -23,6 +23,8 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
     in_untracked_section = False
     # Track whether we've already rendered a file header
     has_rendered_file_header = False
+    # Track whether we have rendered actual diff content for the current file
+    has_rendered_diff_content = False
 
     for i, line in enumerate(lines):
         # Check for untracked files section header
@@ -86,8 +88,21 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
 
             if has_rendered_file_header:
                 grid.add_row("", "")
-            grid.add_row(Text("   ±", style=ThemeKey.TOOL_MARK), file_line)
+
+            if file_additions > 0 and file_deletions == 0:
+                file_mark = "+"
+            elif file_deletions > 0 and file_additions == 0:
+                file_mark = "-"
+            else:
+                file_mark = "±"
+
+            grid.add_row(Text(f"   {file_mark}", style=ThemeKey.TOOL_MARK), file_line)
             has_rendered_file_header = True
+            has_rendered_diff_content = False
+            continue
+
+        if line.startswith("diff --git"):
+            has_rendered_diff_content = False
             continue
 
         # Parse hunk headers to reset counters: @@ -l,s +l,s @@
@@ -99,7 +114,8 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
                 new_ln = new_start
             except Exception:
                 new_ln = None
-            grid.add_row(Text("   ⋮", style=ThemeKey.TOOL_RESULT), "")
+            if has_rendered_diff_content:
+                grid.add_row(Text("   ⋮", style=ThemeKey.TOOL_RESULT), "")
             continue
 
         # Skip file header lines entirely
@@ -137,6 +153,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
         else:
             text = Text(line, style=ThemeKey.TOOL_RESULT)
         grid.add_row(Text(prefix, ThemeKey.TOOL_RESULT), text)
+        has_rendered_diff_content = True
 
     return grid
 

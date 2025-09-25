@@ -1,9 +1,9 @@
 """
-For GPT-5-Codex
-Difference from Bash tool:
-- `command` is list[str]
-- additional `workdir` parameter
-- support `apply_patch`
+Shell tool customized for gpt-5-codex apply_patch support.
+Key differences from the Bash tool:
+- `command` is provided as list[str]
+- includes an explicit `workdir` parameter
+- supports apply_patch operations
 """
 
 import asyncio
@@ -30,7 +30,8 @@ class ShellTool(ToolABC):
         return ToolSchema(
             name=SHELL,
             type="function",
-            description="""Runs a shell command and returns its output. Support apply_patch""",
+            description="""Runs a shell command and returns its output. Support apply_patch operations.""",
+            # apply_patch_tool_instructions are unnecessary for gpt-5-codex
             parameters={
                 "type": "object",
                 "properties": {
