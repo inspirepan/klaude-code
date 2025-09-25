@@ -1,9 +1,14 @@
 """
 For GPT-5-Codex
+Difference from Bash tool:
+- `command` is list[str]
+- additional `workdir` parameter
+- support `apply_patch`
 """
 
 import asyncio
 import os
+import shlex
 import subprocess
 
 from pydantic import BaseModel
@@ -94,7 +99,7 @@ class ShellTool(ToolABC):
 
         # Run the command directly with the actual argv list
         timeout_sec = max(0.0, args.timeout_ms / 1000.0)
-        cmd = ["bash", "-lc", " ".join(argv)]
+        cmd = ["bash", "-lc", cls._reconstruct_command(argv)]
         try:
             completed = await asyncio.to_thread(
                 subprocess.run,
@@ -163,3 +168,14 @@ class ShellTool(ToolABC):
             if not os.path.isdir(workdir):
                 raise ValueError(f"Working directory is not a directory: {workdir}")
         return workdir
+
+    @staticmethod
+    def _reconstruct_command(argv: list[str]) -> str:
+        connectors = {"|", "||", "&&", ";"}
+        parts: list[str] = []
+        for token in argv:
+            if token in connectors:
+                parts.append(token)
+            else:
+                parts.append(shlex.quote(token))
+        return " ".join(parts)

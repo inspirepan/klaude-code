@@ -1,3 +1,7 @@
+"""
+https://github.com/openai/openai-cookbook/blob/main/examples/gpt-5/apply_patch.py
+"""
+
 import os
 from enum import Enum
 from typing import Callable, Optional

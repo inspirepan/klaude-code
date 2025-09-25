@@ -110,6 +110,7 @@ class TestCommandSafety(unittest.TestCase):
         self.assert_safe("sed 's/x/y/g' file.txt")
         self.assert_safe("sed s/x/y/g file.txt")
         self.assert_safe("sed s|x|y|g file.txt")
+        self.assert_safe("sed -n 1p")
 
     def test_sed_unsafe_injection(self):
         self.assert_unsafe("sed 's/x/`uname`/g' file.txt")
@@ -174,6 +175,9 @@ class TestCommandSafety(unittest.TestCase):
     def test_sequences_safe(self):
         self.assert_safe("echo hi && ls")
         self.assert_safe("rg hello file.txt | wc -l")
+        self.assert_safe("git show HEAD:foo | sed -n '1p'")
+        self.assert_safe("awk 'NR>=10 && NR<=20 {print}'")
+        self.assert_safe("awk -F: '{print $1}' file.txt")
 
     def test_sequences_disallowed_shell_syntax(self):
         # command substitution and subshells should be rejected in sequences
@@ -182,6 +186,11 @@ class TestCommandSafety(unittest.TestCase):
     def test_cat_with_heredoc_redirection(self):
         """Ensure cat with heredoc redirection is rejected."""
         self.assert_unsafe("cat > filename <<EOF")
+
+    def test_awk_disallowed_options(self):
+        self.assert_unsafe("awk -f script.awk", "-f/--file")
+        self.assert_unsafe("awk 'system(\"ls\")'", "system() call")
+        self.assert_unsafe("awk 'print | \"cat\"'", "piping output")
 
 
 if __name__ == "__main__":

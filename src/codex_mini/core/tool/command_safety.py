@@ -57,6 +57,69 @@ def _has_shell_redirection(argv: list[str]) -> bool:
     return False
 
 
+def _is_safe_awk_program(program: str) -> SafetyCheckResult:
+    lowered = program.lower()
+
+    if "`" in program:
+        return SafetyCheckResult(False, "awk: backticks not allowed in program")
+    if "$(" in program:
+        return SafetyCheckResult(False, "awk: command substitution not allowed in program")
+    if "|&" in program:
+        return SafetyCheckResult(False, "awk: background pipeline not allowed in program")
+
+    if "system(" in lowered:
+        return SafetyCheckResult(False, "awk: system() call not allowed in program")
+
+    if re.search(r"(?<![|&>])\bprint\s*\|", program, re.IGNORECASE):
+        return SafetyCheckResult(False, "awk: piping output to external command not allowed")
+    if re.search(r"\bprintf\s*\|", program, re.IGNORECASE):
+        return SafetyCheckResult(False, "awk: piping output to external command not allowed")
+
+    return SafetyCheckResult(True)
+
+
+def _is_safe_awk_argv(argv: list[str]) -> SafetyCheckResult:
+    if len(argv) < 2:
+        return SafetyCheckResult(False, "awk: Missing program")
+
+    program: str | None = None
+
+    i = 1
+    while i < len(argv):
+        arg = argv[i]
+
+        if arg in {"-f", "--file", "--source"} or arg.startswith("-f"):
+            return SafetyCheckResult(False, "awk: -f/--file not allowed")
+
+        if arg in {"-e", "--exec"}:
+            if i + 1 >= len(argv):
+                return SafetyCheckResult(False, "awk: Missing program for -e")
+            script = argv[i + 1]
+            program_check = _is_safe_awk_program(script)
+            if not program_check.is_safe:
+                return program_check
+            if program is None:
+                program = script
+            i += 2
+            continue
+
+        if arg.startswith("-"):
+            i += 1
+            continue
+
+        if program is None:
+            program_check = _is_safe_awk_program(arg)
+            if not program_check.is_safe:
+                return program_check
+            program = arg
+        i += 1
+
+    if program is None:
+        return SafetyCheckResult(False, "awk: Missing program")
+
+    return SafetyCheckResult(True)
+
+
 def _is_safe_rm_argv(argv: list[str]) -> SafetyCheckResult:
     """Check safety of rm command arguments."""
     # Enforce strict safety rules for rm operands
@@ -324,7 +387,7 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
 
     if cmd0 == "sed":
         # Allow sed -n patterns (line printing)
-        if len(argv) == 4 and argv[1] == "-n" and _is_valid_sed_n_arg(argv[2]) and bool(argv[3]):
+        if len(argv) >= 3 and argv[1] == "-n" and _is_valid_sed_n_arg(argv[2]):
             return SafetyCheckResult(True)
         # Allow simple text replacement: sed 's/old/new/g' file
         # or sed -i 's/old/new/g' file for in-place editing
@@ -344,6 +407,9 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
             False,
             "sed: Only text replacement (s/old/new/) or line printing (-n 'Np') is allowed",
         )
+
+    if cmd0 == "awk":
+        return _is_safe_awk_argv(argv)
 
     return SafetyCheckResult(False, f"Command '{cmd0}' not in allow list")
 
@@ -365,6 +431,34 @@ def _contains_disallowed_shell_syntax(script: str) -> tuple[bool, str]:
         if re.search(pat, script):
             return True, desc
     return False, ""
+
+
+def _has_sequence_operator(script: str) -> bool:
+    in_single = False
+    in_double = False
+    i = 0
+    length = len(script)
+
+    while i < length:
+        ch = script[i]
+        if ch == "'" and not in_double:
+            in_single = not in_single
+            i += 1
+            continue
+        if ch == '"' and not in_single:
+            in_double = not in_double
+            i += 1
+            continue
+
+        if not in_single and not in_double:
+            if script.startswith("&&", i) or script.startswith("||", i):
+                return True
+            if ch == ";":
+                return True
+
+        i += 1
+
+    return False
 
 
 def _parse_word_only_commands_sequence(
@@ -448,6 +542,11 @@ def is_safe_command(command: str | list[str]) -> SafetyCheckResult:
     if argv:
         result = _is_safe_argv(argv)
         if result.is_safe:
+            return result
+        fallback_needed = result.error_msg == "Shell redirection and pipelines are not allowed in single commands"
+        if not fallback_needed:
+            fallback_needed = _has_sequence_operator(command_str)
+        if not fallback_needed:
             return result
 
     # allowed operators (&&, ||, ;, |) with no redirections or subshells.
