@@ -8,7 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from codex_mini.core.tool.tool_abc import ToolABC
-from codex_mini.core.tool.tool_context import current_session_var, read_limits_var
+from codex_mini.core.tool.tool_context import current_session_var, get_tool_policy
 from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import ToolResultItem
@@ -153,7 +153,7 @@ class ReadTool(ToolABC):
     @classmethod
     def _effective_limits(cls) -> tuple[int | None, int | None, int | None, int | None]:
         """Return effective limits based on current policy: char_per_line, global_line_cap, max_chars, max_kb"""
-        policy = read_limits_var.get()
+        policy = get_tool_policy()
         if policy.unrestricted:
             return None, None, None, None
         return CHAR_LIMIT_PER_LINE, GLOBAL_LINE_CAP, MAX_CHARS, MAX_KB

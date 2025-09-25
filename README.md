@@ -29,6 +29,7 @@ uv run cdx [--model <name>] [--model-config-json '<json>'] [--select-model] [--d
 - `--debug`/`-d`: verbose logs, debug display, and LLM client debugging.
 - `--continue`/`-c`: continue from the most recent session.
 - `--resume`/`-r`: select a specific session to resume from a list.
+- `--unrestricted`/`-u`: disable safety guardrails for file reads and shell command validation (use with caution).
 
 
 ### Non-Interactive Headless Mode (exec)

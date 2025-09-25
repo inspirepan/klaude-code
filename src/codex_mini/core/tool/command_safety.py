@@ -2,6 +2,8 @@ import os
 import re
 import shlex
 
+from codex_mini.core.tool.tool_context import get_tool_policy
+
 
 class SafetyCheckResult:
     """Result of a safety check with detailed error information."""
@@ -428,6 +430,9 @@ def strip_bash_lc(command: str) -> str:
 def is_safe_command(command: str | list[str]) -> SafetyCheckResult:
     """Conservatively determine if a command is known-safe."""
     # Handle both string and list[str] inputs
+    if get_tool_policy().unrestricted:
+        return SafetyCheckResult(True)
+
     if isinstance(command, list):
         argv = command
         command_str = " ".join(command)

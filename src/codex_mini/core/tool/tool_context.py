@@ -35,12 +35,16 @@ current_run_subtask_callback: ContextVar[Callable[[str, SubAgentType], Awaitable
 
 
 @dataclass(frozen=True)
-class ReadLimits:
+class ToolPolicy:
     unrestricted: bool = False
 
 
-read_limits_var: ContextVar[ReadLimits] = ContextVar("read_limits", default=ReadLimits())
+tool_policy_var: ContextVar[ToolPolicy] = ContextVar("tool_policy", default=ToolPolicy())
 
 
-def set_read_unrestricted(unrestricted: bool) -> None:
-    read_limits_var.set(ReadLimits(unrestricted=unrestricted))
+def set_unrestricted_mode(unrestricted: bool) -> None:
+    tool_policy_var.set(ToolPolicy(unrestricted=unrestricted))
+
+
+def get_tool_policy() -> ToolPolicy:
+    return tool_policy_var.get()

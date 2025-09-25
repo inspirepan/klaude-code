@@ -23,7 +23,7 @@ from codex_mini.config.list_model import display_models_and_providers
 from codex_mini.config.select_model import select_model_from_config
 from codex_mini.core.agent import AgentLLMClients
 from codex_mini.core.executor import Executor
-from codex_mini.core.tool.tool_context import set_read_unrestricted
+from codex_mini.core.tool.tool_context import set_unrestricted_mode
 from codex_mini.llm import LLMClientABC, create_llm_client
 from codex_mini.protocol import op
 from codex_mini.protocol.events import EndEvent, Event
@@ -104,7 +104,7 @@ class AppInitConfig:
     llm_config_override: LLMConfigParameter | None
     debug: bool
     ui_args: UIArgs | None
-    unrestricted_read: bool
+    unrestricted: bool
     vanilla: bool
     is_exec_mode: bool = False
 
@@ -127,7 +127,7 @@ class AppComponents:
 async def initialize_app_components(init_config: AppInitConfig) -> AppComponents:
     """Initialize all application components (LLM clients, executor, UI)."""
     # Set read limits policy
-    set_read_unrestricted(init_config.unrestricted_read)
+    set_unrestricted_mode(init_config.unrestricted)
 
     config = load_config()
     # Resolve main agent LLM config with override support
@@ -468,7 +468,12 @@ def exec_command(
     light: bool = typer.Option(False, "--light", help="Use light theme", rich_help_panel="Theme"),
     dark: bool = typer.Option(False, "--dark", help="Use dark theme", rich_help_panel="Theme"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
-    unrestricted_read: bool = typer.Option(False, "--unrestricted-read", "-u", help="Remove all read limits for files"),
+    unrestricted: bool = typer.Option(
+        False,
+        "--unrestricted",
+        "-u",
+        help="Disable safety guardrails for file reads and shell command validation (use with caution)",
+    ),
     vanilla: bool = typer.Option(False, "--vanilla", help="Use 'You're a help assistant' as system prompt"),
 ):
     """Execute non-interactively with provided input."""
@@ -510,7 +515,7 @@ def exec_command(
         llm_config_override=llm_config_override,
         debug=debug,
         ui_args=UIArgs(theme=set_theme, light=light, dark=dark),
-        unrestricted_read=unrestricted_read,
+        unrestricted=unrestricted,
         vanilla=vanilla,
         is_exec_mode=True,
     )
@@ -561,7 +566,12 @@ def main_callback(
     light: bool = typer.Option(False, "--light", help="Use light theme", rich_help_panel="Theme"),
     dark: bool = typer.Option(False, "--dark", help="Use dark theme", rich_help_panel="Theme"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
-    unrestricted_read: bool = typer.Option(False, "--unrestricted-read", "-u", help="Remove all read limits for files"),
+    unrestricted: bool = typer.Option(
+        False,
+        "--unrestricted",
+        "-u",
+        help="Disable safety guardrails for file reads and shell command validation (use with caution)",
+    ),
     vanilla: bool = typer.Option(False, "--vanilla", help="Use 'You're a help assistant' as system prompt"),
 ):
     """Codex CLI Minimal"""
@@ -599,7 +609,7 @@ def main_callback(
             llm_config_override=llm_config_override,
             debug=debug,
             ui_args=UIArgs(theme=set_theme, light=light, dark=dark),
-            unrestricted_read=unrestricted_read,
+            unrestricted=unrestricted,
             vanilla=vanilla,
         )
 
