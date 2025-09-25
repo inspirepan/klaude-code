@@ -190,7 +190,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.THINKING.value: "italic " + palette.grey1,
                 ThemeKey.THINKING_BOLD.value: "bold italic " + palette.grey1,
                 # TODO_ITEM
-                ThemeKey.TODO_EXPLANATION.value: palette.cyan + " italic",
+                ThemeKey.TODO_EXPLANATION.value: palette.orange,
                 ThemeKey.TODO_PENDING_MARK.value: "bold " + palette.grey1,
                 ThemeKey.TODO_COMPLETED_MARK.value: "bold " + palette.grey3,
                 ThemeKey.TODO_IN_PROGRESS_MARK.value: "bold " + palette.blue,

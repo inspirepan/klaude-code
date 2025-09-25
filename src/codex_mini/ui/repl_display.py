@@ -313,9 +313,9 @@ class REPLDisplay(DisplayABC):
             case tools.SHELL:
                 self.print(r_tools.render_shell_tool_call(e.arguments))
             case tools.TODO_WRITE:
-                self.print(r_tools.render_generic_tool_call("Update Todos", "", "▣"))
+                self.print(r_tools.render_generic_tool_call("Update Todos", "", "▪︎"))
             case tools.UPDATE_PLAN:
-                self.print(r_tools.render_generic_tool_call("Update Plan", "", "▣"))
+                self.print(r_tools.render_update_plan_tool_call(e.arguments))
             case tools.EXIT_PLAN_MODE:
                 self.print(
                     r_tools.render_plan(e.arguments, box_style=self.box_style(), code_theme=self.themes.code_theme)

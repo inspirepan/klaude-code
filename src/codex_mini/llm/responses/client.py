@@ -101,7 +101,7 @@ class ResponsesClient(LLMClientABC):
         stream = self.client.responses.create(
             model=str(param.model),
             tool_choice="auto",
-            parallel_tool_calls=False,
+            parallel_tool_calls=False,  # OpenAI's Codex is always False
             include=[
                 "reasoning.encrypted_content",
             ],

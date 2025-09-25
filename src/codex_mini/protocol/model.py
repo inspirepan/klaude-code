@@ -29,7 +29,6 @@ class TodoItem(BaseModel):
 class TodoUIExtra(BaseModel):
     todos: list[TodoItem]
     new_completed: list[str]
-    explanation: str | None = None
 
 
 class URLCitation(BaseModel):

@@ -54,6 +54,25 @@ def render_generic_tool_call(tool_name: str, arguments: str, markup: str = "•"
     return grid
 
 
+def render_update_plan_tool_call(arguments: str) -> RenderableType:
+    grid = create_grid()
+    tool_name_column = Text.assemble(("▪︎", ThemeKey.TOOL_MARK), " ", ("Update Plan", ThemeKey.TOOL_NAME))
+    explanation_column = Text("")
+
+    if arguments:
+        try:
+            payload = json.loads(arguments)
+        except json.JSONDecodeError:
+            explanation_column = Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS)
+        else:
+            explanation = payload.get("explanation")
+            if isinstance(explanation, str) and explanation.strip():
+                explanation_column = Text(explanation.strip(), style=ThemeKey.TODO_EXPLANATION)
+
+    grid.add_row(tool_name_column, explanation_column)
+    return grid
+
+
 def render_read_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
     render_result: Text = Text.assemble(("Read", ThemeKey.TOOL_NAME), " ")
@@ -264,16 +283,7 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
             text.stylize(text_style)
             todo_grid.add_row(Text(mark, style=mark_style), text)
 
-        if ui_extra.explanation and ui_extra.explanation.strip():
-            return Padding.indent(
-                Group(
-                    Text(ui_extra.explanation.strip(), style=ThemeKey.TODO_EXPLANATION),
-                    todo_grid,
-                ),
-                level=2,
-            )
-        else:
-            return Padding.indent(todo_grid, level=2)
+        return Padding.indent(todo_grid, level=2)
     except json.JSONDecodeError as e:
         return Text(str(e), style=ThemeKey.ERROR)
 

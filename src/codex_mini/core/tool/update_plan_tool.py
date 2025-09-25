@@ -97,7 +97,7 @@ class UpdatePlanTool(ToolABC):
         new_completed = get_new_completed_todos(session.todos, new_todos)
         session.todos = new_todos
 
-        ui_extra = TodoUIExtra(todos=new_todos, new_completed=new_completed, explanation=args.explanation)
+        ui_extra = TodoUIExtra(todos=new_todos, new_completed=new_completed)
 
         return ToolResultItem(
             status="success",
