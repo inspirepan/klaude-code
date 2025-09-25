@@ -19,8 +19,6 @@ from codex_mini.ui.theme import ThemeKey
 
 
 def render_path(path: str, style: str, is_directory: bool = False) -> Text:
-    from pathlib import Path
-
     if path.startswith(str(Path().cwd())):
         path = path.replace(str(Path().cwd()), "").lstrip("/")
     elif path.startswith(str(Path().home())):
@@ -221,18 +219,18 @@ def _looks_like_apply_patch(command: list[str] | None) -> bool:
     return False
 
 
-def _should_show_workdir(workdir: str) -> bool:
-    normalized = workdir.strip()
-    if normalized == ".":
-        return False
-    try:
-        cwd = Path.cwd().resolve()
-        candidate = Path(normalized).expanduser()
-        if not candidate.is_absolute():
-            candidate = (cwd / candidate).resolve()
-        return candidate != cwd
-    except Exception:
-        return True
+# def _should_show_workdir(workdir: str) -> bool:
+#     normalized = workdir.strip()
+#     if normalized == ".":
+#         return False
+#     try:
+#         cwd = Path.cwd().resolve()
+#         candidate = Path(normalized).expanduser()
+#         if not candidate.is_absolute():
+#             candidate = (cwd / candidate).resolve()
+#         return candidate != cwd
+#     except Exception:
+#         return True
 
 
 def render_shell_tool_call(arguments: str) -> RenderableType:
@@ -247,7 +245,7 @@ def render_shell_tool_call(arguments: str) -> RenderableType:
         )
 
     command: list[str] | None = payload.get("command")
-    workdir = payload.get("workdir", ".")
+    # workdir = payload.get("workdir", ".")
 
     if not isinstance(command, list):
         return Text.assemble(
@@ -264,10 +262,10 @@ def render_shell_tool_call(arguments: str) -> RenderableType:
     tool_name_column: Text = Text.assemble(("> ", ThemeKey.TOOL_MARK), ("Run Command", ThemeKey.TOOL_NAME))
     arg_column = Text(f"{command}", ThemeKey.TOOL_PARAM)
 
-    if isinstance(workdir, str) and _should_show_workdir(workdir):
-        arg_column = arg_column.append_text(Text("\nworkdir = ", ThemeKey.TOOL_PARAM_BOLD)).append_text(
-            render_path(workdir, ThemeKey.TOOL_PARAM_FILE_PATH, is_directory=True)
-        )
+    # if isinstance(workdir, str) and _should_show_workdir(workdir):
+    #     arg_column = arg_column.append_text(Text("\nworkdir = ", ThemeKey.TOOL_PARAM_BOLD)).append_text(
+    #         render_path(workdir, ThemeKey.TOOL_PARAM_FILE_PATH, is_directory=True)
+    #     )
 
     grid.add_row(tool_name_column, arg_column)
     return grid
