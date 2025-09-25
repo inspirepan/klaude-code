@@ -7,7 +7,7 @@ from codex_mini.ui.renderers.common import create_grid
 from codex_mini.ui.theme import ThemeKey
 
 
-def render_edit_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
+def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
     if diff_text == "":
         return Text("")
 
@@ -18,6 +18,8 @@ def render_edit_diff(diff_text: str, show_file_name: bool = False) -> Renderable
     new_ln: Optional[int] = None
     # Track if we're in untracked files section
     in_untracked_section = False
+    # Track whether we've already rendered a file header
+    has_rendered_file_header = False
 
     for i, line in enumerate(lines):
         # Check for untracked files section header
@@ -79,8 +81,10 @@ def render_edit_diff(diff_text: str, show_file_name: bool = False) -> Renderable
                 file_line.append_text(stats_text)
                 file_line.append(")")
 
-            grid.add_row("", "")
+            if has_rendered_file_header:
+                grid.add_row("", "")
             grid.add_row(Text("   ±", style=ThemeKey.TOOL_MARK), file_line)
+            has_rendered_file_header = True
             continue
 
         # Parse hunk headers to reset counters: @@ -l,s +l,s @@

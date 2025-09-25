@@ -74,7 +74,7 @@ def render_command_output(e: events.DeveloperMessageEvent) -> RenderableType:
         case CommandName.DIFF:
             if e.item.content is None or len(e.item.content) == 0:
                 return Padding.indent(Text("(no changes)", style=ThemeKey.TOOL_RESULT), level=2)
-            return r_diffs.render_edit_diff(e.item.content, show_file_name=True)
+            return r_diffs.render_diff(e.item.content, show_file_name=True)
         case CommandName.HELP:
             return Padding.indent(Text.from_markup(e.item.content or ""), level=2)
         case CommandName.PLAN:

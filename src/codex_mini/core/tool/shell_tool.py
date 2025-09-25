@@ -157,7 +157,7 @@ class ShellTool(ToolABC):
 
     @classmethod
     async def get_workdir(cls, arg_workdir: str) -> str:
-        if arg_workdir.strip() == ".":
+        if arg_workdir.strip() in (".", ".*"):
             workdir = os.getcwd()
         else:
             workdir = os.path.expanduser(arg_workdir)
