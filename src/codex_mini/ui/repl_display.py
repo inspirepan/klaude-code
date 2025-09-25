@@ -201,6 +201,7 @@ class REPLDisplay(DisplayABC):
                 self.print(r_user_input.render_interrupt())
             case events.ErrorEvent() as e:
                 self.print(r_errors.render_error(self.console.render_str(truncate_display(e.error_message))))
+                self.print()
                 self.spinner.stop()
             case events.EndEvent():
                 self.spinner.stop()
@@ -308,9 +309,9 @@ class REPLDisplay(DisplayABC):
             case tools.MULTI_EDIT:
                 self.print(r_tools.render_multi_edit_tool_call(e.arguments))
             case tools.BASH | tools.SHELL:
-                self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments, "$"))
+                self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments, ">"))
             case tools.TODO_WRITE:
-                self.print(r_tools.render_generic_tool_call("Update Todos", "", "☰"))
+                self.print(r_tools.render_generic_tool_call("Update Todos", "", "▣"))
             case tools.EXIT_PLAN_MODE:
                 self.print(
                     r_tools.render_plan(e.arguments, box_style=self.box_style(), code_theme=self.themes.code_theme)
