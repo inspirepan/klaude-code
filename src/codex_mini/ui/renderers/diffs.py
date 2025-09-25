@@ -1,6 +1,9 @@
 from typing import Optional
 
-from rich.console import RenderableType
+from rich import box
+from rich.console import Group, RenderableType
+from rich.padding import Padding
+from rich.panel import Panel
 from rich.text import Text
 
 from codex_mini.ui.renderers.common import create_grid
@@ -136,3 +139,25 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
         grid.add_row(Text(prefix, ThemeKey.TOOL_RESULT), text)
 
     return grid
+
+
+def render_diff_panel(
+    diff_text: str,
+    *,
+    show_file_name: bool = True,
+    heading: str = "Git Diff",
+    indent: int = 2,
+) -> RenderableType:
+    diff_body = render_diff(diff_text, show_file_name=show_file_name)
+    panel = Panel.fit(
+        Group(
+            Text(f" {heading} ", style="bold reverse"),
+            diff_body,
+        ),
+        border_style=ThemeKey.LINES,
+        title_align="center",
+        box=box.ROUNDED,
+    )
+    if indent <= 0:
+        return panel
+    return Padding.indent(panel, level=indent)

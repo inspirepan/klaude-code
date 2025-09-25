@@ -5,12 +5,11 @@ from typing import Any, Iterator, Literal, override
 
 from rich import box
 from rich.box import Box
-from rich.console import Console, Group
+from rich.console import Console
 from rich.padding import Padding
 from rich.status import Status
 from rich.style import Style, StyleType
 from rich.text import Text
-from rich.panel import Panel
 
 from codex_mini.protocol import events, tools
 from codex_mini.ui.debouncer import Debouncer
@@ -352,20 +351,7 @@ class REPLDisplay(DisplayABC):
             case _:
                 # handle bash `git diff`
                 if e.tool_name in (tools.BASH, tools.SHELL) and e.result.startswith("diff --git"):
-                    self.print(
-                        Padding.indent(
-                            Panel.fit(
-                                Group(
-                                    Text(" Git Diff ", style="bold reverse"),
-                                    r_diffs.render_diff(e.result, show_file_name=True),
-                                ),
-                                border_style=ThemeKey.LINES,
-                                title_align="center",
-                                box=box.ROUNDED,
-                            ),
-                            level=2,
-                        )
-                    )
+                    self.print(r_diffs.render_diff_panel(e.result, show_file_name=True))
                     return
 
                 if e.tool_name in (tools.BASH, tools.SHELL) and e.ui_extra:
