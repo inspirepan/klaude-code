@@ -202,7 +202,22 @@ def _looks_like_apply_patch(command: list[str] | None) -> bool:
         return True
     if first == "bash" and len(command) >= 3 and command[1] == "-lc":
         script = command[2].lstrip()
-        return script.startswith("apply_patch")
+        if script.startswith(("apply_patch", "applypatch")):
+            return True
+        if script.startswith("cd "):
+            try:
+                _, remainder = script.split("&&", 1)
+            except ValueError:
+                return False
+            return remainder.lstrip().startswith(("apply_patch", "applypatch"))
+        return False
+    if first == "cd" and "&&" in command:
+        try:
+            amp_index = command.index("&&")
+        except ValueError:
+            return False
+        remainder = command[amp_index + 1 :]
+        return bool(remainder) and remainder[0] in {"apply_patch", "applypatch"}
     return False
 
 

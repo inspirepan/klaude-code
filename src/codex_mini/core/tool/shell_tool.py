@@ -2,7 +2,6 @@
 Shell tool customized for gpt-5-codex apply_patch support.
 Key differences from the Bash tool:
 - `command` is provided as list[str]
-- includes an explicit `workdir` parameter
 - supports apply_patch operations
 """
 
@@ -52,7 +51,7 @@ class ShellTool(ToolABC):
 
     class ShellArguments(BaseModel):
         command: list[str]
-        workdir: str = "."
+        # workdir: str = "."
         timeout_ms: int = 60000
 
     @classmethod
@@ -74,7 +73,7 @@ class ShellTool(ToolABC):
                 output="No command provided",
             )
         # Validate and expand working directory
-        workdir = await cls.get_workdir(args.workdir)
+        # workdir = await cls.get_workdir(args.workdir)
 
         # Check for apply patch command
         maybe_parse_result = ApplyPatchHandler.maybe_parse_apply_patch_command(args.command)
@@ -104,7 +103,7 @@ class ShellTool(ToolABC):
                 text=True,
                 timeout=timeout_sec,
                 check=False,
-                cwd=workdir,
+                # cwd=workdir,
             )
 
             stdout = completed.stdout or ""
