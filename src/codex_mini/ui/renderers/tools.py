@@ -31,7 +31,7 @@ def render_path(path: str, style: str, is_directory: bool = False) -> Text:
     return Text(path, style=style)
 
 
-def render_any_tool_call(tool_name: str, arguments: str, markup: str = "•") -> RenderableType:
+def render_generic_tool_call(tool_name: str, arguments: str, markup: str = "•") -> RenderableType:
     grid = create_grid()
 
     tool_name_column = Text.assemble((markup, ThemeKey.TOOL_MARK), " ", (tool_name, ThemeKey.TOOL_NAME))

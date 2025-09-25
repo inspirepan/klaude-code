@@ -83,7 +83,6 @@ class ShellTool(ToolABC):
 
         # Strip bash -lc wrapper if present
         argv = strip_bash_lc_argv(args.command)
-        print(f"argv: {argv}")
 
         # Safety check: directly use argv list for efficiency
         safety_result = is_safe_command(argv)

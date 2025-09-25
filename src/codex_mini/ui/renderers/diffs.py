@@ -92,7 +92,7 @@ def render_edit_diff(diff_text: str, show_file_name: bool = False) -> Renderable
                 new_ln = new_start
             except Exception:
                 new_ln = None
-            grid.add_row(Text("   …", style=ThemeKey.TOOL_RESULT), "")
+            grid.add_row(Text("   ⋮", style=ThemeKey.TOOL_RESULT), "")
             continue
 
         # Skip file header lines entirely

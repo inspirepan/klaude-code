@@ -307,10 +307,10 @@ class REPLDisplay(DisplayABC):
                 self.print(r_tools.render_edit_tool_call(e.arguments))
             case tools.MULTI_EDIT:
                 self.print(r_tools.render_multi_edit_tool_call(e.arguments))
-            case tools.BASH:
-                self.print(r_tools.render_any_tool_call(e.tool_name, e.arguments, "$"))
+            case tools.BASH | tools.SHELL:
+                self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments, "$"))
             case tools.TODO_WRITE:
-                self.print(r_tools.render_any_tool_call("Update Todos", "", "☰"))
+                self.print(r_tools.render_generic_tool_call("Update Todos", "", "☰"))
             case tools.EXIT_PLAN_MODE:
                 self.print(
                     r_tools.render_plan(e.arguments, box_style=self.box_style(), code_theme=self.themes.code_theme)
@@ -320,7 +320,7 @@ class REPLDisplay(DisplayABC):
                 color = self.pick_sub_agent_color(sub_agent_type=tools.SubAgentType(e.tool_name)).color
                 self.print(r_tools.render_task_call(e, color))
             case _:
-                self.print(r_tools.render_any_tool_call(e.tool_name, e.arguments))
+                self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments))
 
     def display_tool_call_result(self, e: events.ToolResultEvent) -> None:
         if e.status == "error" and not e.ui_extra:
