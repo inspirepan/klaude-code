@@ -58,7 +58,6 @@ def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
         # shell and update_plan is special for gpt-5
         return get_tool_schemas(
             [
-                tools.TODO_WRITE,
                 tools.UPDATE_PLAN,
                 tools.SHELL,
                 tools.READ,

@@ -388,9 +388,8 @@ def edit_config():
     if not editor:
         # Try common editors in order of preference on other platforms
         for cmd in [
-            "zed",
-            "nvim",
             "code",
+            "nvim",
             "vim",
             "nano",
         ]:

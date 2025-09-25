@@ -75,7 +75,7 @@ class ExportCommand(CommandABC):
                 editor = "open -a TextEdit"
             else:
                 # Try common editor names on other platforms
-                for cmd in ["zed", "code", "nvim", "vim", "nano", "vi"]:
+                for cmd in ["code", "nvim", "vim", "nano", "vi"]:
                     try:
                         subprocess.run(["which", cmd], check=True, capture_output=True)
                         editor = cmd
