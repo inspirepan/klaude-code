@@ -178,7 +178,7 @@ class EditTool(ToolABC):
                     if existing_content.strip() != "":
                         return ToolResultItem(
                             status="error",
-                            output="<tool_use_error>Cannot create new file - file already exists and is not empty.</tool_use_error>",
+                            output="<tool_use_error>Cannot create new file - file already exists.</tool_use_error>",
                         )
                 except Exception:
                     return ToolResultItem(

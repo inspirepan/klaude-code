@@ -10,10 +10,10 @@ SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from codex_mini.core.tool.bash_tool import is_safe_command  # noqa: E402
+from codex_mini.core.tool.command_safety import is_safe_command  # noqa: E402
 
 
-class TestBashToolSafety(unittest.TestCase):
+class TestCommandSafety(unittest.TestCase):
     def setUp(self) -> None:
         self._orig_cwd = os.getcwd()
         self._tmp = tempfile.TemporaryDirectory()
@@ -178,6 +178,10 @@ class TestBashToolSafety(unittest.TestCase):
     def test_sequences_disallowed_shell_syntax(self):
         # command substitution and subshells should be rejected in sequences
         self.assert_unsafe("true; (echo hi)", "subshells")
+
+    def test_cat_with_heredoc_redirection(self):
+        """Ensure cat with heredoc redirection is rejected."""
+        self.assert_unsafe("cat > filename <<EOF")
 
 
 if __name__ == "__main__":

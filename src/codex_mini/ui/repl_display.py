@@ -350,8 +350,18 @@ class REPLDisplay(DisplayABC):
                 )
             case _:
                 # handle bash `git diff`
-                if e.tool_name == tools.BASH and e.result.startswith("diff --git"):
+                if e.tool_name in (tools.BASH, tools.SHELL) and e.result.startswith("diff --git"):
                     self.print(r_diffs.render_edit_diff(e.result, show_file_name=True))
+                    return
+
+                if e.tool_name in (tools.BASH, tools.SHELL) and e.ui_extra:
+                    # apply_patch diff result
+                    self.print(
+                        Padding.indent(
+                            r_diffs.render_edit_diff(e.ui_extra, show_file_name=True),
+                            level=2,
+                        )
+                    )
                     return
 
                 if len(e.result.strip()) == 0:

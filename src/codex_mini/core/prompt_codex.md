@@ -66,3 +66,12 @@ You are producing plain text that will later be styled by the CLI. Follow these 
   * Do not use URIs like file://, vscode://, or https://.
   * Do not provide range of lines
   * Examples: src/app.ts, src/app.ts:42, b/server/index.js#L10, C:\repo\project\main.rs:12:5
+
+
+Here is useful information about the environment you are running in:
+<env>
+Working directory: {working_directory}
+Today's Date: {date}
+Is directory a git repo: {is_git_repo}
+You are powered by the model: {model_name}
+</env>
