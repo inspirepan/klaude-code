@@ -101,7 +101,7 @@ class ToolResultEvent(BaseModel):
 
 
 class ResponseMetadataEvent(BaseModel):
-    """Showing model name & usage tokens"""
+    """Showing model name, usage tokens, task duration, and turn count."""
 
     session_id: str
     metadata: model.ResponseMetadataItem

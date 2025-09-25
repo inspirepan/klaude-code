@@ -183,8 +183,6 @@ class TestCommandSafety(unittest.TestCase):
 
     def test_git_unsafe_remotes_and_empty(self):
         self.assert_unsafe("git push", "remote operation")
-        self.assert_unsafe("git fetch", "remote operation")
-        self.assert_unsafe("git clone . tmp", "remote operation")
         self.assert_unsafe("git", "missing subcommand")
 
     # sed

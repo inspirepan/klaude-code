@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass
+import time
 from typing import Literal
 
 from codex_mini.core.prompt import get_system_prompt
@@ -115,6 +116,7 @@ class Agent:
             log_debug(f"Session {self.session.id} interrupted", style="yellow")
 
     async def run_task(self, user_input: str) -> AsyncGenerator[events.Event, None]:
+        task_started_at = time.perf_counter()
         yield events.TaskStartEvent(
             session_id=self.session.id,
             is_sub_agent=not self.session.is_root_session,
@@ -127,6 +129,7 @@ class Agent:
             accumulated=model.ResponseMetadataItem(model_name=self.get_llm_client().model_name)
         )
         last_assistant_message: events.AssistantMessageEvent | None = None
+        turn_count = 0
 
         while True:
             async for event in self.process_reminders():
@@ -150,6 +153,7 @@ class Agent:
                         )
                     case _ as metadata:
                         yield metadata
+            turn_count += 1
             if not turn_has_tool_call:
                 break
 
@@ -162,6 +166,9 @@ class Agent:
                 )
             else:
                 accumulated_metadata.usage.throughput_tps = None
+
+        accumulated_metadata.task_duration_s = time.perf_counter() - task_started_at
+        accumulated_metadata.turn_count = turn_count
 
         yield events.ResponseMetadataEvent(metadata=accumulated_metadata, session_id=self.session.id)
         self.session.append_history([accumulated_metadata])

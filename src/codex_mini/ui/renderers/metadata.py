@@ -18,31 +18,31 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
     if metadata.provider is not None:
         metadata_text.append_text(Text(" ")).append_text(Text(metadata.provider.lower(), style=ThemeKey.METADATA))
 
-    usage_parts: list[Text] = []
+    detail_parts: list[Text] = []
 
     if metadata.usage is not None:
-        usage_parts.append(
+        detail_parts.append(
             Text.assemble(
                 (format_number(metadata.usage.input_tokens), ThemeKey.METADATA_BOLD), (" input", ThemeKey.METADATA)
             )
         )
 
         if metadata.usage.cached_tokens > 0:
-            usage_parts.append(
+            detail_parts.append(
                 Text.assemble(
                     (format_number(metadata.usage.cached_tokens), ThemeKey.METADATA_BOLD),
                     (" cached", ThemeKey.METADATA),
                 )
             )
 
-        usage_parts.append(
+        detail_parts.append(
             Text.assemble(
                 (format_number(metadata.usage.output_tokens), ThemeKey.METADATA_BOLD), (" output", ThemeKey.METADATA)
             )
         )
 
         if metadata.usage.reasoning_tokens > 0:
-            usage_parts.append(
+            detail_parts.append(
                 Text.assemble(
                     (format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA_BOLD),
                     (" reasoning", ThemeKey.METADATA),
@@ -50,7 +50,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
             )
 
         if metadata.usage.context_usage_percent is not None:
-            usage_parts.append(
+            detail_parts.append(
                 Text.assemble(
                     (f"{metadata.usage.context_usage_percent:.1f}", ThemeKey.METADATA_BOLD),
                     ("% context", ThemeKey.METADATA),
@@ -58,7 +58,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
             )
 
         if metadata.usage.throughput_tps is not None:
-            usage_parts.append(
+            detail_parts.append(
                 Text.assemble(
                     (f"{metadata.usage.throughput_tps:.1f}", ThemeKey.METADATA_BOLD),
                     (" tps", ThemeKey.METADATA),
@@ -73,9 +73,27 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
         #         )
         #     )
 
-    metadata_text.append_text(Text(" · ", style=ThemeKey.METADATA)).append_text(
-        Text(", ", style=ThemeKey.METADATA).join(usage_parts)
-    )
+    if metadata.task_duration_s is not None:
+        detail_parts.append(
+            Text.assemble(
+                ("task ", ThemeKey.METADATA),
+                (f"{metadata.task_duration_s:.1f}", ThemeKey.METADATA_BOLD),
+                (" s", ThemeKey.METADATA),
+            )
+        )
+
+    if metadata.turn_count is not None:
+        detail_parts.append(
+            Text.assemble(
+                (str(metadata.turn_count), ThemeKey.METADATA_BOLD),
+                (" turns", ThemeKey.METADATA),
+            )
+        )
+
+    if detail_parts:
+        metadata_text.append_text(Text(" · ", style=ThemeKey.METADATA)).append_text(
+            Text(", ", style=ThemeKey.METADATA).join(detail_parts)
+        )
     return metadata_text
 
 
