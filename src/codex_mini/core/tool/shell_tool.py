@@ -30,7 +30,7 @@ class ShellTool(ToolABC):
         return ToolSchema(
             name=SHELL,
             type="function",
-            description="""Runs a shell command and returns its output. Support apply_patch operations.""",
+            description="""Runs a shell command and returns its output. Support apply_patch operations to Add File, Update File.""",
             # apply_patch_tool_instructions are unnecessary for gpt-5-codex
             parameters={
                 "type": "object",
@@ -158,16 +158,17 @@ class ShellTool(ToolABC):
 
     @classmethod
     async def get_workdir(cls, arg_workdir: str) -> str:
-        if arg_workdir.strip() in (".", ".*", ".}"):  # gpt-5-codex's wired behavior
-            workdir = os.getcwd()
-        else:
-            workdir = os.path.expanduser(arg_workdir)
-            if not os.path.isabs(workdir):
-                workdir = os.path.abspath(workdir)
-            if not os.path.exists(workdir):
-                raise ValueError(f"Working directory does not exist: {workdir}")
-            if not os.path.isdir(workdir):
-                raise ValueError(f"Working directory is not a directory: {workdir}")
+        if len(splits := arg_workdir.split()) > 1:  # gpt-5-codex's wired behavior
+            arg_workdir = splits[0]
+        if arg_workdir.strip() in (".", ".*", ".}", "./"):  # gpt-5-codex's wired behavior
+            return os.getcwd()
+        workdir = os.path.expanduser(arg_workdir)
+        if not os.path.isabs(workdir):
+            workdir = os.path.abspath(workdir)
+        if not os.path.exists(workdir):
+            raise ValueError(f"Working directory does not exist: {workdir}")
+        if not os.path.isdir(workdir):
+            raise ValueError(f"Working directory is not a directory: {workdir}")
         return workdir
 
     @staticmethod
