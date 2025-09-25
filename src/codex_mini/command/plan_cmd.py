@@ -23,6 +23,20 @@ class PlanCommand(CommandABC):
         return "run with plan mode"
 
     async def run(self, raw: str, agent: Agent) -> CommandResult:
+        if "gpt-5" in agent.get_llm_client().model_name:
+            return CommandResult(
+                agent_input=raw.strip(),
+                events=[
+                    DeveloperMessageEvent(
+                        session_id=agent.session.id,
+                        item=DeveloperMessageItem(
+                            content="plan mode is not supported for gpt-5 series",
+                            command_output=CommandOutput(command_name=self.name),
+                        ),
+                    ),
+                ],
+            )
+
         msg = agent.enter_plan_mode()
 
         return CommandResult(
@@ -31,7 +45,7 @@ class PlanCommand(CommandABC):
                 DeveloperMessageEvent(
                     session_id=agent.session.id,
                     item=DeveloperMessageItem(
-                        content="started new conversation",
+                        content="plan mode activated",
                         command_output=CommandOutput(command_name=self.name, ui_extra=msg),
                     ),
                 ),
