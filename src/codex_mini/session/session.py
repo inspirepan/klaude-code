@@ -284,7 +284,7 @@ class Session(BaseModel):
                     )
                 case model.ReasoningItem() as ri:
                     yield events.ThinkingEvent(
-                        content=ri.content or ("\n".join(ri.summary or [])),
+                        content=ri.content or ("\n\n".join(ri.summary or [])),
                         session_id=self.id,
                     )
                 case model.ResponseMetadataItem() as mt:

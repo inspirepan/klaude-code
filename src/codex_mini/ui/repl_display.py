@@ -408,6 +408,7 @@ class REPLDisplay(DisplayABC):
                     self.display_developer_message(e)
                     self.display_command_output(e)
                 case events.UserMessageEvent() as e:
+                    self.print()
                     self.print(r_user_input.render_user_input(e.content))
                 case events.ToolCallEvent() as e:
                     tool_call_dict[e.tool_call_id] = e

@@ -55,3 +55,4 @@ Tests are located in the `tests/` directory. Configuration files include `pyproj
 - Prompts are configured via `get_system_prompt` in `src/codex_mini/core/prompt.py`
 - Tools are configured via `get_main_agent_tools` and `get_sub_agent_tools` in `src/codex_mini/core/tool/tool_registry.py`
 - Reminders are configured via `get_main_agent_reminders` and `get_sub_agent_reminders` in `src/codex_mini/core/reminders.py`
+- Changes to tools located under `src/codex_mini/core/tool/` are not applied immediately; ask the user to restart the system for them to take effect.
