@@ -34,7 +34,7 @@ LIGHT_PALETTE = Palette(
     grey1="#667e90",
     grey2="#93a4b1",
     grey3="#c4ced4",
-    purple="#5f5fb7",
+    purple="#5f5fe7",
     diff_add="#333333 on #69db7c",
     diff_remove="#333333 on #ffa8b4",
     code_theme="ansi_light",
@@ -100,6 +100,7 @@ class ThemeKey(str, Enum):
     THINKING = "thinking"
     THINKING_BOLD = "thinking.bold"
     # TODO_ITEM
+    TODO_EXPLANATION = "todo.explanation"
     TODO_PENDING_MARK = "todo.pending.mark"
     TODO_COMPLETED_MARK = "todo.completed.mark"
     TODO_IN_PROGRESS_MARK = "todo.in_progress.mark"
@@ -189,6 +190,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.THINKING.value: "italic " + palette.grey1,
                 ThemeKey.THINKING_BOLD.value: "bold italic " + palette.grey1,
                 # TODO_ITEM
+                ThemeKey.TODO_EXPLANATION.value: palette.cyan + " italic",
                 ThemeKey.TODO_PENDING_MARK.value: "bold " + palette.grey1,
                 ThemeKey.TODO_COMPLETED_MARK.value: "bold " + palette.grey3,
                 ThemeKey.TODO_IN_PROGRESS_MARK.value: "bold " + palette.blue,

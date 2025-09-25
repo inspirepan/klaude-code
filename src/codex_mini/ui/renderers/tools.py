@@ -179,7 +179,7 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
         return Text.assemble(("  ✘", ThemeKey.ERROR_BOLD), " ", Text("(no content)", style=ThemeKey.ERROR))
     try:
         ui_extra = model.TodoUIExtra.model_validate_json(tr.ui_extra)
-        grid = create_grid()
+        todo_grid = create_grid()
         for todo in ui_extra.todos:
             is_new_completed = todo.content in ui_extra.new_completed
             match todo.status:
@@ -197,8 +197,18 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
                     text_style = ThemeKey.TODO_NEW_COMPLETED if is_new_completed else ThemeKey.TODO_COMPLETED
             text = Text(todo.content)
             text.stylize(text_style)
-            grid.add_row(Text(mark, style=mark_style), text)
-        return Padding.indent(grid, level=2)
+            todo_grid.add_row(Text(mark, style=mark_style), text)
+
+        if ui_extra.explanation and ui_extra.explanation.strip():
+            return Padding.indent(
+                Group(
+                    Text(ui_extra.explanation.strip(), style=ThemeKey.TODO_EXPLANATION),
+                    todo_grid,
+                ),
+                level=2,
+            )
+        else:
+            return Padding.indent(todo_grid, level=2)
     except json.JSONDecodeError as e:
         return Text(str(e), style=ThemeKey.ERROR)
 

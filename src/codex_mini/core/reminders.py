@@ -134,7 +134,7 @@ async def todo_not_used_recently_reminder(session: Session) -> model.DeveloperMe
     other_tool_call_count_befor_last_todo = 0
     for item in reversed(session.conversation_history):
         if isinstance(item, model.ToolCallItem):
-            if item.name == tools.TODO_WRITE:
+            if item.name in (tools.TODO_WRITE, tools.UPDATE_PLAN):
                 break
             other_tool_call_count_befor_last_todo += 1
             if other_tool_call_count_befor_last_todo >= 10:

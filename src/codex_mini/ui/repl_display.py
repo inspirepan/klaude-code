@@ -308,10 +308,14 @@ class REPLDisplay(DisplayABC):
                 self.print(r_tools.render_edit_tool_call(e.arguments))
             case tools.MULTI_EDIT:
                 self.print(r_tools.render_multi_edit_tool_call(e.arguments))
-            case tools.BASH | tools.SHELL:
+            case tools.BASH:
                 self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments, ">"))
+            case tools.SHELL:
+                self.print(r_tools.render_generic_tool_call("Run Command", e.arguments, ">"))
             case tools.TODO_WRITE:
                 self.print(r_tools.render_generic_tool_call("Update Todos", "", "▣"))
+            case tools.UPDATE_PLAN:
+                self.print(r_tools.render_generic_tool_call("Update Plan", "", "▣"))
             case tools.EXIT_PLAN_MODE:
                 self.print(
                     r_tools.render_plan(e.arguments, box_style=self.box_style(), code_theme=self.themes.code_theme)
@@ -339,7 +343,7 @@ class REPLDisplay(DisplayABC):
                         level=2,
                     )
                 )
-            case tools.TODO_WRITE:
+            case tools.TODO_WRITE | tools.UPDATE_PLAN:
                 self.print(r_tools.render_todo(e))
             case tools.EXIT_PLAN_MODE:
                 self.print(r_tools.render_exit_plan_result(e.status, e.ui_extra))

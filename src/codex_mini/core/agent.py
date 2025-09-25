@@ -332,7 +332,7 @@ class Agent:
                     session_id=self.session.id,
                     status=tool_result.status,
                 )
-                if tool_call.name == tools.TODO_WRITE:
+                if tool_call.name in (tools.TODO_WRITE, tools.UPDATE_PLAN):
                     yield events.TodoChangeEvent(
                         session_id=self.session.id,
                         todos=self.session.todos,
