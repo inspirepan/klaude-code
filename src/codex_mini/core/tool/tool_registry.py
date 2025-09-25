@@ -60,7 +60,6 @@ def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
                 tools.TODO_WRITE,
                 tools.SHELL,
                 tools.READ,
-                tools.EXIT_PLAN_MODE,
                 tools.TASK,
             ]
         )
