@@ -17,7 +17,6 @@ from codex_mini.ui.quote import Quote
 from codex_mini.ui.renderers.common import create_grid, truncate_display
 from codex_mini.ui.theme import ThemeKey
 
-
 INVALID_TOOL_CALL_MAX_LENGTH = 500
 
 

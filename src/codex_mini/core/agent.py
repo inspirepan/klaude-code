@@ -1,6 +1,6 @@
+import time
 from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass
-import time
 from typing import Literal
 
 from codex_mini.core.prompt import get_system_prompt

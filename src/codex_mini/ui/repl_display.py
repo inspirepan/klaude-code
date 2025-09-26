@@ -15,6 +15,7 @@ from codex_mini.protocol import events, tools
 from codex_mini.ui.debouncer import Debouncer
 from codex_mini.ui.display_abc import DisplayABC
 from codex_mini.ui.mdstream import MarkdownStream, NoInsetMarkdown
+from codex_mini.ui.osc94_progress_bar import OSC94States, emit_osc94
 from codex_mini.ui.quote import Quote
 from codex_mini.ui.renderers import annotations as r_annotations
 from codex_mini.ui.renderers import developer as r_developer
@@ -84,6 +85,7 @@ class REPLDisplay(DisplayABC):
                     color=self.get_sub_agent_color() if e.is_sub_agent else None,
                     sub_agent_type=e.sub_agent_type,
                 )
+                emit_osc94(OSC94States.INDETERMINATE)
             case events.DeveloperMessageEvent() as e:
                 self.display_developer_message(e)
                 self.display_command_output(e)
@@ -195,6 +197,7 @@ class REPLDisplay(DisplayABC):
             case events.TaskFinishEvent():
                 self.spinner.stop()
                 self.finish_assistant_stream()
+                emit_osc94(OSC94States.HIDDEN)
             case events.InterruptEvent() as e:
                 self.spinner.stop()
                 self.finish_assistant_stream()
