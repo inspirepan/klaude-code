@@ -51,7 +51,7 @@ def emit_osc94(
 ):
     if not is_ghostty:
         return
-    seq = f"\033]9;4;{state}"
+    seq = f"\033]9;4;{state.value}"
     if state == OSC94States.NORMAL:  # Normal progress needs percentage
         if progress is None:
             progress = 0

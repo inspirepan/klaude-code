@@ -80,7 +80,7 @@ def render_command_output(e: events.DeveloperMessageEvent) -> RenderableType:
         case CommandName.PLAN:
             grid = create_grid()
             if e.item.content is not None and len(e.item.content) > 0:
-                grid.add_row(Text(), Text(e.item.content))
+                grid.add_row(Text(" "), Text(e.item.content, style=ThemeKey.TOOL_RESULT))
             if e.item.command_output.ui_extra is not None and len(e.item.command_output.ui_extra) > 0:
                 grid.add_row(
                     Text("↓", style=ThemeKey.METADATA),
