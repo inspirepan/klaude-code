@@ -8,13 +8,17 @@ SPINNERS.update(
         "claude": {
             "interval": 100,
             "frames": ["✶", "✻", "✽", "✻", "✶", "✳", "✢", "·", "✢", "✳"],
-        }
+        },
+        "copilot": {
+            "interval": 100,
+            "frames": ["∙", "∙", "●", "◉", "◉", "◎", "◎", "○", "◦", "◦"],
+        },
     }
 )
 
 
 def spinner_name() -> str:
-    return "claude"
+    return "copilot"
 
 
 def render_status_text(main_text: str, main_style: ThemeKey) -> Text:
