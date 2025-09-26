@@ -280,6 +280,7 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
         "grep",
         "head",
         "ls",
+        "eza",
         "mkdir",
         "mv",
         "nl",

@@ -201,12 +201,15 @@ class REPLDisplay(DisplayABC):
             case events.InterruptEvent() as e:
                 self.spinner.stop()
                 self.finish_assistant_stream()
+                emit_osc94(OSC94States.HIDDEN)
                 self.print(r_user_input.render_interrupt())
             case events.ErrorEvent() as e:
+                emit_osc94(OSC94States.HIDDEN)
                 self.print(r_errors.render_error(self.console.render_str(truncate_display(e.error_message))))
                 self.print()
                 self.spinner.stop()
             case events.EndEvent():
+                emit_osc94(OSC94States.HIDDEN)
                 self.spinner.stop()
             # case _:
             #     self.print("[Event]", event.__class__.__name__, event)

@@ -2,6 +2,7 @@ from typing import override
 
 from codex_mini.protocol import events
 from codex_mini.ui.display_abc import DisplayABC
+from codex_mini.ui.osc94_progress_bar import emit_osc94, OSC94States
 
 
 class ExecDisplay(DisplayABC):
@@ -11,9 +12,13 @@ class ExecDisplay(DisplayABC):
     async def consume_event(self, event: events.Event) -> None:
         """Only handle TaskFinishEvent."""
         match event:
+            case events.TaskStartEvent():
+                emit_osc94(OSC94States.INDETERMINATE)
             case events.ErrorEvent() as e:
+                emit_osc94(OSC94States.HIDDEN)
                 print(f"Error: {e.error_message}")
             case events.TaskFinishEvent() as e:
+                emit_osc94(OSC94States.HIDDEN)
                 # Print the task result when task finishes
                 if e.task_result.strip():
                     print(e.task_result)
