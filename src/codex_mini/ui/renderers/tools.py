@@ -18,6 +18,9 @@ from codex_mini.ui.renderers.common import create_grid, truncate_display
 from codex_mini.ui.theme import ThemeKey
 
 
+INVALID_TOOL_CALL_MAX_LENGTH = 500
+
+
 def render_path(path: str, style: str, is_directory: bool = False) -> Text:
     if path.startswith(str(Path().cwd())):
         path = path.replace(str(Path().cwd()), "").lstrip("/")
@@ -47,7 +50,7 @@ def render_generic_tool_call(tool_name: str, arguments: str, markup: str = "•"
         else:
             arguments_column = Text(", ".join([f"{k}: {v}" for k, v in json_dict.items()]), ThemeKey.TOOL_PARAM)
     except json.JSONDecodeError:
-        arguments_column = Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS)
+        arguments_column = Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS)
     grid.add_row(tool_name_column, arguments_column)
     return grid
 
@@ -61,7 +64,9 @@ def render_update_plan_tool_call(arguments: str) -> RenderableType:
         try:
             payload = json.loads(arguments)
         except json.JSONDecodeError:
-            explanation_column = Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS)
+            explanation_column = Text(
+                arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS
+            )
         else:
             explanation = payload.get("explanation")
             if isinstance(explanation, str) and explanation.strip():
@@ -102,7 +107,9 @@ def render_read_tool_call(arguments: str) -> RenderableType:
                 .append_text(Text("-", ThemeKey.TOOL_PARAM_BOLD))
             )
     except json.JSONDecodeError:
-        render_result = render_result.append_text(Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS))
+        render_result = render_result.append_text(
+            Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS)
+        )
     grid.add_row(Text("←", ThemeKey.TOOL_MARK), render_result)
     return grid
 
@@ -122,7 +129,7 @@ def render_edit_tool_call(arguments: str) -> Text:
         render_result = (
             render_result.append_text(Text("Edit", ThemeKey.TOOL_NAME))
             .append_text(Text(" "))
-            .append_text(Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS))
+            .append_text(Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS))
         )
     return render_result
 
@@ -140,7 +147,9 @@ def render_multi_edit_tool_call(arguments: str) -> Text:
             .append_text(Text(" updates", ThemeKey.TOOL_PARAM_FILE_PATH))
         )
     except json.JSONDecodeError:
-        render_result = render_result.append_text(Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS))
+        render_result = render_result.append_text(
+            Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS)
+        )
     return render_result
 
 
@@ -160,7 +169,7 @@ def render_plan(arguments: str, *, box_style: Box | None = None, code_theme: str
             ("¶ ", ThemeKey.TOOL_MARK),
             ("Plan", ThemeKey.TOOL_NAME),
             " ",
-            Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS),
+            Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS),
         )
 
 
@@ -188,7 +197,7 @@ def render_task_call(e: events.ToolCallEvent, color: Color | None = None) -> Ren
             ("↓ ", ThemeKey.TOOL_MARK),
             ("Task", ThemeKey.TOOL_NAME),
             " ",
-            Text(e.arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS),
+            Text(e.arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS),
         )
 
 
@@ -219,18 +228,18 @@ def _looks_like_apply_patch(command: list[str] | None) -> bool:
     return False
 
 
-# def _should_show_workdir(workdir: str) -> bool:
-#     normalized = workdir.strip()
-#     if normalized == ".":
-#         return False
-#     try:
-#         cwd = Path.cwd().resolve()
-#         candidate = Path(normalized).expanduser()
-#         if not candidate.is_absolute():
-#             candidate = (cwd / candidate).resolve()
-#         return candidate != cwd
-#     except Exception:
-#         return True
+def _should_show_workdir(workdir: str) -> bool:
+    normalized = workdir.strip()
+    if normalized == ".":
+        return False
+    try:
+        cwd = Path.cwd().resolve()
+        candidate = Path(normalized).expanduser()
+        if not candidate.is_absolute():
+            candidate = (cwd / candidate).resolve()
+        return candidate != cwd
+    except Exception:
+        return True
 
 
 def render_shell_tool_call(arguments: str) -> RenderableType:
@@ -241,18 +250,18 @@ def render_shell_tool_call(arguments: str) -> RenderableType:
             ("> ", ThemeKey.TOOL_MARK),
             ("Run Command", ThemeKey.TOOL_NAME),
             " ",
-            Text(arguments, style=ThemeKey.INVALID_TOOL_CALL_ARGS),
+            Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS),
         )
 
     command: list[str] | None = payload.get("command")
-    # workdir = payload.get("workdir", ".")
+    workdir = payload.get("workdir", ".")
 
     if not isinstance(command, list):
         return Text.assemble(
             ("> ", ThemeKey.TOOL_MARK),
             ("Run Command", ThemeKey.TOOL_NAME),
             " ",
-            Text(str(payload), style=ThemeKey.INVALID_TOOL_CALL_ARGS),
+            Text(str(payload).strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS),
         )
 
     if _looks_like_apply_patch(command):
@@ -262,10 +271,10 @@ def render_shell_tool_call(arguments: str) -> RenderableType:
     tool_name_column: Text = Text.assemble(("> ", ThemeKey.TOOL_MARK), ("Run Command", ThemeKey.TOOL_NAME))
     arg_column = Text(f"{command}", ThemeKey.TOOL_PARAM)
 
-    # if isinstance(workdir, str) and _should_show_workdir(workdir):
-    #     arg_column = arg_column.append_text(Text("\nworkdir = ", ThemeKey.TOOL_PARAM_BOLD)).append_text(
-    #         render_path(workdir, ThemeKey.TOOL_PARAM_FILE_PATH, is_directory=True)
-    #     )
+    if isinstance(workdir, str) and _should_show_workdir(workdir):
+        arg_column = arg_column.append_text(Text("\nworkdir = ", ThemeKey.TOOL_PARAM_BOLD)).append_text(
+            render_path(workdir, ThemeKey.TOOL_PARAM_FILE_PATH, is_directory=True)
+        )
 
     grid.add_row(tool_name_column, arg_column)
     return grid

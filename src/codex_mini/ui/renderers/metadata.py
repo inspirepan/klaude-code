@@ -76,9 +76,8 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
     if metadata.task_duration_s is not None:
         detail_parts.append(
             Text.assemble(
-                ("task ", ThemeKey.METADATA),
                 (f"{metadata.task_duration_s:.1f}", ThemeKey.METADATA_BOLD),
-                (" s", ThemeKey.METADATA),
+                ("s", ThemeKey.METADATA),
             )
         )
 

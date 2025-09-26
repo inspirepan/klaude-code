@@ -39,6 +39,11 @@ class ShellTool(ToolABC):
                         "items": {"type": "string"},
                         "description": "The command to execute",
                     },
+                    "workdir": {
+                        "type": "string",
+                        "description": 'The working directory for the command, default is "."',
+                        "default": ".",
+                    },
                     "timeout_ms": {
                         "type": "integer",
                         "description": "The timeout for the command in milliseconds, default is 60000",
@@ -51,7 +56,7 @@ class ShellTool(ToolABC):
 
     class ShellArguments(BaseModel):
         command: list[str]
-        # workdir: str = "."
+        workdir: str = "."
         timeout_ms: int = 60000
 
     @classmethod
@@ -73,7 +78,7 @@ class ShellTool(ToolABC):
                 output="No command provided",
             )
         # Validate and expand working directory
-        # workdir = await cls.get_workdir(args.workdir)
+        workdir = await cls.get_workdir(args.workdir)
 
         # Check for apply patch command
         maybe_parse_result = ApplyPatchHandler.maybe_parse_apply_patch_command(args.command)
@@ -103,7 +108,7 @@ class ShellTool(ToolABC):
                 text=True,
                 timeout=timeout_sec,
                 check=False,
-                # cwd=workdir,
+                cwd=workdir,
             )
 
             stdout = completed.stdout or ""

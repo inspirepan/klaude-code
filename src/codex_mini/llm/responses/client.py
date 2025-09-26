@@ -177,7 +177,7 @@ class ResponsesClient(LLMClientABC):
                             last_token_time = time.time()
                             yield ToolCallItem(
                                 name=item.name,
-                                arguments=item.arguments,
+                                arguments=item.arguments.strip(),
                                 call_id=item.call_id,
                                 id=item.id,
                                 response_id=response_id,
