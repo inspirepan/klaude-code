@@ -188,7 +188,7 @@ class REPLDisplay(DisplayABC):
                             break
                 if len(active_form_status_text) > 0:
                     self.spinner.update(
-                        r_status.render_status_text(active_form_status_text + " …", ThemeKey.SPINNER_STATUS_BOLD)
+                        r_status.render_status_text(active_form_status_text, ThemeKey.SPINNER_STATUS_BOLD)
                     )
                 else:
                     self.spinner.update(r_status.render_status_text("Thinking …", ThemeKey.SPINNER_STATUS_BOLD))
@@ -408,7 +408,7 @@ class REPLDisplay(DisplayABC):
                         self.print(r_thinking.thinking_prefix())
                         self.print(
                             NoInsetMarkdown(
-                                e.content.strip(),
+                                e.content.rstrip(),
                                 code_theme=self.themes.code_theme,
                                 style=self.console.get_style(ThemeKey.THINKING),
                             )
