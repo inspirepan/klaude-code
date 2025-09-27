@@ -4,9 +4,17 @@ from dataclasses import dataclass
 from typing import Literal
 
 from codex_mini.core.prompt import get_system_prompt
-from codex_mini.core.reminders import Reminder
+from codex_mini.core.reminders import (
+    Reminder,
+    get_main_agent_reminders,
+    get_sub_agent_reminders,
+)
 from codex_mini.core.tool.tool_context import current_exit_plan_mode_callback, current_session_var
-from codex_mini.core.tool.tool_registry import run_tool
+from codex_mini.core.tool.tool_registry import (
+    get_main_agent_tools,
+    get_sub_agent_tools,
+    run_tool,
+)
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.protocol import events, llm_parameter, model, tools
 from codex_mini.session import Session
@@ -68,6 +76,8 @@ class Agent:
         # Keyed by tool_call_id
         self.turn_inflight_tool_calls: dict[str, UnfinishedToolCallItem] = {}
         self.session.model_name = llm_clients.main.model_name
+        # Ensure runtime configuration matches the active model on initialization
+        self.refresh_model_profile()
 
     def cancel(self) -> Iterable[events.Event]:
         """Handle agent cancellation and persist an interrupt marker and tool cancellations.
@@ -357,34 +367,67 @@ class Agent:
                 self.session.append_history([item])
                 yield events.DeveloperMessageEvent(session_id=self.session.id, item=item)
 
-    def sync_system_prompt(self, sub_agent_type: tools.SubAgentType | None = None) -> None:
+    def refresh_model_profile(self, sub_agent_type: tools.SubAgentType | None = None) -> None:
+        """Refresh system prompt, tools, and reminders for the active model."""
+
+        effective_sub_agent_type = sub_agent_type or self.session.sub_agent_type
+        active_client = self._resolve_llm_client_for(effective_sub_agent_type)
+        active_model_name = active_client.model_name
+        self.session.model_name = active_model_name
+
         if self.vanilla:
             self.session.system_prompt = "You're a help assistant"
+        else:
+            if effective_sub_agent_type == tools.SubAgentType.TASK:
+                prompt_key = "task"
+            elif effective_sub_agent_type == tools.SubAgentType.ORACLE:
+                prompt_key = "oracle"
+            else:
+                prompt_key = "main"
+            self.session.system_prompt = get_system_prompt(active_model_name, prompt_key)
+
+        if effective_sub_agent_type == tools.SubAgentType.TASK:
+            self.tools = get_sub_agent_tools(active_model_name, tools.SubAgentType.TASK)
+            self.reminders = get_sub_agent_reminders(self.vanilla, active_model_name)
+            return
+        if effective_sub_agent_type == tools.SubAgentType.ORACLE:
+            self.tools = get_sub_agent_tools(active_model_name, tools.SubAgentType.ORACLE)
+            self.reminders = get_sub_agent_reminders(self.vanilla, active_model_name)
             return
 
-        if sub_agent_type == tools.SubAgentType.TASK:
-            self.session.system_prompt = get_system_prompt(self.llm_clients.main.model_name, "task")
-        elif sub_agent_type == tools.SubAgentType.ORACLE:
-            self.session.system_prompt = get_system_prompt(self.llm_clients.main.model_name, "oracle")
-        else:
-            self.session.system_prompt = get_system_prompt(self.llm_clients.main.model_name, "main")
+        self.tools = get_main_agent_tools(active_model_name)
+        self.reminders = get_main_agent_reminders(self.vanilla, active_model_name)
 
     def set_llm_client(self, llm_client: LLMClientABC) -> None:
         if self.session.is_in_plan_mode:
             self.llm_clients.plan = llm_client
         else:
             self.llm_clients.main = llm_client
-        self.session.model_name = llm_client.model_name
+        self.refresh_model_profile()
 
     def get_llm_client(self) -> LLMClientABC:
-        if self.session.is_in_plan_mode and self.llm_clients.plan:
+        return self._resolve_llm_client_for()
+
+    def _resolve_llm_client_for(self, sub_agent_type: tools.SubAgentType | None = None) -> LLMClientABC:
+        effective_sub_agent_type = sub_agent_type or self.session.sub_agent_type
+
+        # Subagent
+        if effective_sub_agent_type == tools.SubAgentType.TASK:
+            return self.llm_clients.get_sub_agent_client(tools.SubAgentType.TASK)
+        if effective_sub_agent_type == tools.SubAgentType.ORACLE:
+            return self.llm_clients.get_sub_agent_client(tools.SubAgentType.ORACLE)
+
+        # Plan mode
+        if self.session.is_in_plan_mode and self.llm_clients.plan is not None:
             return self.llm_clients.plan
-        else:
-            return self.llm_clients.main
+
+        # Main agent
+        return self.llm_clients.main
 
     def exit_plan_mode(self) -> str:
         """Exit plan mode and switch back to executor LLM client, return a message for tool result"""
         self.session.is_in_plan_mode = False
+        self.refresh_model_profile()
         # TODO: If model is switched here, for Claude, the following error may occur
         # because Claude does not allow losing thinking during consecutive assistant and tool_result conversation turns when extended thinking is enabled
         #
@@ -405,7 +448,5 @@ class Agent:
 
     def enter_plan_mode(self) -> str:
         self.session.is_in_plan_mode = True
-        if self.llm_clients.plan is not None:
-            self.sync_system_prompt()
-            return self.llm_clients.plan.model_name
-        return self.llm_clients.main.model_name
+        self.refresh_model_profile()
+        return self.get_llm_client().model_name

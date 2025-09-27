@@ -10,8 +10,6 @@ from uuid import uuid4
 
 from codex_mini.command import dispatch_command
 from codex_mini.core.agent import Agent, AgentLLMClients
-from codex_mini.core.reminders import Reminder, get_main_agent_reminders, get_sub_agent_reminders
-from codex_mini.core.tool import get_main_agent_tools, get_sub_agent_tools
 from codex_mini.core.tool.tool_context import SubAgentResult, current_run_subtask_callback
 from codex_mini.protocol import events, llm_parameter, model
 from codex_mini.protocol.op import (
@@ -68,19 +66,15 @@ class ExecutorContext:
         # Load or create session first
         session = Session.load(operation.session_id)
 
-        system_reminders: list[Reminder] = get_main_agent_reminders(self.vanilla, self.llm_clients.main.model_name)
-
         # Create agent if not exists
         if operation.session_id not in self.active_agents:
             agent = Agent(
                 llm_clients=self.llm_clients,
                 session=session,
-                tools=get_main_agent_tools(self.llm_clients.main.model_name),
                 debug_mode=self.debug_mode,
                 vanilla=self.vanilla,
-                reminders=system_reminders,
             )
-            agent.sync_system_prompt()
+            agent.refresh_model_profile()
             async for evt in agent.replay_history():
                 await self.emit_event(evt)
             await self.emit_event(
@@ -243,12 +237,10 @@ class ExecutorContext:
         child_agent = Agent(
             llm_clients=child_llm_clients,
             session=child_session,
-            tools=get_sub_agent_tools(child_llm_clients.main.model_name, sub_agent_type),
             debug_mode=self.debug_mode,
             vanilla=self.vanilla,
-            reminders=get_sub_agent_reminders(self.vanilla, child_llm_clients.main.model_name),
         )
-        child_agent.sync_system_prompt(sub_agent_type)
+        child_agent.refresh_model_profile(sub_agent_type)
 
         try:
             # Not emit the subtask's user input since task tool call is already rendered
