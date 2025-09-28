@@ -317,8 +317,8 @@ class REPLDisplay(DisplayABC):
                 self.print(r_tools.render_multi_edit_tool_call(e.arguments))
             case tools.BASH:
                 self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments, ">"))
-            case tools.SHELL:
-                self.print(r_tools.render_shell_tool_call(e.arguments))
+            case tools.APPLY_PATCH:
+                self.print(r_tools.render_apply_patch_tool_call(e.arguments))
             case tools.TODO_WRITE:
                 self.print(r_tools.render_generic_tool_call("Update Todos", "", "▪︎"))
             case tools.UPDATE_PLAN:
@@ -362,11 +362,11 @@ class REPLDisplay(DisplayABC):
                 )
             case _:
                 # handle bash `git diff`
-                if e.tool_name in (tools.BASH, tools.SHELL) and e.result.startswith("diff --git"):
+                if e.tool_name in (tools.BASH, tools.APPLY_PATCH) and e.result.startswith("diff --git"):
                     self.print(r_diffs.render_diff_panel(e.result, show_file_name=True))
                     return
 
-                if e.tool_name in (tools.BASH, tools.SHELL) and e.ui_extra:
+                if e.tool_name in (tools.BASH, tools.APPLY_PATCH) and e.ui_extra:
                     # apply_patch diff result
                     self.print(
                         Padding.indent(

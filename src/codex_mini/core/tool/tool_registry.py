@@ -55,11 +55,12 @@ async def run_tool(tool_call: ToolCallItem) -> ToolResultItem:
 
 def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
     if "gpt-5" in model_name:
-        # shell and update_plan is special for gpt-5
+        # update_plan is special for gpt-5
         return get_tool_schemas(
             [
                 tools.UPDATE_PLAN,
-                tools.SHELL,
+                tools.BASH,
+                tools.APPLY_PATCH,
                 tools.READ,
                 tools.TASK,
             ]
@@ -82,4 +83,4 @@ def get_sub_agent_tools(model_name: str, sub_agent_type: tools.SubAgentType) -> 
     if sub_agent_type == tools.SubAgentType.TASK:
         return get_tool_schemas([tools.BASH, tools.READ, tools.EDIT, tools.MULTI_EDIT])
     elif sub_agent_type == tools.SubAgentType.ORACLE:
-        return get_tool_schemas([tools.READ, tools.SHELL])
+        return get_tool_schemas([tools.READ, tools.BASH])

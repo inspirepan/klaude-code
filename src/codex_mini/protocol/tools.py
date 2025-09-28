@@ -1,7 +1,7 @@
 from enum import Enum
 
 BASH = "Bash"
-SHELL = "shell"
+APPLY_PATCH = "apply_patch"
 EDIT = "Edit"
 MULTI_EDIT = "MultiEdit"
 READ = "Read"
