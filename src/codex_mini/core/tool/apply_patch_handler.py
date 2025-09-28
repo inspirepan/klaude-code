@@ -64,17 +64,31 @@ class ApplyPatchHandler:
         Returns:
             patch_text if successful, None if no match
         """
+        # Pattern for: cd <path> && apply_patch 'content' or apply_patch "content"
+        cd_quoted_pattern = r"^cd\s+\S+\s+&{1,2}\s+(?:apply_patch|applypatch)\s+(['\"])(.+)\1$"
+        match = re.search(cd_quoted_pattern, script, re.DOTALL)
+        if match:
+            return match.group(2)
+
         # Pattern for: apply_patch 'content' or apply_patch "content"
-        quoted_pattern = r"^(apply_patch|applypatch)\s+['\"](.+)['\"]$"
+        quoted_pattern = r"^(?:apply_patch|applypatch)\s+(['\"])(.+)\1$"
         match = re.search(quoted_pattern, script, re.DOTALL)
         if match:
             return match.group(2)
 
+        # Pattern for: cd <path> && apply_patch content (without quotes)
+        cd_unquoted_pattern = r"^cd\s+\S+\s+&{1,2}\s+(?:apply_patch|applypatch)\s+(.+)$"
+        match = re.search(cd_unquoted_pattern, script, re.DOTALL)
+        if match:
+            content = match.group(1).strip()
+            if not content.startswith("<<"):
+                return content
+
         # Pattern for: apply_patch content (without quotes)
-        unquoted_pattern = r"^(apply_patch|applypatch)\s+(.+)$"
+        unquoted_pattern = r"^(?:apply_patch|applypatch)\s+(.+)$"
         match = re.search(unquoted_pattern, script, re.DOTALL)
         if match:
-            content = match.group(2).strip()
+            content = match.group(1).strip()
             # Make sure it's not a heredoc
             if not content.startswith("<<"):
                 return content

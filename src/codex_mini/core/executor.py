@@ -382,7 +382,7 @@ class Executor:
                     f"Handling submission {submission.id} of type {submission.operation.type.value}", style="cyan"
                 )
 
-                # Execute to spawn the agent task in context
+            # Execute to spawn the agent task in context
             await submission.operation.execute(self.context)
 
             async def _await_agent_and_complete() -> None:

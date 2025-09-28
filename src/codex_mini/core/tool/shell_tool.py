@@ -29,7 +29,14 @@ class ShellTool(ToolABC):
         return ToolSchema(
             name=SHELL,
             type="function",
-            description="""Runs a shell command and returns its output. Support apply_patch operations to Add File, Update File.""",
+            description="""Runs a shell command and returns its output. Support apply_patch operations to Add File, Update File.
+
+You can invoke apply_patch like:
+
+```
+shell {"command":["apply_patch","*** Begin Patch\n*** Add File: hello.txt\n+Hello, world!\n*** End Patch\n"]}
+```
+""",
             # apply_patch_tool_instructions are unnecessary for gpt-5-codex
             parameters={
                 "type": "object",
