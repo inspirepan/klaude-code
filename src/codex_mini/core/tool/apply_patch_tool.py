@@ -177,7 +177,7 @@ class ApplyPatchTool(ToolABC):
         return ToolSchema(
             name=tools.APPLY_PATCH,
             type="function",
-            description="""Apply a unified diff patch to files within the workspace.""",
+            description="""Apply a unified diff patch to a file within the workspace.""",
             parameters={
                 "type": "object",
                 "properties": {
