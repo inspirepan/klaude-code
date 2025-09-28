@@ -422,11 +422,11 @@ def _contains_disallowed_shell_syntax(script: str) -> tuple[bool, str]:
     # Disallow subshells, command substitution, and redirections.
     # Conservative: detect raw chars; may reject some safe-but-quoted cases.
     disallowed_patterns = [
-        (r"\$\(", "command substitution $()"),  # Check $( before parentheses
+        (r"\$\(", "command substitution $()"),  # Check $( before other patterns
+        (r"<<<", "here-string redirection"),
+        (r"<<", "heredoc redirection"),
         (r"[()]", "subshells/parentheses"),
         (r"`", "backticks for command substitution"),
-        (r"<<<", "here-string redirection"),  # Check here-string before general redirection
-        (r"<<", "heredoc redirection"),  # Check heredoc before general redirection
         (r"[<>]", "input/output redirection"),
         (r"\|&", "pipe stdout+stderr"),
     ]

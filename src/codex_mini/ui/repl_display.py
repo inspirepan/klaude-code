@@ -90,6 +90,7 @@ class REPLDisplay(DisplayABC):
                 self.display_developer_message(e)
                 self.display_command_output(e)
             case events.TurnStartEvent() as e:
+                emit_osc94(OSC94States.INDETERMINATE)
                 with self.session_print_context(e.session_id):
                     self.print()
             case events.ThinkingDeltaEvent() as e:
