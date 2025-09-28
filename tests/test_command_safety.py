@@ -261,9 +261,9 @@ class TestCommandSafety(unittest.TestCase):
         self.assert_safe("awk 'NR>=10 && NR<=20 {print}'")
         self.assert_safe("awk -F: '{print $1}' file.txt")
 
-    def test_sequences_disallowed_shell_syntax(self):
-        # command substitution and subshells should be rejected in sequences
-        self.assert_unsafe("true; (echo hi)", "subshells")
+    def test_blacklist_allows_unknown_commands(self):
+        self.assert_safe("python --version")
+        self.assert_safe("custom-tool --flag value")
 
     def test_cat_with_heredoc_redirection(self):
         """Ensure cat with heredoc redirection is rejected."""

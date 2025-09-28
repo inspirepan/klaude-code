@@ -267,34 +267,6 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
     if cmd0 == "trash":
         return _is_safe_trash_argv(argv)
 
-    # simple allow list
-    if cmd0 in {
-        "env",
-        "cat",
-        "cd",
-        "cp",
-        "date",
-        "echo",
-        "false",
-        "file",
-        "grep",
-        "head",
-        "ls",
-        "eza",
-        "mkdir",
-        "mv",
-        "nl",
-        "pwd",
-        "tail",
-        "touch",
-        "trash",
-        "tree",
-        "true",
-        "wc",
-        "which",
-    }:
-        return SafetyCheckResult(True)
-
     if cmd0 == "find":
         unsafe_opts = {
             "-exec": "command execution",
@@ -414,68 +386,15 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
     if cmd0 == "awk":
         return _is_safe_awk_argv(argv)
 
-    return SafetyCheckResult(False, f"Command '{cmd0}' not in allow list")
+    # Default allow when command is not explicitly restricted
+    return SafetyCheckResult(True)
 
 
-def _contains_disallowed_shell_syntax(script: str) -> tuple[bool, str]:
-    """Check for disallowed shell syntax and return error details."""
-    # Disallow subshells, command substitution, and redirections.
-    # Conservative: detect raw chars; may reject some safe-but-quoted cases.
-    disallowed_patterns = [
-        (r"\$\(", "command substitution $()"),  # Check $( before other patterns
-        (r"<<<", "here-string redirection"),
-        (r"<<", "heredoc redirection"),
-        (r"[()]", "subshells/parentheses"),
-        (r"`", "backticks for command substitution"),
-        (r"[<>]", "input/output redirection"),
-        (r"\|&", "pipe stdout+stderr"),
-    ]
-    for pat, desc in disallowed_patterns:
-        if re.search(pat, script):
-            return True, desc
-    return False, ""
-
-
-def _has_sequence_operator(script: str) -> bool:
-    in_single = False
-    in_double = False
-    i = 0
-    length = len(script)
-
-    while i < length:
-        ch = script[i]
-        if ch == "'" and not in_double:
-            in_single = not in_single
-            i += 1
-            continue
-        if ch == '"' and not in_single:
-            in_double = not in_double
-            i += 1
-            continue
-
-        if not in_single and not in_double:
-            if script.startswith("&&", i) or script.startswith("||", i):
-                return True
-            if ch == ";":
-                return True
-
-        i += 1
-
-    return False
-
-
-def _parse_word_only_commands_sequence(
-    script: str,
-) -> tuple[list[list[str]] | None, str]:
-    """Parse command sequence and return error details if failed."""
+def _parse_command_sequence(script: str) -> tuple[list[list[str]] | None, str]:
+    """Parse command sequence separated by logical or pipe operators."""
     if not script:
         return None, "Empty script"
 
-    has_disallowed, syntax_error = _contains_disallowed_shell_syntax(script)
-    if has_disallowed:
-        return None, syntax_error
-
-    # Split by allowed operators: &&, ||, ;, |
     parts = re.split(r"\s*(?:\|\||&&|;|\|)\s*", script)
     commands: list[list[str]] = []
     try:
@@ -672,12 +591,11 @@ def is_safe_command(command: str | list[str]) -> SafetyCheckResult:
             return result
         fallback_needed = result.error_msg == "Shell redirection and pipelines are not allowed in single commands"
         if not fallback_needed:
-            fallback_needed = _has_sequence_operator(command_str)
+            fallback_needed = any(op in command_str for op in ("&&", "||", ";"))
         if not fallback_needed:
             return result
 
-    # allowed operators (&&, ||, ;, |) with no redirections or subshells.
-    seq, parse_error = _parse_word_only_commands_sequence(command_str)
+    seq, parse_error = _parse_command_sequence(command_str)
     if seq:
         for cmd in seq:
             result = _is_safe_argv(cmd)
