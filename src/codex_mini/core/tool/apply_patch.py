@@ -330,7 +330,7 @@ def peek_next_section(lines: list[str], index: int) -> tuple[list[str], list[Chu
 def text_to_patch(text: str, orig: dict[str, str]) -> tuple[Patch, int]:
     lines = text.strip().split("\n")
     if len(lines) < 2 or not lines[0].startswith("*** Begin Patch") or lines[-1] != "*** End Patch":
-        raise DiffError("Invalid patch text")
+        raise DiffError('Invalid patch text, expected "*** Begin Patch" and "*** End Patch"')
 
     parser = Parser(
         current_files=orig,

@@ -183,7 +183,7 @@ class ApplyPatchTool(ToolABC):
                 "properties": {
                     "patch": {
                         "type": "string",
-                        "description": "Patch content starting with *** Begin Patch",
+                        "description": "Patch content starting with *** Begin Patch, ending with *** End Patch.",
                     },
                 },
                 "required": ["patch"],
