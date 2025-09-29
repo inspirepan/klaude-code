@@ -114,7 +114,7 @@ class PromptToolkitInput(InputProviderABC):
             history_path.touch()
 
         # Build placeholder text with path and git branch info
-        placeholder_text = f" Working at {show_path_with_tilde()}"
+        placeholder_text = f"Working at {show_path_with_tilde()}"
         git_branch = get_current_git_branch()
         if git_branch:
             placeholder_text += f" [{git_branch}]"
