@@ -284,39 +284,6 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
                 return SafetyCheckResult(False, f"find: {unsafe_opts[arg]} option '{arg}' not allowed")
         return SafetyCheckResult(True)
 
-    # fd - modern find alternative, allow all options except exec
-    if cmd0 == "fd":
-        unsafe_opts = {
-            "-x": "command execution",
-            "--exec": "command execution",
-            "-X": "batch command execution",
-            "--exec-batch": "batch command execution",
-        }
-        for arg in argv[1:]:
-            if arg in unsafe_opts:
-                return SafetyCheckResult(False, f"fd: {unsafe_opts[arg]} option '{arg}' not allowed")
-        return SafetyCheckResult(True)
-
-    if cmd0 == "rg":
-        unsafe_noarg = {
-            "--search-zip": "compressed file search",
-            "-z": "compressed file search",
-        }
-        unsafe_witharg_prefix = {
-            "--pre": "preprocessor command execution",
-            "--hostname-bin": "hostname command execution",
-        }
-
-        for _, arg in enumerate(argv[1:], start=1):
-            if arg in unsafe_noarg:
-                return SafetyCheckResult(False, f"rg: {unsafe_noarg[arg]} option '{arg}' not allowed")
-            for opt, desc in unsafe_witharg_prefix.items():
-                if arg == opt:
-                    return SafetyCheckResult(False, f"rg: {desc} option '{opt}' not allowed")
-                if arg.startswith(opt + "="):
-                    return SafetyCheckResult(False, f"rg: {desc} option '{arg}' not allowed")
-        return SafetyCheckResult(True)
-
     if cmd0 == "git":
         sub = argv[1] if len(argv) > 1 else None
         if not sub:
@@ -567,23 +534,18 @@ def strip_bash_lc(command: str) -> str:
         return command
 
 
-def is_safe_command(command: str | list[str]) -> SafetyCheckResult:
+def is_safe_command(command: str) -> SafetyCheckResult:
     """Conservatively determine if a command is known-safe."""
     # Handle both string and list[str] inputs
     if get_tool_policy().unrestricted:
         return SafetyCheckResult(True)
 
-    if isinstance(command, list):
-        argv = command
-        command_str = " ".join(command)
-    else:
-        command_str = command
-        # First, try direct exec-style argv safety (e.g., "ls -l").
-        try:
-            argv = shlex.split(command_str, posix=True)
-        except ValueError:
-            argv = []
-            # Don't return error here, try sequence parsing below
+    # First, try direct exec-style argv safety (e.g., "ls -l").
+    try:
+        argv = shlex.split(command, posix=True)
+    except ValueError:
+        argv = []
+        # Don't return error here, try sequence parsing below
 
     if argv:
         result = _is_safe_argv(argv)
@@ -591,11 +553,11 @@ def is_safe_command(command: str | list[str]) -> SafetyCheckResult:
             return result
         fallback_needed = result.error_msg == "Shell redirection and pipelines are not allowed in single commands"
         if not fallback_needed:
-            fallback_needed = any(op in command_str for op in ("&&", "||", ";"))
+            fallback_needed = any(op in command for op in ("&&", "||", ";"))
         if not fallback_needed:
             return result
 
-    seq, parse_error = _parse_command_sequence(command_str)
+    seq, parse_error = _parse_command_sequence(command)
     if seq:
         for cmd in seq:
             result = _is_safe_argv(cmd)

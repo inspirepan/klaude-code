@@ -23,7 +23,6 @@ class BashTool(ToolABC):
 
 ### Usage Notes
 - When searching for text or files, prefer using `rg`, `rg --files` or `fd` respectively because `rg` and `fd` is much faster than alternatives like `grep` and `find`. (If these command is not found, then use alternatives.)
-- Disallow: redirection, heredocs, subshells/parentheses, command substitution
 
 ### Committing changes with git
 When the user asks you to create a new git commit, follow these steps carefully:
