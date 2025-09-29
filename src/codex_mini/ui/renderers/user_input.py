@@ -59,7 +59,7 @@ def render_user_input(content: str) -> RenderableType:
                     renderables.append(line_text)
                     continue
 
-        renderables.append(Quote(line_text, style=ThemeKey.USER_INPUT_DIM))
+        renderables.append(Quote(line_text, style=ThemeKey.USER_INPUT))
     return Group(*renderables)
 
 

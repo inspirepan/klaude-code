@@ -1,4 +1,3 @@
-import os
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Iterator, Literal, override
@@ -43,7 +42,6 @@ class REPLDisplay(DisplayABC):
         self.themes = get_theme(theme)
         self.console: Console = Console(theme=self.themes.app_theme)
         self.console.push_theme(self.themes.markdown_theme)
-        self.term_program = os.environ.get("TERM_PROGRAM", "").lower()
         self.spinner: Status = self.console.status(
             r_status.render_status_text("Thinking …", ThemeKey.SPINNER_STATUS_BOLD),
             spinner=r_status.spinner_name(),
@@ -249,8 +247,6 @@ class REPLDisplay(DisplayABC):
         return self.subagent_color
 
     def box_style(self) -> Box:
-        if self.term_program == "warpterminal":
-            return box.SQUARE
         return box.ROUNDED
 
     @contextmanager
@@ -380,14 +376,7 @@ class REPLDisplay(DisplayABC):
                     e.result = "(no content)"
                 self.print(r_tools.render_generic_tool_result(e.result))
 
-    def display_user_input(self, e: events.UserMessageEvent) -> None:
-        self.print(r_user_input.render_user_input(e.content))
-
     async def replay_history(self, history_events: events.ReplayHistoryEvent) -> None:
-        if history_events.is_load:
-            self.print()
-            self.print(r_metadata.render_resume_loading())
-        self.print()
         tool_call_dict: dict[str, events.ToolCallEvent] = {}
         for event in history_events.events:
             match event:
@@ -419,7 +408,6 @@ class REPLDisplay(DisplayABC):
                     self.display_developer_message(e)
                     self.display_command_output(e)
                 case events.UserMessageEvent() as e:
-                    self.print()
                     self.print(r_user_input.render_user_input(e.content))
                 case events.ToolCallEvent() as e:
                     tool_call_dict[e.tool_call_id] = e
@@ -434,11 +422,8 @@ class REPLDisplay(DisplayABC):
                     self.print(r_metadata.render_response_metadata(e))
                     self.print()
                 case events.InterruptEvent() as e:
+                    self.print()
                     self.print(r_user_input.render_interrupt())
-        if history_events.is_load:
-            self.print()
-            self.print(r_metadata.render_resume_loaded(history_events.updated_at))
-        self.print()
 
     def display_developer_message(self, e: events.DeveloperMessageEvent) -> None:
         if not e.item.memory_paths and not e.item.external_file_changes and not e.item.todo_use and not e.item.at_files:
