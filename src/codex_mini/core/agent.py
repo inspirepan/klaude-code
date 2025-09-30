@@ -376,7 +376,7 @@ class Agent:
         self.session.model_name = active_model_name
 
         if self.vanilla:
-            self.session.system_prompt = "You're a help assistant"
+            self.session.system_prompt = None
         else:
             if effective_sub_agent_type == tools.SubAgentType.TASK:
                 prompt_key = "task"

@@ -96,7 +96,7 @@ class ResponsesClient(LLMClientABC):
             # Remove None values
             payload = {k: v for k, v in payload.items() if v is not None}
 
-            log_debug("▷▷▷ llm [Complete Payload]", json.dumps(payload, indent=2, ensure_ascii=False), style="yellow")
+            log_debug("▷▷▷ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
 
         stream = self.client.responses.create(
             model=str(param.model),

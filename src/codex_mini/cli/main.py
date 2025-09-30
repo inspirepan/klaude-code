@@ -473,7 +473,7 @@ def exec_command(
         "-u",
         help="Disable safety guardrails for file reads and shell command validation (use with caution)",
     ),
-    vanilla: bool = typer.Option(False, "--vanilla", help="Use 'You're a help assistant' as system prompt"),
+    vanilla: bool = typer.Option(False, "--vanilla", help="Use vanilla model with no system prompt and reminders"),
 ):
     """Execute non-interactively with provided input."""
 
@@ -571,7 +571,7 @@ def main_callback(
         "-u",
         help="Disable safety guardrails for file reads and shell command validation (use with caution)",
     ),
-    vanilla: bool = typer.Option(False, "--vanilla", help="Use 'You're a help assistant' as system prompt"),
+    vanilla: bool = typer.Option(False, "--vanilla", help="Use vanilla model with no system prompt and reminders"),
 ):
     """Codex CLI Minimal"""
     # Only run interactive mode when no subcommand is invoked

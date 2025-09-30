@@ -77,7 +77,7 @@ class OpenAICompatibleClient(LLMClientABC):
                     "enable": True,
                 }  # OpenRouter: https://openrouter.ai/docs/use-cases/reasoning-tokens#anthropic-models-with-reasoning-tokens
             else:
-                extra_body["thinking"] = param.thinking.model_dump(exclude_none=True)  # Claude or Gemini
+                extra_body["thinking"] = param.thinking.model_dump(exclude_none=True)  # Claude or Gemini or GLM
         if param.provider_routing:
             extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
         if param.plugins:
@@ -100,7 +100,7 @@ class OpenAICompatibleClient(LLMClientABC):
             # Remove None values
             payload = {k: v for k, v in payload.items() if v is not None}
 
-            log_debug("▷▷▷ llm [Complete Payload]", json.dumps(payload, indent=2, ensure_ascii=False), style="yellow")
+            log_debug("▷▷▷ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
 
         stream = self.client.chat.completions.create(
             model=str(param.model),
@@ -148,7 +148,7 @@ class OpenAICompatibleClient(LLMClientABC):
                 continue
             delta = event.choices[0].delta
 
-            # Support Kimi K2'2 usage field in choice
+            # Support Kimi K2's usage field in choice
             if hasattr(event.choices[0], "usage") and getattr(event.choices[0], "usage"):
                 metadata_item.usage = convert_usage(
                     openai.types.CompletionUsage.model_validate(getattr(event.choices[0], "usage")), param.context_limit
