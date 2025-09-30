@@ -204,7 +204,7 @@ class REPLDisplay(DisplayABC):
                 self.print(r_user_input.render_interrupt())
             case events.ErrorEvent() as e:
                 emit_osc94(OSC94States.HIDDEN)
-                self.print(r_errors.render_error(self.console.render_str(truncate_display(e.error_message))))
+                self.print(r_errors.render_error(self.console.render_str(truncate_display(e.error_message)), indent=0))
                 self.print()
                 self.spinner.stop()
             case events.EndEvent():

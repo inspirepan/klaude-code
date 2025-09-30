@@ -21,6 +21,7 @@ class Palette:
     diff_add: str
     diff_remove: str
     code_theme: str
+    text_background: str
 
 
 LIGHT_PALETTE = Palette(
@@ -29,8 +30,8 @@ LIGHT_PALETTE = Palette(
     green="spring_green4",
     cyan="cyan",
     blue="#3678b7",
-    orange="#ce6346",
-    grey_blue="steel_blue3",
+    orange="#d77757",
+    grey_blue="steel_blue",
     grey1="#667e90",
     grey2="#93a4b1",
     grey3="#c4ced4",
@@ -38,6 +39,7 @@ LIGHT_PALETTE = Palette(
     diff_add="#333333 on #69db7c",
     diff_remove="#333333 on #ffa8b4",
     code_theme="ansi_light",
+    text_background="#f0f0f0",
 )
 
 DARK_PALETTE = Palette(
@@ -55,6 +57,7 @@ DARK_PALETTE = Palette(
     diff_add="#7fd963",
     diff_remove="#f26d78",
     code_theme="ansi_dark",
+    text_background="#373737",
 )
 
 
@@ -81,7 +84,6 @@ class ThemeKey(str, Enum):
     STATUS_HINT = "status.hint"
     # USER_INPUT
     USER_INPUT = "user.input"
-    USER_INPUT_DIM = "user.input.dim"
     USER_INPUT_AT_PATTERN = "user.at_pattern"
     USER_INPUT_SLASH_COMMAND = "user.slash_command"
     # REMINDER
@@ -162,9 +164,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.ERROR_BOLD.value: "bold " + palette.red,
                 ThemeKey.INTERRUPT.value: "reverse bold " + palette.red,
                 # USER_INPUT
-                ThemeKey.USER_INPUT.value: palette.cyan,
-                ThemeKey.USER_INPUT_DIM.value: palette.cyan + " dim",
-                ThemeKey.USER_INPUT_AT_PATTERN.value: palette.purple + " bold",
+                ThemeKey.USER_INPUT.value: palette.cyan + " on " + palette.text_background,
+                ThemeKey.USER_INPUT_AT_PATTERN.value: palette.cyan + " bold on " + palette.text_background,
                 ThemeKey.USER_INPUT_SLASH_COMMAND.value: "bold reverse " + palette.blue,
                 # METADATA
                 ThemeKey.METADATA.value: palette.grey_blue,
