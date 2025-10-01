@@ -79,6 +79,25 @@ class TestApplyPatchTool(BaseTempDirTest):
         self.assertIn("+new line", result.ui_extra)  # type:ignore[arg-type]
         self.assertEqual(Path("data.txt").read_text(), "new line\nkeep\n")
 
+    def test_apply_patch_add_file_absolute_path(self) -> None:
+        absolute_path = os.path.join(self._tmp.name, "absolute.txt")
+        patch_content = "\n".join(
+            [
+                "*** Begin Patch",
+                f"*** Add File: {absolute_path}",
+                "+hello",
+                "*** End Patch",
+            ]
+        )
+        payload = json.dumps({"patch": patch_content})
+
+        result = arun(ApplyPatchTool.call(payload))
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.output, "Done!")
+        self.assertTrue(Path(absolute_path).exists())
+        self.assertEqual(Path(absolute_path).read_text(), "hello")
+
 
 if __name__ == "__main__":
     unittest.main()

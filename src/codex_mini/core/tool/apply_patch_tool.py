@@ -38,15 +38,14 @@ class ApplyPatchHandler:
         session = current_session_var.get()
 
         def resolve_path(path: str) -> str:
-            if os.path.isabs(path):
-                raise ap.DiffError(f"Absolute path not allowed: {path}")
-            candidate = os.path.realpath(os.path.join(workspace_root, path))
-            try:
-                common = os.path.commonpath([workspace_root, candidate])
-            except ValueError:
-                raise ap.DiffError(f"Path escapes workspace: {path}") from None
-            if common != workspace_root:
-                raise ap.DiffError(f"Path escapes workspace: {path}")
+            candidate = os.path.realpath(path if os.path.isabs(path) else os.path.join(workspace_root, path))
+            if not os.path.isabs(path):
+                try:
+                    common = os.path.commonpath([workspace_root, candidate])
+                except ValueError:
+                    raise ap.DiffError(f"Path escapes workspace: {path}") from None
+                if common != workspace_root:
+                    raise ap.DiffError(f"Path escapes workspace: {path}")
             return candidate
 
         orig: dict[str, str] = {}

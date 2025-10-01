@@ -458,9 +458,6 @@ def open_file(path: str) -> str:
 
 
 def write_file(path: str, content: str) -> None:
-    if path.startswith("/"):
-        print("We do not support absolute paths.")
-        return
     if "/" in path:
         parent = "/".join(path.split("/")[:-1])
         os.makedirs(parent, exist_ok=True)
