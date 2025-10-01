@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Iterator, Literal, override
+from enum import Enum
+from typing import Any, Iterator, override
 
 from rich import box
 from rich.box import Box
@@ -37,6 +38,14 @@ class SessionStatus:
     sub_agent_type: tools.SubAgentType | None = None
 
 
+class Stage(Enum):
+    WAITING = "waiting"
+    THINKING = "thinking"
+    ASSISTANT = "assistant"
+    TOOL_CALL = "tool_call"
+    TOOL_RESULT = "tool_result"
+
+
 class REPLDisplay(DisplayABC):
     def __init__(self, theme: str | None = None):
         self.themes = get_theme(theme)
@@ -48,7 +57,7 @@ class REPLDisplay(DisplayABC):
             spinner_style=ThemeKey.SPINNER_STATUS,
         )
 
-        self.stage: Literal["waiting", "thinking", "assistant", "tool_call", "tool_result"] = "waiting"
+        self.stage: Stage = Stage.WAITING
         self.is_thinking_in_bold = False
 
         self.assistant_mdstream: MarkdownStream | None = None
@@ -98,14 +107,15 @@ class REPLDisplay(DisplayABC):
                 ):
                     return
                 self.spinner.stop()
-                if len(e.content.strip()) == 0 and self.stage != "thinking":
+                if len(e.content.strip()) == 0 and self.stage != Stage.THINKING:
                     # Filter leading empty delta events
                     return
-                if len(self.accumulated_thinking_text) == 0 and self.stage != "thinking":
+                if len(self.accumulated_thinking_text) == 0 and self.stage != Stage.THINKING:
                     # Filter leading multiple newlines
                     self.accumulated_thinking_text += remove_leading_newlines(e.content)
                 else:
                     self.accumulated_thinking_text += e.content
+                await self._enter_thinking_stage()
                 self.thinking_debouncer.schedule()
             case events.ThinkingEvent() as e:
                 if (
@@ -114,17 +124,18 @@ class REPLDisplay(DisplayABC):
                 ):
                     return
                 self.thinking_debouncer.cancel()
-                await self._flush_thinking_buffer()
-                self.print("\n")
-                self.is_thinking_in_bold = False
+                if e.content and self.stage == Stage.WAITING and len(self.accumulated_thinking_text.strip()) == 0:
+                    self.accumulated_thinking_text += e.content
+                await self.finish_thinking_stream(with_completion_marker=True)
                 self.spinner.start()
             case events.AssistantMessageDeltaEvent() as e:
                 if self.is_sub_agent_session(e.session_id):
                     return
-                if len(e.content.strip()) == 0 and self.stage != "assistant":
+                if len(e.content.strip()) == 0 and self.stage != Stage.ASSISTANT:
                     # Filter leading empty delta events
                     return
                 self.spinner.stop()
+                await self._transition_stage(Stage.ASSISTANT)
                 self.accumulated_assistant_text += e.content
                 if self.assistant_mdstream is None:
                     self.assistant_mdstream = MarkdownStream(
@@ -133,11 +144,11 @@ class REPLDisplay(DisplayABC):
                         console=self.console,
                         spinner=self.spinner.renderable,
                     )
-                    self.stage = "assistant"
                 self.assistant_debouncer.schedule()
             case events.AssistantMessageEvent() as e:
                 if self.is_sub_agent_session(e.session_id):
                     return
+                await self._transition_stage(Stage.ASSISTANT)
                 if self.assistant_mdstream is not None:
                     self.assistant_debouncer.cancel()
                     self.assistant_mdstream.update(e.content.strip(), final=True)
@@ -156,20 +167,20 @@ class REPLDisplay(DisplayABC):
                 self.assistant_mdstream = None
                 if e.annotations:
                     self.print(r_annotations.render_annotations(e.annotations))
+                await self._transition_stage(Stage.WAITING)
                 self.spinner.start()
             case events.TurnToolCallStartEvent() as e:
                 pass
             case events.ToolCallEvent() as e:
-                self.finish_assistant_stream()
+                await self._transition_stage(Stage.TOOL_CALL)
                 with self.session_print_context(e.session_id):
                     self.display_tool_call(e)
-                self.stage = "tool_call"
             case events.ToolResultEvent() as e:
                 if self.is_sub_agent_session(e.session_id):
                     return
+                await self._transition_stage(Stage.TOOL_RESULT)
                 self.spinner.stop()
                 self.display_tool_call_result(e)
-                self.stage = "tool_result"
                 self.spinner.start()
             case events.ResponseMetadataEvent() as e:
                 with self.session_print_context(e.session_id):
@@ -195,20 +206,22 @@ class REPLDisplay(DisplayABC):
                 pass
             case events.TaskFinishEvent():
                 self.spinner.stop()
-                self.finish_assistant_stream()
+                await self._transition_stage(Stage.WAITING)
                 emit_osc94(OSC94States.HIDDEN)
             case events.InterruptEvent() as e:
                 self.spinner.stop()
-                self.finish_assistant_stream()
+                await self._transition_stage(Stage.WAITING)
                 emit_osc94(OSC94States.HIDDEN)
                 self.print(r_user_input.render_interrupt())
             case events.ErrorEvent() as e:
                 emit_osc94(OSC94States.HIDDEN)
+                await self._transition_stage(Stage.WAITING)
                 self.print(r_errors.render_error(self.console.render_str(truncate_display(e.error_message)), indent=0))
                 self.print()
                 self.spinner.stop()
             case events.EndEvent():
                 emit_osc94(OSC94States.HIDDEN)
+                await self._transition_stage(Stage.WAITING)
                 self.spinner.stop()
             # case _:
             #     self.print("[Event]", event.__class__.__name__, event)
@@ -231,6 +244,45 @@ class REPLDisplay(DisplayABC):
             self.assistant_mdstream.update(self.accumulated_assistant_text, final=True)
             self.assistant_mdstream = None
             self.accumulated_assistant_text = ""
+        if self.stage == Stage.ASSISTANT:
+            self.stage = Stage.WAITING
+
+    async def finish_thinking_stream(self, *, with_completion_marker: bool = False) -> None:
+        self.thinking_debouncer.cancel()
+        await self._flush_thinking_buffer()
+        if self.stage == Stage.THINKING:
+            if with_completion_marker:
+                self.print()
+                self.print("😄")
+            else:
+                self.print()
+            self.stage = Stage.WAITING
+        self.is_thinking_in_bold = False
+        self.accumulated_thinking_text = ""
+
+    async def _transition_stage(self, new_stage: Stage) -> None:
+        if self.stage == new_stage:
+            return
+        await self._leave_current_stage()
+        self.stage = new_stage
+
+    async def _leave_current_stage(self) -> None:
+        current_stage = self.stage
+        match current_stage:
+            case Stage.ASSISTANT:
+                self.finish_assistant_stream()
+            case Stage.THINKING:
+                await self.finish_thinking_stream()
+            case _:
+                pass
+        if current_stage != Stage.WAITING:
+            self.stage = Stage.WAITING
+
+    async def _enter_thinking_stage(self) -> None:
+        if self.stage == Stage.THINKING:
+            return
+        await self._transition_stage(Stage.THINKING)
+        self.print(r_thinking.thinking_prefix())
 
     def is_sub_agent_session(self, session_id: str) -> bool:
         return session_id in self.session_map and self.session_map[session_id].is_subagent
@@ -295,9 +347,9 @@ class REPLDisplay(DisplayABC):
         """
         Handle markdown bold syntax in thinking text.
         """
-        if self.stage != "thinking":
+        if self.stage != Stage.THINKING:
             self.print(r_thinking.thinking_prefix())
-            self.stage = "thinking"
+            self.stage = Stage.THINKING
         self.print(r_thinking.render_thinking_content(content, self.is_thinking_in_bold), end="")
         # Toggle bold state when an odd number of '**' markers are seen
         if content.count("**") % 2 == 1:
