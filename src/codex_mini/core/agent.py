@@ -16,6 +16,9 @@ from codex_mini.trace import log_debug
 # Constant for cancellation message
 CANCEL_OUTPUT = "[Request interrupted by user for tool use]"
 
+FIRST_EVENT_TIMEOUT_S = 30.0
+MAX_FAILED_TURN_RETRIES = 2
+
 
 @dataclass
 class AgentLLMClients:
@@ -133,90 +136,102 @@ class Agent:
         )
         last_assistant_message: events.AssistantMessageEvent | None = None
         turn_count = 0
-        failed_turn_attempts = 0
-        max_failed_turn_retries = 2
 
         while True:
+            # Each outer loop is a new turn. Process reminders at the start of each turn.
             async for event in self.process_reminders():
                 yield event
-            turn_has_tool_call = False
-            turn_failed = False
 
-            def handle_turn_event(turn_event: events.Event) -> events.Event | None:
-                nonlocal turn_has_tool_call, turn_failed, last_assistant_message
-                match turn_event:
-                    case events.ToolCallEvent() as tc:
-                        turn_has_tool_call = True
-                        return tc
-                    case events.ToolResultEvent() as tr:
-                        return tr
-                    case events.AssistantMessageEvent() as am:
-                        if am.content.strip() != "":
-                            last_assistant_message = am
-                        return am
-                    case events.ErrorEvent() as err:
-                        turn_failed = True
-                        return err
-                    case events.ResponseMetadataEvent() as e:
-                        self._merge_turn_metadata(
-                            metadata_merge_state,
-                            e.metadata,
-                        )
-                        status = e.metadata.status
-                        if status is not None and status != "completed":
+            failed_turn_attempts = 0
+            while failed_turn_attempts <= MAX_FAILED_TURN_RETRIES:
+                # The inner loop handles the execution and potential retries of a single turn.
+                turn_has_tool_call = False
+                turn_failed = False
+
+                def handle_turn_event(turn_event: events.Event) -> events.Event | None:
+                    nonlocal turn_has_tool_call, turn_failed, last_assistant_message
+                    match turn_event:
+                        case events.ToolCallEvent() as tc:
+                            turn_has_tool_call = True
+                            return tc
+                        case events.ToolResultEvent() as tr:
+                            return tr
+                        case events.AssistantMessageEvent() as am:
+                            if am.content.strip() != "":
+                                last_assistant_message = am
+                            return am
+                        case events.ErrorEvent() as err:
                             turn_failed = True
-                        return None
-                    case _ as other:
-                        return other
+                            return err
+                        case events.ResponseMetadataEvent() as e:
+                            self._merge_turn_metadata(
+                                metadata_merge_state,
+                                e.metadata,
+                            )
+                            status = e.metadata.status
+                            if status is not None and status != "completed":
+                                turn_failed = True
+                            return None
+                        case _ as other:
+                            return other
 
-            turn_generator = self.run_turn()
-            first_event_timeout_s = 30.0
-            turn_timed_out = False
+                turn_generator = self.run_turn()
+                turn_timed_out = False
 
-            try:
-                async with asyncio.timeout(first_event_timeout_s):
-                    # Process events until the first meaningful one, with a timeout.
-                    # A "meaningful" event is any event other than TurnStartEvent.
+                try:
+                    async with asyncio.timeout(FIRST_EVENT_TIMEOUT_S):
+                        # Process events until the first meaningful one, with a timeout.
+                        # A "meaningful" event is any event other than TurnStartEvent.
+                        async for turn_event in turn_generator:
+                            event_to_yield = handle_turn_event(turn_event)
+                            if event_to_yield is not None:
+                                yield event_to_yield
+
+                            # After yielding, check if it was a meaningful event to break the timeout context
+                            if not isinstance(turn_event, events.TurnStartEvent):
+                                break
+                except (TimeoutError, asyncio.TimeoutError):
+                    turn_timed_out = True
+                    turn_failed = True
+                    if self.debug_mode:
+                        log_debug("Turn timed out before first meaningful event, retrying", style="red")
+                    yield events.ErrorEvent(error_message=f"Turn timed out after {FIRST_EVENT_TIMEOUT_S} seconds.")
+                    # Ensure pending calls are cleared on timeout
+                    self.turn_inflight_tool_calls.clear()
+                    try:
+                        await turn_generator.aclose()
+                    except Exception:
+                        pass  # Suppress errors on closing the generator
+
+                # If the turn hasn't timed out, continue processing the rest of the events.
+                if not turn_timed_out:
                     async for turn_event in turn_generator:
                         event_to_yield = handle_turn_event(turn_event)
                         if event_to_yield is not None:
                             yield event_to_yield
 
-                        # After yielding, check if it was a meaningful event to break the timeout context
-                        if not isinstance(turn_event, events.TurnStartEvent):
-                            break
-            except TimeoutError:
-                turn_timed_out = True
-                turn_failed = True
-                if self.debug_mode:
-                    log_debug("Turn timed out before first meaningful event, retrying", style="red")
-                yield events.ErrorEvent(error_message="Turn timed out before first meaningful event.")
-                # Ensure pending calls are cleared on timeout
-                self.turn_inflight_tool_calls.clear()
-                try:
-                    await turn_generator.aclose()
-                except Exception:
-                    pass  # Suppress errors on closing the generator
-
-            # If the turn hasn't timed out, continue processing the rest of the events.
-            if not turn_timed_out:
-                async for turn_event in turn_generator:
-                    event_to_yield = handle_turn_event(turn_event)
-                    if event_to_yield is not None:
-                        yield event_to_yield
-            if turn_failed:
-                failed_turn_attempts += 1
-                if failed_turn_attempts >= max_failed_turn_retries:
-                    if self.debug_mode:
-                        log_debug(
-                            "Maximum consecutive failed turns reached, aborting task",
-                            style="red",
-                        )
+                if not turn_failed:
+                    # If the turn succeeded, break the inner retry loop.
                     break
+
+                # If the turn failed, increment the attempt counter and the inner loop will continue.
+                failed_turn_attempts += 1
                 if self.debug_mode:
-                    log_debug("Retrying turn after failed LLM response", style="yellow")
-                continue
-            failed_turn_attempts = 0
+                    log_debug(
+                        f"Retrying turn {failed_turn_attempts}/{MAX_FAILED_TURN_RETRIES}",
+                        style="yellow",
+                    )
+            else:
+                # This 'else' belongs to the 'while' loop. It runs if the loop completes without a 'break'.
+                # This means all retries have been exhausted and failed.
+                if self.debug_mode:
+                    log_debug(
+                        "Maximum consecutive failed turns reached, aborting task",
+                        style="red",
+                    )
+                yield events.ErrorEvent(error_message=f"Turn failed after {MAX_FAILED_TURN_RETRIES} retries.")
+                return  # Exit the entire run_task method
+
             turn_count += 1
             if not turn_has_tool_call:
                 break
