@@ -1,4 +1,3 @@
-from collections.abc import Iterable
 from typing import Literal
 
 from pydantic import BaseModel
@@ -141,7 +140,7 @@ HistoryItemEvent = (
 
 class ReplayHistoryEvent(BaseModel):
     session_id: str
-    events: Iterable[HistoryItemEvent]
+    events: list[HistoryItemEvent]
     updated_at: float
     is_load: bool = True
 

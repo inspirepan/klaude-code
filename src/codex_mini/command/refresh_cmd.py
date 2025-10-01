@@ -34,7 +34,7 @@ class RefreshTerminalCommand(CommandABC):
                 ),
                 events.ReplayHistoryEvent(
                     session_id=agent.session.id,
-                    events=agent.session.get_history_item(),
+                    events=list(agent.session.get_history_item()),
                     updated_at=agent.session.updated_at,
                     is_load=False,
                 ),

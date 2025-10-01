@@ -261,7 +261,7 @@ class Agent:
             return
 
         yield events.ReplayHistoryEvent(
-            events=self.session.get_history_item(), updated_at=self.session.updated_at, session_id=self.session.id
+            events=list(self.session.get_history_item()), updated_at=self.session.updated_at, session_id=self.session.id
         )
 
     async def run_turn(self) -> AsyncGenerator[events.Event, None]:
