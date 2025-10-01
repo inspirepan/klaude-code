@@ -79,5 +79,6 @@ class TestApplyPatchTool(BaseTempDirTest):
         self.assertIn("+new line", result.ui_extra)  # type:ignore[arg-type]
         self.assertEqual(Path("data.txt").read_text(), "new line\nkeep\n")
 
+
 if __name__ == "__main__":
     unittest.main()

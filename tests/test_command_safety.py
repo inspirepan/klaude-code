@@ -274,7 +274,7 @@ class TestCommandSafety(unittest.TestCase):
 
 class TestParseCommandSequence(unittest.TestCase):
     def test_basic_split_and_quotes(self):
-        script = 'echo hi && ls -l | grep x ; echo "a|b && c" || awk \'{print $1}\' file.txt'
+        script = "echo hi && ls -l | grep x ; echo \"a|b && c\" || awk '{print $1}' file.txt"
         seq, err = _parse_command_sequence(script)
         self.assertIsNone(err or None)
         assert seq is not None
@@ -301,7 +301,7 @@ class TestParseCommandSequence(unittest.TestCase):
 
     def test_pipes_inside_quotes(self):
         cmd = (
-            'nl -ba Claude_4.txt | rg -n '
+            "nl -ba Claude_4.txt | rg -n "
             '"antml|voice_note|election_info|search_instructions|citation_instructions|artifacts_info|thinking_mode" '
             "-n --no-heading"
         )
@@ -313,6 +313,7 @@ class TestParseCommandSequence(unittest.TestCase):
         # second command is rg with the quoted pattern kept as one token
         self.assertEqual(seq[1][0], "rg")
         self.assertIn("antml|voice_note", seq[1][2])
+
 
 if __name__ == "__main__":
     unittest.main()

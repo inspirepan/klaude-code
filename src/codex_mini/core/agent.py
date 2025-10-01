@@ -4,17 +4,9 @@ from dataclasses import dataclass
 from typing import Literal
 
 from codex_mini.core.prompt import get_system_prompt
-from codex_mini.core.reminders import (
-    Reminder,
-    get_main_agent_reminders,
-    get_sub_agent_reminders,
-)
+from codex_mini.core.reminders import Reminder, get_main_agent_reminders, get_sub_agent_reminders
 from codex_mini.core.tool.tool_context import current_exit_plan_mode_callback, current_session_var
-from codex_mini.core.tool.tool_registry import (
-    get_main_agent_tools,
-    get_sub_agent_tools,
-    run_tool,
-)
+from codex_mini.core.tool.tool_registry import get_main_agent_tools, get_sub_agent_tools, run_tool
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.protocol import events, llm_parameter, model, tools
 from codex_mini.session import Session

@@ -11,9 +11,9 @@ from codex_mini.core.tool import apply_patch as apply_patch_module
 from codex_mini.core.tool.tool_abc import ToolABC
 from codex_mini.core.tool.tool_context import current_session_var
 from codex_mini.core.tool.tool_registry import register
+from codex_mini.protocol import tools
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import ToolResultItem
-from codex_mini.protocol import tools
 
 
 class ApplyPatchHandler:

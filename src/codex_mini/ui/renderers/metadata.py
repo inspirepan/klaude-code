@@ -165,6 +165,7 @@ def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> R
         "",  # empty line
     )
 
+
 def render_resume_loaded(updated_at: float) -> RenderableType:
     from time import localtime, strftime
 
