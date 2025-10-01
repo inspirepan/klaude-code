@@ -67,8 +67,8 @@ git commit -m "$(cat <<'EOF'
                     },
                     "timeout_ms": {
                         "type": "integer",
-                        "description": "The timeout for the command in milliseconds, default is 60000",
-                        "default": 60000,
+                        "description": "The timeout for the command in milliseconds, default is 120000",
+                        "default": 120000,
                     },
                 },
                 "required": ["command"],
@@ -77,7 +77,7 @@ git commit -m "$(cat <<'EOF'
 
     class BashArguments(BaseModel):
         command: str
-        timeout_ms: int = 60000
+        timeout_ms: int = 120000
 
     @classmethod
     async def call(cls, arguments: str) -> ToolResultItem:
