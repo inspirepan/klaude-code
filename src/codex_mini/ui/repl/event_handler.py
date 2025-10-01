@@ -78,7 +78,6 @@ class DisplayEventHandler:
             case events.ThinkingEvent() as thinking_event:
                 if self._should_suppress_subagent_thinking(thinking_event.session_id):
                     return
-                self.thinking_debouncer.cancel()
                 if (
                     thinking_event.content
                     and self.stage_manager.current_stage == Stage.WAITING
@@ -173,7 +172,6 @@ class DisplayEventHandler:
                         indent=0,
                     )
                 )
-                self.renderer.print()
                 self.renderer.spinner.stop()
             case events.EndEvent():
                 emit_osc94(OSC94States.HIDDEN)
