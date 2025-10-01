@@ -1,8 +1,8 @@
 from typing import override
 
 from codex_mini.protocol import events
-from codex_mini.ui.display_abc import DisplayABC
-from codex_mini.ui.osc94_progress_bar import OSC94States, emit_osc94
+from codex_mini.ui.base.display_abc import DisplayABC
+from codex_mini.ui.base.osc94_progress_bar import OSC94States, emit_osc94
 
 
 class ExecDisplay(DisplayABC):

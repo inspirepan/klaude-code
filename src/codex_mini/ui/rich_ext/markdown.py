@@ -15,7 +15,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 from rich.theme import Theme
 
-from codex_mini.ui.live import CropAboveLive
+from codex_mini.ui.rich_ext.live import CropAboveLive
 
 
 class NoInsetCodeBlock(CodeBlock):

@@ -1,7 +1,7 @@
 from rich.console import RenderableType
 from rich.text import Text
 
-from codex_mini.ui.theme import ThemeKey
+from codex_mini.ui.base.theme import ThemeKey
 
 
 def thinking_prefix() -> Text:

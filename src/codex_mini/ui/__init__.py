@@ -1,8 +1,8 @@
-from .debug_event_display import DebugEventDisplay
-from .display_abc import DisplayABC
-from .exec_display import ExecDisplay
-from .input_abc import InputProviderABC
-from .repl_display import REPLDisplay
-from .repl_input import PromptToolkitInput
+from .rich_ext.debug_event_display import DebugEventDisplay
+from .base.display_abc import DisplayABC
+from .rich_ext.exec_display import ExecDisplay
+from .base.input_abc import InputProviderABC
+from .repl.display import REPLDisplay
+from .repl.input import PromptToolkitInput
 
 __all__ = ["DisplayABC", "InputProviderABC", "REPLDisplay", "PromptToolkitInput", "DebugEventDisplay", "ExecDisplay"]

@@ -7,7 +7,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from codex_mini.ui.renderers.common import create_grid
-from codex_mini.ui.theme import ThemeKey
+from codex_mini.ui.base.theme import ThemeKey
 
 
 def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:

@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import override
 
 from codex_mini.protocol import events
-from codex_mini.ui.display_abc import DisplayABC
-from codex_mini.ui.repl_event_handler import DisplayEventHandler
-from codex_mini.ui.repl_renderer import REPLRenderer
+from codex_mini.ui.base.display_abc import DisplayABC
+from codex_mini.ui.repl.event_handler import DisplayEventHandler
+from codex_mini.ui.repl.renderer import REPLRenderer
 
 
 class REPLDisplay(DisplayABC):

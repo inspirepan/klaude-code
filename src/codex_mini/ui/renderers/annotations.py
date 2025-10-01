@@ -3,9 +3,9 @@ from rich.style import Style
 from rich.text import Text
 
 from codex_mini.protocol import model
-from codex_mini.ui.mdstream import NoInsetMarkdown
+from codex_mini.ui.rich_ext.markdown import NoInsetMarkdown
 from codex_mini.ui.renderers.common import create_grid, truncate_display
-from codex_mini.ui.theme import ThemeKey
+from codex_mini.ui.base.theme import ThemeKey
 
 
 def render_annotations(annotations: list[model.Annotation]) -> RenderableType:

@@ -7,7 +7,7 @@ from codex_mini.protocol.commands import CommandName
 from codex_mini.ui.renderers import diffs as r_diffs
 from codex_mini.ui.renderers.common import create_grid, truncate_display
 from codex_mini.ui.renderers.tools import render_path
-from codex_mini.ui.theme import ThemeKey
+from codex_mini.ui.base.theme import ThemeKey
 
 
 def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:

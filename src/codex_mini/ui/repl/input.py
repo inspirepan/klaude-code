@@ -19,8 +19,8 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 
 from codex_mini.command import get_commands
-from codex_mini.ui.input_abc import InputProviderABC
-from codex_mini.ui.utils import get_current_git_branch, show_path_with_tilde
+from codex_mini.ui.base.input_abc import InputProviderABC
+from codex_mini.ui.base.utils import get_current_git_branch, show_path_with_tilde
 
 
 def _set_cursor_style(code: int) -> None:

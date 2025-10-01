@@ -1,6 +1,6 @@
 from codex_mini.config.config import load_config
 from codex_mini.trace import log
-from codex_mini.ui.searchable_text import SearchableFormattedList
+from codex_mini.ui.rich_ext.searchable_text import SearchableFormattedList
 
 
 def select_model_from_config(preferred: str | None = None) -> str | None:

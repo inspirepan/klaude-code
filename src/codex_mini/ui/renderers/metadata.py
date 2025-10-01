@@ -5,8 +5,8 @@ from rich.panel import Panel
 from rich.text import Text
 
 from codex_mini.protocol import events
-from codex_mini.ui.theme import ThemeKey
-from codex_mini.ui.utils import format_number
+from codex_mini.ui.base.theme import ThemeKey
+from codex_mini.ui.base.utils import format_number
 
 
 def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:

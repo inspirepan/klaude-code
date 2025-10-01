@@ -13,8 +13,8 @@ from rich.style import Style, StyleType
 from rich.text import Text
 
 from codex_mini.protocol import events, tools
-from codex_mini.ui.mdstream import NoInsetMarkdown
-from codex_mini.ui.quote import Quote
+from codex_mini.ui.rich_ext.markdown import NoInsetMarkdown
+from codex_mini.ui.rich_ext.quote import Quote
 from codex_mini.ui.renderers import annotations as r_annotations
 from codex_mini.ui.renderers import developer as r_developer
 from codex_mini.ui.renderers import diffs as r_diffs
@@ -25,7 +25,7 @@ from codex_mini.ui.renderers import thinking as r_thinking
 from codex_mini.ui.renderers import tools as r_tools
 from codex_mini.ui.renderers import user_input as r_user_input
 from codex_mini.ui.renderers.common import truncate_display
-from codex_mini.ui.theme import ThemeKey, get_theme
+from codex_mini.ui.base.theme import ThemeKey, get_theme
 
 
 @dataclass

@@ -4,7 +4,7 @@ from rich.table import Table
 from rich.text import Text
 
 from codex_mini.config import Config
-from codex_mini.ui.theme import ThemeKey, get_theme
+from codex_mini.ui.base.theme import ThemeKey, get_theme
 
 
 def mask_api_key(api_key: str | None) -> str:

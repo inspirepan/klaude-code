@@ -1,7 +1,7 @@
 from rich._spinners import SPINNERS
 from rich.text import Text
 
-from codex_mini.ui.theme import ThemeKey
+from codex_mini.ui.base.theme import ThemeKey
 
 SPINNERS.update(
     {
