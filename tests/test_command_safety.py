@@ -13,6 +13,7 @@ if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
 
 from codex_mini.core.tool.command_safety import (  # noqa: E402
     _find_unquoted_token,
+    _parse_command_sequence,
     _split_bash_lc_relaxed,
     _split_script_tail,
     is_safe_command,
@@ -242,6 +243,21 @@ class TestCommandSafety(unittest.TestCase):
         self.assert_safe("awk 'NR>=10 && NR<=20 {print}'")
         self.assert_safe("awk -F: '{print $1}' file.txt")
 
+    def test_sequences_with_pipes_inside_quotes(self):
+        command = (
+            "nl -ba Claude_4.txt | rg -n "
+            '"antml|voice_note|election_info|search_instructions|citation_instructions|artifacts_info|thinking_mode" '
+            "-n --no-heading"
+        )
+        self.assert_safe(command)
+
+        multiline = (
+            "nl -ba Claude_4.txt | rg -n "
+            '"antml|voice_note|election_info|search_instructions|citation_instructions|artifacts\n'
+            ' _info|thinking_mode" -n --no-heading'
+        )
+        self.assert_safe(multiline)
+
     def test_blacklist_allows_unknown_commands(self):
         self.assert_safe("python --version")
         self.assert_safe("custom-tool --flag value")
@@ -255,6 +271,48 @@ class TestCommandSafety(unittest.TestCase):
         self.assert_unsafe("awk 'system(\"ls\")'", "system() call")
         self.assert_unsafe("awk 'print | \"cat\"'", "piping output")
 
+
+class TestParseCommandSequence(unittest.TestCase):
+    def test_basic_split_and_quotes(self):
+        script = 'echo hi && ls -l | grep x ; echo "a|b && c" || awk \'{print $1}\' file.txt'
+        seq, err = _parse_command_sequence(script)
+        self.assertIsNone(err or None)
+        assert seq is not None
+        self.assertEqual(len(seq), 5)
+        self.assertEqual(seq[0], ["echo", "hi"])
+        self.assertEqual(seq[1], ["ls", "-l"])
+        self.assertEqual(seq[2], ["grep", "x"])
+        self.assertEqual(seq[3], ["echo", "a|b && c"])  # operators inside quotes remain in a single arg
+        self.assertEqual(seq[4], ["awk", "{print $1}", "file.txt"])  # single-quoted awk program
+
+    def test_unterminated_and_empty(self):
+        seq, err = _parse_command_sequence('echo "unterminated')
+        self.assertIsNone(seq)
+        self.assertIn("No closing quotation", err)
+
+        seq2, err2 = _parse_command_sequence("  ")
+        self.assertIsNone(seq2)
+        self.assertEqual(err2, "Empty script")
+
+        # Trailing separator -> empty command segment
+        seq3, err3 = _parse_command_sequence("echo hi || ")
+        self.assertIsNone(seq3)
+        self.assertEqual(err3, "Empty command in sequence")
+
+    def test_pipes_inside_quotes(self):
+        cmd = (
+            'nl -ba Claude_4.txt | rg -n '
+            '"antml|voice_note|election_info|search_instructions|citation_instructions|artifacts_info|thinking_mode" '
+            "-n --no-heading"
+        )
+        seq, err = _parse_command_sequence(cmd)
+        self.assertIsNone(err or None)
+        assert seq is not None
+        self.assertEqual(len(seq), 2)
+        self.assertEqual(seq[0][:2], ["nl", "-ba"])  # first command begins with 'nl -ba'
+        # second command is rg with the quoted pattern kept as one token
+        self.assertEqual(seq[1][0], "rg")
+        self.assertIn("antml|voice_note", seq[1][2])
 
 if __name__ == "__main__":
     unittest.main()

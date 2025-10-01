@@ -359,21 +359,74 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
 
 def _parse_command_sequence(script: str) -> tuple[list[list[str]] | None, str]:
     """Parse command sequence separated by logical or pipe operators."""
-    if not script:
+    if not script.strip():
         return None, "Empty script"
 
-    parts = re.split(r"\s*(?:\|\||&&|;|\|)\s*", script)
-    commands: list[list[str]] = []
+    # Tokenize with shlex so quotes/escapes are handled by the stdlib.
+    # Treat '|', '&', ';' as punctuation so they become standalone tokens.
     try:
-        for part in parts:
-            if not part.strip():
-                return None, "Empty command in sequence"
-            argv = shlex.split(part, posix=True)
-            if not argv:
-                return None, "Empty command after parsing"
-            commands.append(argv)
+        lexer = shlex.shlex(script, posix=True, punctuation_chars="|;&")
+        tokens = list(lexer)
     except ValueError as e:
+        # Preserve error format expected by callers/tests
         return None, f"Shell parsing error: {e}"
+
+    commands: list[list[str]] = []
+    cur: list[str] = []
+
+    i = 0
+    n = len(tokens)
+    while i < n:
+        t = tokens[i]
+
+        # Semicolon separator
+        if t == ";":
+            if not cur:
+                return None, "Empty command in sequence"
+            commands.append(cur)
+            cur = []
+            i += 1
+            continue
+
+        # Pipe or logical OR separators
+        if t == "|" or t == "||":
+            # Treat both '|' and '||' as separators between commands
+            if not cur:
+                return None, "Empty command in sequence"
+            commands.append(cur)
+            cur = []
+            # If '|' and next is also '|', consume both; if already '||', consume one
+            if t == "|" and i + 1 < n and tokens[i + 1] == "|":
+                i += 2
+            else:
+                i += 1
+            continue
+
+        # Logical AND separator or background '&'
+        if t == "&&" or t == "&":
+            if t == "&&" or (i + 1 < n and tokens[i + 1] == "&"):
+                if not cur:
+                    return None, "Empty command in sequence"
+                commands.append(cur)
+                cur = []
+                # If token is single '&' but next is '&', consume both; otherwise it's '&&' already
+                if t == "&":
+                    i += 2
+                else:
+                    i += 1
+                continue
+            # Single '&' becomes a normal token in argv (background op)
+            cur.append(t)
+            i += 1
+            continue
+
+        # Regular argument token
+        cur.append(t)
+        i += 1
+
+    if not cur:
+        return None, "Empty command in sequence"
+    commands.append(cur)
     return commands, ""
 
 
