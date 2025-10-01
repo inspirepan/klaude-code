@@ -85,7 +85,7 @@ class DisplayEventHandler:
                     and len(self.accumulated_thinking_text.strip()) == 0
                 ):
                     self.accumulated_thinking_text += thinking_event.content
-                await self.stage_manager.finish_thinking(with_completion_marker=True)
+                await self.stage_manager.finish_thinking()
                 self.renderer.spinner.start()
             case events.AssistantMessageDeltaEvent() as assistant_delta:
                 if self.renderer.is_sub_agent_session(assistant_delta.session_id):
@@ -193,15 +193,11 @@ class DisplayEventHandler:
             self.assistant_mdstream = None
             self.accumulated_assistant_text = ""
 
-    async def finish_thinking_stream(self, with_completion_marker: bool = False) -> None:
+    async def finish_thinking_stream(self) -> None:
         self.thinking_debouncer.cancel()
         await self._flush_thinking_buffer()
         if self.stage_manager.current_stage == Stage.THINKING:
-            if with_completion_marker:
-                self.renderer.print()
-                self.renderer.print("😄")
-            else:
-                self.renderer.print()
+            self.renderer.print("\n")
         self.is_thinking_in_bold = False
         self.accumulated_thinking_text = ""
 

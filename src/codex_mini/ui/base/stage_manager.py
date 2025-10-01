@@ -19,7 +19,7 @@ class StageManager:
         self,
         *,
         finish_assistant: Callable[[], Awaitable[None]],
-        finish_thinking: Callable[[bool], Awaitable[None]],
+        finish_thinking: Callable[[], Awaitable[None]],
         on_enter_thinking: Callable[[], None],
     ):
         self._stage = Stage.WAITING
@@ -50,8 +50,8 @@ class StageManager:
         await self._finish_assistant()
         self._stage = Stage.WAITING
 
-    async def finish_thinking(self, *, with_completion_marker: bool = False) -> None:
-        await self._finish_thinking(with_completion_marker)
+    async def finish_thinking(self) -> None:
+        await self._finish_thinking()
         if self._stage == Stage.THINKING:
             self._stage = Stage.WAITING
 
