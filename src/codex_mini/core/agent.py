@@ -1,3 +1,4 @@
+import asyncio
 import time
 from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass
@@ -140,20 +141,22 @@ class Agent:
                 yield event
             turn_has_tool_call = False
             turn_failed = False
-            async for turn_event in self.run_turn():
+
+            def handle_turn_event(turn_event: events.Event) -> events.Event | None:
+                nonlocal turn_has_tool_call, turn_failed, last_assistant_message
                 match turn_event:
                     case events.ToolCallEvent() as tc:
                         turn_has_tool_call = True
-                        yield tc
+                        return tc
                     case events.ToolResultEvent() as tr:
-                        yield tr
+                        return tr
                     case events.AssistantMessageEvent() as am:
                         if am.content.strip() != "":
                             last_assistant_message = am
-                        yield am
+                        return am
                     case events.ErrorEvent() as err:
                         turn_failed = True
-                        yield err
+                        return err
                     case events.ResponseMetadataEvent() as e:
                         self._merge_turn_metadata(
                             metadata_merge_state,
@@ -162,8 +165,45 @@ class Agent:
                         status = e.metadata.status
                         if status is not None and status != "completed":
                             turn_failed = True
-                    case _ as metadata:
-                        yield metadata
+                        return None
+                    case _ as other:
+                        return other
+
+            turn_generator = self.run_turn()
+            first_event_timeout_s = 30.0
+            turn_timed_out = False
+
+            try:
+                async with asyncio.timeout(first_event_timeout_s):
+                    # Process events until the first meaningful one, with a timeout.
+                    # A "meaningful" event is any event other than TurnStartEvent.
+                    async for turn_event in turn_generator:
+                        event_to_yield = handle_turn_event(turn_event)
+                        if event_to_yield is not None:
+                            yield event_to_yield
+
+                        # After yielding, check if it was a meaningful event to break the timeout context
+                        if not isinstance(turn_event, events.TurnStartEvent):
+                            break
+            except TimeoutError:
+                turn_timed_out = True
+                turn_failed = True
+                if self.debug_mode:
+                    log_debug("Turn timed out before first meaningful event, retrying", style="red")
+                yield events.ErrorEvent(error_message="Turn timed out before first meaningful event.")
+                # Ensure pending calls are cleared on timeout
+                self.turn_inflight_tool_calls.clear()
+                try:
+                    await turn_generator.aclose()
+                except Exception:
+                    pass  # Suppress errors on closing the generator
+
+            # If the turn hasn't timed out, continue processing the rest of the events.
+            if not turn_timed_out:
+                async for turn_event in turn_generator:
+                    event_to_yield = handle_turn_event(turn_event)
+                    if event_to_yield is not None:
+                        yield event_to_yield
             if turn_failed:
                 failed_turn_attempts += 1
                 if failed_turn_attempts >= max_failed_turn_retries:
