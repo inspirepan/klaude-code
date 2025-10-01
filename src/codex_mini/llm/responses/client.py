@@ -23,6 +23,7 @@ from codex_mini.protocol.model import (
     ReasoningItem,
     ResponseMetadataItem,
     StartItem,
+    StreamErrorItem,
     ThinkingTextDelta,
     ToolCallItem,
     Usage,
@@ -186,6 +187,9 @@ class ResponsesClient(LLMClientABC):
                             pass
                 case responses.ResponseCompletedEvent() as event:
                     usage: Usage | None = None
+                    error_reason: str | None = None
+                    if event.response.incomplete_details is not None:
+                        error_reason = event.response.incomplete_details.reason
                     if event.response.usage is not None:
                         total_tokens = event.response.usage.total_tokens
                         context_usage_percent = (
@@ -221,6 +225,16 @@ class ResponsesClient(LLMClientABC):
                         usage=usage,
                         response_id=response_id,
                         model_name=str(param.model),
+                        status=event.response.status,
+                        error_reason=error_reason,
                     )
+                    if event.response.status != "completed":
+                        error_message = f"LLM response finished with status '{event.response.status}'"
+                        if error_reason:
+                            error_message = f"{error_message}: {error_reason}"
+                        if self.is_debug_mode():
+                            log_debug("◁◁◁ stream [LLM Status Warning]", error_message, style="red")
+                        yield StreamErrorItem(error=error_message)
                 case _:
-                    pass
+                    if self.is_debug_mode():
+                        log_debug("◁◁◁ stream [Unhandled Event]", str(event), style="red")

@@ -165,7 +165,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.INTERRUPT.value: "reverse bold " + palette.red,
                 # USER_INPUT
                 ThemeKey.USER_INPUT.value: palette.cyan + " on " + palette.text_background,
-                ThemeKey.USER_INPUT_AT_PATTERN.value: palette.cyan + " bold on " + palette.text_background,
+                ThemeKey.USER_INPUT_AT_PATTERN.value: palette.purple + " bold on " + palette.text_background,
                 ThemeKey.USER_INPUT_SLASH_COMMAND.value: "bold reverse " + palette.blue,
                 # METADATA
                 ThemeKey.METADATA.value: palette.grey_blue,

@@ -140,11 +140,14 @@ class Agent:
         )
         last_assistant_message: events.AssistantMessageEvent | None = None
         turn_count = 0
+        failed_turn_attempts = 0
+        max_failed_turn_retries = 2
 
         while True:
             async for event in self.process_reminders():
                 yield event
             turn_has_tool_call = False
+            turn_failed = False
             async for turn_event in self.run_turn():
                 match turn_event:
                     case events.ToolCallEvent() as tc:
@@ -156,13 +159,32 @@ class Agent:
                         if am.content.strip() != "":
                             last_assistant_message = am
                         yield am
+                    case events.ErrorEvent() as err:
+                        turn_failed = True
+                        yield err
                     case events.ResponseMetadataEvent() as e:
                         self._merge_turn_metadata(
                             metadata_merge_state,
                             e.metadata,
                         )
+                        status = e.metadata.status
+                        if status is not None and status != "completed":
+                            turn_failed = True
                     case _ as metadata:
                         yield metadata
+            if turn_failed:
+                failed_turn_attempts += 1
+                if failed_turn_attempts >= max_failed_turn_retries:
+                    if self.debug_mode:
+                        log_debug(
+                            "Maximum consecutive failed turns reached, aborting task",
+                            style="red",
+                        )
+                    break
+                if self.debug_mode:
+                    log_debug("Retrying turn after failed LLM response", style="yellow")
+                continue
+            failed_turn_attempts = 0
             turn_count += 1
             if not turn_has_tool_call:
                 break
@@ -227,6 +249,10 @@ class Agent:
             accumulated_metadata.model_name = turn_metadata.model_name
         if turn_metadata.response_id:
             accumulated_metadata.response_id = turn_metadata.response_id
+        if turn_metadata.status is not None:
+            accumulated_metadata.status = turn_metadata.status
+        if turn_metadata.error_reason is not None:
+            accumulated_metadata.error_reason = turn_metadata.error_reason
 
     async def replay_history(self) -> AsyncGenerator[events.Event, None]:
         """Yield UI events reconstructed from saved conversation history."""
@@ -250,6 +276,7 @@ class Agent:
         turn_tool_calls: list[model.ToolCallItem] = []
         current_response_id: str | None = None
         store_at_remote = False  # This is the 'store' parameter of OpenAI Responses API for storing history at OpenAI, currently always False
+        response_failed = False
 
         async for response_item in self.get_llm_client().call(
             llm_parameter.LLMCallParameter(
@@ -304,11 +331,16 @@ class Agent:
                         session_id=self.session.id,
                         metadata=item,
                     )
+                case model.StreamErrorItem() as item:
+                    response_failed = True
+                    if self.debug_mode:
+                        log_debug("◀◀◀ response [StreamError]", item.error, style="red")
+                    yield events.ErrorEvent(error_message=item.error)
                 case model.ToolCallItem() as item:
                     turn_tool_calls.append(item)
                 case _:
                     pass
-        if not store_at_remote:
+        if not store_at_remote and not response_failed:
             if turn_reasoning_item:
                 self.session.append_history([turn_reasoning_item])
             if turn_assistant_message:
@@ -320,9 +352,12 @@ class Agent:
                     self.turn_inflight_tool_calls[item.call_id] = UnfinishedToolCallItem(
                         tool_call_item=item, status="pending"
                     )
-        if current_response_id is not None:
+        if current_response_id is not None and not response_failed:
             self.session.last_response_id = current_response_id
-        if turn_tool_calls:
+        if response_failed:
+            # Clear any pending tool calls when the response failed before execution
+            self.turn_inflight_tool_calls.clear()
+        if turn_tool_calls and not response_failed:
             for tool_call in turn_tool_calls:
                 yield events.ToolCallEvent(
                     tool_call_id=tool_call.call_id,
