@@ -12,10 +12,10 @@ from rich.style import Style
 from rich.text import Text
 
 from codex_mini.protocol import events, model
+from codex_mini.ui.base.theme import ThemeKey
+from codex_mini.ui.renderers.common import create_grid, truncate_display
 from codex_mini.ui.rich_ext.markdown import NoInsetMarkdown
 from codex_mini.ui.rich_ext.quote import Quote
-from codex_mini.ui.renderers.common import create_grid, truncate_display
-from codex_mini.ui.base.theme import ThemeKey
 
 INVALID_TOOL_CALL_MAX_LENGTH = 500
 

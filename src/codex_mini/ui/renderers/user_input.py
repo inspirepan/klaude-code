@@ -4,8 +4,8 @@ from rich.console import Group, RenderableType
 from rich.text import Text
 
 from codex_mini.protocol.commands import CommandName
-from codex_mini.ui.rich_ext.quote import Quote
 from codex_mini.ui.base.theme import ThemeKey
+from codex_mini.ui.rich_ext.quote import Quote
 
 
 def render_at_pattern(

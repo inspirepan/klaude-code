@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from codex_mini.protocol import events, tools
 from codex_mini.ui.base.debouncer import Debouncer
-from codex_mini.ui.rich_ext.markdown import MarkdownStream, NoInsetMarkdown
 from codex_mini.ui.base.osc94_progress_bar import OSC94States, emit_osc94
+from codex_mini.ui.base.stage_manager import Stage, StageManager
+from codex_mini.ui.base.theme import ThemeKey
+from codex_mini.ui.base.utils import remove_leading_newlines
 from codex_mini.ui.renderers import annotations as r_annotations
 from codex_mini.ui.renderers import errors as r_errors
 from codex_mini.ui.renderers import metadata as r_metadata
@@ -12,9 +14,7 @@ from codex_mini.ui.renderers import thinking as r_thinking
 from codex_mini.ui.renderers import user_input as r_user_input
 from codex_mini.ui.renderers.common import truncate_display
 from codex_mini.ui.repl.renderer import REPLRenderer, SessionStatus
-from codex_mini.ui.base.stage_manager import Stage, StageManager
-from codex_mini.ui.base.theme import ThemeKey
-from codex_mini.ui.base.utils import remove_leading_newlines
+from codex_mini.ui.rich_ext.markdown import MarkdownStream, NoInsetMarkdown
 
 
 class DisplayEventHandler:

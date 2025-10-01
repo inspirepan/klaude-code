@@ -1,8 +1,8 @@
 from rich.console import RenderableType
 from rich.text import Text
 
-from codex_mini.ui.renderers.common import create_grid
 from codex_mini.ui.base.theme import ThemeKey
+from codex_mini.ui.renderers.common import create_grid
 
 
 def render_error(error_msg: Text, indent: int = 2) -> RenderableType:
