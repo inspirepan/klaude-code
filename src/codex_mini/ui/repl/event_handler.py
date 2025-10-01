@@ -68,8 +68,10 @@ class DisplayEventHandler:
                     return
                 self.renderer.spinner.stop()
                 if len(thinking_delta.content.strip()) == 0 and self.stage_manager.current_stage != Stage.THINKING:
+                    # Remove empty leading spaces
                     return
                 if len(self.accumulated_thinking_text) == 0 and self.stage_manager.current_stage != Stage.THINKING:
+                    # Remove leading newlines
                     self.accumulated_thinking_text += remove_leading_newlines(thinking_delta.content)
                 else:
                     self.accumulated_thinking_text += thinking_delta.content

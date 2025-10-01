@@ -190,8 +190,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_APPROVED.value: palette.green + " bold reverse",
                 ThemeKey.TOOL_REJECTED.value: palette.red + " bold reverse",
                 # THINKING
-                ThemeKey.THINKING.value: "italic " + palette.grey1,
-                ThemeKey.THINKING_BOLD.value: "bold italic " + palette.grey1,
+                ThemeKey.THINKING.value: "italic " + palette.grey2,
+                ThemeKey.THINKING_BOLD.value: "bold italic " + palette.grey2,
                 # TODO_ITEM
                 ThemeKey.TODO_EXPLANATION.value: palette.grey1 + " italic",
                 ThemeKey.TODO_PENDING_MARK.value: "bold " + palette.grey1,

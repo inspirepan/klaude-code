@@ -16,7 +16,7 @@ from codex_mini.trace import log_debug
 # Constant for cancellation message
 CANCEL_OUTPUT = "[Request interrupted by user for tool use]"
 
-FIRST_EVENT_TIMEOUT_S = 30.0
+FIRST_EVENT_TIMEOUT_S = 20.0
 MAX_FAILED_TURN_RETRIES = 2
 
 
@@ -195,7 +195,6 @@ class Agent:
                     turn_failed = True
                     if self.debug_mode:
                         log_debug("Turn timed out before first meaningful event, retrying", style="red")
-                    yield events.ErrorEvent(error_message=f"Turn timed out after {FIRST_EVENT_TIMEOUT_S} seconds.")
                     # Ensure pending calls are cleared on timeout
                     self.turn_inflight_tool_calls.clear()
                     try:
@@ -216,11 +215,12 @@ class Agent:
 
                 # If the turn failed, increment the attempt counter and the inner loop will continue.
                 failed_turn_attempts += 1
-                if self.debug_mode:
-                    log_debug(
-                        f"Retrying turn {failed_turn_attempts}/{MAX_FAILED_TURN_RETRIES}",
-                        style="yellow",
+                if turn_timed_out:
+                    yield events.ErrorEvent(
+                        error_message=f"Turn timed out after {FIRST_EVENT_TIMEOUT_S} seconds. Retrying {failed_turn_attempts}/{MAX_FAILED_TURN_RETRIES}"
                     )
+                else:
+                    yield events.ErrorEvent(error_message=f"Retrying {failed_turn_attempts}/{MAX_FAILED_TURN_RETRIES}")
             else:
                 # This 'else' belongs to the 'while' loop. It runs if the loop completes without a 'break'.
                 # This means all retries have been exhausted and failed.
