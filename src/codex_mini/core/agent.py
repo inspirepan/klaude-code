@@ -271,7 +271,7 @@ class Agent:
         # Clear pending map for new turn
         self.turn_inflight_tool_calls.clear()
         # TODO: If LLM API error occurred, we will discard (not append to history) and retry
-        turn_reasoning_item: model.ReasoningItem | None = None
+        turn_reasoning_items: list[model.ReasoningItem] = []
         turn_assistant_message: model.AssistantMessageItem | None = None
         turn_tool_calls: list[model.ToolCallItem] = []
         current_response_id: str | None = None
@@ -304,7 +304,7 @@ class Agent:
                         session_id=self.session.id,
                     )
                 case model.ReasoningItem() as item:
-                    turn_reasoning_item = item
+                    turn_reasoning_items.append(item)
                     thinking = "\n".join(item.summary) if item.summary else item.content
                     if thinking:
                         yield events.ThinkingEvent(
@@ -341,8 +341,8 @@ class Agent:
                 case _:
                     pass
         if not store_at_remote and not response_failed:
-            if turn_reasoning_item:
-                self.session.append_history([turn_reasoning_item])
+            if turn_reasoning_items:
+                self.session.append_history(turn_reasoning_items)
             if turn_assistant_message:
                 self.session.append_history([turn_assistant_message])
             if turn_tool_calls:
