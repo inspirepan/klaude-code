@@ -68,11 +68,13 @@ class ResponsesClient(LLMClientABC):
 
         inputs = convert_history_to_input(param.input, param.model)
 
+        parallel_tool_calls = True if param.model and not param.model.startswith("gpt-5-codex") else False
+
         if self.is_debug_mode():
             payload: dict[str, object] = {
                 "model": str(param.model),
                 "tool_choice": "auto",
-                "parallel_tool_calls": False,
+                "parallel_tool_calls": parallel_tool_calls,
                 "include": [
                     "reasoning.encrypted_content",
                 ],
@@ -102,7 +104,7 @@ class ResponsesClient(LLMClientABC):
         stream = self.client.responses.create(
             model=str(param.model),
             tool_choice="auto",
-            parallel_tool_calls=False,  # OpenAI's Codex is always False
+            parallel_tool_calls=parallel_tool_calls,  # OpenAI's Codex is always False, we try to enable it here. It seems gpt-5-codex has bugs when parallel_tool_calls is True.
             include=[
                 "reasoning.encrypted_content",
             ],
