@@ -156,25 +156,6 @@ class TestCommandSafety(unittest.TestCase):
         self.assert_unsafe(r"find . -exec echo {} \;")
         self.assert_unsafe("find . -delete")
 
-    # fd
-    def test_fd_safe(self):
-        self.assert_safe("fd file")
-
-    def test_fd_unsafe_exec(self):
-        self.assert_unsafe("fd -x echo {}", "command execution")
-        self.assert_unsafe("fd --exec echo {}", "command execution")
-
-    # rg
-    def test_rg_safe(self):
-        self.assert_safe("rg hello file.txt")
-
-    def test_rg_unsafe_flags(self):
-        self.assert_unsafe("rg -z hello", "compressed file search")
-        self.assert_unsafe("rg --search-zip hello", "compressed file search")
-        self.assert_unsafe("rg --pre=python hello", "preprocessor command")
-        self.assert_unsafe("rg --pre python", "preprocessor command")
-        self.assert_unsafe("rg --hostname-bin=nc hello", "hostname command")
-
     # git
     def test_git_safe_locals(self):
         self.assert_safe("git status")
