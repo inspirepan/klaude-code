@@ -16,7 +16,7 @@ from codex_mini.trace import log_debug
 # Constant for cancellation message
 CANCEL_OUTPUT = "[Request interrupted by user for tool use]"
 
-FIRST_EVENT_TIMEOUT_S = 20.0
+FIRST_EVENT_TIMEOUT_S = 40.0
 MAX_FAILED_TURN_RETRIES = 2
 
 
@@ -215,6 +215,9 @@ class Agent:
 
                 # If the turn failed, increment the attempt counter and the inner loop will continue.
                 failed_turn_attempts += 1
+                if failed_turn_attempts > MAX_FAILED_TURN_RETRIES:
+                    # Retry budget exhausted; let the loop terminate and emit final error below
+                    continue
                 if turn_timed_out:
                     yield events.ErrorEvent(
                         error_message=f"Turn timed out after {FIRST_EVENT_TIMEOUT_S} seconds. Retrying {failed_turn_attempts}/{MAX_FAILED_TURN_RETRIES}"
