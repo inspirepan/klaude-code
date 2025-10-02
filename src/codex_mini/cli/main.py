@@ -11,8 +11,10 @@ import time
 import tty
 import uuid
 from dataclasses import dataclass
+from typing import Any, Protocol
 
 import typer
+from rich.style import StyleType
 from rich.text import Text
 
 from codex_mini import ui
@@ -30,6 +32,12 @@ from codex_mini.protocol.events import EndEvent, Event
 from codex_mini.protocol.llm_parameter import LLMConfigParameter
 from codex_mini.session import Session, resume_select_session
 from codex_mini.trace import log, log_debug
+
+
+class PrintCapable(Protocol):
+    """Protocol for objects that can print styled content."""
+
+    def print(self, *objects: Any, style: StyleType | None = None, end: str = "\n") -> None: ...
 
 
 def start_esc_interrupt_monitor(
@@ -294,8 +302,18 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     def _show_toast_once() -> None:
         try:
             # Keep message short; avoid interfering with spinner layout
-            if hasattr(components.display, "print"):
-                components.display.print(Text(" Press ctrl+c again to exit ", style="bold yellow reverse"))  # type: ignore[attr-defined]
+            printer: PrintCapable | None = None
+
+            # Check if it's a REPLDisplay with renderer
+            if isinstance(components.display, ui.REPLDisplay):
+                printer = components.display.renderer
+            # Check if it's a DebugEventDisplay wrapping a REPLDisplay
+            elif isinstance(components.display, ui.DebugEventDisplay) and components.display.wrapped_display:
+                if isinstance(components.display.wrapped_display, ui.REPLDisplay):
+                    printer = components.display.wrapped_display.renderer
+
+            if printer is not None:
+                printer.print(Text(" Press ctrl+c again to exit ", style="bold yellow reverse"))
             else:
                 print("Press ctrl+c again to exit", file=sys.stderr)
         except Exception:
