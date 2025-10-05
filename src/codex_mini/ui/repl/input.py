@@ -229,7 +229,7 @@ class _AtFilesCompleter(Completer):
 
     Behavior:
     - Only triggers when the cursor is after an "@..." token (until whitespace).
-    - If current working directory is inside a git repository, completes repo paths.
+    - Completes paths relative to the current working directory.
     - Uses `fd` when available (files and directories), falls back to `rg --files` (files only).
     - Debounces external commands and caches results to avoid excessive spawning.
     - Inserts a trailing space after completion to stop further triggering.
@@ -262,15 +262,11 @@ class _AtFilesCompleter(Completer):
         frag = m.group("frag")  # text after '@' and before cursor (no spaces)
         token_start_in_input = len(text_before) - len(f"@{frag}")
 
-        # Only attempt if inside a git repository
         cwd = Path.cwd()
-        git_root = self._get_git_root(cwd)
-        if git_root is None:
-            return []  # type: ignore[reportUnknownVariableType]
 
         # If no fragment yet, show lightweight suggestions from current directory
         if frag.strip() == "":
-            suggestions = self._suggest_for_empty_fragment(git_root, cwd)
+            suggestions = self._suggest_for_empty_fragment(cwd)
             if not suggestions:
                 return []  # type: ignore[reportUnknownVariableType]
             start_position = token_start_in_input - len(text_before)
@@ -279,7 +275,7 @@ class _AtFilesCompleter(Completer):
             return []  # type: ignore[reportUnknownVariableType]
 
         # Gather suggestions with debounce/caching based on search keyword
-        suggestions = self._complete_paths(git_root, cwd, frag)
+        suggestions = self._complete_paths(cwd, frag)
         if not suggestions:
             return []  # type: ignore[reportUnknownVariableType]
 
@@ -290,10 +286,10 @@ class _AtFilesCompleter(Completer):
             yield Completion(text=f"@{s} ", start_position=start_position, display=s)
 
     # ---- Core logic ----
-    def _complete_paths(self, git_root: Path, cwd: Path, keyword: str) -> list[str]:
+    def _complete_paths(self, cwd: Path, keyword: str) -> list[str]:
         now = time.monotonic()
         key_norm = keyword.lower()
-        query_key = f"{git_root}::search::{key_norm}"
+        query_key = f"{cwd.resolve()}::search::{key_norm}"
 
         # Debounce: if called too soon again, filter last results
         if self._last_results and self._last_query_key is not None:
@@ -320,7 +316,7 @@ class _AtFilesCompleter(Completer):
         results: list[str] = []
         if self._has_cmd("fd"):
             # Use fd to search anywhere in full path (files and directories), case-insensitive
-            results = self._run_fd_search(git_root, key_norm)
+            results = self._run_fd_search(cwd, key_norm)
         elif self._has_cmd("rg"):
             # Use rg to search only in current directory
             if self._rg_file_list is None or now - self._rg_file_list_time > max(self._cache_ttl, 30.0):
@@ -380,7 +376,7 @@ class _AtFilesCompleter(Completer):
         return uniq
 
     def _same_scope(self, prev_key: str, cur_key: str) -> bool:
-        # Consider same scope if they share same git root and one prefix startswith the other
+        # Consider same scope if they share the same base directory and one prefix startswith the other
         try:
             prev_root, prev_pref = prev_key.split("::", 1)
             cur_root, cur_pref = cur_key.split("::", 1)
@@ -399,25 +395,7 @@ class _AtFilesCompleter(Completer):
             return None, None
 
     # ---- Utilities ----
-    def _get_git_root(self, start: Path) -> Path | None:
-        # Try git command first
-        try:
-            r = self._run_cmd(["git", "rev-parse", "--show-toplevel"], cwd=start)
-            if r.ok and r.lines:
-                return Path(r.lines[0]).resolve()
-        except Exception:
-            pass
-        # Fallback to walking up to find .git directory
-        p = start.resolve()
-        while True:
-            if (p / ".git").exists():
-                return p
-            if p.parent == p:
-                break
-            p = p.parent
-        return None
-
-    def _run_fd_search(self, git_root: Path, keyword_norm: str) -> list[str]:
+    def _run_fd_search(self, cwd: Path, keyword_norm: str) -> list[str]:
         # Use fd regex matching anywhere in the full path; escape user input
         # Fixed to search only in current working directory
         pattern = self._escape_regex(keyword_norm)
@@ -437,8 +415,8 @@ class _AtFilesCompleter(Completer):
             pattern,
             ".",
         ]
-        # Run fd from current working directory instead of git root
-        r = self._run_cmd(cmd, cwd=Path.cwd())
+        # Run fd from current working directory
+        r = self._run_cmd(cmd, cwd=cwd)
         return r.lines if r.ok else []
 
     def _escape_regex(self, s: str) -> str:
@@ -448,7 +426,7 @@ class _AtFilesCompleter(Completer):
     def _has_cmd(self, name: str) -> bool:
         return shutil.which(name) is not None
 
-    def _suggest_for_empty_fragment(self, git_root: Path, cwd: Path) -> list[str]:
+    def _suggest_for_empty_fragment(self, cwd: Path) -> list[str]:
         """Lightweight suggestions when user typed only '@': list cwd's children.
 
         Avoids running external tools; shows immediate directories first, then files.
