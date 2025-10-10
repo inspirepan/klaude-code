@@ -55,7 +55,7 @@ async def run_tool(tool_call: ToolCallItem) -> ToolResultItem:
 
 def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
     if "gpt-5" in model_name:
-        # update_plan is special for gpt-5
+        # update_plan and apply_patch is special for gpt-5
         return get_tool_schemas(
             [
                 tools.UPDATE_PLAN,
@@ -71,7 +71,7 @@ def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
             tools.BASH,
             tools.READ,
             tools.EDIT,
-            tools.MULTI_EDIT,
+            # tools.MULTI_EDIT, # MultiEdit has been removed in Claude Code 2.0 for Claude Sonnet 4.5
             tools.EXIT_PLAN_MODE,
             tools.TASK,
             tools.ORACLE,

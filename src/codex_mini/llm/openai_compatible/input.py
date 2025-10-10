@@ -115,6 +115,7 @@ def convert_history_to_input(
                                     assistant_message["reasoning_content"] = r.content
                                     assistant_message["signature"] = r.encrypted_content
                                 else:
+                                    # OpenRouter's reasoning details
                                     # https://openrouter.ai/docs/use-cases/reasoning-tokens#advanced-usage-reasoning-chain-of-thought
                                     assistant_message["reasoning_details"] = [
                                         {

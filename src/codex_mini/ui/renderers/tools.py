@@ -56,7 +56,7 @@ def render_generic_tool_call(tool_name: str, arguments: str, markup: str = "•"
 
 def render_update_plan_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
-    tool_name_column = Text.assemble(("▪︎", ThemeKey.TOOL_MARK), " ", ("Update Plan", ThemeKey.TOOL_NAME))
+    tool_name_column = Text.assemble(("◎", ThemeKey.TOOL_MARK), " ", ("Update Plan", ThemeKey.TOOL_NAME))
     explanation_column = Text("")
 
     if arguments:

@@ -111,7 +111,7 @@ class REPLRenderer:
             case tools.APPLY_PATCH:
                 self.print(r_tools.render_apply_patch_tool_call(e.arguments))
             case tools.TODO_WRITE:
-                self.print(r_tools.render_generic_tool_call("Update Todos", "", "▪︎"))
+                self.print(r_tools.render_generic_tool_call("Update Todos", "", "◎"))
             case tools.UPDATE_PLAN:
                 self.print(r_tools.render_update_plan_tool_call(e.arguments))
             case tools.EXIT_PLAN_MODE:
