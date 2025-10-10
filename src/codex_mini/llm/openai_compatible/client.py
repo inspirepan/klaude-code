@@ -82,6 +82,8 @@ class OpenAICompatibleClient(LLMClientABC):
             extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
         if param.plugins:
             extra_body["plugins"] = [p.model_dump(exclude_none=True) for p in param.plugins]
+        if param.model is not None and param.model.startswith("aws_sdk_claude"):
+            extra_body["anthropic_beta"] = ["interleaved-thinking-2025-05-14"]
 
         if self.is_debug_mode():
             payload: dict[str, object] = {
@@ -102,6 +104,8 @@ class OpenAICompatibleClient(LLMClientABC):
 
             log_debug("▷▷▷ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
 
+        extra_headers = {"extra": json.dumps({"session_id": param.session_id})}
+
         stream = self.client.chat.completions.create(
             model=str(param.model),
             tool_choice="auto",
@@ -114,7 +118,7 @@ class OpenAICompatibleClient(LLMClientABC):
             reasoning_effort=param.reasoning.effort if param.reasoning else None,
             verbosity=param.verbosity,
             extra_body=extra_body,  # pyright: ignore[reportUnknownArgumentType]
-            extra_headers={"extra": json.dumps({"session_id": param.session_id})},
+            extra_headers=extra_headers,
         )
 
         stage: Literal["waiting", "reasoning", "assistant", "tool", "done"] = "waiting"
@@ -177,13 +181,13 @@ class OpenAICompatibleClient(LLMClientABC):
                     try:
                         reasoning_detail = ReasoningDetail.model_validate(item)
                         if reasoning_detail.type == "reasoning.encrypted":
-                            # GPT-5
+                            # GPT-5 @ OpenRouter
                             reasoning_encrypted_content = reasoning_detail.data
                             reasoning_id = reasoning_detail.id
                             reasoning_format = reasoning_detail.format
                             break
                         elif reasoning_detail.type == "reasoning.text" and reasoning_detail.signature:
-                            # Claude
+                            # Claude @ OpenRouter
                             reasoning_encrypted_content = reasoning_detail.signature
                             reasoning_id = reasoning_detail.id
                             reasoning_format = reasoning_detail.format
@@ -191,6 +195,12 @@ class OpenAICompatibleClient(LLMClientABC):
 
                     except Exception as e:
                         log("reasoning_details error", str(e), style="red")
+
+            if hasattr(delta, "signature") and getattr(delta, "signature"):
+                # AWS Claude
+                signature = getattr(delta, "signature")
+                if signature:
+                    reasoning_encrypted_content = signature
 
             # Annotations (URL Citation)
             if hasattr(delta, "annotations") and getattr(delta, "annotations"):

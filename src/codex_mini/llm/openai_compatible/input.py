@@ -42,6 +42,8 @@ def convert_history_to_input(
         else []
     )
 
+    is_aws_claude: bool = model_name is not None and model_name.startswith("aws_sdk_claude")
+
     for group_kind, group in group_response_items_gen(history):
         match group_kind:
             case "user":
@@ -109,19 +111,21 @@ def convert_history_to_input(
                             )
                         case ReasoningItem() as r:
                             if r.encrypted_content and len(r.encrypted_content) > 0 and model_name == r.model:
-                                # https://openrouter.ai/docs/use-cases/reasoning-tokens#advanced-usage-reasoning-chain-of-thought
-                                assistant_message["reasoning_details"] = [
-                                    {
-                                        "id": r.id,
-                                        "type": "reasoning.encrypted",
-                                        "data": r.encrypted_content,
-                                        "format": r.format,
-                                        "index": 0,
-                                    }
-                                ]
-
+                                if is_aws_claude:
+                                    assistant_message["reasoning_content"] = r.content
+                                    assistant_message["signature"] = r.encrypted_content
+                                else:
+                                    # https://openrouter.ai/docs/use-cases/reasoning-tokens#advanced-usage-reasoning-chain-of-thought
+                                    assistant_message["reasoning_details"] = [
+                                        {
+                                            "id": r.id,
+                                            "type": "reasoning.encrypted",
+                                            "data": r.encrypted_content,
+                                            "format": r.format,
+                                            "index": 0,
+                                        }
+                                    ]
                         case _:
-                            # Ignore reasoning
                             pass
 
                 messages.append(assistant_message)
