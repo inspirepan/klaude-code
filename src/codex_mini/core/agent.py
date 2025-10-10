@@ -15,7 +15,6 @@ from codex_mini.trace import log_debug
 
 # Constant for cancellation message
 CANCEL_OUTPUT = "[Request interrupted by user for tool use]"
-
 FIRST_EVENT_TIMEOUT_S = 40.0
 MAX_FAILED_TURN_RETRIES = 2
 

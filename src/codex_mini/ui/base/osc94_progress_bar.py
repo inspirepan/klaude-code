@@ -28,7 +28,7 @@ class OSC94States(Enum):
     WARNING = 4
 
 
-def _resolve_stream(stream: TextIO | None) -> TextIO:
+def resolve_stream(stream: TextIO | None) -> TextIO:
     """
     Rich's status.start() (backed by Live) temporarily replaces sys.stdout/sys.stderr with a
     Console._redirect_stdio wrapper. The wrapper strips control codes like OSC and BEL before
@@ -51,15 +51,17 @@ def emit_osc94(
 ):
     if not is_ghostty:
         return
-    seq = f"\033]9;4;{state.value}"
-    if state == OSC94States.NORMAL:  # Normal progress needs percentage
-        if progress is None:
-            progress = 0
-        seq += f";{int(progress)}"
-    terminator = BEL if use_bel else ST
-    output = _resolve_stream(stream)
-    output.write(seq + terminator)
-    output.flush()
+    # Temporarily disable OSC94 progress bar output.
+    return
+    # seq = f"\033]9;4;{state.value}"
+    # if state == OSC94States.NORMAL:  # Normal progress needs percentage
+    #     if progress is None:
+    #         progress = 0
+    #     seq += f";{int(progress)}"
+    # terminator = BEL if use_bel else ST
+    # output = resolve_stream(stream)
+    # output.write(seq + terminator)
+    # output.flush()
 
 
 if __name__ == "__main__":
