@@ -12,7 +12,7 @@ from codex_mini.ui.base.utils import format_number
 def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
     metadata = e.metadata
     metadata_text = Text()
-    metadata_text.append_text(Text("↑ ", style=ThemeKey.METADATA_BOLD)).append_text(
+    metadata_text.append_text(Text("↑ ", style=ThemeKey.METADATA)).append_text(
         Text(metadata.model_name, style=ThemeKey.METADATA_BOLD)
     )
     if metadata.provider is not None:
@@ -23,28 +23,28 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
     if metadata.usage is not None:
         detail_parts.append(
             Text.assemble(
-                (format_number(metadata.usage.input_tokens), ThemeKey.METADATA_BOLD), (" input", ThemeKey.METADATA)
+                (format_number(metadata.usage.input_tokens), ThemeKey.METADATA), (" input", ThemeKey.METADATA)
             )
         )
 
         if metadata.usage.cached_tokens > 0:
             detail_parts.append(
                 Text.assemble(
-                    (format_number(metadata.usage.cached_tokens), ThemeKey.METADATA_BOLD),
+                    (format_number(metadata.usage.cached_tokens), ThemeKey.METADATA),
                     (" cached", ThemeKey.METADATA),
                 )
             )
 
         detail_parts.append(
             Text.assemble(
-                (format_number(metadata.usage.output_tokens), ThemeKey.METADATA_BOLD), (" output", ThemeKey.METADATA)
+                (format_number(metadata.usage.output_tokens), ThemeKey.METADATA), (" output", ThemeKey.METADATA)
             )
         )
 
         if metadata.usage.reasoning_tokens > 0:
             detail_parts.append(
                 Text.assemble(
-                    (format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA_BOLD),
+                    (format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA),
                     (" reasoning", ThemeKey.METADATA),
                 )
             )
@@ -52,7 +52,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
         if metadata.usage.context_usage_percent is not None:
             detail_parts.append(
                 Text.assemble(
-                    (f"{metadata.usage.context_usage_percent:.1f}", ThemeKey.METADATA_BOLD),
+                    (f"{metadata.usage.context_usage_percent:.1f}", ThemeKey.METADATA),
                     ("% context", ThemeKey.METADATA),
                 )
             )
@@ -60,7 +60,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
         if metadata.usage.throughput_tps is not None:
             detail_parts.append(
                 Text.assemble(
-                    (f"{metadata.usage.throughput_tps:.1f}", ThemeKey.METADATA_BOLD),
+                    (f"{metadata.usage.throughput_tps:.1f}", ThemeKey.METADATA),
                     (" tps", ThemeKey.METADATA),
                 )
             )
@@ -76,7 +76,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
     if metadata.task_duration_s is not None:
         detail_parts.append(
             Text.assemble(
-                (f"{metadata.task_duration_s:.1f}", ThemeKey.METADATA_BOLD),
+                (f"{metadata.task_duration_s:.1f}", ThemeKey.METADATA),
                 ("s", ThemeKey.METADATA),
             )
         )
@@ -84,7 +84,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
     if metadata.turn_count is not None:
         detail_parts.append(
             Text.assemble(
-                (str(metadata.turn_count), ThemeKey.METADATA_BOLD),
+                (str(metadata.turn_count), ThemeKey.METADATA),
                 (" turns", ThemeKey.METADATA),
             )
         )
