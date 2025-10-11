@@ -51,17 +51,16 @@ def emit_osc94(
 ):
     if not is_ghostty:
         return
-    # Temporarily disable OSC94 progress bar output.
-    return
-    # seq = f"\033]9;4;{state.value}"
-    # if state == OSC94States.NORMAL:  # Normal progress needs percentage
-    #     if progress is None:
-    #         progress = 0
-    #     seq += f";{int(progress)}"
-    # terminator = BEL if use_bel else ST
-    # output = resolve_stream(stream)
-    # output.write(seq + terminator)
-    # output.flush()
+
+    seq = f"\033]9;4;{state.value}"
+    if state == OSC94States.NORMAL:  # Normal progress needs percentage
+        if progress is None:
+            progress = 0
+        seq += f";{int(progress)}"
+    terminator = BEL if use_bel else ST
+    output = resolve_stream(stream)
+    output.write(seq + terminator)
+    output.flush()
 
 
 if __name__ == "__main__":
