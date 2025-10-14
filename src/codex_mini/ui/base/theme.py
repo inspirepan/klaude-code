@@ -231,6 +231,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.h2.border": palette.grey3,
                 "markdown.h3": "bold " + palette.grey1,
                 "markdown.h4": "bold " + palette.grey2,
+                "markdown.hr": palette.grey3,
                 "markdown.item.bullet": palette.grey2,
                 "markdown.item.number": palette.grey2,
             }

@@ -20,7 +20,7 @@ def _is_valid_sed_n_arg(s: str | None) -> bool:
     return bool(re.fullmatch(r"\d+(,\d+)?p", s))
 
 
-def _has_shell_redirection(argv: list[str]) -> bool: # pyright: ignore
+def _has_shell_redirection(argv: list[str]) -> bool:  # pyright: ignore
     """Detect whether argv contains shell redirection or control operators."""
 
     if len(argv) <= 1:
