@@ -5,6 +5,7 @@ from typing import override
 
 import anthropic
 import httpx
+from anthropic import RateLimitError
 from anthropic.types.beta.beta_input_json_delta import BetaInputJSONDelta
 from anthropic.types.beta.beta_raw_content_block_delta_event import BetaRawContentBlockDeltaEvent
 from anthropic.types.beta.beta_raw_content_block_start_event import BetaRawContentBlockStartEvent
@@ -26,6 +27,7 @@ from codex_mini.protocol.llm_parameter import (
     LLMConfigParameter,
     apply_config_defaults,
 )
+from codex_mini.protocol.model import StreamErrorItem
 from codex_mini.trace import log_debug
 
 
@@ -124,113 +126,116 @@ class AnthropicClient(LLMClientABC):
         cached_tokens = 0
         output_tokens = 0
 
-        async for event in await stream:
-            if self.is_debug_mode():
-                log_debug(f"◁◁◁ stream [SSE {event.type}]", str(event), style="blue")
-            match event:
-                case BetaRawMessageStartEvent() as event:
-                    response_id = event.message.id
-                    cached_tokens = event.message.usage.cache_read_input_tokens or 0
-                    input_tokens = (event.message.usage.input_tokens or 0) + (
-                        event.message.usage.cache_creation_input_tokens or 0
-                    )
-                    output_tokens = event.message.usage.output_tokens or 0
-                    yield model.StartItem(response_id=response_id)
-                case BetaRawContentBlockDeltaEvent() as event:
-                    match event.delta:
-                        case BetaThinkingDelta() as delta:
-                            if first_token_time is None:
-                                first_token_time = time.time()
-                            last_token_time = time.time()
-                            accumulated_thinking.append(delta.thinking)
-                            yield model.ThinkingTextDelta(
-                                thinking=delta.thinking,
-                                response_id=response_id,
-                            )
-                        case BetaSignatureDelta() as delta:
-                            if first_token_time is None:
-                                first_token_time = time.time()
-                            last_token_time = time.time()
-                            full_thinking = "".join(accumulated_thinking)
-                            accumulated_thinking.clear()
-                            yield model.ReasoningItem(
-                                content=full_thinking,
-                                encrypted_content=delta.signature,
-                                response_id=response_id,
-                                model=param.model,
-                            )
-                        case BetaTextDelta() as delta:
-                            if first_token_time is None:
-                                first_token_time = time.time()
-                            last_token_time = time.time()
-                            accumulated_content.append(delta.text)
-                            yield model.AssistantMessageDelta(
-                                content=delta.text,
-                                response_id=response_id,
-                            )
-                        case BetaInputJSONDelta() as delta:
-                            if first_token_time is None:
-                                first_token_time = time.time()
-                            last_token_time = time.time()
-                            if current_tool_inputs is not None:
-                                current_tool_inputs.append(delta.partial_json)
-                        case _:
-                            pass
-                case BetaRawContentBlockStartEvent() as event:
-                    match event.content_block:
-                        case BetaToolUseBlock() as block:
-                            current_tool_name = block.name
-                            current_tool_call_id = block.id
-                            current_tool_inputs = []
-                        case _:
-                            pass
-                case BetaRawContentBlockStopEvent() as event:
-                    if len(accumulated_content) > 0:
-                        yield model.AssistantMessageItem(
-                            content="".join(accumulated_content),
-                            response_id=response_id,
+        try:
+            async for event in await stream:
+                if self.is_debug_mode():
+                    log_debug(f"◁◁◁ stream [SSE {event.type}]", str(event), style="blue")
+                match event:
+                    case BetaRawMessageStartEvent() as event:
+                        response_id = event.message.id
+                        cached_tokens = event.message.usage.cache_read_input_tokens or 0
+                        input_tokens = (event.message.usage.input_tokens or 0) + (
+                            event.message.usage.cache_creation_input_tokens or 0
                         )
-                        accumulated_content.clear()
-                    if current_tool_name and current_tool_call_id:
-                        yield model.ToolCallItem(
-                            name=current_tool_name,
-                            call_id=current_tool_call_id,
-                            arguments="".join(current_tool_inputs) if current_tool_inputs else "",
+                        output_tokens = event.message.usage.output_tokens or 0
+                        yield model.StartItem(response_id=response_id)
+                    case BetaRawContentBlockDeltaEvent() as event:
+                        match event.delta:
+                            case BetaThinkingDelta() as delta:
+                                if first_token_time is None:
+                                    first_token_time = time.time()
+                                last_token_time = time.time()
+                                accumulated_thinking.append(delta.thinking)
+                                yield model.ThinkingTextDelta(
+                                    thinking=delta.thinking,
+                                    response_id=response_id,
+                                )
+                            case BetaSignatureDelta() as delta:
+                                if first_token_time is None:
+                                    first_token_time = time.time()
+                                last_token_time = time.time()
+                                full_thinking = "".join(accumulated_thinking)
+                                accumulated_thinking.clear()
+                                yield model.ReasoningItem(
+                                    content=full_thinking,
+                                    encrypted_content=delta.signature,
+                                    response_id=response_id,
+                                    model=param.model,
+                                )
+                            case BetaTextDelta() as delta:
+                                if first_token_time is None:
+                                    first_token_time = time.time()
+                                last_token_time = time.time()
+                                accumulated_content.append(delta.text)
+                                yield model.AssistantMessageDelta(
+                                    content=delta.text,
+                                    response_id=response_id,
+                                )
+                            case BetaInputJSONDelta() as delta:
+                                if first_token_time is None:
+                                    first_token_time = time.time()
+                                last_token_time = time.time()
+                                if current_tool_inputs is not None:
+                                    current_tool_inputs.append(delta.partial_json)
+                            case _:
+                                pass
+                    case BetaRawContentBlockStartEvent() as event:
+                        match event.content_block:
+                            case BetaToolUseBlock() as block:
+                                current_tool_name = block.name
+                                current_tool_call_id = block.id
+                                current_tool_inputs = []
+                            case _:
+                                pass
+                    case BetaRawContentBlockStopEvent() as event:
+                        if len(accumulated_content) > 0:
+                            yield model.AssistantMessageItem(
+                                content="".join(accumulated_content),
+                                response_id=response_id,
+                            )
+                            accumulated_content.clear()
+                        if current_tool_name and current_tool_call_id:
+                            yield model.ToolCallItem(
+                                name=current_tool_name,
+                                call_id=current_tool_call_id,
+                                arguments="".join(current_tool_inputs) if current_tool_inputs else "",
+                                response_id=response_id,
+                            )
+                            current_tool_name = None
+                            current_tool_call_id = None
+                            current_tool_inputs = None
+                    case BetaRawMessageDeltaEvent() as event:
+                        input_tokens += (event.usage.input_tokens or 0) + (event.usage.cache_creation_input_tokens or 0)
+                        output_tokens += event.usage.output_tokens or 0
+                        cached_tokens += event.usage.cache_read_input_tokens or 0
+                        total_tokens = input_tokens + cached_tokens + output_tokens
+                        context_usage_percent = (total_tokens / param.context_limit) * 100 if param.context_limit else None
+
+                        throughput_tps: float | None = None
+                        first_token_latency_ms: float | None = None
+
+                        if first_token_time is not None:
+                            first_token_latency_ms = (first_token_time - request_start_time) * 1000
+
+                        if first_token_time is not None and last_token_time is not None and output_tokens > 0:
+                            time_duration = last_token_time - first_token_time
+                            if time_duration >= 0.15:
+                                throughput_tps = output_tokens / time_duration
+
+                        yield model.ResponseMetadataItem(
+                            usage=model.Usage(
+                                input_tokens=input_tokens,
+                                output_tokens=output_tokens,
+                                cached_tokens=cached_tokens,
+                                total_tokens=total_tokens,
+                                context_usage_percent=context_usage_percent,
+                                throughput_tps=throughput_tps,
+                                first_token_latency_ms=first_token_latency_ms,
+                            ),
                             response_id=response_id,
+                            model_name=str(param.model),
                         )
-                        current_tool_name = None
-                        current_tool_call_id = None
-                        current_tool_inputs = None
-                case BetaRawMessageDeltaEvent() as event:
-                    input_tokens += (event.usage.input_tokens or 0) + (event.usage.cache_creation_input_tokens or 0)
-                    output_tokens += event.usage.output_tokens or 0
-                    cached_tokens += event.usage.cache_read_input_tokens or 0
-                    total_tokens = input_tokens + cached_tokens + output_tokens
-                    context_usage_percent = (total_tokens / param.context_limit) * 100 if param.context_limit else None
-
-                    throughput_tps: float | None = None
-                    first_token_latency_ms: float | None = None
-
-                    if first_token_time is not None:
-                        first_token_latency_ms = (first_token_time - request_start_time) * 1000
-
-                    if first_token_time is not None and last_token_time is not None and output_tokens > 0:
-                        time_duration = last_token_time - first_token_time
-                        if time_duration >= 0.15:
-                            throughput_tps = output_tokens / time_duration
-
-                    yield model.ResponseMetadataItem(
-                        usage=model.Usage(
-                            input_tokens=input_tokens,
-                            output_tokens=output_tokens,
-                            cached_tokens=cached_tokens,
-                            total_tokens=total_tokens,
-                            context_usage_percent=context_usage_percent,
-                            throughput_tps=throughput_tps,
-                            first_token_latency_ms=first_token_latency_ms,
-                        ),
-                        response_id=response_id,
-                        model_name=str(param.model),
-                    )
-                case _:
-                    pass
+                    case _:
+                        pass
+        except RateLimitError as e:
+            yield StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")

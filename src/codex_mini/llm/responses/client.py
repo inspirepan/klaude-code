@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator
 from typing import override
 
 import httpx
-from openai import AsyncAzureOpenAI, AsyncOpenAI
+from openai import AsyncAzureOpenAI, AsyncOpenAI, RateLimitError
 from openai.types import responses
 
 from codex_mini.llm.client import LLMClientABC
@@ -128,115 +128,120 @@ class ResponsesClient(LLMClientABC):
             extra_headers={"extra": json.dumps({"session_id": param.session_id})},
         )
 
-        async for event in await stream:
-            if self.is_debug_mode():
-                log_debug(f"◁◁◁ stream [SSE {event.type}]", str(event), style="blue")
-            match event:
-                case responses.ResponseCreatedEvent() as event:
-                    response_id = event.response.id
-                    yield StartItem(response_id=response_id)
-                case responses.ResponseReasoningSummaryTextDeltaEvent() as event:
-                    if first_token_time is None:
-                        first_token_time = time.time()
-                    last_token_time = time.time()
-                case responses.ResponseReasoningSummaryTextDoneEvent() as event:
-                    last_token_time = time.time()
-                    yield ThinkingTextDelta(
-                        thinking="\n\n" + event.text,
-                        response_id=response_id,
-                    )
-                case responses.ResponseTextDeltaEvent() as event:
-                    if first_token_time is None:
-                        first_token_time = time.time()
-                    last_token_time = time.time()
-                    yield AssistantMessageDelta(content=event.delta, response_id=response_id)
-                case responses.ResponseOutputItemDoneEvent() as event:
-                    match event.item:
-                        case responses.ResponseReasoningItem() as item:
-                            summary = [summary.text for summary in item.summary]
-                            yield ReasoningItem(
-                                id=item.id,
-                                summary=summary,
-                                content="\n".join([content.text for content in item.content]) if item.content else None,
-                                encrypted_content=item.encrypted_content,
-                                response_id=response_id,
-                                model=param.model,
-                            )
-                        case responses.ResponseOutputMessage() as item:
-                            yield AssistantMessageItem(
-                                content="\n".join(
-                                    [
-                                        part.text
-                                        for part in item.content
-                                        if isinstance(part, responses.ResponseOutputText)
-                                    ]
-                                ),
-                                id=item.id,
-                                response_id=response_id,
-                            )
-                        case responses.ResponseFunctionToolCall() as item:
-                            if first_token_time is None:
-                                first_token_time = time.time()
-                            last_token_time = time.time()
-                            yield ToolCallItem(
-                                name=item.name,
-                                arguments=item.arguments.strip(),
-                                call_id=item.call_id,
-                                id=item.id,
-                                response_id=response_id,
-                            )
-                        case _:
-                            pass
-                case responses.ResponseCompletedEvent() as event:
-                    usage: Usage | None = None
-                    error_reason: str | None = None
-                    if event.response.incomplete_details is not None:
-                        error_reason = event.response.incomplete_details.reason
-                    if event.response.usage is not None:
-                        total_tokens = event.response.usage.total_tokens
-                        context_usage_percent = (
-                            (total_tokens / param.context_limit) * 100 if param.context_limit else None
+        try:
+            async for event in await stream:
+                if self.is_debug_mode():
+                    log_debug(f"◁◁◁ stream [SSE {event.type}]", str(event), style="blue")
+                match event:
+                    case responses.ResponseCreatedEvent() as event:
+                        response_id = event.response.id
+                        yield StartItem(response_id=response_id)
+                    case responses.ResponseReasoningSummaryTextDeltaEvent() as event:
+                        if first_token_time is None:
+                            first_token_time = time.time()
+                        last_token_time = time.time()
+                    case responses.ResponseReasoningSummaryTextDoneEvent() as event:
+                        last_token_time = time.time()
+                        yield ThinkingTextDelta(
+                            thinking="\n\n" + event.text,
+                            response_id=response_id,
                         )
+                    case responses.ResponseTextDeltaEvent() as event:
+                        if first_token_time is None:
+                            first_token_time = time.time()
+                        last_token_time = time.time()
+                        yield AssistantMessageDelta(content=event.delta, response_id=response_id)
+                    case responses.ResponseOutputItemDoneEvent() as event:
+                        match event.item:
+                            case responses.ResponseReasoningItem() as item:
+                                summary = [summary.text for summary in item.summary]
+                                yield ReasoningItem(
+                                    id=item.id,
+                                    summary=summary,
+                                    content="\n".join([content.text for content in item.content])
+                                    if item.content
+                                    else None,
+                                    encrypted_content=item.encrypted_content,
+                                    response_id=response_id,
+                                    model=param.model,
+                                )
+                            case responses.ResponseOutputMessage() as item:
+                                yield AssistantMessageItem(
+                                    content="\n".join(
+                                        [
+                                            part.text
+                                            for part in item.content
+                                            if isinstance(part, responses.ResponseOutputText)
+                                        ]
+                                    ),
+                                    id=item.id,
+                                    response_id=response_id,
+                                )
+                            case responses.ResponseFunctionToolCall() as item:
+                                if first_token_time is None:
+                                    first_token_time = time.time()
+                                last_token_time = time.time()
+                                yield ToolCallItem(
+                                    name=item.name,
+                                    arguments=item.arguments.strip(),
+                                    call_id=item.call_id,
+                                    id=item.id,
+                                    response_id=response_id,
+                                )
+                            case _:
+                                pass
+                    case responses.ResponseCompletedEvent() as event:
+                        usage: Usage | None = None
+                        error_reason: str | None = None
+                        if event.response.incomplete_details is not None:
+                            error_reason = event.response.incomplete_details.reason
+                        if event.response.usage is not None:
+                            total_tokens = event.response.usage.total_tokens
+                            context_usage_percent = (
+                                (total_tokens / param.context_limit) * 100 if param.context_limit else None
+                            )
 
-                        throughput_tps: float | None = None
-                        first_token_latency_ms: float | None = None
+                            throughput_tps: float | None = None
+                            first_token_latency_ms: float | None = None
 
-                        if first_token_time is not None:
-                            first_token_latency_ms = (first_token_time - request_start_time) * 1000
+                            if first_token_time is not None:
+                                first_token_latency_ms = (first_token_time - request_start_time) * 1000
 
-                        if (
-                            first_token_time is not None
-                            and last_token_time is not None
-                            and event.response.usage.output_tokens > 0
-                        ):
-                            time_duration = last_token_time - first_token_time
-                            if time_duration >= 0.15:
-                                throughput_tps = event.response.usage.output_tokens / time_duration
+                            if (
+                                first_token_time is not None
+                                and last_token_time is not None
+                                and event.response.usage.output_tokens > 0
+                            ):
+                                time_duration = last_token_time - first_token_time
+                                if time_duration >= 0.15:
+                                    throughput_tps = event.response.usage.output_tokens / time_duration
 
-                        usage = Usage(
-                            input_tokens=event.response.usage.input_tokens,
-                            cached_tokens=event.response.usage.input_tokens_details.cached_tokens,
-                            reasoning_tokens=event.response.usage.output_tokens_details.reasoning_tokens,
-                            output_tokens=event.response.usage.output_tokens,
-                            total_tokens=total_tokens,
-                            context_usage_percent=context_usage_percent,
-                            throughput_tps=throughput_tps,
-                            first_token_latency_ms=first_token_latency_ms,
+                            usage = Usage(
+                                input_tokens=event.response.usage.input_tokens,
+                                cached_tokens=event.response.usage.input_tokens_details.cached_tokens,
+                                reasoning_tokens=event.response.usage.output_tokens_details.reasoning_tokens,
+                                output_tokens=event.response.usage.output_tokens,
+                                total_tokens=total_tokens,
+                                context_usage_percent=context_usage_percent,
+                                throughput_tps=throughput_tps,
+                                first_token_latency_ms=first_token_latency_ms,
+                            )
+                        yield ResponseMetadataItem(
+                            usage=usage,
+                            response_id=response_id,
+                            model_name=str(param.model),
+                            status=event.response.status,
+                            error_reason=error_reason,
                         )
-                    yield ResponseMetadataItem(
-                        usage=usage,
-                        response_id=response_id,
-                        model_name=str(param.model),
-                        status=event.response.status,
-                        error_reason=error_reason,
-                    )
-                    if event.response.status != "completed":
-                        error_message = f"LLM response finished with status '{event.response.status}'"
-                        if error_reason:
-                            error_message = f"{error_message}: {error_reason}"
+                        if event.response.status != "completed":
+                            error_message = f"LLM response finished with status '{event.response.status}'"
+                            if error_reason:
+                                error_message = f"{error_message}: {error_reason}"
+                            if self.is_debug_mode():
+                                log_debug("◁◁◁ stream [LLM Status Warning]", error_message, style="red")
+                            yield StreamErrorItem(error=error_message)
+                    case _:
                         if self.is_debug_mode():
-                            log_debug("◁◁◁ stream [LLM Status Warning]", error_message, style="red")
-                        yield StreamErrorItem(error=error_message)
-                case _:
-                    if self.is_debug_mode():
-                        log_debug("◁◁◁ stream [Unhandled Event]", str(event), style="red")
+                            log_debug("◁◁◁ stream [Unhandled Event]", str(event), style="red")
+        except RateLimitError as e:
+            yield StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")

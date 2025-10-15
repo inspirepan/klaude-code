@@ -16,7 +16,9 @@ from codex_mini.trace import log_debug
 # Constant for cancellation message
 CANCEL_OUTPUT = "[Request interrupted by user for tool use]"
 FIRST_EVENT_TIMEOUT_S = 40.0
-MAX_FAILED_TURN_RETRIES = 2
+MAX_FAILED_TURN_RETRIES = 10
+INITIAL_RETRY_DELAY_S = 1.0
+MAX_RETRY_DELAY_S = 30.0
 
 
 @dataclass
@@ -217,12 +219,20 @@ class Agent:
                 if failed_turn_attempts > MAX_FAILED_TURN_RETRIES:
                     # Retry budget exhausted; let the loop terminate and emit final error below
                     continue
+
+                retry_delay = self._retry_delay_seconds(failed_turn_attempts)
                 if turn_timed_out:
-                    yield events.ErrorEvent(
-                        error_message=f"Turn timed out after {FIRST_EVENT_TIMEOUT_S} seconds. Retrying {failed_turn_attempts}/{MAX_FAILED_TURN_RETRIES}"
+                    error_message = (
+                        f"Turn timed out after {FIRST_EVENT_TIMEOUT_S} seconds. "
+                        f"Retrying {failed_turn_attempts}/{MAX_FAILED_TURN_RETRIES} in {retry_delay:.1f}s"
                     )
                 else:
-                    yield events.ErrorEvent(error_message=f"Retrying {failed_turn_attempts}/{MAX_FAILED_TURN_RETRIES}")
+                    error_message = (
+                        f"Retrying {failed_turn_attempts}/{MAX_FAILED_TURN_RETRIES} in {retry_delay:.1f}s"
+                    )
+
+                yield events.ErrorEvent(error_message=error_message)
+                await asyncio.sleep(retry_delay)
             else:
                 # This 'else' belongs to the 'while' loop. It runs if the loop completes without a 'break'.
                 # This means all retries have been exhausted and failed.
@@ -450,6 +460,11 @@ class Agent:
             if item is not None:
                 self.session.append_history([item])
                 yield events.DeveloperMessageEvent(session_id=self.session.id, item=item)
+
+    def _retry_delay_seconds(self, attempt: int) -> float:
+        capped_attempt = max(1, attempt)
+        delay = INITIAL_RETRY_DELAY_S * (2 ** (capped_attempt - 1))
+        return min(delay, MAX_RETRY_DELAY_S)
 
     def refresh_model_profile(self, sub_agent_type: tools.SubAgentType | None = None) -> None:
         """Refresh system prompt, tools, and reminders for the active model."""

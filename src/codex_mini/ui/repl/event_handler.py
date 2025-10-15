@@ -174,7 +174,6 @@ class DisplayEventHandler:
                         indent=0,
                     )
                 )
-                self.renderer.print()
                 self.renderer.spinner.stop()
             case events.EndEvent():
                 emit_osc94(OSC94States.HIDDEN)

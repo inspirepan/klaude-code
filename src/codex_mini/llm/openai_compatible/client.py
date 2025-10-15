@@ -5,6 +5,7 @@ from typing import Literal, override
 
 import httpx
 import openai
+from openai import RateLimitError
 from pydantic import BaseModel
 
 from codex_mini.llm.client import LLMClientABC
@@ -18,6 +19,7 @@ from codex_mini.protocol.llm_parameter import (
     LLMConfigParameter,
     apply_config_defaults,
 )
+from codex_mini.protocol.model import StreamErrorItem
 from codex_mini.trace import log, log_debug
 
 
@@ -134,129 +136,132 @@ class OpenAICompatibleClient(LLMClientABC):
 
         turn_annotations: list[model.Annotation] | None = None
 
-        async for event in await stream:
-            if self.is_debug_mode():
-                log_debug("◁◁◁ stream [SSE]", str(event), style="blue")
-            if not response_id and event.id:
-                response_id = event.id
-                accumulated_tool_calls.response_id = response_id
-                yield model.StartItem(response_id=response_id)
-            if event.usage is not None and event.usage.completion_tokens is not None:  # pyright: ignore[reportUnnecessaryComparison] gcp gemini will return None usage field
-                metadata_item.usage = convert_usage(event.usage, param.context_limit)
-            if event.model:
-                metadata_item.model_name = event.model
-            if provider := getattr(event, "provider", None):
-                metadata_item.provider = str(provider)
+        try:
+            async for event in await stream:
+                if self.is_debug_mode():
+                    log_debug("◁◁◁ stream [SSE]", str(event), style="blue")
+                if not response_id and event.id:
+                    response_id = event.id
+                    accumulated_tool_calls.response_id = response_id
+                    yield model.StartItem(response_id=response_id)
+                if event.usage is not None and event.usage.completion_tokens is not None:  # pyright: ignore[reportUnnecessaryComparison] gcp gemini will return None usage field
+                    metadata_item.usage = convert_usage(event.usage, param.context_limit)
+                if event.model:
+                    metadata_item.model_name = event.model
+                if provider := getattr(event, "provider", None):
+                    metadata_item.provider = str(provider)
 
-            if len(event.choices) == 0:
-                continue
-            delta = event.choices[0].delta
+                if len(event.choices) == 0:
+                    continue
+                delta = event.choices[0].delta
 
-            # Support Kimi K2's usage field in choice
-            if hasattr(event.choices[0], "usage") and getattr(event.choices[0], "usage"):
-                metadata_item.usage = convert_usage(
-                    openai.types.CompletionUsage.model_validate(getattr(event.choices[0], "usage")), param.context_limit
-                )
-
-            # Reasoning
-            reasoning_content = ""
-            if hasattr(delta, "reasoning") and getattr(delta, "reasoning"):
-                reasoning_content = getattr(delta, "reasoning")
-            if hasattr(delta, "reasoning_content") and getattr(delta, "reasoning_content"):
-                reasoning_content = getattr(delta, "reasoning_content")
-            if reasoning_content:
-                if first_token_time is None:
-                    first_token_time = time.time()
-                last_token_time = time.time()
-                stage = "reasoning"
-                accumulated_reasoning.append(reasoning_content)
-                yield model.ThinkingTextDelta(
-                    thinking=reasoning_content,
-                    response_id=response_id,
-                )
-
-            if hasattr(delta, "reasoning_details") and getattr(delta, "reasoning_details"):
-                reasoning_details = getattr(delta, "reasoning_details")
-                for item in reasoning_details:
-                    try:
-                        reasoning_detail = ReasoningDetail.model_validate(item)
-                        if reasoning_detail.type == "reasoning.encrypted":
-                            # GPT-5 @ OpenRouter
-                            reasoning_encrypted_content = reasoning_detail.data
-                            reasoning_id = reasoning_detail.id
-                            reasoning_format = reasoning_detail.format
-                            break
-                        elif reasoning_detail.type == "reasoning.text" and reasoning_detail.signature:
-                            # Claude @ OpenRouter
-                            reasoning_encrypted_content = reasoning_detail.signature
-                            reasoning_id = reasoning_detail.id
-                            reasoning_format = reasoning_detail.format
-                            break
-
-                    except Exception as e:
-                        log("reasoning_details error", str(e), style="red")
-
-            if hasattr(delta, "signature") and getattr(delta, "signature"):
-                # AWS Claude
-                signature = getattr(delta, "signature")
-                if signature:
-                    reasoning_encrypted_content = signature
-
-            # Annotations (URL Citation)
-            if hasattr(delta, "annotations") and getattr(delta, "annotations"):
-                annotations = getattr(delta, "annotations")
-                if annotations:
-                    a = model.Annotations.validate_python(annotations)
-                    if not turn_annotations:
-                        turn_annotations = a
-                    else:
-                        turn_annotations.extend(a)
-
-            # Assistant
-            if delta.content and (
-                stage == "assistant" or delta.content.strip()
-            ):  # Process all content in assistant stage, filter empty content in reasoning stage
-                if first_token_time is None:
-                    first_token_time = time.time()
-                last_token_time = time.time()
-                if stage == "reasoning":
-                    yield model.ReasoningItem(
-                        id=reasoning_id,
-                        content="".join(accumulated_reasoning),
-                        response_id=response_id,
-                        encrypted_content=reasoning_encrypted_content,
-                        format=reasoning_format,
-                        model=param.model,
+                # Support Kimi K2's usage field in choice
+                if hasattr(event.choices[0], "usage") and getattr(event.choices[0], "usage"):
+                    metadata_item.usage = convert_usage(
+                        openai.types.CompletionUsage.model_validate(getattr(event.choices[0], "usage")), param.context_limit
                     )
-                stage = "assistant"
-                accumulated_content.append(delta.content)
-                yield model.AssistantMessageDelta(
-                    content=delta.content,
-                    response_id=response_id,
-                )
 
-            # Tool
-            if delta.tool_calls and len(delta.tool_calls) > 0:
-                if first_token_time is None:
-                    first_token_time = time.time()
-                last_token_time = time.time()
-                if stage == "reasoning":
-                    yield model.ReasoningItem(
-                        id=reasoning_id,
-                        content="".join(accumulated_reasoning),
+                # Reasoning
+                reasoning_content = ""
+                if hasattr(delta, "reasoning") and getattr(delta, "reasoning"):
+                    reasoning_content = getattr(delta, "reasoning")
+                if hasattr(delta, "reasoning_content") and getattr(delta, "reasoning_content"):
+                    reasoning_content = getattr(delta, "reasoning_content")
+                if reasoning_content:
+                    if first_token_time is None:
+                        first_token_time = time.time()
+                    last_token_time = time.time()
+                    stage = "reasoning"
+                    accumulated_reasoning.append(reasoning_content)
+                    yield model.ThinkingTextDelta(
+                        thinking=reasoning_content,
                         response_id=response_id,
-                        encrypted_content=reasoning_encrypted_content,
-                        format=reasoning_format,
-                        model=param.model,
                     )
-                elif stage == "assistant":
-                    yield model.AssistantMessageItem(
-                        content="".join(accumulated_content),
+
+                if hasattr(delta, "reasoning_details") and getattr(delta, "reasoning_details"):
+                    reasoning_details = getattr(delta, "reasoning_details")
+                    for item in reasoning_details:
+                        try:
+                            reasoning_detail = ReasoningDetail.model_validate(item)
+                            if reasoning_detail.type == "reasoning.encrypted":
+                                # GPT-5 @ OpenRouter
+                                reasoning_encrypted_content = reasoning_detail.data
+                                reasoning_id = reasoning_detail.id
+                                reasoning_format = reasoning_detail.format
+                                break
+                            elif reasoning_detail.type == "reasoning.text" and reasoning_detail.signature:
+                                # Claude @ OpenRouter
+                                reasoning_encrypted_content = reasoning_detail.signature
+                                reasoning_id = reasoning_detail.id
+                                reasoning_format = reasoning_detail.format
+                                break
+
+                        except Exception as e:
+                            log("reasoning_details error", str(e), style="red")
+
+                if hasattr(delta, "signature") and getattr(delta, "signature"):
+                    # AWS Claude
+                    signature = getattr(delta, "signature")
+                    if signature:
+                        reasoning_encrypted_content = signature
+
+                # Annotations (URL Citation)
+                if hasattr(delta, "annotations") and getattr(delta, "annotations"):
+                    annotations = getattr(delta, "annotations")
+                    if annotations:
+                        a = model.Annotations.validate_python(annotations)
+                        if not turn_annotations:
+                            turn_annotations = a
+                        else:
+                            turn_annotations.extend(a)
+
+                # Assistant
+                if delta.content and (
+                    stage == "assistant" or delta.content.strip()
+                ):  # Process all content in assistant stage, filter empty content in reasoning stage
+                    if first_token_time is None:
+                        first_token_time = time.time()
+                    last_token_time = time.time()
+                    if stage == "reasoning":
+                        yield model.ReasoningItem(
+                            id=reasoning_id,
+                            content="".join(accumulated_reasoning),
+                            response_id=response_id,
+                            encrypted_content=reasoning_encrypted_content,
+                            format=reasoning_format,
+                            model=param.model,
+                        )
+                    stage = "assistant"
+                    accumulated_content.append(delta.content)
+                    yield model.AssistantMessageDelta(
+                        content=delta.content,
                         response_id=response_id,
-                        annotations=turn_annotations,
                     )
-                stage = "tool"
-                accumulated_tool_calls.add(delta.tool_calls)
+
+                # Tool
+                if delta.tool_calls and len(delta.tool_calls) > 0:
+                    if first_token_time is None:
+                        first_token_time = time.time()
+                    last_token_time = time.time()
+                    if stage == "reasoning":
+                        yield model.ReasoningItem(
+                            id=reasoning_id,
+                            content="".join(accumulated_reasoning),
+                            response_id=response_id,
+                            encrypted_content=reasoning_encrypted_content,
+                            format=reasoning_format,
+                            model=param.model,
+                        )
+                    elif stage == "assistant":
+                        yield model.AssistantMessageItem(
+                            content="".join(accumulated_content),
+                            response_id=response_id,
+                            annotations=turn_annotations,
+                        )
+                    stage = "tool"
+                    accumulated_tool_calls.add(delta.tool_calls)
+        except RateLimitError as e:
+            yield StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
 
         # Finalize
         if stage == "reasoning":
