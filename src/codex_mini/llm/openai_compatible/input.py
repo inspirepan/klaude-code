@@ -18,6 +18,10 @@ from codex_mini.protocol.model import (
 )
 
 
+def is_openai_compatible_claude_model(model_name: str | None):
+    return model_name is not None and (model_name.startswith("aws_sdk_claude") or model_name.startswith("azure-claude"))
+
+
 def convert_history_to_input(
     history: list[ConversationItem],
     system: str | None = None,
@@ -42,7 +46,7 @@ def convert_history_to_input(
         else []
     )
 
-    is_aws_claude: bool = model_name is not None and model_name.startswith("aws_sdk_claude")
+    is_aws_claude: bool = is_openai_compatible_claude_model(model_name)
 
     for group_kind, group in group_response_items_gen(history):
         match group_kind:

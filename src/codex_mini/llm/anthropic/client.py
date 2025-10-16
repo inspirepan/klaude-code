@@ -209,7 +209,9 @@ class AnthropicClient(LLMClientABC):
                         output_tokens += event.usage.output_tokens or 0
                         cached_tokens += event.usage.cache_read_input_tokens or 0
                         total_tokens = input_tokens + cached_tokens + output_tokens
-                        context_usage_percent = (total_tokens / param.context_limit) * 100 if param.context_limit else None
+                        context_usage_percent = (
+                            (total_tokens / param.context_limit) * 100 if param.context_limit else None
+                        )
 
                         throughput_tps: float | None = None
                         first_token_latency_ms: float | None = None

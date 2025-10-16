@@ -144,9 +144,7 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     else:
         try:
             llm_config = (
-                config.get_model_config(init_config.model)
-                if init_config.model
-                else config.get_main_model_config()
+                config.get_model_config(init_config.model) if init_config.model else config.get_main_model_config()
             )
         except ValueError as exc:
             if init_config.model:

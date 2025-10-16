@@ -9,7 +9,11 @@ from openai import RateLimitError
 from pydantic import BaseModel
 
 from codex_mini.llm.client import LLMClientABC
-from codex_mini.llm.openai_compatible.input import convert_history_to_input, convert_tool_schema
+from codex_mini.llm.openai_compatible.input import (
+    convert_history_to_input,
+    convert_tool_schema,
+    is_openai_compatible_claude_model,
+)
 from codex_mini.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
 from codex_mini.llm.registry import register
 from codex_mini.protocol import model
@@ -84,7 +88,7 @@ class OpenAICompatibleClient(LLMClientABC):
             extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
         if param.plugins:
             extra_body["plugins"] = [p.model_dump(exclude_none=True) for p in param.plugins]
-        if param.model is not None and param.model.startswith("aws_sdk_claude"):
+        if is_openai_compatible_claude_model(param.model):
             extra_body["anthropic_beta"] = ["interleaved-thinking-2025-05-14"]
 
         if self.is_debug_mode():
@@ -158,7 +162,8 @@ class OpenAICompatibleClient(LLMClientABC):
                 # Support Kimi K2's usage field in choice
                 if hasattr(event.choices[0], "usage") and getattr(event.choices[0], "usage"):
                     metadata_item.usage = convert_usage(
-                        openai.types.CompletionUsage.model_validate(getattr(event.choices[0], "usage")), param.context_limit
+                        openai.types.CompletionUsage.model_validate(getattr(event.choices[0], "usage")),
+                        param.context_limit,
                     )
 
                 # Reasoning
