@@ -15,7 +15,7 @@ from codex_mini.trace import log_debug
 
 # Constant for cancellation message
 CANCEL_OUTPUT = "[Request interrupted by user for tool use]"
-FIRST_EVENT_TIMEOUT_S = 40.0
+FIRST_EVENT_TIMEOUT_S = 60.0
 MAX_FAILED_TURN_RETRIES = 10
 INITIAL_RETRY_DELAY_S = 1.0
 MAX_RETRY_DELAY_S = 30.0
@@ -144,13 +144,15 @@ class Agent:
                 yield event
 
             failed_turn_attempts = 0
+            last_turn_error_message: str | None = None
             while failed_turn_attempts <= MAX_FAILED_TURN_RETRIES:
                 # The inner loop handles the execution and potential retries of a single turn.
                 turn_has_tool_call = False
                 turn_failed = False
+                last_turn_error_message = None
 
                 def handle_turn_event(turn_event: events.Event) -> events.Event | None:
-                    nonlocal turn_has_tool_call, turn_failed, last_assistant_message
+                    nonlocal turn_has_tool_call, turn_failed, last_assistant_message, last_turn_error_message
                     match turn_event:
                         case events.ToolCallEvent() as tc:
                             turn_has_tool_call = True
@@ -163,7 +165,8 @@ class Agent:
                             return am
                         case events.ErrorEvent() as err:
                             turn_failed = True
-                            return err
+                            last_turn_error_message = err.error_message
+                            return None
                         case events.ResponseMetadataEvent() as e:
                             self._merge_turn_metadata(
                                 metadata_merge_state,
@@ -227,11 +230,12 @@ class Agent:
                         f"Retrying {failed_turn_attempts}/{MAX_FAILED_TURN_RETRIES} in {retry_delay:.1f}s"
                     )
                 else:
-                    error_message = (
-                        f"Retrying {failed_turn_attempts}/{MAX_FAILED_TURN_RETRIES} in {retry_delay:.1f}s"
-                    )
+                    error_message = f"Retrying {failed_turn_attempts}/{MAX_FAILED_TURN_RETRIES} in {retry_delay:.1f}s"
 
-                yield events.ErrorEvent(error_message=error_message)
+                combined_error_message = error_message
+                if last_turn_error_message:
+                    combined_error_message = f"{error_message} · {last_turn_error_message}"
+                yield events.ErrorEvent(error_message=combined_error_message)
                 await asyncio.sleep(retry_delay)
             else:
                 # This 'else' belongs to the 'while' loop. It runs if the loop completes without a 'break'.
@@ -241,7 +245,10 @@ class Agent:
                         "Maximum consecutive failed turns reached, aborting task",
                         style="red",
                     )
-                yield events.ErrorEvent(error_message=f"Turn failed after {MAX_FAILED_TURN_RETRIES} retries.")
+                final_error_message = f"Turn failed after {MAX_FAILED_TURN_RETRIES} retries."
+                if last_turn_error_message:
+                    final_error_message = f"{last_turn_error_message}\n{final_error_message}"
+                yield events.ErrorEvent(error_message=final_error_message)
                 return  # Exit the entire run_task method
 
             turn_count += 1

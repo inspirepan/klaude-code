@@ -142,7 +142,19 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     if init_config.llm_config_override is not None:
         llm_config = init_config.llm_config_override
     else:
-        llm_config = config.get_model_config(init_config.model) if init_config.model else config.get_main_model_config()
+        try:
+            llm_config = (
+                config.get_model_config(init_config.model)
+                if init_config.model
+                else config.get_main_model_config()
+            )
+        except ValueError as exc:
+            if init_config.model:
+                log((f"Error: model '{init_config.model}' is not defined in the config", "red"))
+                log(("Hint: run `cdx list` to view available models", "yellow"))
+            else:
+                log((f"Error: failed to load the default model configuration: {exc}", "red"))
+            raise typer.Exit(2) from None
     llm_client: LLMClientABC = create_llm_client(llm_config)
     if init_config.debug:
         log_debug("▷▷▷ llm [Model Config]", llm_config.model_dump_json(exclude_none=True), style="yellow")
