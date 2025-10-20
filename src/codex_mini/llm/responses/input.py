@@ -27,10 +27,23 @@ def convert_history_to_input(
         model_name: Model name. Used to verify that signatures are valid for the same model.
     """
     items: list[responses.ResponseInputItemParam] = []
-    for item in history:
+    last_user_index: int | None = None
+    # Preserve reasoning only from the most recent user turn to keep tool chains compact.
+
+    for idx in range(len(history) - 1, -1, -1):
+        if isinstance(history[idx], UserMessageItem):
+            last_user_index = idx
+            break
+
+    for index, item in enumerate(history):
         match item:
             case ReasoningItem() as item:
-                if item.encrypted_content and len(item.encrypted_content) > 0 and model_name == item.model:
+                if (
+                    (last_user_index is None or index >= last_user_index)
+                    and item.encrypted_content
+                    and len(item.encrypted_content) > 0
+                    and model_name == item.model
+                ):
                     items.append(convert_reasoning_item(item))
             case ToolCallItem() as t:
                 items.append(

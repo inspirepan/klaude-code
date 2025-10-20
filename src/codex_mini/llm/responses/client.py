@@ -140,12 +140,12 @@ class ResponsesClient(LLMClientABC):
                         if first_token_time is None:
                             first_token_time = time.time()
                         last_token_time = time.time()
-                    case responses.ResponseReasoningSummaryTextDoneEvent() as event:
-                        last_token_time = time.time()
                         yield ThinkingTextDelta(
-                            thinking="\n\n" + event.text,
+                            thinking=event.delta,
                             response_id=response_id,
                         )
+                    case responses.ResponseReasoningSummaryTextDoneEvent() as event:
+                        pass
                     case responses.ResponseTextDeltaEvent() as event:
                         if first_token_time is None:
                             first_token_time = time.time()
