@@ -6,7 +6,7 @@ from typing import Literal
 
 from codex_mini.core.prompt import get_system_prompt
 from codex_mini.core.reminders import Reminder, get_main_agent_reminders, get_sub_agent_reminders
-from codex_mini.core.tool.tool_context import current_exit_plan_mode_callback, current_session_var
+from codex_mini.core.tool.tool_context import current_session_var
 from codex_mini.core.tool.tool_registry import get_main_agent_tools, get_sub_agent_tools, run_tool
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.protocol import events, llm_parameter, model, tools
@@ -24,7 +24,6 @@ MAX_RETRY_DELAY_S = 30.0
 @dataclass
 class AgentLLMClients:
     main: LLMClientABC
-    plan: LLMClientABC | None = None
     fast: LLMClientABC | None = None  # Not used for now
     task: LLMClientABC | None = None
     oracle: LLMClientABC | None = None
@@ -433,13 +432,11 @@ class Agent:
                     session_id=self.session.id,
                 )
                 session_token = current_session_var.set(self.session)
-                exit_plan_mode_token = current_exit_plan_mode_callback.set(self.exit_plan_mode)
                 try:
                     self.turn_inflight_tool_calls[tool_call.call_id].status = "in_progress"
                     tool_result: model.ToolResultItem = await run_tool(tool_call)
                 finally:
                     current_session_var.reset(session_token)
-                    current_exit_plan_mode_callback.reset(exit_plan_mode_token)
                 self.session.append_history([tool_result])
                 yield events.ToolResultEvent(
                     tool_call_id=tool_call.call_id,
@@ -505,10 +502,7 @@ class Agent:
         self.reminders = get_main_agent_reminders(self.vanilla, active_model_name)
 
     def set_llm_client(self, llm_client: LLMClientABC) -> None:
-        if self.session.is_in_plan_mode:
-            self.llm_clients.plan = llm_client
-        else:
-            self.llm_clients.main = llm_client
+        self.llm_clients.main = llm_client
         self.refresh_model_profile()
 
     def get_llm_client(self) -> LLMClientABC:
@@ -523,36 +517,5 @@ class Agent:
         if effective_sub_agent_type == tools.SubAgentType.ORACLE:
             return self.llm_clients.get_sub_agent_client(tools.SubAgentType.ORACLE)
 
-        # Plan mode
-        if self.session.is_in_plan_mode and self.llm_clients.plan is not None:
-            return self.llm_clients.plan
-
         # Main agent
         return self.llm_clients.main
-
-    def exit_plan_mode(self) -> str:
-        """Exit plan mode and switch back to executor LLM client, return a message for tool result"""
-        self.session.is_in_plan_mode = False
-        self.refresh_model_profile()
-        # TODO: If model is switched here, for Claude, the following error may occur
-        # because Claude does not allow losing thinking during consecutive assistant and tool_result conversation turns when extended thinking is enabled
-        #
-        # The solution is to insert a user_message after the tool_message of exit_plan_mode
-        # when exiting plan mode. The content can be arbitrary, such as "Continue executing
-        # the plan"
-        #
-        # [BadRequestError] Error code: 400 - {'error': {'message':
-        # '-4316: messages.1.content.0.type: Expected `thinking` or `redacted_thinking`,
-        # but found `text`. When `thinking` is enabled, a final `assistant` message must
-        # start with a thinking block (preceeding the lastmost set of `tool_use` and
-        # `tool_result` blocks). We recommend you include thinking blocks from previous
-        # turns. To avoid this requirement, disable `thinking`. Please consult our
-        # documentation at https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking',
-        # 'code': '-4003'}}
-
-        return self.llm_clients.main.model_name
-
-    def enter_plan_mode(self) -> str:
-        self.session.is_in_plan_mode = True
-        self.refresh_model_profile()
-        return self.get_llm_client().model_name

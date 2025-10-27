@@ -5,7 +5,6 @@ from .export_cmd import ExportCommand
 from .help_cmd import HelpCommand
 from .init_cmd import InitCommand
 from .model_cmd import ModelCommand
-from .plan_cmd import PlanCommand
 from .refresh_cmd import RefreshTerminalCommand
 from .registry import dispatch_command, get_command_names, get_commands, is_interactive_command, register_command
 from .terminal_setup_cmd import TerminalSetupCommand
@@ -17,7 +16,6 @@ __all__ = [
     "InitCommand",
     "ModelCommand",
     "ExportCommand",
-    "PlanCommand",
     "RefreshTerminalCommand",
     "TerminalSetupCommand",
     "register_command",

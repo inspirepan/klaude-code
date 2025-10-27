@@ -39,7 +39,6 @@ class Session(BaseModel):
     loaded_memory: list[str] = Field(default_factory=list)
     need_todo_empty_cooldown_counter: int = Field(exclude=True, default=0)
     need_todo_not_used_cooldown_counter: int = Field(exclude=True, default=0)
-    is_in_plan_mode: bool = False
 
     # Internal: mapping for (de)serialization of conversation items
     _TypeMap: ClassVar[dict[str, type[BaseModel]]] = {

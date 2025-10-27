@@ -114,10 +114,6 @@ class REPLRenderer:
                 self.print(r_tools.render_generic_tool_call("Update Todos", "", "◎"))
             case tools.UPDATE_PLAN:
                 self.print(r_tools.render_update_plan_tool_call(e.arguments))
-            case tools.EXIT_PLAN_MODE:
-                self.print(
-                    r_tools.render_plan(e.arguments, box_style=self.box_style(), code_theme=self.themes.code_theme)
-                )
             case tools.TASK | tools.ORACLE:
                 color = self.pick_sub_agent_color(sub_agent_type=tools.SubAgentType(e.tool_name)).color
                 self.print(r_tools.render_task_call(e, color))
@@ -136,8 +132,6 @@ class REPLRenderer:
                 self.print(Padding.indent(r_diffs.render_diff(e.ui_extra or ""), level=2))
             case tools.TODO_WRITE | tools.UPDATE_PLAN:
                 self.print(r_tools.render_todo(e))
-            case tools.EXIT_PLAN_MODE:
-                self.print(r_tools.render_exit_plan_result(e.status, e.ui_extra))
             case tools.TASK | tools.ORACLE:
                 self.print(
                     r_tools.render_task_result(

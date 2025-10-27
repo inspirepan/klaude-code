@@ -342,16 +342,6 @@ async def last_path_memory_reminder(session: Session) -> model.DeveloperMessageI
         )
 
 
-async def plan_mode_reminder(session: Session) -> model.DeveloperMessageItem | None:
-    if session.is_in_plan_mode:
-        return model.DeveloperMessageItem(
-            content="""<system-reminder>Plan mode is active. The user indicated that they do not want you to execute yet -- you MUST NOT make any edits, run any non-readonly tools (including changing configs or making commits), or otherwise make any changes to the system. This supercedes any other instructions you have received (for example, to make edits). Instead, you should:
-1. Answer the user's query
-2. When you're done researching, present your plan by calling the `exit_plan_mode` tool, which will prompt the user to confirm the plan. Do NOT make any file changes or run any tools that modify the system state in any way until the user has confirmed the plan.</system-reminder>""",
-        )
-    return None
-
-
 ALL_REMINDERS = [
     empty_todo_reminder,
     todo_not_used_recently_reminder,
@@ -359,7 +349,6 @@ ALL_REMINDERS = [
     memory_reminder,
     last_path_memory_reminder,
     at_file_reader_reminder,
-    plan_mode_reminder,
 ]
 
 
@@ -380,7 +369,6 @@ def get_main_agent_reminders(vanilla: bool, model_name: str) -> list[Reminder]:
             last_path_memory_reminder,
             at_file_reader_reminder,
             file_changed_externally_reminder,
-            plan_mode_reminder,
         ]
     )
 

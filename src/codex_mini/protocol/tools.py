@@ -7,7 +7,6 @@ MULTI_EDIT = "MultiEdit"
 READ = "Read"
 TODO_WRITE = "TodoWrite"
 UPDATE_PLAN = "update_plan"
-EXIT_PLAN_MODE = "exit_plan_mode"
 TASK = "Task"
 ORACLE = "Oracle"
 

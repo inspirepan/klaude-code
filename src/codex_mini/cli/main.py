@@ -160,14 +160,6 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
 
     llm_clients = AgentLLMClients(main=llm_client)
 
-    if config.plan_model:
-        plan_llm_config = config.get_model_config(config.plan_model)
-        plan_llm_client = create_llm_client(plan_llm_config)
-        llm_clients.plan = plan_llm_client
-        if init_config.debug:
-            log_debug("▷▷▷ llm [Plan Model Config]", plan_llm_config.model_dump_json(exclude_none=True), style="yellow")
-            plan_llm_client.enable_debug_mode()
-
     if config.task_model:
         task_llm_config = config.get_model_config(config.task_model)
         task_llm_client = create_llm_client(task_llm_config)

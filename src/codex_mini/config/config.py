@@ -29,7 +29,6 @@ class Config(BaseModel):
     provider_list: list[LLMConfigProviderParameter]
     model_list: list[ModelConfig]
     main_model: str
-    plan_model: str | None = None
     task_model: str | None = None
     oracle_model: str | None = None
     theme: str | None = None

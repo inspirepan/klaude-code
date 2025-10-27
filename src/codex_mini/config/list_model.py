@@ -153,14 +153,6 @@ def display_models_and_providers(config: Config):
     if config.task_model:
         console.print(Text.assemble(("Task Model: ", "bold"), (config.task_model, ThemeKey.CONFIG_STATUS_PRIMARY)))
 
-    # Display plan model if configured
-    if config.plan_model:
-        console.print(Text.assemble(("Plan Model: ", "bold"), (config.plan_model, ThemeKey.CONFIG_STATUS_PRIMARY)))
-
-    # Display task model if configured
-    if config.task_model:
-        console.print(Text.assemble(("Task Model: ", "bold"), (config.task_model, ThemeKey.CONFIG_STATUS_PRIMARY)))
-
     # Display oracle model if configured
     if config.oracle_model:
         console.print(Text.assemble(("Oracle Model: ", "bold"), (config.oracle_model, ThemeKey.CONFIG_STATUS_PRIMARY)))

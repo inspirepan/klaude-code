@@ -1,13 +1,9 @@
 import json
 from pathlib import Path
-from typing import Optional
 
-from rich import box
-from rich.box import Box
 from rich.color import Color
 from rich.console import Group, RenderableType
 from rich.padding import Padding
-from rich.panel import Panel
 from rich.style import Style
 from rich.text import Text
 
@@ -152,26 +148,6 @@ def render_multi_edit_tool_call(arguments: str) -> Text:
     return render_result
 
 
-def render_plan(arguments: str, *, box_style: Box | None = None, code_theme: str) -> RenderableType:
-    if box_style is None:
-        box_style = box.ROUNDED
-    # Plan mode
-    try:
-        json_dict = json.loads(arguments)
-        plan = json_dict.get("plan", "")
-        return Group(
-            Text.assemble(("¶ ", ThemeKey.TOOL_MARK), ("Plan", ThemeKey.TOOL_NAME)),
-            Panel.fit(NoInsetMarkdown(plan, code_theme=code_theme), border_style=ThemeKey.LINES, box=box_style),
-        )
-    except json.JSONDecodeError:
-        return Text.assemble(
-            ("¶ ", ThemeKey.TOOL_MARK),
-            ("Plan", ThemeKey.TOOL_NAME),
-            " ",
-            Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS),
-        )
-
-
 def render_task_call(e: events.ToolCallEvent, color: Color | None = None) -> RenderableType:
     """Render Task/Oracle tool call header and quoted body.
 
@@ -265,22 +241,6 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
 def render_task_result(e: events.ToolResultEvent, *, quote_style: Style, code_theme: str) -> RenderableType:
     # For sub-agent
     return Quote(NoInsetMarkdown(e.result, code_theme=code_theme), style=quote_style)
-
-
-def render_exit_plan_result(status: str, ui_extra: Optional[str]) -> RenderableType:
-    grid = create_grid()
-    if status == "success":
-        approved = Padding.indent(Text(" Approved ", ThemeKey.TOOL_APPROVED), level=1)
-        grid.add_row(
-            Text("↓", style=ThemeKey.METADATA),
-            Text("execute with ", style=ThemeKey.METADATA).append_text(
-                Text(ui_extra or "N/A", style=ThemeKey.METADATA_BOLD)
-            ),
-        )
-        return Group(approved, grid)
-    else:
-        rejected = Padding.indent(Text(" Rejected ", ThemeKey.TOOL_REJECTED), level=1)
-        return rejected
 
 
 def render_generic_tool_result(result: str, *, is_error: bool = False) -> RenderableType:

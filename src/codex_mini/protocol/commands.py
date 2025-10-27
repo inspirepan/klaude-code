@@ -7,7 +7,6 @@ class CommandName(str, Enum):
     HELP = "help"
     MODEL = "model"
     COMPACT = "compact"
-    PLAN = "plan"
     REFRESH_TERMINAL = "refresh-terminal"
     CLEAR = "clear"
     TERMINAL_SETUP = "terminal-setup"
