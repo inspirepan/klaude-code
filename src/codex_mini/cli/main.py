@@ -34,6 +34,12 @@ from codex_mini.session import Session, resume_select_session
 from codex_mini.trace import log, log_debug
 
 
+def set_terminal_title(title: str) -> None:
+    """Set terminal window title using ANSI escape sequence."""
+    sys.stdout.write(f"\033]0;{title}\007")
+    sys.stdout.flush()
+
+
 class PrintCapable(Protocol):
     """Protocol for objects that can print styled content."""
 
@@ -497,6 +503,10 @@ def exec_command(
 ):
     """Execute non-interactively with provided input."""
 
+    # Set terminal title with current folder name
+    folder_name = os.path.basename(os.getcwd())
+    set_terminal_title(f"{folder_name}: cdx")
+
     parts: list[str] = []
 
     # Handle stdin input
@@ -596,6 +606,9 @@ def main_callback(
     """Codex CLI Minimal"""
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
+        # Set terminal title with current folder name
+        folder_name = os.path.basename(os.getcwd())
+        set_terminal_title(f"{folder_name}: cdx")
         # Interactive mode
         # Parse model-config override if provided
         llm_config_override: LLMConfigParameter | None = parse_llm_config_override(model_config_json, debug)
