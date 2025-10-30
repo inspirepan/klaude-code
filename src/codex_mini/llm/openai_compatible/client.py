@@ -5,7 +5,7 @@ from typing import Literal, override
 
 import httpx
 import openai
-from openai import RateLimitError
+from openai import APIError, RateLimitError
 from pydantic import BaseModel
 
 from codex_mini.llm.client import LLMClientABC
@@ -265,7 +265,7 @@ class OpenAICompatibleClient(LLMClientABC):
                         )
                     stage = "tool"
                     accumulated_tool_calls.add(delta.tool_calls)
-        except RateLimitError as e:
+        except (RateLimitError, APIError) as e:
             yield StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
 
         # Finalize
