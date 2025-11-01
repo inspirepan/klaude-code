@@ -129,6 +129,7 @@ class ResponsesClient(LLMClientABC):
         )
 
         try:
+            new_reasoning_summary_delta_flag = True
             async for event in await stream:
                 if self.is_debug_mode():
                     log_debug(f"◁◁◁ stream [SSE {event.type}]", str(event), style="blue")
@@ -141,11 +142,12 @@ class ResponsesClient(LLMClientABC):
                             first_token_time = time.time()
                         last_token_time = time.time()
                         yield ThinkingTextDelta(
-                            thinking=event.delta,
+                            thinking="\n\n" + event.delta if new_reasoning_summary_delta_flag else event.delta,
                             response_id=response_id,
                         )
+                        new_reasoning_summary_delta_flag = False
                     case responses.ResponseReasoningSummaryTextDoneEvent() as event:
-                        pass
+                        new_reasoning_summary_delta_flag = True
                     case responses.ResponseTextDeltaEvent() as event:
                         if first_token_time is None:
                             first_token_time = time.time()
