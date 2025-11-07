@@ -1,0 +1,85 @@
+from typing import Callable, TypeVar
+
+from codex_mini.core.tool.tool_abc import ToolABC
+from codex_mini.protocol import tools
+from codex_mini.protocol.llm_parameter import ToolSchema
+from codex_mini.protocol.model import ToolCallItem, ToolResultItem
+
+_REGISTRY: dict[str, type[ToolABC]] = {}
+
+T = TypeVar("T", bound=ToolABC)
+
+
+def register(name: str) -> Callable[[type[T]], type[T]]:
+    def _decorator(cls: type[T]) -> type[T]:
+        _REGISTRY[name] = cls
+        return cls
+
+    return _decorator
+
+
+def list_tools() -> list[str]:
+    return list(_REGISTRY.keys())
+
+
+def get_tool_schemas(tool_names: list[str]) -> list[ToolSchema]:
+    schemas: list[ToolSchema] = []
+    for tool_name in tool_names:
+        if tool_name not in _REGISTRY:
+            raise ValueError(f"Unknown Tool: {tool_name}")
+        schemas.append(_REGISTRY[tool_name].schema())
+    return schemas
+
+
+async def run_tool(tool_call: ToolCallItem) -> ToolResultItem:
+    if tool_call.name not in _REGISTRY:
+        return ToolResultItem(
+            call_id=tool_call.call_id,
+            output=f"Tool {tool_call.name} not exists",
+            status="error",
+            tool_name=tool_call.name,
+        )
+    try:
+        tool_result = await _REGISTRY[tool_call.name].call(tool_call.arguments)
+        tool_result.call_id = tool_call.call_id
+        tool_result.tool_name = tool_call.name
+        return tool_result
+    except Exception as e:
+        return ToolResultItem(
+            call_id=tool_call.call_id,
+            output=f"Tool {tool_call.name} execution error: {e.__class__.__name__} {e}",
+            status="error",
+            tool_name=tool_call.name,
+        )
+
+
+def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
+    if "gpt-5" in model_name:
+        # update_plan and apply_patch is special for gpt-5
+        return get_tool_schemas(
+            [
+                tools.UPDATE_PLAN,
+                tools.BASH,
+                tools.APPLY_PATCH,
+                tools.READ,
+                tools.TASK,
+            ]
+        )
+    return get_tool_schemas(
+        [
+            tools.TODO_WRITE,
+            tools.BASH,
+            tools.READ,
+            tools.EDIT,
+            # tools.MULTI_EDIT, # MultiEdit has been removed in Claude Code 2.0 for Claude Sonnet 4.5
+            tools.TASK,
+            tools.ORACLE,
+        ]
+    )
+
+
+def get_sub_agent_tools(model_name: str, sub_agent_type: tools.SubAgentType) -> list[ToolSchema]:
+    if sub_agent_type == tools.SubAgentType.TASK:
+        return get_tool_schemas([tools.BASH, tools.READ, tools.EDIT, tools.MULTI_EDIT])
+    elif sub_agent_type == tools.SubAgentType.ORACLE:
+        return get_tool_schemas([tools.READ, tools.BASH])

@@ -1,56 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "klaude-code"
-version = "0.1.19"
-description = "Coding Agent CLI"
+name = "codex-mini"
+version = "0.1.0"
+description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
-license = {text = "MIT"}
-authors = [
-    {name = "inspirepan", email = "panjixiang65@gamil.com"}
-]
-keywords = ["cli", "ai", "coding", "assistant"]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.13",
-]
 dependencies = [
-    "anthropic>=0.54.0",
-    "inquirerpy>=0.3.4",
-    "openai>=1.86.0",
-    "prompt-toolkit>=3.0.51",
+    "anthropic>=0.66.0",
+    "openai>=1.102.0",
+    "prompt-toolkit>=3.0.52",
     "pydantic>=2.11.7",
-    "pyyaml>=6.0.0",
-    "questionary>=2.1.0",
-    "rich>=14.0.0",
-    "tiktoken>=0.9.0",
-    "mcp>=1.0.0",
-    "httpx[socks]>=0.28.1",
-    "pillow>=10.0.0",
-    "pyperclip>=1.8.2",
+    "pyyaml>=6.0.2",
+    "questionary>=2.1.1",
+    "rich>=14.1.0",
+    "typer>=0.17.3",
 ]
 
 [project.scripts]
-klaude = "klaudecode.cli.main:main"
+cdx = "codex_mini.cli.main:app"
+
+[tool.hatch.build]
+sources = ["src"]
 
 [dependency-groups]
 dev = [
-    "build>=1.2.2.post1",
     "isort>=6.0.1",
     "pytest>=8.4.1",
-    "pytest-asyncio>=1.0.0",
-    "twine>=6.1.0",
-]
-test = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.0",
-    "pytest-cov>=4.1.0",
-    "pytest-mock>=3.12.0",
-    "pyfakefs>=5.3.0",
 ]
 
+[tool.hatch.build.targets.wheel.force-include]
+"src/codex_mini/core/prompt_codex.md" = "codex_mini/core/prompt_codex.md"
+"src/codex_mini/core/prompt_claude_code.md" = "codex_mini/core/prompt_claude_code.md"
+"src/codex_mini/core/prompt_init.md" = "codex_mini/core/prompt_init.md"
+"src/codex_mini/core/prompt_subagent.md" = "codex_mini/core/prompt_subagent.md"
+"src/codex_mini/core/prompt_oracle.md" = "codex_mini/core/prompt_oracle.md"
+
 [tool.ruff]
-target-version = "py313"
-extend-exclude = ["build", "docs/_build"]
+line-length = 120

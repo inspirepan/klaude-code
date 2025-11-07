@@ -5,16 +5,11 @@ build/
 dist/
 wheels/
 *.egg-info
-
+.ruff_cache/
+.pytest_cache/
 # Virtual environments
 .venv
-
-demos/
-notes/
-.klaude/
-.ruff_cache/
-.claude-trace/
-
-.idea/
-
-.coverage
+.DS_Store
+debug.log
+.vscode/
+.claude/

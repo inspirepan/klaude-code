@@ -1,23 +1,12 @@
 import sys
-import tempfile
 from pathlib import Path
 
-import pytest
 
-# Add the src directory to the Python path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-
-@pytest.fixture
-def temp_dir():
-    """Create a temporary directory for testing."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        yield Path(temp_dir)
+def setup_src_path():
+    ROOT = Path(__file__).resolve().parents[1]
+    SRC_DIR = ROOT / "src"
+    if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
+        sys.path.insert(0, str(SRC_DIR))
 
 
-@pytest.fixture
-def mock_agent(temp_dir):
-    """Create a mock agent for testing."""
-    from tests.base import MockAgent
-
-    return MockAgent(temp_dir)
+setup_src_path()
