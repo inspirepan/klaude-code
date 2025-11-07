@@ -19,8 +19,13 @@ from codex_mini.protocol.model import (
 
 
 def is_openai_compatible_claude_model(model_name: str | None):
-    return model_name is not None and (model_name.startswith("aws_sdk_claude") or model_name.startswith("azure-claude") or model_name.startswith("anthropic/claude"))
+    return model_name is not None and (
+        model_name.startswith("aws_sdk_claude")
+        or model_name.startswith("azure-claude")
+    )
 
+def is_openrouter_claude_model(model_name: str | None):
+    return model_name is not None and model_name.startswith("anthropic/claude")
 
 def convert_history_to_input(
     history: list[ConversationItem],
@@ -45,8 +50,6 @@ def convert_history_to_input(
         if system
         else []
     )
-
-    is_claude: bool = is_openai_compatible_claude_model(model_name)
 
     for group_kind, group in group_response_items_gen(history):
         match group_kind:
@@ -115,7 +118,7 @@ def convert_history_to_input(
                             )
                         case ReasoningItem() as r:
                             if r.encrypted_content and len(r.encrypted_content) > 0 and model_name == r.model:
-                                if is_claude:
+                                if is_openai_compatible_claude_model(model_name):
                                     assistant_message["reasoning_content"] = r.content
                                     assistant_message["signature"] = r.encrypted_content
                                 else:

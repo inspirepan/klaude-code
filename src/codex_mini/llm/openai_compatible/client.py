@@ -13,6 +13,7 @@ from codex_mini.llm.openai_compatible.input import (
     convert_history_to_input,
     convert_tool_schema,
     is_openai_compatible_claude_model,
+    is_openrouter_claude_model,
 )
 from codex_mini.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
 from codex_mini.llm.registry import register
@@ -76,6 +77,8 @@ class OpenAICompatibleClient(LLMClientABC):
         last_token_time: float | None = None
 
         extra_body = {}
+        extra_headers = {"extra": json.dumps({"session_id": param.session_id})}
+
         if param.thinking:
             if self.get_llm_config().is_openrouter():
                 extra_body["reasoning"] = {
@@ -90,6 +93,10 @@ class OpenAICompatibleClient(LLMClientABC):
             extra_body["plugins"] = [p.model_dump(exclude_none=True) for p in param.plugins]
         if is_openai_compatible_claude_model(param.model):
             extra_body["anthropic_beta"] = ["interleaved-thinking-2025-05-14"]
+        if is_openrouter_claude_model(param.model):
+            extra_headers["anthropic-beta"] = (
+                "interleaved-thinking-2025-05-14"  # Not working yet, maybe OpenRouter's issue
+            )
 
         if self.is_debug_mode():
             payload: dict[str, object] = {
@@ -104,13 +111,12 @@ class OpenAICompatibleClient(LLMClientABC):
                 "reasoning_effort": param.reasoning.effort if param.reasoning else None,
                 "verbosity": param.verbosity,
                 **extra_body,
+                "extra_headers": extra_headers,
             }
             # Remove None values
             payload = {k: v for k, v in payload.items() if v is not None}
 
             log_debug("▷▷▷ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
-
-        extra_headers = {"extra": json.dumps({"session_id": param.session_id})}
 
         stream = self.client.chat.completions.create(
             model=str(param.model),
