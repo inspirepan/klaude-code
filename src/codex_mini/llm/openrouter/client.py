@@ -42,7 +42,7 @@ class OpenRouterClient(LLMClientABC):
         super().__init__(config)
         client = openai.AsyncOpenAI(
             api_key=config.api_key,
-            base_url=config.base_url,
+            base_url="https://openrouter.ai/api/v1",
             timeout=httpx.Timeout(300.0, connect=15.0, read=285.0),
         )
         self.client: openai.AsyncOpenAI = client

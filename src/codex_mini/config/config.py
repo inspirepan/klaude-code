@@ -83,9 +83,8 @@ def get_example_config() -> Config:
             ),
             LLMConfigProviderParameter(
                 provider_name="openrouter",
-                protocol=LLMClientProtocol.OPENAI,
+                protocol=LLMClientProtocol.OPENROUTER,
                 api_key="sk-1234567890",
-                base_url="https://api.openrouter.com/v1",
             ),
         ],
         model_list=[

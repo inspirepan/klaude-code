@@ -3,7 +3,7 @@
 A repository for showing how to make a simple Agent CLI using OpenAI's Response API / Anthropic API / OpenRouter's API, like Claude Code & Codex
 
 ## Features
-- Handling OpenAI Responses API, Anthropic API, OpenAI Compatible API
+- Handling OpenAI Responses API, Anthropic API, OpenAI Compatible API, OpenRouter API
 - Model Selection
 - Slash Commands
 - Python Rich UI
