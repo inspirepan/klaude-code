@@ -143,7 +143,7 @@ class PromptToolkitInput(InputProviderABC):
                     "scrollbar.button": "bg:default",
                     "completion-menu.completion": f"bg:default fg:{COMPLETION_MENU}",
                     "completion-menu.meta.completion": f"bg:default fg:{COMPLETION_MENU}",
-                    "completion-menu.completion.current": f"bg:default fg:{COMPLETION_SELECTED} bold",
+                    "completion-menu.completion.current": f"noreverse bg:default fg:{COMPLETION_SELECTED} bold",
                     "completion-menu.meta.completion.current": f"bg:default fg:{COMPLETION_SELECTED} bold",
                 }
             ),
@@ -151,54 +151,48 @@ class PromptToolkitInput(InputProviderABC):
 
     def _render_bottom_toolbar(self) -> FormattedText:
         """Render bottom toolbar with working directory, git branch, model name and context usage."""
-        # Build working directory and git branch info
-        location_text = show_path_with_tilde()
-        git_branch = get_current_git_branch()
-        location_text += f" [{git_branch if git_branch else 'nogit'}]"
+        # Collect all parts
+        parts: list[str] = []
 
-        # Build status parts
-        status_parts: list[tuple[str, str]] = []
+        # Add working directory
+        parts.append(show_path_with_tilde())
+
+        # Add git branch
+        git_branch = get_current_git_branch()
+        parts.append(git_branch if git_branch else "nogit")
+
+        # Add status info if available
         if self._status_provider:
             try:
                 status = self._status_provider()
                 model_name = status.model_name or "N/A"
-
-                # Add model name in bold
-                status_parts.append(("ansicyan bold", model_name))  # noreverse
+                parts.append(model_name)
 
                 # Add context if available
                 if status.context_usage_percent is not None:
-                    status_parts.append(("ansicyan", f" · context {status.context_usage_percent:.1f}%"))
+                    parts.append(f"context {status.context_usage_percent:.1f}%")
 
                 # Add llm calls and tool calls with proper singular/plural, only if > 0
                 if status.llm_calls > 0:
                     llm_word = "llm call" if status.llm_calls == 1 else "llm calls"
-                    status_parts.append(("ansicyan", f" · {status.llm_calls} {llm_word}"))
+                    parts.append(f"{status.llm_calls} {llm_word}")
 
                 if status.tool_calls > 0:
                     tool_word = "tool call" if status.tool_calls == 1 else "tool calls"
-                    status_parts.append(("ansicyan", f" · {status.tool_calls} {tool_word}"))
+                    parts.append(f"{status.tool_calls} {tool_word}")
             except Exception:
-                status_parts = []
+                pass
 
-        # Calculate total length
-        status_len = sum(len(text) for _, text in status_parts)
-        total_len = len(location_text) + (1 + status_len if status_parts else 0)
-
-        # Calculate padding for right alignment
+        # Join with separator and calculate padding
+        toolbar_text = " · ".join(parts)
         try:
             terminal_width = shutil.get_terminal_size().columns
-            padding = " " * max(0, terminal_width - total_len)
+            padding = " " * max(0, terminal_width - len(toolbar_text))
         except Exception:
             padding = ""
 
-        # Build result
-        result = [("ansicyan", padding), ("ansicyan", location_text)]
-        if status_parts:
-            result.append(("ansicyan", " "))
-            result.extend(status_parts)
-
-        return FormattedText(result)
+        # Build result with style
+        return FormattedText([("#487E89", padding + toolbar_text)])
 
     async def start(self) -> None:  # noqa: D401
         _set_cursor_style(5)
