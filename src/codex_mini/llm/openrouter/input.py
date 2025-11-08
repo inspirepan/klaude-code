@@ -18,6 +18,10 @@ from codex_mini.protocol.model import (
 )
 
 
+def is_claude_model(model_name: str | None):
+    return model_name is not None and model_name.startswith("anthropic/claude")
+
+
 def convert_history_to_input(
     history: list[ConversationItem],
     system: str | None = None,
@@ -107,8 +111,32 @@ def convert_history_to_input(
                                     },
                                 }
                             )
-                        case ReasoningItem():
-                            continue  # Skip reasoning items in OpenAICompatible assistant message
+                        case ReasoningItem() as r:
+                            if model_name != r.model:
+                                continue
+                            # OpenRouter's reasoning details
+                            # https://openrouter.ai/docs/use-cases/reasoning-tokens#advanced-usage-reasoning-chain-of-thought
+                            if r.encrypted_content and len(r.encrypted_content) > 0:
+                                assistant_message["reasoning_details"] = [
+                                    {
+                                        "id": r.id,
+                                        "type": "reasoning.encrypted",
+                                        "data": r.encrypted_content,
+                                        "format": r.format,
+                                        "index": 0,
+                                    }
+                                ]
+                            else:
+                                # If it's Claude's signature?
+                                assistant_message["reasoning_details"] = [
+                                    {
+                                        "id": r.id,
+                                        "type": "reasoning.text",
+                                        "text": r.content,
+                                        "format": r.format,
+                                        "index": 0,
+                                    }
+                                ]
                         case _:
                             pass
 

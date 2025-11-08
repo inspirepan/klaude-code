@@ -14,6 +14,7 @@ DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS = 2048
 class LLMClientProtocol(Enum):
     OPENAI = "openai"
     RESPONSES = "responses"
+    OPENROUTER = "openrouter"
     ANTHROPIC = "anthropic"
 
 
@@ -97,9 +98,6 @@ class LLMConfigProviderParameter(BaseModel):
     api_key: str | None = None
     is_azure: bool = False
     azure_api_version: str | None = None
-
-    def is_openrouter(self) -> bool:
-        return self.base_url == "https://openrouter.ai/api/v1"
 
 
 class LLMConfigModelParameter(BaseModel):

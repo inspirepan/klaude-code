@@ -6,10 +6,11 @@ from typing import Literal, override
 import httpx
 import openai
 from openai import APIError, RateLimitError
+from pydantic import BaseModel
 
 from codex_mini.llm.client import LLMClientABC
-from codex_mini.llm.openai_compatible.input import convert_history_to_input, convert_tool_schema
 from codex_mini.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
+from codex_mini.llm.openrouter.input import convert_history_to_input, convert_tool_schema, is_claude_model
 from codex_mini.llm.registry import register
 from codex_mini.protocol import model
 from codex_mini.protocol.llm_parameter import (
@@ -19,29 +20,32 @@ from codex_mini.protocol.llm_parameter import (
     apply_config_defaults,
 )
 from codex_mini.protocol.model import StreamErrorItem
-from codex_mini.trace import log_debug
+from codex_mini.trace import log, log_debug
 
 
-@register(LLMClientProtocol.OPENAI)
-class OpenAICompatibleClient(LLMClientABC):
+class ReasoningDetail(BaseModel):
+    """OpenRouter's https://openrouter.ai/docs/use-cases/reasoning-tokens#reasoning_details-array-structure"""
+
+    type: str
+    format: str
+    index: int
+    id: str | None = None
+    data: str | None = None  # OpenAI's encrypted content
+    summary: str | None = None
+    text: str | None = None
+    signature: str | None = None  # Claude's signature
+
+
+@register(LLMClientProtocol.OPENROUTER)
+class OpenRouterClient(LLMClientABC):
     def __init__(self, config: LLMConfigParameter):
         super().__init__(config)
-        if config.is_azure:
-            if not config.base_url:
-                raise ValueError("Azure endpoint is required")
-            client = openai.AsyncAzureOpenAI(
-                api_key=config.api_key,
-                azure_endpoint=str(config.base_url),
-                api_version=config.azure_api_version,
-                timeout=httpx.Timeout(300.0, connect=15.0, read=285.0),
-            )
-        else:
-            client = openai.AsyncOpenAI(
-                api_key=config.api_key,
-                base_url=config.base_url,
-                timeout=httpx.Timeout(300.0, connect=15.0, read=285.0),
-            )
-        self.client: openai.AsyncAzureOpenAI | openai.AsyncOpenAI = client
+        client = openai.AsyncOpenAI(
+            api_key=config.api_key,
+            base_url=config.base_url,
+            timeout=httpx.Timeout(300.0, connect=15.0, read=285.0),
+        )
+        self.client: openai.AsyncOpenAI = client
 
     @classmethod
     @override
@@ -59,10 +63,21 @@ class OpenAICompatibleClient(LLMClientABC):
         last_token_time: float | None = None
 
         extra_body = {}
-        extra_headers = {"extra": json.dumps({"session_id": param.session_id})}
+        extra_headers = {}
 
         if param.thinking:
-            extra_body["thinking"] = param.thinking.model_dump(exclude_none=True)  # Claude or Gemini or GLM
+            extra_body["reasoning"] = {
+                "max_tokens": param.thinking.budget_tokens,
+                "enable": True,
+            }  # OpenRouter: https://openrouter.ai/docs/use-cases/reasoning-tokens#anthropic-models-with-reasoning-tokens
+        if param.provider_routing:
+            extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
+        if param.plugins:
+            extra_body["plugins"] = [p.model_dump(exclude_none=True) for p in param.plugins]
+        if is_claude_model(param.model):
+            extra_headers["anthropic-beta"] = (
+                "interleaved-thinking-2025-05-14"  # Not working yet, maybe OpenRouter's issue
+            )
 
         if self.is_debug_mode():
             payload: dict[str, object] = {
@@ -74,7 +89,6 @@ class OpenAICompatibleClient(LLMClientABC):
                 "temperature": param.temperature,
                 "max_tokens": param.max_tokens,
                 "tools": tools,
-                "reasoning_effort": param.reasoning.effort if param.reasoning else None,
                 "verbosity": param.verbosity,
                 **extra_body,
                 "extra_headers": extra_headers,
@@ -93,10 +107,9 @@ class OpenAICompatibleClient(LLMClientABC):
             temperature=param.temperature,
             max_tokens=param.max_tokens,
             tools=tools,
-            reasoning_effort=param.reasoning.effort if param.reasoning else None,
             verbosity=param.verbosity,
             extra_body=extra_body,  # pyright: ignore[reportUnknownArgumentType]
-            extra_headers=extra_headers,
+            extra_headers=extra_headers,  # pyright: ignore[reportUnknownArgumentType]
         )
 
         stage: Literal["waiting", "reasoning", "assistant", "tool", "done"] = "waiting"
@@ -105,6 +118,12 @@ class OpenAICompatibleClient(LLMClientABC):
         accumulated_tool_calls: ToolCallAccumulatorABC = BasicToolCallAccumulator()
         response_id: str | None = None
         metadata_item = model.ResponseMetadataItem()
+
+        reasoning_encrypted_content: str | None = None
+        reasoning_format: str | None = None
+        reasoning_id: str | None = None
+
+        turn_annotations: list[model.Annotation] | None = None
 
         try:
             async for event in await stream:
@@ -125,29 +144,42 @@ class OpenAICompatibleClient(LLMClientABC):
                     continue
                 delta = event.choices[0].delta
 
-                # Support Kimi K2's usage field in choice
-                if hasattr(event.choices[0], "usage") and getattr(event.choices[0], "usage"):
-                    metadata_item.usage = convert_usage(
-                        openai.types.CompletionUsage.model_validate(getattr(event.choices[0], "usage")),
-                        param.context_limit,
-                    )
-
                 # Reasoning
-                reasoning_content = ""
-                if hasattr(delta, "reasoning") and getattr(delta, "reasoning"):
-                    reasoning_content = getattr(delta, "reasoning")
-                if hasattr(delta, "reasoning_content") and getattr(delta, "reasoning_content"):
-                    reasoning_content = getattr(delta, "reasoning_content")
-                if reasoning_content:
-                    if first_token_time is None:
-                        first_token_time = time.time()
-                    last_token_time = time.time()
-                    stage = "reasoning"
-                    accumulated_reasoning.append(reasoning_content)
-                    yield model.ThinkingTextDelta(
-                        thinking=reasoning_content,
-                        response_id=response_id,
-                    )
+                if hasattr(delta, "reasoning_details") and getattr(delta, "reasoning_details"):
+                    reasoning_details = getattr(delta, "reasoning_details")
+                    for item in reasoning_details:
+                        try:
+                            reasoning_detail = ReasoningDetail.model_validate(item)
+                            if first_token_time is None:
+                                first_token_time = time.time()
+                            last_token_time = time.time()
+                            stage = "reasoning"
+                            if reasoning_detail.type == "reasoning.encrypted":
+                                reasoning_encrypted_content = reasoning_detail.data
+                                reasoning_id = reasoning_detail.id
+                                reasoning_format = reasoning_detail.format
+                            elif reasoning_detail.type == "reasoning.text":
+                                reasoning_encrypted_content = reasoning_detail.signature
+                                reasoning_id = reasoning_detail.id
+                                reasoning_format = reasoning_detail.format
+                                if reasoning_detail.text:
+                                    accumulated_reasoning.append(reasoning_detail.text)
+                                    yield model.ThinkingTextDelta(
+                                        thinking=reasoning_detail.text,
+                                        response_id=response_id,
+                                    )
+                        except Exception as e:
+                            log("reasoning_details error", str(e), style="red")
+
+                # Annotations (URL Citation)
+                if hasattr(delta, "annotations") and getattr(delta, "annotations"):
+                    annotations = getattr(delta, "annotations")
+                    if annotations:
+                        a = model.Annotations.validate_python(annotations)
+                        if not turn_annotations:
+                            turn_annotations = a
+                        else:
+                            turn_annotations.extend(a)
 
                 # Assistant
                 if delta.content and (
@@ -158,8 +190,11 @@ class OpenAICompatibleClient(LLMClientABC):
                     last_token_time = time.time()
                     if stage == "reasoning":
                         yield model.ReasoningItem(
+                            id=reasoning_id,
                             content="".join(accumulated_reasoning),
                             response_id=response_id,
+                            encrypted_content=reasoning_encrypted_content,
+                            format=reasoning_format,
                             model=param.model,
                         )
                     stage = "assistant"
@@ -176,14 +211,18 @@ class OpenAICompatibleClient(LLMClientABC):
                     last_token_time = time.time()
                     if stage == "reasoning":
                         yield model.ReasoningItem(
+                            id=reasoning_id,
                             content="".join(accumulated_reasoning),
                             response_id=response_id,
+                            encrypted_content=reasoning_encrypted_content,
+                            format=reasoning_format,
                             model=param.model,
                         )
                     elif stage == "assistant":
                         yield model.AssistantMessageItem(
                             content="".join(accumulated_content),
                             response_id=response_id,
+                            annotations=turn_annotations,
                         )
                     stage = "tool"
                     accumulated_tool_calls.add(delta.tool_calls)
@@ -193,14 +232,18 @@ class OpenAICompatibleClient(LLMClientABC):
         # Finalize
         if stage == "reasoning":
             yield model.ReasoningItem(
+                id=reasoning_id,
                 content="".join(accumulated_reasoning),
                 response_id=response_id,
+                encrypted_content=reasoning_encrypted_content,
+                format=reasoning_format,
                 model=param.model,
             )
         elif stage == "assistant":
             yield model.AssistantMessageItem(
                 content="".join(accumulated_content),
                 response_id=response_id,
+                annotations=turn_annotations,
             )
         elif stage == "tool":
             for tool_call_item in accumulated_tool_calls.get():
