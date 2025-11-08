@@ -389,7 +389,6 @@ class Agent:
                         content=item.content or "",
                         response_id=item.response_id,
                         session_id=self.session.id,
-                        annotations=item.annotations,
                     )
                 case model.ResponseMetadataItem() as item:
                     yield events.ResponseMetadataEvent(

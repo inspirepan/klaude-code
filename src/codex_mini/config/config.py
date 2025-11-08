@@ -9,7 +9,6 @@ from codex_mini.protocol.llm_parameter import (
     LLMConfigModelParameter,
     LLMConfigParameter,
     LLMConfigProviderParameter,
-    OpenRouterPlugin,
     OpenRouterProviderRouting,
     Reasoning,
     Thinking,
@@ -84,9 +83,8 @@ def get_example_config() -> Config:
             ),
             LLMConfigProviderParameter(
                 provider_name="openrouter",
-                protocol=LLMClientProtocol.OPENAI,
+                protocol=LLMClientProtocol.OPENROUTER,
                 api_key="sk-1234567890",
-                base_url="https://api.openrouter.com/v1",
             ),
         ],
         model_list=[
@@ -113,11 +111,6 @@ def get_example_config() -> Config:
                     provider_routing=OpenRouterProviderRouting(
                         sort="throughput",
                     ),
-                    plugins=[
-                        OpenRouterPlugin(
-                            id="web",
-                        )
-                    ],
                     context_limit=200000,
                 ),
             ),

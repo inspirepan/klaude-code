@@ -256,7 +256,6 @@ class Session(BaseModel):
                         content=content,
                         response_id=am.response_id,
                         session_id=self.id,
-                        annotations=am.annotations,
                     )
                 case model.ToolCallItem() as tc:
                     yield events.ToolCallEvent(

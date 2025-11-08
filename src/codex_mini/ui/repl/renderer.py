@@ -14,7 +14,6 @@ from rich.text import Text
 
 from codex_mini.protocol import events, tools
 from codex_mini.ui.base.theme import ThemeKey, get_theme
-from codex_mini.ui.renderers import annotations as r_annotations
 from codex_mini.ui.renderers import developer as r_developer
 from codex_mini.ui.renderers import diffs as r_diffs
 from codex_mini.ui.renderers import errors as r_errors
@@ -164,8 +163,6 @@ class REPLRenderer:
                             )
                         )
                         self.print()
-                    if assistant_event.annotations:
-                        self.print(r_annotations.render_annotations(assistant_event.annotations))
                 case events.ThinkingEvent() as thinking_event:
                     if len(thinking_event.content.strip()) > 0:
                         self.print(r_thinking.thinking_prefix())
