@@ -72,8 +72,6 @@ class OpenRouterClient(LLMClientABC):
             }  # OpenRouter: https://openrouter.ai/docs/use-cases/reasoning-tokens#anthropic-models-with-reasoning-tokens
         if param.provider_routing:
             extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
-        if param.plugins:
-            extra_body["plugins"] = [p.model_dump(exclude_none=True) for p in param.plugins]
         if is_claude_model(param.model):
             extra_headers["anthropic-beta"] = (
                 "interleaved-thinking-2025-05-14"  # Not working yet, maybe OpenRouter's issue
@@ -123,8 +121,6 @@ class OpenRouterClient(LLMClientABC):
         reasoning_format: str | None = None
         reasoning_id: str | None = None
 
-        turn_annotations: list[model.Annotation] | None = None
-
         try:
             async for event in await stream:
                 if self.is_debug_mode():
@@ -171,16 +167,6 @@ class OpenRouterClient(LLMClientABC):
                         except Exception as e:
                             log("reasoning_details error", str(e), style="red")
 
-                # Annotations (URL Citation)
-                if hasattr(delta, "annotations") and getattr(delta, "annotations"):
-                    annotations = getattr(delta, "annotations")
-                    if annotations:
-                        a = model.Annotations.validate_python(annotations)
-                        if not turn_annotations:
-                            turn_annotations = a
-                        else:
-                            turn_annotations.extend(a)
-
                 # Assistant
                 if delta.content and (
                     stage == "assistant" or delta.content.strip()
@@ -222,7 +208,6 @@ class OpenRouterClient(LLMClientABC):
                         yield model.AssistantMessageItem(
                             content="".join(accumulated_content),
                             response_id=response_id,
-                            annotations=turn_annotations,
                         )
                     stage = "tool"
                     accumulated_tool_calls.add(delta.tool_calls)
@@ -243,7 +228,6 @@ class OpenRouterClient(LLMClientABC):
             yield model.AssistantMessageItem(
                 content="".join(accumulated_content),
                 response_id=response_id,
-                annotations=turn_annotations,
             )
         elif stage == "tool":
             for tool_call_item in accumulated_tool_calls.get():

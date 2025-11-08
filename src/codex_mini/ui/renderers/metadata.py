@@ -155,11 +155,6 @@ def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> R
                 )
             )
 
-    if pl := e.llm_config.plugins:
-        model_info.append_text(Text.assemble(("\n•", ThemeKey.WELCOME_INFO)))
-        for p in pl:
-            model_info.append_text(Text.assemble(" ", (p.id, ThemeKey.WELCOME_HIGHLIGHT)))
-
     return Group(
         Panel.fit(model_info, border_style=ThemeKey.LINES, box=box_style),
         "",  # empty line

@@ -6,7 +6,6 @@ from codex_mini.ui.base.osc94_progress_bar import OSC94States, emit_osc94
 from codex_mini.ui.base.stage_manager import Stage, StageManager
 from codex_mini.ui.base.theme import ThemeKey
 from codex_mini.ui.base.utils import remove_leading_newlines
-from codex_mini.ui.renderers import annotations as r_annotations
 from codex_mini.ui.renderers import errors as r_errors
 from codex_mini.ui.renderers import metadata as r_metadata
 from codex_mini.ui.renderers import status as r_status
@@ -123,8 +122,6 @@ class DisplayEventHandler:
                         self.renderer.print()
                 self.accumulated_assistant_text = ""
                 self.assistant_mdstream = None
-                if assistant_event.annotations:
-                    self.renderer.print(r_annotations.render_annotations(assistant_event.annotations))
                 await self.stage_manager.transition_to(Stage.WAITING)
                 self.renderer.spinner.start()
             case events.TurnToolCallStartEvent():

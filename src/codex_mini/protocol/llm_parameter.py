@@ -84,11 +84,7 @@ class OpenRouterProviderRouting(BaseModel):
     experimental: Experimental | None = None
 
 
-class OpenRouterPlugin(BaseModel):
-    id: Literal["web"]
-    # Web search, see: https://openrouter.ai/docs/features/web-search
-    max_results: int | None = None
-    search_prompt: str | None = None
+
 
 
 class LLMConfigProviderParameter(BaseModel):
@@ -117,9 +113,6 @@ class LLMConfigModelParameter(BaseModel):
 
     # OpenRouter Provider Routing Preferences
     provider_routing: OpenRouterProviderRouting | None = None
-
-    # OpenRouter Plugin (WebSearch etc.)
-    plugins: list[OpenRouterPlugin] | None = None
 
 
 class LLMConfigParameter(LLMConfigProviderParameter, LLMConfigModelParameter):
@@ -174,8 +167,6 @@ def apply_config_defaults(param: LLMCallParameter, config: LLMConfigParameter) -
         param.thinking = config.thinking
     if param.provider_routing is None:
         param.provider_routing = config.provider_routing
-    if param.plugins is None:
-        param.plugins = config.plugins
 
     if param.model is None:
         raise ValueError("Model is required")

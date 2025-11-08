@@ -9,7 +9,6 @@ from codex_mini.protocol.llm_parameter import (
     LLMConfigModelParameter,
     LLMConfigParameter,
     LLMConfigProviderParameter,
-    OpenRouterPlugin,
     OpenRouterProviderRouting,
     Reasoning,
     Thinking,
@@ -113,11 +112,6 @@ def get_example_config() -> Config:
                     provider_routing=OpenRouterProviderRouting(
                         sort="throughput",
                     ),
-                    plugins=[
-                        OpenRouterPlugin(
-                            id="web",
-                        )
-                    ],
                     context_limit=200000,
                 ),
             ),

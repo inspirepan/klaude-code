@@ -118,10 +118,6 @@ class ThemeKey(str, Enum):
     # RESUME
     RESUME_FLAG = "resume.flag"
     RESUME_INFO = "resume.info"
-    # ANNOTATION
-    ANNOTATION_URL = "annotation.url"
-    ANNOTATION_URL_HIGHLIGHT = "annotation.url.highlight"
-    ANNOTATION_SEARCH_CONTENT = "annotation.search_content"
     # SUB_AGENT
     SUB_AGENT_ORACLE = "sub_agent.oracle"
     # CONFIGURATION DISPLAY
@@ -208,10 +204,6 @@ def get_theme(theme: str | None = None) -> Themes:
                 # RESUME
                 ThemeKey.RESUME_FLAG.value: "bold reverse " + palette.green,
                 ThemeKey.RESUME_INFO.value: palette.green,
-                # URL
-                ThemeKey.ANNOTATION_URL.value: palette.blue,
-                ThemeKey.ANNOTATION_URL_HIGHLIGHT.value: "bold " + palette.blue,
-                ThemeKey.ANNOTATION_SEARCH_CONTENT.value: "italic " + palette.grey2,
                 # SUB_AGENT
                 ThemeKey.SUB_AGENT_ORACLE.value: palette.orange,
                 # CONFIGURATION DISPLAY

@@ -112,14 +112,6 @@ def display_models_and_providers(config: Config):
                     model.model_params.provider_routing.model_dump_json(exclude_none=True),
                 )
             )
-        if model.model_params.plugins:
-            params.append(
-                Text.assemble(
-                    ("plugins", ThemeKey.CONFIG_PARAM_LABEL),
-                    ": ",
-                    ", ".join([p.id for p in model.model_params.plugins]),
-                )
-            )
         if len(params) == 0:
             params.append(Text("N/A", style=ThemeKey.CONFIG_PARAM_LABEL))
         models_table.add_row(status, name, model_name, provider, Group(*params))
