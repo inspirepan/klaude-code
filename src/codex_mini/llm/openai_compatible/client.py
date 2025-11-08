@@ -12,7 +12,6 @@ from codex_mini.llm.client import LLMClientABC
 from codex_mini.llm.openai_compatible.input import (
     convert_history_to_input,
     convert_tool_schema,
-    is_openai_compatible_claude_model,
     is_openrouter_claude_model,
 )
 from codex_mini.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
@@ -91,8 +90,6 @@ class OpenAICompatibleClient(LLMClientABC):
             extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
         if param.plugins:
             extra_body["plugins"] = [p.model_dump(exclude_none=True) for p in param.plugins]
-        if is_openai_compatible_claude_model(param.model):
-            extra_body["anthropic_beta"] = ["interleaved-thinking-2025-05-14"]
         if is_openrouter_claude_model(param.model):
             extra_headers["anthropic-beta"] = (
                 "interleaved-thinking-2025-05-14"  # Not working yet, maybe OpenRouter's issue
@@ -195,26 +192,21 @@ class OpenAICompatibleClient(LLMClientABC):
                         try:
                             reasoning_detail = ReasoningDetail.model_validate(item)
                             if reasoning_detail.type == "reasoning.encrypted":
-                                # GPT-5 @ OpenRouter
                                 reasoning_encrypted_content = reasoning_detail.data
                                 reasoning_id = reasoning_detail.id
                                 reasoning_format = reasoning_detail.format
                                 break
                             elif reasoning_detail.type == "reasoning.text" and reasoning_detail.signature:
-                                # Claude @ OpenRouter
                                 reasoning_encrypted_content = reasoning_detail.signature
                                 reasoning_id = reasoning_detail.id
                                 reasoning_format = reasoning_detail.format
                                 break
+                            else:
+                                reasoning_id = reasoning_detail.id
+                                reasoning_format = reasoning_detail.format
 
                         except Exception as e:
                             log("reasoning_details error", str(e), style="red")
-
-                if hasattr(delta, "signature") and getattr(delta, "signature"):
-                    # AWS Claude
-                    signature = getattr(delta, "signature")
-                    if signature:
-                        reasoning_encrypted_content = signature
 
                 # Annotations (URL Citation)
                 if hasattr(delta, "annotations") and getattr(delta, "annotations"):

@@ -17,15 +17,9 @@ from codex_mini.protocol.model import (
     group_response_items_gen,
 )
 
-
-def is_openai_compatible_claude_model(model_name: str | None):
-    return model_name is not None and (
-        model_name.startswith("aws_sdk_claude")
-        or model_name.startswith("azure-claude")
-    )
-
 def is_openrouter_claude_model(model_name: str | None):
     return model_name is not None and model_name.startswith("anthropic/claude")
+
 
 def convert_history_to_input(
     history: list[ConversationItem],
@@ -117,22 +111,30 @@ def convert_history_to_input(
                                 }
                             )
                         case ReasoningItem() as r:
-                            if r.encrypted_content and len(r.encrypted_content) > 0 and model_name == r.model:
-                                if is_openai_compatible_claude_model(model_name):
-                                    assistant_message["reasoning_content"] = r.content
-                                    assistant_message["signature"] = r.encrypted_content
-                                else:
-                                    # OpenRouter's reasoning details
-                                    # https://openrouter.ai/docs/use-cases/reasoning-tokens#advanced-usage-reasoning-chain-of-thought
-                                    assistant_message["reasoning_details"] = [
-                                        {
-                                            "id": r.id,
-                                            "type": "reasoning.encrypted",
-                                            "data": r.encrypted_content,
-                                            "format": r.format,
-                                            "index": 0,
-                                        }
-                                    ]
+                            if model_name != r.model:
+                                continue
+                            # OpenRouter's reasoning details
+                            # https://openrouter.ai/docs/use-cases/reasoning-tokens#advanced-usage-reasoning-chain-of-thought
+                            if r.encrypted_content and len(r.encrypted_content) > 0:
+                                assistant_message["reasoning_details"] = [
+                                    {
+                                        "id": r.id,
+                                        "type": "reasoning.encrypted",
+                                        "data": r.encrypted_content,
+                                        "format": r.format,
+                                        "index": 0,
+                                    }
+                                ]
+                            else:
+                                assistant_message["reasoning_details"] = [
+                                    {
+                                        "id": r.id,
+                                        "type": "reasoning.text",
+                                        "text": r.content,
+                                        "format": r.format,
+                                        "index": 0,
+                                    }
+                                ]
                         case _:
                             pass
 
