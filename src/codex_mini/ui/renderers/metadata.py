@@ -81,14 +81,6 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
             )
         )
 
-    if metadata.turn_count is not None:
-        detail_parts.append(
-            Text.assemble(
-                (str(metadata.turn_count), ThemeKey.METADATA),
-                (" turns", ThemeKey.METADATA),
-            )
-        )
-
     if detail_parts:
         metadata_text.append_text(Text(" · ", style=ThemeKey.METADATA)).append_text(
             Text(", ", style=ThemeKey.METADATA).join(detail_parts)

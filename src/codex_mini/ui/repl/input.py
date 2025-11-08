@@ -6,21 +6,31 @@ import shutil
 import subprocess
 import sys
 import time
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncIterator, Callable, Iterable
 from pathlib import Path
 from typing import NamedTuple, cast, override
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion, ThreadedCompleter
 from prompt_toolkit.document import Document
-from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.formatted_text import HTML, FormattedText
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
 
 from codex_mini.command import get_commands
 from codex_mini.ui.base.input_abc import InputProviderABC
 from codex_mini.ui.base.utils import get_current_git_branch, show_path_with_tilde
+
+
+class REPLStatusSnapshot(NamedTuple):
+    """Snapshot of REPL status for bottom toolbar display."""
+
+    model_name: str
+    context_usage_percent: float | None
+    llm_calls: int
+    tool_calls: int
 
 
 def _set_cursor_style(code: int) -> None:
@@ -104,7 +114,9 @@ def _(event):  # type: ignore
 
 
 class PromptToolkitInput(InputProviderABC):
-    def __init__(self, prompt: str = "▌ "):
+    def __init__(self, prompt: str = "▌ ", status_provider: Callable[[], REPLStatusSnapshot] | None = None):
+        self._status_provider = status_provider
+
         project = str(Path.cwd()).strip("/").replace("/", "-")
         history_path = Path.home() / ".config" / "codex-mini" / "project" / f"{project}" / "input_history.txt"
 
@@ -112,12 +124,6 @@ class PromptToolkitInput(InputProviderABC):
             history_path.parent.mkdir(parents=True, exist_ok=True)
         if not history_path.exists():
             history_path.touch()
-
-        # Build placeholder text with path and git branch info
-        placeholder_text = f"Working at {show_path_with_tilde()}"
-        git_branch = get_current_git_branch()
-        if git_branch:
-            placeholder_text += f" [{git_branch}]"
 
         self._session: PromptSession[str] = PromptSession(
             [(INPUT_PROMPT_STYLE, prompt)],
@@ -128,7 +134,7 @@ class PromptToolkitInput(InputProviderABC):
             completer=ThreadedCompleter(_ComboCompleter()),
             complete_while_typing=True,
             erase_when_done=True,
-            placeholder=[("ansibrightblack italic", placeholder_text)],
+            bottom_toolbar=self._render_bottom_toolbar,
             style=Style.from_dict(
                 {
                     "completion-menu": "bg:default",
@@ -143,6 +149,57 @@ class PromptToolkitInput(InputProviderABC):
             ),
         )
 
+    def _render_bottom_toolbar(self) -> FormattedText:
+        """Render bottom toolbar with working directory, git branch, model name and context usage."""
+        # Build working directory and git branch info
+        location_text = show_path_with_tilde()
+        git_branch = get_current_git_branch()
+        location_text += f" [{git_branch if git_branch else 'nogit'}]"
+
+        # Build status parts
+        status_parts: list[tuple[str, str]] = []
+        if self._status_provider:
+            try:
+                status = self._status_provider()
+                model_name = status.model_name or "N/A"
+
+                # Add model name in bold
+                status_parts.append(("noreverse ansicyan bold", model_name))
+
+                # Add context if available
+                if status.context_usage_percent is not None:
+                    status_parts.append(("noreverse ansicyan", f" · context {status.context_usage_percent:.1f}%"))
+
+                # Add llm calls and tool calls with proper singular/plural, only if > 0
+                if status.llm_calls > 0:
+                    llm_word = "llm call" if status.llm_calls == 1 else "llm calls"
+                    status_parts.append(("noreverse ansicyan", f" · {status.llm_calls} {llm_word}"))
+
+                if status.tool_calls > 0:
+                    tool_word = "tool call" if status.tool_calls == 1 else "tool calls"
+                    status_parts.append(("noreverse ansicyan", f" · {status.tool_calls} {tool_word}"))
+            except Exception:
+                status_parts = []
+
+        # Calculate total length
+        status_len = sum(len(text) for _, text in status_parts)
+        total_len = len(location_text) + (1 + status_len if status_parts else 0)
+
+        # Calculate padding for right alignment
+        try:
+            terminal_width = shutil.get_terminal_size().columns
+            padding = " " * max(0, terminal_width - total_len)
+        except Exception:
+            padding = ""
+
+        # Build result
+        result = [("noreverse", padding), ("noreverse ansigreen", location_text)]
+        if status_parts:
+            result.append(("noreverse", " "))
+            result.extend(status_parts)
+
+        return FormattedText(result)
+
     async def start(self) -> None:  # noqa: D401
         _set_cursor_style(5)
 
@@ -152,7 +209,8 @@ class PromptToolkitInput(InputProviderABC):
     @override
     async def iter_inputs(self) -> AsyncIterator[str]:
         while True:
-            line: str = await self._session.prompt_async()
+            with patch_stdout():
+                line: str = await self._session.prompt_async()
             yield line
 
 
