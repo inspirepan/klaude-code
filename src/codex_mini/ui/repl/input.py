@@ -143,7 +143,7 @@ class PromptToolkitInput(InputProviderABC):
                     "scrollbar.button": "bg:default",
                     "completion-menu.completion": f"bg:default fg:{COMPLETION_MENU}",
                     "completion-menu.meta.completion": f"bg:default fg:{COMPLETION_MENU}",
-                    "completion-menu.completion.current": f"noreverse bg:default fg:{COMPLETION_SELECTED} bold",
+                    "completion-menu.completion.current": f"bg:default fg:{COMPLETION_SELECTED} bold",
                     "completion-menu.meta.completion.current": f"bg:default fg:{COMPLETION_SELECTED} bold",
                 }
             ),
@@ -164,20 +164,20 @@ class PromptToolkitInput(InputProviderABC):
                 model_name = status.model_name or "N/A"
 
                 # Add model name in bold
-                status_parts.append(("noreverse ansicyan bold", model_name))
+                status_parts.append(("ansicyan bold", model_name))  # noreverse
 
                 # Add context if available
                 if status.context_usage_percent is not None:
-                    status_parts.append(("noreverse ansicyan", f" · context {status.context_usage_percent:.1f}%"))
+                    status_parts.append(("ansicyan", f" · context {status.context_usage_percent:.1f}%"))
 
                 # Add llm calls and tool calls with proper singular/plural, only if > 0
                 if status.llm_calls > 0:
                     llm_word = "llm call" if status.llm_calls == 1 else "llm calls"
-                    status_parts.append(("noreverse ansicyan", f" · {status.llm_calls} {llm_word}"))
+                    status_parts.append(("ansicyan", f" · {status.llm_calls} {llm_word}"))
 
                 if status.tool_calls > 0:
                     tool_word = "tool call" if status.tool_calls == 1 else "tool calls"
-                    status_parts.append(("noreverse ansicyan", f" · {status.tool_calls} {tool_word}"))
+                    status_parts.append(("ansicyan", f" · {status.tool_calls} {tool_word}"))
             except Exception:
                 status_parts = []
 
@@ -193,9 +193,9 @@ class PromptToolkitInput(InputProviderABC):
             padding = ""
 
         # Build result
-        result = [("noreverse", padding), ("noreverse ansigreen", location_text)]
+        result = [("ansicyan", padding), ("ansicyan", location_text)]
         if status_parts:
-            result.append(("noreverse", " "))
+            result.append(("ansicyan", " "))
             result.extend(status_parts)
 
         return FormattedText(result)
