@@ -30,8 +30,10 @@ from codex_mini.llm import LLMClientABC, create_llm_client
 from codex_mini.protocol import op
 from codex_mini.protocol.events import EndEvent, Event
 from codex_mini.protocol.llm_parameter import LLMConfigParameter
+from codex_mini.protocol.model import ResponseMetadataItem
 from codex_mini.session import Session, resume_select_session
 from codex_mini.trace import log, log_debug
+from codex_mini.ui.repl.input import REPLStatusSnapshot
 
 
 def set_terminal_title(title: str) -> None:
@@ -300,8 +302,47 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         if old_theme != components.theme:
             await components.config.save()
 
+    # Create status provider for bottom toolbar
+    def _status_provider() -> REPLStatusSnapshot:
+        # Get model name from active agent or fallback to main LLM client
+        model_name = "N/A"
+        context_usage_percent: float | None = None
+        llm_calls = 0
+        tool_calls = 0
+
+        if session_id and session_id in components.executor.context.active_agents:
+            agent = components.executor.context.active_agents[session_id]
+            model_name = agent.session.model_name or components.llm_clients.main.model_name
+
+            # Count AssistantMessageItem and ToolCallItem in conversation history
+            from codex_mini.protocol.model import AssistantMessageItem, ToolCallItem
+
+            for item in agent.session.conversation_history:
+                if isinstance(item, AssistantMessageItem):
+                    llm_calls += 1
+                elif isinstance(item, ToolCallItem):
+                    tool_calls += 1
+
+            # Find the most recent ResponseMetadataItem in conversation history
+            for item in reversed(agent.session.conversation_history):
+                if isinstance(item, ResponseMetadataItem):
+                    usage = item.usage
+                    if usage and hasattr(usage, "context_usage_percent"):
+                        context_usage_percent = usage.context_usage_percent
+                    break
+        else:
+            # Fallback to main LLM client model name if no agent exists yet
+            model_name = components.llm_clients.main.model_name
+
+        return REPLStatusSnapshot(
+            model_name=model_name,
+            context_usage_percent=context_usage_percent,
+            llm_calls=llm_calls,
+            tool_calls=tool_calls,
+        )
+
     # Set up input provider for interactive mode
-    input_provider: ui.InputProviderABC = ui.PromptToolkitInput()
+    input_provider: ui.InputProviderABC = ui.PromptToolkitInput(status_provider=_status_provider)
 
     # --- Custom Ctrl+C handler: double-press within 2s to exit, single press shows toast ---
     last_sigint_time: float = 0.0

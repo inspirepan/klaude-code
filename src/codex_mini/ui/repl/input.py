@@ -6,21 +6,31 @@ import shutil
 import subprocess
 import sys
 import time
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncIterator, Callable, Iterable
 from pathlib import Path
 from typing import NamedTuple, cast, override
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion, ThreadedCompleter
 from prompt_toolkit.document import Document
-from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.formatted_text import HTML, FormattedText
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
 
 from codex_mini.command import get_commands
 from codex_mini.ui.base.input_abc import InputProviderABC
 from codex_mini.ui.base.utils import get_current_git_branch, show_path_with_tilde
+
+
+class REPLStatusSnapshot(NamedTuple):
+    """Snapshot of REPL status for bottom toolbar display."""
+
+    model_name: str
+    context_usage_percent: float | None
+    llm_calls: int
+    tool_calls: int
 
 
 def _set_cursor_style(code: int) -> None:
@@ -104,7 +114,9 @@ def _(event):  # type: ignore
 
 
 class PromptToolkitInput(InputProviderABC):
-    def __init__(self, prompt: str = "▌ "):
+    def __init__(self, prompt: str = "▌ ", status_provider: Callable[[], REPLStatusSnapshot] | None = None):
+        self._status_provider = status_provider
+
         project = str(Path.cwd()).strip("/").replace("/", "-")
         history_path = Path.home() / ".config" / "codex-mini" / "project" / f"{project}" / "input_history.txt"
 
@@ -112,12 +124,6 @@ class PromptToolkitInput(InputProviderABC):
             history_path.parent.mkdir(parents=True, exist_ok=True)
         if not history_path.exists():
             history_path.touch()
-
-        # Build placeholder text with path and git branch info
-        placeholder_text = f"Working at {show_path_with_tilde()}"
-        git_branch = get_current_git_branch()
-        if git_branch:
-            placeholder_text += f" [{git_branch}]"
 
         self._session: PromptSession[str] = PromptSession(
             [(INPUT_PROMPT_STYLE, prompt)],
@@ -128,7 +134,7 @@ class PromptToolkitInput(InputProviderABC):
             completer=ThreadedCompleter(_ComboCompleter()),
             complete_while_typing=True,
             erase_when_done=True,
-            placeholder=[("ansibrightblack italic", placeholder_text)],
+            bottom_toolbar=self._render_bottom_toolbar,
             style=Style.from_dict(
                 {
                     "completion-menu": "bg:default",
@@ -143,6 +149,46 @@ class PromptToolkitInput(InputProviderABC):
             ),
         )
 
+    def _render_bottom_toolbar(self) -> FormattedText:
+        """Render bottom toolbar with working directory, git branch on left, model name and context usage on right."""
+        # Left side: path and git branch
+        left_parts: list[str] = []
+        left_parts.append(show_path_with_tilde())
+        
+        git_branch = get_current_git_branch()
+        if git_branch:
+            left_parts.append(git_branch)
+
+        # Right side: status info
+        right_parts: list[str] = []
+        if self._status_provider:
+            try:
+                status = self._status_provider()
+                model_name = status.model_name or "N/A"
+                right_parts.append(model_name)
+
+                # Add context if available
+                if status.context_usage_percent is not None:
+                    right_parts.append(f"context {status.context_usage_percent:.1f}%")
+            except Exception:
+                pass
+
+        # Build left and right text with borders
+        left_text = " " + " · ".join(left_parts)
+        right_text = (" · ".join(right_parts) + " ") if right_parts else " "
+        
+        # Calculate padding
+        try:
+            terminal_width = shutil.get_terminal_size().columns
+            used_width = len(left_text) + len(right_text)
+            padding = " " * max(0, terminal_width - used_width)
+        except Exception:
+            padding = ""
+
+        # Build result with style
+        toolbar_text = left_text + padding + right_text
+        return FormattedText([("#487E89", toolbar_text)])
+
     async def start(self) -> None:  # noqa: D401
         _set_cursor_style(5)
 
@@ -152,7 +198,8 @@ class PromptToolkitInput(InputProviderABC):
     @override
     async def iter_inputs(self) -> AsyncIterator[str]:
         while True:
-            line: str = await self._session.prompt_async()
+            with patch_stdout():
+                line: str = await self._session.prompt_async()
             yield line
 
 

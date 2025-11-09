@@ -135,7 +135,6 @@ class Agent:
             accumulated=model.ResponseMetadataItem(model_name=self.get_llm_client().model_name)
         )
         last_assistant_message: events.AssistantMessageEvent | None = None
-        turn_count = 0
 
         while True:
             # Each outer loop is a new turn. Process reminders at the start of each turn.
@@ -250,7 +249,6 @@ class Agent:
                 yield events.ErrorEvent(error_message=final_error_message)
                 return  # Exit the entire run_task method
 
-            turn_count += 1
             if not turn_has_tool_call:
                 break
 
@@ -265,7 +263,6 @@ class Agent:
                 accumulated_metadata.usage.throughput_tps = None
 
         accumulated_metadata.task_duration_s = time.perf_counter() - task_started_at
-        accumulated_metadata.turn_count = turn_count
 
         yield events.ResponseMetadataEvent(metadata=accumulated_metadata, session_id=self.session.id)
         self.session.append_history([accumulated_metadata])

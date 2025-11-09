@@ -158,7 +158,6 @@ class ResponseMetadataItem(BaseModel):
     model_name: str = ""
     provider: str | None = None  # OpenRouter's provider name
     task_duration_s: float | None = None
-    turn_count: int | None = None
     status: str | None = None
     error_reason: str | None = None
 
