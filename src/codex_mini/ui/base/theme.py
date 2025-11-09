@@ -118,8 +118,6 @@ class ThemeKey(str, Enum):
     # RESUME
     RESUME_FLAG = "resume.flag"
     RESUME_INFO = "resume.info"
-    # SUB_AGENT
-    SUB_AGENT_ORACLE = "sub_agent.oracle"
     # CONFIGURATION DISPLAY
     CONFIG_TABLE_HEADER = "config.table.header"
     CONFIG_STATUS_OK = "config.status.ok"
@@ -204,8 +202,6 @@ def get_theme(theme: str | None = None) -> Themes:
                 # RESUME
                 ThemeKey.RESUME_FLAG.value: "bold reverse " + palette.green,
                 ThemeKey.RESUME_INFO.value: palette.green,
-                # SUB_AGENT
-                ThemeKey.SUB_AGENT_ORACLE.value: palette.orange,
                 # CONFIGURATION DISPLAY
                 ThemeKey.CONFIG_TABLE_HEADER.value: palette.green,
                 ThemeKey.CONFIG_STATUS_OK.value: palette.green,

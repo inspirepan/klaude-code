@@ -26,7 +26,7 @@ class Session(BaseModel):
     file_tracker: dict[str, float] = Field(default_factory=dict)
     # Todo list for the session
     todos: list[TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    # Messages count
+    # Messages count, redundant state for performance optimization to avoid reading entire jsonl file
     messages_count: int = Field(default=0)
     # Model name used for this session
     # Used in list method SessionMetaBrief

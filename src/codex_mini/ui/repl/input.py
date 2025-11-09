@@ -154,7 +154,7 @@ class PromptToolkitInput(InputProviderABC):
         # Left side: path and git branch
         left_parts: list[str] = []
         left_parts.append(show_path_with_tilde())
-        
+
         git_branch = get_current_git_branch()
         if git_branch:
             left_parts.append(git_branch)
@@ -176,7 +176,7 @@ class PromptToolkitInput(InputProviderABC):
         # Build left and right text with borders
         left_text = " " + " · ".join(left_parts)
         right_text = (" · ".join(right_parts) + " ") if right_parts else " "
-        
+
         # Calculate padding
         try:
             terminal_width = shutil.get_terminal_size().columns
