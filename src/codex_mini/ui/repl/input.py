@@ -150,49 +150,44 @@ class PromptToolkitInput(InputProviderABC):
         )
 
     def _render_bottom_toolbar(self) -> FormattedText:
-        """Render bottom toolbar with working directory, git branch, model name and context usage."""
-        # Collect all parts
-        parts: list[str] = []
-
-        # Add working directory
-        parts.append(show_path_with_tilde())
-
-        # Add git branch
+        """Render bottom toolbar with working directory, git branch on left, model name and context usage on right."""
+        # Left side: path and git branch
+        left_parts: list[str] = []
+        left_parts.append(show_path_with_tilde())
+        
         git_branch = get_current_git_branch()
-        parts.append(git_branch if git_branch else "nogit")
+        if git_branch:
+            left_parts.append(git_branch)
 
-        # Add status info if available
+        # Right side: status info
+        right_parts: list[str] = []
         if self._status_provider:
             try:
                 status = self._status_provider()
                 model_name = status.model_name or "N/A"
-                parts.append(model_name)
+                right_parts.append(model_name)
 
                 # Add context if available
                 if status.context_usage_percent is not None:
-                    parts.append(f"context {status.context_usage_percent:.1f}%")
-
-                # Add llm calls and tool calls with proper singular/plural, only if > 0
-                if status.llm_calls > 0:
-                    llm_word = "llm call" if status.llm_calls == 1 else "llm calls"
-                    parts.append(f"{status.llm_calls} {llm_word}")
-
-                if status.tool_calls > 0:
-                    tool_word = "tool call" if status.tool_calls == 1 else "tool calls"
-                    parts.append(f"{status.tool_calls} {tool_word}")
+                    right_parts.append(f"context {status.context_usage_percent:.1f}%")
             except Exception:
                 pass
 
-        # Join with separator and calculate padding
-        toolbar_text = " · ".join(parts)
+        # Build left and right text with borders
+        left_text = " " + " · ".join(left_parts)
+        right_text = (" · ".join(right_parts) + " ") if right_parts else " "
+        
+        # Calculate padding
         try:
             terminal_width = shutil.get_terminal_size().columns
-            padding = " " * max(0, terminal_width - len(toolbar_text))
+            used_width = len(left_text) + len(right_text)
+            padding = " " * max(0, terminal_width - used_width)
         except Exception:
             padding = ""
 
         # Build result with style
-        return FormattedText([("#487E89", padding + toolbar_text)])
+        toolbar_text = left_text + padding + right_text
+        return FormattedText([("#487E89", toolbar_text)])
 
     async def start(self) -> None:  # noqa: D401
         _set_cursor_style(5)
