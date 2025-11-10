@@ -30,7 +30,7 @@ class Reasoning(BaseModel):
     OpenAI Reasoning Model
     """
 
-    effort: Literal["high", "medium", "low", "minimal"]
+    effort: Literal["high", "medium", "low", "minimal"] | None = None
     summary: Literal["auto", "concise", "detailed"] | None = None
 
 

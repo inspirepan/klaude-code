@@ -83,9 +83,12 @@ def display_models_and_providers(config: Config):
         provider = Text(model.provider, style="")
         params: list[Text] = []
         if model.model_params.reasoning:
-            params.append(
-                Text.assemble(("reason-effort", ThemeKey.CONFIG_PARAM_LABEL), ": ", model.model_params.reasoning.effort)
-            )
+            if model.model_params.reasoning.effort is not None:
+                params.append(
+                    Text.assemble(
+                        ("reason-effort", ThemeKey.CONFIG_PARAM_LABEL), ": ", model.model_params.reasoning.effort
+                    )
+                )
             if model.model_params.reasoning.summary is not None:
                 params.append(
                     Text.assemble(

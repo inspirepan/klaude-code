@@ -87,6 +87,60 @@ def test_group_response_items_gen():
     result_10 = list(group_response_items_gen(input_10))
     assert result_10 == expected_10
 
+    # Test case 11: ToolResult followed by Developer attaches to same tool group
+    input_11 = [tool_result_item, developer_item]
+    expected_11 = [("tool", [tool_result_item, developer_item])]
+    result_11 = list(group_response_items_gen(input_11))
+    assert result_11 == expected_11
+
+    # Test case 12: Multiple Developers attach to the same preceding ToolResult
+    input_12 = [tool_result_item, developer_item, developer_item]
+    expected_12 = [("tool", [tool_result_item, developer_item, developer_item])]
+    result_12 = list(group_response_items_gen(input_12))
+    assert result_12 == expected_12
+
+    # Test case 13: Developer alone is dropped
+    input_13 = [developer_item]
+    expected_13: list[tuple[str, list[model.ConversationItem]]] = []
+    result_13 = list(group_response_items_gen(input_13))
+    assert result_13 == expected_13
+
+    # Test case 14: Assistant then Developer then Assistant merges (developer dropped)
+    input_14 = [assistant_item, developer_item, assistant_item]
+    expected_14 = [("assistant", [assistant_item, assistant_item])]
+    result_14 = list(group_response_items_gen(input_14))
+    assert result_14 == expected_14
+
+    # Test case 15: Consecutive ToolResults produce separate tool groups
+    input_15 = [tool_result_item, tool_result_item]
+    expected_15 = [("tool", [tool_result_item]), ("tool", [tool_result_item])]
+    result_15 = list(group_response_items_gen(input_15))
+    assert result_15 == expected_15
+
+    # Test case 16: ToolResult then Developer then User -> developer attaches to tool, then user as new group
+    input_16 = [tool_result_item, developer_item, user_item]
+    expected_16 = [("tool", [tool_result_item, developer_item]), ("user", [user_item])]
+    result_16 = list(group_response_items_gen(input_16))
+    assert result_16 == expected_16
+
+    # Test case 17: ToolResult, StartItem (other), Developer -> developer still attaches to preceding tool group
+    input_17 = [tool_result_item, start_item, developer_item]
+    expected_17 = [("tool", [tool_result_item, developer_item])]
+    result_17 = list(group_response_items_gen(input_17))
+    assert result_17 == expected_17
+
+    # Test case 18: ToolResult then Developer then ToolResult -> first tool group carries developer, second is standalone
+    input_18 = [tool_result_item, developer_item, tool_result_item]
+    expected_18 = [("tool", [tool_result_item, developer_item]), ("tool", [tool_result_item])]
+    result_18 = list(group_response_items_gen(input_18))
+    assert result_18 == expected_18
+
+    # Test case 19: Developer after assistant at end is dropped, assistant still flushed
+    input_19 = [assistant_item, developer_item]
+    expected_19 = [("assistant", [assistant_item])]
+    result_19 = list(group_response_items_gen(input_19))
+    assert result_19 == expected_19
+
 
 if __name__ == "__main__":
     test_group_response_items_gen()

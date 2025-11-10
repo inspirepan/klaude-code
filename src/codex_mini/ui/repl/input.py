@@ -187,7 +187,7 @@ class PromptToolkitInput(InputProviderABC):
 
         # Build result with style
         toolbar_text = left_text + padding + right_text
-        return FormattedText([("#487E89", toolbar_text)])
+        return FormattedText([("#ansiblue", toolbar_text)])
 
     async def start(self) -> None:  # noqa: D401
         _set_cursor_style(5)
