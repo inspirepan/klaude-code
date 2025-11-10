@@ -453,12 +453,17 @@ class _AtFilesCompleter(Completer):
             "f",
             "--type",
             "d",
+            "--hidden",
             "--full-path",
             "-i",
             "--max-results",
             str(self._max_results * 3),
             "--exclude",
             ".git",
+            "--exclude",
+            ".venv",
+            "--exclude",
+            "node_modules",
             pattern,
             ".",
         ]
@@ -477,13 +482,14 @@ class _AtFilesCompleter(Completer):
         """Lightweight suggestions when user typed only '@': list cwd's children.
 
         Avoids running external tools; shows immediate directories first, then files.
-        Hidden entries and '.git' are skipped to reduce noise.
+        Filters out .git, .venv, and node_modules to reduce noise.
         """
+        excluded = {".git", ".venv", "node_modules"}
         items: list[str] = []
         try:
             for p in sorted(cwd.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
                 name = p.name
-                if name == ".git" or name.startswith("."):
+                if name in excluded:
                     continue
                 rel = os.path.relpath(p, cwd)
                 if p.is_dir() and not rel.endswith("/"):
