@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import os
 import tempfile
@@ -13,11 +14,15 @@ SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in os.sys.path:  # type: ignore
     os.sys.path.insert(0, str(SRC_DIR))  # type: ignore
 
+from codex_mini.core.reminders import at_file_reader_reminder  # noqa: E402
 from codex_mini.core.tool.edit_tool import EditTool  # noqa: E402
 from codex_mini.core.tool.multi_edit_tool import MultiEditTool  # noqa: E402
 from codex_mini.core.tool.read_tool import ReadTool  # noqa: E402
 from codex_mini.core.tool.tool_context import current_session_var  # noqa: E402
+from codex_mini.protocol import model  # noqa: E402
 from codex_mini.session.session import Session  # noqa: E402
+
+_TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
 
 
 def arun(coro) -> Any:  # type: ignore
@@ -97,6 +102,49 @@ class TestReadTool(BaseTempDirTest):
         self.assertEqual(res.status, "success")
         self.assertIn("1→", res.output or "")
         self.assertIn("more 100 characters in this line are truncated", res.output or "")
+
+    def test_read_image_inline_success(self):
+        file_path = os.path.abspath("tiny.png")
+        with open(file_path, "wb") as image_file:
+            image_file.write(base64.b64decode(_TINY_PNG_BASE64))
+
+        res = arun(ReadTool.call(json.dumps({"file_path": file_path})))
+        self.assertEqual(res.status, "success")
+        self.assertIsNotNone(res.images)
+        assert res.images is not None
+        self.assertTrue(res.images[0].image_url.url.startswith("data:image/png;base64,"))
+        self.assertIn("[image] tiny.png", res.output or "")
+
+    def test_read_image_too_large_error(self):
+        file_path = os.path.abspath("large.png")
+        oversized = 4 * 1024 * 1024 + 1
+        with open(file_path, "wb") as image_file:
+            image_file.write(b"0" * oversized)
+
+        res = arun(ReadTool.call(json.dumps({"file_path": file_path})))
+        self.assertEqual(res.status, "error")
+        self.assertIn("maximum supported size (4.00MB)", res.output or "")
+
+
+class TestReminders(BaseTempDirTest):
+    def test_at_file_reader_reminder_includes_images(self):
+        file_path = os.path.abspath("tiny.png")
+        with open(file_path, "wb") as image_file:
+            image_file.write(base64.b64decode(_TINY_PNG_BASE64))
+
+        self.session.conversation_history.append(model.UserMessageItem(content=f"Please review @{file_path}"))
+
+        reminder = arun(at_file_reader_reminder(self.session))
+        self.assertIsNotNone(reminder)
+        assert reminder is not None
+        self.assertIsNotNone(reminder.images)
+        assert reminder.images is not None
+        self.assertTrue(reminder.images[0].image_url.url.startswith("data:image/png;base64,"))
+        self.assertIsNotNone(reminder.at_files)
+        assert reminder.at_files is not None
+        self.assertIsNotNone(reminder.at_files[0].images)
+        assert reminder.at_files[0].images is not None
+        self.assertTrue(reminder.at_files[0].images[0].image_url.url.startswith("data:image/png;base64,"))
 
 
 class TestEditTool(BaseTempDirTest):

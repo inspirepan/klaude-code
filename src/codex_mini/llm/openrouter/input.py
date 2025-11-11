@@ -5,6 +5,7 @@
 
 from openai.types import chat
 
+from codex_mini.llm.openai_compatible.input import build_user_content_parts
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import (
     AssistantMessageItem,
@@ -13,7 +14,6 @@ from codex_mini.protocol.model import (
     ReasoningItem,
     ToolCallItem,
     ToolResultItem,
-    UserMessageItem,
     group_response_items_gen,
 )
 
@@ -49,19 +49,7 @@ def convert_history_to_input(
     for group_kind, group in group_response_items_gen(history):
         match group_kind:
             case "user":
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": item.content + "\n",
-                            }
-                            for item in group
-                            if isinstance(item, (UserMessageItem, DeveloperMessageItem)) and item.content is not None
-                        ],
-                    }
-                )
+                messages.append({"role": "user", "content": build_user_content_parts(group)})
             case "tool":
                 if len(group) == 0 or not isinstance(group[0], ToolResultItem):
                     continue

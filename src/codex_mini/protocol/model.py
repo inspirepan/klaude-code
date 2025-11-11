@@ -37,6 +37,7 @@ class AtPatternParseResult(BaseModel):
     result: str
     tool_args: str
     operation: Literal["Read", "List"]
+    images: list["ImageURLPart"] | None = None
 
 
 class CommandOutput(BaseModel):
@@ -90,6 +91,7 @@ class DeveloperMessageItem(BaseModel):
     id: str | None = None
     role: RoleType = "developer"
     content: str | None = None  # For LLM input
+    images: list["ImageURLPart"] | None = None
 
     # Special fields for reminders UI
     memory_paths: list[str] | None = None
@@ -99,10 +101,19 @@ class DeveloperMessageItem(BaseModel):
     command_output: CommandOutput | None = None
 
 
+class ImageURLPart(BaseModel):
+    class ImageURL(BaseModel):
+        url: str
+        id: str | None = None
+
+    image_url: ImageURL
+
+
 class UserMessageItem(BaseModel):
     id: str | None = None
     role: RoleType = "user"
     content: str | None = None
+    images: list[ImageURLPart] | None = None
 
 
 class AssistantMessageItem(BaseModel):
@@ -141,6 +152,7 @@ class ToolResultItem(BaseModel):
     status: Literal["success", "error"]
     tool_name: str | None = None  # This field will auto set by tool registry's run_tool
     ui_extra: str | None = None  # Extra data for UI display, e.g. diff render
+    images: list[ImageURLPart] | None = None
 
 
 class AssistantMessageDelta(BaseModel):

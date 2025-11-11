@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from base64 import b64encode
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from codex_mini.core.tool.tool_abc import ToolABC
 from codex_mini.core.tool.tool_context import current_session_var, get_tool_policy
 from codex_mini.core.tool.tool_registry import register
 from codex_mini.protocol.llm_parameter import ToolSchema
-from codex_mini.protocol.model import ToolResultItem
+from codex_mini.protocol.model import ImageURLPart, ToolResultItem
 from codex_mini.protocol.tools import READ
 
 SYSTEM_REMINDER_MALICIOUS = (
@@ -24,6 +25,15 @@ CHAR_LIMIT_PER_LINE = 2000
 GLOBAL_LINE_CAP = 2000
 MAX_CHARS = 60000
 MAX_KB = 256
+MAX_IMAGE_BYTES = 4 * 1024 * 1024
+
+_IMAGE_MIME_TYPES: dict[str, str] = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+}
 
 
 def _format_numbered_line(line_no: int, content: str) -> str:
@@ -96,6 +106,34 @@ def _read_segment(options: ReadOptions) -> ReadSegmentResult:
     )
 
 
+def _track_file_access(file_path: str) -> None:
+    session = current_session_var.get()
+    if session is None or not _file_exists(file_path) or _is_directory(file_path):
+        return
+    try:
+        session.file_tracker[file_path] = Path(file_path).stat().st_mtime
+    except Exception:
+        pass
+
+
+def _is_supported_image_file(file_path: str) -> bool:
+    return Path(file_path).suffix.lower() in _IMAGE_MIME_TYPES
+
+
+def _image_mime_type(file_path: str) -> str:
+    suffix = Path(file_path).suffix.lower()
+    mime_type = _IMAGE_MIME_TYPES.get(suffix)
+    if mime_type is None:
+        raise ValueError(f"Unsupported image file extension: {suffix}")
+    return mime_type
+
+
+def _encode_image_to_data_url(file_path: str, mime_type: str) -> str:
+    with open(file_path, "rb") as image_file:
+        encoded = b64encode(image_file.read()).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
+
+
 @register(READ)
 class ReadTool(ToolABC):
     class ReadArguments(BaseModel):
@@ -114,6 +152,7 @@ class ReadTool(ToolABC):
                 "Usage:\n"
                 "- The file_path parameter must be an absolute path, not a relative path\n"
                 "- By default, it reads up to 2000 lines starting from the beginning of the file\n"
+                "- This tool allows you to read images (eg PNG, JPG, etc). When reading an image file the contents are presented visually as you are a multimodal LLM.\n"
                 "- You can optionally specify a line offset and limit (especially handy for long files), but it's recommended to read the whole file by not providing these parameters\n"
                 "- Any lines longer than 2000 characters will be truncated\n"
                 "- Results are returned using cat -n format, with line numbers starting at 1\n"
@@ -179,7 +218,39 @@ class ReadTool(ToolABC):
             size_bytes = Path(file_path).stat().st_size
         except Exception:
             size_bytes = 0
-        if max_kb is not None and args.offset is None and args.limit is None and size_bytes > max_kb * 1024:
+
+        is_image_file = _is_supported_image_file(file_path)
+        if is_image_file:
+            if size_bytes > MAX_IMAGE_BYTES:
+                size_mb = size_bytes / (1024 * 1024)
+                return ToolResultItem(
+                    status="error",
+                    output=(
+                        f"<tool_use_error>Image size ({size_mb:.2f}MB) exceeds maximum supported size (4.00MB) for inline transfer.</tool_use_error>"
+                    ),
+                )
+            try:
+                mime_type = _image_mime_type(file_path)
+                data_url = _encode_image_to_data_url(file_path, mime_type)
+            except Exception as exc:
+                return ToolResultItem(
+                    status="error",
+                    output=f"<tool_use_error>Failed to read image file: {exc}</tool_use_error>",
+                )
+
+            _track_file_access(file_path)
+            size_kb = size_bytes / 1024.0 if size_bytes else 0.0
+            output_text = f"[image] {Path(file_path).name} ({size_kb:.1f}KB)"
+            image_part = ImageURLPart(image_url=ImageURLPart.ImageURL(url=data_url, id=None))
+            return ToolResultItem(status="success", output=output_text, images=[image_part])
+
+        if (
+            not is_image_file
+            and max_kb is not None
+            and args.offset is None
+            and args.limit is None
+            and size_bytes > max_kb * 1024
+        ):
             size_kb = size_bytes / 1024.0
             return ToolResultItem(
                 status="error",
@@ -219,12 +290,7 @@ class ReadTool(ToolABC):
         if offset > max(read_result.total_lines, 0):
             warn = f"<system-reminder>Warning: the file exists but is shorter than the provided offset ({offset}). The file has {read_result.total_lines} lines.</system-reminder>"
             # Update FileTracker (we still consider it as a read attempt)
-            session = current_session_var.get()
-            if session is not None and _file_exists(file_path) and not _is_directory(file_path):
-                try:
-                    session.file_tracker[file_path] = Path(file_path).stat().st_mtime
-                except Exception:
-                    pass
+            _track_file_access(file_path)
             return ToolResultItem(status="success", output=warn)
 
         # After limit/offset, if total selected chars exceed limit, error (only check if limits are enabled)
@@ -245,11 +311,6 @@ class ReadTool(ToolABC):
         # read_result_str += "\n\n" + SYSTEM_REMINDER_MALICIOUS
 
         # Update FileTracker with last modified time
-        session = current_session_var.get()
-        if session is not None and _file_exists(file_path) and not _is_directory(file_path):
-            try:
-                session.file_tracker[file_path] = Path(file_path).stat().st_mtime
-            except Exception:
-                pass
+        _track_file_access(file_path)
 
         return ToolResultItem(status="success", output=read_result_str)
