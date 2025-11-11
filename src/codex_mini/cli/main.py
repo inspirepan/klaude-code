@@ -25,6 +25,8 @@ from codex_mini.config.list_model import display_models_and_providers
 from codex_mini.config.select_model import select_model_from_config
 from codex_mini.core.agent import AgentLLMClients
 from codex_mini.core.executor import Executor
+from codex_mini.core.tool.skill_loader import SkillLoader
+from codex_mini.core.tool.skill_tool import SkillTool
 from codex_mini.core.tool.tool_context import set_unrestricted_mode
 from codex_mini.llm import LLMClientABC, create_llm_client
 from codex_mini.protocol import op
@@ -146,6 +148,23 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     set_unrestricted_mode(init_config.unrestricted)
 
     config = load_config()
+
+    # Initialize skills
+    skill_loader = SkillLoader(
+        user_skills_dir=config.user_skills_dir,
+        project_skills_dir=config.project_skills_dir,
+    )
+    skills = skill_loader.discover_skills()
+    if skills:
+        user_count = sum(1 for s in skills if s.location == "user")
+        project_count = sum(1 for s in skills if s.location == "project")
+        parts: list[str] = []
+        if user_count > 0:
+            parts.append(f"{user_count} user")
+        if project_count > 0:
+            parts.append(f"{project_count} project")
+        log_debug(f"Discovered {len(skills)} Claude Skills ({', '.join(parts)})")
+    SkillTool.set_skill_loader(skill_loader)
     # Resolve main agent LLM config with override support
     if init_config.llm_config_override is not None:
         llm_config = init_config.llm_config_override

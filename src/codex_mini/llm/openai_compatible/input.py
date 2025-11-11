@@ -4,6 +4,7 @@
 # pyright: reportAttributeAccessIssue=false
 
 from openai.types import chat
+from openai.types.chat import ChatCompletionContentPartParam
 
 from codex_mini.protocol.llm_parameter import ToolSchema
 from codex_mini.protocol.model import (
@@ -16,6 +17,19 @@ from codex_mini.protocol.model import (
     UserMessageItem,
     group_response_items_gen,
 )
+
+
+def build_user_content_parts(group: list[ConversationItem]) -> list[ChatCompletionContentPartParam]:
+    parts: list[ChatCompletionContentPartParam] = []
+    for item in group:
+        if isinstance(item, (UserMessageItem, DeveloperMessageItem)):
+            if item.content is not None:
+                parts.append({"type": "text", "text": item.content + "\n"})
+            for image in item.images or []:
+                parts.append({"type": "image_url", "image_url": {"url": image.image_url.url}})
+    if not parts:
+        parts.append({"type": "text", "text": ""})
+    return parts
 
 
 def convert_history_to_input(
@@ -45,19 +59,7 @@ def convert_history_to_input(
     for group_kind, group in group_response_items_gen(history):
         match group_kind:
             case "user":
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": item.content + "\n",
-                            }
-                            for item in group
-                            if isinstance(item, (UserMessageItem, DeveloperMessageItem)) and item.content is not None
-                        ],
-                    }
-                )
+                messages.append({"role": "user", "content": build_user_content_parts(group)})
             case "tool":
                 if len(group) == 0 or not isinstance(group[0], ToolResultItem):
                     continue

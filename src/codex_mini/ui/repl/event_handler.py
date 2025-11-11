@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Awaitable, Callable
+
 from codex_mini.protocol import events, tools
 from codex_mini.ui.base.debouncer import Debouncer
 from codex_mini.ui.base.osc94_progress_bar import OSC94States, emit_osc94
@@ -16,18 +18,31 @@ from codex_mini.ui.repl.renderer import REPLRenderer, SessionStatus
 from codex_mini.ui.rich_ext.markdown import MarkdownStream, NoInsetMarkdown
 
 
+class StreamState:
+    def __init__(self, interval: float, flush_handler: Callable[["StreamState"], Awaitable[None]]):
+        self.buffer: str = ""
+        self.mdstream: MarkdownStream | None = None
+        self._flush_handler = flush_handler
+        self.debouncer = Debouncer(interval=interval, callback=self._debounced_flush)
+        self.is_bold: bool = False
+
+    async def _debounced_flush(self) -> None:
+        await self._flush_handler(self)
+
+    def append(self, content: str) -> None:
+        self.buffer += content
+
+    def clear(self) -> None:
+        self.buffer = ""
+
+
 class DisplayEventHandler:
     """Handle REPL events, buffering and delegating rendering work."""
 
     def __init__(self, renderer: REPLRenderer):
         self.renderer = renderer
-        self.assistant_mdstream: MarkdownStream | None = None
-        self.accumulated_assistant_text = ""
-        self.assistant_debouncer = Debouncer(interval=1 / 20, callback=self._flush_assistant_buffer)
-
-        self.accumulated_thinking_text = ""
-        self.thinking_debouncer = Debouncer(interval=1 / 20, callback=self._flush_thinking_buffer)
-        self.is_thinking_in_bold = False
+        self.assistant_stream = StreamState(interval=1 / 20, flush_handler=self._flush_assistant_buffer)
+        self.thinking_stream = StreamState(interval=1 / 20, flush_handler=self._flush_thinking_buffer)
 
         self.stage_manager = StageManager(
             finish_assistant=self.finish_assistant_stream,
@@ -50,7 +65,9 @@ class DisplayEventHandler:
                     task_event.session_id,
                     SessionStatus(
                         is_subagent=task_event.is_sub_agent,
-                        color=self.renderer.get_sub_agent_color() if task_event.is_sub_agent else None,
+                        color=self.renderer.get_sub_agent_color()
+                        if task_event.is_sub_agent
+                        else None,  # sub agent color should be advanced in tool call display, not here
                         sub_agent_type=task_event.sub_agent_type,
                     ),
                 )
@@ -69,22 +86,22 @@ class DisplayEventHandler:
                 if len(thinking_delta.content.strip()) == 0 and self.stage_manager.current_stage != Stage.THINKING:
                     # Remove empty leading spaces
                     return
-                if len(self.accumulated_thinking_text) == 0 and self.stage_manager.current_stage != Stage.THINKING:
+                if len(self.thinking_stream.buffer) == 0 and self.stage_manager.current_stage != Stage.THINKING:
                     # Remove leading newlines
-                    self.accumulated_thinking_text += remove_leading_newlines(thinking_delta.content)
+                    self.thinking_stream.append(remove_leading_newlines(thinking_delta.content))
                 else:
-                    self.accumulated_thinking_text += thinking_delta.content
+                    self.thinking_stream.append(thinking_delta.content)
                 await self.stage_manager.enter_thinking_stage()
-                self.thinking_debouncer.schedule()
+                self.thinking_stream.debouncer.schedule()
             case events.ThinkingEvent() as thinking_event:
                 if self._should_suppress_subagent_thinking(thinking_event.session_id):
                     return
                 if (
                     thinking_event.content
                     and self.stage_manager.current_stage == Stage.WAITING
-                    and len(self.accumulated_thinking_text.strip()) == 0
+                    and len(self.thinking_stream.buffer.strip()) == 0
                 ):
-                    self.accumulated_thinking_text += thinking_event.content
+                    self.thinking_stream.append(thinking_event.content)
                 await self.stage_manager.finish_thinking()
                 self.renderer.spinner.start()
             case events.AssistantMessageDeltaEvent() as assistant_delta:
@@ -94,22 +111,22 @@ class DisplayEventHandler:
                     return
                 self.renderer.spinner.stop()
                 await self.stage_manager.transition_to(Stage.ASSISTANT)
-                self.accumulated_assistant_text += assistant_delta.content
-                if self.assistant_mdstream is None:
-                    self.assistant_mdstream = MarkdownStream(
+                self.assistant_stream.append(assistant_delta.content)
+                if self.assistant_stream.mdstream is None:
+                    self.assistant_stream.mdstream = MarkdownStream(
                         mdargs={"code_theme": self.renderer.themes.code_theme},
                         theme=self.renderer.themes.markdown_theme,
                         console=self.renderer.console,
                         spinner=self.renderer.spinner.renderable,
                     )
-                self.assistant_debouncer.schedule()
+                self.assistant_stream.debouncer.schedule()
             case events.AssistantMessageEvent() as assistant_event:
                 if self.renderer.is_sub_agent_session(assistant_event.session_id):
                     return
                 await self.stage_manager.transition_to(Stage.ASSISTANT)
-                if self.assistant_mdstream is not None:
-                    self.assistant_debouncer.cancel()
-                    self.assistant_mdstream.update(assistant_event.content.strip(), final=True)
+                if self.assistant_stream.mdstream is not None:
+                    self.assistant_stream.debouncer.cancel()
+                    self.assistant_stream.mdstream.update(assistant_event.content.strip(), final=True)
                 else:
                     content = assistant_event.content.strip()
                     if content:
@@ -120,8 +137,8 @@ class DisplayEventHandler:
                             )
                         )
                         self.renderer.print()
-                self.accumulated_assistant_text = ""
-                self.assistant_mdstream = None
+                self.assistant_stream.clear()
+                self.assistant_stream.mdstream = None
                 await self.stage_manager.transition_to(Stage.WAITING)
                 self.renderer.spinner.start()
             case events.TurnToolCallStartEvent():
@@ -178,47 +195,47 @@ class DisplayEventHandler:
                 self.renderer.spinner.stop()
 
     async def stop(self) -> None:
-        await self.assistant_debouncer.flush()
-        await self.thinking_debouncer.flush()
-        self.assistant_debouncer.cancel()
-        self.thinking_debouncer.cancel()
+        await self.assistant_stream.debouncer.flush()
+        await self.thinking_stream.debouncer.flush()
+        self.assistant_stream.debouncer.cancel()
+        self.thinking_stream.debouncer.cancel()
 
     async def finish_assistant_stream(self) -> None:
-        if self.assistant_mdstream is not None:
-            self.assistant_debouncer.cancel()
-            self.assistant_mdstream.update(self.accumulated_assistant_text, final=True)
-            self.assistant_mdstream = None
-            self.accumulated_assistant_text = ""
+        if self.assistant_stream.mdstream is not None:
+            self.assistant_stream.debouncer.cancel()
+            self.assistant_stream.mdstream.update(self.assistant_stream.buffer, final=True)
+            self.assistant_stream.mdstream = None
+            self.assistant_stream.clear()
 
     async def finish_thinking_stream(self) -> None:
-        self.thinking_debouncer.cancel()
-        await self._flush_thinking_buffer()
+        self.thinking_stream.debouncer.cancel()
+        await self._flush_thinking_buffer(self.thinking_stream)
         if self.stage_manager.current_stage == Stage.THINKING:
             self.renderer.print("\n")
-        self.is_thinking_in_bold = False
-        self.accumulated_thinking_text = ""
+        self.thinking_stream.is_bold = False
+        self.thinking_stream.clear()
 
     def _print_thinking_prefix(self) -> None:
         self.renderer.print(r_thinking.thinking_prefix())
 
-    async def _flush_assistant_buffer(self) -> None:
-        if self.assistant_mdstream is not None:
-            self.assistant_mdstream.update(self.accumulated_assistant_text)
+    async def _flush_assistant_buffer(self, state: StreamState) -> None:
+        if state.mdstream is not None:
+            state.mdstream.update(state.buffer)
 
-    async def _flush_thinking_buffer(self) -> None:
-        content = self.accumulated_thinking_text.replace("\r", "")
+    async def _flush_thinking_buffer(self, state: StreamState) -> None:
+        content = state.buffer.replace("\r", "")
         if len(content.strip()) == 0:
-            self.accumulated_thinking_text = ""
+            state.clear()
             return
         self._render_thinking_content(content)
-        self.accumulated_thinking_text = ""
+        state.clear()
 
     def _render_thinking_content(self, content: str) -> None:
         if self.stage_manager.current_stage != Stage.THINKING:
             self._print_thinking_prefix()
-        self.renderer.print(r_thinking.render_thinking_content(content, self.is_thinking_in_bold), end="")
+        self.renderer.print(r_thinking.render_thinking_content(content, self.thinking_stream.is_bold), end="")
         if content.count("**") % 2 == 1:
-            self.is_thinking_in_bold = not self.is_thinking_in_bold
+            self.thinking_stream.is_bold = not self.thinking_stream.is_bold
 
     def _should_suppress_subagent_thinking(self, session_id: str) -> bool:
         return (

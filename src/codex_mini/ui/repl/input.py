@@ -154,7 +154,7 @@ class PromptToolkitInput(InputProviderABC):
         # Left side: path and git branch
         left_parts: list[str] = []
         left_parts.append(show_path_with_tilde())
-        
+
         git_branch = get_current_git_branch()
         if git_branch:
             left_parts.append(git_branch)
@@ -176,7 +176,7 @@ class PromptToolkitInput(InputProviderABC):
         # Build left and right text with borders
         left_text = " " + " · ".join(left_parts)
         right_text = (" · ".join(right_parts) + " ") if right_parts else " "
-        
+
         # Calculate padding
         try:
             terminal_width = shutil.get_terminal_size().columns
@@ -187,7 +187,7 @@ class PromptToolkitInput(InputProviderABC):
 
         # Build result with style
         toolbar_text = left_text + padding + right_text
-        return FormattedText([("#487E89", toolbar_text)])
+        return FormattedText([("#ansiblue", toolbar_text)])
 
     async def start(self) -> None:  # noqa: D401
         _set_cursor_style(5)
@@ -453,12 +453,17 @@ class _AtFilesCompleter(Completer):
             "f",
             "--type",
             "d",
+            "--hidden",
             "--full-path",
             "-i",
             "--max-results",
             str(self._max_results * 3),
             "--exclude",
             ".git",
+            "--exclude",
+            ".venv",
+            "--exclude",
+            "node_modules",
             pattern,
             ".",
         ]
@@ -477,13 +482,14 @@ class _AtFilesCompleter(Completer):
         """Lightweight suggestions when user typed only '@': list cwd's children.
 
         Avoids running external tools; shows immediate directories first, then files.
-        Hidden entries and '.git' are skipped to reduce noise.
+        Filters out .git, .venv, and node_modules to reduce noise.
         """
+        excluded = {".git", ".venv", "node_modules"}
         items: list[str] = []
         try:
             for p in sorted(cwd.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
                 name = p.name
-                if name == ".git" or name.startswith("."):
+                if name in excluded:
                     continue
                 rel = os.path.relpath(p, cwd)
                 if p.is_dir() and not rel.endswith("/"):

@@ -37,6 +37,7 @@ class AtPatternParseResult(BaseModel):
     result: str
     tool_args: str
     operation: Literal["Read", "List"]
+    images: list["ImageURLPart"] | None = None
 
 
 class CommandOutput(BaseModel):
@@ -90,6 +91,7 @@ class DeveloperMessageItem(BaseModel):
     id: str | None = None
     role: RoleType = "developer"
     content: str | None = None  # For LLM input
+    images: list["ImageURLPart"] | None = None
 
     # Special fields for reminders UI
     memory_paths: list[str] | None = None
@@ -99,10 +101,19 @@ class DeveloperMessageItem(BaseModel):
     command_output: CommandOutput | None = None
 
 
+class ImageURLPart(BaseModel):
+    class ImageURL(BaseModel):
+        url: str
+        id: str | None = None
+
+    image_url: ImageURL
+
+
 class UserMessageItem(BaseModel):
     id: str | None = None
     role: RoleType = "user"
     content: str | None = None
+    images: list[ImageURLPart] | None = None
 
 
 class AssistantMessageItem(BaseModel):
@@ -141,6 +152,7 @@ class ToolResultItem(BaseModel):
     status: Literal["success", "error"]
     tool_name: str | None = None  # This field will auto set by tool registry's run_tool
     ui_extra: str | None = None  # Extra data for UI display, e.g. diff render
+    images: list[ImageURLPart] | None = None
 
 
 class AssistantMessageDelta(BaseModel):
@@ -182,18 +194,18 @@ def group_response_items_gen(
     items: Iterable[ConversationItem],
 ) -> Iterator[tuple[Literal["assistant", "user", "tool", "other"], list[ConversationItem]]]:
     """
-    Group response items into sublists:
-    - Consecutive (ReasoningItem | AssistantMessage | ToolCallItem) are grouped together
-    - Consecutive UserMessage are grouped together
-    - Each ToolMessage is always a single group
-    - Each DeveloperMessage should attach to the previous UserMessage/ToolMessage group
+    Group response items into sublists with predictable attachment rules:
+    - Consecutive assistant-side items (ReasoningItem | AssistantMessageItem | ToolCallItem) group together.
+    - Consecutive UserMessage group together.
+    - Each ToolMessage (ToolResultItem) is a single group, but allow following DeveloperMessage to attach to it.
+    - DeveloperMessage only attaches to the previous UserMessage/ToolMessage group.
     """
-    buffer: list[ConversationItem] = []
-    buffer_kind: Literal["assistant", "user", "tool", "other"] = "other"
 
-    def kind_of(
-        it: ConversationItem,
-    ) -> Literal["assistant", "user", "tool", "developer", "other"]:
+    # Current buffered group and its kind; None means no active group
+    buffer: list[ConversationItem] = []
+    buffer_kind: Literal["assistant", "user", "tool", "other"] | None = None
+
+    def kind_of(it: ConversationItem) -> Literal["assistant", "user", "tool", "developer", "other"]:
         if isinstance(it, (ReasoningItem, AssistantMessageItem, ToolCallItem)):
             return "assistant"
         if isinstance(it, UserMessageItem):
@@ -204,39 +216,42 @@ def group_response_items_gen(
             return "developer"
         return "other"  # Metadata etc.
 
+    def flush() -> Iterator[tuple[Literal["assistant", "user", "tool", "other"], list[ConversationItem]]]:
+        nonlocal buffer, buffer_kind
+        if buffer and buffer_kind is not None:
+            yield (buffer_kind, buffer)
+        # reset
+        buffer = []
+        buffer_kind = None
+
     for item in items:
         k = kind_of(item)
-
         if k == "other":
             continue
 
-        if k == "tool":
-            # ToolMessage: flush current buffer and yield as single group
-            if buffer:
-                yield (buffer_kind, buffer)
-                buffer, buffer_kind = [], "other"
-            yield ("tool", [item])
-            continue
-
         if k == "developer":
-            # DeveloperMessage: attach to UserMessage or ToolMessage as <system-reminder>
-            if buffer:
+            # Attach only to previous user/tool group
+            if buffer and buffer_kind in ("user", "tool"):
                 buffer.append(item)
+            # else: drop developer if there's no suitable previous group
             continue
 
         if not buffer:
             buffer = [item]
-            buffer_kind = k
-        else:
-            if k == buffer_kind:
-                buffer.append(item)
-            else:
-                # Type switched, flush current buffer
-                yield (buffer_kind, buffer)
-                buffer = [item]
-                buffer_kind = k
+            buffer_kind = "tool" if k == "tool" else k
+            continue
 
-    if buffer:
+        # Same kind merge rules: assistant/user merge; tool stays single
+        if k == buffer_kind and k != "tool":
+            buffer.append(item)
+            continue
+
+        # Kind switched or consecutive tool: flush current, start new
+        yield from flush()
+        buffer = [item]
+        buffer_kind = "tool" if k == "tool" else k
+
+    if buffer and buffer_kind is not None:
         yield (buffer_kind, buffer)
 
 

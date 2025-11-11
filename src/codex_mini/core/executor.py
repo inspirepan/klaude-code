@@ -6,6 +6,7 @@ handling operations submitted from the CLI and coordinating with agents.
 """
 
 import asyncio
+from dataclasses import dataclass
 from uuid import uuid4
 
 from codex_mini.command import dispatch_command
@@ -23,6 +24,12 @@ from codex_mini.protocol.op import (
 from codex_mini.protocol.tools import SubAgentType
 from codex_mini.session.session import Session
 from codex_mini.trace import log_debug
+
+
+@dataclass
+class ActiveTask:
+    task: asyncio.Task[None]
+    session_id: str
 
 
 class ExecutorContext:
@@ -49,10 +56,8 @@ class ExecutorContext:
 
         # Track active agents by session ID
         self.active_agents: dict[str, Agent] = {}
-        # Track active tasks by submission ID
-        self.active_tasks: dict[str, asyncio.Task[None]] = {}
-        # Track which session a task belongs to (submission ID -> session ID)
-        self.active_task_sessions: dict[str, str] = {}
+        # Track active tasks by submission ID, retaining owning session for filtering/cancellation
+        self.active_tasks: dict[str, ActiveTask] = {}
 
     async def emit_event(self, event: events.Event) -> None:
         """Emit an event to the UI display system."""
@@ -119,8 +124,7 @@ class ExecutorContext:
             task: asyncio.Task[None] = asyncio.create_task(
                 self._run_agent_task(agent, result.agent_input, operation.id, operation.session_id)
             )
-            self.active_tasks[operation.id] = task
-            self.active_task_sessions[operation.id] = operation.session_id
+            self.active_tasks[operation.id] = ActiveTask(task=task, session_id=operation.session_id)
             # Do not await task here; completion will be tracked by the executor
 
     async def handle_interrupt(self, operation: InterruptOperation) -> None:
@@ -144,13 +148,14 @@ class ExecutorContext:
 
         # Find tasks to cancel (filter by target sessions if provided)
         tasks_to_cancel: list[tuple[str, asyncio.Task[None]]] = []
-        for task_id, task in list(self.active_tasks.items()):
+        for task_id, active in list(self.active_tasks.items()):
+            task = active.task
             if task.done():
                 continue
             if operation.target_session_id is None:
                 tasks_to_cancel.append((task_id, task))
             else:
-                if self.active_task_sessions.get(task_id) == operation.target_session_id:
+                if active.session_id == operation.target_session_id:
                     tasks_to_cancel.append((task_id, task))
 
         if self.debug_mode:
@@ -162,7 +167,6 @@ class ExecutorContext:
             task.cancel()
             # Remove from active tasks immediately
             self.active_tasks.pop(task_id, None)
-            self.active_task_sessions.pop(task_id, None)
 
     async def _run_agent_task(self, agent: Agent, user_input: str, task_id: str, session_id: str) -> None:
         """
@@ -207,7 +211,6 @@ class ExecutorContext:
         finally:
             # Clean up the task from active tasks
             self.active_tasks.pop(task_id, None)
-            self.active_task_sessions.pop(task_id, None)
             if self.debug_mode:
                 log_debug(f"Cleaned up agent task {task_id}", style="cyan")
 
@@ -353,7 +356,8 @@ class Executor:
         self.running = False
 
         # Cancel all active tasks
-        for task in self.context.active_tasks.values():
+        for active in self.context.active_tasks.values():
+            task = active.task
             if not task.done():
                 task.cancel()
 
@@ -388,9 +392,9 @@ class Executor:
             async def _await_agent_and_complete() -> None:
                 try:
                     # Wait for the agent task tied to this submission id
-                    task = self.context.active_tasks.get(submission.id)
-                    if task is not None:
-                        await task
+                    active = self.context.active_tasks.get(submission.id)
+                    if active is not None:
+                        await active.task
                 finally:
                     # Signal completion of this submission when agent task completes
                     if submission.id in self.task_completion_events:

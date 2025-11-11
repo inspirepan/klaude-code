@@ -9,8 +9,9 @@ TODO_WRITE = "TodoWrite"
 UPDATE_PLAN = "update_plan"
 TASK = "Task"
 ORACLE = "Oracle"
+SKILL = "Skill"
 
 
 class SubAgentType(str, Enum):
     TASK = TASK
-    ORACLE = ORACLE  # For now subagent type should has the same name as tool name, used in repl_display.py#pick_sub_agent_color
+    ORACLE = ORACLE

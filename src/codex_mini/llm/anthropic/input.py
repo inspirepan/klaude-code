@@ -6,12 +6,75 @@
 
 
 import json
+from base64 import b64decode
+from binascii import Error as BinasciiError
+from typing import Literal, cast
 
+from anthropic.types.beta.beta_base64_image_source_param import BetaBase64ImageSourceParam
+from anthropic.types.beta.beta_image_block_param import BetaImageBlockParam
 from anthropic.types.beta.beta_message_param import BetaMessageParam
 from anthropic.types.beta.beta_text_block_param import BetaTextBlockParam
 from anthropic.types.beta.beta_tool_param import BetaToolParam
+from anthropic.types.beta.beta_url_image_source_param import BetaURLImageSourceParam
 
 from codex_mini.protocol import llm_parameter, model
+
+AllowedMediaType = Literal["image/png", "image/jpeg", "image/gif", "image/webp"]
+_INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+)
+
+
+def _image_part_to_block(image: model.ImageURLPart) -> BetaImageBlockParam:
+    url = image.image_url.url
+    if url.startswith("data:"):
+        header_and_media = url.split(",", 1)
+        if len(header_and_media) != 2:
+            raise ValueError("Invalid data URL for image: missing comma separator")
+        header, base64_data = header_and_media
+        if ";base64" not in header:
+            raise ValueError("Invalid data URL for image: missing base64 marker")
+        media_type = header[5:].split(";", 1)[0]
+        if media_type not in _INLINE_IMAGE_MEDIA_TYPES:
+            raise ValueError(f"Unsupported inline image media type: {media_type}")
+        base64_payload = base64_data.strip()
+        if base64_payload == "":
+            raise ValueError("Inline image data is empty")
+        try:
+            b64decode(base64_payload, validate=True)
+        except (BinasciiError, ValueError) as exc:
+            raise ValueError("Inline image data is not valid base64") from exc
+        source = cast(
+            BetaBase64ImageSourceParam,
+            {
+                "type": "base64",
+                "media_type": media_type,
+                "data": base64_payload,
+            },
+        )
+        return {"type": "image", "source": source}
+
+    source_url: BetaURLImageSourceParam = {"type": "url", "url": url}
+    return {"type": "image", "source": source_url}
+
+
+def _append_user_content_blocks(
+    blocks: list[BetaTextBlockParam | BetaImageBlockParam],
+    item: model.MessageItem,
+) -> None:
+    if isinstance(item, model.UserMessageItem):
+        if item.content is not None:
+            blocks.append({"type": "text", "text": item.content + "\n"})
+        for image in item.images or []:
+            blocks.append(_image_part_to_block(image))
+    elif isinstance(item, model.DeveloperMessageItem):
+        if item.content is not None:
+            blocks.append({"type": "text", "text": item.content + "\n"})
+        for image in item.images or []:
+            blocks.append(_image_part_to_block(image))
 
 
 def convert_history_to_input(
@@ -29,20 +92,12 @@ def convert_history_to_input(
     for group_kind, group in model.group_response_items_gen(history):
         match group_kind:
             case "user":
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": item.content + "\n",
-                            }
-                            for item in group
-                            if isinstance(item, (model.UserMessageItem, model.DeveloperMessageItem))
-                            and item.content is not None
-                        ],
-                    }
-                )
+                content_blocks: list[BetaTextBlockParam | BetaImageBlockParam] = []
+                for item in group:
+                    _append_user_content_blocks(content_blocks, item)
+                if not content_blocks:
+                    content_blocks.append({"type": "text", "text": ""})
+                messages.append({"role": "user", "content": content_blocks})
             case "tool":
                 if len(group) == 0 or not isinstance(group[0], model.ToolResultItem):
                     continue
@@ -51,6 +106,14 @@ def convert_history_to_input(
                     i for i in group if isinstance(i, model.DeveloperMessageItem)
                 ]
                 reminders_str = "\n" + "\n".join(i.content for i in reminders if i.content)
+                tool_content: list[BetaTextBlockParam | BetaImageBlockParam] = []
+                tool_text = (tool_result.output or "") + reminders_str
+                tool_content.append({"type": "text", "text": tool_text})
+                for image in tool_result.images or []:
+                    tool_content.append(_image_part_to_block(image))
+                for reminder in reminders:
+                    for image in reminder.images or []:
+                        tool_content.append(_image_part_to_block(image))
 
                 messages.append(
                     {
@@ -60,7 +123,7 @@ def convert_history_to_input(
                                 "type": "tool_result",
                                 "tool_use_id": tool_result.call_id,
                                 "is_error": tool_result.status == "error",
-                                "content": (tool_result.output or "") + reminders_str,
+                                "content": tool_content,
                             }
                         ],
                     }

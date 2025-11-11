@@ -1,6 +1,8 @@
 # pyright: reportReturnType=false
 # pyright: reportArgumentType=false
 
+from typing import Any
+
 from openai.types import responses
 
 from codex_mini.protocol.llm_parameter import ToolSchema
@@ -13,6 +15,35 @@ from codex_mini.protocol.model import (
     ToolResultItem,
     UserMessageItem,
 )
+
+
+def _build_user_content_parts(user: UserMessageItem) -> list[responses.ResponseInputContentParam]:
+    parts: list[responses.ResponseInputContentParam] = []
+    if user.content is not None:
+        parts.append({"type": "input_text", "text": user.content})
+    for image in user.images or []:
+        parts.append({"type": "input_image", "detail": "auto", "image_url": image.image_url.url})
+    if not parts:
+        parts.append({"type": "input_text", "text": ""})
+    return parts
+
+
+def _build_tool_result_item(tool: ToolResultItem) -> responses.ResponseInputItemParam:
+    content_parts: list[responses.ResponseInputContentParam] = []
+    text_output = tool.output or ""
+    if text_output:
+        content_parts.append({"type": "input_text", "text": text_output})
+    for image in tool.images or []:
+        content_parts.append({"type": "input_image", "detail": "auto", "image_url": image.image_url.url})
+
+    item: dict[str, Any] = {
+        "type": "function_call_output",
+        "call_id": tool.call_id,
+        "output": text_output,
+    }
+    if content_parts:
+        item["content"] = content_parts
+    return item  # type: ignore[return-value]
 
 
 def convert_history_to_input(
@@ -56,13 +87,7 @@ def convert_history_to_input(
                     }
                 )
             case ToolResultItem() as t:
-                items.append(
-                    {
-                        "type": "function_call_output",
-                        "call_id": t.call_id,
-                        "output": t.output,
-                    }
-                )
+                items.append(_build_tool_result_item(t))
             case AssistantMessageItem() as a:
                 items.append(
                     {
@@ -83,26 +108,23 @@ def convert_history_to_input(
                         "type": "message",
                         "role": "user",
                         "id": u.id,
-                        "content": [
-                            {
-                                "type": "input_text",
-                                "text": u.content,
-                            }
-                        ],
+                        "content": _build_user_content_parts(u),
                     }
                 )
             case DeveloperMessageItem() as d:
+                dev_parts: list[responses.ResponseInputContentParam] = []
+                if d.content is not None:
+                    dev_parts.append({"type": "input_text", "text": d.content})
+                for image in d.images or []:
+                    dev_parts.append({"type": "input_image", "detail": "auto", "image_url": image.image_url.url})
+                if not dev_parts:
+                    dev_parts.append({"type": "input_text", "text": ""})
                 items.append(
                     {
                         "type": "message",
-                        "role": "developer",
+                        "role": "user",  # GPT-5 series do not support image in "developer" role, so we set it to "user"
                         "id": d.id,
-                        "content": [
-                            {
-                                "type": "input_text",
-                                "text": d.content,
-                            }
-                        ],
+                        "content": dev_parts,
                     }
                 )
             case _:

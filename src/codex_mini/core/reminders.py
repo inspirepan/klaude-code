@@ -43,6 +43,7 @@ async def at_file_reader_reminder(session: Session) -> model.DeveloperMessageIte
         return None
 
     at_files: dict[str, model.AtPatternParseResult] = {}  # path -> content
+    collected_images: list[model.ImageURLPart] = []
 
     for pattern in at_patterns:
         path = Path(pattern).resolve()
@@ -51,13 +52,17 @@ async def at_file_reader_reminder(session: Session) -> model.DeveloperMessageIte
             if path.exists() and path.is_file():
                 args = ReadTool.ReadArguments(file_path=str(path))
                 tool_result = await ReadTool.call_with_args(args)
-                at_files[str(path)] = model.AtPatternParseResult(
+                at_result = model.AtPatternParseResult(
                     path=str(path),
                     tool_name=tools.READ,
                     result=tool_result.output or "",
                     tool_args=args.model_dump_json(exclude_none=True),
                     operation="Read",
+                    images=tool_result.images,
                 )
+                at_files[str(path)] = at_result
+                if tool_result.images:
+                    collected_images.extend(tool_result.images)
             elif path.exists() and path.is_dir():
                 args = BashTool.BashArguments(command=f"ls {path}")
                 tool_result = await BashTool.call_with_args(args)
@@ -85,6 +90,7 @@ Result of calling the {result.tool_name} tool:
     return model.DeveloperMessageItem(
         content=f"""<system-reminder>{at_files_str}</system-reminder>""",
         at_files=list(at_files.values()),
+        images=collected_images or None,
     )
 
 
@@ -165,7 +171,8 @@ Here are the existing contents of your todo list:
 
 async def file_changed_externally_reminder(session: Session) -> model.DeveloperMessageItem | None:
     """Remind agent about user/linter' changes to the files in FileTracker, provding the newest content of the file."""
-    changed_files: list[tuple[str, str]] = []
+    changed_files: list[tuple[str, str, list[model.ImageURLPart] | None]] = []
+    collected_images: list[model.ImageURLPart] = []
     if session.file_tracker and len(session.file_tracker) > 0:
         for path, mtime in session.file_tracker.items():
             try:
@@ -176,7 +183,9 @@ async def file_changed_externally_reminder(session: Session) -> model.DeveloperM
                             ReadTool.ReadArguments(file_path=path)
                         )  # This tool will update file tracker
                         if tool_result.status == "success":
-                            changed_files.append((path, tool_result.output or ""))
+                            changed_files.append((path, tool_result.output or "", tool_result.images))
+                            if tool_result.images:
+                                collected_images.extend(tool_result.images)
                     finally:
                         current_session_var.reset(token)
             except (FileNotFoundError, IsADirectoryError, OSError, PermissionError, UnicodeDecodeError):
@@ -186,12 +195,13 @@ async def file_changed_externally_reminder(session: Session) -> model.DeveloperM
             [
                 f"Note: {file_path} was modified, either by the user or by a linter. Don't tell the user this, since they are already aware. This change was intentional, so make sure to take it into account as you proceed (ie. don't revert it unless the user asks you to). So that you don't need to re-read the file, here's the result of running `cat -n` on a snippet of the edited file:\n\n{file_content}"
                 ""
-                for file_path, file_content in changed_files
+                for file_path, file_content, _ in changed_files
             ]
         )
         return model.DeveloperMessageItem(
             content=f"""<system-reminder>{changed_files_str}""",
-            external_file_changes=[file_path for file_path, _ in changed_files],
+            external_file_changes=[file_path for file_path, _, _ in changed_files],
+            images=collected_images or None,
         )
 
     return None
