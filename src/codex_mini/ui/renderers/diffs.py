@@ -127,10 +127,6 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
         if not line or line[:1] not in {" ", "+", "-"}:
             continue
 
-        # Hide completely blank diff lines (no content beyond the marker)
-        if len(line) == 1:
-            continue
-
         # Compute line number prefix and advance counters
         prefix = "    "
         kind = line[0]
