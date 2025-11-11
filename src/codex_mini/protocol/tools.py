@@ -9,6 +9,7 @@ TODO_WRITE = "TodoWrite"
 UPDATE_PLAN = "update_plan"
 TASK = "Task"
 ORACLE = "Oracle"
+SKILL = "Skill"
 
 
 class SubAgentType(str, Enum):

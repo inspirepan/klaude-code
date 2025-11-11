@@ -31,6 +31,8 @@ class Config(BaseModel):
     task_model: str | None = None
     oracle_model: str | None = None
     theme: str | None = None
+    user_skills_dir: str = "~/.claude/skills"
+    project_skills_dir: str = "./.claude/skills"
 
     def get_main_model_config(self) -> LLMConfigParameter:
         return self.get_model_config(self.main_model)

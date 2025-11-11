@@ -63,6 +63,7 @@ def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
                 tools.APPLY_PATCH,
                 tools.READ,
                 tools.TASK,
+                tools.SKILL,
             ]
         )
     return get_tool_schemas(
@@ -74,6 +75,7 @@ def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
             # tools.MULTI_EDIT, # MultiEdit has been removed in Claude Code 2.0 for Claude Sonnet 4.5
             tools.TASK,
             tools.ORACLE,
+            tools.SKILL,
         ]
     )
 

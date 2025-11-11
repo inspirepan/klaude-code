@@ -124,6 +124,8 @@ class REPLRenderer:
                 self.print(r_tools.render_generic_tool_call("Update Todos", "", "◎"))
             case tools.UPDATE_PLAN:
                 self.print(r_tools.render_update_plan_tool_call(e.arguments))
+            case tools.SKILL:
+                self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments, "◈"))
             case tools.TASK | tools.ORACLE:
                 style = self.pick_sub_agent_color()  # advance sub agent color index here
                 self.print(r_tools.render_task_call(e, style.color))
