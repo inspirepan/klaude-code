@@ -65,7 +65,9 @@ class DisplayEventHandler:
                     task_event.session_id,
                     SessionStatus(
                         is_subagent=task_event.is_sub_agent,
-                        color=self.renderer.get_sub_agent_color() if task_event.is_sub_agent else None, # sub agent color should be advanced in tool call display, not here
+                        color=self.renderer.get_sub_agent_color()
+                        if task_event.is_sub_agent
+                        else None,  # sub agent color should be advanced in tool call display, not here
                         sub_agent_type=task_event.sub_agent_type,
                     ),
                 )
