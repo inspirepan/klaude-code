@@ -313,6 +313,7 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
             "switch",
             "tag",
             "clone",
+            "worktree",
         }
         # Block remote operations
         blocked_git_cmds = {"push", "pull", "remote"}
