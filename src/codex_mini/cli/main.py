@@ -163,7 +163,7 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
             parts.append(f"{user_count} user")
         if project_count > 0:
             parts.append(f"{project_count} project")
-        log(f"Discovered {len(skills)} Claude Skills ({', '.join(parts)})")
+        log_debug(f"Discovered {len(skills)} Claude Skills ({', '.join(parts)})")
     SkillTool.set_skill_loader(skill_loader)
     # Resolve main agent LLM config with override support
     if init_config.llm_config_override is not None:
