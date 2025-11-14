@@ -367,7 +367,7 @@ class _AtFilesCompleter(Completer):
         elif self._has_cmd("rg"):
             # Use rg to search only in current directory
             if self._rg_file_list is None or now - self._rg_file_list_time > max(self._cache_ttl, 30.0):
-                cmd = ["rg", "--files"]
+                cmd = ["rg", "--files", "--no-ignore", "--hidden"]
                 r = self._run_cmd(cmd, cwd=cwd)  # Search from current directory
                 if r.ok:
                     self._rg_file_list = r.lines
@@ -454,6 +454,7 @@ class _AtFilesCompleter(Completer):
             "--type",
             "d",
             "--hidden",
+            "--no-ignore",
             "--full-path",
             "-i",
             "--max-results",

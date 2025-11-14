@@ -82,7 +82,7 @@ class OpenAICompatibleClient(LLMClientABC):
             # Remove None values
             payload = {k: v for k, v in payload.items() if v is not None}
 
-            log_debug("▷▷▷ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
+            log_debug("➡️ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
 
         stream = self.client.chat.completions.create(
             model=str(param.model),
@@ -109,7 +109,7 @@ class OpenAICompatibleClient(LLMClientABC):
         try:
             async for event in await stream:
                 if self.is_debug_mode():
-                    log_debug("◁◁◁ stream [SSE]", str(event), style="blue")
+                    log_debug("📥 stream [SSE]", str(event), style="blue")
                 if not response_id and event.id:
                     response_id = event.id
                     accumulated_tool_calls.response_id = response_id

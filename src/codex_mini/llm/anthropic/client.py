@@ -88,7 +88,7 @@ class AnthropicClient(LLMClientABC):
             # Remove None values
             payload = {k: v for k, v in payload.items() if v is not None}
 
-            log_debug("▷▷▷ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
+            log_debug("➡️ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
 
         stream = self.client.beta.messages.create(
             model=str(param.model),
@@ -129,7 +129,7 @@ class AnthropicClient(LLMClientABC):
         try:
             async for event in await stream:
                 if self.is_debug_mode():
-                    log_debug(f"◁◁◁ stream [SSE {event.type}]", str(event), style="blue")
+                    log_debug(f"📥 stream [SSE {event.type}]", str(event), style="blue")
                 match event:
                     case BetaRawMessageStartEvent() as event:
                         response_id = event.message.id

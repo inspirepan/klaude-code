@@ -16,14 +16,14 @@ class DebugEventDisplay(DisplayABC):
 
     @override
     async def consume_event(self, event: Event) -> None:
-        message = f"▶▶▶ ui [{event.__class__.__name__}] {event.model_dump_json()}"
+        message = f"🧩 ui [{event.__class__.__name__}] {event.model_dump_json()}"
 
         if self.write_to_file:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             with open(self.log_file, "a", encoding="utf-8") as f:
                 f.write(f"[{timestamp}] {message}\n")
         else:
-            log_debug(f"▶▶▶ ui [{event.__class__.__name__}]", event.model_dump_json(), style="magenta")
+            log_debug(f"🧩 ui [{event.__class__.__name__}]", event.model_dump_json(), style="magenta")
 
         if self.wrapped_display:
             await self.wrapped_display.consume_event(event)

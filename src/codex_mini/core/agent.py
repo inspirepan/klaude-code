@@ -352,7 +352,7 @@ class Agent:
         ):
             if self.debug_mode:
                 log_debug(
-                    f"◀◀◀ response [{response_item.__class__.__name__}]",
+                    f"📁 response [{response_item.__class__.__name__}]",
                     response_item.model_dump_json(),
                     style="green",
                 )
@@ -395,7 +395,7 @@ class Agent:
                 case model.StreamErrorItem() as item:
                     response_failed = True
                     if self.debug_mode:
-                        log_debug("◀◀◀ response [StreamError]", item.error, style="red")
+                        log_debug("📁 response [StreamError]", item.error, style="red")
                     yield events.ErrorEvent(error_message=item.error)
                 case model.ToolCallItem() as item:
                     turn_tool_calls.append(item)
