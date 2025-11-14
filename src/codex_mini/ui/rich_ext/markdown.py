@@ -135,8 +135,9 @@ class MarkdownStream:
         temp_console.print(markdown)
         output = string_io.getvalue()
 
-        # Split rendered output into lines
-        return output.splitlines(keepends=True)
+        # Split rendered output into lines and remove trailing spaces from each line
+        lines = output.splitlines(keepends=True)
+        return [line.rstrip() + ("\n" if line.endswith("\n") else "") for line in lines]
 
     def __del__(self) -> None:
         """Destructor to ensure Live display is properly cleaned up."""

@@ -163,7 +163,8 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
             parts.append(f"{user_count} user")
         if project_count > 0:
             parts.append(f"{project_count} project")
-        log_debug(f"Discovered {len(skills)} Claude Skills ({', '.join(parts)})")
+        if init_config.debug:
+            log_debug(f"Discovered {len(skills)} Claude Skills ({', '.join(parts)})")
     SkillTool.set_skill_loader(skill_loader)
     # Resolve main agent LLM config with override support
     if init_config.llm_config_override is not None:
@@ -182,7 +183,7 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
             raise typer.Exit(2) from None
     llm_client: LLMClientABC = create_llm_client(llm_config)
     if init_config.debug:
-        log_debug("▷▷▷ llm [Model Config]", llm_config.model_dump_json(exclude_none=True), style="yellow")
+        log_debug("➡️ llm [Model Config]", llm_config.model_dump_json(exclude_none=True), style="yellow")
         llm_client.enable_debug_mode()
 
     llm_clients = AgentLLMClients(main=llm_client)
@@ -192,7 +193,7 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
         task_llm_client = create_llm_client(task_llm_config)
         llm_clients.task = task_llm_client
         if init_config.debug:
-            log_debug("▷▷▷ llm [Task Model Config]", task_llm_config.model_dump_json(exclude_none=True), style="yellow")
+            log_debug("➡️ llm [Task Model Config]", task_llm_config.model_dump_json(exclude_none=True), style="yellow")
             task_llm_client.enable_debug_mode()
 
     if config.oracle_model:
@@ -201,7 +202,7 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
         llm_clients.oracle = oracle_llm_client
         if init_config.debug:
             log_debug(
-                "▷▷▷ llm [Oracle Model Config]", oracle_llm_config.model_dump_json(exclude_none=True), style="yellow"
+                "➡️ llm [Oracle Model Config]", oracle_llm_config.model_dump_json(exclude_none=True), style="yellow"
             )
             oracle_llm_client.enable_debug_mode()
 
@@ -271,7 +272,7 @@ def parse_llm_config_override(model_config_json: str | None, debug: bool) -> LLM
         cfg = LLMConfigParameter.model_validate_json(model_config_json)
         if debug:
             pretty = json.dumps(json.loads(model_config_json), ensure_ascii=False)
-            log_debug("▷▷▷ cli [Model Config JSON Override]", pretty, style="yellow")
+            log_debug("➡️ cli [Model Config JSON Override]", pretty, style="yellow")
         return cfg
     except Exception as e:
         log((f"Invalid --model-config-json: {e}", "red"))

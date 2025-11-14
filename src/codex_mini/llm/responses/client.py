@@ -68,7 +68,7 @@ class ResponsesClient(LLMClientABC):
 
         inputs = convert_history_to_input(param.input, param.model)
 
-        parallel_tool_calls = True if param.model and not param.model.startswith("gpt-5-codex") else False
+        parallel_tool_calls = True
 
         if self.is_debug_mode():
             payload: dict[str, object] = {
@@ -99,7 +99,7 @@ class ResponsesClient(LLMClientABC):
             # Remove None values
             payload = {k: v for k, v in payload.items() if v is not None}
 
-            log_debug("▷▷▷ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
+            log_debug("➡️ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
 
         stream = self.client.responses.create(
             model=str(param.model),
@@ -132,7 +132,7 @@ class ResponsesClient(LLMClientABC):
             new_reasoning_summary_delta_flag = True
             async for event in await stream:
                 if self.is_debug_mode():
-                    log_debug(f"◁◁◁ stream [SSE {event.type}]", str(event), style="blue")
+                    log_debug(f"📥 stream [SSE {event.type}]", str(event), style="blue")
                 match event:
                     case responses.ResponseCreatedEvent() as event:
                         response_id = event.response.id
@@ -240,10 +240,10 @@ class ResponsesClient(LLMClientABC):
                             if error_reason:
                                 error_message = f"{error_message}: {error_reason}"
                             if self.is_debug_mode():
-                                log_debug("◁◁◁ stream [LLM Status Warning]", error_message, style="red")
+                                log_debug("📥 stream [LLM Status Warning]", error_message, style="red")
                             yield StreamErrorItem(error=error_message)
                     case _:
                         if self.is_debug_mode():
-                            log_debug("◁◁◁ stream [Unhandled Event]", str(event), style="red")
+                            log_debug("📥 stream [Unhandled Event]", str(event), style="red")
         except RateLimitError as e:
             yield StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")

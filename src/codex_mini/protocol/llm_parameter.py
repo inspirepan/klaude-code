@@ -30,7 +30,7 @@ class Reasoning(BaseModel):
     OpenAI Reasoning Model
     """
 
-    effort: Literal["high", "medium", "low", "minimal"] | None = None
+    effort: Literal["high", "medium", "low", "minimal", "none"] | None = None
     summary: Literal["auto", "concise", "detailed"] | None = None
 
 
@@ -174,13 +174,7 @@ def apply_config_defaults(param: LLMCallParameter, config: LLMConfigParameter) -
     if param.thinking is not None and param.thinking.type == "enabled" and param.thinking.budget_tokens is None:
         param.thinking.budget_tokens = DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS
 
-    if param.model in {"gpt-5-2025-08-07", "gpt-5"}:
+    if param.model and "gpt-5" in param.model:
         param.temperature = 1.0  # Required for GPT-5
-        if param.context_limit is None:
-            param.context_limit = 400000
-
-    if param.model and "sonnet" in param.model.lower():
-        if param.context_limit is None:
-            param.context_limit = 200000
 
     return param
