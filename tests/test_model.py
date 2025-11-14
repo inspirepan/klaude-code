@@ -285,7 +285,7 @@ def test_developer_message_images_propagate_to_user_group():
 
     responses_items = responses_history(history, model_name=None)
     developer_item = _ensure_dict(responses_items[1])
-    assert developer_item["role"] == "developer"
+    assert developer_item["role"] == "user"  # GPT-5 series do not support image in "developer" role
     developer_parts = _ensure_list(developer_item["content"])
     assert _ensure_dict(developer_parts[0])["type"] == "input_text"
     assert _ensure_dict(developer_parts[1])["type"] == "input_image"
