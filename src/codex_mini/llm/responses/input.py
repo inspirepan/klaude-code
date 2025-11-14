@@ -39,10 +39,8 @@ def _build_tool_result_item(tool: ToolResultItem) -> responses.ResponseInputItem
     item: dict[str, Any] = {
         "type": "function_call_output",
         "call_id": tool.call_id,
-        "output": text_output,
+        "output": content_parts,
     }
-    if content_parts:
-        item["content"] = content_parts
     return item  # type: ignore[return-value]
 
 
