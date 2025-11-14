@@ -68,7 +68,7 @@ class ResponsesClient(LLMClientABC):
 
         inputs = convert_history_to_input(param.input, param.model)
 
-        parallel_tool_calls = True if param.model and not param.model.startswith("gpt-5-codex") else False
+        parallel_tool_calls = True
 
         if self.is_debug_mode():
             payload: dict[str, object] = {
