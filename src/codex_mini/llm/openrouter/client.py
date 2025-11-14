@@ -164,6 +164,13 @@ class OpenRouterClient(LLMClientABC):
                                         thinking=reasoning_detail.text,
                                         response_id=response_id,
                                     )
+                            elif reasoning_detail.type == "reasoning.summary":
+                                if reasoning_detail.summary:
+                                    accumulated_reasoning.append(reasoning_detail.summary)
+                                    yield model.ThinkingTextDelta(
+                                        thinking=reasoning_detail.summary,
+                                        response_id=response_id,
+                                    )
                         except Exception as e:
                             log("reasoning_details error", str(e), style="red")
 
