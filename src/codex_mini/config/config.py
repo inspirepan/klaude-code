@@ -10,7 +10,6 @@ from codex_mini.protocol.llm_parameter import (
     LLMConfigParameter,
     LLMConfigProviderParameter,
     OpenRouterProviderRouting,
-    Reasoning,
     Thinking,
 )
 from codex_mini.trace import log
@@ -98,7 +97,9 @@ def get_example_config() -> Config:
                     temperature=1.0,
                     max_tokens=8192,
                     verbosity="medium",
-                    reasoning=Reasoning(effort="high", summary="auto"),
+                    thinking=Thinking(
+                        reasoning_effort="high", reasoning_summary="auto", type="disabled", budget_tokens=None
+                    ),
                     context_limit=400000,
                 ),
             ),

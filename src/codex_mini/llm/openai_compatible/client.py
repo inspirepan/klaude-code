@@ -62,7 +62,9 @@ class OpenAICompatibleClient(LLMClientABC):
         extra_headers = {"extra": json.dumps({"session_id": param.session_id})}
 
         if param.thinking:
-            extra_body["thinking"] = param.thinking.model_dump(exclude_none=True)  # Claude or Gemini or GLM
+            extra_body["thinking"] = param.thinking.model_dump(
+                exclude_none=True, include={"thinking_type", "thinking_budget"}, by_alias=True
+            )  # Claude or Gemini or GLM
 
         if self.is_debug_mode():
             payload: dict[str, object] = {
@@ -74,7 +76,7 @@ class OpenAICompatibleClient(LLMClientABC):
                 "temperature": param.temperature,
                 "max_tokens": param.max_tokens,
                 "tools": tools,
-                "reasoning_effort": param.reasoning.effort if param.reasoning else None,
+                "reasoning_effort": param.thinking.reasoning_effort if param.thinking else None,
                 "verbosity": param.verbosity,
                 **extra_body,
                 "extra_headers": extra_headers,
@@ -93,7 +95,7 @@ class OpenAICompatibleClient(LLMClientABC):
             temperature=param.temperature,
             max_tokens=param.max_tokens,
             tools=tools,
-            reasoning_effort=param.reasoning.effort if param.reasoning else None,
+            reasoning_effort=param.thinking.reasoning_effort if param.thinking else None,
             verbosity=param.verbosity,
             extra_body=extra_body,  # pyright: ignore[reportUnknownArgumentType]
             extra_headers=extra_headers,

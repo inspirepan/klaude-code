@@ -99,27 +99,28 @@ def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> R
         (e.llm_config.provider_name, ThemeKey.WELCOME_INFO),
     )
 
-    if e.llm_config.reasoning is not None and e.llm_config.reasoning.effort:
-        model_info.append_text(
-            Text.assemble(
-                ("\n• reasoning-effort: ", ThemeKey.WELCOME_INFO),
-                (e.llm_config.reasoning.effort, ThemeKey.WELCOME_HIGHLIGHT),
+    if e.llm_config.thinking is not None:
+        if e.llm_config.thinking.reasoning_effort:
+            model_info.append_text(
+                Text.assemble(
+                    ("\n• reasoning-effort: ", ThemeKey.WELCOME_INFO),
+                    (e.llm_config.thinking.reasoning_effort, ThemeKey.WELCOME_HIGHLIGHT),
+                )
             )
-        )
-    if e.llm_config.reasoning is not None and e.llm_config.reasoning.summary:
-        model_info.append_text(
-            Text.assemble(
-                ("\n• reasoning-summary: ", ThemeKey.WELCOME_INFO),
-                (e.llm_config.reasoning.summary, ThemeKey.WELCOME_HIGHLIGHT),
+        if e.llm_config.thinking.reasoning_summary:
+            model_info.append_text(
+                Text.assemble(
+                    ("\n• reasoning-summary: ", ThemeKey.WELCOME_INFO),
+                    (e.llm_config.thinking.reasoning_summary, ThemeKey.WELCOME_HIGHLIGHT),
+                )
             )
-        )
-    if e.llm_config.thinking is not None and e.llm_config.thinking.budget_tokens:
-        model_info.append_text(
-            Text.assemble(
-                ("\n• thinking-budget: ", ThemeKey.WELCOME_INFO),
-                (str(e.llm_config.thinking.budget_tokens), ThemeKey.WELCOME_HIGHLIGHT),
+        if e.llm_config.thinking.thinking_budget:
+            model_info.append_text(
+                Text.assemble(
+                    ("\n• thinking-budget: ", ThemeKey.WELCOME_INFO),
+                    (str(e.llm_config.thinking.thinking_budget), ThemeKey.WELCOME_HIGHLIGHT),
+                )
             )
-        )
     if e.llm_config.verbosity:
         model_info.append_text(
             Text.assemble(

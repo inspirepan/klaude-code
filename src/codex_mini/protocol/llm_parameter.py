@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic.json_schema import JsonSchemaValue
 
 from codex_mini.protocol.model import ConversationItem
@@ -25,23 +25,18 @@ class ToolSchema(BaseModel):
     parameters: JsonSchemaValue
 
 
-class Reasoning(BaseModel):
-    """
-    OpenAI Reasoning Model
-    """
-
-    effort: Literal["high", "medium", "low", "minimal", "none"] | None = None
-    summary: Literal["auto", "concise", "detailed"] | None = None
-
-
 class Thinking(BaseModel):
     """
-    Claude Extended Thinking & Gemini Thinking
+    Unified Thinking & Reasoning Configuration
     """
 
-    type: Literal["enabled", "disabled"] | None = None
-    budget_tokens: int | None = None
-    include_thoughts: bool | None = None
+    # OpenAI Reasoning Style
+    reasoning_effort: Literal["high", "medium", "low", "minimal", "none"] | None = None
+    reasoning_summary: Literal["auto", "concise", "detailed"] | None = None
+
+    # Claude/Gemini Thinking Style
+    thinking_type: Literal["enabled", "disabled"] | None = Field(None, alias="type", serialization_alias="type")
+    thinking_budget: int | None = Field(None, alias="budget_tokens", serialization_alias="budget_tokens")
 
 
 class OpenRouterProviderRouting(BaseModel):
@@ -99,13 +94,10 @@ class LLMConfigModelParameter(BaseModel):
     max_tokens: int | None = None
     context_limit: int | None = None
 
-    # OpenAI Reasoning
-    reasoning: Reasoning | None = None
-
     # OpenAI GPT-5
     verbosity: Literal["low", "medium", "high"] | None = None
 
-    # Claude Extended Thinking & Gemini Thinking
+    # Unified Thinking & Reasoning
     thinking: Thinking | None = None
 
     # OpenRouter Provider Routing Preferences
@@ -156,8 +148,6 @@ def apply_config_defaults(param: LLMCallParameter, config: LLMConfigParameter) -
         param.max_tokens = config.max_tokens
     if param.context_limit is None:
         param.context_limit = config.context_limit
-    if param.reasoning is None:
-        param.reasoning = config.reasoning
     if param.verbosity is None:
         param.verbosity = config.verbosity
     if param.thinking is None:
@@ -171,8 +161,12 @@ def apply_config_defaults(param: LLMCallParameter, config: LLMConfigParameter) -
         param.max_tokens = DEFAULT_MAX_TOKENS
     if param.temperature is None:
         param.temperature = DEFAULT_TEMPERATURE
-    if param.thinking is not None and param.thinking.type == "enabled" and param.thinking.budget_tokens is None:
-        param.thinking.budget_tokens = DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS
+    if (
+        param.thinking is not None
+        and param.thinking.thinking_type == "enabled"
+        and param.thinking.thinking_budget is None
+    ):
+        param.thinking.thinking_budget = DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS
 
     if param.model and "gpt-5" in param.model:
         param.temperature = 1.0  # Required for GPT-5

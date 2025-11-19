@@ -90,10 +90,10 @@ class ResponsesClient(LLMClientABC):
                     "verbosity": param.verbosity,
                 },
                 "reasoning": {
-                    "effort": param.reasoning.effort,
-                    "summary": param.reasoning.summary,
+                    "effort": param.thinking.reasoning_effort,
+                    "summary": param.thinking.reasoning_summary,
                 }
-                if param.reasoning
+                if param.thinking and param.thinking.reasoning_effort
                 else None,
             }
             # Remove None values
@@ -120,10 +120,10 @@ class ResponsesClient(LLMClientABC):
                 "verbosity": param.verbosity,
             },
             reasoning={
-                "effort": param.reasoning.effort,
-                "summary": param.reasoning.summary,
+                "effort": param.thinking.reasoning_effort,
+                "summary": param.thinking.reasoning_summary,
             }
-            if param.reasoning
+            if param.thinking and param.thinking.reasoning_effort
             else None,
             extra_headers={"extra": json.dumps({"session_id": param.session_id})},
         )
