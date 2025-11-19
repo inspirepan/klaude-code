@@ -102,6 +102,7 @@ class DisplayEventHandler:
                     and len(self.thinking_stream.buffer.strip()) == 0
                 ):
                     self.thinking_stream.append(thinking_event.content)
+                await self.stage_manager.finish_thinking()
                 self.renderer.spinner.start()
             case events.AssistantMessageDeltaEvent() as assistant_delta:
                 if self.renderer.is_sub_agent_session(assistant_delta.session_id):
@@ -209,8 +210,8 @@ class DisplayEventHandler:
     async def finish_thinking_stream(self) -> None:
         self.thinking_stream.debouncer.cancel()
         await self._flush_thinking_buffer(self.thinking_stream)
-        if self.stage_manager.current_stage == Stage.THINKING:
-            self.renderer.print("\n")
+        # if self.stage_manager.current_stage == Stage.THINKING:
+        self.renderer.print("↩︎\n")
         self.thinking_stream.is_bold = False
         self.thinking_stream.clear()
 
