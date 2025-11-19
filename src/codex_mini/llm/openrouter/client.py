@@ -168,10 +168,9 @@ class OpenRouterClient(LLMClientABC):
                                     if is_complete_chunk_reasoning_model(str(param.model)):
                                         # Google Gemini often returns chunks with multiple newlines at start/end
                                         # We treat each chunk as complete content and strip excess newlines
-                                        if reasoning_text.startswith("\n\n"):
-                                            reasoning_text = reasoning_text.lstrip("\n") + "\n\n"
-                                        if reasoning_text.endswith("\n\n"):
-                                            reasoning_text = reasoning_text.rstrip("\n") + "\n"
+                                        reasoning_text = reasoning_text.rstrip("\n").lstrip("\n").replace("\n\n", "\n")
+                                        if accumulated_reasoning:
+                                            reasoning_text = "\n\n" + reasoning_text
 
                                     if reasoning_text:
                                         accumulated_reasoning.append(reasoning_text)
