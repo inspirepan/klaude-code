@@ -378,11 +378,13 @@ async def clipboard_image_reminder(session: Session) -> model.DeveloperMessageIt
     # Find all tokens
     # Regex for [Image #(\d+)]
     matches = re.findall(r"\[Image #(\d+)\]", last_user_input)
+    requested_tags = [f"[Image #{num}]" for num in matches]
 
     processed_paths: set[str] = set()
 
-    for num in matches:
-        tag = f"[Image #{num}]"
+    attached_tags: list[str] = []
+
+    for tag in requested_tags:
         if tag in image_map:
             path = image_map[tag]
             if path in processed_paths:
@@ -398,6 +400,7 @@ async def clipboard_image_reminder(session: Session) -> model.DeveloperMessageIt
                     collected_images.extend(tool_result.images)
                     found_images.append(f"{tag}: {path}")
                     processed_paths.add(path)
+                    attached_tags.append(tag)
             finally:
                 current_session_var.reset(token)
 
@@ -408,7 +411,7 @@ async def clipboard_image_reminder(session: Session) -> model.DeveloperMessageIt
     return model.DeveloperMessageItem(
         content=f"<system-reminder>Attached clipboard images:\n{msg}</system-reminder>",
         images=collected_images,
-        clipboard_images=[f"{tag}" for tag in image_map if tag in matches],
+        clipboard_images=attached_tags,
     )
 
 

@@ -12,6 +12,7 @@ Designed with a modern Python stack (3.13+, uv) and strict engineering practices
 - **Sub-Agent Architecture**: Utilizes specialized sub-agents (Task & Oracle) for delegating complex execution or research tasks to specialized prompts/models.
 - **Multi-Provider Support**: Seamlessly switch between OpenAI, Anthropic, Google Gemini, and OpenRouter models.
 - **Session Management**: Robust context handling with resumable sessions (`--continue`).
+- **Multimodal Vision**: Native support for image analysis. The agent can "see" images when reading files (PNG/JPEG/WEBP) and process images pasted directly from the system clipboard into the terminal.
 
 ## Usage
 
@@ -61,6 +62,16 @@ List configured providers and models:
 ```bash
 uv run cdx list
 ```
+
+### 👁️ Multimodal Capabilities
+
+The system is fully multimodal (model permitting) and supports image interactions:
+
+1.  **Reading Images**: When the agent uses the `read` tool on an image file (PNG, JPG, GIF, WEBP), the visual content is automatically encoded and sent to the model.
+    - *Limit: 4MB max per image for inline transfer.*
+2.  **Clipboard Paste**: You can paste images directly from your system clipboard into the terminal prompt (e.g., Cmd+V).
+    - They appear as `[Image #N]` tags in the input.
+    - The image data is automatically attached to your message context.
 
 ### Configuration
 

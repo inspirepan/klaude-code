@@ -10,6 +10,16 @@ from codex_mini.ui.renderers.common import create_grid, truncate_display
 from codex_mini.ui.renderers.tools import render_path
 
 
+def need_render_developer_message(e: events.DeveloperMessageEvent) -> bool:
+    return bool(
+        e.item.memory_paths
+        or e.item.external_file_changes
+        or e.item.todo_use
+        or e.item.at_files
+        or e.item.clipboard_images
+    )
+
+
 def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
     """Render developer message details into a single group.
 

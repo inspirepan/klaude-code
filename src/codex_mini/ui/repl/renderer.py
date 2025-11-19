@@ -213,7 +213,7 @@ class REPLRenderer:
                     self.print(r_user_input.render_interrupt())
 
     def display_developer_message(self, e: events.DeveloperMessageEvent) -> None:
-        if not e.item.memory_paths and not e.item.external_file_changes and not e.item.todo_use and not e.item.at_files:
+        if not r_developer.need_render_developer_message(e):
             return
         with self.session_print_context(e.session_id):
             self.print(r_developer.render_developer_message(e))
