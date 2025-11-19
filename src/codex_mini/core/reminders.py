@@ -5,6 +5,7 @@ from typing import Awaitable, Callable
 
 from pydantic import BaseModel
 
+from codex_mini.core.clipboard_manifest import load_latest_clipboard_manifest, next_session_token
 from codex_mini.core.tool.bash_tool import BashTool
 from codex_mini.core.tool.read_tool import ReadTool
 from codex_mini.core.tool.tool_context import current_session_var
@@ -359,16 +360,14 @@ async def clipboard_image_reminder(session: Session) -> model.DeveloperMessageIt
     if not last_user_input or "[Image #" not in last_user_input:
         return None
 
-    image_map_file = Path.home() / ".config" / "codex-mini" / "clipboard" / "last_clipboard_images.json"
-    if not image_map_file.exists():
+    manifest = load_latest_clipboard_manifest()
+    if manifest is None:
         return None
-
-    try:
-        with open(image_map_file, "r") as f:
-            image_map = json.load(f)
-    except Exception:
+    manifest_source = manifest.source_id
+    current_source = next_session_token()
+    if manifest_source and manifest_source != current_source:
         return None
-
+    image_map = manifest.tag_map()
     if not image_map:
         return None
 

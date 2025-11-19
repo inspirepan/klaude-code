@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import re
 import shutil
@@ -23,6 +22,13 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
 
 from codex_mini.command import get_commands
+from codex_mini.core.clipboard_manifest import (
+    CLIPBOARD_IMAGES_DIR,
+    ClipboardManifest,
+    ClipboardManifestEntry,
+    next_session_token,
+    persist_clipboard_manifest,
+)
 from codex_mini.ui.base.input_abc import InputProviderABC
 from codex_mini.ui.base.utils import get_current_git_branch, show_path_with_tilde
 
@@ -57,42 +63,66 @@ COMPLETION_SELECTED = "#5869f7"
 COMPLETION_MENU = "ansibrightblack"
 INPUT_PROMPT_STYLE = "ansicyan"
 
-IMAGES_DIR = Path.home() / ".config" / "codex-mini" / "clipboard" / "images"
-IMAGE_MAP_FILE = Path.home() / ".config" / "codex-mini" / "clipboard" / "last_clipboard_images.json"
 
-_pending_images: dict[str, str] = {}
-_image_counter: int = 1
+class ClipboardCaptureState:
+    def __init__(self, images_dir: Path | None = None, session_token: str | None = None):
+        self._images_dir = images_dir or CLIPBOARD_IMAGES_DIR
+        self._session_token = session_token or next_session_token()
+        self._pending: list[ClipboardManifestEntry] = []
+        self._counter = 1
+
+    def capture_from_clipboard(self) -> str | None:
+        try:
+            clipboard_data = ImageGrab.grabclipboard()
+        except Exception:
+            return None
+        if not isinstance(clipboard_data, Image.Image):
+            return None
+        try:
+            self._images_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            return None
+        filename = f"clipboard_{uuid.uuid4().hex[:8]}.png"
+        path = self._images_dir / filename
+        try:
+            clipboard_data.save(path, "PNG")
+        except Exception:
+            return None
+        tag = f"[Image #{self._counter}]"
+        self._counter += 1
+        saved_entry = ClipboardManifestEntry(tag=tag, path=str(path), saved_at_ts=time.time())
+        self._pending.append(saved_entry)
+        return tag
+
+    def flush_manifest(self) -> ClipboardManifest | None:
+        if not self._pending:
+            return None
+        manifest = ClipboardManifest(
+            entries=list(self._pending),
+            created_at_ts=time.time(),
+            source_id=self._session_token,
+        )
+        self._pending = []
+        self._counter = 1
+        return manifest
+
+
+_clipboard_state = ClipboardCaptureState()
 
 
 @kb.add("c-v")
 def _(event):  # type: ignore
     """Paste image from clipboard as [Image #N]."""
-    global _image_counter
-    try:
-        img = ImageGrab.grabclipboard()
-        if img and isinstance(img, Image.Image):
-            # Ensure directory exists
-            if not IMAGES_DIR.exists():
-                IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-
-            # Save image
-            filename = f"clipboard_{uuid.uuid4().hex[:8]}.png"
-            path = IMAGES_DIR / filename
-            img.save(path, "PNG")
-
-            # Insert tag and track it
-            tag = f"[Image #{_image_counter}]"
-            _pending_images[tag] = str(path)
-            _image_counter += 1
-
+    tag = _clipboard_state.capture_from_clipboard()
+    if tag:
+        try:
             event.current_buffer.insert_text(tag)  # pyright: ignore[reportUnknownMemberType]
-    except Exception:
-        pass
+        except Exception:
+            pass
 
 
 @kb.add("enter")
 def _(event):  # type: ignore
-    global _image_counter, _pending_images
     buf = event.current_buffer  # type: ignore
     doc = buf.document  # type: ignore
 
@@ -113,19 +143,12 @@ def _(event):  # type: ignore
         buf.insert_text("\n")  # type: ignore
         return
 
-    # If we are submitting, save the image map
-    try:
-        if not IMAGE_MAP_FILE.parent.exists():
-            IMAGE_MAP_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(IMAGE_MAP_FILE, "w") as f:
-            json.dump(_pending_images, f)
-    except Exception:
-        pass
-
-    # Clean up pending images for next turn (though this runs before the yield,
-    # we presume the interpreter will pick it up via the file before next prompt)
-    _pending_images = {}
-    _image_counter = 1
+    manifest = _clipboard_state.flush_manifest()
+    if manifest:
+        try:
+            persist_clipboard_manifest(manifest)
+        except Exception:
+            pass
 
     buf.validate_and_handle()  # type: ignore
 

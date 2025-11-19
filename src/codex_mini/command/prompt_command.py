@@ -11,11 +11,9 @@ class PromptCommand(CommandABC):
 
     def __init__(self, filename: str, command_name: str | None = None):
         self._filename = filename
-        self._command_name = (
-            command_name or filename.replace("prompt_", "").replace("prompt-", "").replace(".md", "")
-        )
+        self._command_name = command_name or filename.replace("prompt_", "").replace("prompt-", "").replace(".md", "")
         self._content: str | None = None
-        self._metadata: dict = {}
+        self._metadata: dict[str, str] = {}
 
     @property
     def name(self) -> str | CommandName:
@@ -31,10 +29,8 @@ class PromptCommand(CommandABC):
             return
 
         try:
-            raw_text = (
-                files("codex_mini.command").joinpath(self.template_name).read_text(encoding="utf-8")
-            )
-            
+            raw_text = files("codex_mini.command").joinpath(self.template_name).read_text(encoding="utf-8")
+
             if raw_text.startswith("---"):
                 parts = raw_text.split("---", 2)
                 if len(parts) >= 3:

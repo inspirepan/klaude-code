@@ -58,7 +58,7 @@ async def dispatch_command(raw: str, agent: Agent) -> CommandResult:
 
     # Try to match against registered commands (both Enum and string keys)
     command_key = None
-    
+
     # First try exact string match
     if command_name_raw in _COMMANDS:
         command_key = command_name_raw
@@ -75,17 +75,23 @@ async def dispatch_command(raw: str, agent: Agent) -> CommandResult:
         return CommandResult(agent_input=raw)
 
     command = _COMMANDS[command_key]
+    command_identifier: CommandName | str = command.name
 
     try:
         return await command.run(rest, agent)
     except Exception as e:
+        command_output = (
+            CommandOutput(command_name=command_identifier, is_error=True)
+            if isinstance(command_identifier, CommandName)
+            else None
+        )
         return CommandResult(
             events=[
                 DeveloperMessageEvent(
                     session_id=agent.session.id,
                     item=DeveloperMessageItem(
-                        content=f"Command {command_name} error: [{e.__class__.__name__}] {str(e)}",
-                        command_output=CommandOutput(command_name=command_name, is_error=True),
+                        content=f"Command {command_identifier} error: [{e.__class__.__name__}] {str(e)}",
+                        command_output=command_output,
                     ),
                 )
             ]

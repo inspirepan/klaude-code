@@ -3,6 +3,7 @@ from .command_abc import CommandABC, CommandResult
 from .diff_cmd import DiffCommand
 from .export_cmd import ExportCommand
 from .help_cmd import HelpCommand
+
 # InitCommand is now dynamically loaded via prompt_init.md
 # from .init_cmd import InitCommand
 from .model_cmd import ModelCommand
