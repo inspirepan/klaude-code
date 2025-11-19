@@ -317,7 +317,7 @@ class Session(BaseModel):
         model_name: str | None = None
 
     @classmethod
-    def list(cls) -> list[SessionMetaBrief]:
+    def list_sessions(cls) -> list[SessionMetaBrief]:
         """List all sessions for the current project.
 
         Returns a list of dicts with keys: id, created_at, updated_at, work_dir, path.

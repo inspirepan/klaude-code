@@ -10,7 +10,7 @@ from .session import Session
 
 
 def resume_select_session() -> str | None:
-    sessions = Session.list()
+    sessions = Session.list_sessions()
     if not sessions:
         log("No sessions found for this project.")
         return None
