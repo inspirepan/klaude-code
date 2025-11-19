@@ -66,6 +66,16 @@ def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
                 tools.SKILL,
             ]
         )
+    if "gemini-3" in model_name:
+        return get_tool_schemas(
+            [
+                tools.BASH,
+                tools.READ,
+                tools.EDIT,
+                tools.TASK,
+                tools.SKILL,
+            ]
+        )
     return get_tool_schemas(
         [
             tools.TODO_WRITE,
@@ -82,6 +92,6 @@ def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
 
 def get_sub_agent_tools(model_name: str, sub_agent_type: tools.SubAgentType) -> list[ToolSchema]:
     if sub_agent_type == tools.SubAgentType.TASK:
-        return get_tool_schemas([tools.BASH, tools.READ, tools.EDIT, tools.MULTI_EDIT])
+        return get_tool_schemas([tools.BASH, tools.READ, tools.EDIT])
     elif sub_agent_type == tools.SubAgentType.ORACLE:
         return get_tool_schemas([tools.READ, tools.BASH])
