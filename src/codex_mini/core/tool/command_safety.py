@@ -1,9 +1,9 @@
-import logging
 import os
 import re
 import shlex
+from typing import Any
 
-import bashlex
+import bashlex  # type: ignore
 
 from codex_mini.core.tool.tool_context import get_tool_policy
 
@@ -481,16 +481,16 @@ def strip_bash_lc(command: str) -> str:
         return command
 
 
-class CommandSafetyVisitor(bashlex.ast.nodevisitor):
+class CommandSafetyVisitor(bashlex.ast.nodevisitor):  # type: ignore
     def __init__(self, original_command: str):
         self.original_command = original_command
         self.result = SafetyCheckResult(True)
 
-    def visitcommand(self, n, parts):
+    def visitcommand(self, n: Any, parts: list[Any]) -> None:
         if not self.result.is_safe:
             return
 
-        argv = []
+        argv: list[str] = []
         for part in parts:
             # part.pos gives start/end in original_command
             raw_part = self.original_command[part.pos[0] : part.pos[1]]
@@ -528,8 +528,8 @@ def is_safe_command(command: str) -> SafetyCheckResult:
 
     try:
         # bashlex.parse returns a list of nodes (commands/lists)
-        nodes = bashlex.parse(command)
-    except bashlex.errors.ParsingError as e:
+        nodes: list[Any] = bashlex.parse(command)  # type: ignore
+    except bashlex.errors.ParsingError as e:  # type: ignore
         # Fallback for non-standard syntax or parsing errors: return strict error
         return SafetyCheckResult(False, f"Failed to parse command syntax with bashlex: {e}")
     except Exception as e:
@@ -538,7 +538,7 @@ def is_safe_command(command: str) -> SafetyCheckResult:
     visitor = CommandSafetyVisitor(command)
     try:
         for node in nodes:
-            visitor.visit(node)
+            visitor.visit(node)  # type: ignore
             if not visitor.result.is_safe:
                 return visitor.result
     except Exception as e:
