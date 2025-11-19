@@ -1,9 +1,6 @@
-import logging
 import os
 import re
 import shlex
-
-import bashlex
 
 from codex_mini.core.tool.tool_context import get_tool_policy
 
@@ -21,6 +18,43 @@ def _is_valid_sed_n_arg(s: str | None) -> bool:
         return False
     # Matches: Np or M,Np where M,N are positive integers
     return bool(re.fullmatch(r"\d+(,\d+)?p", s))
+
+
+def _has_shell_redirection(argv: list[str]) -> bool:  # pyright: ignore
+    """Detect whether argv contains shell redirection or control operators."""
+
+    if len(argv) <= 1:
+        return False
+
+    # Heuristic detection: look for tokens that represent redirection or control operators
+    redir_prefixes = ("<>", ">>", ">", "<<<", "<<-", "<<", "<&", ">&", "|")
+    control_tokens = {"|", "||", "&&", ";"}
+
+    for token in argv[1:]:
+        if not token:
+            continue
+
+        if token in control_tokens:
+            return True
+
+        # Allow literal angle-bracket text such as <tag> by skipping tokens
+        # that contain both '<' and '>' characters.
+        if "<" in token and ">" in token:
+            continue
+
+        # Strip leading file descriptor numbers (e.g., 2>file, 1<&0)
+        stripped = token.lstrip("0123456789")
+        if not stripped:
+            continue
+
+        for prefix in redir_prefixes:
+            if stripped.startswith(prefix):
+                # Handle the pipeline-with-stderr prefix specifically
+                if prefix == "|":
+                    return True
+                return True
+
+    return False
 
 
 def _is_safe_awk_program(program: str) -> SafetyCheckResult:
@@ -324,6 +358,79 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
     return SafetyCheckResult(True)
 
 
+def _parse_command_sequence(script: str) -> tuple[list[list[str]] | None, str]:
+    """Parse command sequence separated by logical or pipe operators."""
+    if not script.strip():
+        return None, "Empty script"
+
+    # Tokenize with shlex so quotes/escapes are handled by the stdlib.
+    # Treat '|', '&', ';' as punctuation so they become standalone tokens.
+    try:
+        lexer = shlex.shlex(script, posix=True, punctuation_chars="|;&")
+        tokens = list(lexer)
+    except ValueError as e:
+        # Preserve error format expected by callers/tests
+        return None, f"Shell parsing error: {e}"
+
+    commands: list[list[str]] = []
+    cur: list[str] = []
+
+    i = 0
+    n = len(tokens)
+    while i < n:
+        t = tokens[i]
+
+        # Semicolon separator
+        if t == ";":
+            if not cur:
+                return None, "Empty command in sequence"
+            commands.append(cur)
+            cur = []
+            i += 1
+            continue
+
+        # Pipe or logical OR separators
+        if t == "|" or t == "||":
+            # Treat both '|' and '||' as separators between commands
+            if not cur:
+                return None, "Empty command in sequence"
+            commands.append(cur)
+            cur = []
+            # If '|' and next is also '|', consume both; if already '||', consume one
+            if t == "|" and i + 1 < n and tokens[i + 1] == "|":
+                i += 2
+            else:
+                i += 1
+            continue
+
+        # Logical AND separator or background '&'
+        if t == "&&" or t == "&":
+            if t == "&&" or (i + 1 < n and tokens[i + 1] == "&"):
+                if not cur:
+                    return None, "Empty command in sequence"
+                commands.append(cur)
+                cur = []
+                # If token is single '&' but next is '&', consume both; otherwise it's '&&' already
+                if t == "&":
+                    i += 2
+                else:
+                    i += 1
+                continue
+            # Single '&' becomes a normal token in argv (background op)
+            cur.append(t)
+            i += 1
+            continue
+
+        # Regular argument token
+        cur.append(t)
+        i += 1
+
+    if not cur:
+        return None, "Empty command in sequence"
+    commands.append(cur)
+    return commands, ""
+
+
 def _find_unquoted_token(command: str, token: str) -> int | None:
     """Locate token position ensuring it appears outside quoted regions."""
 
@@ -481,67 +588,44 @@ def strip_bash_lc(command: str) -> str:
         return command
 
 
-class CommandSafetyVisitor(bashlex.ast.nodevisitor):
-    def __init__(self, original_command: str):
-        self.original_command = original_command
-        self.result = SafetyCheckResult(True)
-
-    def visitcommand(self, n, parts):
-        if not self.result.is_safe:
-            return
-
-        argv = []
-        for part in parts:
-            # part.pos gives start/end in original_command
-            raw_part = self.original_command[part.pos[0] : part.pos[1]]
-
-            if part.kind == "word":
-                try:
-                    # Try to unquote using shlex to match expected argv format
-                    # shlex.split handles quotes and simple escapes
-                    split_res = shlex.split(raw_part, posix=True)
-                    if split_res:
-                        argv.extend(split_res)
-                    else:
-                        argv.append("")
-                except ValueError:
-                    # If shlex fails, use raw part
-                    argv.append(raw_part)
-            else:
-                # Complex parts (substitutions etc), keep raw
-                argv.append(raw_part)
-
-        if not argv:
-            return
-
-        check = _is_safe_argv(argv)
-        if not check.is_safe:
-            # print(f"DEBUG: UNSAFE argv={argv} msg={check.error_msg}")
-            self.result = check
-
-
 def is_safe_command(command: str) -> SafetyCheckResult:
     """Conservatively determine if a command is known-safe."""
     # Handle both string and list[str] inputs
     if get_tool_policy().unrestricted:
         return SafetyCheckResult(True)
 
+    # First, try direct exec-style argv safety (e.g., "ls -l").
     try:
-        # bashlex.parse returns a list of nodes (commands/lists)
-        nodes = bashlex.parse(command)
-    except bashlex.errors.ParsingError as e:
-        # Fallback for non-standard syntax or parsing errors: return strict error
-        return SafetyCheckResult(False, f"Failed to parse command syntax with bashlex: {e}")
-    except Exception as e:
-        return SafetyCheckResult(False, f"Command check error: {e}")
+        argv = shlex.split(command, posix=True)
+    except ValueError:
+        argv = []
+        # Don't return error here, try sequence parsing below
 
-    visitor = CommandSafetyVisitor(command)
-    try:
-        for node in nodes:
-            visitor.visit(node)
-            if not visitor.result.is_safe:
-                return visitor.result
-    except Exception as e:
-        return SafetyCheckResult(False, f"Safety check analysis failed: {e}")
+    if argv:
+        result = _is_safe_argv(argv)
+        if result.is_safe:
+            return result
+        fallback_needed = result.error_msg == "Shell redirection and pipelines are not allowed in single commands"
+        if not fallback_needed:
+            fallback_needed = any(op in command for op in ("&&", "||", ";"))
+        if not fallback_needed:
+            return result
 
-    return SafetyCheckResult(True)
+    seq, parse_error = _parse_command_sequence(command)
+    if seq:
+        for cmd in seq:
+            result = _is_safe_argv(cmd)
+            if not result.is_safe:
+                return result
+        return SafetyCheckResult(True)
+
+    # If we got here, command failed both checks
+    if parse_error:
+        return SafetyCheckResult(False, f"Script contains {parse_error}")
+
+    if argv and not argv[0]:
+        return SafetyCheckResult(False, "Empty command")
+    if argv:
+        # We have argv but it failed safety check earlier
+        return _is_safe_argv(argv)
+    return SafetyCheckResult(False, "Failed to parse command")
