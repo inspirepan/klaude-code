@@ -17,7 +17,7 @@ class ClearCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "clear conversation history and free up context"
+        return "Clear conversation history and free up context"
 
     async def run(self, raw: str, agent: Agent) -> CommandResult:
         # Create a new session instance to replace the current one

@@ -288,13 +288,31 @@ class _SlashCommandCompleter(Completer):
         commands = get_commands()
 
         # Filter commands that match the fragment
-        for cmd_name, cmd_obj in sorted(commands.items(), key=lambda x: x[1].name):
+        matched: list[tuple[str, object, str]] = []
+        for cmd_name, cmd_obj in sorted(commands.items(), key=lambda x: str(x[1].name)):
             if cmd_name.startswith(frag):
-                display_text = HTML(
-                    f"<b>{cmd_name}</b>{' [additional instructions]' if cmd_obj.support_addition_params else ''} — {cmd_obj.summary}"
-                )
-                completion_text = f"/{cmd_name} "
-                yield Completion(text=completion_text, start_position=start_position, display=display_text)
+                hint = " [args]" if cmd_obj.support_addition_params else ""
+                matched.append((cmd_name, cmd_obj, hint))
+
+        if not matched:
+            return iter([])
+
+        # Calculate max width for alignment
+        # Find the longest command+hint length
+        max_len = max(len(name) + len(hint) for name, _, hint in matched)
+        # Set a minimum width (e.g. 20) and add some padding
+        align_width = max(max_len, 20) + 2
+
+        for cmd_name, cmd_obj, hint in matched:
+            label_len = len(cmd_name) + len(hint)
+            padding = " " * (align_width - label_len)
+            
+            # Using HTML for formatting: bold command name, normal hint, gray summary
+            display_text = HTML(
+                f"<b>{cmd_name}</b>{hint}{padding}<style color='ansibrightblack'>— {cmd_obj.summary}</style>"
+            )
+            completion_text = f"/{cmd_name} "
+            yield Completion(text=completion_text, start_position=start_position, display=display_text)
 
     def is_slash_command_context(self, document: Document) -> bool:
         """Check if current context is a slash command."""

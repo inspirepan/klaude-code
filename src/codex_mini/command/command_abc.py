@@ -21,7 +21,7 @@ class CommandABC(ABC):
 
     @property
     @abstractmethod
-    def name(self) -> CommandName:
+    def name(self) -> CommandName | str:
         """Command name without the leading slash."""
         pass
 

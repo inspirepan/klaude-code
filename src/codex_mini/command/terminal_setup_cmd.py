@@ -20,7 +20,7 @@ class TerminalSetupCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "install shift+enter key binding for newlines"
+        return "Install shift+enter key binding for newlines"
 
     @property
     def is_interactive(self) -> bool:

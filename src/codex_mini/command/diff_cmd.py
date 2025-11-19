@@ -19,7 +19,7 @@ class DiffCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "show git diff"
+        return "Show git diff"
 
     async def run(self, raw: str, agent: Agent) -> CommandResult:
         try:
