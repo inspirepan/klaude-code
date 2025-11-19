@@ -7,7 +7,6 @@ from codex_mini.ui.base.debouncer import Debouncer
 from codex_mini.ui.base.osc94_progress_bar import OSC94States, emit_osc94
 from codex_mini.ui.base.stage_manager import Stage, StageManager
 from codex_mini.ui.base.theme import ThemeKey
-from codex_mini.ui.base.utils import remove_leading_newlines
 from codex_mini.ui.renderers import errors as r_errors
 from codex_mini.ui.renderers import metadata as r_metadata
 from codex_mini.ui.renderers import status as r_status
@@ -24,7 +23,6 @@ class StreamState:
         self.mdstream: MarkdownStream | None = None
         self._flush_handler = flush_handler
         self.debouncer = Debouncer(interval=interval, callback=self._debounced_flush)
-        self.is_bold: bool = False
 
     async def _debounced_flush(self) -> None:
         await self._flush_handler(self)
@@ -42,11 +40,9 @@ class DisplayEventHandler:
     def __init__(self, renderer: REPLRenderer):
         self.renderer = renderer
         self.assistant_stream = StreamState(interval=1 / 20, flush_handler=self._flush_assistant_buffer)
-        self.thinking_stream = StreamState(interval=1 / 20, flush_handler=self._flush_thinking_buffer)
 
         self.stage_manager = StageManager(
             finish_assistant=self.finish_assistant_stream,
-            finish_thinking=self.finish_thinking_stream,
             on_enter_thinking=self._print_thinking_prefix,
         )
 
@@ -79,31 +75,14 @@ class DisplayEventHandler:
                 emit_osc94(OSC94States.INDETERMINATE)
                 with self.renderer.session_print_context(turn_start_event.session_id):
                     self.renderer.print()
-            case events.ThinkingDeltaEvent() as thinking_delta:
-                if self._should_suppress_subagent_thinking(thinking_delta.session_id):
-                    return
-                self.renderer.spinner.stop()
-                if len(thinking_delta.content.strip()) == 0 and self.stage_manager.current_stage != Stage.THINKING:
-                    # Remove empty leading spaces
-                    return
-                if len(self.thinking_stream.buffer) == 0 and self.stage_manager.current_stage != Stage.THINKING:
-                    # Remove leading newlines
-                    self.thinking_stream.append(remove_leading_newlines(thinking_delta.content))
-                else:
-                    self.thinking_stream.append(thinking_delta.content)
-                await self.stage_manager.enter_thinking_stage()
-                self.thinking_stream.debouncer.schedule()
             case events.ThinkingEvent() as thinking_event:
                 if self._should_suppress_subagent_thinking(thinking_event.session_id):
                     return
-                if (
-                    thinking_event.content
-                    and self.stage_manager.current_stage == Stage.WAITING
-                    and len(self.thinking_stream.buffer.strip()) == 0
-                ):
-                    self.thinking_stream.append(thinking_event.content)
-                await self.stage_manager.finish_thinking()
-                self.renderer.spinner.start()
+                await self.stage_manager.enter_thinking_stage()
+                # self.renderer.spinner.stop()
+                with self.renderer.session_print_context(thinking_event.session_id):
+                    self.renderer.display_thinking(thinking_event.content)
+                # self.renderer.spinner.start()
             case events.AssistantMessageDeltaEvent() as assistant_delta:
                 if self.renderer.is_sub_agent_session(assistant_delta.session_id):
                     return
@@ -196,9 +175,7 @@ class DisplayEventHandler:
 
     async def stop(self) -> None:
         await self.assistant_stream.debouncer.flush()
-        await self.thinking_stream.debouncer.flush()
         self.assistant_stream.debouncer.cancel()
-        self.thinking_stream.debouncer.cancel()
 
     async def finish_assistant_stream(self) -> None:
         if self.assistant_stream.mdstream is not None:
@@ -207,35 +184,12 @@ class DisplayEventHandler:
             self.assistant_stream.mdstream = None
             self.assistant_stream.clear()
 
-    async def finish_thinking_stream(self) -> None:
-        self.thinking_stream.debouncer.cancel()
-        await self._flush_thinking_buffer(self.thinking_stream)
-        # if self.stage_manager.current_stage == Stage.THINKING:
-        self.renderer.print("↩︎\n")
-        self.thinking_stream.is_bold = False
-        self.thinking_stream.clear()
-
     def _print_thinking_prefix(self) -> None:
         self.renderer.print(r_thinking.thinking_prefix())
 
     async def _flush_assistant_buffer(self, state: StreamState) -> None:
         if state.mdstream is not None:
             state.mdstream.update(state.buffer)
-
-    async def _flush_thinking_buffer(self, state: StreamState) -> None:
-        content = state.buffer.replace("\r", "")
-        if len(content.strip()) == 0:
-            state.clear()
-            return
-        self._render_thinking_content(content)
-        state.clear()
-
-    def _render_thinking_content(self, content: str) -> None:
-        if self.stage_manager.current_stage != Stage.THINKING:
-            self._print_thinking_prefix()
-        self.renderer.print(r_thinking.render_thinking_content(content, self.thinking_stream.is_bold), end="")
-        if content.count("**") % 2 == 1:
-            self.thinking_stream.is_bold = not self.thinking_stream.is_bold
 
     def _should_suppress_subagent_thinking(self, session_id: str) -> bool:
         return (

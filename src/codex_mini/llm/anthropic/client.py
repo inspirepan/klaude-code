@@ -146,21 +146,20 @@ class AnthropicClient(LLMClientABC):
                                     first_token_time = time.time()
                                 last_token_time = time.time()
                                 accumulated_thinking.append(delta.thinking)
-                                yield model.ThinkingTextDelta(
-                                    thinking=delta.thinking,
-                                    response_id=response_id,
-                                )
                             case BetaSignatureDelta() as delta:
                                 if first_token_time is None:
                                     first_token_time = time.time()
                                 last_token_time = time.time()
                                 full_thinking = "".join(accumulated_thinking)
                                 accumulated_thinking.clear()
-                                yield model.ReasoningItem(
+                                yield model.ReasoningTextItem(
                                     content=full_thinking,
+                                    response_id=response_id,
+                                )
+                                yield model.ReasoningEncryptedItem(
                                     encrypted_content=delta.signature,
                                     response_id=response_id,
-                                    model=param.model,
+                                    model=str(param.model),
                                 )
                             case BetaTextDelta() as delta:
                                 if first_token_time is None:

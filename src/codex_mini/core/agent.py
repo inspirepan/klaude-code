@@ -333,12 +333,11 @@ class Agent:
         # Clear pending map for new turn
         self.turn_inflight_tool_calls.clear()
         # TODO: If LLM API error occurred, we will discard (not append to history) and retry
-        turn_reasoning_items: list[model.ReasoningItem] = []
+        turn_reasoning_items: list[model.ReasoningTextItem | model.ReasoningEncryptedItem] = []
         turn_assistant_message: model.AssistantMessageItem | None = None
         turn_tool_calls: list[model.ToolCallItem] = []
         current_response_id: str | None = None
         response_failed = False
-        already_emit_thinking_event = False  # Fix Gemini3's issue duplicate thinking event
 
         async for response_item in self.get_llm_client().call(
             llm_parameter.LLMCallParameter(
@@ -358,22 +357,15 @@ class Agent:
             match response_item:
                 case model.StartItem() as item:
                     current_response_id = item.response_id
-                case model.ThinkingTextDelta() as item:
-                    yield events.ThinkingDeltaEvent(
-                        content=item.thinking,
+                case model.ReasoningTextItem() as item:
+                    turn_reasoning_items.append(item)
+                    yield events.ThinkingEvent(
+                        content=item.content,
                         response_id=item.response_id,
                         session_id=self.session.id,
                     )
-                case model.ReasoningItem() as item:
+                case model.ReasoningEncryptedItem() as item:
                     turn_reasoning_items.append(item)
-                    thinking = "\n".join(item.summary) if item.summary else item.content
-                    if thinking and not already_emit_thinking_event:
-                        yield events.ThinkingEvent(
-                            content=thinking,
-                            response_id=item.response_id,
-                            session_id=self.session.id,
-                        )
-                        already_emit_thinking_event = True
                 case model.AssistantMessageDelta() as item:
                     yield events.AssistantMessageDeltaEvent(
                         content=item.content,

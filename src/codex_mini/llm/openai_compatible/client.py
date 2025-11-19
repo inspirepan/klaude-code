@@ -146,10 +146,6 @@ class OpenAICompatibleClient(LLMClientABC):
                     last_token_time = time.time()
                     stage = "reasoning"
                     accumulated_reasoning.append(reasoning_content)
-                    yield model.ThinkingTextDelta(
-                        thinking=reasoning_content,
-                        response_id=response_id,
-                    )
 
                 # Assistant
                 if delta.content and (
@@ -159,10 +155,9 @@ class OpenAICompatibleClient(LLMClientABC):
                         first_token_time = time.time()
                     last_token_time = time.time()
                     if stage == "reasoning":
-                        yield model.ReasoningItem(
+                        yield model.ReasoningTextItem(
                             content="".join(accumulated_reasoning),
                             response_id=response_id,
-                            model=param.model,
                         )
                     stage = "assistant"
                     accumulated_content.append(delta.content)
@@ -177,10 +172,9 @@ class OpenAICompatibleClient(LLMClientABC):
                         first_token_time = time.time()
                     last_token_time = time.time()
                     if stage == "reasoning":
-                        yield model.ReasoningItem(
+                        yield model.ReasoningTextItem(
                             content="".join(accumulated_reasoning),
                             response_id=response_id,
-                            model=param.model,
                         )
                     elif stage == "assistant":
                         yield model.AssistantMessageItem(
@@ -194,10 +188,9 @@ class OpenAICompatibleClient(LLMClientABC):
 
         # Finalize
         if stage == "reasoning":
-            yield model.ReasoningItem(
+            yield model.ReasoningTextItem(
                 content="".join(accumulated_reasoning),
                 response_id=response_id,
-                model=param.model,
             )
         elif stage == "assistant":
             yield model.AssistantMessageItem(

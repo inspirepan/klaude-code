@@ -19,12 +19,10 @@ class StageManager:
         self,
         *,
         finish_assistant: Callable[[], Awaitable[None]],
-        finish_thinking: Callable[[], Awaitable[None]],
         on_enter_thinking: Callable[[], None],
     ):
         self._stage = Stage.WAITING
         self._finish_assistant = finish_assistant
-        self._finish_thinking = finish_thinking
         self._on_enter_thinking = on_enter_thinking
 
     @property
@@ -50,15 +48,8 @@ class StageManager:
         await self._finish_assistant()
         self._stage = Stage.WAITING
 
-    async def finish_thinking(self) -> None:
-        await self._finish_thinking()
-        if self._stage == Stage.THINKING:
-            self._stage = Stage.WAITING
-
     async def _leave_current_stage(self) -> None:
         if self._stage == Stage.ASSISTANT:
             await self.finish_assistant()
-        elif self._stage == Stage.THINKING:
-            await self.finish_thinking()
         elif self._stage != Stage.WAITING:
             self._stage = Stage.WAITING

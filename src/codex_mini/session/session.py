@@ -48,12 +48,12 @@ class Session(BaseModel):
         "UserMessageItem": model.UserMessageItem,
         "AssistantMessageItem": model.AssistantMessageItem,
         # Reasoning/Thinking
-        "ReasoningItem": model.ReasoningItem,
+        "ReasoningTextItem": model.ReasoningTextItem,
+        "ReasoningEncryptedItem": model.ReasoningEncryptedItem,
         # Tools
         "ToolCallItem": model.ToolCallItem,
         "ToolResultItem": model.ToolResultItem,
         # Stream/meta (not typically persisted in history, but supported)
-        "ThinkingTextDelta": model.ThinkingTextDelta,
         "AssistantMessageDelta": model.AssistantMessageDelta,
         "StartItem": model.StartItem,
         "StreamErrorItem": model.StreamErrorItem,
@@ -234,7 +234,10 @@ class Session(BaseModel):
 
     def need_turn_start(self, prev_item: model.ConversationItem | None, item: model.ConversationItem) -> bool:
         # Emit TurnStartEvent when a new turn starts to show an empty line in replay history
-        if not isinstance(item, model.ReasoningItem | model.AssistantMessageItem | model.ToolCallItem):
+        if not isinstance(
+            item,
+            model.ReasoningEncryptedItem | model.ReasoningTextItem | model.AssistantMessageItem | model.ToolCallItem,
+        ):
             return False
         if prev_item is None:
             return True
@@ -280,9 +283,9 @@ class Session(BaseModel):
                         content=um.content or "",
                         session_id=self.id,
                     )
-                case model.ReasoningItem() as ri:
+                case model.ReasoningTextItem() as ri:
                     yield events.ThinkingEvent(
-                        content=ri.content or ("\n\n".join(ri.summary or [])),
+                        content=ri.content,
                         session_id=self.id,
                     )
                 case model.ResponseMetadataItem() as mt:

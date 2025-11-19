@@ -306,10 +306,10 @@ class _SlashCommandCompleter(Completer):
         for cmd_name, cmd_obj, hint in matched:
             label_len = len(cmd_name) + len(hint)
             padding = " " * (align_width - label_len)
-            
+
             # Using HTML for formatting: bold command name, normal hint, gray summary
             display_text = HTML(
-                f"<b>{cmd_name}</b>{hint}{padding}<style color='ansibrightblack'>— {cmd_obj.summary}</style>"
+                f"<b>{cmd_name}</b>{hint}{padding}<style color='ansibrightblack'>— {cmd_obj.summary}</style>"  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
             )
             completion_text = f"/{cmd_name} "
             yield Completion(text=completion_text, start_position=start_position, display=display_text)

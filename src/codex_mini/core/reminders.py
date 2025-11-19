@@ -265,7 +265,7 @@ def get_last_turn_tool_call(session: Session) -> list[model.ToolCallItem]:
     for item in reversed(session.conversation_history):
         if isinstance(item, model.ToolCallItem):
             tool_calls.append(item)
-        if isinstance(item, (model.ReasoningItem, model.AssistantMessageItem)):
+        if isinstance(item, (model.ReasoningEncryptedItem, model.ReasoningTextItem, model.AssistantMessageItem)):
             break
     return tool_calls
 

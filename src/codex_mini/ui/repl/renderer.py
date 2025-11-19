@@ -19,7 +19,6 @@ from codex_mini.ui.renderers import diffs as r_diffs
 from codex_mini.ui.renderers import errors as r_errors
 from codex_mini.ui.renderers import metadata as r_metadata
 from codex_mini.ui.renderers import status as r_status
-from codex_mini.ui.renderers import thinking as r_thinking
 from codex_mini.ui.renderers import tools as r_tools
 from codex_mini.ui.renderers import user_input as r_user_input
 from codex_mini.ui.renderers.common import truncate_display
@@ -163,6 +162,17 @@ class REPLRenderer:
                     e.result = "(no content)"
                 self.print(r_tools.render_generic_tool_result(e.result))
 
+    def display_thinking(self, content: str) -> None:
+        if len(content.strip()) > 0:
+            self.print(
+                NoInsetMarkdown(
+                    content.rstrip().replace("\n\n", "  \n"),
+                    code_theme=self.themes.code_theme,
+                    style=self.console.get_style(ThemeKey.THINKING),
+                )
+            )
+            self.print()
+
     async def replay_history(self, history_events: events.ReplayHistoryEvent) -> None:
         tool_call_dict: dict[str, events.ToolCallEvent] = {}
         for event in history_events.events:
@@ -179,16 +189,7 @@ class REPLRenderer:
                         )
                         self.print()
                 case events.ThinkingEvent() as thinking_event:
-                    if len(thinking_event.content.strip()) > 0:
-                        self.print(r_thinking.thinking_prefix())
-                        self.print(
-                            NoInsetMarkdown(
-                                thinking_event.content.rstrip(),
-                                code_theme=self.themes.code_theme,
-                                style=self.console.get_style(ThemeKey.THINKING),
-                            )
-                        )
-                        self.print()
+                    self.display_thinking(thinking_event.content)
                 case events.DeveloperMessageEvent() as developer_event:
                     self.display_developer_message(developer_event)
                     self.display_command_output(developer_event)

@@ -18,6 +18,7 @@ from anthropic.types.beta.beta_tool_param import BetaToolParam
 from anthropic.types.beta.beta_url_image_source_param import BetaURLImageSourceParam
 
 from codex_mini.protocol import llm_parameter, model
+from codex_mini.protocol.model import ReasoningEncryptedItem, ReasoningTextItem
 
 AllowedMediaType = Literal["image/png", "image/jpeg", "image/gif", "image/webp"]
 _INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (
@@ -133,6 +134,8 @@ def convert_history_to_input(
                     "role": "assistant",
                     "content": [],
                 }
+                current_reasoning_content: str | None = None
+
                 for item in group:
                     match item:
                         case model.AssistantMessageItem() as a:
@@ -151,15 +154,18 @@ def convert_history_to_input(
                                     "input": json.loads(t.arguments) if t.arguments else None,
                                 }
                             )
-                        case model.ReasoningItem() as r:
+                        case ReasoningEncryptedItem() as r:
                             if r.encrypted_content and len(r.encrypted_content) > 0 and model_name == r.model:
                                 assistant_message["content"].append(
                                     {
                                         "type": "thinking",
-                                        "thinking": r.content,
+                                        "thinking": current_reasoning_content or "",
                                         "signature": r.encrypted_content,
                                     }
                                 )
+                                current_reasoning_content = None
+                        case ReasoningTextItem() as r:
+                            current_reasoning_content = r.content
                         case _:
                             pass
 
