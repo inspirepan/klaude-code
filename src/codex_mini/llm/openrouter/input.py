@@ -22,6 +22,15 @@ def is_claude_model(model_name: str | None):
     return model_name is not None and model_name.startswith("anthropic/claude")
 
 
+def is_complete_chunk_reasoning_model(model_name: str | None) -> bool:
+    """
+    Check if the model returns reasoning in complete chunks (like Gemini)
+    rather than token-by-token streams.
+    These models often include excessive newlines that should be trimmed.
+    """
+    return model_name is not None and model_name.startswith("google/gemini")
+
+
 def convert_history_to_input(
     history: list[ConversationItem],
     system: str | None = None,

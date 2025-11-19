@@ -337,16 +337,15 @@ class Agent:
         turn_assistant_message: model.AssistantMessageItem | None = None
         turn_tool_calls: list[model.ToolCallItem] = []
         current_response_id: str | None = None
-        store_at_remote = False  # This is the 'store' parameter of OpenAI Responses API for storing history at OpenAI, currently always False
         response_failed = False
+        already_emit_thinking_event = False  # Fix Gemini3's issue duplicate thinking event
 
         async for response_item in self.get_llm_client().call(
             llm_parameter.LLMCallParameter(
                 input=self.session.conversation_history,
                 system=self.session.system_prompt,
                 tools=self.tools,
-                previous_response_id=self.session.last_response_id if store_at_remote else None,
-                store=store_at_remote,
+                store=False,
                 session_id=self.session.id,
             )
         ):
@@ -368,12 +367,13 @@ class Agent:
                 case model.ReasoningItem() as item:
                     turn_reasoning_items.append(item)
                     thinking = "\n".join(item.summary) if item.summary else item.content
-                    if thinking:
+                    if thinking and not already_emit_thinking_event:
                         yield events.ThinkingEvent(
                             content=thinking,
                             response_id=item.response_id,
                             session_id=self.session.id,
                         )
+                        already_emit_thinking_event = True
                 case model.AssistantMessageDelta() as item:
                     yield events.AssistantMessageDeltaEvent(
                         content=item.content,
@@ -401,7 +401,7 @@ class Agent:
                     turn_tool_calls.append(item)
                 case _:
                     pass
-        if not store_at_remote and not response_failed:
+        if not response_failed:
             if turn_reasoning_items:
                 self.session.append_history(turn_reasoning_items)
             if turn_assistant_message:

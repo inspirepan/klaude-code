@@ -10,7 +10,12 @@ from pydantic import BaseModel
 
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
-from codex_mini.llm.openrouter.input import convert_history_to_input, convert_tool_schema, is_claude_model
+from codex_mini.llm.openrouter.input import (
+    convert_history_to_input,
+    convert_tool_schema,
+    is_claude_model,
+    is_complete_chunk_reasoning_model,
+)
 from codex_mini.llm.registry import register
 from codex_mini.protocol import model
 from codex_mini.protocol.llm_parameter import (
@@ -159,11 +164,21 @@ class OpenRouterClient(LLMClientABC):
                                 reasoning_id = reasoning_detail.id
                                 reasoning_format = reasoning_detail.format
                                 if reasoning_detail.text:
-                                    accumulated_reasoning.append(reasoning_detail.text)
-                                    yield model.ThinkingTextDelta(
-                                        thinking=reasoning_detail.text,
-                                        response_id=response_id,
-                                    )
+                                    reasoning_text = reasoning_detail.text
+                                    if is_complete_chunk_reasoning_model(str(param.model)):
+                                        # Google Gemini often returns chunks with multiple newlines at start/end
+                                        # We treat each chunk as complete content and strip excess newlines
+                                        if reasoning_text.startswith("\n\n"):
+                                            reasoning_text = reasoning_text.lstrip("\n") + "\n\n"
+                                        if reasoning_text.endswith("\n\n"):
+                                            reasoning_text = reasoning_text.rstrip("\n") + "\n"
+
+                                    if reasoning_text:
+                                        accumulated_reasoning.append(reasoning_text)
+                                        yield model.ThinkingTextDelta(
+                                            thinking=reasoning_text,
+                                            response_id=response_id,
+                                        )
                             elif reasoning_detail.type == "reasoning.summary":
                                 if reasoning_detail.summary:
                                     accumulated_reasoning.append(reasoning_detail.summary)
@@ -231,6 +246,13 @@ class OpenRouterClient(LLMClientABC):
                 format=reasoning_format,
                 model=param.model,
             )
+            if len(accumulated_content) > 0:
+                # Due to Gemini3's behavior of returning reasoning chunks, then output, and finally a full reasoning summary with reasoning.encrypted,
+                # the stage might incorrectly end as 'reasoning'. If there's accumulated content, we must yield it as an AssistantMessageItem.
+                yield model.AssistantMessageItem(
+                    content="".join(accumulated_content),
+                    response_id=response_id,
+                )
         elif stage == "assistant":
             yield model.AssistantMessageItem(
                 content="".join(accumulated_content),
