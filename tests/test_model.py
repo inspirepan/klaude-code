@@ -258,7 +258,7 @@ def test_responses_history_includes_image_inputs():
 
     tool_item = _ensure_dict(items[1])
     assert tool_item["type"] == "function_call_output"
-    tool_parts = _ensure_list(tool_item.get("content"))
+    tool_parts = _ensure_list(tool_item.get("output"))
     first_tool_part = _ensure_dict(tool_parts[0])
     assert first_tool_part["type"] == "input_text"
     second_tool_part = _ensure_dict(tool_parts[1])
