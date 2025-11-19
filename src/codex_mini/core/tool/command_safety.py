@@ -358,7 +358,7 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
     return SafetyCheckResult(True)
 
 
-def _parse_command_sequence(script: str) -> tuple[list[list[str]] | None, str]:
+def parse_command_sequence(script: str) -> tuple[list[list[str]] | None, str]:
     """Parse command sequence separated by logical or pipe operators."""
     if not script.strip():
         return None, "Empty script"
@@ -611,17 +611,17 @@ def is_safe_command(command: str) -> SafetyCheckResult:
         if not fallback_needed:
             return result
 
-    seq, parse_error = _parse_command_sequence(command)
-    if seq:
-        for cmd in seq:
-            result = _is_safe_argv(cmd)
-            if not result.is_safe:
-                return result
-        return SafetyCheckResult(True)
+    # seq, parse_error = parse_command_sequence(command)
+    # if seq:
+    #     for cmd in seq:
+    #         result = _is_safe_argv(cmd)
+    #         if not result.is_safe:
+    #             return result
+    #     return SafetyCheckResult(True)
 
-    # If we got here, command failed both checks
-    if parse_error:
-        return SafetyCheckResult(False, f"Script contains {parse_error}")
+    # # If we got here, command failed both checks
+    # if parse_error:
+    #     return SafetyCheckResult(False, f"Script contains {parse_error}")
 
     if argv and not argv[0]:
         return SafetyCheckResult(False, "Empty command")

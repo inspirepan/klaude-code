@@ -5,12 +5,16 @@ from typing import Literal, override
 
 import httpx
 import openai
-from openai import APIError, RateLimitError
 from pydantic import BaseModel
 
 from codex_mini.llm.client import LLMClientABC
 from codex_mini.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
-from codex_mini.llm.openrouter.input import convert_history_to_input, convert_tool_schema, is_claude_model
+from codex_mini.llm.openrouter.input import (
+    convert_history_to_input,
+    convert_tool_schema,
+    is_claude_model,
+    is_complete_chunk_reasoning_model,
+)
 from codex_mini.llm.registry import register
 from codex_mini.protocol import model
 from codex_mini.protocol.llm_parameter import (
@@ -66,10 +70,15 @@ class OpenRouterClient(LLMClientABC):
         extra_headers = {}
 
         if param.thinking:
-            extra_body["reasoning"] = {
-                "max_tokens": param.thinking.budget_tokens,
-                "enable": True,
-            }  # OpenRouter: https://openrouter.ai/docs/use-cases/reasoning-tokens#anthropic-models-with-reasoning-tokens
+            if param.thinking.thinking_budget is not None:
+                extra_body["reasoning"] = {
+                    "max_tokens": param.thinking.thinking_budget,
+                    "enable": True,
+                }  # OpenRouter: https://openrouter.ai/docs/use-cases/reasoning-tokens#anthropic-models-with-reasoning-tokens
+            elif param.thinking.reasoning_effort is not None:
+                extra_body["reasoning"] = {
+                    "effort": param.thinking.reasoning_effort,
+                }
         if param.provider_routing:
             extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
         if is_claude_model(param.model):
@@ -159,11 +168,18 @@ class OpenRouterClient(LLMClientABC):
                                 reasoning_id = reasoning_detail.id
                                 reasoning_format = reasoning_detail.format
                                 if reasoning_detail.text:
-                                    accumulated_reasoning.append(reasoning_detail.text)
-                                    yield model.ThinkingTextDelta(
-                                        thinking=reasoning_detail.text,
-                                        response_id=response_id,
-                                    )
+                                    if is_complete_chunk_reasoning_model(str(param.model)):
+                                        if reasoning_detail.text:
+                                            yield model.ReasoningTextItem(
+                                                id=reasoning_id,
+                                                content=reasoning_detail.text,
+                                                response_id=response_id,
+                                            )
+                                    else:
+                                        accumulated_reasoning.append(reasoning_detail.text)
+                            elif reasoning_detail.type == "reasoning.summary":
+                                if reasoning_detail.summary:
+                                    accumulated_reasoning.append(reasoning_detail.summary)
                         except Exception as e:
                             log("reasoning_details error", str(e), style="red")
 
@@ -175,14 +191,22 @@ class OpenRouterClient(LLMClientABC):
                         first_token_time = time.time()
                     last_token_time = time.time()
                     if stage == "reasoning":
-                        yield model.ReasoningItem(
-                            id=reasoning_id,
-                            content="".join(accumulated_reasoning),
-                            response_id=response_id,
-                            encrypted_content=reasoning_encrypted_content,
-                            format=reasoning_format,
-                            model=param.model,
-                        )
+                        if accumulated_reasoning and not is_complete_chunk_reasoning_model(str(param.model)):
+                            yield model.ReasoningTextItem(
+                                id=reasoning_id,
+                                content="".join(accumulated_reasoning),
+                                response_id=response_id,
+                            )
+                            accumulated_reasoning = []
+                        if reasoning_encrypted_content:
+                            yield model.ReasoningEncryptedItem(
+                                id=reasoning_id,
+                                encrypted_content=reasoning_encrypted_content,
+                                format=reasoning_format,
+                                response_id=response_id,
+                                model=param.model,
+                            )
+                            reasoning_encrypted_content = None
                     stage = "assistant"
                     accumulated_content.append(delta.content)
                     yield model.AssistantMessageDelta(
@@ -196,14 +220,22 @@ class OpenRouterClient(LLMClientABC):
                         first_token_time = time.time()
                     last_token_time = time.time()
                     if stage == "reasoning":
-                        yield model.ReasoningItem(
-                            id=reasoning_id,
-                            content="".join(accumulated_reasoning),
-                            response_id=response_id,
-                            encrypted_content=reasoning_encrypted_content,
-                            format=reasoning_format,
-                            model=param.model,
-                        )
+                        if accumulated_reasoning and not is_complete_chunk_reasoning_model(str(param.model)):
+                            yield model.ReasoningTextItem(
+                                id=reasoning_id,
+                                content="".join(accumulated_reasoning),
+                                response_id=response_id,
+                            )
+                            accumulated_reasoning = []
+                        if reasoning_encrypted_content:
+                            yield model.ReasoningEncryptedItem(
+                                id=reasoning_id,
+                                encrypted_content=reasoning_encrypted_content,
+                                format=reasoning_format,
+                                response_id=response_id,
+                                model=param.model,
+                            )
+                            reasoning_encrypted_content = None
                     elif stage == "assistant":
                         yield model.AssistantMessageItem(
                             content="".join(accumulated_content),
@@ -211,19 +243,34 @@ class OpenRouterClient(LLMClientABC):
                         )
                     stage = "tool"
                     accumulated_tool_calls.add(delta.tool_calls)
-        except (RateLimitError, APIError) as e:
+        except (openai.OpenAIError, httpx.HTTPError) as e:
             yield StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
 
         # Finalize
         if stage == "reasoning":
-            yield model.ReasoningItem(
-                id=reasoning_id,
-                content="".join(accumulated_reasoning),
-                response_id=response_id,
-                encrypted_content=reasoning_encrypted_content,
-                format=reasoning_format,
-                model=param.model,
-            )
+            if accumulated_reasoning and not is_complete_chunk_reasoning_model(str(param.model)):
+                yield model.ReasoningTextItem(
+                    id=reasoning_id,
+                    content="".join(accumulated_reasoning),
+                    response_id=response_id,
+                )
+                accumulated_reasoning = []
+            if reasoning_encrypted_content:
+                yield model.ReasoningEncryptedItem(
+                    id=reasoning_id,
+                    encrypted_content=reasoning_encrypted_content,
+                    format=reasoning_format,
+                    response_id=response_id,
+                    model=param.model,
+                )
+                reasoning_encrypted_content = None
+            if len(accumulated_content) > 0:
+                # Due to Gemini3's behavior of returning reasoning chunks, then output, and finally a full reasoning summary with reasoning.encrypted,
+                # the stage might incorrectly end as 'reasoning'. If there's accumulated content, we must yield it as an AssistantMessageItem.
+                yield model.AssistantMessageItem(
+                    content="".join(accumulated_content),
+                    response_id=response_id,
+                )
         elif stage == "assistant":
             yield model.AssistantMessageItem(
                 content="".join(accumulated_content),

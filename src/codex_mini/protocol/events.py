@@ -49,12 +49,6 @@ class TurnToolCallStartEvent(BaseModel):
     arguments: str
 
 
-class ThinkingDeltaEvent(BaseModel):
-    session_id: str
-    response_id: str | None = None
-    content: str
-
-
 class ThinkingEvent(BaseModel):
     session_id: str
     response_id: str | None = None
@@ -147,7 +141,6 @@ class ReplayHistoryEvent(BaseModel):
 Event = (
     TaskStartEvent
     | TaskFinishEvent
-    | ThinkingDeltaEvent
     | ThinkingEvent
     | AssistantMessageDeltaEvent
     | AssistantMessageEvent

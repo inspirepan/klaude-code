@@ -51,8 +51,7 @@ Models for LLM API input and response items.
 
 A typical sequence of response items is:
 - [StartItem]
-- [ThinkingTextDelta] × n
-- [ReasoningItem]
+- [ReasoningTextItem | ReasoningEncryptedItem]
 - [AssistantMessageDelta] × n
 - [AssistantMessageItem]
 - [ToolCallItem] × n
@@ -61,7 +60,7 @@ A typical sequence of response items is:
 
 A conversation history input contains:
 - [UserMessageItem]
-- [ReasoningItem]
+- [ReasoningTextItem | ReasoningEncryptedItem]
 - [AssistantMessageItem]
 - [ToolCallItem]
 - [ToolResultItem]
@@ -99,6 +98,7 @@ class DeveloperMessageItem(BaseModel):
     todo_use: bool | None = None
     at_files: list[AtPatternParseResult] | None = None
     command_output: CommandOutput | None = None
+    clipboard_images: list[str] | None = None
 
 
 class ImageURLPart(BaseModel):
@@ -123,19 +123,18 @@ class AssistantMessageItem(BaseModel):
     response_id: str | None = None
 
 
-class ThinkingTextDelta(BaseModel):
-    response_id: str | None = None
-    thinking: str
-
-
-class ReasoningItem(BaseModel):
+class ReasoningTextItem(BaseModel):
     id: str | None = None
     response_id: str | None = None
-    summary: list[str] | None = None
-    content: str | None = None
-    encrypted_content: str | None = None
-    format: str | None = None  # For OpenRouter's reasoning detail
-    model: str | None  # Prevent mixing encrypted_content from different models
+    content: str
+
+
+class ReasoningEncryptedItem(BaseModel):
+    id: str | None = None
+    response_id: str | None = None
+    encrypted_content: str
+    format: str | None = None
+    model: str | None
 
 
 class ToolCallItem(BaseModel):
@@ -179,13 +178,14 @@ MessageItem = (
     | AssistantMessageItem
     | SystemMessageItem
     | DeveloperMessageItem
-    | ReasoningItem
+    | ReasoningTextItem
+    | ReasoningEncryptedItem
     | ToolCallItem
     | ToolResultItem
 )
 
 
-StreamItem = ThinkingTextDelta | AssistantMessageDelta
+StreamItem = AssistantMessageDelta
 
 ConversationItem = StartItem | InterruptItem | StreamErrorItem | StreamItem | MessageItem | ResponseMetadataItem
 
@@ -195,7 +195,7 @@ def group_response_items_gen(
 ) -> Iterator[tuple[Literal["assistant", "user", "tool", "other"], list[ConversationItem]]]:
     """
     Group response items into sublists with predictable attachment rules:
-    - Consecutive assistant-side items (ReasoningItem | AssistantMessageItem | ToolCallItem) group together.
+    - Consecutive assistant-side items (ReasoningTextItem | ReasoningEncryptedItem | AssistantMessageItem | ToolCallItem) group together.
     - Consecutive UserMessage group together.
     - Each ToolMessage (ToolResultItem) is a single group, but allow following DeveloperMessage to attach to it.
     - DeveloperMessage only attaches to the previous UserMessage/ToolMessage group.
@@ -206,7 +206,7 @@ def group_response_items_gen(
     buffer_kind: Literal["assistant", "user", "tool", "other"] | None = None
 
     def kind_of(it: ConversationItem) -> Literal["assistant", "user", "tool", "developer", "other"]:
-        if isinstance(it, (ReasoningItem, AssistantMessageItem, ToolCallItem)):
+        if isinstance(it, (ReasoningTextItem, ReasoningEncryptedItem, AssistantMessageItem, ToolCallItem)):
             return "assistant"
         if isinstance(it, UserMessageItem):
             return "user"

@@ -11,6 +11,7 @@ requires-python = ">=3.13"
 dependencies = [
     "anthropic>=0.66.0",
     "openai>=1.102.0",
+    "pillow>=12.0.0",
     "prompt-toolkit>=3.0.52",
     "pydantic>=2.11.7",
     "pyyaml>=6.0.2",
@@ -34,7 +35,9 @@ dev = [
 [tool.hatch.build.targets.wheel.force-include]
 "src/codex_mini/core/prompt_codex.md" = "codex_mini/core/prompt_codex.md"
 "src/codex_mini/core/prompt_claude_code.md" = "codex_mini/core/prompt_claude_code.md"
-"src/codex_mini/core/prompt_init.md" = "codex_mini/core/prompt_init.md"
+"src/codex_mini/command/prompt-init.md" = "codex_mini/command/prompt-init.md"
+"src/codex_mini/command/prompt-plan.md" = "codex_mini/command/prompt-plan.md"
+"src/codex_mini/command/prompt-doc.md" = "codex_mini/command/prompt-doc.md"
 "src/codex_mini/core/prompt_subagent.md" = "codex_mini/core/prompt_subagent.md"
 "src/codex_mini/core/prompt_oracle.md" = "codex_mini/core/prompt_oracle.md"
 

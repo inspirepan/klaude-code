@@ -11,7 +11,8 @@ from codex_mini.protocol.model import (
     AssistantMessageItem,
     ConversationItem,
     DeveloperMessageItem,
-    ReasoningItem,
+    ReasoningEncryptedItem,
+    ReasoningTextItem,
     ToolCallItem,
     ToolResultItem,
     UserMessageItem,
@@ -109,7 +110,7 @@ def convert_history_to_input(
                                     },
                                 }
                             )
-                        case ReasoningItem():
+                        case ReasoningTextItem() | ReasoningEncryptedItem():
                             continue  # Skip reasoning items in OpenAICompatible assistant message
                         case _:
                             pass

@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
 import time
+import uuid
 from collections.abc import AsyncIterator, Callable, Iterable
 from pathlib import Path
 from typing import NamedTuple, cast, override
 
+from PIL import Image, ImageGrab
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion, ThreadedCompleter
 from prompt_toolkit.document import Document
@@ -54,9 +57,42 @@ COMPLETION_SELECTED = "#5869f7"
 COMPLETION_MENU = "ansibrightblack"
 INPUT_PROMPT_STYLE = "ansicyan"
 
+IMAGES_DIR = Path.home() / ".config" / "codex-mini" / "clipboard" / "images"
+IMAGE_MAP_FILE = Path.home() / ".config" / "codex-mini" / "clipboard" / "last_clipboard_images.json"
+
+_pending_images: dict[str, str] = {}
+_image_counter: int = 1
+
+
+@kb.add("c-v")
+def _(event):  # type: ignore
+    """Paste image from clipboard as [Image #N]."""
+    global _image_counter
+    try:
+        img = ImageGrab.grabclipboard()
+        if img and isinstance(img, Image.Image):
+            # Ensure directory exists
+            if not IMAGES_DIR.exists():
+                IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+
+            # Save image
+            filename = f"clipboard_{uuid.uuid4().hex[:8]}.png"
+            path = IMAGES_DIR / filename
+            img.save(path, "PNG")
+
+            # Insert tag and track it
+            tag = f"[Image #{_image_counter}]"
+            _pending_images[tag] = str(path)
+            _image_counter += 1
+
+            event.current_buffer.insert_text(tag)  # pyright: ignore[reportUnknownMemberType]
+    except Exception:
+        pass
+
 
 @kb.add("enter")
 def _(event):  # type: ignore
+    global _image_counter, _pending_images
     buf = event.current_buffer  # type: ignore
     doc = buf.document  # type: ignore
 
@@ -76,6 +112,21 @@ def _(event):  # type: ignore
     if len(buf.text.strip()) == 0:  # type: ignore
         buf.insert_text("\n")  # type: ignore
         return
+
+    # If we are submitting, save the image map
+    try:
+        if not IMAGE_MAP_FILE.parent.exists():
+            IMAGE_MAP_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(IMAGE_MAP_FILE, "w") as f:
+            json.dump(_pending_images, f)
+    except Exception:
+        pass
+
+    # Clean up pending images for next turn (though this runs before the yield,
+    # we presume the interpreter will pick it up via the file before next prompt)
+    _pending_images = {}
+    _image_counter = 1
+
     buf.validate_and_handle()  # type: ignore
 
 
@@ -237,13 +288,31 @@ class _SlashCommandCompleter(Completer):
         commands = get_commands()
 
         # Filter commands that match the fragment
-        for cmd_name, cmd_obj in sorted(commands.items(), key=lambda x: x[1].name):
+        matched: list[tuple[str, object, str]] = []
+        for cmd_name, cmd_obj in sorted(commands.items(), key=lambda x: str(x[1].name)):
             if cmd_name.startswith(frag):
-                display_text = HTML(
-                    f"<b>{cmd_name}</b>{' [additional instructions]' if cmd_obj.support_addition_params else ''} — {cmd_obj.summary}"
-                )
-                completion_text = f"/{cmd_name} "
-                yield Completion(text=completion_text, start_position=start_position, display=display_text)
+                hint = " [args]" if cmd_obj.support_addition_params else ""
+                matched.append((cmd_name, cmd_obj, hint))
+
+        if not matched:
+            return iter([])
+
+        # Calculate max width for alignment
+        # Find the longest command+hint length
+        max_len = max(len(name) + len(hint) for name, _, hint in matched)
+        # Set a minimum width (e.g. 20) and add some padding
+        align_width = max(max_len, 20) + 2
+
+        for cmd_name, cmd_obj, hint in matched:
+            label_len = len(cmd_name) + len(hint)
+            padding = " " * (align_width - label_len)
+
+            # Using HTML for formatting: bold command name, normal hint, gray summary
+            display_text = HTML(
+                f"<b>{cmd_name}</b>{hint}{padding}<style color='ansibrightblack'>— {cmd_obj.summary}</style>"  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+            )
+            completion_text = f"/{cmd_name} "
+            yield Completion(text=completion_text, start_position=start_position, display=display_text)
 
     def is_slash_command_context(self, document: Document) -> bool:
         """Check if current context is a slash command."""

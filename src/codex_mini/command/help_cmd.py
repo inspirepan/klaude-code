@@ -16,7 +16,7 @@ class HelpCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "show help and available commands"
+        return "Show help and available commands"
 
     async def run(self, raw: str, agent: Agent) -> CommandResult:
         lines: list[str] = [

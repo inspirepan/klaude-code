@@ -22,7 +22,7 @@ class ModelCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "select and switch LLM"
+        return "Select and switch LLM"
 
     @property
     def is_interactive(self) -> bool:

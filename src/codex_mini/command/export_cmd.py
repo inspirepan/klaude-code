@@ -39,7 +39,7 @@ class ExportCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "export last assistant message to editor"
+        return "Export last assistant message to editor"
 
     @property
     def is_interactive(self) -> bool:

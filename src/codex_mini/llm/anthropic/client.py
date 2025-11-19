@@ -62,11 +62,11 @@ class AnthropicClient(LLMClientABC):
         if self.is_debug_mode():
             thinking_config_dict = (
                 {
-                    "type": param.thinking.type,
-                    "budget_tokens": param.thinking.budget_tokens
+                    "type": param.thinking.thinking_type,
+                    "budget_tokens": param.thinking.thinking_budget
                     or llm_parameter.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
                 }
-                if param.thinking and param.thinking.type == "enabled"
+                if param.thinking and param.thinking.thinking_type == "enabled"
                 else {"type": "disabled"}
             )
 
@@ -104,10 +104,10 @@ class AnthropicClient(LLMClientABC):
             tools=tools,
             betas=["interleaved-thinking-2025-05-14", "context-1m-2025-08-07"],
             thinking=anthropic.types.ThinkingConfigEnabledParam(
-                type=param.thinking.type,
-                budget_tokens=param.thinking.budget_tokens or llm_parameter.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
+                type=param.thinking.thinking_type,
+                budget_tokens=param.thinking.thinking_budget or llm_parameter.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
             )
-            if param.thinking and param.thinking.type == "enabled"
+            if param.thinking and param.thinking.thinking_type == "enabled"
             else anthropic.types.ThinkingConfigDisabledParam(
                 type="disabled",
             ),
@@ -146,21 +146,20 @@ class AnthropicClient(LLMClientABC):
                                     first_token_time = time.time()
                                 last_token_time = time.time()
                                 accumulated_thinking.append(delta.thinking)
-                                yield model.ThinkingTextDelta(
-                                    thinking=delta.thinking,
-                                    response_id=response_id,
-                                )
                             case BetaSignatureDelta() as delta:
                                 if first_token_time is None:
                                     first_token_time = time.time()
                                 last_token_time = time.time()
                                 full_thinking = "".join(accumulated_thinking)
                                 accumulated_thinking.clear()
-                                yield model.ReasoningItem(
+                                yield model.ReasoningTextItem(
                                     content=full_thinking,
+                                    response_id=response_id,
+                                )
+                                yield model.ReasoningEncryptedItem(
                                     encrypted_content=delta.signature,
                                     response_id=response_id,
-                                    model=param.model,
+                                    model=str(param.model),
                                 )
                             case BetaTextDelta() as delta:
                                 if first_token_time is None:

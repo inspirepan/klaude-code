@@ -20,11 +20,11 @@ from codex_mini.protocol.model import (
     AssistantMessageDelta,
     AssistantMessageItem,
     ConversationItem,
-    ReasoningItem,
+    ReasoningEncryptedItem,
+    ReasoningTextItem,
     ResponseMetadataItem,
     StartItem,
     StreamErrorItem,
-    ThinkingTextDelta,
     ToolCallItem,
     Usage,
 )
@@ -90,10 +90,10 @@ class ResponsesClient(LLMClientABC):
                     "verbosity": param.verbosity,
                 },
                 "reasoning": {
-                    "effort": param.reasoning.effort,
-                    "summary": param.reasoning.summary,
+                    "effort": param.thinking.reasoning_effort,
+                    "summary": param.thinking.reasoning_summary,
                 }
-                if param.reasoning
+                if param.thinking and param.thinking.reasoning_effort
                 else None,
             }
             # Remove None values
@@ -120,16 +120,15 @@ class ResponsesClient(LLMClientABC):
                 "verbosity": param.verbosity,
             },
             reasoning={
-                "effort": param.reasoning.effort,
-                "summary": param.reasoning.summary,
+                "effort": param.thinking.reasoning_effort,
+                "summary": param.thinking.reasoning_summary,
             }
-            if param.reasoning
+            if param.thinking and param.thinking.reasoning_effort
             else None,
             extra_headers={"extra": json.dumps({"session_id": param.session_id})},
         )
 
         try:
-            new_reasoning_summary_delta_flag = True
             async for event in await stream:
                 if self.is_debug_mode():
                     log_debug(f"📥 stream [SSE {event.type}]", str(event), style="blue")
@@ -137,17 +136,12 @@ class ResponsesClient(LLMClientABC):
                     case responses.ResponseCreatedEvent() as event:
                         response_id = event.response.id
                         yield StartItem(response_id=response_id)
-                    case responses.ResponseReasoningSummaryTextDeltaEvent() as event:
-                        if first_token_time is None:
-                            first_token_time = time.time()
-                        last_token_time = time.time()
-                        yield ThinkingTextDelta(
-                            thinking="\n\n" + event.delta if new_reasoning_summary_delta_flag else event.delta,
-                            response_id=response_id,
-                        )
-                        new_reasoning_summary_delta_flag = False
                     case responses.ResponseReasoningSummaryTextDoneEvent() as event:
-                        new_reasoning_summary_delta_flag = True
+                        if event.text:
+                            yield ReasoningTextItem(
+                                content=event.text,
+                                response_id=response_id,
+                            )
                     case responses.ResponseTextDeltaEvent() as event:
                         if first_token_time is None:
                             first_token_time = time.time()
@@ -156,17 +150,13 @@ class ResponsesClient(LLMClientABC):
                     case responses.ResponseOutputItemDoneEvent() as event:
                         match event.item:
                             case responses.ResponseReasoningItem() as item:
-                                summary = [summary.text for summary in item.summary]
-                                yield ReasoningItem(
-                                    id=item.id,
-                                    summary=summary,
-                                    content="\n".join([content.text for content in item.content])
-                                    if item.content
-                                    else None,
-                                    encrypted_content=item.encrypted_content,
-                                    response_id=response_id,
-                                    model=param.model,
-                                )
+                                if item.encrypted_content:
+                                    yield ReasoningEncryptedItem(
+                                        id=item.id,
+                                        encrypted_content=item.encrypted_content,
+                                        response_id=response_id,
+                                        model=str(param.model),
+                                    )
                             case responses.ResponseOutputMessage() as item:
                                 yield AssistantMessageItem(
                                     content="\n".join(

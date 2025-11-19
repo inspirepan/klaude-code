@@ -134,6 +134,7 @@ class ThemeKey(str, Enum):
 class Themes:
     app_theme: Theme
     markdown_theme: Theme
+    thinking_markdown_theme: Theme
     code_theme: str
     sub_agent_colors: list[Style]
 
@@ -222,6 +223,20 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.hr": palette.grey3,
                 "markdown.item.bullet": palette.grey2,
                 "markdown.item.number": palette.grey2,
+            }
+        ),
+        thinking_markdown_theme=Theme(
+            styles={
+                "markdown.code": palette.purple,
+                "markdown.h1": "bold reverse",
+                "markdown.h1.border": palette.grey3,
+                "markdown.h2.border": palette.grey3,
+                "markdown.h3": "bold " + palette.grey1,
+                "markdown.h4": "bold " + palette.grey2,
+                "markdown.hr": palette.grey3,
+                "markdown.item.bullet": palette.grey2,
+                "markdown.item.number": palette.grey2,
+                "markdown.strong": "bold italic " + palette.grey1,
             }
         ),
         code_theme=palette.code_theme,

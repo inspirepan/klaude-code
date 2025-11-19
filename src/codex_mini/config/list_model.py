@@ -82,31 +82,31 @@ def display_models_and_providers(config: Config):
         model_name = Text(model.model_params.model or "N/A", style="")
         provider = Text(model.provider, style="")
         params: list[Text] = []
-        if model.model_params.reasoning:
-            if model.model_params.reasoning.effort is not None:
+        if model.model_params.thinking:
+            if model.model_params.thinking.reasoning_effort is not None:
                 params.append(
                     Text.assemble(
-                        ("reason-effort", ThemeKey.CONFIG_PARAM_LABEL), ": ", model.model_params.reasoning.effort
+                        ("reason-effort", ThemeKey.CONFIG_PARAM_LABEL),
+                        ": ",
+                        model.model_params.thinking.reasoning_effort,
                     )
                 )
-            if model.model_params.reasoning.summary is not None:
+            if model.model_params.thinking.reasoning_summary is not None:
                 params.append(
                     Text.assemble(
                         ("reason-summary", ThemeKey.CONFIG_PARAM_LABEL),
                         ": ",
-                        model.model_params.reasoning.summary,
+                        model.model_params.thinking.reasoning_summary,
                     )
                 )
-        if model.model_params.verbosity:
-            params.append(Text.assemble(("verbosity", ThemeKey.CONFIG_PARAM_LABEL), ": ", model.model_params.verbosity))
-        if model.model_params.thinking:
-            params.append(
-                Text.assemble(
-                    ("thinking-budget-tokens", ThemeKey.CONFIG_PARAM_LABEL),
-                    ": ",
-                    str(model.model_params.thinking.budget_tokens or "N/A"),
+            if model.model_params.thinking.thinking_budget is not None:
+                params.append(
+                    Text.assemble(
+                        ("thinking-budget-tokens", ThemeKey.CONFIG_PARAM_LABEL),
+                        ": ",
+                        str(model.model_params.thinking.thinking_budget),
+                    )
                 )
-            )
         if model.model_params.provider_routing:
             params.append(
                 Text.assemble(

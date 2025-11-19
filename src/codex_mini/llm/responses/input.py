@@ -10,7 +10,8 @@ from codex_mini.protocol.model import (
     AssistantMessageItem,
     ConversationItem,
     DeveloperMessageItem,
-    ReasoningItem,
+    ReasoningEncryptedItem,
+    ReasoningTextItem,
     ToolCallItem,
     ToolResultItem,
     UserMessageItem,
@@ -39,10 +40,8 @@ def _build_tool_result_item(tool: ToolResultItem) -> responses.ResponseInputItem
     item: dict[str, Any] = {
         "type": "function_call_output",
         "call_id": tool.call_id,
-        "output": text_output,
+        "output": content_parts,
     }
-    if content_parts:
-        item["content"] = content_parts
     return item  # type: ignore[return-value]
 
 
@@ -66,16 +65,29 @@ def convert_history_to_input(
             last_user_index = idx
             break
 
+    pending_reasoning_text: str | None = None
+
     for index, item in enumerate(history):
         match item:
-            case ReasoningItem() as item:
+            case ReasoningTextItem() as item:
+                # For now, we only store the text. We wait for the encrypted item to output both.
+                # If no encrypted item follows (e.g. incomplete stream?), this text might be lost
+                # or we can choose to output it if the next item is NOT reasoning?
+                # For now, based on instructions, we pair them.
+                if last_user_index is None or index >= last_user_index:
+                    pending_reasoning_text = item.content
+
+            case ReasoningEncryptedItem() as item:
                 if (
                     (last_user_index is None or index >= last_user_index)
                     and item.encrypted_content
                     and len(item.encrypted_content) > 0
                     and model_name == item.model
                 ):
-                    items.append(convert_reasoning_item(item))
+                    items.append(convert_reasoning_inputs(pending_reasoning_text, item))
+                # Reset pending text after consumption
+                pending_reasoning_text = None
+
             case ToolCallItem() as t:
                 items.append(
                     {
@@ -134,21 +146,22 @@ def convert_history_to_input(
     return items
 
 
-def convert_reasoning_item(item: ReasoningItem) -> responses.ResponseInputItemParam:
+def convert_reasoning_inputs(
+    text_content: str | None, encrypted_item: ReasoningEncryptedItem
+) -> responses.ResponseInputItemParam:
     result = {"type": "reasoning", "content": None}
 
-    if item.summary is not None:
+    if text_content is not None:
         result["summary"] = [
             {
                 "type": "summary_text",
-                "text": summary_item,
+                "text": text_content,
             }
-            for summary_item in item.summary
         ]
-    if item.encrypted_content is not None:
-        result["encrypted_content"] = item.encrypted_content
-    if item.id is not None:
-        result["id"] = item.id
+    if encrypted_item.encrypted_content:
+        result["encrypted_content"] = encrypted_item.encrypted_content
+    if encrypted_item.id is not None:
+        result["id"] = encrypted_item.id
     return result
 
 

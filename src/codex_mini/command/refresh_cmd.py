@@ -15,7 +15,7 @@ class RefreshTerminalCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "refresh terminal display"
+        return "Refresh terminal display"
 
     @property
     def is_interactive(self) -> bool:

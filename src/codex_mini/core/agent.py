@@ -333,11 +333,10 @@ class Agent:
         # Clear pending map for new turn
         self.turn_inflight_tool_calls.clear()
         # TODO: If LLM API error occurred, we will discard (not append to history) and retry
-        turn_reasoning_items: list[model.ReasoningItem] = []
+        turn_reasoning_items: list[model.ReasoningTextItem | model.ReasoningEncryptedItem] = []
         turn_assistant_message: model.AssistantMessageItem | None = None
         turn_tool_calls: list[model.ToolCallItem] = []
         current_response_id: str | None = None
-        store_at_remote = False  # This is the 'store' parameter of OpenAI Responses API for storing history at OpenAI, currently always False
         response_failed = False
 
         async for response_item in self.get_llm_client().call(
@@ -345,8 +344,7 @@ class Agent:
                 input=self.session.conversation_history,
                 system=self.session.system_prompt,
                 tools=self.tools,
-                previous_response_id=self.session.last_response_id if store_at_remote else None,
-                store=store_at_remote,
+                store=False,
                 session_id=self.session.id,
             )
         ):
@@ -359,21 +357,15 @@ class Agent:
             match response_item:
                 case model.StartItem() as item:
                     current_response_id = item.response_id
-                case model.ThinkingTextDelta() as item:
-                    yield events.ThinkingDeltaEvent(
-                        content=item.thinking,
+                case model.ReasoningTextItem() as item:
+                    turn_reasoning_items.append(item)
+                    yield events.ThinkingEvent(
+                        content=item.content,
                         response_id=item.response_id,
                         session_id=self.session.id,
                     )
-                case model.ReasoningItem() as item:
+                case model.ReasoningEncryptedItem() as item:
                     turn_reasoning_items.append(item)
-                    thinking = "\n".join(item.summary) if item.summary else item.content
-                    if thinking:
-                        yield events.ThinkingEvent(
-                            content=thinking,
-                            response_id=item.response_id,
-                            session_id=self.session.id,
-                        )
                 case model.AssistantMessageDelta() as item:
                     yield events.AssistantMessageDeltaEvent(
                         content=item.content,
@@ -401,7 +393,7 @@ class Agent:
                     turn_tool_calls.append(item)
                 case _:
                     pass
-        if not store_at_remote and not response_failed:
+        if not response_failed:
             if turn_reasoning_items:
                 self.session.append_history(turn_reasoning_items)
             if turn_assistant_message:
