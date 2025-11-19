@@ -62,6 +62,18 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
             )
         parts.append(grid)
 
+    if ci := e.item.clipboard_images:
+        grid = create_grid()
+        for img_tag in ci:
+            grid.add_row(
+                Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD),
+                Text.assemble(
+                    ("Read ", ThemeKey.REMINDER),
+                    Text(f"{img_tag} Image", style=ThemeKey.REMINDER_BOLD),
+                ),
+            )
+        parts.append(grid)
+
     return Group(*parts) if parts else Text("")
 
 

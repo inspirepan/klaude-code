@@ -99,6 +99,7 @@ class DeveloperMessageItem(BaseModel):
     todo_use: bool | None = None
     at_files: list[AtPatternParseResult] | None = None
     command_output: CommandOutput | None = None
+    clipboard_images: list[str] | None = None
 
 
 class ImageURLPart(BaseModel):
