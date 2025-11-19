@@ -164,6 +164,7 @@ class REPLRenderer:
 
     def display_thinking(self, content: str) -> None:
         if len(content.strip()) > 0:
+            self.console.push_theme(theme=self.themes.thinking_markdown_theme)
             self.print(
                 NoInsetMarkdown(
                     content.rstrip().replace("\n\n", "  \n"),
@@ -171,6 +172,7 @@ class REPLRenderer:
                     style=self.console.get_style(ThemeKey.THINKING),
                 )
             )
+            self.console.pop_theme()
             self.print()
 
     async def replay_history(self, history_events: events.ReplayHistoryEvent) -> None:
