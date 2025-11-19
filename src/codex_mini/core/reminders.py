@@ -379,7 +379,7 @@ async def clipboard_image_reminder(session: Session) -> model.DeveloperMessageIt
     # Regex for [Image #(\d+)]
     matches = re.findall(r"\[Image #(\d+)\]", last_user_input)
 
-    processed_paths = set()
+    processed_paths: set[str] = set()
 
     for num in matches:
         tag = f"[Image #{num}]"

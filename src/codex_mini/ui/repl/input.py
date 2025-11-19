@@ -1,18 +1,18 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
 import time
-import json
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterable
 from pathlib import Path
 from typing import NamedTuple, cast, override
 
-from PIL import ImageGrab
+from PIL import Image, ImageGrab
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion, ThreadedCompleter
 from prompt_toolkit.document import Document
@@ -70,7 +70,7 @@ def _(event):  # type: ignore
     global _image_counter
     try:
         img = ImageGrab.grabclipboard()
-        if img:
+        if img and isinstance(img, Image.Image):
             # Ensure directory exists
             if not IMAGES_DIR.exists():
                 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
@@ -85,7 +85,7 @@ def _(event):  # type: ignore
             _pending_images[tag] = str(path)
             _image_counter += 1
 
-            event.current_buffer.insert_text(tag)
+            event.current_buffer.insert_text(tag)  # pyright: ignore[reportUnknownMemberType]
     except Exception:
         pass
 
