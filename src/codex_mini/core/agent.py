@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import asyncio
 import time
 from collections.abc import AsyncGenerator, Iterable
-from dataclasses import dataclass
-from typing import Literal
+from dataclasses import dataclass, field
+from typing import Literal, cast
 
 from codex_mini.core.prompt import get_system_prompt
 from codex_mini.core.reminders import Reminder, get_main_agent_reminders, get_sub_agent_reminders
+from codex_mini.core.subagent import get_sub_agent_profile
 from codex_mini.core.tool.tool_context import current_session_var
 from codex_mini.core.tool.tool_registry import get_main_agent_tools, get_sub_agent_tools, run_tool
 from codex_mini.llm.client import LLMClientABC
@@ -25,16 +28,15 @@ MAX_RETRY_DELAY_S = 30.0
 class AgentLLMClients:
     main: LLMClientABC
     fast: LLMClientABC | None = None  # Not used for now
-    task: LLMClientABC | None = None
-    oracle: LLMClientABC | None = None
+    sub_clients: dict[tools.SubAgentType, LLMClientABC | None] = field(
+        default_factory=lambda: cast(dict[tools.SubAgentType, LLMClientABC | None], {})
+    )
 
     def get_sub_agent_client(self, sub_agent_type: tools.SubAgentType) -> LLMClientABC:
-        if sub_agent_type == tools.SubAgentType.TASK:
-            return self.task or self.main
-        elif sub_agent_type == tools.SubAgentType.ORACLE:
-            return self.oracle or self.main
-        else:
-            return self.main
+        return self.sub_clients.get(sub_agent_type) or self.main
+
+    def set_sub_agent_client(self, sub_agent_type: tools.SubAgentType, client: LLMClientABC) -> None:
+        self.sub_clients[sub_agent_type] = client
 
 
 @dataclass
@@ -469,25 +471,17 @@ class Agent:
         if self.vanilla:
             self.session.system_prompt = None
         else:
-            if effective_sub_agent_type == tools.SubAgentType.TASK:
-                prompt_key = "task"
-            elif effective_sub_agent_type == tools.SubAgentType.ORACLE:
-                prompt_key = "oracle"
-            else:
-                prompt_key = "main"
+            prompt_key = "main"
+            if effective_sub_agent_type is not None:
+                prompt_key = get_sub_agent_profile(effective_sub_agent_type).prompt_key
             self.session.system_prompt = get_system_prompt(active_model_name, prompt_key)
 
-        if effective_sub_agent_type == tools.SubAgentType.TASK:
-            self.tools = get_sub_agent_tools(active_model_name, tools.SubAgentType.TASK)
+        if effective_sub_agent_type is not None:
+            self.tools = get_sub_agent_tools(active_model_name, effective_sub_agent_type)
             self.reminders = get_sub_agent_reminders(self.vanilla, active_model_name)
-            return
-        if effective_sub_agent_type == tools.SubAgentType.ORACLE:
-            self.tools = get_sub_agent_tools(active_model_name, tools.SubAgentType.ORACLE)
-            self.reminders = get_sub_agent_reminders(self.vanilla, active_model_name)
-            return
-
-        self.tools = get_main_agent_tools(active_model_name)
-        self.reminders = get_main_agent_reminders(self.vanilla, active_model_name)
+        else:
+            self.tools = get_main_agent_tools(active_model_name)
+            self.reminders = get_main_agent_reminders(self.vanilla, active_model_name)
 
     def set_llm_client(self, llm_client: LLMClientABC) -> None:
         self.llm_clients.main = llm_client
@@ -498,12 +492,6 @@ class Agent:
 
     def _resolve_llm_client_for(self, sub_agent_type: tools.SubAgentType | None = None) -> LLMClientABC:
         effective_sub_agent_type = sub_agent_type or self.session.sub_agent_type
-
-        # Subagent
-        if effective_sub_agent_type == tools.SubAgentType.TASK:
-            return self.llm_clients.get_sub_agent_client(tools.SubAgentType.TASK)
-        if effective_sub_agent_type == tools.SubAgentType.ORACLE:
-            return self.llm_clients.get_sub_agent_client(tools.SubAgentType.ORACLE)
-
-        # Main agent
+        if effective_sub_agent_type is not None:
+            return self.llm_clients.get_sub_agent_client(effective_sub_agent_type)
         return self.llm_clients.main

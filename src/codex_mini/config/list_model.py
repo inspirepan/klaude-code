@@ -4,6 +4,7 @@ from rich.table import Table
 from rich.text import Text
 
 from codex_mini.config import Config
+from codex_mini.core.subagent import iter_sub_agent_profiles
 from codex_mini.ui.base.theme import ThemeKey, get_theme
 
 
@@ -144,10 +145,13 @@ def display_models_and_providers(config: Config):
     console.print()
     console.print(Text.assemble(("Default Model: ", "bold"), (config.main_model, ThemeKey.CONFIG_STATUS_PRIMARY)))
 
-    # Display task model if configured
-    if config.task_model:
-        console.print(Text.assemble(("Task Model: ", "bold"), (config.task_model, ThemeKey.CONFIG_STATUS_PRIMARY)))
-
-    # Display oracle model if configured
-    if config.oracle_model:
-        console.print(Text.assemble(("Oracle Model: ", "bold"), (config.oracle_model, ThemeKey.CONFIG_STATUS_PRIMARY)))
+    for profile in iter_sub_agent_profiles():
+        sub_model_name = config.subagent_models.get(profile.config_key)
+        if not sub_model_name:
+            continue
+        console.print(
+            Text.assemble(
+                (f"{profile.config_key} Model: ", "bold"),
+                (sub_model_name, ThemeKey.CONFIG_STATUS_PRIMARY),
+            )
+        )

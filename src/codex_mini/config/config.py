@@ -1,9 +1,11 @@
 import asyncio
 from pathlib import Path
+from typing import Any, cast
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
+from codex_mini.core.subagent import iter_sub_agent_profiles
 from codex_mini.protocol.llm_parameter import (
     LLMClientProtocol,
     LLMConfigModelParameter,
@@ -27,11 +29,23 @@ class Config(BaseModel):
     provider_list: list[LLMConfigProviderParameter]
     model_list: list[ModelConfig]
     main_model: str
-    task_model: str | None = None
-    oracle_model: str | None = None
+    subagent_models: dict[str, str] = Field(default_factory=dict)
     theme: str | None = None
     user_skills_dir: str = "~/.claude/skills"
     project_skills_dir: str = "./.claude/skills"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_subagent_models(cls, data: dict[str, Any]) -> dict[str, Any]:
+        raw_val: Any = data.get("subagent_models") or {}
+        raw_models: dict[str, Any] = cast(dict[str, Any], raw_val) if isinstance(raw_val, dict) else {}
+        normalized: dict[str, str] = {}
+        key_map = {p.config_key.lower(): p.config_key for p in iter_sub_agent_profiles()}
+        for key, value in dict(raw_models).items():
+            canonical = key_map.get(str(key).lower(), str(key))
+            normalized[canonical] = str(value)
+        data["subagent_models"] = normalized
+        return data
 
     def get_main_model_config(self) -> LLMConfigParameter:
         return self.get_model_config(self.main_model)
@@ -73,6 +87,7 @@ class Config(BaseModel):
 def get_example_config() -> Config:
     return Config(
         main_model="gpt-5",
+        subagent_models={"Explore": "sonnet-4"},
         provider_list=[
             LLMConfigProviderParameter(
                 provider_name="openai",

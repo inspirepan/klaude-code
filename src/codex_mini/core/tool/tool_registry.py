@@ -1,5 +1,6 @@
 from typing import Callable, TypeVar
 
+from codex_mini.core.subagent import get_sub_agent_profile, sub_agent_tool_names
 from codex_mini.core.tool.tool_abc import ToolABC
 from codex_mini.protocol import tools
 from codex_mini.protocol.llm_parameter import ToolSchema
@@ -54,44 +55,21 @@ async def run_tool(tool_call: ToolCallItem) -> ToolResultItem:
 
 
 def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
-    if "gpt-5" in model_name:
-        # update_plan and apply_patch is special for gpt-5
-        return get_tool_schemas(
-            [
-                tools.UPDATE_PLAN,
-                tools.BASH,
-                tools.APPLY_PATCH,
-                tools.READ,
-                tools.TASK,
-                tools.SKILL,
-            ]
-        )
-    if "gemini-3" in model_name:
-        return get_tool_schemas(
-            [
-                tools.BASH,
-                tools.READ,
-                tools.EDIT,
-                tools.TASK,
-                tools.SKILL,
-            ]
-        )
-    return get_tool_schemas(
-        [
-            tools.TODO_WRITE,
-            tools.BASH,
-            tools.READ,
-            tools.EDIT,
-            # tools.MULTI_EDIT, # MultiEdit has been removed in Claude Code 2.0 for Claude Sonnet 4.5
-            tools.TASK,
-            tools.ORACLE,
-            tools.SKILL,
-        ]
-    )
+    def _base_main_tools(name: str) -> list[str]:
+        if "gpt-5" in name:
+            return [tools.UPDATE_PLAN, tools.BASH, tools.APPLY_PATCH, tools.READ]
+        if "gemini-3" in name:
+            return [tools.TODO_WRITE, tools.BASH, tools.READ, tools.EDIT]
+        return [tools.TODO_WRITE, tools.BASH, tools.READ, tools.EDIT]
+
+    tool_names = _base_main_tools(model_name)
+    tool_names.extend(sub_agent_tool_names(enabled_only=True, model_name=model_name))
+    tool_names.append(tools.SKILL)
+    return get_tool_schemas(tool_names)
 
 
 def get_sub_agent_tools(model_name: str, sub_agent_type: tools.SubAgentType) -> list[ToolSchema]:
-    if sub_agent_type == tools.SubAgentType.TASK:
-        return get_tool_schemas([tools.BASH, tools.READ, tools.EDIT])
-    elif sub_agent_type == tools.SubAgentType.ORACLE:
-        return get_tool_schemas([tools.READ, tools.BASH])
+    profile = get_sub_agent_profile(sub_agent_type)
+    if not profile.enabled_for_model(model_name):
+        return []
+    return get_tool_schemas(list(profile.tool_set))

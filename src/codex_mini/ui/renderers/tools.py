@@ -7,6 +7,7 @@ from rich.padding import Padding
 from rich.style import Style
 from rich.text import Text
 
+from codex_mini.core.subagent import is_sub_agent_tool as _is_sub_agent_tool
 from codex_mini.protocol import events, model
 from codex_mini.ui.base.theme import ThemeKey
 from codex_mini.ui.renderers.common import create_grid, truncate_display
@@ -14,6 +15,10 @@ from codex_mini.ui.rich_ext.markdown import NoInsetMarkdown
 from codex_mini.ui.rich_ext.quote import Quote
 
 INVALID_TOOL_CALL_MAX_LENGTH = 500
+
+
+def is_sub_agent_tool(tool_name: str) -> bool:
+    return _is_sub_agent_tool(tool_name)
 
 
 def render_path(path: str, style: str, is_directory: bool = False) -> Text:
@@ -149,7 +154,7 @@ def render_multi_edit_tool_call(arguments: str) -> Text:
 
 
 def render_task_call(e: events.ToolCallEvent, color: Color | None = None) -> RenderableType:
-    """Render Task/Oracle tool call header and quoted body.
+    """Render sub-agent tool call header and quoted body.
 
     `color` can be a Rich Color instance or color name string; it's used only for the
     reversed description segment.
@@ -168,9 +173,10 @@ def render_task_call(e: events.ToolCallEvent, color: Color | None = None) -> Ren
         return Group(Text.assemble(("↓ ", ThemeKey.TOOL_MARK), (e.tool_name, ThemeKey.TOOL_NAME), " ", desc), body)
 
     except json.JSONDecodeError:
+        # Fall back to a simple header using the actual tool name when arguments are not valid JSON.
         return Text.assemble(
             ("↓ ", ThemeKey.TOOL_MARK),
-            ("Task", ThemeKey.TOOL_NAME),
+            (e.tool_name, ThemeKey.TOOL_NAME),
             " ",
             Text(e.arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS),
         )

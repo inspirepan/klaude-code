@@ -25,6 +25,7 @@ from codex_mini.config.list_model import display_models_and_providers
 from codex_mini.config.select_model import select_model_from_config
 from codex_mini.core.agent import AgentLLMClients
 from codex_mini.core.executor import Executor
+from codex_mini.core.subagent import iter_sub_agent_profiles
 from codex_mini.core.tool.skill_loader import SkillLoader
 from codex_mini.core.tool.skill_tool import SkillTool
 from codex_mini.core.tool.tool_context import set_unrestricted_mode
@@ -188,23 +189,22 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
 
     llm_clients = AgentLLMClients(main=llm_client)
 
-    if config.task_model:
-        task_llm_config = config.get_model_config(config.task_model)
-        task_llm_client = create_llm_client(task_llm_config)
-        llm_clients.task = task_llm_client
-        if init_config.debug:
-            log_debug("➡️ llm [Task Model Config]", task_llm_config.model_dump_json(exclude_none=True), style="yellow")
-            task_llm_client.enable_debug_mode()
-
-    if config.oracle_model:
-        oracle_llm_config = config.get_model_config(config.oracle_model)
-        oracle_llm_client = create_llm_client(oracle_llm_config)
-        llm_clients.oracle = oracle_llm_client
+    for profile in iter_sub_agent_profiles():
+        model_name = config.subagent_models.get(profile.config_key)
+        if not model_name:
+            continue
+        if not profile.enabled_for_model(llm_client.model_name):
+            continue
+        sub_llm_config = config.get_model_config(model_name)
+        sub_llm_client = create_llm_client(sub_llm_config)
+        llm_clients.set_sub_agent_client(profile.type, sub_llm_client)
         if init_config.debug:
             log_debug(
-                "➡️ llm [Oracle Model Config]", oracle_llm_config.model_dump_json(exclude_none=True), style="yellow"
+                f"➡️ llm [{profile.type.value} Model Config]",
+                sub_llm_config.model_dump_json(exclude_none=True),
+                style="yellow",
             )
-            oracle_llm_client.enable_debug_mode()
+            sub_llm_client.enable_debug_mode()
 
     # Create event queue for communication between executor and UI
     event_queue: asyncio.Queue[Event] = asyncio.Queue()

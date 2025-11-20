@@ -234,7 +234,9 @@ class ExecutorContext:
 
         # Build a fresh AgentLLMClients wrapper to avoid mutating parent's pointers
         child_llm_clients = AgentLLMClients(
-            main=self.llm_clients.get_sub_agent_client(sub_agent_type), fast=self.llm_clients.fast
+            main=self.llm_clients.get_sub_agent_client(sub_agent_type),
+            fast=self.llm_clients.fast,
+            sub_clients=dict(self.llm_clients.sub_clients),
         )
 
         child_agent = Agent(
@@ -244,6 +246,9 @@ class ExecutorContext:
             vanilla=self.vanilla,
         )
         child_agent.refresh_model_profile(sub_agent_type)
+
+        if self.debug_mode:
+            log_debug(f"Running sub-agent {sub_agent_type} in session {child_session.id}", style="cyan")
 
         try:
             # Not emit the subtask's user input since task tool call is already rendered

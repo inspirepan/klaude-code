@@ -1,5 +1,5 @@
-from typing import TYPE_CHECKING, TypeVar
 from importlib.resources import files
+from typing import TYPE_CHECKING, TypeVar
 
 from codex_mini.command.command_abc import CommandResult
 from codex_mini.command.prompt_command import PromptCommand

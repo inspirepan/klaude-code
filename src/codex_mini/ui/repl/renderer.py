@@ -125,7 +125,7 @@ class REPLRenderer:
                 self.print(r_tools.render_update_plan_tool_call(e.arguments))
             case tools.SKILL:
                 self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments, "◈"))
-            case tools.TASK | tools.ORACLE:
+            case _ if r_tools.is_sub_agent_tool(e.tool_name):
                 style = self.pick_sub_agent_color()  # advance sub agent color index here
                 self.print(r_tools.render_task_call(e, style.color))
             case _:
@@ -143,7 +143,7 @@ class REPLRenderer:
                 self.print(Padding.indent(r_diffs.render_diff(e.ui_extra or ""), level=2))
             case tools.TODO_WRITE | tools.UPDATE_PLAN:
                 self.print(r_tools.render_todo(e))
-            case tools.TASK | tools.ORACLE:
+            case _ if r_tools.is_sub_agent_tool(e.tool_name):
                 self.print(
                     r_tools.render_task_result(
                         e,

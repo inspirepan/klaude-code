@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable
 
-from codex_mini.protocol import events, tools
+from codex_mini.protocol import events
 from codex_mini.ui.base.debouncer import Debouncer
 from codex_mini.ui.base.osc94_progress_bar import OSC94States, emit_osc94
 from codex_mini.ui.base.stage_manager import Stage, StageManager
@@ -192,10 +192,7 @@ class DisplayEventHandler:
             state.mdstream.update(state.buffer)
 
     def _should_suppress_subagent_thinking(self, session_id: str) -> bool:
-        return (
-            self.renderer.is_sub_agent_session(session_id)
-            and self.renderer.session_map[session_id].sub_agent_type != tools.ORACLE
-        )
+        return self.renderer.is_sub_agent_session(session_id)
 
     def _extract_active_form_text(self, todo_event: events.TodoChangeEvent) -> str:
         for todo in todo_event.todos:

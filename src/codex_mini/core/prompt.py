@@ -4,21 +4,15 @@ from importlib.resources import files
 from pathlib import Path
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=None)
 def get_system_prompt(model_name: str, key: str = "main") -> str:
-    """Get system prompt for a model, key can be "main" (main agent) or "task" (sub-agent)"""
+    """Get system prompt content for the given model and prompt key."""
 
-    prompt_path = ""
     if key == "main":
-        if "gpt-5" in model_name:
-            prompt_path = "prompt_codex.md"
-        else:
-            prompt_path = "prompt_claude_code.md"
-    elif key == "task":
-        prompt_path = "prompt_subagent.md"
-    elif key == "oracle":
-        prompt_path = "prompt_oracle.md"
-    # Read md located in the same package directory
+        prompt_path = "prompt_codex.md" if "gpt-5" in model_name else "prompt_claude_code.md"
+    else:
+        prompt_path = f"prompt_{key}.md"
+
     return (
         files(__package__)
         .joinpath(prompt_path)
