@@ -1,5 +1,5 @@
 import klaude_code.core.tool as core_tool  # noqa: F401
-from klaude_code.core.subagent import sub_agent_tool_names
+from klaude_code.core.sub_agent import sub_agent_tool_names
 from klaude_code.core.tool.tool_registry import get_main_agent_tools
 from klaude_code.protocol import tools
 

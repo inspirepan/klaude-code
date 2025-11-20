@@ -24,7 +24,7 @@ from klaude_code.config.list_model import display_models_and_providers
 from klaude_code.config.select_model import select_model_from_config
 from klaude_code.core.agent import AgentLLMClients
 from klaude_code.core.executor import Executor
-from klaude_code.core.subagent import iter_sub_agent_profiles
+from klaude_code.core.sub_agent import iter_sub_agent_profiles
 from klaude_code.core.tool.skill_loader import SkillLoader
 from klaude_code.core.tool.skill_tool import SkillTool
 from klaude_code.core.tool.tool_context import set_unrestricted_mode

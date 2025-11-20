@@ -1,6 +1,6 @@
 from typing import Callable, TypeVar
 
-from klaude_code.core.subagent import get_sub_agent_profile, sub_agent_tool_names
+from klaude_code.core.sub_agent import get_sub_agent_profile, sub_agent_tool_names
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.protocol import tools
 from klaude_code.protocol.llm_parameter import ToolSchema

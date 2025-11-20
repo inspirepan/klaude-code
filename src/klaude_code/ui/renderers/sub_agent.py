@@ -18,4 +18,4 @@ def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) ->
 
 
 def render_sub_agent_result(result: str, *, code_theme: str) -> RenderableType:
-    return Panel.fit(NoInsetMarkdown(result, code_theme=code_theme), border_style=ThemeKey.LINES)
+    return Panel.fit(NoInsetMarkdown(result.strip(), code_theme=code_theme), border_style=ThemeKey.LINES)

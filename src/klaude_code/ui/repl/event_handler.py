@@ -167,6 +167,8 @@ class DisplayEventHandler:
                                 code_theme=self.renderer.themes.code_theme,
                             )
                         )
+                else:
+                    emit_osc94(OSC94States.HIDDEN)
                 self.renderer.spinner.stop()
                 await self.stage_manager.transition_to(Stage.WAITING)
                 self._maybe_notify_task_finish(task_finish_event)

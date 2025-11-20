@@ -8,7 +8,7 @@ from typing import Literal, cast
 
 from klaude_code.core.prompt import get_system_prompt
 from klaude_code.core.reminders import Reminder, get_main_agent_reminders, get_sub_agent_reminders
-from klaude_code.core.subagent import get_sub_agent_profile
+from klaude_code.core.sub_agent import get_sub_agent_profile, is_sub_agent_tool
 from klaude_code.core.tool.tool_context import current_session_var
 from klaude_code.core.tool.tool_registry import get_main_agent_tools, get_sub_agent_tools, run_tool
 from klaude_code.llm.client import LLMClientABC
@@ -405,37 +405,15 @@ class Agent:
             # Clear any pending tool calls when the response failed before execution
             self.turn_inflight_tool_calls.clear()
         if turn_tool_calls and not response_failed:
-            for tool_call in turn_tool_calls:
-                yield events.ToolCallEvent(
-                    tool_call_id=tool_call.call_id,
-                    tool_name=tool_call.name,
-                    arguments=tool_call.arguments,
-                    response_id=tool_call.response_id,
-                    session_id=self.session.id,
-                )
-                session_token = current_session_var.set(self.session)
-                try:
-                    self.turn_inflight_tool_calls[tool_call.call_id].status = "in_progress"
-                    tool_result: model.ToolResultItem = await run_tool(tool_call)
-                finally:
-                    current_session_var.reset(session_token)
-                self.session.append_history([tool_result])
-                yield events.ToolResultEvent(
-                    tool_call_id=tool_call.call_id,
-                    tool_name=tool_call.name,
-                    result=tool_result.output or "",
-                    ui_extra=tool_result.ui_extra,
-                    response_id=tool_call.response_id,
-                    session_id=self.session.id,
-                    status=tool_result.status,
-                )
-                if tool_call.name in (tools.TODO_WRITE, tools.UPDATE_PLAN):
-                    yield events.TodoChangeEvent(
-                        session_id=self.session.id,
-                        todos=self.session.todos,
-                    )
-                # Remove from pending after result is produced
-                self.turn_inflight_tool_calls.pop(tool_call.call_id, None)
+            regular_tool_calls, sub_agent_tool_calls = self._partition_tool_calls(turn_tool_calls)
+
+            for tool_call in regular_tool_calls:
+                async for tool_event in self._execute_tool_call(tool_call):
+                    yield tool_event
+
+            if sub_agent_tool_calls:
+                async for tool_event in self._execute_sub_agent_calls(sub_agent_tool_calls):
+                    yield tool_event
         yield events.TurnEndEvent(session_id=self.session.id)
 
     async def process_reminders(self) -> AsyncGenerator[events.DeveloperMessageEvent, None]:
@@ -485,3 +463,74 @@ class Agent:
         if sub_agent_type is not None:
             return self.llm_clients.get_sub_agent_client(sub_agent_type)
         return self.llm_clients.main
+
+    def _partition_tool_calls(
+        self, tool_calls: list[model.ToolCallItem]
+    ) -> tuple[list[model.ToolCallItem], list[model.ToolCallItem]]:
+        regular_tool_calls: list[model.ToolCallItem] = []
+        sub_agent_tool_calls: list[model.ToolCallItem] = []
+        for tool_call in tool_calls:
+            if is_sub_agent_tool(tool_call.name):
+                sub_agent_tool_calls.append(tool_call)
+            else:
+                regular_tool_calls.append(tool_call)
+        return regular_tool_calls, sub_agent_tool_calls
+
+    def _build_tool_call_event(self, tool_call: model.ToolCallItem) -> events.ToolCallEvent:
+        return events.ToolCallEvent(
+            tool_call_id=tool_call.call_id,
+            tool_name=tool_call.name,
+            arguments=tool_call.arguments,
+            response_id=tool_call.response_id,
+            session_id=self.session.id,
+        )
+
+    async def _execute_tool_call(self, tool_call: model.ToolCallItem) -> AsyncGenerator[events.Event, None]:
+        yield self._build_tool_call_event(tool_call)
+
+        for tool_event in await self._run_tool_call(tool_call):
+            yield tool_event
+
+    async def _execute_sub_agent_calls(
+        self, tool_calls: list[model.ToolCallItem]
+    ) -> AsyncGenerator[events.Event, None]:
+        execution_tasks: list[asyncio.Task[list[events.Event]]] = []
+        for tool_call in tool_calls:
+            yield self._build_tool_call_event(tool_call)
+            execution_tasks.append(asyncio.create_task(self._run_tool_call(tool_call)))
+
+        for task in asyncio.as_completed(execution_tasks):
+            for tool_event in await task:
+                yield tool_event
+
+    async def _run_tool_call(self, tool_call: model.ToolCallItem) -> list[events.Event]:
+        session_token = current_session_var.set(self.session)
+        try:
+            self.turn_inflight_tool_calls[tool_call.call_id].status = "in_progress"
+            tool_result: model.ToolResultItem = await run_tool(tool_call)
+        finally:
+            current_session_var.reset(session_token)
+
+        self.session.append_history([tool_result])
+        result_event = events.ToolResultEvent(
+            tool_call_id=tool_call.call_id,
+            tool_name=tool_call.name,
+            result=tool_result.output or "",
+            ui_extra=tool_result.ui_extra,
+            response_id=tool_call.response_id,
+            session_id=self.session.id,
+            status=tool_result.status,
+        )
+
+        self.turn_inflight_tool_calls.pop(tool_call.call_id, None)
+
+        extra_events: list[events.Event] = []
+        if tool_call.name in (tools.TODO_WRITE, tools.UPDATE_PLAN):
+            extra_events.append(
+                events.TodoChangeEvent(
+                    session_id=self.session.id,
+                    todos=self.session.todos,
+                )
+            )
+
+        return [result_event, *extra_events]

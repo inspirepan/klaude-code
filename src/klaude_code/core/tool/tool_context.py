@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
 
-from klaude_code.core.subagent import SubAgentResult
+from klaude_code.core.sub_agent import SubAgentResult
 from klaude_code.protocol.model import SubAgentState
 from klaude_code.session.session import Session
 
