@@ -24,9 +24,9 @@ class ExploreTool(ToolABC):
             name=EXPLORE,
             type="function",
             description=(
-                "Spin up a read-only exploration specialist to locate files, search code, and summarize findings. "
-                "Use this whenever you need broader repository context, structured file searches, or need to trace how "
-                "logic flows across multiple directories."
+                'Spin up a fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. "src/components/**/*.tsx"), '
+                'search code for keywords (eg. "API endpoints"), or answer questions about the codebase (eg. "how do API endpoints work?")'
+                'When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "very thorough" for comprehensive analysis across multiple locations and naming conventions'
             ),
             parameters={
                 "type": "object",
@@ -37,7 +37,7 @@ class ExploreTool(ToolABC):
                     },
                     "prompt": {
                         "type": "string",
-                        "description": "Full instructions describing what to search for and what to report back",
+                        "description": "The task for the agent to perform",
                     },
                     "thoroughness": {
                         "type": "string",
