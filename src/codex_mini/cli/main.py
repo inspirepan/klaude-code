@@ -213,7 +213,6 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     if theme is None:
         # Auto-detect theme from terminal background when config does not specify a theme.
         detected = is_light_terminal_background()
-        print("Auto-detected terminal background:", "light" if detected else "dark")
         if detected is True:
             theme = "light"
         elif detected is False:
