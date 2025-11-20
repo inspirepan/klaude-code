@@ -13,77 +13,80 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
     metadata = e.metadata
     metadata_text = Text()
     metadata_text.append_text(Text("↑ ", style=ThemeKey.METADATA)).append_text(
-        Text(metadata.model_name, style=ThemeKey.METADATA_BOLD)
+        Text(metadata.model_name, style=ThemeKey.METADATA)
     )
     if metadata.provider is not None:
-        metadata_text.append_text(Text(" ")).append_text(Text(metadata.provider.lower(), style=ThemeKey.METADATA))
+        metadata_text.append_text(Text("@", style=ThemeKey.METADATA)).append_text(
+            Text(metadata.provider.lower().replace(" ", "-"), style=ThemeKey.METADATA)
+        )
 
     detail_parts: list[Text] = []
 
     if metadata.usage is not None:
         detail_parts.append(
             Text.assemble(
-                (format_number(metadata.usage.input_tokens), ThemeKey.METADATA), (" input", ThemeKey.METADATA)
+                ("input", ThemeKey.METADATA),
+                (":", ThemeKey.METADATA_DIM),
+                (format_number(metadata.usage.input_tokens), ThemeKey.METADATA),
             )
         )
 
         if metadata.usage.cached_tokens > 0:
             detail_parts.append(
                 Text.assemble(
+                    ("cached", ThemeKey.METADATA),
+                    (":", ThemeKey.METADATA_DIM),
                     (format_number(metadata.usage.cached_tokens), ThemeKey.METADATA),
-                    (" cached", ThemeKey.METADATA),
                 )
             )
 
         detail_parts.append(
             Text.assemble(
-                (format_number(metadata.usage.output_tokens), ThemeKey.METADATA), (" output", ThemeKey.METADATA)
+                ("output", ThemeKey.METADATA),
+                (":", ThemeKey.METADATA_DIM),
+                (format_number(metadata.usage.output_tokens), ThemeKey.METADATA),
             )
         )
 
         if metadata.usage.reasoning_tokens > 0:
             detail_parts.append(
                 Text.assemble(
+                    ("reasoning", ThemeKey.METADATA),
+                    (":", ThemeKey.METADATA_DIM),
                     (format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA),
-                    (" reasoning", ThemeKey.METADATA),
                 )
             )
 
         if metadata.usage.context_usage_percent is not None:
             detail_parts.append(
                 Text.assemble(
-                    (f"{metadata.usage.context_usage_percent:.1f}", ThemeKey.METADATA),
-                    ("% context", ThemeKey.METADATA),
+                    ("context", ThemeKey.METADATA),
+                    (":", ThemeKey.METADATA_DIM),
+                    (f"{metadata.usage.context_usage_percent:.1f}%", ThemeKey.METADATA),
                 )
             )
 
         if metadata.usage.throughput_tps is not None:
             detail_parts.append(
                 Text.assemble(
+                    ("tps", ThemeKey.METADATA),
+                    (":", ThemeKey.METADATA_DIM),
                     (f"{metadata.usage.throughput_tps:.1f}", ThemeKey.METADATA),
-                    (" tps", ThemeKey.METADATA),
                 )
             )
-
-        # if metadata.usage.first_token_latency_ms is not None:
-        #     usage_parts.append(
-        #         Text.assemble(
-        #             ("avg first token latency: ", ThemeKey.METADATA),
-        #             (f"{metadata.usage.first_token_latency_ms:.0f} ms", ThemeKey.METADATA_BOLD),
-        #         )
-        #     )
 
     if metadata.task_duration_s is not None:
         detail_parts.append(
             Text.assemble(
-                (f"{metadata.task_duration_s:.1f}", ThemeKey.METADATA),
-                ("s", ThemeKey.METADATA),
+                ("cost", ThemeKey.METADATA),
+                (":", ThemeKey.METADATA_DIM),
+                (f"{metadata.task_duration_s:.1f}s", ThemeKey.METADATA),
             )
         )
 
     if detail_parts:
         metadata_text.append_text(Text(" · ", style=ThemeKey.METADATA)).append_text(
-            Text(", ", style=ThemeKey.METADATA).join(detail_parts)
+            Text("  ", style=ThemeKey.METADATA).join(detail_parts)
         )
     return metadata_text
 
