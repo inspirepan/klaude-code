@@ -37,6 +37,7 @@ from codex_mini.protocol.model import ResponseMetadataItem
 from codex_mini.session import Session, resume_select_session
 from codex_mini.trace import log, log_debug
 from codex_mini.ui.base.progress_bar import emit_osc94, OSC94States
+from codex_mini.ui.base.terminal_color import is_light_terminal_background
 from codex_mini.ui.repl.input import REPLStatusSnapshot
 
 
@@ -109,13 +110,6 @@ def start_esc_interrupt_monitor(
 
 
 @dataclass
-class UIArgs:
-    theme: str | None
-    light: bool | None
-    dark: bool | None
-
-
-@dataclass
 class AppInitConfig:
     """Configuration for initializing the application components."""
 
@@ -123,7 +117,6 @@ class AppInitConfig:
     # If provided, this overrides main agent's model configuration
     llm_config_override: LLMConfigParameter | None
     debug: bool
-    ui_args: UIArgs | None
     unrestricted: bool
     vanilla: bool
     is_exec_mode: bool = False
@@ -217,12 +210,13 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     executor_task = asyncio.create_task(executor.start())
 
     theme: str | None = config.theme
-    if init_config.ui_args:
-        if init_config.ui_args.theme:
-            theme = init_config.ui_args.theme
-        elif init_config.ui_args.light:
+    if theme is None:
+        # Auto-detect theme from terminal background when config does not specify a theme.
+        detected = is_light_terminal_background()
+        print("Auto-detected terminal background:", "light" if detected else "dark")
+        if detected is True:
             theme = "light"
-        elif init_config.ui_args.dark:
+        elif detected is False:
             theme = "dark"
 
     # Set up UI components
@@ -316,12 +310,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     components = await initialize_app_components(init_config)
 
-    # Special handling for interactive mode theme saving
-    if init_config.ui_args and init_config.ui_args.theme:
-        old_theme = components.config.theme
-        components.config.theme = components.theme
-        if old_theme != components.theme:
-            await components.config.save()
+    # No theme persistence from CLI anymore; config.theme controls theme when set.
 
     # Create status provider for bottom toolbar
     def _status_provider() -> REPLStatusSnapshot:
@@ -547,14 +536,6 @@ def exec_command(
         help="Interactively choose a model at startup",
         rich_help_panel="LLM",
     ),
-    set_theme: str | None = typer.Option(
-        None,
-        "--set-theme",
-        help="Set UI theme (light or dark)",
-        rich_help_panel="Theme",
-    ),
-    light: bool = typer.Option(False, "--light", help="Use light theme", rich_help_panel="Theme"),
-    dark: bool = typer.Option(False, "--dark", help="Use dark theme", rich_help_panel="Theme"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
     unrestricted: bool = typer.Option(
         False,
@@ -606,7 +587,6 @@ def exec_command(
         model=chosen_model,
         llm_config_override=llm_config_override,
         debug=debug,
-        ui_args=UIArgs(theme=set_theme, light=light, dark=dark),
         unrestricted=unrestricted,
         vanilla=vanilla,
         is_exec_mode=True,
@@ -649,14 +629,6 @@ def main_callback(
         help="Interactively choose a model at startup",
         rich_help_panel="LLM",
     ),
-    set_theme: str | None = typer.Option(
-        None,
-        "--set-theme",
-        help="Set UI theme (light or dark)",
-        rich_help_panel="Theme",
-    ),
-    light: bool = typer.Option(False, "--light", help="Use light theme", rich_help_panel="Theme"),
-    dark: bool = typer.Option(False, "--dark", help="Use dark theme", rich_help_panel="Theme"),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
     unrestricted: bool = typer.Option(
         False,
@@ -703,7 +675,6 @@ def main_callback(
             model=chosen_model,
             llm_config_override=llm_config_override,
             debug=debug,
-            ui_args=UIArgs(theme=set_theme, light=light, dark=dark),
             unrestricted=unrestricted,
             vanilla=vanilla,
         )
