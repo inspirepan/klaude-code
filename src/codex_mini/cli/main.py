@@ -36,6 +36,7 @@ from codex_mini.protocol.llm_parameter import LLMConfigParameter
 from codex_mini.protocol.model import ResponseMetadataItem
 from codex_mini.session import Session, resume_select_session
 from codex_mini.trace import log, log_debug
+from codex_mini.ui.base.osc94_progress_bar import emit_osc94, OSC94States
 from codex_mini.ui.repl.input import REPLStatusSnapshot
 
 
@@ -394,6 +395,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         now = time.monotonic()
         if now - last_sigint_time <= 2:
             # Second press within window: exit by raising KeyboardInterrupt
+            emit_osc94(OSC94States.HIDDEN)
             raise KeyboardInterrupt
         # First press: remember and show toast
         last_sigint_time = now

@@ -167,7 +167,7 @@ class REPLRenderer:
             self.console.push_theme(theme=self.themes.thinking_markdown_theme)
             self.print(
                 NoInsetMarkdown(
-                    content.rstrip().replace("\n\n", "  \n"),
+                    content.rstrip().replace("**\n\n", "**  \n"),  # remove extra newlines after bold titles
                     code_theme=self.themes.code_theme,
                     style=self.console.get_style(ThemeKey.THINKING),
                 )
