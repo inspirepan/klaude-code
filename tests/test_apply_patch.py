@@ -10,8 +10,8 @@ SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in os.sys.path:  # type: ignore
     os.sys.path.insert(0, str(SRC_DIR))  # type: ignore
 
-from codex_mini.core.tool.apply_patch import DiffError  # noqa: E402
-from codex_mini.core.tool.apply_patch import process_patch  # noqa: E402
+from klaude_code.core.tool.apply_patch import DiffError  # noqa: E402
+from klaude_code.core.tool.apply_patch import process_patch  # noqa: E402
 
 
 class BaseTempDirTest(unittest.TestCase):

@@ -1,0 +1,174 @@
+from enum import Enum
+from typing import Any, Literal
+
+from pydantic import BaseModel, Field
+from pydantic.json_schema import JsonSchemaValue
+
+from klaude_code.protocol.model import ConversationItem
+
+DEFAULT_MAX_TOKENS = 32000
+DEFAULT_TEMPERATURE = 1.0
+DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS = 2048
+
+
+class LLMClientProtocol(Enum):
+    OPENAI = "openai"
+    RESPONSES = "responses"
+    OPENROUTER = "openrouter"
+    ANTHROPIC = "anthropic"
+
+
+class ToolSchema(BaseModel):
+    name: str
+    type: Literal["function"]
+    description: str
+    parameters: JsonSchemaValue
+
+
+class Thinking(BaseModel):
+    """
+    Unified Thinking & Reasoning Configuration
+    """
+
+    # OpenAI Reasoning Style
+    reasoning_effort: Literal["high", "medium", "low", "minimal", "none"] | None = None
+    reasoning_summary: Literal["auto", "concise", "detailed"] | None = None
+
+    # Claude/Gemini Thinking Style
+    thinking_type: Literal["enabled", "disabled"] | None = Field(None, alias="type", serialization_alias="type")
+    thinking_budget: int | None = Field(None, alias="budget_tokens", serialization_alias="budget_tokens")
+
+
+class OpenRouterProviderRouting(BaseModel):
+    """
+    https://openrouter.ai/docs/features/provider-routing#json-schema-for-provider-preferences
+    """
+
+    allow_fallbacks: bool | None = None
+    require_parameters: bool | None = None
+
+    # Data collection setting: allow (default) or deny
+    data_collection: Literal["deny", "allow"] | None = None
+
+    # Provider lists
+    order: list[str] | None = None
+    only: list[str] | None = None
+    ignore: list[str] | None = None
+
+    # Quantization filters
+    quantizations: list[Literal["int4", "int8", "fp4", "fp6", "fp8", "fp16", "bf16", "fp32", "unknown"]] | None = None
+
+    # Sorting strategy when order is not specified
+    sort: Literal["price", "throughput", "latency"] | None = None
+
+    class MaxPrice(BaseModel):
+        # USD price per million tokens (or provider-specific string); OpenRouter also
+        # accepts other JSON types according to the schema, so Any covers that.
+        prompt: float | str | Any | None = None
+        completion: float | str | Any | None = None
+        image: float | str | Any | None = None
+        audio: float | str | Any | None = None
+        request: float | str | Any | None = None
+
+    max_price: MaxPrice | None = None
+
+    class Experimental(BaseModel):
+        # Placeholder for future experimental settings (no properties allowed in schema)
+        pass
+
+    experimental: Experimental | None = None
+
+
+class LLMConfigProviderParameter(BaseModel):
+    provider_name: str = ""
+    protocol: LLMClientProtocol
+    base_url: str | None = None
+    api_key: str | None = None
+    is_azure: bool = False
+    azure_api_version: str | None = None
+
+
+class LLMConfigModelParameter(BaseModel):
+    model: str | None = None
+    temperature: float | None = None
+    max_tokens: int | None = None
+    context_limit: int | None = None
+
+    # OpenAI GPT-5
+    verbosity: Literal["low", "medium", "high"] | None = None
+
+    # Unified Thinking & Reasoning
+    thinking: Thinking | None = None
+
+    # OpenRouter Provider Routing Preferences
+    provider_routing: OpenRouterProviderRouting | None = None
+
+
+class LLMConfigParameter(LLMConfigProviderParameter, LLMConfigModelParameter):
+    """
+    Parameter support in config yaml
+
+    When adding a new parameter, please also modify the following:
+    - llm_parameter.py#apply_config_defaults
+    - llm/*/client.py, handle the new parameter, e.g. add it to extra_body
+    - ui/repl_display.py#display_welcome
+    - config/list_models.py#display_models_and_providers
+    - config/select_model.py#select_model_from_config
+    """
+
+    pass
+
+
+class LLMCallParameter(LLMConfigModelParameter):
+    """
+    Parameters for a single agent call
+    """
+
+    # Agent
+    input: list[ConversationItem]
+    system: str | None = None
+    tools: list[ToolSchema] | None = None
+
+    stream: Literal[True] = True  # Always True
+
+    # OpenAI Responses
+    include: list[str] | None = None
+    store: bool = True
+    previous_response_id: str | None = None
+
+    session_id: str | None = None
+
+
+def apply_config_defaults(param: LLMCallParameter, config: LLMConfigParameter) -> LLMCallParameter:
+    if param.model is None:
+        param.model = config.model
+    if param.temperature is None:
+        param.temperature = config.temperature
+    if param.max_tokens is None:
+        param.max_tokens = config.max_tokens
+    if param.context_limit is None:
+        param.context_limit = config.context_limit
+    if param.verbosity is None:
+        param.verbosity = config.verbosity
+    if param.thinking is None:
+        param.thinking = config.thinking
+    if param.provider_routing is None:
+        param.provider_routing = config.provider_routing
+
+    if param.model is None:
+        raise ValueError("Model is required")
+    if param.max_tokens is None:
+        param.max_tokens = DEFAULT_MAX_TOKENS
+    if param.temperature is None:
+        param.temperature = DEFAULT_TEMPERATURE
+    if (
+        param.thinking is not None
+        and param.thinking.thinking_type == "enabled"
+        and param.thinking.thinking_budget is None
+    ):
+        param.thinking.thinking_budget = DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS
+
+    if param.model and "gpt-5" in param.model:
+        param.temperature = 1.0  # Required for GPT-5
+
+    return param

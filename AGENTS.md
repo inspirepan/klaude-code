@@ -10,12 +10,12 @@
 
 ## Project Structure & Module Organization
 
-The project follows a Python package structure with source code located in `src/codex_mini/`. Main modules include:
-- `src/codex_mini/cli/`: Command-line interface
-- `src/codex_mini/core/`: Core application logic
-- `src/codex_mini/llm/`: LLM integrations
-- `src/codex_mini/ui/`: User interface components
-- `src/codex_mini/protocol/`: Communication structures and event definitions
+The project follows a Python package structure with source code located in `src/klaude_code/`. Main modules include:
+- `src/klaude_code/cli/`: Command-line interface
+- `src/klaude_code/core/`: Core application logic
+- `src/klaude_code/llm/`: LLM integrations
+- `src/klaude_code/ui/`: User interface components
+- `src/klaude_code/protocol/`: Communication structures and event definitions
 
 Tests are located in the `tests/` directory. Configuration files include `pyproject.toml` for project settings and `pyrightconfig.json` for TypeScript-style checking.
 
@@ -24,7 +24,7 @@ Tests are located in the `tests/` directory. Configuration files include `pyproj
 - `uv run isort . && uv run ruff format`: Format and sort imports
 - `uv run pytest`: Run tests
 - `uv run pyright`: Type checking in strict mode
-- `uv run cdx ...`: Execute CLI with the project's virtual environment
+- `uv run klaude ...`: Execute CLI with the project's virtual environment
 
 ## Coding Style & Naming Conventions
 
@@ -52,10 +52,10 @@ Tests are located in the `tests/` directory. Configuration files include `pyproj
 
 ## Agent Configuration for Different Models
 
-- Prompts are configured via `get_system_prompt` in `src/codex_mini/core/prompt.py`
-- Tools are configured via `get_main_agent_tools` and `get_sub_agent_tools` in `src/codex_mini/core/tool/tool_registry.py`
-- Reminders are configured via `get_main_agent_reminders` and `get_sub_agent_reminders` in `src/codex_mini/core/reminders.py`
-- Changes to tools located under `src/codex_mini/core/tool/` are not applied immediately; ask the user to restart the system for them to take effect.
+- Prompts are configured via `get_system_prompt` in `src/klaude_code/core/prompt.py`
+- Tools are configured via `get_main_agent_tools` and `get_sub_agent_tools` in `src/klaude_code/core/tool/tool_registry.py`
+- Reminders are configured via `get_main_agent_reminders` and `get_sub_agent_reminders` in `src/klaude_code/core/reminders.py`
+- Changes to tools located under `src/klaude_code/core/tool/` are not applied immediately; ask the user to restart the system for them to take effect.
 
 ## Python Type Hints
 

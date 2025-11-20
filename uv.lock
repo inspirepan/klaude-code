@@ -64,47 +64,6 @@ wheels = [
 ]
 
 [[package]]
-name = "codex-mini"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "anthropic" },
-    { name = "openai" },
-    { name = "pillow" },
-    { name = "prompt-toolkit" },
-    { name = "pydantic" },
-    { name = "pyyaml" },
-    { name = "questionary" },
-    { name = "rich" },
-    { name = "typer" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "isort" },
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "anthropic", specifier = ">=0.66.0" },
-    { name = "openai", specifier = ">=1.102.0" },
-    { name = "pillow", specifier = ">=12.0.0" },
-    { name = "prompt-toolkit", specifier = ">=3.0.52" },
-    { name = "pydantic", specifier = ">=2.11.7" },
-    { name = "pyyaml", specifier = ">=6.0.2" },
-    { name = "questionary", specifier = ">=2.1.1" },
-    { name = "rich", specifier = ">=14.1.0" },
-    { name = "typer", specifier = ">=0.17.3" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "isort", specifier = ">=6.0.1" },
-    { name = "pytest", specifier = ">=8.4.1" },
-]
-
-[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -220,6 +179,47 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/d8/b3/2bd02071c5a2430d0b70403a34411fc519c2f227da7b03da9ba6a956f931/jiter-0.10.0-cp314-cp314-win32.whl", hash = "sha256:ac509f7eccca54b2a29daeb516fb95b6f0bd0d0d8084efaf8ed5dfc7b9f0b357", size = 210127, upload-time = "2025-05-18T19:04:38.837Z" },
     { url = "https://files.pythonhosted.org/packages/03/0c/5fe86614ea050c3ecd728ab4035534387cd41e7c1855ef6c031f1ca93e3f/jiter-0.10.0-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:5ed975b83a2b8639356151cef5c0d597c68376fc4922b45d0eb384ac058cfa00", size = 318527, upload-time = "2025-05-18T19:04:40.612Z" },
     { url = "https://files.pythonhosted.org/packages/b3/4a/4175a563579e884192ba6e81725fc0448b042024419be8d83aa8a80a3f44/jiter-0.10.0-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3aa96f2abba33dc77f79b4cf791840230375f9534e5fac927ccceb58c5e604a5", size = 354213, upload-time = "2025-05-18T19:04:41.894Z" },
+]
+
+[[package]]
+name = "klaude-code"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "anthropic" },
+    { name = "openai" },
+    { name = "pillow" },
+    { name = "prompt-toolkit" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "questionary" },
+    { name = "rich" },
+    { name = "typer" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "isort" },
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "anthropic", specifier = ">=0.66.0" },
+    { name = "openai", specifier = ">=1.102.0" },
+    { name = "pillow", specifier = ">=12.0.0" },
+    { name = "prompt-toolkit", specifier = ">=3.0.52" },
+    { name = "pydantic", specifier = ">=2.11.7" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
+    { name = "questionary", specifier = ">=2.1.1" },
+    { name = "rich", specifier = ">=14.1.0" },
+    { name = "typer", specifier = ">=0.17.3" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "isort", specifier = ">=6.0.1" },
+    { name = "pytest", specifier = ">=8.4.1" },
 ]
 
 [[package]]
