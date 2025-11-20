@@ -4,12 +4,7 @@ Tests for CLI argument parsing functionality.
 
 from unittest.mock import patch
 
-from klaudecode.cli.arg_parse import (
-    ArgumentParser,
-    CLIArgs,
-    ParsedCommand,
-    parse_command_line,
-)
+from klaudecode.cli.arg_parse import ArgumentParser, CLIArgs, ParsedCommand, parse_command_line
 
 
 class TestArgumentParser:
@@ -182,9 +177,7 @@ class TestArgumentParser:
 
     def test_parse_args_combined_values(self):
         parser = ArgumentParser()
-        cli_args = parser.parse_args(
-            ["-p", "test prompt", "-f", "anthropic", "--model", "claude-3"]
-        )
+        cli_args = parser.parse_args(["-p", "test prompt", "-f", "anthropic", "--model", "claude-3"])
 
         assert cli_args.headless_prompt == "test prompt"
         assert cli_args.config == "anthropic"

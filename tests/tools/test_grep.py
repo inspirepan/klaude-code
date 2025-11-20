@@ -3,8 +3,8 @@
 from unittest.mock import patch
 
 import pytest
-
 from klaudecode.tools import GrepTool as Grep
+
 from tests.base import BaseToolTest
 
 
@@ -22,15 +22,11 @@ class TestGrepBase:
     def test_grep_simple_pattern(self):
         """Test basic grep pattern matching."""
         # Create test files
-        (self.temp_path / "file1.txt").write_text(
-            "hello world\nthis is a test\nhello again"
-        )
+        (self.temp_path / "file1.txt").write_text("hello world\nthis is a test\nhello again")
         (self.temp_path / "file2.txt").write_text("goodbye world\nanother test")
         (self.temp_path / "file3.py").write_text('def hello():\n    print("hello")')
 
-        result = self.invoke_tool(
-            Grep, {"pattern": "hello", "path": str(self.temp_path)}
-        )
+        result = self.invoke_tool(Grep, {"pattern": "hello", "path": str(self.temp_path)})
 
         assert result.tool_call.status == "success"
         assert "file1.txt:1" in result.content
@@ -46,9 +42,7 @@ class TestGrepBase:
 
         if has_rg:
             # ripgrep supports \d+ pattern
-            result = self.invoke_tool(
-                Grep, {"pattern": r"test\d+", "path": str(self.temp_path)}
-            )
+            result = self.invoke_tool(Grep, {"pattern": r"test\d+", "path": str(self.temp_path)})
             assert result.tool_call.status == "success"
             assert "test.txt:1" in result.content  # test1
             assert "test.txt:3" in result.content  # test2
@@ -56,9 +50,7 @@ class TestGrepBase:
             assert "test.txt:5" not in result.content  # plain 'test'
         else:
             # standard grep needs simpler pattern - matches single digit
-            result = self.invoke_tool(
-                Grep, {"pattern": r"test[0-9]", "path": str(self.temp_path)}
-            )
+            result = self.invoke_tool(Grep, {"pattern": r"test[0-9]", "path": str(self.temp_path)})
             assert result.tool_call.status == "success"
             assert "test.txt:1" in result.content  # test1
             assert "test.txt:3" in result.content  # test2
@@ -71,9 +63,7 @@ class TestGrepBase:
         (self.temp_path / "file2.txt").write_text("import nothing\nimport everything")
         (self.temp_path / "file3.js").write_text('import React from "react"')
 
-        result = self.invoke_tool(
-            Grep, {"pattern": "import", "path": str(self.temp_path), "include": "*.py"}
-        )
+        result = self.invoke_tool(Grep, {"pattern": "import", "path": str(self.temp_path), "include": "*.py"})
 
         assert result.tool_call.status == "success"
         assert "file1.py:1" in result.content
@@ -86,9 +76,7 @@ class TestGrepBase:
         # Create test file
         (self.temp_path / "code.txt").write_text("test\ntesting\ncontest\ntest123")
 
-        result = self.invoke_tool(
-            Grep, {"pattern": r"\btest\b", "path": str(self.temp_path)}
-        )
+        result = self.invoke_tool(Grep, {"pattern": r"\btest\b", "path": str(self.temp_path)})
 
         assert result.tool_call.status == "success"
         assert "code.txt:1" in result.content  # 'test' alone
@@ -100,9 +88,7 @@ class TestGrepBase:
         # Create test file
         (self.temp_path / "case.txt").write_text("Hello\nhello\nHELLO")
 
-        result = self.invoke_tool(
-            Grep, {"pattern": "hello", "path": str(self.temp_path)}
-        )
+        result = self.invoke_tool(Grep, {"pattern": "hello", "path": str(self.temp_path)})
 
         assert result.tool_call.status == "success"
         assert "case.txt:2" in result.content
@@ -115,27 +101,21 @@ class TestGrepBase:
         (self.temp_path / "file1.txt").write_text("hello world")
         (self.temp_path / "file2.txt").write_text("goodbye world")
 
-        result = self.invoke_tool(
-            Grep, {"pattern": "nonexistent", "path": str(self.temp_path)}
-        )
+        result = self.invoke_tool(Grep, {"pattern": "nonexistent", "path": str(self.temp_path)})
 
         assert result.tool_call.status == "success"
         assert "No matches found" in result.content
 
     def test_grep_invalid_regex(self):
         """Test grep with invalid regex pattern."""
-        result = self.invoke_tool(
-            Grep, {"pattern": "[invalid(", "path": str(self.temp_path)}
-        )
+        result = self.invoke_tool(Grep, {"pattern": "[invalid(", "path": str(self.temp_path)})
 
         assert result.tool_call.status == "error"
         assert "Invalid regex pattern" in result.error_msg
 
     def test_grep_nonexistent_path(self):
         """Test grep with non-existent path."""
-        result = self.invoke_tool(
-            Grep, {"pattern": "test", "path": str(self.temp_path / "nonexistent")}
-        )
+        result = self.invoke_tool(Grep, {"pattern": "test", "path": str(self.temp_path / "nonexistent")})
 
         assert result.tool_call.status == "error"
         assert "does not exist" in result.error_msg
@@ -148,14 +128,10 @@ class TestGrepBase:
 
         (self.temp_path / "file1.txt").write_text("pattern here")
         (self.temp_path / "src" / "file2.txt").write_text("pattern in src")
-        (self.temp_path / "src" / "module" / "file3.txt").write_text(
-            "pattern in module"
-        )
+        (self.temp_path / "src" / "module" / "file3.txt").write_text("pattern in module")
         (self.temp_path / "tests" / "test.txt").write_text("pattern in tests")
 
-        result = self.invoke_tool(
-            Grep, {"pattern": "pattern", "path": str(self.temp_path)}
-        )
+        result = self.invoke_tool(Grep, {"pattern": "pattern", "path": str(self.temp_path)})
 
         assert result.tool_call.status == "success"
         assert "file1.txt:1" in result.content
@@ -173,9 +149,7 @@ Line 4: regular line
 Line 5: TODO review code"""
         (self.temp_path / "tasks.txt").write_text(content)
 
-        result = self.invoke_tool(
-            Grep, {"pattern": "TODO", "path": str(self.temp_path)}
-        )
+        result = self.invoke_tool(Grep, {"pattern": "TODO", "path": str(self.temp_path)})
 
         assert result.tool_call.status == "success"
         assert "tasks.txt:1" in result.content
@@ -187,14 +161,10 @@ Line 5: TODO review code"""
     def test_grep_special_characters(self):
         """Test grep with special regex characters."""
         # Create test file
-        (self.temp_path / "special.txt").write_text(
-            "test.py\ntest?py\ntest*py\ntest+py"
-        )
+        (self.temp_path / "special.txt").write_text("test.py\ntest?py\ntest*py\ntest+py")
 
         # Search for literal dot
-        result = self.invoke_tool(
-            Grep, {"pattern": r"test\.py", "path": str(self.temp_path)}
-        )
+        result = self.invoke_tool(Grep, {"pattern": r"test\.py", "path": str(self.temp_path)})
 
         assert result.tool_call.status == "success"
         assert "special.txt:1" in result.content
@@ -210,9 +180,7 @@ Fourth line with match
 Fifth line"""
         (self.temp_path / "numbered.txt").write_text(content)
 
-        result = self.invoke_tool(
-            Grep, {"pattern": "with match", "path": str(self.temp_path)}
-        )
+        result = self.invoke_tool(Grep, {"pattern": "with match", "path": str(self.temp_path)})
 
         assert result.tool_call.status == "success"
         assert "numbered.txt:2" in result.content
@@ -259,15 +227,11 @@ Fifth line"""
         (self.temp_path / "__pycache__").mkdir()
 
         (self.temp_path / "main.py").write_text("pattern here")
-        (self.temp_path / "node_modules" / "lib.js").write_text(
-            "pattern in node_modules"
-        )
+        (self.temp_path / "node_modules" / "lib.js").write_text("pattern in node_modules")
         (self.temp_path / ".git" / "config").write_text("pattern in git")
         (self.temp_path / "__pycache__" / "cache.pyc").write_text("pattern in pycache")
 
-        result = self.invoke_tool(
-            Grep, {"pattern": "pattern", "path": str(self.temp_path)}
-        )
+        result = self.invoke_tool(Grep, {"pattern": "pattern", "path": str(self.temp_path)})
 
         assert result.tool_call.status == "success"
         assert "main.py:1" in result.content
@@ -288,9 +252,7 @@ Fifth line"""
         (self.temp_path / "empty.txt").write_text("")
         (self.temp_path / "content.txt").write_text("has content")
 
-        result = self.invoke_tool(
-            Grep, {"pattern": "content", "path": str(self.temp_path)}
-        )
+        result = self.invoke_tool(Grep, {"pattern": "content", "path": str(self.temp_path)})
 
         assert result.tool_call.status == "success"
         assert "content.txt:1" in result.content
@@ -302,9 +264,7 @@ Fifth line"""
         (self.temp_path / "binary.bin").write_bytes(b"\x00\x01\x02\x03pattern\x04\x05")
         (self.temp_path / "text.txt").write_text("pattern in text")
 
-        result = self.invoke_tool(
-            Grep, {"pattern": "pattern", "path": str(self.temp_path)}
-        )
+        result = self.invoke_tool(Grep, {"pattern": "pattern", "path": str(self.temp_path)})
 
         assert result.tool_call.status == "success"
         assert "text.txt:1" in result.content
@@ -312,9 +272,7 @@ Fifth line"""
         assert "binary.bin" not in result.content
 
 
-@pytest.mark.parametrize(
-    "has_rg", [True, False], ids=["with_ripgrep", "without_ripgrep"]
-)
+@pytest.mark.parametrize("has_rg", [True, False], ids=["with_ripgrep", "without_ripgrep"])
 class TestGrep(TestGrepBase, BaseToolTest):
     """Test cases for the Grep tool with has_rg parametrization."""
 
@@ -328,13 +286,9 @@ class TestGrepSpecial(BaseToolTest):
         """Test that results are truncated when exceeding limit."""
         # Create many files with matches
         for i in range(150):
-            (self.temp_path / f"file{i:03d}.txt").write_text(
-                "match on line 1\nmatch on line 2"
-            )
+            (self.temp_path / f"file{i:03d}.txt").write_text("match on line 1\nmatch on line 2")
 
-        result = self.invoke_tool(
-            Grep, {"pattern": "match", "path": str(self.temp_path)}
-        )
+        result = self.invoke_tool(Grep, {"pattern": "match", "path": str(self.temp_path)})
 
         assert result.tool_call.status == "success"
         assert "showing first 100 of" in result.content
@@ -346,15 +300,11 @@ class TestGrepSpecial(BaseToolTest):
         lines = [f"match {i}" for i in range(20)]
         (self.temp_path / "many_matches.txt").write_text("\n".join(lines))
 
-        result = self.invoke_tool(
-            Grep, {"pattern": "match", "path": str(self.temp_path)}
-        )
+        result = self.invoke_tool(Grep, {"pattern": "match", "path": str(self.temp_path)})
 
         assert result.tool_call.status == "success"
         # Count how many line numbers are reported for this file
-        matches = [
-            line for line in result.content.split("\n") if "many_matches.txt:" in line
-        ]
+        matches = [line for line in result.content.split("\n") if "many_matches.txt:" in line]
         assert len(matches) <= 10  # Should be limited to DEFAULT_MAX_MATCHES_PER_FILE
 
     @patch("klaudecode.tools.grep.GrepTool._execute_search_command")
@@ -363,9 +313,7 @@ class TestGrepSpecial(BaseToolTest):
         # Simulate timeout
         mock_execute.return_value = ("", "Search timed out after 30 seconds", 1)
 
-        result = self.invoke_tool(
-            Grep, {"pattern": "test", "path": str(self.temp_path)}
-        )
+        result = self.invoke_tool(Grep, {"pattern": "test", "path": str(self.temp_path)})
 
         assert result.tool_call.status == "success"
         assert "Error: Search timed out" in result.content
@@ -376,9 +324,7 @@ class TestGrepSpecial(BaseToolTest):
         # Simulate command failure
         mock_execute.return_value = ("", "Command execution failed: some error", 1)
 
-        result = self.invoke_tool(
-            Grep, {"pattern": "test", "path": str(self.temp_path)}
-        )
+        result = self.invoke_tool(Grep, {"pattern": "test", "path": str(self.temp_path)})
 
         assert result.tool_call.status == "success"
         assert "Search completed with warnings" in result.content

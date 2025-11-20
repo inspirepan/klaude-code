@@ -4,7 +4,6 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-
 from klaudecode.config import ConfigValue
 from klaudecode.message import UserMessage
 from klaudecode.user_command.command_debug import DebugCommand
@@ -85,9 +84,7 @@ class TestDebugCommand:
             MockMessage("user", "Hello"),
             MockMessage("assistant", "Hi there"),
             MockMessage("tool", "Tool result"),
-            MockMessage(
-                "user", "Another message", removed=True
-            ),  # This should be filtered out
+            MockMessage("user", "Another message", removed=True),  # This should be filtered out
         ]
 
         self.mock_agent_state.session.messages = Mock()
@@ -132,12 +129,8 @@ class TestDebugCommand:
             )
             m.setattr("klaudecode.user_command.command_debug.subprocess.run", Mock())
 
-            user_input = UserInput(
-                command_name="debug", cleaned_input="/debug", raw_input="/debug"
-            )
-            command_output = await self.debug_command.handle(
-                self.mock_agent_state, user_input
-            )
+            user_input = UserInput(command_name="debug", cleaned_input="/debug", raw_input="/debug")
+            command_output = await self.debug_command.handle(self.mock_agent_state, user_input)
 
             # Check that user message is removed
             assert command_output.user_msg.removed is True
@@ -180,12 +173,8 @@ class TestDebugCommand:
             )
             m.setattr("klaudecode.user_command.command_debug.subprocess.run", Mock())
 
-            user_input = UserInput(
-                command_name="debug", cleaned_input="/debug", raw_input="/debug"
-            )
-            command_output = await self.debug_command.handle(
-                self.mock_agent_state, user_input
-            )
+            user_input = UserInput(command_name="debug", cleaned_input="/debug", raw_input="/debug")
+            command_output = await self.debug_command.handle(self.mock_agent_state, user_input)
 
             # Check export data
             debug_info = command_output.user_msg.get_extra_data("debug_exported")
@@ -218,16 +207,8 @@ class TestDebugCommand:
         with pytest.MonkeyPatch().context() as m:
             # Mock the convert_to_anthropic method to return proper separation
             def mock_convert_to_anthropic(msgs):
-                system_msgs = [
-                    msg.to_anthropic()
-                    for msg in msgs
-                    if msg.role == "system" and bool(msg)
-                ]
-                other_msgs = [
-                    msg.to_anthropic()
-                    for msg in msgs
-                    if msg.role != "system" and bool(msg)
-                ]
+                system_msgs = [msg.to_anthropic() for msg in msgs if msg.role == "system" and bool(msg)]
+                other_msgs = [msg.to_anthropic() for msg in msgs if msg.role != "system" and bool(msg)]
                 return system_msgs, other_msgs
 
             m.setattr(
@@ -240,12 +221,8 @@ class TestDebugCommand:
             )
             m.setattr("klaudecode.user_command.command_debug.subprocess.run", Mock())
 
-            user_input = UserInput(
-                command_name="debug", cleaned_input="/debug", raw_input="/debug"
-            )
-            command_output = await self.debug_command.handle(
-                self.mock_agent_state, user_input
-            )
+            user_input = UserInput(command_name="debug", cleaned_input="/debug", raw_input="/debug")
+            command_output = await self.debug_command.handle(self.mock_agent_state, user_input)
 
             # Check export data
             debug_info = command_output.user_msg.get_extra_data("debug_exported")
@@ -288,12 +265,8 @@ class TestDebugCommand:
             )
             m.setattr("klaudecode.user_command.command_debug.subprocess.run", Mock())
 
-            user_input = UserInput(
-                command_name="debug", cleaned_input="/debug", raw_input="/debug"
-            )
-            command_output = await self.debug_command.handle(
-                self.mock_agent_state, user_input
-            )
+            user_input = UserInput(command_name="debug", cleaned_input="/debug", raw_input="/debug")
+            command_output = await self.debug_command.handle(self.mock_agent_state, user_input)
 
             # Check export data
             debug_info = command_output.user_msg.get_extra_data("debug_exported")
@@ -309,13 +282,9 @@ class TestDebugCommand:
             content = file_path.read_text()
             assert "#!/bin/bash" in content
             assert "curl -X POST" in content
-            assert (
-                "chat/completions?ak=test-key-123" not in content
-            )  # URL with API key format changed
+            assert "chat/completions?ak=test-key-123" not in content  # URL with API key format changed
             assert "?ak=test-key-123" in content  # New URL format with API key
-            assert (
-                "Authorization: Bearer test-key-123" in content
-            )  # Header with API key
+            assert "Authorization: Bearer test-key-123" in content  # Header with API key
             assert "EOF" in content  # Heredoc format
 
             # Check file is executable
@@ -337,12 +306,8 @@ class TestDebugCommand:
             )
             m.setattr("klaudecode.user_command.command_debug.subprocess.run", Mock())
 
-            user_input = UserInput(
-                command_name="debug", cleaned_input="/debug", raw_input="/debug"
-            )
-            command_output = await self.debug_command.handle(
-                self.mock_agent_state, user_input
-            )
+            user_input = UserInput(command_name="debug", cleaned_input="/debug", raw_input="/debug")
+            command_output = await self.debug_command.handle(self.mock_agent_state, user_input)
 
             # Check export data
             debug_info = command_output.user_msg.get_extra_data("debug_exported")
@@ -369,12 +334,8 @@ class TestDebugCommand:
             )
             m.setattr("klaudecode.user_command.command_debug.subprocess.run", Mock())
 
-            user_input = UserInput(
-                command_name="debug", cleaned_input="/debug", raw_input="/debug"
-            )
-            command_output = await self.debug_command.handle(
-                self.mock_agent_state, user_input
-            )
+            user_input = UserInput(command_name="debug", cleaned_input="/debug", raw_input="/debug")
+            command_output = await self.debug_command.handle(self.mock_agent_state, user_input)
 
             # Check error is set
             error = command_output.user_msg.get_extra_data("debug_error")
@@ -394,12 +355,8 @@ class TestDebugCommand:
             )
             m.setattr("klaudecode.user_command.command_debug.subprocess.run", Mock())
 
-            user_input = UserInput(
-                command_name="debug", cleaned_input="/debug", raw_input="/debug"
-            )
-            command_output = await self.debug_command.handle(
-                self.mock_agent_state, user_input
-            )
+            user_input = UserInput(command_name="debug", cleaned_input="/debug", raw_input="/debug")
+            command_output = await self.debug_command.handle(self.mock_agent_state, user_input)
 
             # Check error is set
             error = command_output.user_msg.get_extra_data("debug_error")
@@ -417,12 +374,8 @@ class TestDebugCommand:
             )
             m.setattr("klaudecode.user_command.command_debug.subprocess.run", Mock())
 
-            user_input = UserInput(
-                command_name="debug", cleaned_input="/debug", raw_input="/debug"
-            )
-            command_output = await self.debug_command.handle(
-                self.mock_agent_state, user_input
-            )
+            user_input = UserInput(command_name="debug", cleaned_input="/debug", raw_input="/debug")
+            command_output = await self.debug_command.handle(self.mock_agent_state, user_input)
 
             # Check that user message is still removed
             assert command_output.user_msg.removed is True
@@ -445,9 +398,7 @@ class TestDebugCommand:
 
     def test_render_user_msg_suffix_curl(self):
         """Test rendering for curl export"""
-        user_msg = UserMessage(
-            content="/debug", user_msg_type="debug", user_raw_input="/debug"
-        )
+        user_msg = UserMessage(content="/debug", user_msg_type="debug", user_raw_input="/debug")
         user_msg.set_extra_data(
             "debug_exported",
             {
@@ -470,9 +421,7 @@ class TestDebugCommand:
 
     def test_render_user_msg_suffix_schema(self):
         """Test rendering for schema export"""
-        user_msg = UserMessage(
-            content="/debug", user_msg_type="debug", user_raw_input="/debug"
-        )
+        user_msg = UserMessage(content="/debug", user_msg_type="debug", user_raw_input="/debug")
         user_msg.set_extra_data(
             "debug_exported",
             {
@@ -495,9 +444,7 @@ class TestDebugCommand:
 
     def test_render_user_msg_suffix_error(self):
         """Test rendering for error case"""
-        user_msg = UserMessage(
-            content="/debug", user_msg_type="debug", user_raw_input="/debug"
-        )
+        user_msg = UserMessage(content="/debug", user_msg_type="debug", user_raw_input="/debug")
         user_msg.set_extra_data("debug_error", "Test error message")
 
         # Get rendered output

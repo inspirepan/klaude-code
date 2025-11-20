@@ -28,9 +28,7 @@ class TestGetGitStatus:
                 elif cmd == ["git", "status", "--porcelain"]:
                     response.stdout = " M src/file.py\nM  src/changed.py\n"
                 elif cmd == ["git", "log", "--oneline", "-5"]:
-                    response.stdout = (
-                        "abc1234 fix: bug in parser\ndef5678 feat: add new feature\n"
-                    )
+                    response.stdout = "abc1234 fix: bug in parser\ndef5678 feat: add new feature\n"
                 return response
 
             mock_run.side_effect = mock_subprocess_run
@@ -91,9 +89,7 @@ class TestGetGitStatus:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
 
-        with patch(
-            "subprocess.run", side_effect=subprocess.TimeoutExpired(["git"], 10)
-        ):
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(["git"], 10)):
             result = _get_git_status(tmp_path)
             assert result == ""
 

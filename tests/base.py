@@ -49,9 +49,7 @@ class BaseToolTest:
             tool_args=json.dumps(args),
         )
 
-    def create_tool_instance(
-        self, tool_class: type[Tool], tool_call: ToolCall
-    ) -> ToolInstance:
+    def create_tool_instance(self, tool_class: type[Tool], tool_call: ToolCall) -> ToolInstance:
         """Create a ToolInstance for testing."""
         return tool_class.create_instance(tool_call, self.mock_agent)
 

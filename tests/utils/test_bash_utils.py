@@ -4,6 +4,7 @@ import unittest.mock
 
 from klaudecode.utils.bash_utils.environment import BashEnvironment
 from klaudecode.utils.bash_utils.interaction_detection import BashInteractionDetector
+
 from tests.base import BaseToolTest
 
 
@@ -11,9 +12,7 @@ class TestBashEnvironment(BaseToolTest):
     def test_preprocess_command_with_quotes(self):
         """Test that commands with quotes are properly escaped"""
         # Mock timeout availability to make tests predictable
-        with unittest.mock.patch.object(
-            BashEnvironment, "_has_timeout_command", return_value=True
-        ):
+        with unittest.mock.patch.object(BashEnvironment, "_has_timeout_command", return_value=True):
             test_cases = [
                 # Simple command with single quotes
                 {
@@ -40,9 +39,7 @@ class TestBashEnvironment(BaseToolTest):
             for case in test_cases:
                 result = BashEnvironment.preprocess_command(case["command"])
                 for expected in case["expected_contains"]:
-                    assert expected in result, (
-                        f"Expected '{expected}' in result '{result}'"
-                    )
+                    assert expected in result, f"Expected '{expected}' in result '{result}'"
 
     def test_needs_bash_wrapper(self):
         """Test detection of commands that need bash wrapper"""
@@ -57,9 +54,7 @@ class TestBashEnvironment(BaseToolTest):
         ]
 
         for cmd in wrapper_needed:
-            assert BashEnvironment._needs_bash_wrapper(cmd), (
-                f"Command '{cmd}' should need bash wrapper"
-            )
+            assert BashEnvironment._needs_bash_wrapper(cmd), f"Command '{cmd}' should need bash wrapper"
 
         # Commands that should NOT need wrapper
         no_wrapper_needed = [
@@ -71,9 +66,7 @@ class TestBashEnvironment(BaseToolTest):
         ]
 
         for cmd in no_wrapper_needed:
-            assert not BashEnvironment._needs_bash_wrapper(cmd), (
-                f"Command '{cmd}' should NOT need bash wrapper"
-            )
+            assert not BashEnvironment._needs_bash_wrapper(cmd), f"Command '{cmd}' should NOT need bash wrapper"
 
     def test_strip_ansi_codes(self):
         """Test ANSI code stripping"""
@@ -125,9 +118,7 @@ class TestBashEnvironment(BaseToolTest):
 
     def test_preprocess_command_with_timeout_available(self):
         """Test command preprocessing when timeout is available"""
-        with unittest.mock.patch.object(
-            BashEnvironment, "_has_timeout_command", return_value=True
-        ):
+        with unittest.mock.patch.object(BashEnvironment, "_has_timeout_command", return_value=True):
             # Simple command
             result = BashEnvironment.preprocess_command("echo test", 5.0)
             assert result == "timeout 5s echo test"
@@ -156,13 +147,9 @@ class TestBashEnvironment(BaseToolTest):
 
     def test_preprocess_command_with_existing_timeout(self):
         """Test that commands already containing timeout are not double-wrapped"""
-        with unittest.mock.patch.object(
-            BashEnvironment, "_has_timeout_command", return_value=True
-        ):
+        with unittest.mock.patch.object(BashEnvironment, "_has_timeout_command", return_value=True):
             # Command already has timeout
-            result = BashEnvironment.preprocess_command(
-                "timeout 30s uv run pytest", 5.0
-            )
+            result = BashEnvironment.preprocess_command("timeout 30s uv run pytest", 5.0)
             assert result == "timeout 30s uv run pytest"
             # Should not contain double timeout
             assert result.count("timeout") == 1
@@ -173,8 +160,6 @@ class TestBashEnvironment(BaseToolTest):
             assert result.count("timeout") == 1
 
             # Complex command with existing timeout
-            result = BashEnvironment.preprocess_command(
-                "timeout 30s echo test | cat", 5.0
-            )
+            result = BashEnvironment.preprocess_command("timeout 30s echo test | cat", 5.0)
             assert result == "timeout 30s echo test | cat"
             assert result.count("timeout") == 1

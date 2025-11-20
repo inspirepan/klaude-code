@@ -11,7 +11,8 @@ from uuid import uuid4
 
 from klaude_code.command import dispatch_command
 from klaude_code.core.agent import Agent, AgentLLMClients
-from klaude_code.core.tool.tool_context import SubAgentResult, current_run_subtask_callback
+from klaude_code.core.subagent import SubAgentResult
+from klaude_code.core.tool.tool_context import current_run_subtask_callback
 from klaude_code.protocol import events, llm_parameter, model
 from klaude_code.protocol.op import (
     EndOperation,
@@ -21,7 +22,6 @@ from klaude_code.protocol.op import (
     Submission,
     UserInputOperation,
 )
-from klaude_code.protocol.tools import SubAgentType
 from klaude_code.session.session import Session
 from klaude_code.trace import log_debug
 
@@ -174,8 +174,8 @@ class ExecutorContext:
             log_debug(f"Starting agent task {task_id} for session {session_id}", style="green")
 
             # Inject subtask runner into tool context for nested Task tool usage
-            async def _runner(prompt: str, sub_agent_type: SubAgentType) -> SubAgentResult:
-                return await self._run_subagent_task(agent, prompt, sub_agent_type)
+            async def _runner(state: model.SubAgentState) -> SubAgentResult:
+                return await self._run_subagent_task(agent, state)
 
             token = current_run_subtask_callback.set(_runner)
             try:
@@ -205,9 +205,7 @@ class ExecutorContext:
             self.active_tasks.pop(task_id, None)
             log_debug(f"Cleaned up agent task {task_id}", style="cyan")
 
-    async def _run_subagent_task(
-        self, parent_agent: Agent, prompt: str, sub_agent_type: SubAgentType
-    ) -> SubAgentResult:
+    async def _run_subagent_task(self, parent_agent: Agent, state: model.SubAgentState) -> SubAgentResult:
         """Run a nested sub-agent task and return the final task_result text.
 
         - Creates a child session linked to the parent session
@@ -217,15 +215,11 @@ class ExecutorContext:
         # Create a child session under the same workdir
         parent_session = parent_agent.session
         child_session = Session(work_dir=parent_session.work_dir)
-        child_session.is_root_session = False
-        child_session.sub_agent_type = sub_agent_type
-        # Link relationship and persist parent change
-        parent_session.child_session_ids.append(child_session.id)
-        parent_session.save()
+        child_session.sub_agent_state = state
 
         # Build a fresh AgentLLMClients wrapper to avoid mutating parent's pointers
         child_llm_clients = AgentLLMClients(
-            main=self.llm_clients.get_sub_agent_client(sub_agent_type),
+            main=self.llm_clients.get_sub_agent_client(state.sub_agent_type),
             fast=self.llm_clients.fast,
             sub_clients=dict(self.llm_clients.sub_clients),
         )
@@ -235,18 +229,17 @@ class ExecutorContext:
             session=child_session,
             vanilla=self.vanilla,
         )
-        child_agent.refresh_model_profile(sub_agent_type)
+        child_agent.refresh_model_profile(state.sub_agent_type)
 
-        log_debug(f"Running sub-agent {sub_agent_type} in session {child_session.id}", style="cyan")
+        log_debug(f"Running sub-agent {state.sub_agent_type} in session {child_session.id}", style="cyan")
 
         try:
             # Not emit the subtask's user input since task tool call is already rendered
             result: str = ""
-            async for event in child_agent.run_task(prompt):
+            async for event in child_agent.run_task(state.sub_agent_prompt):
                 # Capture TaskFinishEvent content for return
                 if isinstance(event, events.TaskFinishEvent):
                     result = event.task_result
-                    break  # Subagent cannot nested
                 await self.emit_event(event)
             return SubAgentResult(task_result=result, session_id=child_session.id)
         except Exception as e:

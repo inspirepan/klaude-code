@@ -4,7 +4,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterable
@@ -40,21 +39,6 @@ class REPLStatusSnapshot(NamedTuple):
     context_usage_percent: float | None
     llm_calls: int
     tool_calls: int
-
-
-def _set_cursor_style(code: int) -> None:
-    """Set cursor style via DECSCUSR (CSI Ps SP q).
-
-    Common values:
-      0/1: blinking block, 2: steady block,
-      3: blinking underline, 4: steady underline,
-      5: blinking bar, 6: steady bar
-    """
-    try:
-        if sys.stdout.isatty():
-            os.write(1, f"\x1b[{code} q".encode())
-    except Exception:
-        pass
 
 
 kb = KeyBindings()
@@ -263,11 +247,11 @@ class PromptToolkitInput(InputProviderABC):
         toolbar_text = left_text + padding + right_text
         return FormattedText([("#ansiblue", toolbar_text)])
 
-    async def start(self) -> None:  # noqa: D401
-        _set_cursor_style(5)
+    async def start(self) -> None:
+        pass
 
-    async def stop(self) -> None:  # noqa: D401
-        _set_cursor_style(0)  # restore terminal default
+    async def stop(self) -> None:
+        pass
 
     @override
     async def iter_inputs(self) -> AsyncIterator[str]:

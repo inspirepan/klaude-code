@@ -124,8 +124,7 @@ class Agent:
         task_started_at = time.perf_counter()
         yield events.TaskStartEvent(
             session_id=self.session.id,
-            is_sub_agent=not self.session.is_root_session,
-            sub_agent_type=self.session.sub_agent_type,
+            sub_agent_state=self.session.sub_agent_state,
         )
 
         self.session.append_history([model.UserMessageItem(content=user_input)])
@@ -456,8 +455,7 @@ class Agent:
     def refresh_model_profile(self, sub_agent_type: tools.SubAgentType | None = None) -> None:
         """Refresh system prompt, tools, and reminders for the active model."""
 
-        effective_sub_agent_type = sub_agent_type or self.session.sub_agent_type
-        active_client = self._resolve_llm_client_for(effective_sub_agent_type)
+        active_client = self._resolve_llm_client_for(sub_agent_type)
         active_model_name = active_client.model_name
         self.session.model_name = active_model_name
 
@@ -465,12 +463,12 @@ class Agent:
             self.session.system_prompt = None
         else:
             prompt_key = "main"
-            if effective_sub_agent_type is not None:
-                prompt_key = get_sub_agent_profile(effective_sub_agent_type).prompt_key
+            if sub_agent_type is not None:
+                prompt_key = get_sub_agent_profile(sub_agent_type).prompt_key
             self.session.system_prompt = get_system_prompt(active_model_name, prompt_key)
 
-        if effective_sub_agent_type is not None:
-            self.tools = get_sub_agent_tools(active_model_name, effective_sub_agent_type)
+        if sub_agent_type is not None:
+            self.tools = get_sub_agent_tools(active_model_name, sub_agent_type)
             self.reminders = get_sub_agent_reminders(self.vanilla, active_model_name)
         else:
             self.tools = get_main_agent_tools(active_model_name)
@@ -484,7 +482,6 @@ class Agent:
         return self._resolve_llm_client_for()
 
     def _resolve_llm_client_for(self, sub_agent_type: tools.SubAgentType | None = None) -> LLMClientABC:
-        effective_sub_agent_type = sub_agent_type or self.session.sub_agent_type
-        if effective_sub_agent_type is not None:
-            return self.llm_clients.get_sub_agent_client(effective_sub_agent_type)
+        if sub_agent_type is not None:
+            return self.llm_clients.get_sub_agent_client(sub_agent_type)
         return self.llm_clients.main

@@ -1,4 +1,5 @@
 from klaudecode.utils.bash_utils.security import BashSecurity
+
 from tests.base import BaseToolTest
 
 
@@ -48,9 +49,7 @@ class TestBashSecurity(BaseToolTest):
 
         for cmd in dangerous_variations:
             is_safe, msg = BashSecurity.validate_command_safety(cmd)
-            assert not is_safe, (
-                f"Command '{cmd}' should be detected as dangerous (case insensitive)"
-            )
+            assert not is_safe, f"Command '{cmd}' should be detected as dangerous (case insensitive)"
 
     def test_safe_commands_allowed(self):
         """Test that safe commands are allowed"""
@@ -90,9 +89,7 @@ class TestBashSecurity(BaseToolTest):
 
         for cmd, expected_suggestion in specialized_commands.items():
             is_safe, msg = BashSecurity.validate_command_safety(cmd)
-            assert is_safe, (
-                f"Command '{cmd}' should be safe but suggest specialized tool"
-            )
+            assert is_safe, f"Command '{cmd}' should be safe but suggest specialized tool"
             assert expected_suggestion in msg
 
     def test_specialized_tools_exact_command(self):
@@ -128,9 +125,7 @@ class TestBashSecurity(BaseToolTest):
 
         for cmd in safe_with_eval_exec_substrings:
             is_safe, msg = BashSecurity.validate_command_safety(cmd)
-            assert is_safe, (
-                f"Command '{cmd}' should be safe (contains eval/exec as substring but not word)"
-            )
+            assert is_safe, f"Command '{cmd}' should be safe (contains eval/exec as substring but not word)"
 
     def test_multiword_dangerous_patterns(self):
         """Test detection of multi-word dangerous patterns"""
@@ -158,9 +153,7 @@ class TestBashSecurity(BaseToolTest):
 
         for cmd in quoted_dangerous:
             is_safe, msg = BashSecurity.validate_command_safety(cmd)
-            assert not is_safe, (
-                f"Quoted dangerous command '{cmd}' should still be detected"
-            )
+            assert not is_safe, f"Quoted dangerous command '{cmd}' should still be detected"
 
     def test_commands_with_sudo_variations(self):
         """Test various sudo command patterns"""
@@ -185,9 +178,7 @@ class TestBashSecurity(BaseToolTest):
 
         for cmd in piped_dangerous:
             is_safe, msg = BashSecurity.validate_command_safety(cmd)
-            assert not is_safe, (
-                f"Piped download command '{cmd}' should be detected as dangerous"
-            )
+            assert not is_safe, f"Piped download command '{cmd}' should be detected as dangerous"
 
     def test_validate_command_safety_return_format(self):
         """Test that validate_command_safety returns correct tuple format"""

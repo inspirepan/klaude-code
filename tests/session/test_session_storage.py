@@ -118,11 +118,7 @@ class TestSessionStorage:
 
     def test_save_session_auto_title_generation(self):
         session = Session(work_dir=self.work_dir)
-        session.append_message(
-            UserMessage(
-                content="This is my question", user_raw_input="This is my question"
-            )
-        )
+        session.append_message(UserMessage(content="This is my question", user_raw_input="This is my question"))
         session.append_message(AIMessage(content="This is the answer"))
 
         SessionStorage.save(session)
@@ -183,9 +179,7 @@ class TestSessionStorage:
 
         SessionStorage.save(session)
 
-        user_msg2 = UserMessage(
-            content="Second message", user_raw_input="Second message"
-        )
+        user_msg2 = UserMessage(content="Second message", user_raw_input="Second message")
         session.append_message(user_msg2)
 
         SessionStorage.save(session)
@@ -257,18 +251,12 @@ class TestSessionStorage:
         from klaudecode.message.tool_call import ToolCall
 
         ai_msg = AIMessage(content="Using tool")
-        tool_call = ToolCall(
-            id="call_123", tool_name="test_tool", tool_args_dict={"arg": "value"}
-        )
+        tool_call = ToolCall(id="call_123", tool_name="test_tool", tool_args_dict={"arg": "value"})
         ai_msg.tool_calls = {"call_123": tool_call}
 
-        tool_msg = ToolMessage(
-            content="Tool result", tool_call_id="call_123", tool_call_cache=tool_call
-        )
+        tool_msg = ToolMessage(content="Tool result", tool_call_id="call_123", tool_call_cache=tool_call)
 
-        original_session.append_message(
-            UserMessage(content="Test", user_raw_input="Test"), ai_msg, tool_msg
-        )
+        original_session.append_message(UserMessage(content="Test", user_raw_input="Test"), ai_msg, tool_msg)
 
         SessionStorage.save(original_session)
 
@@ -345,15 +333,11 @@ class TestSessionStorage:
     def test_load_session_list_excludes_subagent(self):
         # Create regular session
         session1 = Session(work_dir=self.work_dir, source="user")
-        session1.append_message(
-            UserMessage(content="User session", user_raw_input="User session")
-        )
+        session1.append_message(UserMessage(content="User session", user_raw_input="User session"))
 
         # Create subagent session
         session2 = Session(work_dir=self.work_dir, source="subagent")
-        session2.append_message(
-            UserMessage(content="Subagent session", user_raw_input="Subagent session")
-        )
+        session2.append_message(UserMessage(content="Subagent session", user_raw_input="Subagent session"))
 
         SessionStorage.save(session1)
         SessionStorage.save(session2)

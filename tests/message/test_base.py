@@ -1,7 +1,6 @@
 from unittest.mock import patch
 
 import pytest
-
 from klaudecode.message.base import Attachment, BasicMessage, count_tokens
 
 
@@ -39,9 +38,7 @@ class TestAttachment:
         assert attachment.size_str == ""
 
     def test_attachment_text_type_get_content(self):
-        attachment = Attachment(
-            type="text", path="/test/file.txt", content="file content here"
-        )
+        attachment = Attachment(type="text", path="/test/file.txt", content="file content here")
 
         content = attachment.get_content()
 
@@ -52,9 +49,7 @@ class TestAttachment:
         assert "file content here" in content[0]["text"]
 
     def test_attachment_directory_type_get_content(self):
-        attachment = Attachment(
-            type="directory", path="/test/dir", content="dir1/\ndir2/\nfile.txt"
-        )
+        attachment = Attachment(type="directory", path="/test/dir", content="dir1/\ndir2/\nfile.txt")
 
         content = attachment.get_content()
 
@@ -82,9 +77,7 @@ class TestAttachment:
         assert content[1]["source"]["media_type"] == "image/png"
 
     def test_attachment_image_type_get_content_without_path(self):
-        attachment = Attachment(
-            type="image", path="", content="base64encodeddata", media_type="image/png"
-        )
+        attachment = Attachment(type="image", path="", content="base64encodeddata", media_type="image/png")
 
         content = attachment.get_content()
 
@@ -126,9 +119,7 @@ class TestBasicMessage:
         msg = BasicMessage(role="assistant")
 
         # Mock get_content to return a complex structure
-        with patch(
-            "klaudecode.message.base.BasicMessage.get_content"
-        ) as mock_get_content:
+        with patch("klaudecode.message.base.BasicMessage.get_content") as mock_get_content:
             mock_get_content.return_value = [
                 {"type": "text", "text": "Hello"},
                 {"type": "thinking", "thinking": "Let me think"},

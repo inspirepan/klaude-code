@@ -35,9 +35,7 @@ class TestDefaultConfigSource:
         assert source.get("model_azure") == DEFAULT_MODEL_AZURE
         assert source.get("api_version") == DEFAULT_API_VERSION
         assert source.get("max_tokens") == DEFAULT_MAX_TOKENS
-        assert (
-            source.get("context_window_threshold") == DEFAULT_CONTEXT_WINDOW_THRESHOLD
-        )
+        assert source.get("context_window_threshold") == DEFAULT_CONTEXT_WINDOW_THRESHOLD
         assert source.get("extra_header") == DEFAULT_EXTRA_HEADER
         assert source.get("extra_body") == DEFAULT_EXTRA_BODY
         assert source.get("enable_thinking") == DEFAULT_ENABLE_THINKING
@@ -69,9 +67,7 @@ class TestDefaultConfigSource:
         assert source.get("model_azure") == DEFAULT_MODEL_AZURE
         assert source.get("api_version") == DEFAULT_API_VERSION
         assert source.get("max_tokens") == DEFAULT_MAX_TOKENS
-        assert (
-            source.get("context_window_threshold") == DEFAULT_CONTEXT_WINDOW_THRESHOLD
-        )
+        assert source.get("context_window_threshold") == DEFAULT_CONTEXT_WINDOW_THRESHOLD
         assert source.get("extra_header") == DEFAULT_EXTRA_HEADER
         assert source.get("extra_body") == DEFAULT_EXTRA_BODY
         assert source.get("enable_thinking") == DEFAULT_ENABLE_THINKING

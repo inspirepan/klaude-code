@@ -4,8 +4,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from klaudecode.tools import GlobTool as Glob
+
 from tests.base import BaseToolTest
 
 
@@ -30,9 +30,7 @@ class TestGlobBase:
         (self.temp_path / "file2.txt").write_text("content2")
         (self.temp_path / "data.json").write_text('{"key": "value"}')
 
-        result = self.invoke_tool(
-            Glob, {"path": str(self.temp_path), "pattern": "*.txt"}
-        )
+        result = self.invoke_tool(Glob, {"path": str(self.temp_path), "pattern": "*.txt"})
 
         assert result.tool_call.status == "success"
         assert "file1.txt" in result.content
@@ -44,9 +42,7 @@ class TestGlobBase:
         for line in lines:
             if line.strip() and not line.startswith("("):
                 # Check if the path is absolute
-                assert Path(line).is_absolute(), (
-                    f"Expected absolute path but got: {line}"
-                )
+                assert Path(line).is_absolute(), f"Expected absolute path but got: {line}"
 
     def test_glob_recursive_pattern(self):
         """Test recursive glob pattern with **."""
@@ -60,9 +56,7 @@ class TestGlobBase:
         (self.temp_path / "src" / "module2" / "bar.py").write_text("# bar")
         (self.temp_path / "tests" / "test_main.py").write_text("# test")
 
-        result = self.invoke_tool(
-            Glob, {"path": str(self.temp_path), "pattern": "**/*.py"}
-        )
+        result = self.invoke_tool(Glob, {"path": str(self.temp_path), "pattern": "**/*.py"})
 
         assert result.tool_call.status == "success"
         assert "src/main.py" in result.content
@@ -80,9 +74,7 @@ class TestGlobBase:
         (self.temp_path / "src" / "utils.js").write_text("// utils")
         (self.temp_path / "docs" / "readme.md").write_text("# README")
 
-        result = self.invoke_tool(
-            Glob, {"path": str(self.temp_path), "pattern": "src/*.js"}
-        )
+        result = self.invoke_tool(Glob, {"path": str(self.temp_path), "pattern": "src/*.js"})
 
         assert result.tool_call.status == "success"
         assert "src/app.js" in result.content
@@ -97,9 +89,7 @@ class TestGlobBase:
         (self.temp_path / "test3.txt").write_text("test3")
         (self.temp_path / "testA.txt").write_text("testA")
 
-        result = self.invoke_tool(
-            Glob, {"path": str(self.temp_path), "pattern": "test[0-9].txt"}
-        )
+        result = self.invoke_tool(Glob, {"path": str(self.temp_path), "pattern": "test[0-9].txt"})
 
         assert result.tool_call.status == "success"
         assert "test1.txt" in result.content
@@ -114,9 +104,7 @@ class TestGlobBase:
         (self.temp_path / "log2.txt").write_text("log2")
         (self.temp_path / "log10.txt").write_text("log10")
 
-        result = self.invoke_tool(
-            Glob, {"path": str(self.temp_path), "pattern": "log?.txt"}
-        )
+        result = self.invoke_tool(Glob, {"path": str(self.temp_path), "pattern": "log?.txt"})
 
         assert result.tool_call.status == "success"
         assert "log1.txt" in result.content
@@ -129,18 +117,14 @@ class TestGlobBase:
         (self.temp_path / "data.json").write_text("{}")
         (self.temp_path / "config.yaml").write_text("config: true")
 
-        result = self.invoke_tool(
-            Glob, {"path": str(self.temp_path), "pattern": "*.xml"}
-        )
+        result = self.invoke_tool(Glob, {"path": str(self.temp_path), "pattern": "*.xml"})
 
         assert result.tool_call.status == "success"
         assert "No files found matching the pattern" in result.content
 
     def test_glob_invalid_pattern(self):
         """Test invalid glob pattern."""
-        result = self.invoke_tool(
-            Glob, {"path": str(self.temp_path), "pattern": "[invalid"}
-        )
+        result = self.invoke_tool(Glob, {"path": str(self.temp_path), "pattern": "[invalid"})
 
         # The pattern [invalid is actually valid for glob - it just won't match anything
         assert result.tool_call.status == "success"
@@ -148,9 +132,7 @@ class TestGlobBase:
 
     def test_glob_nonexistent_directory(self):
         """Test glob in non-existent directory."""
-        result = self.invoke_tool(
-            Glob, {"path": str(self.temp_path / "nonexistent"), "pattern": "*.txt"}
-        )
+        result = self.invoke_tool(Glob, {"path": str(self.temp_path / "nonexistent"), "pattern": "*.txt"})
 
         assert result.tool_call.status == "error"
         assert "does not exist" in result.error_msg
@@ -161,16 +143,11 @@ class TestGlobBase:
         for i in range(150):
             (self.temp_path / f"file{i:03d}.txt").write_text(f"content{i}")
 
-        result = self.invoke_tool(
-            Glob, {"path": str(self.temp_path), "pattern": "*.txt"}
-        )
+        result = self.invoke_tool(Glob, {"path": str(self.temp_path), "pattern": "*.txt"})
 
         assert result.tool_call.status == "success"
         # Check truncation message
-        assert (
-            "(Results are truncated. Consider using a more specific path or pattern.)"
-            in result.content
-        )
+        assert "(Results are truncated. Consider using a more specific path or pattern.)" in result.content
 
         # Count actual file lines (skip message lines)
         lines = result.content.strip().split("\n")
@@ -195,9 +172,7 @@ class TestGlobBase:
         (self.temp_path / ".config" / "settings.json").write_text("{}")
 
         # Test that * doesn't match hidden files
-        result = self.invoke_tool(
-            Glob, {"path": str(self.temp_path), "pattern": "*.txt"}
-        )
+        result = self.invoke_tool(Glob, {"path": str(self.temp_path), "pattern": "*.txt"})
 
         assert result.tool_call.status == "success"
         assert "visible.txt" in result.content
@@ -220,16 +195,12 @@ class TestGlobBase:
         # Create various files
         (self.temp_path / "src" / "components" / "Button.tsx").write_text("// Button")
         (self.temp_path / "src" / "components" / "Modal.tsx").write_text("// Modal")
-        (self.temp_path / "src" / "components" / "Button.test.tsx").write_text(
-            "// Test"
-        )
+        (self.temp_path / "src" / "components" / "Button.test.tsx").write_text("// Test")
         (self.temp_path / "src" / "utils" / "helpers.ts").write_text("// helpers")
         (self.temp_path / "tests" / "unit" / "Button.test.tsx").write_text("// Test")
 
         # Test pattern that finds all TypeScript files in src
-        result = self.invoke_tool(
-            Glob, {"path": str(self.temp_path), "pattern": "src/**/*.ts"}
-        )
+        result = self.invoke_tool(Glob, {"path": str(self.temp_path), "pattern": "src/**/*.ts"})
 
         assert result.tool_call.status == "success"
         # Should match .ts files
@@ -238,9 +209,7 @@ class TestGlobBase:
         assert "src/components/Button.tsx" not in result.content
 
         # Test pattern for both .ts and .tsx files
-        result = self.invoke_tool(
-            Glob, {"path": str(self.temp_path), "pattern": "src/**/*.tsx"}
-        )
+        result = self.invoke_tool(Glob, {"path": str(self.temp_path), "pattern": "src/**/*.tsx"})
 
         assert result.tool_call.status == "success"
         assert "src/components/Button.tsx" in result.content
@@ -268,9 +237,7 @@ temp*.txt
         (self.temp_path / "regular.txt").write_text("regular file")
 
         # Test that all txt files are found, including those in .gitignore
-        result = self.invoke_tool(
-            Glob, {"path": str(self.temp_path), "pattern": "**/*.txt"}
-        )
+        result = self.invoke_tool(Glob, {"path": str(self.temp_path), "pattern": "**/*.txt"})
 
         assert result.tool_call.status == "success"
         # Files that should be ignored by .gitignore but still found by glob
@@ -281,9 +248,7 @@ temp*.txt
         assert "regular.txt" in result.content
 
         # Test .pyc files are also found despite being in .gitignore
-        result = self.invoke_tool(
-            Glob, {"path": str(self.temp_path), "pattern": "*.pyc"}
-        )
+        result = self.invoke_tool(Glob, {"path": str(self.temp_path), "pattern": "*.pyc"})
 
         assert result.tool_call.status == "success"
         assert "main.pyc" in result.content
@@ -321,9 +286,7 @@ class TestGlobSpecial(BaseToolTest):
         (self.temp_path / "file1.py").write_text("# file1")
         (self.temp_path / "file2.py").write_text("# file2")
 
-        result = self.invoke_tool(
-            Glob, {"path": str(self.temp_path), "pattern": "*.py"}
-        )
+        result = self.invoke_tool(Glob, {"path": str(self.temp_path), "pattern": "*.py"})
 
         assert result.tool_call.status == "success"
         assert "file1.py" in result.content

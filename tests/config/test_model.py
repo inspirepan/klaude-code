@@ -73,9 +73,7 @@ class TestConfigModel:
 
     def test_config_model_with_values(self):
         """Test ConfigModel initialization with values"""
-        model = ConfigModel(
-            source="test", api_key="test_key", model_name="test_model", max_tokens=1000
-        )
+        model = ConfigModel(source="test", api_key="test_key", model_name="test_model", max_tokens=1000)
 
         assert model.api_key.value == "test_key"
         assert model.api_key.source == "test"

@@ -3,7 +3,6 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-
 from klaudecode.agent import Agent, AgentState, get_main_agent
 from klaudecode.config import ConfigModel
 from klaudecode.message import UserMessage
@@ -49,12 +48,8 @@ class TestAgent:
         with (
             patch("klaudecode.agent.agent.AgentExecutor") as mock_executor_class,
             patch("klaudecode.agent.agent.InputSession") as mock_input_session_class,
-            patch(
-                "klaudecode.agent.agent.UserInputHandler"
-            ) as mock_user_input_handler_class,
-            patch(
-                "klaudecode.user_command.custom_command_manager"
-            ) as mock_command_manager,
+            patch("klaudecode.agent.agent.UserInputHandler") as mock_user_input_handler_class,
+            patch("klaudecode.user_command.custom_command_manager") as mock_command_manager,
         ):
             mock_executor = Mock()
             mock_executor_class.return_value = mock_executor
@@ -78,12 +73,8 @@ class TestAgent:
         with (
             patch("klaudecode.agent.agent.AgentExecutor") as mock_executor_class,
             patch("klaudecode.agent.agent.InputSession") as mock_input_session_class,
-            patch(
-                "klaudecode.agent.agent.UserInputHandler"
-            ) as mock_user_input_handler_class,
-            patch(
-                "klaudecode.user_command.custom_command_manager"
-            ) as mock_command_manager,
+            patch("klaudecode.agent.agent.UserInputHandler") as mock_user_input_handler_class,
+            patch("klaudecode.user_command.custom_command_manager") as mock_command_manager,
         ):
             mock_command_manager.discover_and_register_commands = Mock()
 
@@ -91,12 +82,8 @@ class TestAgent:
 
             assert agent.agent_state == mock_agent_state
             mock_executor_class.assert_called_once_with(mock_agent_state)
-            mock_input_session_class.assert_called_once_with(
-                mock_agent_state.session.work_dir
-            )
-            mock_user_input_handler_class.assert_called_once_with(
-                mock_agent_state, agent.input_session
-            )
+            mock_input_session_class.assert_called_once_with(mock_agent_state.session.work_dir)
+            mock_user_input_handler_class.assert_called_once_with(mock_agent_state, agent.input_session)
             mock_command_manager.discover_and_register_commands.assert_called_once_with(
                 mock_agent_state.session.work_dir
             )
@@ -106,14 +93,10 @@ class TestAgent:
             patch("klaudecode.agent.agent.AgentExecutor"),
             patch("klaudecode.agent.agent.InputSession"),
             patch("klaudecode.agent.agent.UserInputHandler"),
-            patch(
-                "klaudecode.user_command.custom_command_manager"
-            ) as mock_command_manager,
+            patch("klaudecode.user_command.custom_command_manager") as mock_command_manager,
             patch("klaudecode.agent.agent.console") as mock_console,
         ):
-            mock_command_manager.discover_and_register_commands = Mock(
-                side_effect=ImportError("Command error")
-            )
+            mock_command_manager.discover_and_register_commands = Mock(side_effect=ImportError("Command error"))
 
             agent = Agent(mock_agent_state)
 
@@ -183,9 +166,7 @@ class TestAgent:
         agent.user_input_handler.handle = AsyncMock(return_value=True)
 
         with (
-            patch.object(
-                agent, "_headless_run_with_status_display"
-            ) as mock_headless_run,
+            patch.object(agent, "_headless_run_with_status_display") as mock_headless_run,
             patch.object(agent, "_handle_claudemd_reminder") as mock_handle_claudemd,
             patch.object(agent, "_handle_empty_todo_reminder") as mock_handle_todo,
             patch("klaudecode.agent.agent.console") as mock_console,
@@ -195,9 +176,7 @@ class TestAgent:
             await agent.headless_run("Test input")
 
             mock_agent_state.initialize_llm.assert_called_once()
-            agent.user_input_handler.handle.assert_called_with(
-                "Test input", print_msg=False
-            )
+            agent.user_input_handler.handle.assert_called_with("Test input", print_msg=False)
             assert mock_agent_state.print_switch is False
             assert agent.agent_executor.tool_handler.show_live is False
             mock_handle_claudemd.assert_called_once()
@@ -212,9 +191,7 @@ class TestAgent:
         await agent.headless_run("Test input")
 
         mock_agent_state.initialize_llm.assert_called_once()
-        agent.user_input_handler.handle.assert_called_with(
-            "Test input", print_msg=False
-        )
+        agent.user_input_handler.handle.assert_called_with("Test input", print_msg=False)
 
     @pytest.mark.asyncio
     async def test_headless_run_with_status_display(self, agent, mock_agent_state):
@@ -236,9 +213,7 @@ class TestAgent:
     def test_handle_claudemd_reminder(self, agent, mock_agent_state):
         mock_user_message = Mock(spec=UserMessage)
         mock_user_message.append_pre_system_reminder = Mock()
-        mock_agent_state.session.messages.get_last_message = Mock(
-            return_value=mock_user_message
-        )
+        mock_agent_state.session.messages.get_last_message = Mock(return_value=mock_user_message)
 
         with patch("klaudecode.agent.agent.get_context_reminder") as mock_get_reminder:
             mock_get_reminder.return_value = "Test reminder"
@@ -246,9 +221,7 @@ class TestAgent:
             agent._handle_claudemd_reminder()
 
             mock_get_reminder.assert_called_once_with(mock_agent_state.session.work_dir)
-            mock_user_message.append_pre_system_reminder.assert_called_once_with(
-                "Test reminder"
-            )
+            mock_user_message.append_pre_system_reminder.assert_called_once_with("Test reminder")
 
     @pytest.mark.asyncio
     async def test_get_main_agent(self, temp_dir):

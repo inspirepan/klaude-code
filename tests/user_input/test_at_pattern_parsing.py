@@ -46,9 +46,7 @@ class TestAtPatternParsing:
     @patch("klaudecode.user_input.input_handler.get_directory_structure")
     @patch("pathlib.Path.exists")
     @patch("pathlib.Path.is_dir")
-    def test_parse_at_files_with_mocks(
-        self, mock_is_dir, mock_exists, mock_get_dir, mock_execute_read
-    ):
+    def test_parse_at_files_with_mocks(self, mock_is_dir, mock_exists, mock_get_dir, mock_execute_read):
         """Test _parse_at_files method with mocked file operations."""
         # Setup mocks
         mock_exists.return_value = True
@@ -80,9 +78,7 @@ class TestAtPatternParsing:
     @patch("klaudecode.user_input.input_handler.get_directory_structure")
     @patch("pathlib.Path.exists")
     @patch("pathlib.Path.is_dir")
-    def test_parse_at_files_directory(
-        self, mock_is_dir, mock_exists, mock_get_dir, mock_execute_read
-    ):
+    def test_parse_at_files_directory(self, mock_is_dir, mock_exists, mock_get_dir, mock_execute_read):
         """Test _parse_at_files method with directory paths."""
         # Setup mocks for directory
         mock_exists.return_value = True
@@ -144,9 +140,7 @@ class TestAtPatternParsing:
         # Mock failed file read
         from klaudecode.tools.read import ReadResult
 
-        mock_read_result = ReadResult(
-            path="nonexistent.txt", success=False, error_msg="File not found"
-        )
+        mock_read_result = ReadResult(path="nonexistent.txt", success=False, error_msg="File not found")
         mock_execute_read.return_value = mock_read_result
 
         with patch("pathlib.Path.exists", return_value=True):
@@ -159,9 +153,7 @@ class TestAtPatternParsing:
 
     def test_parse_at_files_absolute_vs_relative_paths(self):
         """Test handling of absolute vs relative paths."""
-        with patch(
-            "klaudecode.user_input.input_handler.execute_read"
-        ) as mock_execute_read:
+        with patch("klaudecode.user_input.input_handler.execute_read") as mock_execute_read:
             from klaudecode.tools.read import ReadResult
 
             def mock_read_side_effect(path, **kwargs):
@@ -198,9 +190,7 @@ class TestAtPatternParsing:
             "@src/klaudecode/llm/ what files are there, @src/klaudecode/llm/llm_proxy_base.py what does it do",
         ]
 
-        with patch(
-            "klaudecode.user_input.input_handler.execute_read"
-        ) as mock_execute_read:
+        with patch("klaudecode.user_input.input_handler.execute_read") as mock_execute_read:
             # Mock the read result properly using ReadResult
             from klaudecode.tools.read import ReadResult
 
@@ -213,9 +203,7 @@ class TestAtPatternParsing:
             )
             mock_execute_read.return_value = mock_read_result
 
-            with patch(
-                "klaudecode.user_input.input_handler.get_directory_structure"
-            ) as mock_get_dir:
+            with patch("klaudecode.user_input.input_handler.get_directory_structure") as mock_get_dir:
                 mock_get_dir.return_value = ("mocked dir", False, 1)
 
                 for original_text in test_inputs:

@@ -3,7 +3,6 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-
 from klaudecode.message import AIMessage, UserMessage
 from klaudecode.session import Session
 from klaudecode.session.message_history import MessageHistory
@@ -191,9 +190,7 @@ class TestSession:
 
         original_session.append_message(msg1, msg2)
 
-        new_session = original_session._create_session_from_template(
-            filter_removed=True
-        )
+        new_session = original_session._create_session_from_template(filter_removed=True)
 
         assert len(new_session.messages) == 1
         assert new_session.messages[0].content == "Keep this"
@@ -232,15 +229,11 @@ class TestSession:
         session = Session(work_dir=work_dir)
         llm_manager = Mock()
 
-        await session.compact_conversation_history(
-            instructions="test", show_status=False, llm_manager=llm_manager
-        )
+        await session.compact_conversation_history(instructions="test", show_status=False, llm_manager=llm_manager)
 
         mock_compact.assert_called_once_with(session, "test", False, llm_manager)
 
-    @patch(
-        "klaudecode.session.session.SessionOperations.analyze_conversation_for_command"
-    )
+    @patch("klaudecode.session.session.SessionOperations.analyze_conversation_for_command")
     @pytest.mark.asyncio
     async def test_analyze_conversation_for_command(self, mock_analyze):
         work_dir = Path("/test")

@@ -4,6 +4,7 @@ from typing import Iterable, Literal
 from pydantic import BaseModel
 
 from klaude_code.protocol.commands import CommandName
+from klaude_code.protocol.tools import SubAgentType
 
 RoleType = Literal["system", "developer", "user", "assistant", "tool"]
 TodoStatusType = Literal["pending", "in_progress", "completed"]
@@ -44,6 +45,12 @@ class CommandOutput(BaseModel):
     command_name: CommandName
     ui_extra: str | None = None
     is_error: bool = False
+
+
+class SubAgentState(BaseModel):
+    sub_agent_type: SubAgentType
+    sub_agent_desc: str
+    sub_agent_prompt: str
 
 
 """

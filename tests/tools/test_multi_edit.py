@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 from klaudecode.tools import MultiEditTool as MultiEdit
+
 from tests.base import BaseToolTest
 
 
@@ -22,9 +23,7 @@ class TestMultiEditBase:
             {"old_string": "Goodbye, World!", "new_string": "See you later, Universe!"},
         ]
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(test_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(test_file), "edits": edits})
 
         assert result.tool_call.status == "success"
         content = test_file.read_text()
@@ -45,9 +44,7 @@ class TestMultiEditBase:
             {"old_string": "orange pie", "new_string": "lemon pie"},
         ]
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(test_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(test_file), "edits": edits})
 
         assert result.tool_call.status == "success"
         content = test_file.read_text()
@@ -67,9 +64,7 @@ class TestMultiEditBase:
             {"old_string": "Line 4\nLine 5", "new_string": "Fourth Line\nFifth Line"},
         ]
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(test_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(test_file), "edits": edits})
 
         assert result.tool_call.status == "success"
         content = test_file.read_text()
@@ -91,9 +86,7 @@ class TestMultiEditBase:
 
         edits = [{"old_string": "Original", "new_string": "Modified"}]
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(test_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(test_file), "edits": edits})
 
         assert result.tool_call.status == "error"
         assert "has not been read yet" in result.error_msg
@@ -120,9 +113,7 @@ class TestMultiEditBase:
             {"old_string": "Not present", "new_string": "Replacement"},
         ]
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(test_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(test_file), "edits": edits})
 
         assert result.tool_call.status == "error"
         assert "Edit 2" in result.error_msg
@@ -136,9 +127,7 @@ class TestMultiEditBase:
 
         edits = [{"old_string": "Test line", "new_string": "Modified line"}]
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(test_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(test_file), "edits": edits})
 
         assert result.tool_call.status == "error"
         assert "Found 2 matches" in result.error_msg
@@ -156,9 +145,7 @@ class TestMultiEditBase:
             {"old_string": "split", "new_string": "smoothie"},
         ]
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(test_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(test_file), "edits": edits})
 
         assert result.tool_call.status == "success"
         new_content = test_file.read_text()
@@ -179,9 +166,7 @@ class TestMultiEditBase:
             {"old_string": "content", "new_string": "content"},  # Identical
         ]
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(test_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(test_file), "edits": edits})
 
         assert result.tool_call.status == "error"
         assert "Edit 2" in result.error_msg
@@ -201,9 +186,7 @@ class TestMultiEditBase:
             {"old_string": "regex: [a-z]+", "new_string": "pattern: [A-Z]+"},
         ]
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(test_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(test_file), "edits": edits})
 
         assert result.tool_call.status == "success"
         new_content = test_file.read_text()
@@ -224,9 +207,7 @@ class TestMultiEditBase:
             },  # This should fail as 'brown' is already replaced
         ]
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(test_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(test_file), "edits": edits})
 
         assert result.tool_call.status == "error"
         assert "Edit 2" in result.error_msg
@@ -239,9 +220,7 @@ class TestMultiEditBase:
 
         edits = [{"old_string": "something", "new_string": "something else"}]
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(test_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(test_file), "edits": edits})
 
         assert result.tool_call.status == "error"
         assert "not found" in result.error_msg.lower()
@@ -258,9 +237,7 @@ class TestMultiEditBase:
             {"old_string": "Not Present", "new_string": "This will fail"},
         ]
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(test_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(test_file), "edits": edits})
 
         assert result.tool_call.status == "error"
         # Check that file content is unchanged (rollback worked)
@@ -276,9 +253,7 @@ class TestMultiEditBase:
             {"old_string": "", "new_string": "Invalid"},
         ]
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(test_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(test_file), "edits": edits})
 
         assert result.tool_call.status == "error"
         assert "Edit 2" in result.error_msg
@@ -291,13 +266,9 @@ class TestMultiEditBase:
         # Track the file path even though it doesn't exist yet
         self.mock_agent.session.file_tracker.track(str(new_file))
 
-        edits = [
-            {"old_string": "", "new_string": "This is new content\nOn multiple lines"}
-        ]
+        edits = [{"old_string": "", "new_string": "This is new content\nOn multiple lines"}]
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(new_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(new_file), "edits": edits})
 
         # This should fail because the file doesn't exist
         assert result.tool_call.status == "error"
@@ -314,13 +285,9 @@ class TestMultiEditBase:
         # Create edits for even numbered lines
         edits = []
         for i in range(2, 21, 2):
-            edits.append(
-                {"old_string": f"Line {i:02d}", "new_string": f"Modified Line {i:02d}"}
-            )
+            edits.append({"old_string": f"Line {i:02d}", "new_string": f"Modified Line {i:02d}"})
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(test_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(test_file), "edits": edits})
 
         assert result.tool_call.status == "success"
         content = test_file.read_text()
@@ -354,9 +321,7 @@ class TestMultiEditSpecial(BaseToolTest):
 
         edits = [{"old_string": "Original", "new_string": "Modified"}]
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(test_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(test_file), "edits": edits})
 
         assert result.tool_call.status == "error"
         assert "Failed to write file" in result.error_msg
@@ -374,9 +339,7 @@ class TestMultiEditSpecial(BaseToolTest):
 
         edits = [{"old_string": "Original", "new_string": "Modified"}]
 
-        result = self.invoke_tool(
-            MultiEdit, {"file_path": str(test_file), "edits": edits}
-        )
+        result = self.invoke_tool(MultiEdit, {"file_path": str(test_file), "edits": edits})
 
         assert result.tool_call.status == "error"
         assert "MultiEdit aborted" in result.error_msg

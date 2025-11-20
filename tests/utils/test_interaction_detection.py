@@ -1,4 +1,5 @@
 from klaudecode.utils.bash_utils.interaction_detection import BashInteractionDetector
+
 from tests.base import BaseToolTest
 
 
@@ -101,9 +102,7 @@ class TestBashInteractionDetector(BaseToolTest):
 
         for prompt in safe_prompts:
             result = BashInteractionDetector.detect_safe_continue_prompt(prompt)
-            assert result is True, (
-                f"'{prompt}' should be detected as safe continue prompt"
-            )
+            assert result is True, f"'{prompt}' should be detected as safe continue prompt"
 
     def test_detect_safe_continue_prompt_negative_cases(self):
         """Test that non-safe prompts are not detected as safe continue"""
@@ -121,9 +120,7 @@ class TestBashInteractionDetector(BaseToolTest):
 
         for prompt in non_safe_prompts:
             result = BashInteractionDetector.detect_safe_continue_prompt(prompt)
-            assert result is False, (
-                f"'{prompt}' should NOT be detected as safe continue prompt"
-            )
+            assert result is False, f"'{prompt}' should NOT be detected as safe continue prompt"
 
     def test_detect_safe_continue_prompt_case_insensitive(self):
         """Test that safe continue detection is case insensitive"""
@@ -142,9 +139,7 @@ class TestBashInteractionDetector(BaseToolTest):
 
         for text in case_variations:
             result = BashInteractionDetector.detect_safe_continue_prompt(text)
-            assert result is True, (
-                f"'{text}' case sensitivity test failed for safe continue"
-            )
+            assert result is True, f"'{text}' case sensitivity test failed for safe continue"
 
     def test_interactive_patterns_constant(self):
         """Test that INTERACTIVE_PATTERNS constant contains expected patterns"""
@@ -196,12 +191,8 @@ class TestBashInteractionDetector(BaseToolTest):
             interactive_result = BashInteractionDetector.detect_interactive_prompt(text)
             safe_result = BashInteractionDetector.detect_safe_continue_prompt(text)
 
-            assert interactive_result is False, (
-                f"Empty/whitespace '{repr(text)}' should not be interactive"
-            )
-            assert safe_result is False, (
-                f"Empty/whitespace '{repr(text)}' should not be safe continue"
-            )
+            assert interactive_result is False, f"Empty/whitespace '{repr(text)}' should not be interactive"
+            assert safe_result is False, f"Empty/whitespace '{repr(text)}' should not be safe continue"
 
     def test_pattern_overlap_handling(self):
         """Test handling of text that could match both interactive and safe continue patterns"""
@@ -217,9 +208,7 @@ class TestBashInteractionDetector(BaseToolTest):
             BashInteractionDetector.detect_safe_continue_prompt(text)
 
             # Interactive detection should take precedence for safety
-            assert interactive_result is True, (
-                f"'{text}' should be detected as interactive"
-            )
+            assert interactive_result is True, f"'{text}' should be detected as interactive"
 
     def test_multiline_text_detection(self):
         """Test detection in multiline text"""
@@ -235,13 +224,8 @@ class TestBashInteractionDetector(BaseToolTest):
         with installation.
         """
 
-        assert (
-            BashInteractionDetector.detect_interactive_prompt(multiline_interactive)
-            is True
-        )
-        assert (
-            BashInteractionDetector.detect_safe_continue_prompt(multiline_safe) is True
-        )
+        assert BashInteractionDetector.detect_interactive_prompt(multiline_interactive) is True
+        assert BashInteractionDetector.detect_safe_continue_prompt(multiline_safe) is True
 
     def test_special_characters_in_prompts(self):
         """Test detection with special characters and formatting"""
@@ -268,8 +252,6 @@ class TestBashInteractionDetector(BaseToolTest):
                 result = BashInteractionDetector.detect_interactive_prompt(prompt)
                 assert result is True, f"'{prompt}' should be detected as interactive"
 
-            if any(
-                pattern in prompt.lower() for pattern in ["press enter", "hit enter"]
-            ):
+            if any(pattern in prompt.lower() for pattern in ["press enter", "hit enter"]):
                 result = BashInteractionDetector.detect_safe_continue_prompt(prompt)
                 assert result is True, f"'{prompt}' should be detected as safe continue"

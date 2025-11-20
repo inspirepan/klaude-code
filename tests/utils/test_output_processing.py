@@ -1,6 +1,7 @@
 from unittest.mock import Mock, patch
 
 from klaudecode.utils.bash_utils.output_processing import BashOutputProcessor
+
 from tests.base import BaseToolTest
 
 
@@ -10,9 +11,7 @@ class TestBashOutputProcessor(BaseToolTest):
         output_lines = ["Line 1", "Line 2", "Line 3"]
         total_size = 100  # Small size, no truncation needed
 
-        result = BashOutputProcessor.format_output_with_truncation(
-            output_lines, total_size
-        )
+        result = BashOutputProcessor.format_output_with_truncation(output_lines, total_size)
 
         assert result == "Line 1\nLine 2\nLine 3"
 
@@ -22,9 +21,7 @@ class TestBashOutputProcessor(BaseToolTest):
         output_lines = [f"Line {i}" for i in range(500)]
         total_size = 50000  # Large size to trigger truncation
 
-        result = BashOutputProcessor.format_output_with_truncation(
-            output_lines, total_size
-        )
+        result = BashOutputProcessor.format_output_with_truncation(output_lines, total_size)
 
         # Should contain first 200 lines
         assert "Line 0" in result
@@ -44,9 +41,7 @@ class TestBashOutputProcessor(BaseToolTest):
         output_lines = [f"Line {i}" for i in range(400)]
         total_size = 25000  # Below MAX_OUTPUT_SIZE
 
-        result = BashOutputProcessor.format_output_with_truncation(
-            output_lines, total_size
-        )
+        result = BashOutputProcessor.format_output_with_truncation(output_lines, total_size)
 
         # Should not truncate
         assert "Line 0" in result
@@ -74,9 +69,7 @@ class TestBashOutputProcessor(BaseToolTest):
         total_size = 0
         update_func = Mock()
 
-        with patch(
-            "klaudecode.utils.bash_utils.output_processing.BashEnvironment.strip_ansi_codes"
-        ) as mock_strip:
+        with patch("klaudecode.utils.bash_utils.output_processing.BashEnvironment.strip_ansi_codes") as mock_strip:
             mock_strip.return_value = "Clean line"
 
             new_size, should_break = BashOutputProcessor.process_output_line(
@@ -283,9 +276,7 @@ class TestBashOutputProcessor(BaseToolTest):
         output_lines = [f"Line {i}" for i in range(total_lines)]
         total_size = 35000  # Above MAX_OUTPUT_SIZE
 
-        result = BashOutputProcessor.format_output_with_truncation(
-            output_lines, total_size
-        )
+        result = BashOutputProcessor.format_output_with_truncation(output_lines, total_size)
 
         # Should mention correct number of truncated lines
         assert "50 lines" in result  # 450 - 2*200 = 50

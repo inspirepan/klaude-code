@@ -2,7 +2,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from klaudecode.message import AIMessage, ToolCall, ToolMessage, UserMessage
 from klaudecode.session import Session
 from klaudecode.user_command.command_output import OutputCommand
@@ -126,9 +125,7 @@ def mock_agent_state_with_multiple_conversations():
     )
     session.messages.messages.append(tool_msg2)
 
-    final_ai_msg2 = AIMessage(
-        content="Based on performance analysis, recommend using..."
-    )
+    final_ai_msg2 = AIMessage(content="Based on performance analysis, recommend using...")
     session.messages.messages.append(final_ai_msg2)
 
     class MockAgentState:
@@ -155,9 +152,7 @@ class TestOutputCommand:
     ):
         mock_agent_state.session.work_dir = tmp_path
 
-        user_input = UserInput(
-            command_name="output", cleaned_input="", raw_input="/output"
-        )
+        user_input = UserInput(command_name="output", cleaned_input="", raw_input="/output")
 
         result = await output_command.handle(mock_agent_state, user_input)
 
@@ -178,14 +173,10 @@ class TestOutputCommand:
 
     @pytest.mark.asyncio
     @patch("os.system")
-    async def test_handle_with_task_tools(
-        self, mock_os_system, output_command, mock_agent_state_with_task, tmp_path
-    ):
+    async def test_handle_with_task_tools(self, mock_os_system, output_command, mock_agent_state_with_task, tmp_path):
         mock_agent_state_with_task.session.work_dir = tmp_path
 
-        user_input = UserInput(
-            command_name="output", cleaned_input="", raw_input="/output"
-        )
+        user_input = UserInput(command_name="output", cleaned_input="", raw_input="/output")
 
         result = await output_command.handle(mock_agent_state_with_task, user_input)
 
@@ -210,13 +201,9 @@ class TestOutputCommand:
     ):
         mock_agent_state_with_multiple_conversations.session.work_dir = tmp_path
 
-        user_input = UserInput(
-            command_name="output", cleaned_input="", raw_input="/output"
-        )
+        user_input = UserInput(command_name="output", cleaned_input="", raw_input="/output")
 
-        result = await output_command.handle(
-            mock_agent_state_with_multiple_conversations, user_input
-        )
+        result = await output_command.handle(mock_agent_state_with_multiple_conversations, user_input)
 
         assert result.user_msg is not None
 
@@ -248,9 +235,7 @@ class TestOutputCommand:
 
         mock_agent_state = MockAgentState()
 
-        user_input = UserInput(
-            command_name="output", cleaned_input="", raw_input="/output"
-        )
+        user_input = UserInput(command_name="output", cleaned_input="", raw_input="/output")
 
         result = await output_command.handle(mock_agent_state, user_input)
 

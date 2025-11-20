@@ -4,7 +4,8 @@ from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
 
-from klaude_code.protocol.tools import SubAgentType
+from klaude_code.core.subagent import SubAgentResult
+from klaude_code.protocol.model import SubAgentState
 from klaude_code.session.session import Session
 
 # Holds the current Session for tool execution context.
@@ -12,17 +13,10 @@ from klaude_code.session.session import Session
 current_session_var: ContextVar[Session | None] = ContextVar("current_session", default=None)
 
 
-@dataclass
-class SubAgentResult:
-    task_result: str
-    session_id: str
-    error: bool = False
-
-
 # Holds a handle to run a nested subtask (sub-agent) from within a tool call.
 # The callable takes a prompt string and a sub-agent type string
 # returns the final task_result string and session_id str.
-current_run_subtask_callback: ContextVar[Callable[[str, SubAgentType], Awaitable[SubAgentResult]] | None] = ContextVar(
+current_run_subtask_callback: ContextVar[Callable[[SubAgentState], Awaitable[SubAgentResult]] | None] = ContextVar(
     "current_run_subtask_callback", default=None
 )
 

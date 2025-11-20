@@ -177,9 +177,7 @@ class TestUserMessage:
         attachment2 = Attachment(type="image", path="/test/image.png", size_str="100KB")
         attachment3 = Attachment(type="directory", path="/test/dir")
 
-        msg = UserMessage(
-            content="Message", attachments=[attachment1, attachment2, attachment3]
-        )
+        msg = UserMessage(content="Message", attachments=[attachment1, attachment2, attachment3])
 
         result = list(msg.get_suffix_renderable())
 
@@ -229,9 +227,7 @@ class TestUserMessage:
         assert msg.post_system_reminders == ["First reminder"]
 
     def test_append_post_system_reminder_existing_list(self):
-        msg = UserMessage(
-            content="Message", post_system_reminders=["Existing reminder"]
-        )
+        msg = UserMessage(content="Message", post_system_reminders=["Existing reminder"])
 
         msg.append_post_system_reminder("New reminder")
 

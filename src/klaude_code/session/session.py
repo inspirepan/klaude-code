@@ -8,8 +8,7 @@ from typing import ClassVar
 from pydantic import BaseModel, Field
 
 from klaude_code.protocol import events, model
-from klaude_code.protocol.model import ConversationItem, TodoItem
-from klaude_code.protocol.tools import SubAgentType
+from klaude_code.protocol.model import ConversationItem, SubAgentState, TodoItem
 
 
 class Session(BaseModel):
@@ -17,9 +16,7 @@ class Session(BaseModel):
     work_dir: Path
     conversation_history: list[ConversationItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     system_prompt: str | None = None
-    is_root_session: bool = True
-    sub_agent_type: SubAgentType | None = None
-    child_session_ids: list[str] = Field(default_factory=list)
+    sub_agent_state: SubAgentState | None = None
     # Last response id: for OpenAI Responses API
     last_response_id: str | None = None
     # FileTracker: track file path -> last modification time when last read/edited
@@ -100,9 +97,9 @@ class Session(BaseModel):
 
         # Basic fields (conversation history is loaded separately)
         work_dir_str = raw.get("work_dir", str(Path.cwd()))
-        is_root_session = bool(raw.get("is_root_session", True))
-        sub_agent_type = raw.get("sub_agent_type")
-        child_session_ids = list(raw.get("child_session_ids", []))
+
+        sub_agent_state_raw = raw.get("sub_agent_state")
+        sub_agent_state = SubAgentState(**sub_agent_state_raw) if sub_agent_state_raw else None
         last_response_id = raw.get("last_response_id")
         file_tracker = dict(raw.get("file_tracker", {}))
         todos: list[TodoItem] = [TodoItem(**item) for item in raw.get("todos", [])]
@@ -115,9 +112,7 @@ class Session(BaseModel):
         sess = Session(
             id=id,
             work_dir=Path(work_dir_str),
-            is_root_session=is_root_session,
-            sub_agent_type=SubAgentType(sub_agent_type) if sub_agent_type else None,
-            child_session_ids=child_session_ids,
+            sub_agent_state=sub_agent_state,
             last_response_id=last_response_id,
             file_tracker=file_tracker,
             todos=todos,
@@ -173,9 +168,7 @@ class Session(BaseModel):
         payload = {
             "id": self.id,
             "work_dir": str(self.work_dir),
-            "is_root_session": self.is_root_session,
-            "sub_agent_type": self.sub_agent_type,
-            "child_session_ids": self.child_session_ids,
+            "sub_agent_state": self.sub_agent_state.model_dump() if self.sub_agent_state else None,
             "last_response_id": self.last_response_id,
             "file_tracker": self.file_tracker,
             "todos": [todo.model_dump() for todo in self.todos],
@@ -218,8 +211,8 @@ class Session(BaseModel):
         for p in sessions_dir.glob("*.json"):
             try:
                 data = json.loads(p.read_text())
-                # Filter out non-root sessions
-                if not data.get("is_root_session", True):
+                # Filter out sub-agent sessions
+                if data.get("sub_agent_state", None) is not None:
                     continue
                 sid = str(data.get("id", p.stem))
                 ts = float(data.get("updated_at", 0.0))
@@ -378,8 +371,8 @@ class Session(BaseModel):
             except Exception:
                 # Skip unreadable files
                 continue
-            # Filter out non-root sessions
-            if not data.get("is_root_session", True):
+            # Filter out sub-agent sessions
+            if data.get("sub_agent_state", None) is not None:
                 continue
             sid = str(data.get("id", p.stem))
             created = float(data.get("created_at", p.stat().st_mtime))

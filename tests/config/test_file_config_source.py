@@ -3,11 +3,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from klaudecode.config.file_config_source import (
-    FileConfigSource,
-    get_default_config_path,
-    resolve_config_path,
-)
+from klaudecode.config.file_config_source import FileConfigSource, get_default_config_path, resolve_config_path
 
 
 class TestFileConfigSource:
@@ -29,9 +25,7 @@ class TestFileConfigSource:
             source = FileConfigSource("anthropic")
 
             assert source.config_file == "anthropic"
-            assert (
-                source.config_path == Path.home() / ".klaude" / "config_anthropic.json"
-            )
+            assert source.config_path == Path.home() / ".klaude" / "config_anthropic.json"
             assert source.source == "anthropic"
             assert source.config_model is not None
 
@@ -69,9 +63,7 @@ class TestFileConfigSource:
             config_file_path = f.name
 
         try:
-            with patch(
-                "klaudecode.tui.console.print"
-            ):  # Mock console to suppress error output
+            with patch("klaudecode.tui.console.print"):  # Mock console to suppress error output
                 source = FileConfigSource(config_file_path)
 
                 # Should create empty config model when JSON is invalid
@@ -169,9 +161,7 @@ class TestFileConfigSource:
 
         # Should raise ValueError when CLI config file doesn't exist
         with pytest.raises(ValueError, match="Configuration file not found"):
-            FileConfigSource.create_cli_config_source(
-                "definitely_nonexistent_config_12345"
-            )
+            FileConfigSource.create_cli_config_source("definitely_nonexistent_config_12345")
 
     def test_get_config_path_class_method(self):
         """Test get_config_path class method"""

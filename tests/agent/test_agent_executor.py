@@ -5,12 +5,11 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from anthropic import AnthropicError
-from openai import OpenAIError
-
 from klaudecode.agent import AgentExecutor, AgentState
 from klaudecode.message import INTERRUPTED_MSG
 from klaudecode.session import Session
 from klaudecode.tools import BASIC_TOOLS
+from openai import OpenAIError
 
 
 class TestAgentExecutor:
@@ -95,9 +94,7 @@ class TestAgentExecutor:
     async def test_run_keyboard_interrupt(self, agent_executor, mock_agent_state):
         with (
             patch.object(agent_executor, "_execute_run_loop") as mock_execute,
-            patch.object(
-                agent_executor, "_handle_interruption"
-            ) as mock_handle_interrupt,
+            patch.object(agent_executor, "_handle_interruption") as mock_handle_interrupt,
         ):
             mock_execute.side_effect = KeyboardInterrupt()
             mock_handle_interrupt.return_value = "Interrupted"
@@ -111,9 +108,7 @@ class TestAgentExecutor:
     async def test_run_cancelled_error(self, agent_executor, mock_agent_state):
         with (
             patch.object(agent_executor, "_execute_run_loop") as mock_execute,
-            patch.object(
-                agent_executor, "_handle_interruption"
-            ) as mock_handle_interrupt,
+            patch.object(agent_executor, "_handle_interruption") as mock_handle_interrupt,
         ):
             mock_execute.side_effect = asyncio.CancelledError()
             mock_handle_interrupt.return_value = "Cancelled"
@@ -146,39 +141,29 @@ class TestAgentExecutor:
         with patch.object(agent_executor, "_execute_run_loop") as mock_execute:
             mock_execute.return_value = "Success"
 
-            result = await agent_executor.run(
-                max_steps=50, check_cancel=check_cancel, tools=tools
-            )
+            result = await agent_executor.run(max_steps=50, check_cancel=check_cancel, tools=tools)
 
             mock_execute.assert_called_once_with(50, check_cancel, tools)
             assert result == "Success"
 
     @pytest.mark.asyncio
-    async def test_execute_run_loop_check_cancel_true(
-        self, agent_executor, mock_agent_state
-    ):
+    async def test_execute_run_loop_check_cancel_true(self, agent_executor, mock_agent_state):
         check_cancel = Mock(return_value=True)
 
-        result = await agent_executor._execute_run_loop(
-            max_steps=10, check_cancel=check_cancel, tools=None
-        )
+        result = await agent_executor._execute_run_loop(max_steps=10, check_cancel=check_cancel, tools=None)
 
         assert result == INTERRUPTED_MSG
         check_cancel.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_execute_run_loop_no_cancel_check(
-        self, agent_executor, mock_agent_state
-    ):
+    async def test_execute_run_loop_no_cancel_check(self, agent_executor, mock_agent_state):
         agent_executor.agent_state.session.messages = []
 
         with patch.object(agent_executor, "_auto_compact_conversation") as mock_compact:
             mock_compact.return_value = None
 
             try:
-                result = await agent_executor._execute_run_loop(
-                    max_steps=1, check_cancel=None, tools=None
-                )
+                result = await agent_executor._execute_run_loop(max_steps=1, check_cancel=None, tools=None)
                 assert result is not None
             except Exception:
                 pass
@@ -228,7 +213,5 @@ class TestAgentExecutor:
             executor = AgentExecutor(mock_agent_state)
 
             assert executor.agent_state == mock_agent_state
-            mock_tool_handler_class.assert_called_once_with(
-                mock_agent_state, show_live=mock_agent_state.print_switch
-            )
+            mock_tool_handler_class.assert_called_once_with(mock_agent_state, show_live=mock_agent_state.print_switch)
             assert executor.tool_handler == mock_tool_handler

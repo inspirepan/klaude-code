@@ -1,6 +1,7 @@
 from unittest.mock import Mock, patch
 
 from klaudecode.utils.bash_utils.command_execution import BashCommandExecutor
+
 from tests.base import BaseToolTest
 
 
@@ -11,12 +12,8 @@ class TestBashCommandExecutor(BaseToolTest):
         assert BashCommandExecutor.MAX_TIMEOUT == 600000  # 10 minutes
 
     @patch("klaudecode.utils.bash_utils.command_execution.subprocess.Popen")
-    @patch(
-        "klaudecode.utils.bash_utils.command_execution.BashEnvironment.preprocess_command"
-    )
-    @patch(
-        "klaudecode.utils.bash_utils.command_execution.BashEnvironment.get_non_interactive_env"
-    )
+    @patch("klaudecode.utils.bash_utils.command_execution.BashEnvironment.preprocess_command")
+    @patch("klaudecode.utils.bash_utils.command_execution.BashEnvironment.get_non_interactive_env")
     def test_successful_command_execution(self, mock_env, mock_preprocess, mock_popen):
         """Test successful command execution"""
         # Setup mocks
@@ -54,9 +51,7 @@ class TestBashCommandExecutor(BaseToolTest):
             mock_popen.assert_called_once()
 
     @patch("klaudecode.utils.bash_utils.command_execution.subprocess.Popen")
-    @patch(
-        "klaudecode.utils.bash_utils.command_execution.BashEnvironment.preprocess_command"
-    )
+    @patch("klaudecode.utils.bash_utils.command_execution.BashEnvironment.preprocess_command")
     def test_command_timeout(self, mock_preprocess, mock_popen):
         """Test command timeout handling"""
         mock_preprocess.return_value = "sleep 10"
@@ -69,9 +64,7 @@ class TestBashCommandExecutor(BaseToolTest):
         mock_process.stdout.fileno.return_value = 1
         mock_popen.return_value = mock_process
 
-        with patch(
-            "klaudecode.utils.bash_utils.command_execution.time.time"
-        ) as mock_time:
+        with patch("klaudecode.utils.bash_utils.command_execution.time.time") as mock_time:
             # Simulate time progression to trigger timeout
             mock_time.side_effect = [0, 5, 10, 35]  # Start, check1, check2, timeout
 
@@ -109,17 +102,13 @@ class TestBashCommandExecutor(BaseToolTest):
         mock_process.stdout.fileno.return_value = 1
         mock_popen.return_value = mock_process
 
-        with patch(
-            "klaudecode.utils.bash_utils.command_execution.BashProcessManager.kill_process_tree"
-        ) as mock_kill:
+        with patch("klaudecode.utils.bash_utils.command_execution.BashProcessManager.kill_process_tree") as mock_kill:
             with patch(
                 "klaudecode.utils.bash_utils.command_execution.BashOutputProcessor.read_process_output"
             ) as mock_read:
                 mock_read.return_value = (0, False, "")
 
-                check_canceled = Mock(
-                    side_effect=[False, False, True]
-                )  # Cancel on third check
+                check_canceled = Mock(side_effect=[False, False, True])  # Cancel on third check
                 update_content = Mock()
 
                 result = BashCommandExecutor.execute_bash_command(
@@ -207,9 +196,7 @@ class TestBashCommandExecutor(BaseToolTest):
             assert result == "Output processing error"
 
     @patch("klaudecode.utils.bash_utils.command_execution.subprocess.Popen")
-    @patch(
-        "klaudecode.utils.bash_utils.command_execution.BashEnvironment.get_non_interactive_env"
-    )
+    @patch("klaudecode.utils.bash_utils.command_execution.BashEnvironment.get_non_interactive_env")
     def test_environment_setup(self, mock_env, mock_popen):
         """Test that environment is set up correctly"""
         mock_env.return_value = {"NONINTERACTIVE": "1", "CI": "true"}
@@ -273,9 +260,7 @@ class TestBashCommandExecutor(BaseToolTest):
 
     def test_update_content_callback(self):
         """Test that update_content callback is called correctly"""
-        with patch(
-            "klaudecode.utils.bash_utils.command_execution.subprocess.Popen"
-        ) as mock_popen:
+        with patch("klaudecode.utils.bash_utils.command_execution.subprocess.Popen") as mock_popen:
             mock_process = Mock()
             mock_process.poll.side_effect = [None, 0, 0]
             mock_process.stdout.read.return_value = "test output"

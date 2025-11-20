@@ -3,15 +3,14 @@ import subprocess
 from unittest.mock import call, patch
 
 from klaudecode.utils.bash_utils.process_management import BashProcessManager
+
 from tests.base import BaseToolTest
 
 
 class TestBashProcessManager(BaseToolTest):
     @patch("klaudecode.utils.bash_utils.process_management.os.killpg")
     @patch("klaudecode.utils.bash_utils.process_management.os.getpgid")
-    def test_kill_process_tree_with_process_group_success(
-        self, mock_getpgid, mock_killpg
-    ):
+    def test_kill_process_tree_with_process_group_success(self, mock_getpgid, mock_killpg):
         """Test successful process group kill"""
         mock_getpgid.return_value = 12345
 
@@ -27,21 +26,15 @@ class TestBashProcessManager(BaseToolTest):
         """Test fallback when process group kill fails"""
         mock_getpgid.side_effect = ProcessLookupError()
 
-        with patch(
-            "klaudecode.utils.bash_utils.process_management.subprocess.check_output"
-        ) as mock_subprocess:
+        with patch("klaudecode.utils.bash_utils.process_management.subprocess.check_output") as mock_subprocess:
             # Return empty to avoid infinite recursion in test
             mock_subprocess.return_value = b""
 
-            with patch(
-                "klaudecode.utils.bash_utils.process_management.os.kill"
-            ) as mock_kill:
+            with patch("klaudecode.utils.bash_utils.process_management.os.kill") as mock_kill:
                 BashProcessManager.kill_process_tree(12345)
 
                 # Should call pgrep to find children
-                mock_subprocess.assert_called_once_with(
-                    ["pgrep", "-P", "12345"], stderr=subprocess.DEVNULL, timeout=2
-                )
+                mock_subprocess.assert_called_once_with(["pgrep", "-P", "12345"], stderr=subprocess.DEVNULL, timeout=2)
 
                 # Should kill main process
                 expected_calls = [
@@ -57,14 +50,10 @@ class TestBashProcessManager(BaseToolTest):
         """Test handling when no children are found"""
         mock_getpgid.side_effect = ProcessLookupError()
 
-        with patch(
-            "klaudecode.utils.bash_utils.process_management.subprocess.check_output"
-        ) as mock_subprocess:
+        with patch("klaudecode.utils.bash_utils.process_management.subprocess.check_output") as mock_subprocess:
             mock_subprocess.side_effect = subprocess.CalledProcessError(1, "pgrep")
 
-            with patch(
-                "klaudecode.utils.bash_utils.process_management.os.kill"
-            ) as mock_kill:
+            with patch("klaudecode.utils.bash_utils.process_management.os.kill") as mock_kill:
                 BashProcessManager.kill_process_tree(12345)
 
                 # Should still try to kill main process
@@ -76,14 +65,10 @@ class TestBashProcessManager(BaseToolTest):
         """Test handling when pgrep times out"""
         mock_getpgid.side_effect = ProcessLookupError()
 
-        with patch(
-            "klaudecode.utils.bash_utils.process_management.subprocess.check_output"
-        ) as mock_subprocess:
+        with patch("klaudecode.utils.bash_utils.process_management.subprocess.check_output") as mock_subprocess:
             mock_subprocess.side_effect = subprocess.TimeoutExpired("pgrep", 2)
 
-            with patch(
-                "klaudecode.utils.bash_utils.process_management.os.kill"
-            ) as mock_kill:
+            with patch("klaudecode.utils.bash_utils.process_management.os.kill") as mock_kill:
                 BashProcessManager.kill_process_tree(12345)
 
                 # Should still try to kill main process despite pgrep timeout
@@ -95,9 +80,7 @@ class TestBashProcessManager(BaseToolTest):
         """Test recursive killing of child processes"""
         mock_getpgid.side_effect = ProcessLookupError()
 
-        with patch(
-            "klaudecode.utils.bash_utils.process_management.subprocess.check_output"
-        ) as mock_subprocess:
+        with patch("klaudecode.utils.bash_utils.process_management.subprocess.check_output") as mock_subprocess:
             # Mock to return children only for the first call (parent), empty for recursive calls
             call_count = 0
 
@@ -111,9 +94,7 @@ class TestBashProcessManager(BaseToolTest):
 
             mock_subprocess.side_effect = mock_pgrep
 
-            with patch(
-                "klaudecode.utils.bash_utils.process_management.os.kill"
-            ) as mock_kill:
+            with patch("klaudecode.utils.bash_utils.process_management.os.kill") as mock_kill:
                 BashProcessManager.kill_process_tree(12345)
 
                 # Should have made calls for parent and children
@@ -133,14 +114,10 @@ class TestBashProcessManager(BaseToolTest):
         """Test handling when process is already dead"""
         mock_getpgid.side_effect = ProcessLookupError()
 
-        with patch(
-            "klaudecode.utils.bash_utils.process_management.subprocess.check_output"
-        ) as mock_subprocess:
+        with patch("klaudecode.utils.bash_utils.process_management.subprocess.check_output") as mock_subprocess:
             mock_subprocess.side_effect = subprocess.CalledProcessError(1, "pgrep")
 
-            with patch(
-                "klaudecode.utils.bash_utils.process_management.os.kill"
-            ) as mock_kill:
+            with patch("klaudecode.utils.bash_utils.process_management.os.kill") as mock_kill:
                 mock_kill.side_effect = ProcessLookupError()
 
                 # Should not raise exception even if process is already dead
@@ -154,14 +131,10 @@ class TestBashProcessManager(BaseToolTest):
         """Test process existence check after SIGTERM"""
         mock_getpgid.side_effect = ProcessLookupError()
 
-        with patch(
-            "klaudecode.utils.bash_utils.process_management.subprocess.check_output"
-        ) as mock_subprocess:
+        with patch("klaudecode.utils.bash_utils.process_management.subprocess.check_output") as mock_subprocess:
             mock_subprocess.side_effect = subprocess.CalledProcessError(1, "pgrep")
 
-            with patch(
-                "klaudecode.utils.bash_utils.process_management.os.kill"
-            ) as mock_kill:
+            with patch("klaudecode.utils.bash_utils.process_management.os.kill") as mock_kill:
                 # First call (SIGTERM) succeeds, second call (check) succeeds, third call (SIGKILL) succeeds
                 mock_kill.side_effect = [None, None, None]
 
@@ -170,28 +143,20 @@ class TestBashProcessManager(BaseToolTest):
                 expected_calls = [
                     call(12345, signal.SIGTERM),
                     call(12345, 0),  # Check if process exists
-                    call(
-                        12345, signal.SIGKILL
-                    ),  # Force kill since process still exists
+                    call(12345, signal.SIGKILL),  # Force kill since process still exists
                 ]
                 mock_kill.assert_has_calls(expected_calls)
 
     @patch("klaudecode.utils.bash_utils.process_management.os.killpg")
     @patch("klaudecode.utils.bash_utils.process_management.os.getpgid")
-    def test_kill_process_tree_process_dies_after_sigterm(
-        self, mock_getpgid, mock_killpg
-    ):
+    def test_kill_process_tree_process_dies_after_sigterm(self, mock_getpgid, mock_killpg):
         """Test when process dies after SIGTERM and doesn't need SIGKILL"""
         mock_getpgid.side_effect = ProcessLookupError()
 
-        with patch(
-            "klaudecode.utils.bash_utils.process_management.subprocess.check_output"
-        ) as mock_subprocess:
+        with patch("klaudecode.utils.bash_utils.process_management.subprocess.check_output") as mock_subprocess:
             mock_subprocess.side_effect = subprocess.CalledProcessError(1, "pgrep")
 
-            with patch(
-                "klaudecode.utils.bash_utils.process_management.os.kill"
-            ) as mock_kill:
+            with patch("klaudecode.utils.bash_utils.process_management.os.kill") as mock_kill:
                 # SIGTERM succeeds, check fails (process died), SIGKILL not called
                 mock_kill.side_effect = [None, ProcessLookupError()]
 
@@ -199,9 +164,7 @@ class TestBashProcessManager(BaseToolTest):
 
                 expected_calls = [
                     call(12345, signal.SIGTERM),
-                    call(
-                        12345, 0
-                    ),  # Check if process exists, raises ProcessLookupError
+                    call(12345, 0),  # Check if process exists, raises ProcessLookupError
                 ]
                 mock_kill.assert_has_calls(expected_calls)
                 assert mock_kill.call_count == 2  # Should not call SIGKILL
@@ -213,14 +176,10 @@ class TestBashProcessManager(BaseToolTest):
         # Simulate all methods failing and falling back to last resort
         mock_getpgid.side_effect = Exception("Unexpected error")
 
-        with patch(
-            "klaudecode.utils.bash_utils.process_management.subprocess.check_output"
-        ) as mock_subprocess:
+        with patch("klaudecode.utils.bash_utils.process_management.subprocess.check_output") as mock_subprocess:
             mock_subprocess.side_effect = Exception("pgrep failed")
 
-            with patch(
-                "klaudecode.utils.bash_utils.process_management.os.kill"
-            ) as mock_kill:
+            with patch("klaudecode.utils.bash_utils.process_management.os.kill") as mock_kill:
                 # When getpgid fails, it jumps straight to last resort which should succeed
                 mock_kill.return_value = None  # Last resort succeeds
 
@@ -238,9 +197,7 @@ class TestBashProcessManager(BaseToolTest):
         """Test that proper delays are used between kill attempts"""
         mock_getpgid.side_effect = ProcessLookupError()
 
-        with patch(
-            "klaudecode.utils.bash_utils.process_management.subprocess.check_output"
-        ) as mock_subprocess:
+        with patch("klaudecode.utils.bash_utils.process_management.subprocess.check_output") as mock_subprocess:
             mock_subprocess.side_effect = subprocess.CalledProcessError(1, "pgrep")
 
             with patch("klaudecode.utils.bash_utils.process_management.os.kill"):
@@ -251,19 +208,13 @@ class TestBashProcessManager(BaseToolTest):
 
     def test_kill_process_tree_empty_children_list(self):
         """Test handling of empty children list from pgrep"""
-        with patch(
-            "klaudecode.utils.bash_utils.process_management.os.killpg"
-        ) as mock_killpg:
+        with patch("klaudecode.utils.bash_utils.process_management.os.killpg") as mock_killpg:
             mock_killpg.side_effect = ProcessLookupError()
 
-            with patch(
-                "klaudecode.utils.bash_utils.process_management.subprocess.check_output"
-            ) as mock_subprocess:
+            with patch("klaudecode.utils.bash_utils.process_management.subprocess.check_output") as mock_subprocess:
                 mock_subprocess.return_value = b""  # Empty output
 
-                with patch(
-                    "klaudecode.utils.bash_utils.process_management.os.kill"
-                ) as mock_kill:
+                with patch("klaudecode.utils.bash_utils.process_management.os.kill") as mock_kill:
                     BashProcessManager.kill_process_tree(12345)
 
                     # Should still attempt to kill the main process
@@ -271,19 +222,13 @@ class TestBashProcessManager(BaseToolTest):
 
     def test_kill_process_tree_invalid_child_pids(self):
         """Test handling of invalid child PIDs from pgrep"""
-        with patch(
-            "klaudecode.utils.bash_utils.process_management.os.killpg"
-        ) as mock_killpg:
+        with patch("klaudecode.utils.bash_utils.process_management.os.killpg") as mock_killpg:
             mock_killpg.side_effect = ProcessLookupError()
 
-            with patch(
-                "klaudecode.utils.bash_utils.process_management.subprocess.check_output"
-            ) as mock_subprocess:
+            with patch("klaudecode.utils.bash_utils.process_management.subprocess.check_output") as mock_subprocess:
                 mock_subprocess.return_value = b"not_a_number\n\ninvalid\n"
 
-                with patch(
-                    "klaudecode.utils.bash_utils.process_management.os.kill"
-                ) as mock_kill:
+                with patch("klaudecode.utils.bash_utils.process_management.os.kill") as mock_kill:
                     # Should not raise exception even with invalid PIDs
                     BashProcessManager.kill_process_tree(12345)
 

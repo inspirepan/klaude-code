@@ -1,4 +1,5 @@
 from klaudecode.tools.write import WriteTool
+
 from tests.base import BaseToolTest
 
 
@@ -10,9 +11,7 @@ class TestWriteTool(BaseToolTest):
         file_path = self.temp_path / "new_file.txt"
         content = "Hello, World!\nThis is a test file."
 
-        result = self.invoke_tool(
-            WriteTool, {"file_path": str(file_path), "content": content}
-        )
+        result = self.invoke_tool(WriteTool, {"file_path": str(file_path), "content": content})
 
         assert result.tool_call.status == "success"
         assert file_path.exists()
@@ -28,9 +27,7 @@ class TestWriteTool(BaseToolTest):
 
         # Overwrite with new content
         new_content = "New content"
-        result = self.invoke_tool(
-            WriteTool, {"file_path": str(file_path), "content": new_content}
-        )
+        result = self.invoke_tool(WriteTool, {"file_path": str(file_path), "content": new_content})
 
         assert result.tool_call.status == "success"
         assert file_path.read_text() == new_content
@@ -40,9 +37,7 @@ class TestWriteTool(BaseToolTest):
         # Create a file but don't read it
         file_path = self.create_test_file("unread.txt", "Original content")
 
-        result = self.invoke_tool(
-            WriteTool, {"file_path": str(file_path), "content": "New content"}
-        )
+        result = self.invoke_tool(WriteTool, {"file_path": str(file_path), "content": "New content"})
 
         # Should fail because file wasn't read first
         assert result.tool_call.status == "error"
@@ -53,9 +48,7 @@ class TestWriteTool(BaseToolTest):
         file_path = self.temp_path / "subdir" / "nested" / "file.txt"
         content = "Nested file content"
 
-        result = self.invoke_tool(
-            WriteTool, {"file_path": str(file_path), "content": content}
-        )
+        result = self.invoke_tool(WriteTool, {"file_path": str(file_path), "content": content})
 
         assert result.tool_call.status == "success"
         assert file_path.exists()
@@ -65,9 +58,7 @@ class TestWriteTool(BaseToolTest):
         """Test writing an empty file."""
         file_path = self.temp_path / "empty.txt"
 
-        result = self.invoke_tool(
-            WriteTool, {"file_path": str(file_path), "content": ""}
-        )
+        result = self.invoke_tool(WriteTool, {"file_path": str(file_path), "content": ""})
 
         assert result.tool_call.status == "success"
         assert file_path.exists()
@@ -78,33 +69,25 @@ class TestWriteTool(BaseToolTest):
         file_path = self.temp_path / "unicode.txt"
         content = "Hello World! 🌍\nSpasibo"
 
-        result = self.invoke_tool(
-            WriteTool, {"file_path": str(file_path), "content": content}
-        )
+        result = self.invoke_tool(WriteTool, {"file_path": str(file_path), "content": content})
 
         assert result.tool_call.status == "success"
         assert file_path.read_text(encoding="utf-8") == content
 
     def test_write_to_directory(self):
         """Test writing to a directory path (should fail)."""
-        result = self.invoke_tool(
-            WriteTool, {"file_path": str(self.temp_path), "content": "Some content"}
-        )
+        result = self.invoke_tool(WriteTool, {"file_path": str(self.temp_path), "content": "Some content"})
 
         assert result.tool_call.status == "error"
         # The error might be about not being read or EISDIR
-        assert ("EISDIR" in result.error_msg) or (
-            "has not been read" in result.error_msg
-        )
+        assert ("EISDIR" in result.error_msg) or ("has not been read" in result.error_msg)
 
     def test_file_tracker_integration(self):
         """Test that file tracker is updated after writing."""
         file_path = self.temp_path / "tracked.txt"
         content = "Tracked content"
 
-        result = self.invoke_tool(
-            WriteTool, {"file_path": str(file_path), "content": content}
-        )
+        result = self.invoke_tool(WriteTool, {"file_path": str(file_path), "content": content})
 
         assert result.tool_call.status == "success"
         # File should be tracked after writing
@@ -116,9 +99,7 @@ class TestWriteTool(BaseToolTest):
 
         # Test with Unix line endings
         content_unix = "Line 1\nLine 2\nLine 3"
-        result = self.invoke_tool(
-            WriteTool, {"file_path": str(file_path), "content": content_unix}
-        )
+        result = self.invoke_tool(WriteTool, {"file_path": str(file_path), "content": content_unix})
 
         assert result.tool_call.status == "success"
         assert file_path.read_bytes() == content_unix.encode("utf-8")
@@ -129,9 +110,7 @@ class TestWriteTool(BaseToolTest):
         # Create 1MB of content
         content = "x" * (1024 * 1024)
 
-        result = self.invoke_tool(
-            WriteTool, {"file_path": str(file_path), "content": content}
-        )
+        result = self.invoke_tool(WriteTool, {"file_path": str(file_path), "content": content})
 
         assert result.tool_call.status == "success"
         assert file_path.stat().st_size == len(content)

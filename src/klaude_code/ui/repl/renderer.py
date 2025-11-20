@@ -12,7 +12,7 @@ from rich.status import Status
 from rich.style import Style, StyleType
 from rich.text import Text
 
-from klaude_code.protocol import events, tools
+from klaude_code.protocol import events, model, tools
 from klaude_code.ui.base.theme import ThemeKey, get_theme
 from klaude_code.ui.renderers import developer as r_developer
 from klaude_code.ui.renderers import diffs as r_diffs
@@ -28,9 +28,8 @@ from klaude_code.ui.rich_ext.quote import Quote
 
 @dataclass
 class SessionStatus:
-    is_subagent: bool = False
     color: Style | None = None
-    sub_agent_type: tools.SubAgentType | None = None
+    sub_agent_state: model.SubAgentState | None = None
 
 
 class REPLRenderer:
@@ -47,14 +46,14 @@ class REPLRenderer:
         )
 
         self.session_map: dict[str, SessionStatus] = {}
-        self.current_session_status: SessionStatus | None = None
+        self.current_sub_agent_color: Style | None = None
         self.subagent_color_index = 0
 
     def register_session(self, session_id: str, status: SessionStatus) -> None:
         self.session_map[session_id] = status
 
     def is_sub_agent_session(self, session_id: str) -> bool:
-        return session_id in self.session_map and self.session_map[session_id].is_subagent
+        return session_id in self.session_map and self.session_map[session_id].sub_agent_state is not None
 
     def _advance_sub_agent_color_index(self) -> None:
         palette_size = len(self.themes.sub_agent_colors)
@@ -65,13 +64,16 @@ class REPLRenderer:
 
     def pick_sub_agent_color(self) -> Style:
         self._advance_sub_agent_color_index()
-        return self.get_sub_agent_color()
-
-    def get_sub_agent_color(self) -> Style:
         palette = self.themes.sub_agent_colors
         if not palette:
             return Style()
         return palette[self.subagent_color_index]
+
+    def get_sub_agent_color(self, session_id: str) -> Style:
+        status = self.session_map.get(session_id)
+        if status and status.color:
+            return status.color
+        return Style()
 
     def box_style(self) -> Box:
         return box.ROUNDED
@@ -79,33 +81,19 @@ class REPLRenderer:
     @contextmanager
     def session_print_context(self, session_id: str) -> Iterator[None]:
         """Temporarily switch to sub-agent quote style."""
-
-        previous_status = self.current_session_status
-        if session_id in self.session_map:
-            self.current_session_status = self.session_map[session_id]
+        if session_id in self.session_map and self.session_map[session_id].color:
+            self.current_sub_agent_color = self.session_map[session_id].color
         try:
             yield
         finally:
-            self.current_session_status = previous_status
+            self.current_sub_agent_color = None
 
     def print(self, *objects: Any, style: StyleType | None = None, end: str = "\n") -> None:
-        if (
-            self.current_session_status
-            and self.current_session_status.is_subagent
-            and self.current_session_status.color
-        ):
+        if self.current_sub_agent_color:
             if objects:
-                self.console.print(Quote(*objects, style=self.current_session_status.color))
-            else:
-                self.console.print(Quote("", style=self.current_session_status.color))
+                self.console.print(Quote(*objects, style=self.current_sub_agent_color))
             return
         self.console.print(*objects, style=style, end=end)
-
-    def _session_color(self, session_id: str) -> Style:
-        session_status = self.session_map.get(session_id)
-        if session_status and session_status.color:
-            return session_status.color
-        return self.get_sub_agent_color()
 
     def display_tool_call(self, e: events.ToolCallEvent) -> None:
         match e.tool_name:
@@ -126,8 +114,7 @@ class REPLRenderer:
             case tools.SKILL:
                 self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments, "◈"))
             case _ if r_tools.is_sub_agent_tool(e.tool_name):
-                style = self.pick_sub_agent_color()  # advance sub agent color index here
-                self.print(r_tools.render_task_call(e, style.color))
+                pass  # handled in TaskStartEvent
             case _:
                 self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments))
 
@@ -144,13 +131,7 @@ class REPLRenderer:
             case tools.TODO_WRITE | tools.UPDATE_PLAN:
                 self.print(r_tools.render_todo(e))
             case _ if r_tools.is_sub_agent_tool(e.tool_name):
-                self.print(
-                    r_tools.render_task_result(
-                        e,
-                        quote_style=self._session_color(e.session_id),
-                        code_theme=self.themes.code_theme,
-                    )
-                )
+                pass  # handled in TaskFinishEvent
             case _:
                 if e.tool_name in (tools.BASH, tools.APPLY_PATCH) and e.result.startswith("diff --git"):
                     self.print(r_diffs.render_diff_panel(e.result, show_file_name=True))

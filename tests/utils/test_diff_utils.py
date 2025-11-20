@@ -1,11 +1,7 @@
+from klaudecode.tui.diff import DiffRenderer
+from klaudecode.utils.file_utils.diff_utils import generate_diff_lines, generate_snippet_from_diff
 from rich.console import Group
 from rich.text import Text
-
-from klaudecode.tui.diff import DiffRenderer
-from klaudecode.utils.file_utils.diff_utils import (
-    generate_diff_lines,
-    generate_snippet_from_diff,
-)
 
 
 class TestGenerateDiffLines:
@@ -181,9 +177,7 @@ class TestRenderDiffLines:
             " line3\n",
         ]
         diff_renderer = DiffRenderer()
-        result = diff_renderer.render_diff_lines(
-            diff_lines, file_path="/test/file.txt", show_summary=True
-        )
+        result = diff_renderer.render_diff_lines(diff_lines, file_path="/test/file.txt", show_summary=True)
         assert isinstance(result, Group)
 
     def test_no_newline_rendering(self):
@@ -217,9 +211,7 @@ class TestRenderDiffLines:
             " line4\n",
         ]
         diff_renderer = DiffRenderer()
-        result = diff_renderer.render_diff_lines(
-            diff_lines, file_path="/test/file.txt", show_summary=True
-        )
+        result = diff_renderer.render_diff_lines(diff_lines, file_path="/test/file.txt", show_summary=True)
         assert isinstance(result, Group)
 
         # The summary should be calculated correctly (3 additions, 2 removals)
@@ -248,9 +240,7 @@ class TestIntegration:
 
         # Render diff
         diff_renderer = DiffRenderer()
-        rendered = diff_renderer.render_diff_lines(
-            diff_lines, file_path="/test/file.txt", show_summary=True
-        )
+        rendered = diff_renderer.render_diff_lines(diff_lines, file_path="/test/file.txt", show_summary=True)
         assert isinstance(rendered, Group)
 
     def test_full_workflow_normal_case(self):
@@ -274,7 +264,5 @@ class TestIntegration:
 
         # Render diff
         diff_renderer = DiffRenderer()
-        rendered = diff_renderer.render_diff_lines(
-            diff_lines, file_path="/test/file.txt", show_summary=True
-        )
+        rendered = diff_renderer.render_diff_lines(diff_lines, file_path="/test/file.txt", show_summary=True)
         assert isinstance(rendered, Group)

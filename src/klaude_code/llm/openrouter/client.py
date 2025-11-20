@@ -9,17 +9,21 @@ import openai
 from pydantic import BaseModel
 
 from klaude_code.llm.client import LLMClientABC
-from klaude_code.llm.openai_compatible.tool_call_accumulator import (
-    BasicToolCallAccumulator, ToolCallAccumulatorABC)
+from klaude_code.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
 from klaude_code.llm.openrouter.input import (
-    convert_history_to_input, convert_tool_schema, is_claude_model,
-    is_complete_chunk_reasoning_model)
+    convert_history_to_input,
+    convert_tool_schema,
+    is_claude_model,
+    is_complete_chunk_reasoning_model,
+)
 from klaude_code.llm.registry import register
 from klaude_code.protocol import model
-from klaude_code.protocol.llm_parameter import (LLMCallParameter,
-                                                LLMClientProtocol,
-                                                LLMConfigParameter,
-                                                apply_config_defaults)
+from klaude_code.protocol.llm_parameter import (
+    LLMCallParameter,
+    LLMClientProtocol,
+    LLMConfigParameter,
+    apply_config_defaults,
+)
 from klaude_code.protocol.model import StreamErrorItem
 from klaude_code.trace import log, log_debug
 

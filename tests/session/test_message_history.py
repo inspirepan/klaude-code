@@ -1,11 +1,6 @@
 import pytest
-
 from klaudecode.message import AIMessage, SystemMessage, UserMessage
-from klaudecode.session.message_history import (
-    MessageHistory,
-    MessageStorageState,
-    MessageStorageStatus,
-)
+from klaudecode.session.message_history import MessageHistory, MessageStorageState, MessageStorageStatus
 
 
 class TestMessageStorageState:
@@ -276,9 +271,7 @@ class TestMessageHistory:
         msg3 = UserMessage(content="User3")
         history.append_message(msg1, msg2, msg3)
 
-        non_empty_user_messages = history.get_role_messages(
-            role="user", filter_empty=True
-        )
+        non_empty_user_messages = history.get_role_messages(role="user", filter_empty=True)
 
         assert len(non_empty_user_messages) == 2
         assert non_empty_user_messages[0] == msg1

@@ -8,6 +8,13 @@ from klaude_code.protocol import tools
 AvailabilityPredicate = Callable[[str], bool]
 
 
+@dataclass
+class SubAgentResult:
+    task_result: str
+    session_id: str
+    error: bool = False
+
+
 @dataclass(frozen=True)
 class SubAgentProfile:
     """Metadata describing a sub agent and how it integrates with the system."""

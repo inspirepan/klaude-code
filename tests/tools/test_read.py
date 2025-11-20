@@ -1,4 +1,5 @@
 from klaudecode.tools.read import ReadTool
+
 from tests.base import BaseToolTest
 
 
@@ -22,9 +23,7 @@ class TestReadTool(BaseToolTest):
 
     def test_read_non_existent_file(self):
         """Test reading a non-existent file."""
-        result = self.invoke_tool(
-            ReadTool, {"file_path": str(self.temp_path / "non_existent.txt")}
-        )
+        result = self.invoke_tool(ReadTool, {"file_path": str(self.temp_path / "non_existent.txt")})
 
         # Should fail with error
         assert result.tool_call.status == "error"

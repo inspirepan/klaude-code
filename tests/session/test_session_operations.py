@@ -3,13 +3,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-
-from klaudecode.message import (
-    AIMessage,
-    SpecialUserMessageTypeEnum,
-    SystemMessage,
-    UserMessage,
-)
+from klaudecode.message import AIMessage, SpecialUserMessageTypeEnum, SystemMessage, UserMessage
 from klaudecode.session import Session
 from klaudecode.session.message_history import MessageHistory
 from klaudecode.session.session_operations import SessionOperations
@@ -30,9 +24,7 @@ class TestSessionOperations:
         original_session_id = session.session_id
         original_created_at = session.created_at
 
-        with patch(
-            "klaudecode.session.session_storage.SessionStorage.save"
-        ) as mock_save:
+        with patch("klaudecode.session.session_storage.SessionStorage.save") as mock_save:
             SessionOperations.clear_conversation_history(session)
 
             # Verify old session was saved
@@ -102,9 +94,7 @@ class TestSessionOperations:
         session.append_message(UserMessage(content="Test"))
 
         with pytest.raises(RuntimeError, match="LLM manager not initialized"):
-            await SessionOperations.compact_conversation_history(
-                session, llm_manager=None
-            )
+            await SessionOperations.compact_conversation_history(session, llm_manager=None)
 
     @pytest.mark.asyncio
     async def test_compact_conversation_history_keyboard_interrupt(self):
@@ -116,9 +106,7 @@ class TestSessionOperations:
         llm_manager.call = AsyncMock(side_effect=KeyboardInterrupt())
 
         # Should not raise exception
-        await SessionOperations.compact_conversation_history(
-            session, llm_manager=llm_manager
-        )
+        await SessionOperations.compact_conversation_history(session, llm_manager=llm_manager)
 
     @pytest.mark.asyncio
     async def test_compact_conversation_history_cancelled_error(self):
@@ -130,9 +118,7 @@ class TestSessionOperations:
         llm_manager.call = AsyncMock(side_effect=asyncio.CancelledError())
 
         # Should not raise exception
-        await SessionOperations.compact_conversation_history(
-            session, llm_manager=llm_manager
-        )
+        await SessionOperations.compact_conversation_history(session, llm_manager=llm_manager)
 
     @pytest.mark.asyncio
     async def test_compact_conversation_history_with_additional_instructions(self):
@@ -190,9 +176,7 @@ class TestSessionOperations:
 
         llm_manager.call = AsyncMock(return_value=mock_ai_response)
 
-        result = await SessionOperations.analyze_conversation_for_command(
-            session, llm_manager
-        )
+        result = await SessionOperations.analyze_conversation_for_command(session, llm_manager)
 
         # Verify result
         assert result is not None
@@ -222,9 +206,7 @@ class TestSessionOperations:
         llm_manager.call = AsyncMock(return_value=mock_ai_response)
 
         with patch("klaudecode.session.session_operations.console.print") as mock_print:
-            result = await SessionOperations.analyze_conversation_for_command(
-                session, llm_manager
-            )
+            result = await SessionOperations.analyze_conversation_for_command(session, llm_manager)
 
             assert result is None
             mock_print.assert_called_once()
@@ -246,9 +228,7 @@ class TestSessionOperations:
         llm_manager.call = AsyncMock(return_value=mock_ai_response)
 
         with patch("klaudecode.session.session_operations.console.print") as mock_print:
-            result = await SessionOperations.analyze_conversation_for_command(
-                session, llm_manager
-            )
+            result = await SessionOperations.analyze_conversation_for_command(session, llm_manager)
 
             assert result is None
             mock_print.assert_called_once()
@@ -260,9 +240,7 @@ class TestSessionOperations:
         session.append_message(UserMessage(content="Test"))
 
         with pytest.raises(RuntimeError, match="LLM manager not initialized"):
-            await SessionOperations.analyze_conversation_for_command(
-                session, llm_manager=None
-            )
+            await SessionOperations.analyze_conversation_for_command(session, llm_manager=None)
 
     @pytest.mark.asyncio
     async def test_analyze_conversation_for_command_keyboard_interrupt(self):
@@ -273,9 +251,7 @@ class TestSessionOperations:
         llm_manager = Mock()
         llm_manager.call = AsyncMock(side_effect=KeyboardInterrupt())
 
-        result = await SessionOperations.analyze_conversation_for_command(
-            session, llm_manager
-        )
+        result = await SessionOperations.analyze_conversation_for_command(session, llm_manager)
 
         assert result is None
 
@@ -288,9 +264,7 @@ class TestSessionOperations:
         llm_manager = Mock()
         llm_manager.call = AsyncMock(side_effect=asyncio.CancelledError())
 
-        result = await SessionOperations.analyze_conversation_for_command(
-            session, llm_manager
-        )
+        result = await SessionOperations.analyze_conversation_for_command(session, llm_manager)
 
         assert result is None
 
@@ -367,9 +341,7 @@ class TestSessionOperations:
         llm_manager.call = AsyncMock(return_value=mock_ai_response)
 
         with patch("klaudecode.session.session_operations.console.print") as mock_print:
-            await SessionOperations.compact_conversation_history(
-                session, llm_manager=llm_manager
-            )
+            await SessionOperations.compact_conversation_history(session, llm_manager=llm_manager)
 
             # Verify the compact result message was created correctly
             print_calls = [call for call in mock_print.call_args_list]
@@ -378,7 +350,4 @@ class TestSessionOperations:
             # The printed message should be a UserMessage with COMPACT_RESULT type
             printed_msg = print_calls[0][0][0]
             assert isinstance(printed_msg, UserMessage)
-            assert (
-                printed_msg.user_msg_type
-                == SpecialUserMessageTypeEnum.COMPACT_RESULT.value
-            )
+            assert printed_msg.user_msg_type == SpecialUserMessageTypeEnum.COMPACT_RESULT.value

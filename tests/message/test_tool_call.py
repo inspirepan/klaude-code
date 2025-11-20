@@ -2,7 +2,6 @@ import json
 from unittest.mock import patch
 
 import pytest
-
 from klaudecode.message.tool_call import ToolCall
 
 
@@ -43,9 +42,7 @@ class TestToolCall:
 
     def test_initialization_with_tool_args_string(self):
         tool_args_str = '{"param": "value", "number": 123}'
-        tool_call = ToolCall(
-            id="call_123", tool_name="test_tool", tool_args=tool_args_str
-        )
+        tool_call = ToolCall(id="call_123", tool_name="test_tool", tool_args=tool_args_str)
 
         assert tool_call.tool_args_dict == {"param": "value", "number": 123}
         assert tool_call.tool_args == tool_args_str
@@ -78,9 +75,7 @@ class TestToolCall:
             10,
         ]  # First call for tool_name, second for tool_args
 
-        tool_call = ToolCall(
-            id="call_123", tool_name="test_tool", tool_args_dict={"param": "value"}
-        )
+        tool_call = ToolCall(id="call_123", tool_name="test_tool", tool_args_dict={"param": "value"})
 
         tokens = tool_call.tokens
 
@@ -90,9 +85,7 @@ class TestToolCall:
         mock_count_tokens.assert_any_call(tool_call.tool_args)
 
     def test_to_openai(self):
-        tool_call = ToolCall(
-            id="call_123", tool_name="test_tool", tool_args_dict={"param": "value"}
-        )
+        tool_call = ToolCall(id="call_123", tool_name="test_tool", tool_args_dict={"param": "value"})
 
         result = tool_call.to_openai()
 
@@ -167,9 +160,7 @@ class TestToolCall:
         mock_renderers.__getitem__.return_value = mock_renderer
         mock_renderers.__contains__.return_value = True
 
-        tool_call = ToolCall(
-            id="call_123", tool_name="test_tool", tool_args_dict={"param": "value"}
-        )
+        tool_call = ToolCall(id="call_123", tool_name="test_tool", tool_args_dict={"param": "value"})
 
         result = list(tool_call.__rich_console__(None, None))
 
@@ -178,9 +169,7 @@ class TestToolCall:
 
     @patch("klaudecode.message.registry._TOOL_CALL_RENDERERS", {})
     def test_get_suffix_renderable_no_custom_renderer(self):
-        tool_call = ToolCall(
-            id="call_123", tool_name="test_tool", tool_args_dict={"param": "value"}
-        )
+        tool_call = ToolCall(id="call_123", tool_name="test_tool", tool_args_dict={"param": "value"})
 
         result = list(tool_call.get_suffix_renderable())
 
@@ -195,9 +184,7 @@ class TestToolCall:
         mock_renderers.__getitem__.return_value = mock_renderer
         mock_renderers.__contains__.return_value = True
 
-        tool_call = ToolCall(
-            id="call_123", tool_name="test_tool", tool_args_dict={"param": "value"}
-        )
+        tool_call = ToolCall(id="call_123", tool_name="test_tool", tool_args_dict={"param": "value"})
 
         result = list(tool_call.get_suffix_renderable())
 

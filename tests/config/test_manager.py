@@ -117,9 +117,7 @@ class TestConfigManager:
                 mock_path = Path("/nonexistent/config.json")
                 mock_get_path.return_value = mock_path
 
-                manager = ConfigManager.setup(
-                    api_key="test_key", config_file=config_file_path
-                )
+                manager = ConfigManager.setup(api_key="test_key", config_file=config_file_path)
 
                 # Should have file config source instead of global
                 assert len(manager.sources) == 4  # Default, Env, File, Arg
@@ -193,9 +191,7 @@ class TestConfigManager:
 
                 # Priority: CLI > Env > File > Default
                 assert manager.get("api_key") == "env_key"  # From environment
-                assert (
-                    manager.get("model_name") == "cli_model"
-                )  # From CLI (highest priority)
+                assert manager.get("model_name") == "cli_model"  # From CLI (highest priority)
                 assert manager.get("max_tokens") == 4000  # From file
 
                 # Verify sources
@@ -227,6 +223,4 @@ class TestConfigManager:
 
         # Should raise ValueError when named config doesn't exist
         with pytest.raises(ValueError, match="Configuration file not found"):
-            ConfigManager.setup(
-                api_key="test_key", config_file="nonexistent_config_name"
-            )
+            ConfigManager.setup(api_key="test_key", config_file="nonexistent_config_name")

@@ -61,9 +61,7 @@ class TestEnvConfigSource:
         assert source.get("model_azure") is True
         assert source.get("enable_thinking") is False
 
-    @patch.dict(
-        os.environ, {"MAX_TOKENS": "2000", "CONTEXT_WINDOW_THRESHOLD": "150000"}
-    )
+    @patch.dict(os.environ, {"MAX_TOKENS": "2000", "CONTEXT_WINDOW_THRESHOLD": "150000"})
     def test_env_config_source_integer_values(self):
         """Test integer environment variables"""
         source = EnvConfigSource()
@@ -99,9 +97,7 @@ class TestEnvConfigSource:
         assert header_value == {"Authorization": "Bearer token"}
         assert body_value == {"custom": "value"}
 
-    @patch.dict(
-        os.environ, {"EXTRA_HEADER": "invalid json", "EXTRA_BODY": "{'not': 'valid'}"}
-    )
+    @patch.dict(os.environ, {"EXTRA_HEADER": "invalid json", "EXTRA_BODY": "{'not': 'valid'}"})
     def test_env_config_source_invalid_json_values(self):
         """Test invalid JSON environment variables"""
         source = EnvConfigSource()

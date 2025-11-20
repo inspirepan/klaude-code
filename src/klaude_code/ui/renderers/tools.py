@@ -1,18 +1,14 @@
 import json
 from pathlib import Path
 
-from rich.color import Color
-from rich.console import Group, RenderableType
+from rich.console import RenderableType
 from rich.padding import Padding
-from rich.style import Style
 from rich.text import Text
 
 from klaude_code.core.subagent import is_sub_agent_tool as _is_sub_agent_tool
 from klaude_code.protocol import events, model
 from klaude_code.ui.base.theme import ThemeKey
 from klaude_code.ui.renderers.common import create_grid, truncate_display
-from klaude_code.ui.rich_ext.markdown import NoInsetMarkdown
-from klaude_code.ui.rich_ext.quote import Quote
 
 INVALID_TOOL_CALL_MAX_LENGTH = 500
 
@@ -153,35 +149,6 @@ def render_multi_edit_tool_call(arguments: str) -> Text:
     return render_result
 
 
-def render_task_call(e: events.ToolCallEvent, color: Color | None = None) -> RenderableType:
-    """Render sub-agent tool call header and quoted body.
-
-    `color` can be a Rich Color instance or color name string; it's used only for the
-    reversed description segment.
-    """
-    try:
-        json_dict = json.loads(e.arguments)
-        description = json_dict.get("description", "")
-        prompt = json_dict.get("prompt", "")
-        context = json_dict.get("context", "")
-        task = json_dict.get("task", "")
-
-        desc = Text(f" {description} ", style=Style(color=color, bold=True, reverse=True))
-        body = Quote(
-            Text("\n".join(filter(None, [context, task, prompt])), style=Style(color=color)), style=Style(color=color)
-        )
-        return Group(Text.assemble(("↓ ", ThemeKey.TOOL_MARK), (e.tool_name, ThemeKey.TOOL_NAME), " ", desc), body)
-
-    except json.JSONDecodeError:
-        # Fall back to a simple header using the actual tool name when arguments are not valid JSON.
-        return Text.assemble(
-            ("↓ ", ThemeKey.TOOL_MARK),
-            (e.tool_name, ThemeKey.TOOL_NAME),
-            " ",
-            Text(e.arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS),
-        )
-
-
 def render_apply_patch_tool_call(arguments: str) -> RenderableType:
     try:
         payload = json.loads(arguments)
@@ -242,11 +209,6 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
         return Padding.indent(todo_grid, level=2)
     except json.JSONDecodeError as e:
         return Text(str(e), style=ThemeKey.ERROR)
-
-
-def render_task_result(e: events.ToolResultEvent, *, quote_style: Style, code_theme: str) -> RenderableType:
-    # For sub-agent
-    return Quote(NoInsetMarkdown(e.result, code_theme=code_theme), style=quote_style)
 
 
 def render_generic_tool_result(result: str, *, is_error: bool = False) -> RenderableType:

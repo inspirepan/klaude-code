@@ -11,6 +11,7 @@ from klaude_code.ui.base.theme import ThemeKey
 from klaude_code.ui.renderers import errors as r_errors
 from klaude_code.ui.renderers import metadata as r_metadata
 from klaude_code.ui.renderers import status as r_status
+from klaude_code.ui.renderers import sub_agent as r_sub_agent
 from klaude_code.ui.renderers import thinking as r_thinking
 from klaude_code.ui.renderers import user_input as r_user_input
 from klaude_code.ui.renderers.common import truncate_display
@@ -59,16 +60,24 @@ class DisplayEventHandler:
                 self.renderer.print(r_user_input.render_user_input(user_event.content))
             case events.TaskStartEvent() as task_event:
                 self.renderer.spinner.start()
-                self.renderer.register_session(
-                    task_event.session_id,
-                    SessionStatus(
-                        is_subagent=task_event.is_sub_agent,
-                        color=self.renderer.get_sub_agent_color()
-                        if task_event.is_sub_agent
-                        else None,  # sub agent color should be advanced in tool call display, not here
-                        sub_agent_type=task_event.sub_agent_type,
-                    ),
+                session_status = SessionStatus(
+                    sub_agent_state=task_event.sub_agent_state,
                 )
+                if task_event.sub_agent_state is not None:
+                    color = self.renderer.pick_sub_agent_color()
+                    session_status.color = color
+
+                self.renderer.register_session(task_event.session_id, session_status)
+
+                if task_event.sub_agent_state is not None:
+                    with self.renderer.session_print_context(task_event.session_id):
+                        self.renderer.print(
+                            r_sub_agent.render_sub_agent_call(
+                                task_event.sub_agent_state, self.renderer.get_sub_agent_color(task_event.session_id)
+                            )
+                        )
+
+                self.renderer.register_session(task_event.session_id, session_status)
                 emit_osc94(OSC94States.INDETERMINATE)
             case events.DeveloperMessageEvent() as developer_event:
                 self.renderer.display_developer_message(developer_event)
@@ -81,10 +90,8 @@ class DisplayEventHandler:
                 if self._should_suppress_subagent_thinking(thinking_event.session_id):
                     return
                 await self.stage_manager.enter_thinking_stage()
-                # self.renderer.spinner.stop()
                 with self.renderer.session_print_context(thinking_event.session_id):
                     self.renderer.display_thinking(thinking_event.content)
-                # self.renderer.spinner.start()
             case events.AssistantMessageDeltaEvent() as assistant_delta:
                 if self.renderer.is_sub_agent_session(assistant_delta.session_id):
                     return
@@ -152,9 +159,16 @@ class DisplayEventHandler:
             case events.TurnEndEvent():
                 pass
             case events.TaskFinishEvent() as task_finish_event:
+                if self.renderer.is_sub_agent_session(task_finish_event.session_id):
+                    with self.renderer.session_print_context(task_finish_event.session_id):
+                        self.renderer.print(
+                            r_sub_agent.render_sub_agent_result(
+                                task_finish_event.task_result,
+                                code_theme=self.renderer.themes.code_theme,
+                            )
+                        )
                 self.renderer.spinner.stop()
                 await self.stage_manager.transition_to(Stage.WAITING)
-                emit_osc94(OSC94States.HIDDEN)
                 self._maybe_notify_task_finish(task_finish_event)
             case events.InterruptEvent():
                 self.renderer.spinner.stop()

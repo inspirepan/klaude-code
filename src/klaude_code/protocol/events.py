@@ -3,7 +3,6 @@ from typing import Literal
 from pydantic import BaseModel
 
 from klaude_code.protocol import llm_parameter, model
-from klaude_code.protocol.tools import SubAgentType
 
 """
 Event is how Agent Executor and UI Display communicate.
@@ -20,8 +19,7 @@ class ErrorEvent(BaseModel):
 
 class TaskStartEvent(BaseModel):
     session_id: str
-    is_sub_agent: bool = False
-    sub_agent_type: SubAgentType | None = None
+    sub_agent_state: model.SubAgentState | None = None
 
 
 class TaskFinishEvent(BaseModel):

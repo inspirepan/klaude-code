@@ -1,4 +1,5 @@
 from klaudecode.tools.ls import LsTool
+
 from tests.base import BaseToolTest
 
 
@@ -32,9 +33,7 @@ class TestLsTool(BaseToolTest):
 
     def test_list_non_existent_directory(self):
         """Test listing a non-existent directory."""
-        result = self.invoke_tool(
-            LsTool, {"path": str(self.temp_path / "non_existent")}
-        )
+        result = self.invoke_tool(LsTool, {"path": str(self.temp_path / "non_existent")})
 
         # LS tool returns success but with error message in content
         assert result.tool_call.status == "success"
@@ -59,9 +58,7 @@ class TestLsTool(BaseToolTest):
         self.create_test_file(".hidden", "hidden file")
 
         # Ignore .log files
-        result = self.invoke_tool(
-            LsTool, {"path": str(self.temp_path), "ignore": ["*.log"]}
-        )
+        result = self.invoke_tool(LsTool, {"path": str(self.temp_path), "ignore": ["*.log"]})
 
         assert result.tool_call.status == "success"
         assert "test.py" in result.content
@@ -264,11 +261,7 @@ secret.txt
 
         # Check indentation pattern for subdirectories and files
         # Level 1 items should have 2 spaces
-        level1_items = [
-            line
-            for line in lines
-            if line.startswith("  - ") and not line.startswith("    - ")
-        ]
+        level1_items = [line for line in lines if line.startswith("  - ") and not line.startswith("    - ")]
         assert len(level1_items) > 0
 
         # Check that directories have trailing slashes

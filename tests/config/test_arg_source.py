@@ -57,9 +57,7 @@ class TestArgConfigSource:
 
     def test_arg_config_source_invalid_json(self):
         """Test invalid JSON string handling"""
-        source = ArgConfigSource(
-            extra_header="invalid json", extra_body="{'not': 'valid'}"
-        )
+        source = ArgConfigSource(extra_header="invalid json", extra_body="{'not': 'valid'}")
 
         header_value = source.get("extra_header")
         body_value = source.get("extra_body")

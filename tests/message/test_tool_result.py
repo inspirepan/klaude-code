@@ -2,12 +2,7 @@ from unittest.mock import patch
 
 from klaudecode.message.base import Attachment
 from klaudecode.message.tool_call import ToolCall
-from klaudecode.message.tool_result import (
-    INTERRUPTED_CONTENT,
-    TRUNCATE_CHARS,
-    TRUNCATE_POSTFIX,
-    ToolMessage,
-)
+from klaudecode.message.tool_result import INTERRUPTED_CONTENT, TRUNCATE_CHARS, TRUNCATE_POSTFIX, ToolMessage
 
 
 class TestToolMessage:
@@ -63,33 +58,24 @@ class TestToolMessage:
 
     def test_get_content_empty_content(self):
         tool_call = ToolCall(id="call_123", tool_name="test_tool", status="success")
-        tool_msg = ToolMessage(
-            tool_call_id="call_123", tool_call_cache=tool_call, content=""
-        )
+        tool_msg = ToolMessage(tool_call_id="call_123", tool_call_cache=tool_call, content="")
 
         content = tool_msg.get_content()
 
         assert len(content) == 1
         assert content[0]["type"] == "text"
-        assert (
-            "<system-reminder>Tool ran without output or errors</system-reminder>"
-            in content[0]["text"]
-        )
+        assert "<system-reminder>Tool ran without output or errors</system-reminder>" in content[0]["text"]
 
     def test_get_content_truncated(self):
         tool_call = ToolCall(id="call_123", tool_name="test_tool", status="success")
         long_content = "x" * (TRUNCATE_CHARS + 1000)
-        tool_msg = ToolMessage(
-            tool_call_id="call_123", tool_call_cache=tool_call, content=long_content
-        )
+        tool_msg = ToolMessage(tool_call_id="call_123", tool_call_cache=tool_call, content=long_content)
 
         content = tool_msg.get_content()
 
         assert len(content) == 1
         content_text = content[0]["text"]
-        assert (
-            len(content_text) <= TRUNCATE_CHARS + len(TRUNCATE_POSTFIX) + 1
-        )  # +1 for newline
+        assert len(content_text) <= TRUNCATE_CHARS + len(TRUNCATE_POSTFIX) + 1  # +1 for newline
         assert TRUNCATE_POSTFIX in content_text
 
     def test_get_content_canceled_status(self):
@@ -155,9 +141,7 @@ class TestToolMessage:
 
     def test_to_openai(self):
         tool_call = ToolCall(id="call_123", tool_name="test_tool")
-        tool_msg = ToolMessage(
-            tool_call_id="call_123", tool_call_cache=tool_call, content="Result content"
-        )
+        tool_msg = ToolMessage(tool_call_id="call_123", tool_call_cache=tool_call, content="Result content")
 
         result = tool_msg.to_openai()
 
@@ -167,9 +151,7 @@ class TestToolMessage:
 
     def test_to_anthropic(self):
         tool_call = ToolCall(id="call_123", tool_name="test_tool", status="success")
-        tool_msg = ToolMessage(
-            tool_call_id="call_123", tool_call_cache=tool_call, content="Result content"
-        )
+        tool_msg = ToolMessage(tool_call_id="call_123", tool_call_cache=tool_call, content="Result content")
 
         result = tool_msg.to_anthropic()
 
@@ -194,9 +176,7 @@ class TestToolMessage:
 
     def test_bool_with_content(self):
         tool_call = ToolCall(id="call_123", tool_name="test_tool")
-        tool_msg = ToolMessage(
-            tool_call_id="call_123", tool_call_cache=tool_call, content="Some content"
-        )
+        tool_msg = ToolMessage(tool_call_id="call_123", tool_call_cache=tool_call, content="Some content")
 
         assert bool(tool_msg) is True
 
@@ -221,9 +201,7 @@ class TestToolMessage:
 
     def test_set_content_canceled_ignored(self):
         tool_call = ToolCall(id="call_123", tool_name="test_tool", status="canceled")
-        tool_msg = ToolMessage(
-            tool_call_id="call_123", tool_call_cache=tool_call, content="Original"
-        )
+        tool_msg = ToolMessage(tool_call_id="call_123", tool_call_cache=tool_call, content="Original")
 
         tool_msg.set_content("New content")
 
@@ -308,9 +286,7 @@ class TestToolMessage:
     @patch("klaudecode.message.registry._TOOL_RESULT_RENDERERS", {})
     def test_get_suffix_renderable_no_content_success(self):
         tool_call = ToolCall(id="call_123", tool_name="test_tool", status="success")
-        tool_msg = ToolMessage(
-            tool_call_id="call_123", tool_call_cache=tool_call, content=""
-        )
+        tool_msg = ToolMessage(tool_call_id="call_123", tool_call_cache=tool_call, content="")
 
         result = list(tool_msg.get_suffix_renderable())
 
@@ -319,9 +295,7 @@ class TestToolMessage:
 
     def test_get_suffix_renderable_canceled_status(self):
         tool_call = ToolCall(id="call_123", tool_name="test_tool", status="canceled")
-        tool_msg = ToolMessage(
-            tool_call_id="call_123", tool_call_cache=tool_call, content="Some content"
-        )
+        tool_msg = ToolMessage(tool_call_id="call_123", tool_call_cache=tool_call, content="Some content")
 
         result = list(tool_msg.get_suffix_renderable())
 
@@ -344,9 +318,7 @@ class TestToolMessage:
 
     def test_rich_console(self):
         tool_call = ToolCall(id="call_123", tool_name="test_tool")
-        tool_msg = ToolMessage(
-            tool_call_id="call_123", tool_call_cache=tool_call, content="Result"
-        )
+        tool_msg = ToolMessage(tool_call_id="call_123", tool_call_cache=tool_call, content="Result")
 
         result = list(tool_msg.__rich_console__(None, None))
 

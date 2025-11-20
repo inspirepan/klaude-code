@@ -4,7 +4,7 @@ from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.tool_context import current_run_subtask_callback
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import ToolResultItem
+from klaude_code.protocol.model import SubAgentState, ToolResultItem
 from klaude_code.protocol.tools import TASK, SubAgentType
 
 
@@ -69,7 +69,13 @@ class TaskTool(ToolABC):
             return ToolResultItem(status="error", output="No subtask runner available in this context")
 
         try:
-            result = await runner(args.prompt, SubAgentType.TASK)
+            result = await runner(
+                SubAgentState(
+                    sub_agent_type=SubAgentType.TASK,
+                    sub_agent_desc=args.description,
+                    sub_agent_prompt=args.prompt,
+                )
+            )
         except Exception as e:  # safeguard
             return ToolResultItem(status="error", output=f"Failed to run subtask: {e}")
 

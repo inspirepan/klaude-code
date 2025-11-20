@@ -7,12 +7,16 @@ from openai.types import chat
 
 from klaude_code.llm.openai_compatible.input import build_user_content_parts
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import (AssistantMessageItem, ConversationItem,
-                                        DeveloperMessageItem,
-                                        ReasoningEncryptedItem,
-                                        ReasoningTextItem, ToolCallItem,
-                                        ToolResultItem,
-                                        group_response_items_gen)
+from klaude_code.protocol.model import (
+    AssistantMessageItem,
+    ConversationItem,
+    DeveloperMessageItem,
+    ReasoningEncryptedItem,
+    ReasoningTextItem,
+    ToolCallItem,
+    ToolResultItem,
+    group_response_items_gen,
+)
 
 
 def is_claude_model(model_name: str | None):

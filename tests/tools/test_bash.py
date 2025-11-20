@@ -1,6 +1,7 @@
 from unittest.mock import Mock, patch
 
 from klaudecode.tools.bash import BashTool
+
 from tests.base import BaseToolTest
 
 
@@ -35,9 +36,7 @@ class TestBashTool(BaseToolTest):
         ) as mock_execute:
             mock_execute.return_value = "Command timed out after 1.0 seconds"
 
-            result = self.invoke_tool(
-                BashTool, {"command": "sleep 10", "timeout": 1000}
-            )
+            result = self.invoke_tool(BashTool, {"command": "sleep 10", "timeout": 1000})
 
             assert result.tool_call.status == "error"
             assert "timed out" in result.error_msg
@@ -51,9 +50,7 @@ class TestBashTool(BaseToolTest):
 
     def test_specialized_tool_suggestion(self):
         """Test that specialized tool suggestions are provided"""
-        with patch(
-            "klaudecode.utils.bash_utils.security.BashSecurity.validate_command_safety"
-        ) as mock_validate:
+        with patch("klaudecode.utils.bash_utils.security.BashSecurity.validate_command_safety") as mock_validate:
             mock_validate.return_value = (
                 True,
                 "<system-reminder>Command 'ls' detected. Use LS tool instead of ls command</system-reminder>",
@@ -141,9 +138,7 @@ class TestBashTool(BaseToolTest):
 
     def test_command_validation_called(self):
         """Test that security validation is called"""
-        with patch(
-            "klaudecode.utils.bash_utils.security.BashSecurity.validate_command_safety"
-        ) as mock_validate:
+        with patch("klaudecode.utils.bash_utils.security.BashSecurity.validate_command_safety") as mock_validate:
             mock_validate.return_value = (True, "")
 
             with patch(
