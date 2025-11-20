@@ -90,7 +90,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
             if i > 0:
                 details.append("/", style=ThemeKey.METADATA_DIM)
             details.append_text(part)
-        metadata_text.append_text(Text("/", style=ThemeKey.METADATA_DIM)).append_text(details)
+        metadata_text.append_text(Text(" ", style=ThemeKey.METADATA_DIM)).append_text(details)
     return metadata_text
 
 

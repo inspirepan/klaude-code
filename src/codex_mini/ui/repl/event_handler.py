@@ -170,7 +170,7 @@ class DisplayEventHandler:
                         indent=0,
                     )
                 )
-                self.renderer.spinner.stop()
+                self.renderer.spinner.start()
             case events.EndEvent():
                 emit_osc94(OSC94States.HIDDEN)
                 await self.stage_manager.transition_to(Stage.WAITING)
