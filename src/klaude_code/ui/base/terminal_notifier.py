@@ -40,7 +40,7 @@ class TerminalNotifierConfig:
 
     @classmethod
     def from_env(cls) -> "TerminalNotifierConfig":
-        env = os.getenv("CODEX_NOTIFY", "").strip().lower()
+        env = os.getenv("KLAUDE_NOTIFY", "").strip().lower()
         if env in {"0", "off", "false", "disable", "disabled"}:
             return cls(enabled=False)
         return cls(enabled=True)

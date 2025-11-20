@@ -592,7 +592,6 @@ def main_callback(
     ),
     vanilla: bool = typer.Option(False, "--vanilla", help="Use vanilla model with no system prompt and reminders"),
 ):
-    """Codex CLI Minimal"""
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
         # Set terminal title with current folder name

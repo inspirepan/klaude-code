@@ -1,4 +1,4 @@
-# Minimal Agent CLI (klaude-code)
+# Minimal Agent CLI (Klaude Code)
 
 A repository for showing how to make a simple Agent CLI using OpenAI's Response API / Anthropic API / OpenRouter's API, like Claude Code & Codex.
 
@@ -87,7 +87,7 @@ uv run klaude config
 ### Terminal Notifications
 
 - Main session task completions emit an OSC 9 notification (supported terminals only).
-- Disable with `CODEX_NOTIFY=0`.
+- Disable with `KLAUDE_NOTIFY=0`.
 
 ## Agent Architecture & Design
 

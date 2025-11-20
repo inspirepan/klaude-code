@@ -1,5 +1,5 @@
 ---
-description: Create an AGENTS.md file with instructions for Codex
+description: Create an AGENTS.md file with instructions for agent
 argument-hint: Additional user instructions
 ---
 
