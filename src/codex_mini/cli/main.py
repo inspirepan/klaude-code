@@ -36,7 +36,7 @@ from codex_mini.protocol.llm_parameter import LLMConfigParameter
 from codex_mini.protocol.model import ResponseMetadataItem
 from codex_mini.session import Session, resume_select_session
 from codex_mini.trace import log, log_debug
-from codex_mini.ui.base.progress_bar import emit_osc94, OSC94States
+from codex_mini.ui.base.progress_bar import OSC94States, emit_osc94
 from codex_mini.ui.base.terminal_color import is_light_terminal_background
 from codex_mini.ui.repl.input import REPLStatusSnapshot
 

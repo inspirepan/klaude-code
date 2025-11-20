@@ -11,7 +11,6 @@ from typing import BinaryIO, Final
 
 from codex_mini.trace import log_debug
 
-
 ST: Final[bytes] = b"\x1b\\"  # ESC \
 BEL: Final[int] = 7
 
@@ -205,7 +204,7 @@ def _scale_hex_component(component: str) -> int:
         raise ValueError("empty component")
 
     value = int(component, 16)
-    max_value = (16**len(component)) - 1
+    max_value = (16 ** len(component)) - 1
     if max_value <= 0:
         raise ValueError("invalid component width")
 

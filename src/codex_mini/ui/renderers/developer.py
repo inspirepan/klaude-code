@@ -31,7 +31,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
     if mp := e.item.memory_paths:
         grid = create_grid()
         grid.add_row(
-            Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD),
+            Text("  +", style=ThemeKey.REMINDER),
             Text.assemble(
                 ("Load memory ", ThemeKey.REMINDER),
                 Text(", ", ThemeKey.REMINDER).join(
@@ -45,7 +45,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
         grid = create_grid()
         for file_path in fc:
             grid.add_row(
-                Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD),
+                Text("  +", style=ThemeKey.REMINDER),
                 Text.assemble(
                     ("Read ", ThemeKey.REMINDER),
                     render_path(file_path, ThemeKey.REMINDER_BOLD),
@@ -56,16 +56,14 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
 
     if e.item.todo_use:
         grid = create_grid()
-        grid.add_row(
-            Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD), Text("Todo hasn't been updated recently", ThemeKey.REMINDER)
-        )
+        grid.add_row(Text("  +", style=ThemeKey.REMINDER), Text("Todo hasn't been updated recently", ThemeKey.REMINDER))
         parts.append(grid)
 
     if e.item.at_files:
         grid = create_grid()
         for at_file in e.item.at_files:
             grid.add_row(
-                Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD),
+                Text("  +", style=ThemeKey.REMINDER),
                 Text.assemble(
                     (f"{at_file.operation} ", ThemeKey.REMINDER), render_path(at_file.path, ThemeKey.REMINDER_BOLD)
                 ),
@@ -76,7 +74,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
         grid = create_grid()
         for img_tag in ci:
             grid.add_row(
-                Text("  ⎿ ", style=ThemeKey.REMINDER_BOLD),
+                Text("  +", style=ThemeKey.REMINDER),
                 Text.assemble(
                     ("Read ", ThemeKey.REMINDER),
                     Text(f"{img_tag} Image", style=ThemeKey.REMINDER_BOLD),
