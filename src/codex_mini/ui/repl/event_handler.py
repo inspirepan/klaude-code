@@ -6,6 +6,7 @@ from codex_mini.protocol import events
 from codex_mini.ui.base.debouncer import Debouncer
 from codex_mini.ui.base.osc94_progress_bar import OSC94States, emit_osc94
 from codex_mini.ui.base.stage_manager import Stage, StageManager
+from codex_mini.ui.base.terminal_notifier import Notification, NotificationType, TerminalNotifier
 from codex_mini.ui.base.theme import ThemeKey
 from codex_mini.ui.renderers import errors as r_errors
 from codex_mini.ui.renderers import metadata as r_metadata
@@ -37,8 +38,9 @@ class StreamState:
 class DisplayEventHandler:
     """Handle REPL events, buffering and delegating rendering work."""
 
-    def __init__(self, renderer: REPLRenderer):
+    def __init__(self, renderer: REPLRenderer, notifier: TerminalNotifier | None = None):
         self.renderer = renderer
+        self.notifier = notifier
         self.assistant_stream = StreamState(interval=1 / 20, flush_handler=self._flush_assistant_buffer)
 
         self.stage_manager = StageManager(
@@ -149,10 +151,11 @@ class DisplayEventHandler:
                     )
             case events.TurnEndEvent():
                 pass
-            case events.TaskFinishEvent():
+            case events.TaskFinishEvent() as task_finish_event:
                 self.renderer.spinner.stop()
                 await self.stage_manager.transition_to(Stage.WAITING)
                 emit_osc94(OSC94States.HIDDEN)
+                self._maybe_notify_task_finish(task_finish_event)
             case events.InterruptEvent():
                 self.renderer.spinner.stop()
                 await self.stage_manager.transition_to(Stage.WAITING)
@@ -190,6 +193,31 @@ class DisplayEventHandler:
     async def _flush_assistant_buffer(self, state: StreamState) -> None:
         if state.mdstream is not None:
             state.mdstream.update(state.buffer)
+
+    def _maybe_notify_task_finish(self, event: events.TaskFinishEvent) -> None:
+        if self.notifier is None:
+            return
+        if self.renderer.is_sub_agent_session(event.session_id):
+            return
+        notification = self._build_task_finish_notification(event)
+        self.notifier.notify(notification)
+
+    def _build_task_finish_notification(self, event: events.TaskFinishEvent) -> Notification:
+        body = self._compact_result_text(event.task_result)
+        return Notification(
+            type=NotificationType.AGENT_TASK_COMPLETE,
+            title="Task Completed",
+            body=body,
+        )
+
+    def _compact_result_text(self, text: str) -> str | None:
+        stripped = text.strip()
+        if len(stripped) == 0:
+            return None
+        squashed = " ".join(stripped.split())
+        if len(squashed) > 200:
+            return squashed[:197] + "..."
+        return squashed
 
     def _should_suppress_subagent_thinking(self, session_id: str) -> bool:
         return self.renderer.is_sub_agent_session(session_id)

@@ -97,6 +97,11 @@ Notes:
 - The JSON must match `LLMConfigParameter` (provider + model fields). Common keys: `protocol`, `api_key`, `base_url`, `is_azure`, `azure_api_version`, `model`, `temperature`, `max_tokens`, `reasoning`, `thinking`.
 - The override only affects the main agent; plan/task/oracle models still follow your YAML config.
 
+### Terminal Notifications
+
+- Main session task completions emit an OSC 9 notification (supported terminals only).
+- Disable with `CODEX_NOTIFY=0`.
+
 ## Agent Architecture & Design
 
 ### 🧠 Adaptive Model-Tooling
@@ -127,4 +132,3 @@ This project utilizes best-in-class modern Python tooling:
 - **Pyright**: Strict static type checking.
 - **Ruff**: Fast linting and formatting (line length 120).
 - **Rich**: Beautiful terminal UI capabilities.
-
