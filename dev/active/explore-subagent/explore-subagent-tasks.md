@@ -13,7 +13,7 @@ Last Updated: 2025-11-19
 
 ## Phase 2：Explore 工具与子Agent 接入
 
-- [ ] EX-2.1 在 `src/codex_mini/core/tool` 下新增 `ExploreArguments` 与 `ExploreTool.schema()`。
+- [ ] EX-2.1 在 `src/klaude_code/core/tool` 下新增 `ExploreArguments` 与 `ExploreTool.schema()`。
 - [ ] EX-2.2 实现 `ExploreTool.call()`，通过 `SubAgentType.EXPLORE` 调用子Agent，并处理 `thoroughness` 参数。
 - [ ] EX-2.3 在 `get_sub_agent_tools` 中为 Explore 配置只读工具集（如 `[BASH, READ]`）。
 - [ ] EX-2.4 更新 `Agent.refresh_model_profile` 与 `get_system_prompt`，使 Explore 使用 `prompt_subagent_explore.md`。

@@ -1,6 +1,6 @@
 # 实现 Read, Edit 与 MultiEdit 工具 
 
-位置： @src/codex_mini/core/tool/ 下
+位置： @src/klaude_code/core/tool/ 下
 请你理解现有的工具实现 (bash_tool.py)，实现三个新的工具
 
 

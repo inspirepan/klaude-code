@@ -7,7 +7,7 @@ from typing import Any, Callable
 
 import pytest
 
-from codex_mini.ui.base import terminal_color
+from klaude_code.ui.base import terminal_color
 
 
 class DummyTTY(io.BytesIO):

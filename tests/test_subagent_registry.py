@@ -1,8 +1,8 @@
-import codex_mini.core.tool as core_tool  # noqa: F401
-from codex_mini.config.config import get_example_config
-from codex_mini.core.subagent import is_sub_agent_tool, sub_agent_tool_names
-from codex_mini.core.tool.tool_registry import get_main_agent_tools, get_sub_agent_tools
-from codex_mini.protocol import tools
+import klaude_code.core.tool as core_tool  # noqa: F401
+from klaude_code.config.config import get_example_config
+from klaude_code.core.subagent import is_sub_agent_tool, sub_agent_tool_names
+from klaude_code.core.tool.tool_registry import get_main_agent_tools, get_sub_agent_tools
+from klaude_code.protocol import tools
 
 
 def test_subagent_models_present_in_example() -> None:

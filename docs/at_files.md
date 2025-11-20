@@ -1,5 +1,5 @@
 # 1
-请你在 src/codex_mini/ui/repl_input.py 中实现:
+请你在 src/klaude_code/ui/repl_input.py 中实现:
 当用户输入 @ 之后，如果当前 cwd 是 git 仓库（包括子目录），并且安装有 fd 或者 rg，开始执行补全逻辑：
 
 你捕获 @xxxx 这样一段内容，然后 执行 fd 或者 rg --file 搜索文件和目录，然后给出相对路径的补全。
@@ -11,13 +11,13 @@
 
 # 2
 现在不对，比如我输入
-@to 的时候，需要提示 src/codex_mini/protocol/tools.py
-src/codex_mini/core/tool/tool_registry.py
-src/codex_mini/core/tool/
-src/codex_mini/core/tool/todo_write_tool.py 等等
+@to 的时候，需要提示 src/klaude_code/protocol/tools.py
+src/klaude_code/core/tool/tool_registry.py
+src/klaude_code/core/tool/
+src/klaude_code/core/tool/todo_write_tool.py 等等
 
 然后我再输入一个 d
-@tod 的时候，候选项就变成 src/codex_mini/core/tool/todo_write_tool.py
+@tod 的时候，候选项就变成 src/klaude_code/core/tool/todo_write_tool.py
 
 需要这样一个搜索效果，@ 后面的是搜索词
 

@@ -11,7 +11,7 @@ SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from codex_mini.core.tool.command_safety import (  # noqa: E402
+from klaude_code.core.tool.command_safety import (  # noqa: E402
     _find_unquoted_token,
     _split_bash_lc_relaxed,
     _split_script_tail,
@@ -193,7 +193,7 @@ class TestCommandSafety(unittest.TestCase):
             '        help="Override model config name (uses main model by default)",\\n'
             "    ),/;\n"
             "s/asyncio.run(run_interactive())/asyncio.run(run_interactive(model=model))/}' "
-            "src/codex_mini/cli/main.py"
+            "src/klaude_code/cli/main.py"
         )
         # This should be unsafe because sed -i with complex patterns is not in the allowlist
         self.assert_unsafe(complex_sed)
@@ -207,7 +207,7 @@ class TestCommandSafety(unittest.TestCase):
             '        help="Override model config name (uses main model by default)",\\n'
             "    ),/;\n"
             "s/asyncio.run(run_interactive())/asyncio.run(run_interactive(model=model))/}' "
-            "src/codex_mini/cli/main.py && sed -n '64,80p' src/codex_mini/cli/main.py | nl"
+            "src/klaude_code/cli/main.py && sed -n '64,80p' src/klaude_code/cli/main.py | nl"
         )
         # This should also be unsafe
         self.assert_unsafe(chained_cmd)

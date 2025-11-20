@@ -2,7 +2,7 @@ import io
 
 import pytest
 
-from codex_mini.ui.base.terminal_notifier import (
+from klaude_code.ui.base.terminal_notifier import (
     Notification,
     NotificationType,
     TerminalNotifier,

@@ -21,68 +21,68 @@ Last Updated: 2025-11-19
 ### 2.1 工具与子Agent 体系
 
 - 工具枚举与子Agent 类型：
-  - `src/codex_mini/protocol/tools.py:3-12` 定义了工具常量 `BASH`, `APPLY_PATCH`, `EDIT`, `READ`, `TASK`, `ORACLE`, `SKILL`，暂未包含 Explore；
+  - `src/klaude_code/protocol/tools.py:3-12` 定义了工具常量 `BASH`, `APPLY_PATCH`, `EDIT`, `READ`, `TASK`, `ORACLE`, `SKILL`，暂未包含 Explore；
   - `SubAgentType` 目前仅包含：
     - `TASK = TASK`
-    - `ORACLE = ORACLE`（`src/codex_mini/protocol/tools.py:15-17`）。
+    - `ORACLE = ORACLE`（`src/klaude_code/protocol/tools.py:15-17`）。
 - 工具注册与子Agent 工具集：
-  - `get_main_agent_tools` 基于 `model_name` 返回主 Agent 可用工具，包含 `TASK`、`ORACLE` 等（`src/codex_mini/core/tool/tool_registry.py:56-90`）；
+  - `get_main_agent_tools` 基于 `model_name` 返回主 Agent 可用工具，包含 `TASK`、`ORACLE` 等（`src/klaude_code/core/tool/tool_registry.py:56-90`）；
   - `get_sub_agent_tools` 仅支持：
     - Task 子Agent：`[BASH, READ, EDIT]`（可读写）；
     - Oracle 子Agent：`[READ, BASH]`（只读）；
-    - 未对 Explore 做分支处理（`src/codex_mini/core/tool/tool_registry.py:94-98`）。
+    - 未对 Explore 做分支处理（`src/klaude_code/core/tool/tool_registry.py:94-98`）。
 
 ### 2.2 现有 Task / Oracle 工具
 
 - Task 工具（`TaskTool`）：
-  - 文件：`src/codex_mini/core/tool/task_tool.py`
-  - 参数：`description`, `prompt`（`TaskArguments`，`src/codex_mini/core/tool/task_tool.py:11-14`）；
-  - 描述：用于启动复杂、多步骤任务的子Agent，强调何时/何时不应使用 Task（`schema.description`，`src/codex_mini/core/tool/task_tool.py:23-41`）；
-  - 调用：通过 `current_run_subtask_callback` 获取 runner，并以 `SubAgentType.TASK` 启动子Agent（`src/codex_mini/core/tool/task_tool.py:67-73`）。
+  - 文件：`src/klaude_code/core/tool/task_tool.py`
+  - 参数：`description`, `prompt`（`TaskArguments`，`src/klaude_code/core/tool/task_tool.py:11-14`）；
+  - 描述：用于启动复杂、多步骤任务的子Agent，强调何时/何时不应使用 Task（`schema.description`，`src/klaude_code/core/tool/task_tool.py:23-41`）；
+  - 调用：通过 `current_run_subtask_callback` 获取 runner，并以 `SubAgentType.TASK` 启动子Agent（`src/klaude_code/core/tool/task_tool.py:67-73`）。
 - Oracle 工具（`OracleTool`）：
-  - 文件：`src/codex_mini/core/tool/oracle_tool.py`
-  - 参数：`context`, `files`, `task`, `description`（`OracleArguments`，`src/codex_mini/core/tool/oracle_tool.py:11-16`）；
-  - 描述：高端推理 Advisor，支持规划、Review、复杂问题分析（`schema.description`，`src/codex_mini/core/tool/oracle_tool.py:25-53`）；
-  - 调用：拼接上下文和文件列表后，以 `SubAgentType.ORACLE` 启动子Agent（`src/codex_mini/core/tool/oracle_tool.py:91-102`）。
+  - 文件：`src/klaude_code/core/tool/oracle_tool.py`
+  - 参数：`context`, `files`, `task`, `description`（`OracleArguments`，`src/klaude_code/core/tool/oracle_tool.py:11-16`）；
+  - 描述：高端推理 Advisor，支持规划、Review、复杂问题分析（`schema.description`，`src/klaude_code/core/tool/oracle_tool.py:25-53`）；
+  - 调用：拼接上下文和文件列表后，以 `SubAgentType.ORACLE` 启动子Agent（`src/klaude_code/core/tool/oracle_tool.py:91-102`）。
 
 ### 2.3 Prompt 体系
 
 - 主 Agent Prompt（Claude Code）：
-  - 文件：`src/codex_mini/core/prompt_claude_code.md`
+  - 文件：`src/klaude_code/core/prompt_claude_code.md`
   - 在 `# Tool usage policy` 中仅有：
-    - “When doing file search, prefer to use the Task tool...” 等原则性描述（`src/codex_mini/core/prompt_claude_code.md:130-133`）；
+    - “When doing file search, prefer to use the Task tool...” 等原则性描述（`src/klaude_code/core/prompt_claude_code.md:130-133`）；
   - 尚未明确提到 Explore 子Agent，亦未有示例说明何时使用该子Agent。
 - 子Agent Prompt：
-  - Task / Oracle：通过 `get_system_prompt` 中的 `key == "task" / "oracle"` 分支加载不同 MD 文件（`src/codex_mini/core/prompt.py:8-20`）。
+  - Task / Oracle：通过 `get_system_prompt` 中的 `key == "task" / "oracle"` 分支加载不同 MD 文件（`src/klaude_code/core/prompt.py:8-20`）。
   - Explore：
-    - 文件已存在：`src/codex_mini/core/prompt_subagent_explore.md`；
+    - 文件已存在：`src/klaude_code/core/prompt_subagent_explore.md`；
     - 内容定义为“file search specialist”，强调：
       - 严格只读（不得创建/修改文件）；
-      - 使用 `fd`/`rg`/`Read` 等工具进行搜索（`src/codex_mini/core/prompt_subagent_explore.md:1-25`）；
+      - 使用 `fd`/`rg`/`Read` 等工具进行搜索（`src/klaude_code/core/prompt_subagent_explore.md:1-25`）；
     - 但目前未在 `get_system_prompt` 或 `Agent.refresh_model_profile` 中接入。
 
 ### 2.4 Agent 与执行器
 
 - 子Agent LLM 选择：
-  - `AgentLLMClients` 目前字段：`main`, `fast`, `task`, `oracle`（`src/codex_mini/core/agent.py:25-30`）；
-  - `get_sub_agent_client` 支持 `TASK` / `ORACLE`，其他类型回退到 `main`（`src/codex_mini/core/agent.py:31-37`）。
+  - `AgentLLMClients` 目前字段：`main`, `fast`, `task`, `oracle`（`src/klaude_code/core/agent.py:25-30`）；
+  - `get_sub_agent_client` 支持 `TASK` / `ORACLE`，其他类型回退到 `main`（`src/klaude_code/core/agent.py:31-37`）。
 - Prompt 与工具选择：
   - `refresh_model_profile`：
-    - 判断 `effective_sub_agent_type`，TASK/ORACLE 使用 `prompt_key = "task"/"oracle"`，其它使用 `"main"`（`src/codex_mini/core/agent.py:461-478`）；
-    - 对 TASK/ORACLE：分别调用 `get_sub_agent_tools` 与 `get_sub_agent_reminders`，其余情况使用主 Agent 工具与提醒（`src/codex_mini/core/agent.py:480-490`）。
+    - 判断 `effective_sub_agent_type`，TASK/ORACLE 使用 `prompt_key = "task"/"oracle"`，其它使用 `"main"`（`src/klaude_code/core/agent.py:461-478`）；
+    - 对 TASK/ORACLE：分别调用 `get_sub_agent_tools` 与 `get_sub_agent_reminders`，其余情况使用主 Agent 工具与提醒（`src/klaude_code/core/agent.py:480-490`）。
 - 执行器 `ExecutorContext`：
-  - `_run_subagent_task` 使用 `SubAgentType` 创建子 Session，并通过 `AgentLLMClients.get_sub_agent_client` 与 `Agent.refresh_model_profile(sub_agent_type)` 初始化子Agent（`src/codex_mini/core/executor.py:217-247`）。
+  - `_run_subagent_task` 使用 `SubAgentType` 创建子 Session，并通过 `AgentLLMClients.get_sub_agent_client` 与 `Agent.refresh_model_profile(sub_agent_type)` 初始化子Agent（`src/klaude_code/core/executor.py:217-247`）。
 
 ### 2.5 配置体系
 
-- `Config` 模型（`src/codex_mini/config/config.py:26-35`）：
+- `Config` 模型（`src/klaude_code/config/config.py:26-35`）：
   - 字段包含：`main_model`, `task_model`, `oracle_model` 等；
   - 尚无 `explore_model` 字段。
 - 模型解析：
   - `get_main_model_config()` 返回 `main_model` 对应配置；
-  - `get_model_config(model_name: str)` 根据 `model_list` 与 `provider_list` 拼装最终 `LLMConfigParameter`（`src/codex_mini/config/config.py:36-57`）。
+  - `get_model_config(model_name: str)` 根据 `model_list` 与 `provider_list` 拼装最终 `LLMConfigParameter`（`src/klaude_code/config/config.py:36-57`）。
 - 示例配置：
-  - `get_example_config` 提供 `gpt-5` 与 `sonnet-4` 两个示例模型，并设置 `main_model="gpt-5"`，未演示 `task_model/oracle_model` 的用法，更未包含 Explore（`src/codex_mini/config/config.py:73-121`）。
+  - `get_example_config` 提供 `gpt-5` 与 `sonnet-4` 两个示例模型，并设置 `main_model="gpt-5"`，未演示 `task_model/oracle_model` 的用法，更未包含 Explore（`src/klaude_code/config/config.py:73-121`）。
 
 ## 三、目标状态设计（Proposed Future State）
 
@@ -98,7 +98,7 @@ Last Updated: 2025-11-19
 
 ### 3.2 Explore 工具（Tool）
 
-- 新增 `ExploreTool`（命名暂定）至 `src/codex_mini/core/tool`：
+- 新增 `ExploreTool`（命名暂定）至 `src/klaude_code/core/tool`：
   - 参考 `TaskTool` 与 `OracleTool` 结构，使用 `@register(EXPLORE)` 注册；
   - 工具 Schema：
     - 名称：`Explore`；
@@ -191,7 +191,7 @@ Last Updated: 2025-11-19
 
 1. EX-1.1 新增 Explore 工具常量与子Agent 类型（S）
    - 内容：
-     - 在 `src/codex_mini/protocol/tools.py` 中新增 `EXPLORE` 字符串常量；
+     - 在 `src/klaude_code/protocol/tools.py` 中新增 `EXPLORE` 字符串常量；
      - 在 `SubAgentType` 中增加 `EXPLORE = EXPLORE` 枚举项；
    - 依赖：无；
    - 验收标准：
@@ -361,7 +361,7 @@ Last Updated: 2025-11-19
   - 如需增加测试，依赖现有 pytest 与 uv 流程。
 - 运营与配置：
   - 若 Explore 使用单独模型，需在实际部署环境中配置好对应 provider/api key；
-  - 需要用户在本地 `~/.config/codex-mini/config.yaml` 中按需配置 `explore_model`。
+  - 需要用户在本地 `~/.klaude/config.yaml` 中按需配置 `explore_model`。
 
 ## 九、时间预估（Timeline Estimates）
 

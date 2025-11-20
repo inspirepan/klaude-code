@@ -8,7 +8,7 @@ Last Updated: 2025-11-19
 - 成功标准：新增子 Agent 时，除自身业务逻辑外，最多修改 1-2 个集中入口文件即可完成功能接入，且现有 Task/Oracle/Explore 全量回归通过。
 
 ## Current State Analysis
-- **多点硬编码**：`src/codex_mini/core/agent.py`、`core/tool/tool_registry.py`、`ui/repl/renderer.py` 等多处以 if/elif 枚举 TASK/ORACLE/EXPLORE，耦合严重。
+- **多点硬编码**：`src/klaude_code/core/agent.py`、`core/tool/tool_registry.py`、`ui/repl/renderer.py` 等多处以 if/elif 枚举 TASK/ORACLE/EXPLORE，耦合严重。
 - **配置分散**：`Config` 中为每个子 Agent 单独设字段（`task_model`/`oracle_model`/`explore_model`），CLI 初始化时逐一解析，难以扩展。
 - **工具/Prompt 路由重复**：`get_sub_agent_tools` 与 `Agent.refresh_model_profile` 同步维护提示词与工具集，缺乏统一来源。
 - **UI 渲染不可扩展**：REPL 渲染层只识别 Task/Oracle/Explore，未来添加类型需再次修改。

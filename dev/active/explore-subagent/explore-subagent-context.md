@@ -16,56 +16,56 @@ Last Updated: 2025-11-19
 ### 2.1 工具与子Agent 定义
 
 - 工具常量与子Agent 类型：
-  - `src/codex_mini/protocol/tools.py:3-13`：定义各工具名称常量（`BASH`, `APPLY_PATCH`, `READ`, `TASK`, `ORACLE`, `SKILL` 等）；
-  - `src/codex_mini/protocol/tools.py:15-17`：`SubAgentType` 枚举，目前仅包含 `TASK`, `ORACLE`；
+  - `src/klaude_code/protocol/tools.py:3-13`：定义各工具名称常量（`BASH`, `APPLY_PATCH`, `READ`, `TASK`, `ORACLE`, `SKILL` 等）；
+  - `src/klaude_code/protocol/tools.py:15-17`：`SubAgentType` 枚举，目前仅包含 `TASK`, `ORACLE`；
   - 未来将在此处加入 `EXPLORE` 常量与 `SubAgentType.EXPLORE`。
 
 - 工具注册与工具集选择：
-  - `src/codex_mini/core/tool/tool_registry.py:13-31`：工具注册与 Schema 提取逻辑；
-  - `src/codex_mini/core/tool/tool_registry.py:56-91`：主 Agent 工具列表选择；
-  - `src/codex_mini/core/tool/tool_registry.py:94-98`：子Agent 工具列表选择，目前仅针对 TASK 与 ORACLE；
+  - `src/klaude_code/core/tool/tool_registry.py:13-31`：工具注册与 Schema 提取逻辑；
+  - `src/klaude_code/core/tool/tool_registry.py:56-91`：主 Agent 工具列表选择；
+  - `src/klaude_code/core/tool/tool_registry.py:94-98`：子Agent 工具列表选择，目前仅针对 TASK 与 ORACLE；
   - Explore 子Agent 将在此处接入只读工具集。
 
 ### 2.2 Task / Oracle 工具实现
 
 - Task 工具：
-  - `src/codex_mini/core/tool/task_tool.py:11-14`：`TaskArguments` 参数模型；
-  - `src/codex_mini/core/tool/task_tool.py:16-42`：`TaskTool.schema()` 定义与描述文案；
-  - `src/codex_mini/core/tool/task_tool.py:60-81`：`TaskTool.call()` 逻辑，通过 `SubAgentType.TASK` 启动子Agent。
+  - `src/klaude_code/core/tool/task_tool.py:11-14`：`TaskArguments` 参数模型；
+  - `src/klaude_code/core/tool/task_tool.py:16-42`：`TaskTool.schema()` 定义与描述文案；
+  - `src/klaude_code/core/tool/task_tool.py:60-81`：`TaskTool.call()` 逻辑，通过 `SubAgentType.TASK` 启动子Agent。
 
 - Oracle 工具：
-  - `src/codex_mini/core/tool/oracle_tool.py:11-16`：`OracleArguments` 参数模型；
-  - `src/codex_mini/core/tool/oracle_tool.py:21-77`：`OracleTool.schema()` 描述与参数定义；
-  - `src/codex_mini/core/tool/oracle_tool.py:80-108`：`OracleTool.call()` 逻辑，通过 `SubAgentType.ORACLE` 启动子Agent。
+  - `src/klaude_code/core/tool/oracle_tool.py:11-16`：`OracleArguments` 参数模型；
+  - `src/klaude_code/core/tool/oracle_tool.py:21-77`：`OracleTool.schema()` 描述与参数定义；
+  - `src/klaude_code/core/tool/oracle_tool.py:80-108`：`OracleTool.call()` 逻辑，通过 `SubAgentType.ORACLE` 启动子Agent。
 
 ### 2.3 Prompt 与策略
 
 - 主 Agent Prompt（Claude Code）：
-  - `src/codex_mini/core/prompt_claude_code.md:6-12`：语气与简洁性要求；
-  - `src/codex_mini/core/prompt_claude_code.md:57-66`：最终回答结构与风格；
-  - `src/codex_mini/core/prompt_claude_code.md:130-135`：当前 `# Tool Usage Policy`，尚未包含 Explore 子Agent 的使用策略。
+  - `src/klaude_code/core/prompt_claude_code.md:6-12`：语气与简洁性要求；
+  - `src/klaude_code/core/prompt_claude_code.md:57-66`：最终回答结构与风格；
+  - `src/klaude_code/core/prompt_claude_code.md:130-135`：当前 `# Tool Usage Policy`，尚未包含 Explore 子Agent 的使用策略。
 
 - 子Agent Prompt：
-  - `src/codex_mini/core/prompt_subagent_explore.md:1-25`：Explore 子Agent 的系统提示，强调：
+  - `src/klaude_code/core/prompt_subagent_explore.md:1-25`：Explore 子Agent 的系统提示，强调：
     - 只读探索；
     - 使用 `fd`/`rg`/`Read` 等工具；
     - 返回绝对路径等规范要求。
   - 目前未在 `get_system_prompt` 中通过 `key="explore"` 显式使用，需要在未来接入。
 
 - Prompt 路由：
-  - `src/codex_mini/core/prompt.py:7-20`：`get_system_prompt` 根据 `key` 选择不同 Prompt 文件（`main/task/oracle`）。
+  - `src/klaude_code/core/prompt.py:7-20`：`get_system_prompt` 根据 `key` 选择不同 Prompt 文件（`main/task/oracle`）。
 
 ### 2.4 Agent 与执行器
 
 - Agent 结构：
-  - `src/codex_mini/core/agent.py:25-30`：`AgentLLMClients`，目前字段：`main`, `fast`, `task`, `oracle`；
-  - `src/codex_mini/core/agent.py:31-37`：`get_sub_agent_client` 对 TASK/ORACLE 的模型选择逻辑；
-  - `src/codex_mini/core/agent.py:461-490`：`refresh_model_profile` 根据 `SubAgentType` 选择 Prompt、工具与提醒；
-  - `src/codex_mini/core/agent.py:499-507`：`_resolve_llm_client_for` 根据 `SubAgentType` 选择 LLM 客户端。
+  - `src/klaude_code/core/agent.py:25-30`：`AgentLLMClients`，目前字段：`main`, `fast`, `task`, `oracle`；
+  - `src/klaude_code/core/agent.py:31-37`：`get_sub_agent_client` 对 TASK/ORACLE 的模型选择逻辑；
+  - `src/klaude_code/core/agent.py:461-490`：`refresh_model_profile` 根据 `SubAgentType` 选择 Prompt、工具与提醒；
+  - `src/klaude_code/core/agent.py:499-507`：`_resolve_llm_client_for` 根据 `SubAgentType` 选择 LLM 客户端。
 
 - 执行器：
-  - `src/codex_mini/core/executor.py:171-211`：`_run_agent_task`，封装主 Agent 的任务执行；
-  - `src/codex_mini/core/executor.py:217-257`：`_run_subagent_task`，负责：
+  - `src/klaude_code/core/executor.py:171-211`：`_run_agent_task`，封装主 Agent 的任务执行；
+  - `src/klaude_code/core/executor.py:217-257`：`_run_subagent_task`，负责：
     - 创建子 Session 并设置 `sub_agent_type`；
     - 使用 `get_sub_agent_client` 构造子Agent；
     - 调用 `refresh_model_profile(sub_agent_type)` 切换 Prompt 与工具；
@@ -74,10 +74,10 @@ Last Updated: 2025-11-19
 ### 2.5 配置与示例
 
 - 配置结构：
-  - `src/codex_mini/config/config.py:20-24`：`ModelConfig` 定义；
-  - `src/codex_mini/config/config.py:26-35`：`Config`，目前字段包括 `main_model`, `task_model`, `oracle_model`；
-  - `src/codex_mini/config/config.py:36-57`：`get_main_model_config` 与 `get_model_config`，根据 `model_list` 与 `provider_list` 构建 `LLMConfigParameter`；
-  - `src/codex_mini/config/config.py:73-121`：`get_example_config` 示例配置。
+  - `src/klaude_code/config/config.py:20-24`：`ModelConfig` 定义；
+  - `src/klaude_code/config/config.py:26-35`：`Config`，目前字段包括 `main_model`, `task_model`, `oracle_model`；
+  - `src/klaude_code/config/config.py:36-57`：`get_main_model_config` 与 `get_model_config`，根据 `model_list` 与 `provider_list` 构建 `LLMConfigParameter`；
+  - `src/klaude_code/config/config.py:73-121`：`get_example_config` 示例配置。
 
 ## 3. 关键设计决策与约束
 

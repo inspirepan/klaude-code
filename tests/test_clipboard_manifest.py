@@ -4,7 +4,7 @@ import json
 import time
 from pathlib import Path
 
-from codex_mini.core.clipboard_manifest import (
+from klaude_code.core.clipboard_manifest import (
     ClipboardManifest,
     ClipboardManifestEntry,
     load_latest_clipboard_manifest,

@@ -1,0 +1,75 @@
+from typing import Callable, TypeVar
+
+from klaude_code.core.subagent import get_sub_agent_profile, sub_agent_tool_names
+from klaude_code.core.tool.tool_abc import ToolABC
+from klaude_code.protocol import tools
+from klaude_code.protocol.llm_parameter import ToolSchema
+from klaude_code.protocol.model import ToolCallItem, ToolResultItem
+
+_REGISTRY: dict[str, type[ToolABC]] = {}
+
+T = TypeVar("T", bound=ToolABC)
+
+
+def register(name: str) -> Callable[[type[T]], type[T]]:
+    def _decorator(cls: type[T]) -> type[T]:
+        _REGISTRY[name] = cls
+        return cls
+
+    return _decorator
+
+
+def list_tools() -> list[str]:
+    return list(_REGISTRY.keys())
+
+
+def get_tool_schemas(tool_names: list[str]) -> list[ToolSchema]:
+    schemas: list[ToolSchema] = []
+    for tool_name in tool_names:
+        if tool_name not in _REGISTRY:
+            raise ValueError(f"Unknown Tool: {tool_name}")
+        schemas.append(_REGISTRY[tool_name].schema())
+    return schemas
+
+
+async def run_tool(tool_call: ToolCallItem) -> ToolResultItem:
+    if tool_call.name not in _REGISTRY:
+        return ToolResultItem(
+            call_id=tool_call.call_id,
+            output=f"Tool {tool_call.name} not exists",
+            status="error",
+            tool_name=tool_call.name,
+        )
+    try:
+        tool_result = await _REGISTRY[tool_call.name].call(tool_call.arguments)
+        tool_result.call_id = tool_call.call_id
+        tool_result.tool_name = tool_call.name
+        return tool_result
+    except Exception as e:
+        return ToolResultItem(
+            call_id=tool_call.call_id,
+            output=f"Tool {tool_call.name} execution error: {e.__class__.__name__} {e}",
+            status="error",
+            tool_name=tool_call.name,
+        )
+
+
+def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
+    def _base_main_tools(name: str) -> list[str]:
+        if "gpt-5" in name:
+            return [tools.UPDATE_PLAN, tools.BASH, tools.APPLY_PATCH, tools.READ]
+        if "gemini-3" in name:
+            return [tools.TODO_WRITE, tools.BASH, tools.READ, tools.EDIT]
+        return [tools.TODO_WRITE, tools.BASH, tools.READ, tools.EDIT]
+
+    tool_names = _base_main_tools(model_name)
+    tool_names.extend(sub_agent_tool_names(enabled_only=True, model_name=model_name))
+    tool_names.append(tools.SKILL)
+    return get_tool_schemas(tool_names)
+
+
+def get_sub_agent_tools(model_name: str, sub_agent_type: tools.SubAgentType) -> list[ToolSchema]:
+    profile = get_sub_agent_profile(sub_agent_type)
+    if not profile.enabled_for_model(model_name):
+        return []
+    return get_tool_schemas(list(profile.tool_set))

@@ -1,4 +1,4 @@
-# Minimal Agent CLI (codex-mini)
+# Minimal Agent CLI (klaude-code)
 
 A repository for showing how to make a simple Agent CLI using OpenAI's Response API / Anthropic API / OpenRouter's API, like Claude Code & Codex.
 
@@ -20,7 +20,7 @@ Designed with a modern Python stack (3.13+, uv) and strict engineering practices
 
 ```bash
 uv sync
-uv run cdx [--model <name>] [--select-model]
+uv run klaude [--model <name>] [--select-model]
 ```
 
 - `--model`/`-m`: Select a model by logical name from config.
@@ -30,7 +30,7 @@ uv run cdx [--model <name>] [--select-model]
 
 ### Slash Commands
 
-Inside the interactive session (`cdx`), use these commands to streamline your workflow:
+Inside the interactive session (`klaude`), use these commands to streamline your workflow:
 
 - `/plan [goal]` - Generate a comprehensive execution plan for a feature.
 - `/init [spec]` - Bootstrap a new project structure or module.
@@ -46,13 +46,13 @@ Execute a single command without starting the interactive REPL:
 
 ```bash
 # Direct input
-cdx exec "what is 2+2?"
+klaude exec "what is 2+2?"
 
 # Pipe input
-echo "hello world" | cdx exec
+echo "hello world" | klaude exec
 
-# With model-config override in exec
-echo "generate quicksort in python" | uv run cdx exec --model-config-json '{"protocol":"responses","api_key":"sk-...","base_url":"https://api.openai.com/v1","model":"gpt-5-2025-08-07","reasoning":{"effort":"high"}}'
+# With model selection
+echo "generate quicksort in python" | uv run klaude exec --model gpt-5
 ```
 
 ### List Models
@@ -60,7 +60,7 @@ echo "generate quicksort in python" | uv run cdx exec --model-config-json '{"pro
 List configured providers and models:
 
 ```bash
-uv run cdx list
+uv run klaude list
 ```
 
 ### 👁️ Multimodal Capabilities
@@ -75,27 +75,14 @@ The system is fully multimodal (model permitting) and supports image interaction
 
 ### Configuration
 
-An example config will be created in `~/.config/codex-mini/config.yaml` when first run.
+An example config will be created in `~/.klaude/config.yaml` when first run.
 
 
 Open the configuration file in editor:
 
 ```bash
-uv run cdx config
+uv run klaude config
 ```
-
-### Override Model Config via JSON (env)
-
-You can also set the override via environment variable (applies to both interactive and exec modes):
-
-```bash
-export CODEX_MODEL_CONFIG_JSON='{"protocol":"anthropic","api_key":"sk-...","base_url":"https://api.anthropic.com","model":"claude-3-7-sonnet","thinking":{"type":"enabled","budget_tokens":1024}}'
-uv run cdx
-```
-
-Notes:
-- The JSON must match `LLMConfigParameter` (provider + model fields). Common keys: `protocol`, `api_key`, `base_url`, `is_azure`, `azure_api_version`, `model`, `temperature`, `max_tokens`, `reasoning`, `thinking`.
-- The override only affects the main agent; plan/task/oracle models still follow your YAML config.
 
 ### Terminal Notifications
 

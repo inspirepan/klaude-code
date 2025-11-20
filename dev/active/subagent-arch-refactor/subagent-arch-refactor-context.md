@@ -3,13 +3,13 @@
 Last Updated: 2025-11-19
 
 ## 关键代码位置
-- `src/codex_mini/core/agent.py`: 子 Agent 客户端选择、Prompt/工具刷新逻辑，当前以 if/elif 硬编码 TASK/ORACLE/EXPLORE。
-- `src/codex_mini/core/tool/tool_registry.py`: 主/子 Agent 工具可见性列表，需改造成 profile 驱动。
-- `src/codex_mini/cli/main.py`: 根据配置加载 task/oracle/explore 模型，未来需要统一遍历 profile。
-- `src/codex_mini/config/config.py`: `Config` 模型（含 task/oracle/explore 字段）与 `get_example_config`。
-- `src/codex_mini/ui/repl/renderer.py`, `src/codex_mini/ui/renderers/tools.py`: Tool call 渲染层，目前只识别特定子 Agent。
-- `src/codex_mini/core/prompt.py`, `prompt_subagent*.md`: Prompt 路由与模板资源。
-- `src/codex_mini/core/executor.py`: `_run_subagent_task` 中对子 Agent 客户端复制逻辑。
+- `src/klaude_code/core/agent.py`: 子 Agent 客户端选择、Prompt/工具刷新逻辑，当前以 if/elif 硬编码 TASK/ORACLE/EXPLORE。
+- `src/klaude_code/core/tool/tool_registry.py`: 主/子 Agent 工具可见性列表，需改造成 profile 驱动。
+- `src/klaude_code/cli/main.py`: 根据配置加载 task/oracle/explore 模型，未来需要统一遍历 profile。
+- `src/klaude_code/config/config.py`: `Config` 模型（含 task/oracle/explore 字段）与 `get_example_config`。
+- `src/klaude_code/ui/repl/renderer.py`, `src/klaude_code/ui/renderers/tools.py`: Tool call 渲染层，目前只识别特定子 Agent。
+- `src/klaude_code/core/prompt.py`, `prompt_subagent*.md`: Prompt 路由与模板资源。
+- `src/klaude_code/core/executor.py`: `_run_subagent_task` 中对子 Agent 客户端复制逻辑。
 
 ## 现有设计约束
 - 配置兼容性：必须兼容仅含 `main_model` 的旧配置；task/oracle/explore 字段短期内仍需支持。

@@ -1,11 +1,11 @@
 from typing import Any, cast
 
-from codex_mini.llm.anthropic.input import convert_history_to_input as anthropic_history
-from codex_mini.llm.openai_compatible.input import convert_history_to_input as openai_history
-from codex_mini.llm.openrouter.input import convert_history_to_input as openrouter_history
-from codex_mini.llm.responses.input import convert_history_to_input as responses_history
-from codex_mini.protocol import model
-from codex_mini.protocol.model import group_response_items_gen
+from klaude_code.llm.anthropic.input import convert_history_to_input as anthropic_history
+from klaude_code.llm.openai_compatible.input import convert_history_to_input as openai_history
+from klaude_code.llm.openrouter.input import convert_history_to_input as openrouter_history
+from klaude_code.llm.responses.input import convert_history_to_input as responses_history
+from klaude_code.protocol import model
+from klaude_code.protocol.model import group_response_items_gen
 
 SAMPLE_IMAGE_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
 SAMPLE_DATA_URL = f"data:image/png;base64,{SAMPLE_IMAGE_BASE64}"
