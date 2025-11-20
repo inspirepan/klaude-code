@@ -4,7 +4,7 @@ from typing import Awaitable, Callable
 
 from codex_mini.protocol import events
 from codex_mini.ui.base.debouncer import Debouncer
-from codex_mini.ui.base.osc94_progress_bar import OSC94States, emit_osc94
+from codex_mini.ui.base.progress_bar import OSC94States, emit_osc94
 from codex_mini.ui.base.stage_manager import Stage, StageManager
 from codex_mini.ui.base.terminal_notifier import Notification, NotificationType, TerminalNotifier
 from codex_mini.ui.base.theme import ThemeKey
