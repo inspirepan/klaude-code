@@ -108,6 +108,35 @@ class OpenAICompatibleClient(LLMClientABC):
         response_id: str | None = None
         metadata_item = model.ResponseMetadataItem()
 
+        def flush_reasoning_items() -> list[model.ConversationItem]:
+            nonlocal accumulated_reasoning
+            if not accumulated_reasoning:
+                return []
+            item = model.ReasoningTextItem(
+                content="".join(accumulated_reasoning),
+                response_id=response_id,
+            )
+            accumulated_reasoning = []
+            return [item]
+
+        def flush_assistant_items() -> list[model.ConversationItem]:
+            nonlocal accumulated_content
+            if len(accumulated_content) == 0:
+                return []
+            item = model.AssistantMessageItem(
+                content="".join(accumulated_content),
+                response_id=response_id,
+            )
+            accumulated_content = []
+            return [item]
+
+        def flush_tool_call_items() -> list[model.ToolCallItem]:
+            nonlocal accumulated_tool_calls
+            items: list[model.ToolCallItem] = accumulated_tool_calls.get()
+            if items:
+                accumulated_tool_calls.chunks_by_step = []  # pyright: ignore[reportAttributeAccessIssue]
+            return items
+
         try:
             async for event in await stream:
                 if self.is_debug_mode():
@@ -155,10 +184,11 @@ class OpenAICompatibleClient(LLMClientABC):
                         first_token_time = time.time()
                     last_token_time = time.time()
                     if stage == "reasoning":
-                        yield model.ReasoningTextItem(
-                            content="".join(accumulated_reasoning),
-                            response_id=response_id,
-                        )
+                        for item in flush_reasoning_items():
+                            yield item
+                    elif stage == "tool":
+                        for item in flush_tool_call_items():
+                            yield item
                     stage = "assistant"
                     accumulated_content.append(delta.content)
                     yield model.AssistantMessageDelta(
@@ -172,33 +202,25 @@ class OpenAICompatibleClient(LLMClientABC):
                         first_token_time = time.time()
                     last_token_time = time.time()
                     if stage == "reasoning":
-                        yield model.ReasoningTextItem(
-                            content="".join(accumulated_reasoning),
-                            response_id=response_id,
-                        )
+                        for item in flush_reasoning_items():
+                            yield item
                     elif stage == "assistant":
-                        yield model.AssistantMessageItem(
-                            content="".join(accumulated_content),
-                            response_id=response_id,
-                        )
+                        for item in flush_assistant_items():
+                            yield item
                     stage = "tool"
                     accumulated_tool_calls.add(delta.tool_calls)
         except (RateLimitError, APIError) as e:
             yield StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
 
         # Finalize
-        if stage == "reasoning":
-            yield model.ReasoningTextItem(
-                content="".join(accumulated_reasoning),
-                response_id=response_id,
-            )
-        elif stage == "assistant":
-            yield model.AssistantMessageItem(
-                content="".join(accumulated_content),
-                response_id=response_id,
-            )
-        elif stage == "tool":
-            for tool_call_item in accumulated_tool_calls.get():
+        for item in flush_reasoning_items():
+            yield item
+
+        for item in flush_assistant_items():
+            yield item
+
+        if stage == "tool":
+            for tool_call_item in flush_tool_call_items():
                 yield tool_call_item
 
         metadata_item.response_id = response_id

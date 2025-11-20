@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from collections.abc import AsyncGenerator
 from typing import Literal, override
@@ -120,15 +121,71 @@ class OpenRouterClient(LLMClientABC):
         )
 
         stage: Literal["waiting", "reasoning", "assistant", "tool", "done"] = "waiting"
-        accumulated_reasoning: list[str] = []
-        accumulated_content: list[str] = []
-        accumulated_tool_calls: ToolCallAccumulatorABC = BasicToolCallAccumulator()
         response_id: str | None = None
-        metadata_item = model.ResponseMetadataItem()
-
+        accumulated_reasoning: list[str] = []
         reasoning_encrypted_content: str | None = None
         reasoning_format: str | None = None
         reasoning_id: str | None = None
+        accumulated_content: list[str] = []
+        accumulated_tool_calls: ToolCallAccumulatorABC = BasicToolCallAccumulator()
+        metadata_item = model.ResponseMetadataItem()
+
+        def should_apply_gpt5_reasoning_fix() -> bool:
+            resolved_model_name = metadata_item.model_name or str(param.model)
+            return "gpt-5" in resolved_model_name.lower()
+
+        def normalize_reasoning_text(text: str) -> str:
+            if not should_apply_gpt5_reasoning_fix():
+                return text
+            # GPT-5 streams sometimes drop the blank line before bold section titles (e.g. "...text**Title**\n").
+            # Insert "\n\n" before the title to restore the paragraph separation without affecting other models.
+            pattern = r"([^\n])(\*\*[^\n]*?\*\*\n)"
+            return re.sub(pattern, r"\1\n\n\2", text)
+
+        def flush_reasoning_items() -> list[model.ConversationItem]:
+            nonlocal accumulated_reasoning
+            nonlocal reasoning_encrypted_content
+            items: list[model.ConversationItem] = []
+            if accumulated_reasoning and not is_complete_chunk_reasoning_model(str(param.model)):
+                content = normalize_reasoning_text("".join(accumulated_reasoning))
+                items.append(
+                    model.ReasoningTextItem(
+                        id=reasoning_id,
+                        content=content,
+                        response_id=response_id,
+                    )
+                )
+                accumulated_reasoning = []
+            if reasoning_encrypted_content:
+                items.append(
+                    model.ReasoningEncryptedItem(
+                        id=reasoning_id,
+                        encrypted_content=reasoning_encrypted_content,
+                        format=reasoning_format,
+                        response_id=response_id,
+                        model=param.model,
+                    )
+                )
+                reasoning_encrypted_content = None
+            return items
+
+        def flush_assistant_items() -> list[model.ConversationItem]:
+            nonlocal accumulated_content
+            if len(accumulated_content) == 0:
+                return []
+            item = model.AssistantMessageItem(
+                content="".join(accumulated_content),
+                response_id=response_id,
+            )
+            accumulated_content = []
+            return [item]
+
+        def flush_tool_call_items() -> list[model.ToolCallItem]:
+            nonlocal accumulated_tool_calls
+            items: list[model.ToolCallItem] = accumulated_tool_calls.get()
+            if items:
+                accumulated_tool_calls.chunks_by_step = []  # pyright: ignore[reportAttributeAccessIssue]
+            return items
 
         try:
             async for event in await stream:
@@ -191,22 +248,8 @@ class OpenRouterClient(LLMClientABC):
                         first_token_time = time.time()
                     last_token_time = time.time()
                     if stage == "reasoning":
-                        if accumulated_reasoning and not is_complete_chunk_reasoning_model(str(param.model)):
-                            yield model.ReasoningTextItem(
-                                id=reasoning_id,
-                                content="".join(accumulated_reasoning),
-                                response_id=response_id,
-                            )
-                            accumulated_reasoning = []
-                        if reasoning_encrypted_content:
-                            yield model.ReasoningEncryptedItem(
-                                id=reasoning_id,
-                                encrypted_content=reasoning_encrypted_content,
-                                format=reasoning_format,
-                                response_id=response_id,
-                                model=param.model,
-                            )
-                            reasoning_encrypted_content = None
+                        for item in flush_reasoning_items():
+                            yield item
                     stage = "assistant"
                     accumulated_content.append(delta.content)
                     yield model.AssistantMessageDelta(
@@ -220,64 +263,25 @@ class OpenRouterClient(LLMClientABC):
                         first_token_time = time.time()
                     last_token_time = time.time()
                     if stage == "reasoning":
-                        if accumulated_reasoning and not is_complete_chunk_reasoning_model(str(param.model)):
-                            yield model.ReasoningTextItem(
-                                id=reasoning_id,
-                                content="".join(accumulated_reasoning),
-                                response_id=response_id,
-                            )
-                            accumulated_reasoning = []
-                        if reasoning_encrypted_content:
-                            yield model.ReasoningEncryptedItem(
-                                id=reasoning_id,
-                                encrypted_content=reasoning_encrypted_content,
-                                format=reasoning_format,
-                                response_id=response_id,
-                                model=param.model,
-                            )
-                            reasoning_encrypted_content = None
+                        for item in flush_reasoning_items():
+                            yield item
                     elif stage == "assistant":
-                        yield model.AssistantMessageItem(
-                            content="".join(accumulated_content),
-                            response_id=response_id,
-                        )
+                        for item in flush_assistant_items():
+                            yield item
                     stage = "tool"
                     accumulated_tool_calls.add(delta.tool_calls)
         except (openai.OpenAIError, httpx.HTTPError) as e:
             yield StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
 
         # Finalize
-        if stage == "reasoning":
-            if accumulated_reasoning and not is_complete_chunk_reasoning_model(str(param.model)):
-                yield model.ReasoningTextItem(
-                    id=reasoning_id,
-                    content="".join(accumulated_reasoning),
-                    response_id=response_id,
-                )
-                accumulated_reasoning = []
-            if reasoning_encrypted_content:
-                yield model.ReasoningEncryptedItem(
-                    id=reasoning_id,
-                    encrypted_content=reasoning_encrypted_content,
-                    format=reasoning_format,
-                    response_id=response_id,
-                    model=param.model,
-                )
-                reasoning_encrypted_content = None
-            if len(accumulated_content) > 0:
-                # Due to Gemini3's behavior of returning reasoning chunks, then output, and finally a full reasoning summary with reasoning.encrypted,
-                # the stage might incorrectly end as 'reasoning'. If there's accumulated content, we must yield it as an AssistantMessageItem.
-                yield model.AssistantMessageItem(
-                    content="".join(accumulated_content),
-                    response_id=response_id,
-                )
-        elif stage == "assistant":
-            yield model.AssistantMessageItem(
-                content="".join(accumulated_content),
-                response_id=response_id,
-            )
-        elif stage == "tool":
-            for tool_call_item in accumulated_tool_calls.get():
+        for item in flush_reasoning_items():
+            yield item
+
+        for item in flush_assistant_items():
+            yield item
+
+        if stage == "tool":
+            for tool_call_item in flush_tool_call_items():
                 yield tool_call_item
 
         metadata_item.response_id = response_id
