@@ -60,13 +60,11 @@ class Agent:
         llm_clients: AgentLLMClients,
         session: Session,
         tools: list[llm_parameter.ToolSchema] | None = None,
-        debug_mode: bool = False,
         reminders: list[Reminder] | None = None,
         vanilla: bool = False,
     ):
         self.session: Session = session
         self.tools: list[llm_parameter.ToolSchema] | None = tools
-        self.debug_mode: bool = debug_mode
         self.reminders: list[Reminder] | None = reminders
         self.llm_clients = llm_clients
         self.vanilla = vanilla
@@ -120,8 +118,7 @@ class Agent:
 
         # Record an interrupt marker in the session history
         self.session.append_history([model.InterruptItem()])
-        if self.debug_mode:
-            log_debug(f"Session {self.session.id} interrupted", style="yellow")
+        log_debug(f"Session {self.session.id} interrupted", style="yellow")
 
     async def run_task(self, user_input: str) -> AsyncGenerator[events.Event, None]:
         task_started_at = time.perf_counter()
@@ -197,8 +194,7 @@ class Agent:
                 except (TimeoutError, asyncio.TimeoutError):
                     turn_timed_out = True
                     turn_failed = True
-                    if self.debug_mode:
-                        log_debug("Turn timed out before first meaningful event, retrying", style="red")
+                    log_debug("Turn timed out before first meaningful event, retrying", style="red")
                     # Ensure pending calls are cleared on timeout
                     self.turn_inflight_tool_calls.clear()
                     try:
@@ -240,11 +236,10 @@ class Agent:
             else:
                 # This 'else' belongs to the 'while' loop. It runs if the loop completes without a 'break'.
                 # This means all retries have been exhausted and failed.
-                if self.debug_mode:
-                    log_debug(
-                        "Maximum consecutive failed turns reached, aborting task",
-                        style="red",
-                    )
+                log_debug(
+                    "Maximum consecutive failed turns reached, aborting task",
+                    style="red",
+                )
                 final_error_message = f"Turn failed after {MAX_FAILED_TURN_RETRIES} retries."
                 if last_turn_error_message:
                     final_error_message = f"{last_turn_error_message}\n{final_error_message}"
@@ -350,12 +345,11 @@ class Agent:
                 session_id=self.session.id,
             )
         ):
-            if self.debug_mode:
-                log_debug(
-                    f"📁 response [{response_item.__class__.__name__}]",
-                    response_item.model_dump_json(),
-                    style="green",
-                )
+            log_debug(
+                f"📁 response [{response_item.__class__.__name__}]",
+                response_item.model_dump_json(),
+                style="green",
+            )
             match response_item:
                 case model.StartItem() as item:
                     current_response_id = item.response_id
@@ -388,8 +382,7 @@ class Agent:
                     )
                 case model.StreamErrorItem() as item:
                     response_failed = True
-                    if self.debug_mode:
-                        log_debug("📁 response [StreamError]", item.error, style="red")
+                    log_debug("📁 response [StreamError]", item.error, style="red")
                     yield events.ErrorEvent(error_message=item.error)
                 case model.ToolCallItem() as item:
                     turn_tool_calls.append(item)

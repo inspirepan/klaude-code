@@ -10,15 +10,18 @@ from base64 import b64decode
 from binascii import Error as BinasciiError
 from typing import Literal, cast
 
-from anthropic.types.beta.beta_base64_image_source_param import BetaBase64ImageSourceParam
+from anthropic.types.beta.beta_base64_image_source_param import \
+    BetaBase64ImageSourceParam
 from anthropic.types.beta.beta_image_block_param import BetaImageBlockParam
 from anthropic.types.beta.beta_message_param import BetaMessageParam
 from anthropic.types.beta.beta_text_block_param import BetaTextBlockParam
 from anthropic.types.beta.beta_tool_param import BetaToolParam
-from anthropic.types.beta.beta_url_image_source_param import BetaURLImageSourceParam
+from anthropic.types.beta.beta_url_image_source_param import \
+    BetaURLImageSourceParam
 
 from klaude_code.protocol import llm_parameter, model
-from klaude_code.protocol.model import ReasoningEncryptedItem, ReasoningTextItem
+from klaude_code.protocol.model import (ReasoningEncryptedItem,
+                                        ReasoningTextItem)
 
 AllowedMediaType = Literal["image/png", "image/jpeg", "image/gif", "image/webp"]
 _INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (

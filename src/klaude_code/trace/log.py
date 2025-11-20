@@ -5,8 +5,21 @@ from rich.text import Text
 
 log_console = Console()
 
+_debug_enabled = False
 _debug_write_to_file = True
 _debug_log_file = "debug.log"
+
+
+def set_debug_logging(enabled: bool, *, write_to_file: bool | None = None, log_file: str | None = None) -> None:
+    """Configure global debug logging behavior."""
+
+    global _debug_enabled, _debug_write_to_file, _debug_log_file
+
+    _debug_enabled = enabled
+    if write_to_file is not None:
+        _debug_write_to_file = write_to_file
+    if log_file is not None:
+        _debug_log_file = log_file
 
 
 def log(*objects: str | tuple[str, str], style: str = ""):
@@ -16,6 +29,9 @@ def log(*objects: str | tuple[str, str], style: str = ""):
 
 
 def log_debug(*objects: str | tuple[str, str], style: str = "blue"):
+    if not _debug_enabled:
+        return
+
     if _debug_write_to_file:
         message_parts = []
         for obj in objects:

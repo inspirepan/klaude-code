@@ -7,26 +7,31 @@ import anthropic
 import httpx
 from anthropic import RateLimitError
 from anthropic.types.beta.beta_input_json_delta import BetaInputJSONDelta
-from anthropic.types.beta.beta_raw_content_block_delta_event import BetaRawContentBlockDeltaEvent
-from anthropic.types.beta.beta_raw_content_block_start_event import BetaRawContentBlockStartEvent
-from anthropic.types.beta.beta_raw_content_block_stop_event import BetaRawContentBlockStopEvent
-from anthropic.types.beta.beta_raw_message_delta_event import BetaRawMessageDeltaEvent
-from anthropic.types.beta.beta_raw_message_start_event import BetaRawMessageStartEvent
+from anthropic.types.beta.beta_raw_content_block_delta_event import \
+    BetaRawContentBlockDeltaEvent
+from anthropic.types.beta.beta_raw_content_block_start_event import \
+    BetaRawContentBlockStartEvent
+from anthropic.types.beta.beta_raw_content_block_stop_event import \
+    BetaRawContentBlockStopEvent
+from anthropic.types.beta.beta_raw_message_delta_event import \
+    BetaRawMessageDeltaEvent
+from anthropic.types.beta.beta_raw_message_start_event import \
+    BetaRawMessageStartEvent
 from anthropic.types.beta.beta_signature_delta import BetaSignatureDelta
 from anthropic.types.beta.beta_text_delta import BetaTextDelta
 from anthropic.types.beta.beta_thinking_delta import BetaThinkingDelta
 from anthropic.types.beta.beta_tool_use_block import BetaToolUseBlock
 
-from klaude_code.llm.anthropic.input import convert_history_to_input, convert_system_to_input, convert_tool_schema
+from klaude_code.llm.anthropic.input import (convert_history_to_input,
+                                             convert_system_to_input,
+                                             convert_tool_schema)
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.registry import register
 from klaude_code.protocol import llm_parameter, model
-from klaude_code.protocol.llm_parameter import (
-    LLMCallParameter,
-    LLMClientProtocol,
-    LLMConfigParameter,
-    apply_config_defaults,
-)
+from klaude_code.protocol.llm_parameter import (LLMCallParameter,
+                                                LLMClientProtocol,
+                                                LLMConfigParameter,
+                                                apply_config_defaults)
 from klaude_code.protocol.model import StreamErrorItem
 from klaude_code.trace import log_debug
 
@@ -59,36 +64,35 @@ class AnthropicClient(LLMClientABC):
         tools = convert_tool_schema(param.tools)
         system = convert_system_to_input(param.system)
 
-        if self.is_debug_mode():
-            thinking_config_dict = (
-                {
-                    "type": param.thinking.thinking_type,
-                    "budget_tokens": param.thinking.thinking_budget
-                    or llm_parameter.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
-                }
-                if param.thinking and param.thinking.thinking_type == "enabled"
-                else {"type": "disabled"}
-            )
-
-            payload: dict[str, object] = {
-                "model": str(param.model),
-                "tool_choice": {
-                    "type": "auto",
-                    "disable_parallel_tool_use": False,
-                },
-                "stream": True,
-                "max_tokens": param.max_tokens or llm_parameter.DEFAULT_MAX_TOKENS,
-                "temperature": param.temperature or llm_parameter.DEFAULT_TEMPERATURE,
-                "messages": messages,
-                "system": system,
-                "tools": tools,
-                "betas": ["interleaved-thinking-2025-05-14", "context-1m-2025-08-07"],
-                "thinking": thinking_config_dict,
+        thinking_config_dict = (
+            {
+                "type": param.thinking.thinking_type,
+                "budget_tokens": param.thinking.thinking_budget
+                or llm_parameter.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
             }
-            # Remove None values
-            payload = {k: v for k, v in payload.items() if v is not None}
+            if param.thinking and param.thinking.thinking_type == "enabled"
+            else {"type": "disabled"}
+        )
 
-            log_debug("➡️ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
+        payload: dict[str, object] = {
+            "model": str(param.model),
+            "tool_choice": {
+                "type": "auto",
+                "disable_parallel_tool_use": False,
+            },
+            "stream": True,
+            "max_tokens": param.max_tokens or llm_parameter.DEFAULT_MAX_TOKENS,
+            "temperature": param.temperature or llm_parameter.DEFAULT_TEMPERATURE,
+            "messages": messages,
+            "system": system,
+            "tools": tools,
+            "betas": ["interleaved-thinking-2025-05-14", "context-1m-2025-08-07"],
+            "thinking": thinking_config_dict,
+        }
+        # Remove None values
+        payload = {k: v for k, v in payload.items() if v is not None}
+
+        log_debug("➡️ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
 
         stream = self.client.beta.messages.create(
             model=str(param.model),
@@ -128,8 +132,7 @@ class AnthropicClient(LLMClientABC):
 
         try:
             async for event in await stream:
-                if self.is_debug_mode():
-                    log_debug(f"📥 stream [SSE {event.type}]", str(event), style="blue")
+                log_debug(f"📥 stream [SSE {event.type}]", str(event), style="blue")
                 match event:
                     case BetaRawMessageStartEvent() as event:
                         response_id = event.message.id

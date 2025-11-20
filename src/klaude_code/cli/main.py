@@ -34,7 +34,7 @@ from klaude_code.protocol.events import EndEvent, Event
 from klaude_code.protocol.llm_parameter import LLMConfigParameter
 from klaude_code.protocol.model import ResponseMetadataItem
 from klaude_code.session import Session, resume_select_session
-from klaude_code.trace import log, log_debug
+from klaude_code.trace import log, log_debug, set_debug_logging
 from klaude_code.ui.base.progress_bar import OSC94States, emit_osc94
 from klaude_code.ui.base.terminal_color import is_light_terminal_background
 from klaude_code.ui.repl.input import REPLStatusSnapshot
@@ -136,6 +136,8 @@ class AppComponents:
 
 async def initialize_app_components(init_config: AppInitConfig) -> AppComponents:
     """Initialize all application components (LLM clients, executor, UI)."""
+    set_debug_logging(init_config.debug)
+
     # Set read limits policy
     set_unrestricted_mode(init_config.unrestricted)
 
@@ -157,8 +159,7 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
             parts.append(f"{user_count} user")
         if project_count > 0:
             parts.append(f"{project_count} project")
-        if init_config.debug:
-            log_debug(f"Discovered {len(skills)} Claude Skills ({', '.join(parts)})")
+        log_debug(f"Discovered {len(skills)} Claude Skills ({', '.join(parts)})")
     SkillTool.set_skill_loader(skill_loader)
     # Resolve main agent LLM config
     try:
@@ -171,9 +172,7 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
             log((f"Error: failed to load the default model configuration: {exc}", "red"))
         raise typer.Exit(2) from None
     llm_client: LLMClientABC = create_llm_client(llm_config)
-    if init_config.debug:
-        log_debug("➡️ llm [Model Config]", llm_config.model_dump_json(exclude_none=True), style="yellow")
-        llm_client.enable_debug_mode()
+    log_debug("➡️ llm [Model Config]", llm_config.model_dump_json(exclude_none=True), style="yellow")
 
     llm_clients = AgentLLMClients(main=llm_client)
 
@@ -186,19 +185,17 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
         sub_llm_config = config.get_model_config(model_name)
         sub_llm_client = create_llm_client(sub_llm_config)
         llm_clients.set_sub_agent_client(profile.type, sub_llm_client)
-        if init_config.debug:
-            log_debug(
-                f"➡️ llm [{profile.type.value} Model Config]",
-                sub_llm_config.model_dump_json(exclude_none=True),
-                style="yellow",
-            )
-            sub_llm_client.enable_debug_mode()
+        log_debug(
+            f"➡️ llm [{profile.type.value} Model Config]",
+            sub_llm_config.model_dump_json(exclude_none=True),
+            style="yellow",
+        )
 
     # Create event queue for communication between executor and UI
     event_queue: asyncio.Queue[Event] = asyncio.Queue()
 
     # Create executor with the LLM client
-    executor = Executor(event_queue, llm_clients, llm_config, debug_mode=init_config.debug, vanilla=init_config.vanilla)
+    executor = Executor(event_queue, llm_clients, llm_config, vanilla=init_config.vanilla)
 
     # Start executor in background
     executor_task = asyncio.create_task(executor.start())

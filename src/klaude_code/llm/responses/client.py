@@ -9,25 +9,18 @@ from openai.types import responses
 
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.registry import register
-from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
-from klaude_code.protocol.llm_parameter import (
-    LLMCallParameter,
-    LLMClientProtocol,
-    LLMConfigParameter,
-    apply_config_defaults,
-)
-from klaude_code.protocol.model import (
-    AssistantMessageDelta,
-    AssistantMessageItem,
-    ConversationItem,
-    ReasoningEncryptedItem,
-    ReasoningTextItem,
-    ResponseMetadataItem,
-    StartItem,
-    StreamErrorItem,
-    ToolCallItem,
-    Usage,
-)
+from klaude_code.llm.responses.input import (convert_history_to_input,
+                                             convert_tool_schema)
+from klaude_code.protocol.llm_parameter import (LLMCallParameter,
+                                                LLMClientProtocol,
+                                                LLMConfigParameter,
+                                                apply_config_defaults)
+from klaude_code.protocol.model import (AssistantMessageDelta,
+                                        AssistantMessageItem, ConversationItem,
+                                        ReasoningEncryptedItem,
+                                        ReasoningTextItem,
+                                        ResponseMetadataItem, StartItem,
+                                        StreamErrorItem, ToolCallItem, Usage)
 from klaude_code.trace import log_debug
 
 
@@ -70,36 +63,35 @@ class ResponsesClient(LLMClientABC):
 
         parallel_tool_calls = True
 
-        if self.is_debug_mode():
-            payload: dict[str, object] = {
-                "model": str(param.model),
-                "tool_choice": "auto",
-                "parallel_tool_calls": parallel_tool_calls,
-                "include": [
-                    "reasoning.encrypted_content",
-                ],
-                "store": param.store,
-                "previous_response_id": param.previous_response_id,
-                "stream": True,
-                "temperature": param.temperature,
-                "max_output_tokens": param.max_tokens,
-                "input": inputs,
-                "instructions": param.system,
-                "tools": convert_tool_schema(param.tools),
-                "text": {
-                    "verbosity": param.verbosity,
-                },
-                "reasoning": {
-                    "effort": param.thinking.reasoning_effort,
-                    "summary": param.thinking.reasoning_summary,
-                }
-                if param.thinking and param.thinking.reasoning_effort
-                else None,
+        payload: dict[str, object] = {
+            "model": str(param.model),
+            "tool_choice": "auto",
+            "parallel_tool_calls": parallel_tool_calls,
+            "include": [
+                "reasoning.encrypted_content",
+            ],
+            "store": param.store,
+            "previous_response_id": param.previous_response_id,
+            "stream": True,
+            "temperature": param.temperature,
+            "max_output_tokens": param.max_tokens,
+            "input": inputs,
+            "instructions": param.system,
+            "tools": convert_tool_schema(param.tools),
+            "text": {
+                "verbosity": param.verbosity,
+            },
+            "reasoning": {
+                "effort": param.thinking.reasoning_effort,
+                "summary": param.thinking.reasoning_summary,
             }
-            # Remove None values
-            payload = {k: v for k, v in payload.items() if v is not None}
+            if param.thinking and param.thinking.reasoning_effort
+            else None,
+        }
+        # Remove None values
+        payload = {k: v for k, v in payload.items() if v is not None}
 
-            log_debug("➡️ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
+        log_debug("➡️ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
 
         stream = self.client.responses.create(
             model=str(param.model),
@@ -130,8 +122,7 @@ class ResponsesClient(LLMClientABC):
 
         try:
             async for event in await stream:
-                if self.is_debug_mode():
-                    log_debug(f"📥 stream [SSE {event.type}]", str(event), style="blue")
+                log_debug(f"📥 stream [SSE {event.type}]", str(event), style="blue")
                 match event:
                     case responses.ResponseCreatedEvent() as event:
                         response_id = event.response.id
@@ -229,11 +220,9 @@ class ResponsesClient(LLMClientABC):
                             error_message = f"LLM response finished with status '{event.response.status}'"
                             if error_reason:
                                 error_message = f"{error_message}: {error_reason}"
-                            if self.is_debug_mode():
-                                log_debug("📥 stream [LLM Status Warning]", error_message, style="red")
+                            log_debug("📥 stream [LLM Status Warning]", error_message, style="red")
                             yield StreamErrorItem(error=error_message)
                     case _:
-                        if self.is_debug_mode():
-                            log_debug("📥 stream [Unhandled Event]", str(event), style="red")
+                        log_debug("📥 stream [Unhandled Event]", str(event), style="red")
         except RateLimitError as e:
             yield StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")

@@ -47,8 +47,7 @@ class ModelCommand(CommandABC):
         assert config is not None
         llm_config = config.get_model_config(selected_model)
 
-        if agent.debug_mode:
-            log_debug("➡️ llm [Model Config]", llm_config.model_dump_json(exclude_none=True), style="yellow")
+        log_debug("➡️ llm [Model Config]", llm_config.model_dump_json(exclude_none=True), style="yellow")
 
         llm_client = create_llm_client(llm_config)
         agent.set_llm_client(llm_client)

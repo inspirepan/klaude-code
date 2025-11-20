@@ -8,16 +8,16 @@ import openai
 from openai import APIError, RateLimitError
 
 from klaude_code.llm.client import LLMClientABC
-from klaude_code.llm.openai_compatible.input import convert_history_to_input, convert_tool_schema
-from klaude_code.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
+from klaude_code.llm.openai_compatible.input import (convert_history_to_input,
+                                                     convert_tool_schema)
+from klaude_code.llm.openai_compatible.tool_call_accumulator import (
+    BasicToolCallAccumulator, ToolCallAccumulatorABC)
 from klaude_code.llm.registry import register
 from klaude_code.protocol import model
-from klaude_code.protocol.llm_parameter import (
-    LLMCallParameter,
-    LLMClientProtocol,
-    LLMConfigParameter,
-    apply_config_defaults,
-)
+from klaude_code.protocol.llm_parameter import (LLMCallParameter,
+                                                LLMClientProtocol,
+                                                LLMConfigParameter,
+                                                apply_config_defaults)
 from klaude_code.protocol.model import StreamErrorItem
 from klaude_code.trace import log_debug
 
@@ -66,25 +66,24 @@ class OpenAICompatibleClient(LLMClientABC):
                 exclude_none=True, include={"thinking_type", "thinking_budget"}, by_alias=True
             )  # Claude or Gemini or GLM
 
-        if self.is_debug_mode():
-            payload: dict[str, object] = {
-                "model": str(param.model),
-                "tool_choice": "auto",
-                "parallel_tool_calls": True,
-                "stream": True,
-                "messages": messages,
-                "temperature": param.temperature,
-                "max_tokens": param.max_tokens,
-                "tools": tools,
-                "reasoning_effort": param.thinking.reasoning_effort if param.thinking else None,
-                "verbosity": param.verbosity,
-                **extra_body,
-                "extra_headers": extra_headers,
-            }
-            # Remove None values
-            payload = {k: v for k, v in payload.items() if v is not None}
+        payload: dict[str, object] = {
+            "model": str(param.model),
+            "tool_choice": "auto",
+            "parallel_tool_calls": True,
+            "stream": True,
+            "messages": messages,
+            "temperature": param.temperature,
+            "max_tokens": param.max_tokens,
+            "tools": tools,
+            "reasoning_effort": param.thinking.reasoning_effort if param.thinking else None,
+            "verbosity": param.verbosity,
+            **extra_body,
+            "extra_headers": extra_headers,
+        }
+        # Remove None values
+        payload = {k: v for k, v in payload.items() if v is not None}
 
-            log_debug("➡️ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
+        log_debug("➡️ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
 
         stream = self.client.chat.completions.create(
             model=str(param.model),
@@ -139,8 +138,7 @@ class OpenAICompatibleClient(LLMClientABC):
 
         try:
             async for event in await stream:
-                if self.is_debug_mode():
-                    log_debug("📥 stream [SSE]", str(event), style="blue")
+                log_debug("📥 stream [SSE]", str(event), style="blue")
                 if not response_id and event.id:
                     response_id = event.id
                     accumulated_tool_calls.response_id = response_id

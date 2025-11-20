@@ -11,6 +11,15 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
     "sg": "ast-grep - AST-aware code search",
 }
 
+# Mapping from logical prompt keys to resource file paths under the core/prompt directory.
+PROMPT_FILES: dict[str, str] = {
+    "main_codex": "prompt/prompt-codex.md",
+    "main_claude": "prompt/prompt-claude-code.md",
+    "subagent": "prompt/prompt-subagent.md",
+    "oracle": "prompt/prompt-subagent-oracle.md",
+    "subagent_explore": "prompt/prompt-subagent-explore.md",
+}
+
 
 @lru_cache(maxsize=None)
 def get_system_prompt(model_name: str, key: str = "main") -> str:
@@ -26,9 +35,14 @@ def get_system_prompt(model_name: str, key: str = "main") -> str:
             available_tools.append(f"{command}: {desc}")
 
     if key == "main":
-        prompt_path = "prompt_codex.md" if "gpt-5" in model_name else "prompt_claude_code.md"
+        file_key = "main_codex" if "gpt-5" in model_name else "main_claude"
     else:
-        prompt_path = f"prompt_{key}.md"
+        file_key = key
+
+    try:
+        prompt_path = PROMPT_FILES[file_key]
+    except KeyError as exc:
+        raise ValueError(f"Unknown prompt key: {key}") from exc
 
     base_prompt = (
         files(__package__)

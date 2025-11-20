@@ -7,17 +7,12 @@ from openai.types import chat
 from openai.types.chat import ChatCompletionContentPartParam
 
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import (
-    AssistantMessageItem,
-    ConversationItem,
-    DeveloperMessageItem,
-    ReasoningEncryptedItem,
-    ReasoningTextItem,
-    ToolCallItem,
-    ToolResultItem,
-    UserMessageItem,
-    group_response_items_gen,
-)
+from klaude_code.protocol.model import (AssistantMessageItem, ConversationItem,
+                                        DeveloperMessageItem,
+                                        ReasoningEncryptedItem,
+                                        ReasoningTextItem, ToolCallItem,
+                                        ToolResultItem, UserMessageItem,
+                                        group_response_items_gen)
 
 
 def build_user_content_parts(group: list[ConversationItem]) -> list[ChatCompletionContentPartParam]:

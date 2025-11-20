@@ -45,13 +45,11 @@ class ExecutorContext:
         event_queue: asyncio.Queue[events.Event],
         llm_clients: AgentLLMClients,
         llm_config: llm_parameter.LLMConfigParameter,
-        debug_mode: bool = False,
         vanilla: bool = False,
     ):
         self.event_queue = event_queue
         self.llm_clients = llm_clients
         self.llm_config = llm_config
-        self.debug_mode = debug_mode
         self.vanilla = vanilla
 
         # Track active agents by session ID
@@ -76,7 +74,6 @@ class ExecutorContext:
             agent = Agent(
                 llm_clients=self.llm_clients,
                 session=session,
-                debug_mode=self.debug_mode,
                 vanilla=self.vanilla,
             )
             agent.refresh_model_profile()
@@ -89,8 +86,7 @@ class ExecutorContext:
                 )
             )
             self.active_agents[operation.session_id] = agent
-            if self.debug_mode:
-                log_debug(f"Initialized agent for session: {operation.session_id}", style="cyan")
+            log_debug(f"Initialized agent for session: {operation.session_id}", style="cyan")
 
     async def handle_user_input(self, operation: UserInputOperation) -> None:
         """Handle a user input operation by running it through an agent."""
@@ -158,9 +154,8 @@ class ExecutorContext:
                 if active.session_id == operation.target_session_id:
                     tasks_to_cancel.append((task_id, task))
 
-        if self.debug_mode:
-            scope = operation.target_session_id or "all"
-            log_debug(f"Interrupting {len(tasks_to_cancel)} task(s) for: {scope}", style="yellow")
+        scope = operation.target_session_id or "all"
+        log_debug(f"Interrupting {len(tasks_to_cancel)} task(s) for: {scope}", style="yellow")
 
         # Cancel the tasks
         for task_id, task in tasks_to_cancel:
@@ -176,8 +171,7 @@ class ExecutorContext:
         that might occur during execution.
         """
         try:
-            if self.debug_mode:
-                log_debug(f"Starting agent task {task_id} for session {session_id}", style="green")
+            log_debug(f"Starting agent task {task_id} for session {session_id}", style="green")
 
             # Inject subtask runner into tool context for nested Task tool usage
             async def _runner(prompt: str, sub_agent_type: SubAgentType) -> SubAgentResult:
@@ -193,17 +187,15 @@ class ExecutorContext:
 
         except asyncio.CancelledError:
             # Task was cancelled (likely due to interrupt)
-            if self.debug_mode:
-                log_debug(f"Agent task {task_id} was cancelled", style="yellow")
+            log_debug(f"Agent task {task_id} was cancelled", style="yellow")
             await self.emit_event(events.TaskFinishEvent(session_id=session_id, task_result="task cancelled"))
 
         except Exception as e:
             # Handle any other exceptions
-            if self.debug_mode:
-                import traceback
+            import traceback
 
-                log_debug(f"Agent task {task_id} failed: {str(e)}", style="red")
-                log_debug(traceback.format_exc(), style="red")
+            log_debug(f"Agent task {task_id} failed: {str(e)}", style="red")
+            log_debug(traceback.format_exc(), style="red")
             await self.emit_event(
                 events.ErrorEvent(error_message=f"Agent task failed: [{e.__class__.__name__}] {str(e)}")
             )
@@ -211,8 +203,7 @@ class ExecutorContext:
         finally:
             # Clean up the task from active tasks
             self.active_tasks.pop(task_id, None)
-            if self.debug_mode:
-                log_debug(f"Cleaned up agent task {task_id}", style="cyan")
+            log_debug(f"Cleaned up agent task {task_id}", style="cyan")
 
     async def _run_subagent_task(
         self, parent_agent: Agent, prompt: str, sub_agent_type: SubAgentType
@@ -242,13 +233,11 @@ class ExecutorContext:
         child_agent = Agent(
             llm_clients=child_llm_clients,
             session=child_session,
-            debug_mode=self.debug_mode,
             vanilla=self.vanilla,
         )
         child_agent.refresh_model_profile(sub_agent_type)
 
-        if self.debug_mode:
-            log_debug(f"Running sub-agent {sub_agent_type} in session {child_session.id}", style="cyan")
+        log_debug(f"Running sub-agent {sub_agent_type} in session {child_session.id}", style="cyan")
 
         try:
             # Not emit the subtask's user input since task tool call is already rendered
@@ -280,13 +269,11 @@ class Executor:
         event_queue: asyncio.Queue[events.Event],
         llm_clients: AgentLLMClients,
         llm_config: llm_parameter.LLMConfigParameter,
-        debug_mode: bool = False,
         vanilla: bool = False,
     ):
-        self.context = ExecutorContext(event_queue, llm_clients, llm_config, debug_mode, vanilla)
+        self.context = ExecutorContext(event_queue, llm_clients, llm_config, vanilla)
         self.submission_queue: asyncio.Queue[Submission] = asyncio.Queue()
         self.running = False
-        self.debug_mode = debug_mode
         self.task_completion_events: dict[str, asyncio.Event] = {}
 
     async def submit(self, operation: Operation) -> str:
@@ -307,8 +294,7 @@ class Executor:
         completion_event = asyncio.Event()
         self.task_completion_events[operation.id] = completion_event
 
-        if self.debug_mode:
-            log_debug(f"Submitted operation {operation.type} with ID {operation.id}", style="blue")
+        log_debug(f"Submitted operation {operation.type} with ID {operation.id}", style="blue")
 
         return operation.id
 
@@ -328,8 +314,7 @@ class Executor:
         """
         self.running = True
 
-        if self.debug_mode:
-            log_debug("Executor started", style="green")
+        log_debug("Executor started", style="green")
 
         while self.running:
             try:
@@ -338,22 +323,19 @@ class Executor:
 
                 # Check for end operation to gracefully exit
                 if isinstance(submission.operation, EndOperation):
-                    if self.debug_mode:
-                        log_debug("Received EndOperation, stopping executor", style="yellow")
+                    log_debug("Received EndOperation, stopping executor", style="yellow")
                     break
 
                 await self._handle_submission(submission)
 
             except asyncio.CancelledError:
                 # Executor was cancelled
-                if self.debug_mode:
-                    log_debug("Executor cancelled", style="yellow")
+                log_debug("Executor cancelled", style="yellow")
                 break
 
             except Exception as e:
                 # Handle unexpected errors
-                if self.debug_mode:
-                    log_debug(f"Executor error: {str(e)}", style="red")
+                log_debug(f"Executor error: {str(e)}", style="red")
                 await self.context.emit_event(events.ErrorEvent(error_message=f"Executor error: {str(e)}"))
 
     async def stop(self) -> None:
@@ -372,11 +354,9 @@ class Executor:
             submission = Submission(id=end_operation.id, operation=end_operation)
             await self.submission_queue.put(submission)
         except Exception as e:
-            if self.debug_mode:
-                log_debug(f"Failed to send EndOperation: {str(e)}", style="red")
+            log_debug(f"Failed to send EndOperation: {str(e)}", style="red")
 
-        if self.debug_mode:
-            log_debug("Executor stopped", style="yellow")
+        log_debug("Executor stopped", style="yellow")
 
     async def _handle_submission(self, submission: Submission) -> None:
         """
@@ -386,10 +366,7 @@ class Executor:
         can access shared resources through the executor context.
         """
         try:
-            if self.debug_mode:
-                log_debug(
-                    f"Handling submission {submission.id} of type {submission.operation.type.value}", style="cyan"
-                )
+            log_debug(f"Handling submission {submission.id} of type {submission.operation.type.value}", style="cyan")
 
             # Execute to spawn the agent task in context
             await submission.operation.execute(self.context)
@@ -410,8 +387,7 @@ class Executor:
             asyncio.create_task(_await_agent_and_complete())
 
         except Exception as e:
-            if self.debug_mode:
-                log_debug(f"Failed to handle submission {submission.id}: {str(e)}", style="red")
+            log_debug(f"Failed to handle submission {submission.id}: {str(e)}", style="red")
             await self.context.emit_event(events.ErrorEvent(error_message=f"Operation failed: {str(e)}"))
             # Set completion event even on error to prevent wait_for_completion from hanging
             completion_event = self.task_completion_events.get(submission.id)
