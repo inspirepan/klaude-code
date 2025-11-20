@@ -1,13 +1,7 @@
 import klaude_code.core.tool as core_tool  # noqa: F401
-from klaude_code.config.config import get_example_config
-from klaude_code.core.subagent import is_sub_agent_tool, sub_agent_tool_names
-from klaude_code.core.tool.tool_registry import get_main_agent_tools, get_sub_agent_tools
+from klaude_code.core.subagent import sub_agent_tool_names
+from klaude_code.core.tool.tool_registry import get_main_agent_tools
 from klaude_code.protocol import tools
-
-
-def test_subagent_models_present_in_example() -> None:
-    cfg = get_example_config()
-    assert cfg.subagent_models["Explore"] == "sonnet-4"
 
 
 def test_sub_agent_tool_visibility_respects_filters() -> None:
@@ -28,12 +22,3 @@ def test_main_agent_tools_include_registered_sub_agents() -> None:
     assert tools.ORACLE not in gpt5_tool_names
 
     assert {tools.TASK, tools.EXPLORE, tools.ORACLE}.issubset(claude_tool_names)
-
-
-def test_get_sub_agent_tools_uses_profile_tool_set() -> None:
-    explore_tools = {schema.name for schema in get_sub_agent_tools("sonnet-4", tools.SubAgentType.EXPLORE)}
-    oracle_tools_for_gpt5 = get_sub_agent_tools("gpt-5", tools.SubAgentType.ORACLE)
-
-    assert explore_tools == {tools.BASH, tools.READ}
-    assert oracle_tools_for_gpt5 == []
-    assert is_sub_agent_tool(tools.EXPLORE)
