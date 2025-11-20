@@ -13,10 +13,10 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
     metadata = e.metadata
     metadata_text = Text()
     metadata_text.append_text(Text("↑ ", style=ThemeKey.METADATA)).append_text(
-        Text(metadata.model_name, style=ThemeKey.METADATA)
+        Text(metadata.model_name, style=ThemeKey.METADATA_BOLD)
     )
     if metadata.provider is not None:
-        metadata_text.append_text(Text("@", style=ThemeKey.METADATA)).append_text(
+        metadata_text.append_text(Text("@", style=ThemeKey.METADATA_DIM)).append_text(
             Text(metadata.provider.lower().replace(" ", "-"), style=ThemeKey.METADATA)
         )
 
@@ -25,7 +25,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
     if metadata.usage is not None:
         detail_parts.append(
             Text.assemble(
-                ("input", ThemeKey.METADATA),
+                ("input", ThemeKey.METADATA_DIM),
                 (":", ThemeKey.METADATA_DIM),
                 (format_number(metadata.usage.input_tokens), ThemeKey.METADATA),
             )
@@ -34,7 +34,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
         if metadata.usage.cached_tokens > 0:
             detail_parts.append(
                 Text.assemble(
-                    ("cached", ThemeKey.METADATA),
+                    ("cached", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
                     (format_number(metadata.usage.cached_tokens), ThemeKey.METADATA),
                 )
@@ -42,7 +42,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
 
         detail_parts.append(
             Text.assemble(
-                ("output", ThemeKey.METADATA),
+                ("output", ThemeKey.METADATA_DIM),
                 (":", ThemeKey.METADATA_DIM),
                 (format_number(metadata.usage.output_tokens), ThemeKey.METADATA),
             )
@@ -51,7 +51,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
         if metadata.usage.reasoning_tokens > 0:
             detail_parts.append(
                 Text.assemble(
-                    ("reasoning", ThemeKey.METADATA),
+                    ("reasoning", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
                     (format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA),
                 )
@@ -60,7 +60,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
         if metadata.usage.context_usage_percent is not None:
             detail_parts.append(
                 Text.assemble(
-                    ("context", ThemeKey.METADATA),
+                    ("context", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
                     (f"{metadata.usage.context_usage_percent:.1f}%", ThemeKey.METADATA),
                 )
@@ -69,7 +69,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
         if metadata.usage.throughput_tps is not None:
             detail_parts.append(
                 Text.assemble(
-                    ("tps", ThemeKey.METADATA),
+                    ("tps", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
                     (f"{metadata.usage.throughput_tps:.1f}", ThemeKey.METADATA),
                 )
@@ -78,16 +78,19 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
     if metadata.task_duration_s is not None:
         detail_parts.append(
             Text.assemble(
-                ("cost", ThemeKey.METADATA),
+                ("cost", ThemeKey.METADATA_DIM),
                 (":", ThemeKey.METADATA_DIM),
                 (f"{metadata.task_duration_s:.1f}s", ThemeKey.METADATA),
             )
         )
 
     if detail_parts:
-        metadata_text.append_text(Text(" · ", style=ThemeKey.METADATA)).append_text(
-            Text("  ", style=ThemeKey.METADATA).join(detail_parts)
-        )
+        details = Text()
+        for i, part in enumerate(detail_parts):
+            if i > 0:
+                details.append("/", style=ThemeKey.METADATA_DIM)
+            details.append_text(part)
+        metadata_text.append_text(Text("/", style=ThemeKey.METADATA_DIM)).append_text(details)
     return metadata_text
 
 
