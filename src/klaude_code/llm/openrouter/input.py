@@ -23,15 +23,6 @@ def is_claude_model(model_name: str | None):
     return model_name is not None and model_name.startswith("anthropic/claude")
 
 
-def is_complete_chunk_reasoning_model(model_name: str | None) -> bool:
-    """
-    Check if the model returns reasoning in complete chunks (like Gemini)
-    rather than token-by-token streams.
-    These models often include excessive newlines that should be trimmed.
-    """
-    return model_name is not None and model_name.startswith("google/gemini")
-
-
 def convert_history_to_input(
     history: list[ConversationItem],
     system: str | None = None,
@@ -113,26 +104,24 @@ def convert_history_to_input(
                             if model_name != r.model:
                                 continue
                             if r.encrypted_content and len(r.encrypted_content) > 0:
-                                if "reasoning_details" not in assistant_message:
-                                    assistant_message["reasoning_details"] = []
-                                assistant_message["reasoning_details"].append(
+                                reasoning_details = assistant_message.setdefault("reasoning_details", [])
+                                reasoning_details.append(
                                     {
                                         "id": r.id,
                                         "type": "reasoning.encrypted",
                                         "data": r.encrypted_content,
                                         "format": r.format,
-                                        "index": 0,
+                                        "index": len(reasoning_details),
                                     }
                                 )
                         case ReasoningTextItem() as r:
-                            if "reasoning_details" not in assistant_message:
-                                assistant_message["reasoning_details"] = []
-                            assistant_message["reasoning_details"].append(
+                            reasoning_details = assistant_message.setdefault("reasoning_details", [])
+                            reasoning_details.append(
                                 {
                                     "id": r.id,
                                     "type": "reasoning.text",
                                     "text": r.content,
-                                    "index": 0,  # TODO: index
+                                    "index": len(reasoning_details),
                                 }
                             )
                         case _:

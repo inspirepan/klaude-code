@@ -57,33 +57,20 @@ def convert_history_to_input(
         model_name: Model name. Used to verify that signatures are valid for the same model.
     """
     items: list[responses.ResponseInputItemParam] = []
-    last_user_index: int | None = None
-    # Preserve reasoning only from the most recent user turn to keep tool chains compact.
-
-    for idx in range(len(history) - 1, -1, -1):
-        if isinstance(history[idx], UserMessageItem):
-            last_user_index = idx
-            break
 
     pending_reasoning_text: str | None = None
 
-    for index, item in enumerate(history):
+    for item in history:
         match item:
             case ReasoningTextItem() as item:
                 # For now, we only store the text. We wait for the encrypted item to output both.
                 # If no encrypted item follows (e.g. incomplete stream?), this text might be lost
                 # or we can choose to output it if the next item is NOT reasoning?
                 # For now, based on instructions, we pair them.
-                if last_user_index is None or index >= last_user_index:
-                    pending_reasoning_text = item.content
+                pending_reasoning_text = item.content
 
             case ReasoningEncryptedItem() as item:
-                if (
-                    (last_user_index is None or index >= last_user_index)
-                    and item.encrypted_content
-                    and len(item.encrypted_content) > 0
-                    and model_name == item.model
-                ):
+                if item.encrypted_content and len(item.encrypted_content) > 0 and model_name == item.model:
                     items.append(convert_reasoning_inputs(pending_reasoning_text, item))
                 # Reset pending text after consumption
                 pending_reasoning_text = None

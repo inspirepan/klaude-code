@@ -139,7 +139,7 @@ class ReasoningTextItem(BaseModel):
 class ReasoningEncryptedItem(BaseModel):
     id: str | None = None
     response_id: str | None = None
-    encrypted_content: str
+    encrypted_content: str  # OpenAI encrypted content or Anthropic thinking signature
     format: str | None = None
     model: str | None
 
