@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from enum import Enum
 from typing import Iterable, Literal
 
 from pydantic import BaseModel
@@ -32,6 +33,19 @@ class TodoUIExtra(BaseModel):
     new_completed: list[str]
 
 
+class ToolResultUIExtraType(str, Enum):
+    DIFF_TEXT = "diff_text"
+    TODO_LIST = "todo_list"
+    SESSION_ID = "session_id"
+
+
+class ToolResultUIExtra(BaseModel):
+    type: ToolResultUIExtraType
+    diff_text: str | None = None
+    todo_list: TodoUIExtra | None = None
+    session_id: str | None = None
+
+
 class AtPatternParseResult(BaseModel):
     path: str
     tool_name: str
@@ -43,7 +57,7 @@ class AtPatternParseResult(BaseModel):
 
 class CommandOutput(BaseModel):
     command_name: CommandName
-    ui_extra: str | None = None
+    ui_extra: ToolResultUIExtra | None = None
     is_error: bool = False
 
 
@@ -157,7 +171,7 @@ class ToolResultItem(BaseModel):
     output: str | None = None
     status: Literal["success", "error"]
     tool_name: str | None = None  # This field will auto set by tool registry's run_tool
-    ui_extra: str | None = None  # Extra data for UI display, e.g. diff render
+    ui_extra: ToolResultUIExtra | None = None  # Extra data for UI display, e.g. diff render
     images: list[ImageURLPart] | None = None
 
 

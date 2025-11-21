@@ -86,7 +86,7 @@ class ToolResultEvent(BaseModel):
     tool_call_id: str
     tool_name: str
     result: str
-    ui_extra: str | None = None
+    ui_extra: model.ToolResultUIExtra | None = None
     status: Literal["success", "error"]
 
 

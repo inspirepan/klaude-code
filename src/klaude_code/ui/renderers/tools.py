@@ -184,31 +184,31 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
 def render_todo(tr: events.ToolResultEvent) -> RenderableType:
     if tr.ui_extra is None:
         return Text.assemble(("  ✘", ThemeKey.ERROR_BOLD), " ", Text("(no content)", style=ThemeKey.ERROR))
-    try:
-        ui_extra = model.TodoUIExtra.model_validate_json(tr.ui_extra)
-        todo_grid = create_grid()
-        for todo in ui_extra.todos:
-            is_new_completed = todo.content in ui_extra.new_completed
-            match todo.status:
-                case "pending":
-                    mark = "▢"
-                    mark_style = ThemeKey.TODO_PENDING_MARK
-                    text_style = ThemeKey.TODO_PENDING
-                case "in_progress":
-                    mark = "◉"
-                    mark_style = ThemeKey.TODO_IN_PROGRESS_MARK
-                    text_style = ThemeKey.TODO_IN_PROGRESS
-                case "completed":
-                    mark = "✔"
-                    mark_style = ThemeKey.TODO_NEW_COMPLETED_MARK if is_new_completed else ThemeKey.TODO_COMPLETED_MARK
-                    text_style = ThemeKey.TODO_NEW_COMPLETED if is_new_completed else ThemeKey.TODO_COMPLETED
-            text = Text(todo.content)
-            text.stylize(text_style)
-            todo_grid.add_row(Text(mark, style=mark_style), text)
+    if tr.ui_extra.type != model.ToolResultUIExtraType.TODO_LIST or tr.ui_extra.todo_list is None:
+        return Text.assemble(("  ✘", ThemeKey.ERROR_BOLD), " ", Text("(invalid ui_extra)", style=ThemeKey.ERROR))
 
-        return Padding.indent(todo_grid, level=2)
-    except json.JSONDecodeError as e:
-        return Text(str(e), style=ThemeKey.ERROR)
+    ui_extra = tr.ui_extra.todo_list
+    todo_grid = create_grid()
+    for todo in ui_extra.todos:
+        is_new_completed = todo.content in ui_extra.new_completed
+        match todo.status:
+            case "pending":
+                mark = "▢"
+                mark_style = ThemeKey.TODO_PENDING_MARK
+                text_style = ThemeKey.TODO_PENDING
+            case "in_progress":
+                mark = "◉"
+                mark_style = ThemeKey.TODO_IN_PROGRESS_MARK
+                text_style = ThemeKey.TODO_IN_PROGRESS
+            case "completed":
+                mark = "✔"
+                mark_style = ThemeKey.TODO_NEW_COMPLETED_MARK if is_new_completed else ThemeKey.TODO_COMPLETED_MARK
+                text_style = ThemeKey.TODO_NEW_COMPLETED if is_new_completed else ThemeKey.TODO_COMPLETED
+        text = Text(todo.content)
+        text.stylize(text_style)
+        todo_grid.add_row(Text(mark, style=mark_style), text)
+
+    return Padding.indent(todo_grid, level=2)
 
 
 def render_generic_tool_result(result: str, *, is_error: bool = False) -> RenderableType:

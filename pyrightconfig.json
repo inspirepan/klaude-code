@@ -6,7 +6,7 @@
   "extraPaths": ["src"],
   "reportMissingImports": "warning",
   "reportMissingModuleSource": "warning",
-  "exclude": ["tests/", ".venv/"],
+  "exclude": [".venv/"],
   "executionEnvironments": [
     {
       "root": ".",

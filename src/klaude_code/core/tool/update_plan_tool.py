@@ -8,7 +8,14 @@ from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.tool_context import current_session_var
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import TodoItem, TodoStatusType, TodoUIExtra, ToolResultItem
+from klaude_code.protocol.model import (
+    TodoItem,
+    TodoStatusType,
+    TodoUIExtra,
+    ToolResultItem,
+    ToolResultUIExtra,
+    ToolResultUIExtraType,
+)
 from klaude_code.protocol.tools import UPDATE_PLAN
 
 from .todo_write_tool import get_new_completed_todos
@@ -102,5 +109,5 @@ class UpdatePlanTool(ToolABC):
         return ToolResultItem(
             status="success",
             output="Plan updated",
-            ui_extra=ui_extra.model_dump_json(),
+            ui_extra=ToolResultUIExtra(type=ToolResultUIExtraType.TODO_LIST, todo_list=ui_extra),
         )

@@ -11,7 +11,7 @@ from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.tool_context import current_session_var
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import ToolResultItem
+from klaude_code.protocol.model import ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
 from klaude_code.protocol.tools import EDIT
 
 
@@ -248,7 +248,8 @@ class EditTool(ToolABC):
                 n=3,
             )
         )
-        ui_extra = "\n".join(diff_lines)
+        diff_text = "\n".join(diff_lines)
+        ui_extra = ToolResultUIExtra(type=ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text)
 
         # Update tracker with new mtime
         if session is not None:

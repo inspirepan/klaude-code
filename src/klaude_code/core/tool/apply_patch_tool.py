@@ -13,7 +13,7 @@ from klaude_code.core.tool.tool_context import current_session_var
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import tools
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import ToolResultItem
+from klaude_code.protocol.model import ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
 
 
 class ApplyPatchHandler:
@@ -25,7 +25,11 @@ class ApplyPatchHandler:
             return ToolResultItem(status="error", output=str(error))
         except Exception as error:  # pragma: no cover  # unexpected errors bubbled to tool result
             return ToolResultItem(status="error", output=f"Execution error: {error}")
-        return ToolResultItem(status="success", output=output, ui_extra=diff_text)
+        return ToolResultItem(
+            status="success",
+            output=output,
+            ui_extra=ToolResultUIExtra(type=ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text),
+        )
 
     @staticmethod
     def _apply_patch_in_thread(patch_text: str) -> tuple[str, str]:

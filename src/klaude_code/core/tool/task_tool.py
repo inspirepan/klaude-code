@@ -4,7 +4,12 @@ from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.tool_context import current_run_subtask_callback
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import SubAgentState, ToolResultItem
+from klaude_code.protocol.model import (
+    SubAgentState,
+    ToolResultItem,
+    ToolResultUIExtra,
+    ToolResultUIExtraType,
+)
 from klaude_code.protocol.tools import TASK, SubAgentType
 
 
@@ -83,5 +88,5 @@ class TaskTool(ToolABC):
         return ToolResultItem(
             status="success" if not result.error else "error",
             output=result.task_result or "",
-            ui_extra=result.session_id,
+            ui_extra=ToolResultUIExtra(type=ToolResultUIExtraType.SESSION_ID, session_id=result.session_id),
         )

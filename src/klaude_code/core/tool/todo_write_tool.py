@@ -4,7 +4,14 @@ from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.tool_context import current_session_var
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import TodoItem, TodoUIExtra, ToolResultItem, todo_list_str
+from klaude_code.protocol.model import (
+    TodoItem,
+    TodoUIExtra,
+    ToolResultItem,
+    ToolResultUIExtra,
+    ToolResultUIExtraType,
+    todo_list_str,
+)
 from klaude_code.protocol.tools import TODO_WRITE
 
 
@@ -294,5 +301,5 @@ Your todo list has changed. DO NOT mention this explicitly to the user. Here are
         return ToolResultItem(
             status="success",
             output=response,
-            ui_extra=ui_extra.model_dump_json(),
+            ui_extra=ToolResultUIExtra(type=ToolResultUIExtraType.TODO_LIST, todo_list=ui_extra),
         )

@@ -154,6 +154,9 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
     return grid
 
 
+MAX_DIFF_LINES = 1000
+
+
 def render_diff_panel(
     diff_text: str,
     *,
@@ -161,12 +164,20 @@ def render_diff_panel(
     heading: str = "Git Diff",
     indent: int = 2,
 ) -> RenderableType:
+    lines = diff_text.splitlines()
+    truncated_notice: Text | None = None
+    if len(lines) > MAX_DIFF_LINES:
+        truncated_lines = len(lines) - MAX_DIFF_LINES
+        diff_text = "\n".join(lines[:MAX_DIFF_LINES])
+        truncated_notice = Text(f"... truncated {truncated_lines} lines", style=ThemeKey.TOOL_MARK)
+
     diff_body = render_diff(diff_text, show_file_name=show_file_name)
+    renderables: list[RenderableType] = [Text(f" {heading} ", style="bold reverse"), diff_body]
+    if truncated_notice is not None:
+        renderables.extend([Text(""), truncated_notice])
+
     panel = Panel.fit(
-        Group(
-            Text(f" {heading} ", style="bold reverse"),
-            diff_body,
-        ),
+        Group(*renderables),
         border_style=ThemeKey.LINES,
         title_align="center",
         box=box.ROUNDED,

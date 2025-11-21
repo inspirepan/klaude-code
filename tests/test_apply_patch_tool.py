@@ -13,6 +13,7 @@ if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from klaude_code.core.tool.apply_patch_tool import ApplyPatchTool  # noqa: E402
+from klaude_code.protocol.model import ToolResultUIExtraType  # noqa: E402
 
 
 def arun(coro):  # type:ignore
@@ -47,9 +48,14 @@ class TestApplyPatchTool(BaseTempDirTest):
 
         self.assertEqual(result.status, "success")
         self.assertEqual(result.output, "Done!")
-        self.assertIsNotNone(result.ui_extra)
-        self.assertIn("diff --git a/sample.txt b/sample.txt", result.ui_extra)  # type:ignore[arg-type]
-        self.assertIn("+hello", result.ui_extra)  # type:ignore[arg-type]
+        ui_extra = result.ui_extra
+        self.assertIsNotNone(ui_extra)
+        assert ui_extra is not None
+        self.assertEqual(ui_extra.type, ToolResultUIExtraType.DIFF_TEXT)
+        self.assertIsNotNone(ui_extra.diff_text)
+        assert ui_extra.diff_text is not None
+        self.assertIn("diff --git a/sample.txt b/sample.txt", ui_extra.diff_text)
+        self.assertIn("+hello", ui_extra.diff_text)
         self.assertTrue(Path("sample.txt").exists())
         self.assertEqual(Path("sample.txt").read_text(), "hello\nworld")
 
@@ -73,10 +79,15 @@ class TestApplyPatchTool(BaseTempDirTest):
 
         self.assertEqual(result.status, "success")
         self.assertEqual(result.output, "Done!")
-        self.assertIsNotNone(result.ui_extra)
-        self.assertIn("diff --git a/data.txt b/data.txt", result.ui_extra)  # type:ignore[arg-type]
-        self.assertIn("-old line", result.ui_extra)  # type:ignore[arg-type]
-        self.assertIn("+new line", result.ui_extra)  # type:ignore[arg-type]
+        ui_extra = result.ui_extra
+        self.assertIsNotNone(ui_extra)
+        assert ui_extra is not None
+        self.assertEqual(ui_extra.type, ToolResultUIExtraType.DIFF_TEXT)
+        self.assertIsNotNone(ui_extra.diff_text)
+        assert ui_extra.diff_text is not None
+        self.assertIn("diff --git a/data.txt b/data.txt", ui_extra.diff_text)
+        self.assertIn("-old line", ui_extra.diff_text)
+        self.assertIn("+new line", ui_extra.diff_text)
         self.assertEqual(Path("data.txt").read_text(), "new line\nkeep\n")
 
     def test_apply_patch_add_file_absolute_path(self) -> None:

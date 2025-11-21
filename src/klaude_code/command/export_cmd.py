@@ -21,6 +21,8 @@ from klaude_code.protocol.model import (
     ReasoningTextItem,
     ToolCallItem,
     ToolResultItem,
+    ToolResultUIExtra,
+    ToolResultUIExtraType,
     UserMessageItem,
 )
 
@@ -663,10 +665,11 @@ class ExportCommand(CommandABC):
             if result.output:
                 html_parts.append(self._render_text_block(result.output))
 
-            if result.ui_extra:
-                html_parts.append(self._render_diff_block(result.ui_extra))
+            diff_text = self._get_diff_text(result.ui_extra)
+            if diff_text:
+                html_parts.append(self._render_diff_block(diff_text))
 
-            if not result.output and not result.ui_extra:
+            if not result.output and not diff_text:
                 html_parts.append('<div style="color: var(--text-dim); font-style: italic;">(empty output)</div>')
 
             html_parts.append("</div>")
@@ -723,3 +726,10 @@ class ExportCommand(CommandABC):
         if not value or value <= 0:
             return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return datetime.fromtimestamp(value).strftime("%Y-%m-%d %H:%M:%S")
+
+    def _get_diff_text(self, ui_extra: ToolResultUIExtra | None) -> str | None:
+        if ui_extra is None:
+            return None
+        if ui_extra.type != ToolResultUIExtraType.DIFF_TEXT:
+            return None
+        return ui_extra.diff_text

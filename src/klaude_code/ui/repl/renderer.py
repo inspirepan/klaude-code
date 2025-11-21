@@ -78,6 +78,14 @@ class REPLRenderer:
     def box_style(self) -> Box:
         return box.ROUNDED
 
+    @staticmethod
+    def _extract_diff_text(ui_extra: model.ToolResultUIExtra | None) -> str | None:
+        if ui_extra is None:
+            return None
+        if ui_extra.type == model.ToolResultUIExtraType.DIFF_TEXT:
+            return ui_extra.diff_text
+        return None
+
     @contextmanager
     def session_print_context(self, session_id: str) -> Iterator[None]:
         """Temporarily switch to sub-agent quote style."""
@@ -119,15 +127,17 @@ class REPLRenderer:
                 self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments))
 
     def display_tool_call_result(self, e: events.ToolResultEvent) -> None:
-        if e.status == "error" and not e.ui_extra:
+        if e.status == "error" and e.ui_extra is None:
             self.print(r_errors.render_error(Text(truncate_display(e.result))))
             return
+
+        diff_text = self._extract_diff_text(e.ui_extra)
 
         match e.tool_name:
             case tools.READ:
                 pass
             case tools.EDIT | tools.MULTI_EDIT:
-                self.print(Padding.indent(r_diffs.render_diff(e.ui_extra or ""), level=2))
+                self.print(Padding.indent(r_diffs.render_diff(diff_text or ""), level=2))
             case tools.TODO_WRITE | tools.UPDATE_PLAN:
                 self.print(r_tools.render_todo(e))
             case _ if r_tools.is_sub_agent_tool(e.tool_name):
@@ -136,8 +146,8 @@ class REPLRenderer:
                 if e.tool_name in (tools.BASH, tools.APPLY_PATCH) and e.result.startswith("diff --git"):
                     self.print(r_diffs.render_diff_panel(e.result, show_file_name=True))
                     return
-                if e.tool_name in (tools.BASH, tools.APPLY_PATCH) and e.ui_extra:
-                    self.print(Padding.indent(r_diffs.render_diff(e.ui_extra, show_file_name=True), level=2))
+                if e.tool_name == tools.APPLY_PATCH and diff_text:
+                    self.print(Padding.indent(r_diffs.render_diff(diff_text, show_file_name=True), level=2))
                     return
                 if len(e.result.strip()) == 0:
                     e.result = "(no content)"
