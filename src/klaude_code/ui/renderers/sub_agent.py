@@ -18,4 +18,17 @@ def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) ->
 
 
 def render_sub_agent_result(result: str, *, code_theme: str) -> RenderableType:
-    return Panel.fit(NoInsetMarkdown(result.strip(), code_theme=code_theme), border_style=ThemeKey.LINES)
+    stripped_result = result.strip()
+    lines = stripped_result.splitlines()
+    max_lines = 12
+    if len(lines) > max_lines:
+        hidden_count = len(lines) - max_lines
+        truncated_text = "\n".join(lines[-max_lines:])
+        return Panel.fit(
+            Group(
+                Text(f"... more {hidden_count} lines", style=ThemeKey.METADATA_DIM),
+                NoInsetMarkdown(truncated_text, code_theme=code_theme),
+            ),
+            border_style=ThemeKey.LINES,
+        )
+    return Panel.fit(NoInsetMarkdown(stripped_result, code_theme=code_theme), border_style=ThemeKey.LINES)
