@@ -8,7 +8,7 @@ An minimal and opinionated code agent with multi-model support.
 - **Skill System**: Extensible support for loading Claude Skills.
 - **Session Management**: Robust context preservation with resumable sessions (`--continue`).
 - **Simple TUI**: Clean interface offering full visibility into model responses, reasoning and actions.
-- **Core Utilities**: Slash commands, sub-agents, image pasting, spec drive, terminal notifications, file mentioning, and auto-theming.
+- **Core Utilities**: Slash commands, sub-agents, image pasting, terminal notifications, file mentioning, and auto-theming.
 
 
 ## Usage
@@ -91,6 +91,7 @@ uv run klaude list
 Inside the interactive session (`klaude`), use these commands to streamline your workflow:
 
 - `/dev-doc [feature]` - Generate a comprehensive execution plan for a feature.
+- `/export` - Export last assistant message to a temp Markdown file.
 - `/init` - Bootstrap a new project structure or module.
 - `/model` - Switch the active LLM during the session.
 - `/clear` - Clear the current conversation context.
@@ -111,13 +112,3 @@ echo "hello world" | klaude exec
 # With model selection
 echo "generate quicksort in python" | uv run klaude exec --model gpt-5.1
 ```
-
-## Development Stack
-
-This project utilizes best-in-class modern Python tooling:
-
-- **Python 3.13+**
-- **uv**: Extremely fast Python package manager and resolver.
-- **Pyright**: Strict static type checking.
-- **Ruff**: Fast linting and formatting (line length 120).
-- **Rich**: Beautiful terminal UI capabilities.
