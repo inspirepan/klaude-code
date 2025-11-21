@@ -9,12 +9,7 @@ from pydantic import BaseModel, Field
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import (
-    MermaidLinkUIExtra,
-    ToolResultItem,
-    ToolResultUIExtra,
-    ToolResultUIExtraType,
-)
+from klaude_code.protocol.model import MermaidLinkUIExtra, ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
 from klaude_code.protocol.tools import MERMAID
 
 _MERMAID_LIVE_PREFIX = "https://mermaid.live/edit#pako:"
@@ -50,7 +45,7 @@ class MermaidTool(ToolABC):
                 "- Sequence and timing of operations\n"
                 "- Decision trees and conditional logic\n\n"
                 "# Styling\n"
-                "- When defining custom classDefs, always define fill color, stroke color, and text color (\"fill\", \"stroke\", \"color\") explicitly\n"
+                '- When defining custom classDefs, always define fill color, stroke color, and text color ("fill", "stroke", "color") explicitly\n'
                 "- IMPORTANT!!! Use DARK fill colors (close to #000) with light stroke and text colors (close to #fff)"
             ),
             parameters={

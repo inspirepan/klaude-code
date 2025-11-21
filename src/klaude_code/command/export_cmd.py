@@ -749,7 +749,7 @@ class ExportCommand(CommandABC):
         lines = ui_extra.mermaid_link.line_count
         return (
             '<div style="display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono);">'
-            f'<span>Lines: {lines}</span>'
+            f"<span>Lines: {lines}</span>"
             f'<a href="{link}" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: underline;">View Diagram</a>'
             "</div>"
         )
