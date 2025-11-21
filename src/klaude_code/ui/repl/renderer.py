@@ -119,6 +119,8 @@ class REPLRenderer:
                 self.print(r_tools.render_generic_tool_call("Update Todos", "", "◎"))
             case tools.UPDATE_PLAN:
                 self.print(r_tools.render_update_plan_tool_call(e.arguments))
+            case tools.MERMAID:
+                self.print(r_tools.render_mermaid_tool_call(e.arguments))
             case tools.SKILL:
                 self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments, "◈"))
             case _ if r_tools.is_sub_agent_tool(e.tool_name):
@@ -140,6 +142,8 @@ class REPLRenderer:
                 self.print(Padding.indent(r_diffs.render_diff(diff_text or ""), level=2))
             case tools.TODO_WRITE | tools.UPDATE_PLAN:
                 self.print(r_tools.render_todo(e))
+            case tools.MERMAID:
+                self.print(r_tools.render_mermaid_tool_result(e))
             case _ if r_tools.is_sub_agent_tool(e.tool_name):
                 pass  # handled in TaskFinishEvent
             case _:
@@ -158,7 +162,9 @@ class REPLRenderer:
             self.console.push_theme(theme=self.themes.thinking_markdown_theme)
             self.print(
                 NoInsetMarkdown(
-                    content.rstrip().replace("**\n\n", "**  \n"),  # remove extra newlines after bold titles
+                    content.rstrip()
+                    .replace("**\n\n", "**  \n")
+                    .replace("****", "**\n\n**"),  # remove extra newlines after bold titles
                     code_theme=self.themes.code_theme,
                     style=self.console.get_style(ThemeKey.THINKING),
                 )

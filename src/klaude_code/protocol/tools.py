@@ -11,6 +11,7 @@ TASK = "Task"
 ORACLE = "Oracle"
 EXPLORE = "Explore"
 SKILL = "Skill"
+MERMAID = "Mermaid"
 
 
 class SubAgentType(str, Enum):

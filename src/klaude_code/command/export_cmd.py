@@ -669,6 +669,10 @@ class ExportCommand(CommandABC):
             if diff_text:
                 html_parts.append(self._render_diff_block(diff_text))
 
+            mermaid_html = self._get_mermaid_link_html(result.ui_extra)
+            if mermaid_html:
+                html_parts.append(mermaid_html)
+
             if not result.output and not diff_text:
                 html_parts.append('<div style="color: var(--text-dim); font-style: italic;">(empty output)</div>')
 
@@ -733,3 +737,19 @@ class ExportCommand(CommandABC):
         if ui_extra.type != ToolResultUIExtraType.DIFF_TEXT:
             return None
         return ui_extra.diff_text
+
+    def _get_mermaid_link_html(self, ui_extra: ToolResultUIExtra | None) -> str | None:
+        if ui_extra is None:
+            return None
+        if ui_extra.type != ToolResultUIExtraType.MERMAID_LINK:
+            return None
+        if ui_extra.mermaid_link is None or not ui_extra.mermaid_link.link:
+            return None
+        link = self._escape_html(ui_extra.mermaid_link.link)
+        lines = ui_extra.mermaid_link.line_count
+        return (
+            '<div style="display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono);">'
+            f'<span>Lines: {lines}</span>'
+            f'<a href="{link}" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: underline;">View Diagram</a>'
+            "</div>"
+        )

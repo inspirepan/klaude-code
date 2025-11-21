@@ -57,10 +57,16 @@ async def run_tool(tool_call: ToolCallItem) -> ToolResultItem:
 def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
     def _base_main_tools(name: str) -> list[str]:
         if "gpt-5" in name:
-            return [tools.UPDATE_PLAN, tools.BASH, tools.APPLY_PATCH, tools.READ]
+            base = [tools.UPDATE_PLAN, tools.BASH, tools.APPLY_PATCH, tools.READ]
+            base.append(tools.MERMAID)
+            return base
         if "gemini-3" in name:
-            return [tools.TODO_WRITE, tools.BASH, tools.READ, tools.EDIT]
-        return [tools.TODO_WRITE, tools.BASH, tools.READ, tools.EDIT]
+            base = [tools.TODO_WRITE, tools.BASH, tools.READ, tools.EDIT]
+            base.append(tools.MERMAID)
+            return base
+        base = [tools.TODO_WRITE, tools.BASH, tools.READ, tools.EDIT]
+        base.append(tools.MERMAID)
+        return base
 
     tool_names = _base_main_tools(model_name)
     tool_names.extend(sub_agent_tool_names(enabled_only=True, model_name=model_name))

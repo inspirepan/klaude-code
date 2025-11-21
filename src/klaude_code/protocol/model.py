@@ -37,6 +37,12 @@ class ToolResultUIExtraType(str, Enum):
     DIFF_TEXT = "diff_text"
     TODO_LIST = "todo_list"
     SESSION_ID = "session_id"
+    MERMAID_LINK = "mermaid_link"
+
+
+class MermaidLinkUIExtra(BaseModel):
+    link: str
+    line_count: int
 
 
 class ToolResultUIExtra(BaseModel):
@@ -44,6 +50,7 @@ class ToolResultUIExtra(BaseModel):
     diff_text: str | None = None
     todo_list: TodoUIExtra | None = None
     session_id: str | None = None
+    mermaid_link: MermaidLinkUIExtra | None = None
 
 
 class AtPatternParseResult(BaseModel):

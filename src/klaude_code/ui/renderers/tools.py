@@ -215,3 +215,41 @@ def render_generic_tool_result(result: str, *, is_error: bool = False) -> Render
     """Render a generic tool result as indented, truncated text."""
     style = ThemeKey.ERROR if is_error else ThemeKey.TOOL_RESULT
     return Padding.indent(Text(truncate_display(result), style=style), level=2)
+
+
+def _extract_mermaid_link(ui_extra: model.ToolResultUIExtra | None) -> model.MermaidLinkUIExtra | None:
+    if ui_extra is None:
+        return None
+    if ui_extra.type != model.ToolResultUIExtraType.MERMAID_LINK:
+        return None
+    return ui_extra.mermaid_link
+
+
+def render_mermaid_tool_call(arguments: str) -> RenderableType:
+    grid = create_grid()
+    tool_name_column = Text.assemble(("⧉", ThemeKey.TOOL_MARK), " ", ("Mermaid", ThemeKey.TOOL_NAME))
+    summary = Text("", ThemeKey.TOOL_PARAM)
+
+    try:
+        payload: dict[str, str] = json.loads(arguments)
+    except json.JSONDecodeError:
+        summary = Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS)
+    else:
+        code = payload.get("code", "")
+        if code:
+            line_count = len(code.splitlines())
+            summary = Text(f"{line_count} lines", ThemeKey.TOOL_PARAM)
+        else:
+            summary = Text("0 lines", ThemeKey.TOOL_PARAM)
+
+    grid.add_row(tool_name_column, summary)
+    return grid
+
+
+def render_mermaid_tool_result(tr: events.ToolResultEvent) -> RenderableType:
+    link_info = _extract_mermaid_link(tr.ui_extra)
+    if link_info is None:
+        return render_generic_tool_result(tr.result, is_error=tr.status == "error")
+
+    link_text = Text.from_markup(f"[blue u][link={link_info.link}]Command+click to view[/link][/blue u]")
+    return Padding.indent(link_text, level=2)

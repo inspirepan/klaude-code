@@ -8,6 +8,7 @@ from .read_tool import ReadTool
 from .skill_tool import SkillTool
 from .task_tool import TaskTool
 from .todo_write_tool import TodoWriteTool
+from .mermaid_tool import MermaidTool
 from .tool_registry import get_main_agent_tools, get_sub_agent_tools, get_tool_schemas, run_tool
 from .update_plan_tool import UpdatePlanTool
 
@@ -23,6 +24,7 @@ __all__ = [
     "OracleTool",
     "ExploreTool",
     "ApplyPatchTool",
+    "MermaidTool",
     "get_tool_schemas",
     "run_tool",
     "get_sub_agent_tools",
