@@ -85,12 +85,13 @@ async def at_file_reader_reminder(session: Session) -> model.DeveloperMessageIte
         [
             f"""Called the {result.tool_name} tool with the following input: {result.tool_args}
 Result of calling the {result.tool_name} tool:
-{result.result}"""
+{result.result}
+"""
             for result in at_files.values()
         ]
     )
     return model.DeveloperMessageItem(
-        content=f"""<system-reminder>{at_files_str}</system-reminder>""",
+        content=f"""<system-reminder>{at_files_str}\n</system-reminder>""",
         at_files=list(at_files.values()),
         images=collected_images or None,
     )

@@ -411,6 +411,12 @@ class ExportCommand(CommandABC):
 
         /* Markdown Elements */
         .markdown-body {{ font-family: var(--font-sans); }}
+        .markdown-body hr {{
+            height: 0;
+            margin: 24px 0;
+            border: none;
+            border-top: 1px solid var(--border);
+        }}
         .markdown-body pre {{
             background: #111;
             padding: 16px;
