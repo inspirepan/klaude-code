@@ -17,6 +17,7 @@ class Palette:
     grey1: str
     grey2: str
     grey3: str
+    grey_green: str
     purple: str
     diff_add: str
     diff_remove: str
@@ -35,6 +36,7 @@ LIGHT_PALETTE = Palette(
     grey1="#667e90",
     grey2="#93a4b1",
     grey3="#c4ced4",
+    grey_green="#96a696",
     purple="slate_blue3",
     diff_add="#333333 on #69db7c",
     diff_remove="#333333 on #ffa8b4",
@@ -53,6 +55,7 @@ DARK_PALETTE = Palette(
     grey1="#99aabb",
     grey2="#778899",
     grey3="#646464",
+    grey_green="#6d8672",
     purple="#afbafe",
     diff_add="#ffffff on #007938",
     diff_remove="#ffffff on #a1223b",
@@ -180,7 +183,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_PARAM_FILE_PATH.value: palette.green,
                 ThemeKey.TOOL_PARAM.value: palette.green,
                 ThemeKey.TOOL_PARAM_BOLD.value: "bold " + palette.green,
-                ThemeKey.TOOL_RESULT.value: palette.grey2,
+                ThemeKey.TOOL_RESULT.value: palette.grey_green,
                 ThemeKey.TOOL_MARK.value: "bold",
                 ThemeKey.TOOL_APPROVED.value: palette.green + " bold reverse",
                 ThemeKey.TOOL_REJECTED.value: palette.red + " bold reverse",

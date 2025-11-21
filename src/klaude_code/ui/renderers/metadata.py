@@ -17,7 +17,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
     )
     if metadata.provider is not None:
         metadata_text.append_text(Text("@", style=ThemeKey.METADATA_DIM)).append_text(
-            Text(metadata.provider.lower().replace(" ", "-"), style=ThemeKey.METADATA)
+            Text(metadata.provider.lower().replace(" ", "-"), style=ThemeKey.METADATA_DIM)
         )
 
     detail_parts: list[Text] = []
@@ -25,9 +25,8 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
     if metadata.usage is not None:
         detail_parts.append(
             Text.assemble(
-                ("input", ThemeKey.METADATA_DIM),
-                (":", ThemeKey.METADATA_DIM),
-                (format_number(metadata.usage.input_tokens), ThemeKey.METADATA),
+                ("↑", ThemeKey.METADATA_DIM),
+                (format_number(metadata.usage.input_tokens), ThemeKey.METADATA_DIM),
             )
         )
 
@@ -36,15 +35,14 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
                 Text.assemble(
                     ("cached", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
-                    (format_number(metadata.usage.cached_tokens), ThemeKey.METADATA),
+                    (format_number(metadata.usage.cached_tokens), ThemeKey.METADATA_DIM),
                 )
             )
 
         detail_parts.append(
             Text.assemble(
-                ("output", ThemeKey.METADATA_DIM),
-                (":", ThemeKey.METADATA_DIM),
-                (format_number(metadata.usage.output_tokens), ThemeKey.METADATA),
+                ("↓", ThemeKey.METADATA_DIM),
+                (format_number(metadata.usage.output_tokens), ThemeKey.METADATA_DIM),
             )
         )
 
@@ -53,7 +51,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
                 Text.assemble(
                     ("reasoning", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
-                    (format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA),
+                    (format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA_DIM),
                 )
             )
 
@@ -62,7 +60,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
                 Text.assemble(
                     ("context", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
-                    (f"{metadata.usage.context_usage_percent:.1f}%", ThemeKey.METADATA),
+                    (f"{metadata.usage.context_usage_percent:.1f}%", ThemeKey.METADATA_DIM),
                 )
             )
 
@@ -71,7 +69,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
                 Text.assemble(
                     ("tps", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
-                    (f"{metadata.usage.throughput_tps:.1f}", ThemeKey.METADATA),
+                    (f"{metadata.usage.throughput_tps:.1f}", ThemeKey.METADATA_DIM),
                 )
             )
 
@@ -80,7 +78,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
             Text.assemble(
                 ("cost", ThemeKey.METADATA_DIM),
                 (":", ThemeKey.METADATA_DIM),
-                (f"{metadata.task_duration_s:.1f}s", ThemeKey.METADATA),
+                (f"{metadata.task_duration_s:.1f}s", ThemeKey.METADATA_DIM),
             )
         )
 

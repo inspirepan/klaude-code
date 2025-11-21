@@ -68,30 +68,27 @@ class DisplayEventHandler:
                     session_status.color = color
 
                 self.renderer.register_session(task_event.session_id, session_status)
-
                 if task_event.sub_agent_state is not None:
+                    # Print sub-agent task call
                     with self.renderer.session_print_context(task_event.session_id):
                         self.renderer.print(
                             r_sub_agent.render_sub_agent_call(
                                 task_event.sub_agent_state, self.renderer.get_sub_agent_color(task_event.session_id)
                             )
                         )
-
-                self.renderer.register_session(task_event.session_id, session_status)
                 emit_osc94(OSC94States.INDETERMINATE)
             case events.DeveloperMessageEvent() as developer_event:
                 self.renderer.display_developer_message(developer_event)
                 self.renderer.display_command_output(developer_event)
             case events.TurnStartEvent() as turn_start_event:
                 emit_osc94(OSC94States.INDETERMINATE)
-                with self.renderer.session_print_context(turn_start_event.session_id):
+                if not self.renderer.is_sub_agent_session(turn_start_event.session_id):
                     self.renderer.print()
             case events.ThinkingEvent() as thinking_event:
-                if self._should_suppress_subagent_thinking(thinking_event.session_id):
+                if self.renderer.is_sub_agent_session(thinking_event.session_id):
                     return
                 await self.stage_manager.enter_thinking_stage()
-                with self.renderer.session_print_context(thinking_event.session_id):
-                    self.renderer.display_thinking(thinking_event.content)
+                self.renderer.display_thinking(thinking_event.content)
             case events.AssistantMessageDeltaEvent() as assistant_delta:
                 if self.renderer.is_sub_agent_session(assistant_delta.session_id):
                     return
@@ -178,7 +175,7 @@ class DisplayEventHandler:
                 emit_osc94(OSC94States.HIDDEN)
                 self.renderer.print(r_user_input.render_interrupt())
             case events.ErrorEvent() as error_event:
-                emit_osc94(OSC94States.HIDDEN)
+                emit_osc94(OSC94States.ERROR)
                 await self.stage_manager.transition_to(Stage.WAITING)
                 self.renderer.print(
                     r_errors.render_error(
@@ -234,9 +231,6 @@ class DisplayEventHandler:
         if len(squashed) > 200:
             return squashed[:197] + "..."
         return squashed
-
-    def _should_suppress_subagent_thinking(self, session_id: str) -> bool:
-        return self.renderer.is_sub_agent_session(session_id)
 
     def _extract_active_form_text(self, todo_event: events.TodoChangeEvent) -> str:
         for todo in todo_event.todos:
