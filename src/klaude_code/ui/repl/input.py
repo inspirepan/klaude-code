@@ -45,7 +45,7 @@ kb = KeyBindings()
 
 COMPLETION_SELECTED = "#5869f7"
 COMPLETION_MENU = "ansibrightblack"
-INPUT_PROMPT_STYLE = "ansicyan"
+INPUT_PROMPT_STYLE = "ansimagenta"
 
 
 class ClipboardCaptureState:
@@ -172,7 +172,7 @@ def _(event):  # type: ignore
 
 
 class PromptToolkitInput(InputProviderABC):
-    def __init__(self, prompt: str = "▌ ", status_provider: Callable[[], REPLStatusSnapshot] | None = None):
+    def __init__(self, prompt: str = "❯ ", status_provider: Callable[[], REPLStatusSnapshot] | None = None):  # ▌
         self._status_provider = status_provider
 
         project = str(Path.cwd()).strip("/").replace("/", "-")
@@ -187,7 +187,7 @@ class PromptToolkitInput(InputProviderABC):
             [(INPUT_PROMPT_STYLE, prompt)],
             history=FileHistory(history_path),
             multiline=True,
-            prompt_continuation=[(INPUT_PROMPT_STYLE, prompt)],
+            prompt_continuation=[(INPUT_PROMPT_STYLE, "  ")],
             key_bindings=kb,
             completer=ThreadedCompleter(_ComboCompleter()),
             complete_while_typing=True,

@@ -13,6 +13,7 @@ class Palette:
     cyan: str
     blue: str
     orange: str
+    magenta: str
     grey_blue: str
     grey1: str
     grey2: str
@@ -32,6 +33,7 @@ LIGHT_PALETTE = Palette(
     cyan="cyan",
     blue="#3678b7",
     orange="#d77757",
+    magenta="magenta",
     grey_blue="steel_blue",
     grey1="#667e90",
     grey2="#93a4b1",
@@ -51,6 +53,7 @@ DARK_PALETTE = Palette(
     cyan="cyan",
     blue="dodger_blue1",
     orange="#e6704e",
+    magenta="magenta",
     grey_blue="steel_blue",
     grey1="#99aabb",
     grey2="#778899",
@@ -163,8 +166,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.ERROR_BOLD.value: "bold " + palette.red,
                 ThemeKey.INTERRUPT.value: "reverse bold " + palette.red,
                 # USER_INPUT
-                ThemeKey.USER_INPUT.value: palette.cyan + " bold",
-                ThemeKey.USER_INPUT_PROMPT.value: palette.cyan,
+                ThemeKey.USER_INPUT.value: palette.magenta,
+                ThemeKey.USER_INPUT_PROMPT.value: palette.magenta,
                 ThemeKey.USER_INPUT_AT_PATTERN.value: palette.purple + " bold",
                 ThemeKey.USER_INPUT_SLASH_COMMAND.value: "bold reverse " + palette.blue,
                 # METADATA
