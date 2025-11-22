@@ -470,9 +470,13 @@ class ExportCommand(CommandABC):
         }}
         
         .expandable {{ cursor: pointer; }}
+        .expandable.expanded {{ cursor: auto; }}
         .expandable .full-text {{ display: none; }}
+        .expandable .collapse-hint {{ display: none; }}
         .expandable.expanded .preview-text {{ display: none; }}
+        .expandable.expanded .expand-hint {{ display: none; }}
         .expandable.expanded .full-text {{ display: block; }}
+        .expandable.expanded .collapse-hint {{ display: block; cursor: pointer; color: var(--accent); font-size: 11px; font-style: italic; margin-top: 4px; border-top: 1px dashed var(--border); padding-top: 4px; }}
         .expand-hint {{ font-size: 11px; color: var(--accent); font-style: italic; margin-top: 4px; }}
     </style>
 </head>
@@ -533,8 +537,12 @@ class ExportCommand(CommandABC):
 
         // Expandable tool outputs
         document.querySelectorAll('.expandable').forEach(el => {{
-            el.addEventListener('click', () => {{
-                el.classList.toggle('expanded');
+            el.addEventListener('click', (e) => {{
+                if (!el.classList.contains('expanded')) {{
+                    el.classList.add('expanded');
+                }} else if (e.target.classList.contains('collapse-hint')) {{
+                    el.classList.remove('expanded');
+                }}
             }});
         }});
 
@@ -699,8 +707,9 @@ class ExportCommand(CommandABC):
         return (
             f'<div class="expandable-output expandable">'
             f'<div class="preview-text" style="white-space: pre-wrap; font-family: var(--font-mono); font-size: 13px;">{preview}</div>'
-            f'<div class="full-text" style="white-space: pre-wrap; font-family: var(--font-mono); font-size: 13px;">{full}</div>'
             f'<div class="expand-hint expand-text">Click to expand full output ({len(lines)} lines)</div>'
+            f'<div class="full-text" style="white-space: pre-wrap; font-family: var(--font-mono); font-size: 13px;">{full}</div>'
+            f'<div class="collapse-hint">Click to collapse</div>'
             f"</div>"
         )
 
