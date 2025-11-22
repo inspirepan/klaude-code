@@ -1,5 +1,6 @@
 from typing import Literal
 
+import asyncio
 from pydantic import BaseModel
 
 from klaude_code.core.tool.tool_abc import ToolABC
@@ -69,6 +70,9 @@ class ExploreTool(ToolABC):
                     sub_agent_prompt=args.prompt.strip() + "\nthoroughness: " + args.thoroughness,
                 )
             )
+        except asyncio.CancelledError:
+            # Allow cancellation to bubble up so executor can stop the sub-agent cleanly.
+            raise
         except Exception as e:  # safeguard
             return ToolResultItem(status="error", output=f"Failed to run explore subtask: {e}")
 

@@ -274,6 +274,14 @@ class ExecutorContext:
                     result = event.task_result
                 await self.emit_event(event)
             return SubAgentResult(task_result=result, session_id=child_session.id)
+        except asyncio.CancelledError:
+            # Propagate cancellation so tooling can treat it as user interrupt
+            log_debug(
+                f"Subagent task for {state.sub_agent_type} was cancelled",
+                style="yellow",
+                debug_type=DebugType.EXECUTION,
+            )
+            raise
         except Exception as e:
             log_debug(
                 f"Subagent task failed: [{e.__class__.__name__}] {str(e)}",

@@ -1,5 +1,7 @@
 from typing import Callable, TypeVar
 
+import asyncio
+
 from klaude_code.core.sub_agent import get_sub_agent_profile, sub_agent_tool_names
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.protocol import tools
@@ -45,6 +47,9 @@ async def run_tool(tool_call: ToolCallItem) -> ToolResultItem:
         tool_result.call_id = tool_call.call_id
         tool_result.tool_name = tool_call.name
         return tool_result
+    except asyncio.CancelledError:
+        # Propagate cooperative cancellation so outer layers can handle interrupts correctly.
+        raise
     except Exception as e:
         return ToolResultItem(
             call_id=tool_call.call_id,

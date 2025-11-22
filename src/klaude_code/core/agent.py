@@ -167,8 +167,22 @@ class Agent:
         # Track tool calls that are pending or in-progress within the current turn
         # Keyed by tool_call_id
         self.turn_inflight_tool_calls: dict[str, UnfinishedToolCallItem] = {}
+        # Track async tasks spawned for sub-agent tool calls so they can be cancelled on interrupt
+        self._sub_agent_tasks: set[asyncio.Task[list[events.Event]]] = set()
         # Ensure runtime configuration matches the active model on initialization
         self.set_model_profile(initial_profile)
+
+    def _register_sub_agent_task(self, task: asyncio.Task[list[events.Event]]) -> None:
+        """Track a sub-agent tool task for later cancellation.
+
+        The task is automatically removed from the tracking set when it finishes.
+        """
+        self._sub_agent_tasks.add(task)
+
+        def _cleanup(completed: asyncio.Task[list[events.Event]]) -> None:
+            self._sub_agent_tasks.discard(completed)
+
+        task.add_done_callback(_cleanup)
 
     def cancel(self) -> Iterable[events.Event]:
         """Handle agent cancellation and persist an interrupt marker and tool cancellations.
@@ -178,6 +192,12 @@ class Agent:
         - For any tool calls that are pending or in-progress in the current turn, append a
           synthetic ToolResultItem with error status to indicate cancellation.
         """
+        # First, cancel any running sub-agent tool tasks so they stop emitting events.
+        for task in list(self._sub_agent_tasks):
+            if not task.done():
+                task.cancel()
+        self._sub_agent_tasks.clear()
+
         # Persist cancel results for pending tool calls
         if self.turn_inflight_tool_calls:
             for _, unfinished in list(self.turn_inflight_tool_calls.items()):
@@ -592,7 +612,9 @@ class Agent:
         execution_tasks: list[asyncio.Task[list[events.Event]]] = []
         for tool_call in tool_calls:
             yield self._build_tool_call_event(tool_call)
-            execution_tasks.append(asyncio.create_task(self._run_tool_call(tool_call)))
+            task = asyncio.create_task(self._run_tool_call(tool_call))
+            self._register_sub_agent_task(task)
+            execution_tasks.append(task)
 
         for task in asyncio.as_completed(execution_tasks):
             for tool_event in await task:
