@@ -87,6 +87,7 @@ class ThemeKey(str, Enum):
     STATUS_HINT = "status.hint"
     # USER_INPUT
     USER_INPUT = "user.input"
+    USER_INPUT_PROMPT = "user.input.prompt"
     USER_INPUT_AT_PATTERN = "user.at_pattern"
     USER_INPUT_SLASH_COMMAND = "user.slash_command"
     # REMINDER
@@ -162,8 +163,9 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.ERROR_BOLD.value: "bold " + palette.red,
                 ThemeKey.INTERRUPT.value: "reverse bold " + palette.red,
                 # USER_INPUT
-                ThemeKey.USER_INPUT.value: palette.cyan + " on " + palette.text_background,
-                ThemeKey.USER_INPUT_AT_PATTERN.value: palette.purple + " bold on " + palette.text_background,
+                ThemeKey.USER_INPUT.value: palette.cyan + " bold",
+                ThemeKey.USER_INPUT_PROMPT.value: palette.cyan,
+                ThemeKey.USER_INPUT_AT_PATTERN.value: palette.purple + " bold",
                 ThemeKey.USER_INPUT_SLASH_COMMAND.value: "bold reverse " + palette.blue,
                 # METADATA
                 ThemeKey.METADATA.value: palette.grey_blue,
@@ -230,7 +232,7 @@ def get_theme(theme: str | None = None) -> Themes:
         ),
         thinking_markdown_theme=Theme(
             styles={
-                "markdown.code": palette.purple,
+                "markdown.code": "on " + palette.text_background,
                 "markdown.h1": "bold reverse",
                 "markdown.h1.border": palette.grey3,
                 "markdown.h2.border": palette.grey3,

@@ -2,10 +2,11 @@ import re
 
 from rich.console import Group, RenderableType
 from rich.text import Text
+from rich.rule import Rule
 
 from klaude_code.protocol.commands import CommandName
 from klaude_code.ui.base.theme import ThemeKey
-from klaude_code.ui.rich_ext.quote import Quote
+from klaude_code.ui.renderers.common import create_grid
 
 
 def render_at_pattern(
@@ -59,8 +60,11 @@ def render_user_input(content: str) -> RenderableType:
                     renderables.append(line_text)
                     continue
 
-        renderables.append(Quote(line_text, style=ThemeKey.USER_INPUT))
-    return Group(*renderables)
+        renderables.append(line_text)
+    grid = create_grid()
+    grid.add_row(Text("❯", style=ThemeKey.USER_INPUT_PROMPT), Group(*renderables))
+    grid.add_row(Text(" "), Rule(style=ThemeKey.LINES))
+    return grid
 
 
 def render_interrupt() -> RenderableType:
