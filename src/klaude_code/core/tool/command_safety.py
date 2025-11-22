@@ -2,8 +2,6 @@ import os
 import re
 import shlex
 
-from klaude_code.core.tool.tool_context import get_tool_policy
-
 
 class SafetyCheckResult:
     """Result of a safety check with detailed error information."""
@@ -590,10 +588,6 @@ def strip_bash_lc(command: str) -> str:
 
 def is_safe_command(command: str) -> SafetyCheckResult:
     """Conservatively determine if a command is known-safe."""
-    # Handle both string and list[str] inputs
-    if get_tool_policy().unrestricted:
-        return SafetyCheckResult(True)
-
     # First, try direct exec-style argv safety (e.g., "ls -l").
     try:
         argv = shlex.split(command, posix=True)

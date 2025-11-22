@@ -27,7 +27,6 @@ from klaude_code.core.executor import Executor
 from klaude_code.core.sub_agent import iter_sub_agent_profiles
 from klaude_code.core.tool.skill_loader import SkillLoader
 from klaude_code.core.tool.skill_tool import SkillTool
-from klaude_code.core.tool.tool_context import set_unrestricted_mode
 from klaude_code.llm import LLMClientABC, create_llm_client
 from klaude_code.protocol import op
 from klaude_code.protocol.events import EndEvent, Event
@@ -114,7 +113,6 @@ class AppInitConfig:
 
     model: str | None
     debug: bool
-    unrestricted: bool
     vanilla: bool
     is_exec_mode: bool = False
 
@@ -137,9 +135,6 @@ class AppComponents:
 async def initialize_app_components(init_config: AppInitConfig) -> AppComponents:
     """Initialize all application components (LLM clients, executor, UI)."""
     set_debug_logging(init_config.debug)
-
-    # Set read limits policy
-    set_unrestricted_mode(init_config.unrestricted)
 
     config = load_config()
     if config is None:
@@ -507,12 +502,6 @@ def exec_command(
         rich_help_panel="LLM",
     ),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
-    unrestricted: bool = typer.Option(
-        False,
-        "--unrestricted",
-        "-u",
-        help="Disable safety guardrails for file reads and shell command validation (use with caution)",
-    ),
     vanilla: bool = typer.Option(
         False,
         "--vanilla",
@@ -558,7 +547,6 @@ def exec_command(
     init_config = AppInitConfig(
         model=chosen_model,
         debug=debug,
-        unrestricted=unrestricted,
         vanilla=vanilla,
         is_exec_mode=True,
     )
@@ -591,12 +579,6 @@ def main_callback(
         rich_help_panel="LLM",
     ),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
-    unrestricted: bool = typer.Option(
-        False,
-        "--unrestricted",
-        "-u",
-        help="Disable safety guardrails for file reads and shell command validation (use with caution)",
-    ),
     vanilla: bool = typer.Option(
         False,
         "--vanilla",
@@ -631,7 +613,6 @@ def main_callback(
         init_config = AppInitConfig(
             model=chosen_model,
             debug=debug,
-            unrestricted=unrestricted,
             vanilla=vanilla,
         )
 

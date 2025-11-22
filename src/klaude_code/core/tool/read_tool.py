@@ -9,7 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from klaude_code.core.tool.tool_abc import ToolABC
-from klaude_code.core.tool.tool_context import current_session_var, get_tool_policy
+from klaude_code.core.tool.tool_context import current_session_var
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
 from klaude_code.protocol.model import ImageURLPart, ToolResultItem
@@ -192,9 +192,6 @@ class ReadTool(ToolABC):
     @classmethod
     def _effective_limits(cls) -> tuple[int | None, int | None, int | None, int | None]:
         """Return effective limits based on current policy: char_per_line, global_line_cap, max_chars, max_kb"""
-        policy = get_tool_policy()
-        if policy.unrestricted:
-            return None, None, None, None
         return CHAR_LIMIT_PER_LINE, GLOBAL_LINE_CAP, MAX_CHARS, MAX_KB
 
     @classmethod

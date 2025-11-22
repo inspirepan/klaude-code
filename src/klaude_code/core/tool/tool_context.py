@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
-from dataclasses import dataclass
 
 from klaude_code.core.sub_agent import SubAgentResult
 from klaude_code.protocol.model import SubAgentState
@@ -19,19 +18,3 @@ current_session_var: ContextVar[Session | None] = ContextVar("current_session", 
 current_run_subtask_callback: ContextVar[Callable[[SubAgentState], Awaitable[SubAgentResult]] | None] = ContextVar(
     "current_run_subtask_callback", default=None
 )
-
-
-@dataclass(frozen=True)
-class ToolPolicy:
-    unrestricted: bool = False
-
-
-tool_policy_var: ContextVar[ToolPolicy] = ContextVar("tool_policy", default=ToolPolicy())
-
-
-def set_unrestricted_mode(unrestricted: bool) -> None:
-    tool_policy_var.set(ToolPolicy(unrestricted=unrestricted))
-
-
-def get_tool_policy() -> ToolPolicy:
-    return tool_policy_var.get()
