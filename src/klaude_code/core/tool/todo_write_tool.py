@@ -10,6 +10,7 @@ from klaude_code.protocol.model import (
     ToolResultItem,
     ToolResultUIExtra,
     ToolResultUIExtraType,
+    ToolSideEffect,
     todo_list_str,
 )
 from klaude_code.protocol.tools import TODO_WRITE
@@ -302,4 +303,5 @@ Your todo list has changed. DO NOT mention this explicitly to the user. Here are
             status="success",
             output=response,
             ui_extra=ToolResultUIExtra(type=ToolResultUIExtraType.TODO_LIST, todo_list=ui_extra),
+            side_effects=[ToolSideEffect.TODO_CHANGE],
         )

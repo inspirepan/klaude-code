@@ -15,6 +15,7 @@ from klaude_code.protocol.model import (
     ToolResultItem,
     ToolResultUIExtra,
     ToolResultUIExtraType,
+    ToolSideEffect,
 )
 from klaude_code.protocol.tools import UPDATE_PLAN
 
@@ -110,4 +111,5 @@ class UpdatePlanTool(ToolABC):
             status="success",
             output="Plan updated",
             ui_extra=ToolResultUIExtra(type=ToolResultUIExtraType.TODO_LIST, todo_list=ui_extra),
+            side_effects=[ToolSideEffect.TODO_CHANGE],
         )

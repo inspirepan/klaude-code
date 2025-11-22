@@ -40,6 +40,10 @@ class ToolResultUIExtraType(str, Enum):
     MERMAID_LINK = "mermaid_link"
 
 
+class ToolSideEffect(str, Enum):
+    TODO_CHANGE = "todo_change"
+
+
 class MermaidLinkUIExtra(BaseModel):
     link: str
     line_count: int
@@ -180,6 +184,7 @@ class ToolResultItem(BaseModel):
     tool_name: str | None = None  # This field will auto set by tool registry's run_tool
     ui_extra: ToolResultUIExtra | None = None  # Extra data for UI display, e.g. diff render
     images: list[ImageURLPart] | None = None
+    side_effects: list[ToolSideEffect] | None = None
 
 
 class AssistantMessageDelta(BaseModel):

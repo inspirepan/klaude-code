@@ -614,13 +614,21 @@ class Agent:
 
         self.turn_inflight_tool_calls.pop(tool_call.call_id, None)
 
-        extra_events: list[events.Event] = []
-        if tool_call.name in (tools.TODO_WRITE, tools.UPDATE_PLAN):
-            extra_events.append(
-                events.TodoChangeEvent(
-                    session_id=self.session.id,
-                    todos=self.session.todos,
-                )
-            )
+        extra_events = self._build_tool_side_effect_events(tool_result)
 
         return [result_event, *extra_events]
+
+    def _build_tool_side_effect_events(self, tool_result: model.ToolResultItem) -> list[events.Event]:
+        if not tool_result.side_effects:
+            return []
+
+        side_effect_events: list[events.Event] = []
+        for side_effect in tool_result.side_effects:
+            if side_effect == model.ToolSideEffect.TODO_CHANGE:
+                side_effect_events.append(
+                    events.TodoChangeEvent(
+                        session_id=self.session.id,
+                        todos=self.session.todos,
+                    )
+                )
+        return side_effect_events
