@@ -19,7 +19,7 @@ from klaude_code.core.tool.tool_registry import get_main_agent_tools, get_sub_ag
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.protocol import events, llm_parameter, model, tools
 from klaude_code.session import Session
-from klaude_code.trace import log_debug
+from klaude_code.trace import DebugType, log_debug
 
 # Constant for cancellation message
 CANCEL_OUTPUT = "[Request interrupted by user for tool use]"
@@ -213,7 +213,7 @@ class Agent:
 
         # Record an interrupt marker in the session history
         self.session.append_history([model.InterruptItem()])
-        log_debug(f"Session {self.session.id} interrupted", style="yellow")
+        log_debug(f"Session {self.session.id} interrupted", style="yellow", debug_type=DebugType.EXECUTION)
 
     async def run_task(self, user_input: str) -> AsyncGenerator[events.Event, None]:
         task_started_at = time.perf_counter()
@@ -288,7 +288,11 @@ class Agent:
                 except (TimeoutError, asyncio.TimeoutError):
                     turn_timed_out = True
                     turn_failed = True
-                    log_debug("Turn timed out before first meaningful event, retrying", style="red")
+                    log_debug(
+                        "Turn timed out before first meaningful event, retrying",
+                        style="red",
+                        debug_type=DebugType.EXECUTION,
+                    )
                     # Ensure pending calls are cleared on timeout
                     self.turn_inflight_tool_calls.clear()
                     try:
@@ -333,6 +337,7 @@ class Agent:
                 log_debug(
                     "Maximum consecutive failed turns reached, aborting task",
                     style="red",
+                    debug_type=DebugType.EXECUTION,
                 )
                 final_error_message = f"Turn failed after {MAX_FAILED_TURN_RETRIES} retries."
                 if last_turn_error_message:
@@ -441,9 +446,10 @@ class Agent:
             )
         ):
             log_debug(
-                f"📁 response [{response_item.__class__.__name__}]",
+                f"[{response_item.__class__.__name__}]",
                 response_item.model_dump_json(),
                 style="green",
+                debug_type=DebugType.RESPONSE,
             )
             match response_item:
                 case model.StartItem() as item:
@@ -477,7 +483,7 @@ class Agent:
                     )
                 case model.StreamErrorItem() as item:
                     response_failed = True
-                    log_debug("📁 response [StreamError]", item.error, style="red")
+                    log_debug("[StreamError]", item.error, style="red", debug_type=DebugType.RESPONSE)
                     yield events.ErrorEvent(error_message=item.error)
                 case model.ToolCallItem() as item:
                     turn_tool_calls.append(item)

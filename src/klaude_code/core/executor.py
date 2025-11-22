@@ -23,7 +23,7 @@ from klaude_code.protocol.op import (
     UserInputOperation,
 )
 from klaude_code.session.session import Session
-from klaude_code.trace import log_debug
+from klaude_code.trace import DebugType, log_debug
 
 
 @dataclass
@@ -90,7 +90,11 @@ class ExecutorContext:
                 )
             )
             self.active_agents[operation.session_id] = agent
-            log_debug(f"Initialized agent for session: {operation.session_id}", style="cyan")
+            log_debug(
+                f"Initialized agent for session: {operation.session_id}",
+                style="cyan",
+                debug_type=DebugType.EXECUTION,
+            )
 
     async def handle_user_input(self, operation: UserInputOperation) -> None:
         """Handle a user input operation by running it through an agent."""
@@ -159,7 +163,11 @@ class ExecutorContext:
                     tasks_to_cancel.append((task_id, task))
 
         scope = operation.target_session_id or "all"
-        log_debug(f"Interrupting {len(tasks_to_cancel)} task(s) for: {scope}", style="yellow")
+        log_debug(
+            f"Interrupting {len(tasks_to_cancel)} task(s) for: {scope}",
+            style="yellow",
+            debug_type=DebugType.EXECUTION,
+        )
 
         # Cancel the tasks
         for task_id, task in tasks_to_cancel:
@@ -175,7 +183,11 @@ class ExecutorContext:
         that might occur during execution.
         """
         try:
-            log_debug(f"Starting agent task {task_id} for session {session_id}", style="green")
+            log_debug(
+                f"Starting agent task {task_id} for session {session_id}",
+                style="green",
+                debug_type=DebugType.EXECUTION,
+            )
 
             # Inject subtask runner into tool context for nested Task tool usage
             async def _runner(state: model.SubAgentState) -> SubAgentResult:
@@ -191,15 +203,23 @@ class ExecutorContext:
 
         except asyncio.CancelledError:
             # Task was cancelled (likely due to interrupt)
-            log_debug(f"Agent task {task_id} was cancelled", style="yellow")
+            log_debug(
+                f"Agent task {task_id} was cancelled",
+                style="yellow",
+                debug_type=DebugType.EXECUTION,
+            )
             await self.emit_event(events.TaskFinishEvent(session_id=session_id, task_result="task cancelled"))
 
         except Exception as e:
             # Handle any other exceptions
             import traceback
 
-            log_debug(f"Agent task {task_id} failed: {str(e)}", style="red")
-            log_debug(traceback.format_exc(), style="red")
+            log_debug(
+                f"Agent task {task_id} failed: {str(e)}",
+                style="red",
+                debug_type=DebugType.EXECUTION,
+            )
+            log_debug(traceback.format_exc(), style="red", debug_type=DebugType.EXECUTION)
             await self.emit_event(
                 events.ErrorEvent(error_message=f"Agent task failed: [{e.__class__.__name__}] {str(e)}")
             )
@@ -207,7 +227,7 @@ class ExecutorContext:
         finally:
             # Clean up the task from active tasks
             self.active_tasks.pop(task_id, None)
-            log_debug(f"Cleaned up agent task {task_id}", style="cyan")
+            log_debug(f"Cleaned up agent task {task_id}", style="cyan", debug_type=DebugType.EXECUTION)
 
     async def _run_subagent_task(self, parent_agent: Agent, state: model.SubAgentState) -> SubAgentResult:
         """Run a nested sub-agent task and return the final task_result text.
@@ -239,7 +259,11 @@ class ExecutorContext:
             model_profile_provider=self.model_profile_provider,
         )
 
-        log_debug(f"Running sub-agent {state.sub_agent_type} in session {child_session.id}", style="cyan")
+        log_debug(
+            f"Running sub-agent {state.sub_agent_type} in session {child_session.id}",
+            style="cyan",
+            debug_type=DebugType.EXECUTION,
+        )
 
         try:
             # Not emit the subtask's user input since task tool call is already rendered
@@ -251,7 +275,11 @@ class ExecutorContext:
                 await self.emit_event(event)
             return SubAgentResult(task_result=result, session_id=child_session.id)
         except Exception as e:
-            log_debug(f"Subagent task failed: [{e.__class__.__name__}] {str(e)}", style="red")
+            log_debug(
+                f"Subagent task failed: [{e.__class__.__name__}] {str(e)}",
+                style="red",
+                debug_type=DebugType.EXECUTION,
+            )
             return SubAgentResult(
                 task_result=f"Subagent task failed: [{e.__class__.__name__}] {str(e)}", session_id="", error=True
             )
@@ -295,7 +323,11 @@ class Executor:
         completion_event = asyncio.Event()
         self.task_completion_events[operation.id] = completion_event
 
-        log_debug(f"Submitted operation {operation.type} with ID {operation.id}", style="blue")
+        log_debug(
+            f"Submitted operation {operation.type} with ID {operation.id}",
+            style="blue",
+            debug_type=DebugType.EXECUTION,
+        )
 
         return operation.id
 
@@ -315,7 +347,7 @@ class Executor:
         """
         self.running = True
 
-        log_debug("Executor started", style="green")
+        log_debug("Executor started", style="green", debug_type=DebugType.EXECUTION)
 
         while self.running:
             try:
@@ -324,19 +356,23 @@ class Executor:
 
                 # Check for end operation to gracefully exit
                 if isinstance(submission.operation, EndOperation):
-                    log_debug("Received EndOperation, stopping executor", style="yellow")
+                    log_debug(
+                        "Received EndOperation, stopping executor",
+                        style="yellow",
+                        debug_type=DebugType.EXECUTION,
+                    )
                     break
 
                 await self._handle_submission(submission)
 
             except asyncio.CancelledError:
                 # Executor was cancelled
-                log_debug("Executor cancelled", style="yellow")
+                log_debug("Executor cancelled", style="yellow", debug_type=DebugType.EXECUTION)
                 break
 
             except Exception as e:
                 # Handle unexpected errors
-                log_debug(f"Executor error: {str(e)}", style="red")
+                log_debug(f"Executor error: {str(e)}", style="red", debug_type=DebugType.EXECUTION)
                 await self.context.emit_event(events.ErrorEvent(error_message=f"Executor error: {str(e)}"))
 
     async def stop(self) -> None:
@@ -355,9 +391,9 @@ class Executor:
             submission = Submission(id=end_operation.id, operation=end_operation)
             await self.submission_queue.put(submission)
         except Exception as e:
-            log_debug(f"Failed to send EndOperation: {str(e)}", style="red")
+            log_debug(f"Failed to send EndOperation: {str(e)}", style="red", debug_type=DebugType.EXECUTION)
 
-        log_debug("Executor stopped", style="yellow")
+        log_debug("Executor stopped", style="yellow", debug_type=DebugType.EXECUTION)
 
     async def _handle_submission(self, submission: Submission) -> None:
         """
@@ -367,7 +403,11 @@ class Executor:
         can access shared resources through the executor context.
         """
         try:
-            log_debug(f"Handling submission {submission.id} of type {submission.operation.type.value}", style="cyan")
+            log_debug(
+                f"Handling submission {submission.id} of type {submission.operation.type.value}",
+                style="cyan",
+                debug_type=DebugType.EXECUTION,
+            )
 
             # Execute to spawn the agent task in context
             await submission.operation.execute(self.context)
@@ -388,7 +428,11 @@ class Executor:
             asyncio.create_task(_await_agent_and_complete())
 
         except Exception as e:
-            log_debug(f"Failed to handle submission {submission.id}: {str(e)}", style="red")
+            log_debug(
+                f"Failed to handle submission {submission.id}: {str(e)}",
+                style="red",
+                debug_type=DebugType.EXECUTION,
+            )
             await self.context.emit_event(events.ErrorEvent(error_message=f"Operation failed: {str(e)}"))
             # Set completion event even on error to prevent wait_for_completion from hanging
             completion_event = self.task_completion_events.get(submission.id)

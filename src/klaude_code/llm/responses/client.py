@@ -28,7 +28,7 @@ from klaude_code.protocol.model import (
     ToolCallItem,
     Usage,
 )
-from klaude_code.trace import log_debug
+from klaude_code.trace import DebugType, log_debug
 
 
 @register(LLMClientProtocol.RESPONSES)
@@ -98,7 +98,12 @@ class ResponsesClient(LLMClientABC):
         # Remove None values
         payload = {k: v for k, v in payload.items() if v is not None}
 
-        log_debug("➡️ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
+        log_debug(
+            "Complete payload",
+            json.dumps(payload, ensure_ascii=False),
+            style="yellow",
+            debug_type=DebugType.LLM_PAYLOAD,
+        )
 
         stream = self.client.responses.create(
             model=str(param.model),
@@ -129,7 +134,12 @@ class ResponsesClient(LLMClientABC):
 
         try:
             async for event in await stream:
-                log_debug(f"📥 stream [SSE {event.type}]", str(event), style="blue")
+                log_debug(
+                    f"[{event.type}]",
+                    event.model_dump_json(exclude_none=True),
+                    style="blue",
+                    debug_type=DebugType.LLM_STREAM,
+                )
                 match event:
                     case responses.ResponseCreatedEvent() as event:
                         response_id = event.response.id
@@ -227,9 +237,14 @@ class ResponsesClient(LLMClientABC):
                             error_message = f"LLM response finished with status '{event.response.status}'"
                             if error_reason:
                                 error_message = f"{error_message}: {error_reason}"
-                            log_debug("📥 stream [LLM Status Warning]", error_message, style="red")
+                            log_debug(
+                                "[LLM status warning]",
+                                error_message,
+                                style="red",
+                                debug_type=DebugType.LLM_STREAM,
+                            )
                             yield StreamErrorItem(error=error_message)
                     case _:
-                        log_debug("📥 stream [Unhandled Event]", str(event), style="red")
+                        log_debug("[Unhandled stream event]", str(event), style="red", debug_type=DebugType.LLM_STREAM)
         except RateLimitError as e:
             yield StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")

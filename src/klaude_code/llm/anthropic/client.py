@@ -28,7 +28,7 @@ from klaude_code.protocol.llm_parameter import (
     apply_config_defaults,
 )
 from klaude_code.protocol.model import StreamErrorItem
-from klaude_code.trace import log_debug
+from klaude_code.trace import DebugType, log_debug
 
 
 @register(LLMClientProtocol.ANTHROPIC)
@@ -87,7 +87,12 @@ class AnthropicClient(LLMClientABC):
         # Remove None values
         payload = {k: v for k, v in payload.items() if v is not None}
 
-        log_debug("➡️ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
+        log_debug(
+            "Complete payload",
+            json.dumps(payload, ensure_ascii=False),
+            style="yellow",
+            debug_type=DebugType.LLM_PAYLOAD,
+        )
 
         stream = self.client.beta.messages.create(
             model=str(param.model),
@@ -127,7 +132,12 @@ class AnthropicClient(LLMClientABC):
 
         try:
             async for event in await stream:
-                log_debug(f"📥 stream [SSE {event.type}]", str(event), style="blue")
+                log_debug(
+                    f"[{event.type}]",
+                    event.model_dump_json(exclude_none=True),
+                    style="blue",
+                    debug_type=DebugType.LLM_STREAM,
+                )
                 match event:
                     case BetaRawMessageStartEvent() as event:
                         response_id = event.message.id
