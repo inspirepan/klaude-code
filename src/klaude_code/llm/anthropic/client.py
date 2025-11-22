@@ -1,7 +1,7 @@
 import json
 import time
 from collections.abc import AsyncGenerator
-from typing import override
+from typing import Callable, ParamSpec, TypeVar, override
 
 import anthropic
 import httpx
@@ -29,6 +29,27 @@ from klaude_code.protocol.llm_parameter import (
 )
 from klaude_code.protocol.model import StreamErrorItem
 from klaude_code.trace import DebugType, log_debug
+
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+def call_with_logged_payload(func: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> R:
+    """Call an SDK function while logging the JSON payload.
+
+    The function reuses the original callable's type signature via ParamSpec
+    so static type checkers can validate arguments at the call site.
+    """
+
+    payload = {k: v for k, v in kwargs.items() if v is not None}
+    log_debug(
+        "Complete payload",
+        json.dumps(payload, ensure_ascii=False, default=str),
+        style="yellow",
+        debug_type=DebugType.LLM_PAYLOAD,
+    )
+    return func(*args, **kwargs)
 
 
 @register(LLMClientProtocol.ANTHROPIC)
@@ -59,41 +80,8 @@ class AnthropicClient(LLMClientABC):
         tools = convert_tool_schema(param.tools)
         system = convert_system_to_input(param.system)
 
-        thinking_config_dict = (
-            {
-                "type": param.thinking.type,
-                "budget_tokens": param.thinking.budget_tokens or llm_parameter.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
-            }
-            if param.thinking and param.thinking.type == "enabled"
-            else {"type": "disabled"}
-        )
-
-        payload: dict[str, object] = {
-            "model": str(param.model),
-            "tool_choice": {
-                "type": "auto",
-                "disable_parallel_tool_use": False,
-            },
-            "stream": True,
-            "max_tokens": param.max_tokens or llm_parameter.DEFAULT_MAX_TOKENS,
-            "temperature": param.temperature or llm_parameter.DEFAULT_TEMPERATURE,
-            "messages": messages,
-            "system": system,
-            "tools": tools,
-            "betas": ["interleaved-thinking-2025-05-14", "context-1m-2025-08-07"],
-            "thinking": thinking_config_dict,
-        }
-        # Remove None values
-        payload = {k: v for k, v in payload.items() if v is not None}
-
-        log_debug(
-            "Complete payload",
-            json.dumps(payload, ensure_ascii=False),
-            style="yellow",
-            debug_type=DebugType.LLM_PAYLOAD,
-        )
-
-        stream = self.client.beta.messages.create(
+        stream = call_with_logged_payload(
+            self.client.beta.messages.create,
             model=str(param.model),
             tool_choice={
                 "type": "auto",
@@ -108,7 +96,8 @@ class AnthropicClient(LLMClientABC):
             betas=["interleaved-thinking-2025-05-14", "context-1m-2025-08-07"],
             thinking=anthropic.types.ThinkingConfigEnabledParam(
                 type=param.thinking.type,
-                budget_tokens=param.thinking.budget_tokens or llm_parameter.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
+                budget_tokens=param.thinking.budget_tokens
+                or llm_parameter.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
             )
             if param.thinking and param.thinking.type == "enabled"
             else anthropic.types.ThinkingConfigDisabledParam(

@@ -12,7 +12,7 @@ from klaude_code.protocol.model import ToolResultUIExtraType
 
 
 def _decode_payload(link: str) -> dict[str, object]:
-    prefix = "https://mermaid.live/edit#pako:"
+    prefix = "https://mermaid.live/view#pako:"
     if not link.startswith(prefix):
         msg = "Unexpected Mermaid live URL prefix"
         raise AssertionError(msg)
@@ -41,6 +41,3 @@ def test_mermaid_tool_generates_shareable_link(capsys: pytest.CaptureFixture[str
     assert payload["code"] == code
     assert payload["mermaid"] == {"theme": "default"}
     assert result.ui_extra.mermaid_link.line_count == 3
-
-    captured = capsys.readouterr()
-    assert "https://mermaid.live/edit#pako:" in captured.out

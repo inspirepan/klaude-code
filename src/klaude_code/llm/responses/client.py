@@ -1,7 +1,7 @@
 import json
 import time
 from collections.abc import AsyncGenerator
-from typing import override
+from typing import Callable, ParamSpec, TypeVar, override
 
 import httpx
 from openai import AsyncAzureOpenAI, AsyncOpenAI, RateLimitError
@@ -29,6 +29,27 @@ from klaude_code.protocol.model import (
     Usage,
 )
 from klaude_code.trace import DebugType, log_debug
+
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+def call_with_logged_payload(func: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> R:
+    """Call an SDK function while logging the JSON payload.
+
+    The function reuses the original callable's type signature via ParamSpec
+    so static type checkers can validate arguments at the call site.
+    """
+
+    payload = {k: v for k, v in kwargs.items() if v is not None}
+    log_debug(
+        "Complete payload",
+        json.dumps(payload, ensure_ascii=False, default=str),
+        style="yellow",
+        debug_type=DebugType.LLM_PAYLOAD,
+    )
+    return func(*args, **kwargs)
 
 
 @register(LLMClientProtocol.RESPONSES)
@@ -67,45 +88,12 @@ class ResponsesClient(LLMClientABC):
         response_id: str | None = None
 
         inputs = convert_history_to_input(param.input, param.model)
+        tools = convert_tool_schema(param.tools)
 
         parallel_tool_calls = True
 
-        payload: dict[str, object] = {
-            "model": str(param.model),
-            "tool_choice": "auto",
-            "parallel_tool_calls": parallel_tool_calls,
-            "include": [
-                "reasoning.encrypted_content",
-            ],
-            "store": param.store,
-            "previous_response_id": param.previous_response_id,
-            "stream": True,
-            "temperature": param.temperature,
-            "max_output_tokens": param.max_tokens,
-            "input": inputs,
-            "instructions": param.system,
-            "tools": convert_tool_schema(param.tools),
-            "text": {
-                "verbosity": param.verbosity,
-            },
-            "reasoning": {
-                "effort": param.thinking.reasoning_effort,
-                "summary": param.thinking.reasoning_summary,
-            }
-            if param.thinking and param.thinking.reasoning_effort
-            else None,
-        }
-        # Remove None values
-        payload = {k: v for k, v in payload.items() if v is not None}
-
-        log_debug(
-            "Complete payload",
-            json.dumps(payload, ensure_ascii=False),
-            style="yellow",
-            debug_type=DebugType.LLM_PAYLOAD,
-        )
-
-        stream = self.client.responses.create(
+        stream = call_with_logged_payload(
+            self.client.responses.create,
             model=str(param.model),
             tool_choice="auto",
             parallel_tool_calls=parallel_tool_calls,  # OpenAI's Codex is always False, we try to enable it here. It seems gpt-5-codex has bugs when parallel_tool_calls is True.
@@ -119,7 +107,7 @@ class ResponsesClient(LLMClientABC):
             max_output_tokens=param.max_tokens,
             input=inputs,
             instructions=param.system,
-            tools=convert_tool_schema(param.tools),
+            tools=tools,
             text={
                 "verbosity": param.verbosity,
             },
