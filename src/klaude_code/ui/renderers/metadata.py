@@ -118,11 +118,11 @@ def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> R
                     (e.llm_config.thinking.reasoning_summary, ThemeKey.WELCOME_HIGHLIGHT),
                 )
             )
-        if e.llm_config.thinking.thinking_budget:
+        if e.llm_config.thinking.budget_tokens:
             model_info.append_text(
                 Text.assemble(
                     ("\n• thinking-budget: ", ThemeKey.WELCOME_INFO),
-                    (str(e.llm_config.thinking.thinking_budget), ThemeKey.WELCOME_HIGHLIGHT),
+                    (str(e.llm_config.thinking.budget_tokens), ThemeKey.WELCOME_HIGHLIGHT),
                 )
             )
     if e.llm_config.verbosity:

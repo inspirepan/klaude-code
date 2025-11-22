@@ -447,7 +447,7 @@ class Agent:
         ):
             log_debug(
                 f"[{response_item.__class__.__name__}]",
-                response_item.model_dump_json(),
+                response_item.model_dump_json(exclude_none=True),
                 style="green",
                 debug_type=DebugType.RESPONSE,
             )

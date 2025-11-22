@@ -62,10 +62,10 @@ class OpenAICompatibleClient(LLMClientABC):
         extra_headers = {"extra": json.dumps({"session_id": param.session_id})}
 
         if param.thinking:
-            extra_body["thinking"] = param.thinking.model_dump(
-                exclude_none=True, include={"thinking_type", "thinking_budget"}, by_alias=True
-            )  # Claude or Gemini or GLM
-
+            extra_body["thinking"] = {
+                "type": param.thinking.type,
+                "budget": param.thinking.budget_tokens,
+            }
         payload: dict[str, object] = {
             "model": str(param.model),
             "tool_choice": "auto",

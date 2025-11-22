@@ -100,12 +100,12 @@ def display_models_and_providers(config: Config):
                         model.model_params.thinking.reasoning_summary,
                     )
                 )
-            if model.model_params.thinking.thinking_budget is not None:
+            if model.model_params.thinking.budget_tokens is not None:
                 params.append(
                     Text.assemble(
                         ("thinking-budget-tokens", ThemeKey.CONFIG_PARAM_LABEL),
                         ": ",
-                        str(model.model_params.thinking.thinking_budget),
+                        str(model.model_params.thinking.budget_tokens),
                     )
                 )
         if model.model_params.provider_routing:

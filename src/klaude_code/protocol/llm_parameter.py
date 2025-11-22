@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaValue
 
 from klaude_code.protocol.model import ConversationItem
@@ -35,8 +35,8 @@ class Thinking(BaseModel):
     reasoning_summary: Literal["auto", "concise", "detailed"] | None = None
 
     # Claude/Gemini Thinking Style
-    thinking_type: Literal["enabled", "disabled"] | None = Field(None, alias="type", serialization_alias="type")
-    thinking_budget: int | None = Field(None, alias="budget_tokens", serialization_alias="budget_tokens")
+    type: Literal["enabled", "disabled"] | None = None
+    budget_tokens: int | None = None
 
 
 class OpenRouterProviderRouting(BaseModel):
@@ -161,12 +161,8 @@ def apply_config_defaults(param: LLMCallParameter, config: LLMConfigParameter) -
         param.max_tokens = DEFAULT_MAX_TOKENS
     if param.temperature is None:
         param.temperature = DEFAULT_TEMPERATURE
-    if (
-        param.thinking is not None
-        and param.thinking.thinking_type == "enabled"
-        and param.thinking.thinking_budget is None
-    ):
-        param.thinking.thinking_budget = DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS
+    if param.thinking is not None and param.thinking.type == "enabled" and param.thinking.budget_tokens is None:
+        param.thinking.budget_tokens = DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS
 
     if param.model and "gpt-5" in param.model:
         param.temperature = 1.0  # Required for GPT-5

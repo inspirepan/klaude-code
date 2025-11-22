@@ -247,9 +247,9 @@ class OpenRouterClient(LLMClientABC):
         extra_headers = {}
 
         if param.thinking:
-            if param.thinking.thinking_budget is not None:
+            if param.thinking.budget_tokens is not None:
                 extra_body["reasoning"] = {
-                    "max_tokens": param.thinking.thinking_budget,
+                    "max_tokens": param.thinking.budget_tokens,
                     "enable": True,
                 }  # OpenRouter: https://openrouter.ai/docs/use-cases/reasoning-tokens#anthropic-models-with-reasoning-tokens
             elif param.thinking.reasoning_effort is not None:
