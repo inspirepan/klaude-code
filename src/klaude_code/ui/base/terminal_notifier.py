@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TextIO, cast
 
-from klaude_code.trace import log_debug
+from klaude_code.trace import DebugType, log_debug
 
 ST = "\033\\"
 BEL = "\a"
@@ -52,12 +52,15 @@ class TerminalNotifier:
 
     def notify(self, notification: Notification) -> bool:
         if not self.config.enabled:
-            log_debug("Terminal notifier skipped: disabled via config")
+            log_debug("Terminal notifier skipped: disabled via config", debug_type=DebugType.TERMINAL)
             return False
 
         output = resolve_stream(self.config.stream)
         if not self._supports_osc9(output):
-            log_debug("Terminal notifier skipped: OSC 9 unsupported or not a TTY")
+            log_debug(
+                "Terminal notifier skipped: OSC 9 unsupported or not a TTY",
+                debug_type=DebugType.TERMINAL,
+            )
             return False
 
         payload = self._render_payload(notification)
@@ -76,10 +79,10 @@ class TerminalNotifier:
         try:
             output.write(seq)
             output.flush()
-            log_debug("Terminal notifier sent OSC 9 payload")
+            log_debug("Terminal notifier sent OSC 9 payload", debug_type=DebugType.TERMINAL)
             return True
         except Exception as exc:
-            log_debug(f"Terminal notifier send failed: {exc}")
+            log_debug(f"Terminal notifier send failed: {exc}", debug_type=DebugType.TERMINAL)
             return False
 
     @staticmethod

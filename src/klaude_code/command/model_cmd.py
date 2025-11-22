@@ -9,7 +9,7 @@ from klaude_code.llm.registry import create_llm_client
 from klaude_code.protocol.commands import CommandName
 from klaude_code.protocol.events import DeveloperMessageEvent, WelcomeEvent
 from klaude_code.protocol.model import CommandOutput, DeveloperMessageItem
-from klaude_code.trace.log import log_debug
+from klaude_code.trace import DebugType, log_debug
 
 
 @register_command
@@ -47,7 +47,12 @@ class ModelCommand(CommandABC):
         assert config is not None
         llm_config = config.get_model_config(selected_model)
 
-        log_debug("➡️ llm [Model Config]", llm_config.model_dump_json(exclude_none=True), style="yellow")
+        log_debug(
+            "Updated model config",
+            llm_config.model_dump_json(exclude_none=True),
+            style="yellow",
+            debug_type=DebugType.LLM_CONFIG,
+        )
 
         llm_client = create_llm_client(llm_config)
         agent.set_model_profile(agent.build_model_profile(llm_client))

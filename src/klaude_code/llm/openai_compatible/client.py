@@ -19,7 +19,7 @@ from klaude_code.protocol.llm_parameter import (
     apply_config_defaults,
 )
 from klaude_code.protocol.model import StreamErrorItem
-from klaude_code.trace import log_debug
+from klaude_code.trace import DebugType, log_debug
 
 
 @register(LLMClientProtocol.OPENAI)
@@ -83,7 +83,12 @@ class OpenAICompatibleClient(LLMClientABC):
         # Remove None values
         payload = {k: v for k, v in payload.items() if v is not None}
 
-        log_debug("➡️ llm [Complete Payload]", json.dumps(payload, ensure_ascii=False), style="yellow")
+        log_debug(
+            "Complete payload",
+            json.dumps(payload, ensure_ascii=False),
+            style="yellow",
+            debug_type=DebugType.LLM_PAYLOAD,
+        )
 
         stream = self.client.chat.completions.create(
             model=str(param.model),
@@ -138,7 +143,7 @@ class OpenAICompatibleClient(LLMClientABC):
 
         try:
             async for event in await stream:
-                log_debug("📥 stream [SSE]", str(event), style="blue")
+                log_debug(event.model_dump_json(exclude_none=True), style="blue", debug_type=DebugType.LLM_STREAM)
                 if not response_id and event.id:
                     response_id = event.id
                     accumulated_tool_calls.response_id = response_id

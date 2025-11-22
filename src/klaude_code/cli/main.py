@@ -33,7 +33,7 @@ from klaude_code.protocol.events import EndEvent, Event
 from klaude_code.protocol.llm_parameter import LLMConfigParameter
 from klaude_code.protocol.model import ResponseMetadataItem
 from klaude_code.session import Session, resume_select_session
-from klaude_code.trace import log, log_debug, set_debug_logging
+from klaude_code.trace import DebugType, log, log_debug, set_debug_logging
 from klaude_code.ui.base.progress_bar import OSC94States, emit_osc94
 from klaude_code.ui.base.terminal_color import is_light_terminal_background
 from klaude_code.ui.repl.input import REPLStatusSnapshot
@@ -107,6 +107,32 @@ def start_esc_interrupt_monitor(
     return stop_event, esc_task
 
 
+DEBUG_FILTER_HELP = "Comma-separated debug types: " + ", ".join(dt.value for dt in DebugType)
+
+
+def _parse_debug_filters(raw: str | None) -> set[DebugType] | None:
+    if raw is None:
+        return None
+    filters: set[DebugType] = set()
+    for chunk in raw.split(","):
+        normalized = chunk.strip().lower().replace("-", "_")
+        if not normalized:
+            continue
+        try:
+            filters.add(DebugType(normalized))
+        except ValueError:  # pragma: no cover - user input validation
+            valid_options = ", ".join(dt.value for dt in DebugType)
+            log((f"Invalid debug filter '{normalized}'. Valid options: {valid_options}", "red"))
+            raise typer.Exit(2) from None
+    return filters or None
+
+
+def _resolve_debug_settings(flag: bool, raw_filters: str | None) -> tuple[bool, set[DebugType] | None]:
+    filters = _parse_debug_filters(raw_filters)
+    effective_flag = flag or (filters is not None)
+    return effective_flag, filters
+
+
 @dataclass
 class AppInitConfig:
     """Configuration for initializing the application components."""
@@ -115,6 +141,7 @@ class AppInitConfig:
     debug: bool
     vanilla: bool
     is_exec_mode: bool = False
+    debug_filters: set[DebugType] | None = None
 
 
 @dataclass
@@ -134,7 +161,7 @@ class AppComponents:
 
 async def initialize_app_components(init_config: AppInitConfig) -> AppComponents:
     """Initialize all application components (LLM clients, executor, UI)."""
-    set_debug_logging(init_config.debug)
+    set_debug_logging(init_config.debug, filters=init_config.debug_filters)
 
     config = load_config()
     if config is None:
@@ -167,7 +194,12 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
             log((f"Error: failed to load the default model configuration: {exc}", "red"))
         raise typer.Exit(2) from None
     llm_client: LLMClientABC = create_llm_client(llm_config)
-    log_debug("➡️ llm [Model Config]", llm_config.model_dump_json(exclude_none=True), style="yellow")
+    log_debug(
+        "Main model config",
+        llm_config.model_dump_json(exclude_none=True),
+        style="yellow",
+        debug_type=DebugType.LLM_CONFIG,
+    )
 
     llm_clients = AgentLLMClients(main=llm_client)
     model_profile_provider = VanillaModelProfileProvider() if init_config.vanilla else DefaultModelProfileProvider()
@@ -182,9 +214,10 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
         sub_llm_client = create_llm_client(sub_llm_config)
         llm_clients.set_sub_agent_client(profile.type, sub_llm_client)
         log_debug(
-            f"➡️ llm [{profile.type.value} Model Config]",
+            f"Sub-agent {profile.type.value} model config",
             sub_llm_config.model_dump_json(exclude_none=True),
             style="yellow",
+            debug_type=DebugType.LLM_CONFIG,
         )
 
     # Create event queue for communication between executor and UI
@@ -218,7 +251,7 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     else:
         # Use REPLDisplay for interactive mode
         repl_display = ui.REPLDisplay(theme=theme)
-        display = repl_display if not init_config.debug else ui.DebugEventDisplay(repl_display, write_to_file=True)
+        display = repl_display if not init_config.debug else ui.DebugEventDisplay(repl_display)
 
     # Start UI display task
     display_task = asyncio.create_task(display.consume_event_loop(event_queue))
@@ -502,6 +535,11 @@ def exec_command(
         rich_help_panel="LLM",
     ),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
+    debug_filter: str | None = typer.Option(
+        None,
+        "--debug-filter",
+        help=DEBUG_FILTER_HELP,
+    ),
     vanilla: bool = typer.Option(
         False,
         "--vanilla",
@@ -544,11 +582,14 @@ def exec_command(
         if chosen_model is None:
             return
 
+    debug_enabled, debug_filters = _resolve_debug_settings(debug, debug_filter)
+
     init_config = AppInitConfig(
         model=chosen_model,
-        debug=debug,
+        debug=debug_enabled,
         vanilla=vanilla,
         is_exec_mode=True,
+        debug_filters=debug_filters,
     )
 
     asyncio.run(
@@ -579,6 +620,11 @@ def main_callback(
         rich_help_panel="LLM",
     ),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
+    debug_filter: str | None = typer.Option(
+        None,
+        "--debug-filter",
+        help=DEBUG_FILTER_HELP,
+    ),
     vanilla: bool = typer.Option(
         False,
         "--vanilla",
@@ -610,10 +656,13 @@ def main_callback(
         if session_id is None:
             session_id = uuid.uuid4().hex
 
+        debug_enabled, debug_filters = _resolve_debug_settings(debug, debug_filter)
+
         init_config = AppInitConfig(
             model=chosen_model,
-            debug=debug,
+            debug=debug_enabled,
             vanilla=vanilla,
+            debug_filters=debug_filters,
         )
 
         asyncio.run(

@@ -9,7 +9,7 @@ import time
 import tty
 from typing import BinaryIO, Final
 
-from klaude_code.trace import log_debug
+from klaude_code.trace import DebugType, log_debug
 
 ST: Final[bytes] = b"\x1b\\"  # ESC \
 BEL: Final[int] = 7
@@ -58,7 +58,10 @@ def _query_color_slot(slot: int, timeout: float) -> tuple[int, int, int] | None:
             try:
                 old_attrs = termios.tcgetattr(fd)
             except Exception as exc:  # termios.error and others
-                log_debug(f"Failed to get termios attributes for /dev/tty: {exc}")
+                log_debug(
+                    f"Failed to get termios attributes for /dev/tty: {exc}",
+                    debug_type=DebugType.TERMINAL,
+                )
                 old_attrs = None
 
             try:
@@ -73,10 +76,13 @@ def _query_color_slot(slot: int, timeout: float) -> tuple[int, int, int] | None:
                     try:
                         termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
                     except Exception as exc:  # best-effort restore
-                        log_debug(f"Failed to restore termios attributes for /dev/tty: {exc}")
+                        log_debug(
+                            f"Failed to restore termios attributes for /dev/tty: {exc}",
+                            debug_type=DebugType.TERMINAL,
+                        )
 
     except OSError as exc:
-        log_debug(f"Failed to open /dev/tty for OSC color query: {exc}")
+        log_debug(f"Failed to open /dev/tty for OSC color query: {exc}", debug_type=DebugType.TERMINAL)
         return None
 
     if raw is None or not raw:
@@ -93,7 +99,10 @@ def _send_osc_query(tty_fp: BinaryIO, slot: int) -> None:
         tty_fp.write(seq)
         tty_fp.flush()
     except Exception as exc:
-        log_debug(f"Failed to write OSC color query to /dev/tty: {exc}")
+        log_debug(
+            f"Failed to write OSC color query to /dev/tty: {exc}",
+            debug_type=DebugType.TERMINAL,
+        )
 
 
 def _read_osc_response(fd: int, timeout: float) -> bytes | None:
@@ -118,7 +127,10 @@ def _read_osc_response(fd: int, timeout: float) -> bytes | None:
         try:
             chunk = os.read(fd, 1024)
         except Exception as exc:
-            log_debug(f"Failed to read OSC color response from /dev/tty: {exc}")
+            log_debug(
+                f"Failed to read OSC color response from /dev/tty: {exc}",
+                debug_type=DebugType.TERMINAL,
+            )
             break
 
         if not chunk:
