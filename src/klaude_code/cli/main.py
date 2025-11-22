@@ -22,7 +22,7 @@ from klaude_code.config import config_path, load_config
 from klaude_code.config.config import Config
 from klaude_code.config.list_model import display_models_and_providers
 from klaude_code.config.select_model import select_model_from_config
-from klaude_code.core.agent import AgentLLMClients
+from klaude_code.core.agent import AgentLLMClients, DefaultModelProfileProvider, VanillaModelProfileProvider
 from klaude_code.core.executor import Executor
 from klaude_code.core.sub_agent import iter_sub_agent_profiles
 from klaude_code.core.tool.skill_loader import SkillLoader
@@ -175,6 +175,7 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     log_debug("➡️ llm [Model Config]", llm_config.model_dump_json(exclude_none=True), style="yellow")
 
     llm_clients = AgentLLMClients(main=llm_client)
+    model_profile_provider = VanillaModelProfileProvider() if init_config.vanilla else DefaultModelProfileProvider()
 
     for profile in iter_sub_agent_profiles():
         model_name = config.subagent_models.get(profile.config_key)
@@ -195,7 +196,12 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     event_queue: asyncio.Queue[Event] = asyncio.Queue()
 
     # Create executor with the LLM client
-    executor = Executor(event_queue, llm_clients, llm_config, vanilla=init_config.vanilla)
+    executor = Executor(
+        event_queue,
+        llm_clients,
+        llm_config,
+        model_profile_provider=model_profile_provider,
+    )
 
     # Start executor in background
     executor_task = asyncio.create_task(executor.start())
@@ -507,7 +513,11 @@ def exec_command(
         "-u",
         help="Disable safety guardrails for file reads and shell command validation (use with caution)",
     ),
-    vanilla: bool = typer.Option(False, "--vanilla", help="Use vanilla model with no system prompt and reminders"),
+    vanilla: bool = typer.Option(
+        False,
+        "--vanilla",
+        help="Vanilla mode exposes the model's raw API behavior: it provides only minimal tools (Bash, Read & Edit) and omits system prompts and reminders.",
+    ),
 ):
     """Execute non-interactively with provided input."""
 
@@ -587,7 +597,11 @@ def main_callback(
         "-u",
         help="Disable safety guardrails for file reads and shell command validation (use with caution)",
     ),
-    vanilla: bool = typer.Option(False, "--vanilla", help="Use vanilla model with no system prompt and reminders"),
+    vanilla: bool = typer.Option(
+        False,
+        "--vanilla",
+        help="Vanilla mode exposes the model's raw API behavior: it provides only minimal tools (Bash, Read & Edit) and omits system prompts and reminders.",
+    ),
 ):
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:

@@ -12,6 +12,7 @@ from klaude_code.command.registry import register_command
 from klaude_code.core import Agent
 from klaude_code.protocol.commands import CommandName
 from klaude_code.protocol.events import DeveloperMessageEvent
+from klaude_code.protocol.llm_parameter import ToolSchema
 from klaude_code.protocol.model import (
     AssistantMessageItem,
     CommandOutput,
@@ -130,8 +131,9 @@ class ExportCommand(CommandABC):
         if not messages_html:
             messages_html = '<div class="text-dim p-4 italic">No messages recorded for this session yet.</div>'
 
-        system_prompt = session.system_prompt or ""
-        tools_html = self._build_tools_html(agent)
+        profile = agent.profile
+        system_prompt = (profile.system_prompt if profile else "") or ""
+        tools_html = self._build_tools_html(profile.tools if profile else [])
         session_id = session.id
         session_updated = self._format_timestamp(session.updated_at)
         work_dir = self._shorten_path(str(session.work_dir))
@@ -468,7 +470,7 @@ class ExportCommand(CommandABC):
             border-top: 1px solid var(--border);
             padding-top: 24px;
         }}
-        
+
         .expandable {{ cursor: pointer; }}
         .expandable.expanded {{ cursor: auto; }}
         .expandable .full-text {{ display: none; }}
@@ -572,8 +574,7 @@ class ExportCommand(CommandABC):
 </body>
 </html>"""
 
-    def _build_tools_html(self, agent: Agent) -> str:
-        tools = agent.tools or []
+    def _build_tools_html(self, tools: list[ToolSchema]) -> str:
         if not tools:
             return '<div style="padding: 12px; font-style: italic;">No tools registered for this session.</div>'
         chunks: list[str] = []

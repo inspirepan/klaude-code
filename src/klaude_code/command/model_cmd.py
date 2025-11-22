@@ -50,7 +50,7 @@ class ModelCommand(CommandABC):
         log_debug("➡️ llm [Model Config]", llm_config.model_dump_json(exclude_none=True), style="yellow")
 
         llm_client = create_llm_client(llm_config)
-        agent.set_llm_client(llm_client)
+        agent.set_model_profile(agent.build_model_profile(llm_client))
 
         return CommandResult(
             events=[

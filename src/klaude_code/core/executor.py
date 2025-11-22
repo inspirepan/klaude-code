@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from klaude_code.command import dispatch_command
-from klaude_code.core.agent import Agent, AgentLLMClients
+from klaude_code.core.agent import Agent, AgentLLMClients, AgentRole, DefaultModelProfileProvider, ModelProfileProvider
 from klaude_code.core.sub_agent import SubAgentResult
 from klaude_code.core.tool.tool_context import current_run_subtask_callback
 from klaude_code.protocol import events, llm_parameter, model
@@ -45,12 +45,12 @@ class ExecutorContext:
         event_queue: asyncio.Queue[events.Event],
         llm_clients: AgentLLMClients,
         llm_config: llm_parameter.LLMConfigParameter,
-        vanilla: bool = False,
+        model_profile_provider: ModelProfileProvider | None = None,
     ):
         self.event_queue = event_queue
         self.llm_clients = llm_clients
         self.llm_config = llm_config
-        self.vanilla = vanilla
+        self.model_profile_provider: ModelProfileProvider = model_profile_provider or DefaultModelProfileProvider()
 
         # Track active agents by session ID
         self.active_agents: dict[str, Agent] = {}
@@ -71,12 +71,16 @@ class ExecutorContext:
 
         # Create agent if not exists
         if operation.session_id not in self.active_agents:
+            initial_profile = self.model_profile_provider.build_profile(
+                self.llm_clients.main,
+                AgentRole.main(),
+            )
             agent = Agent(
                 llm_clients=self.llm_clients,
                 session=session,
-                vanilla=self.vanilla,
+                initial_profile=initial_profile,
+                model_profile_provider=self.model_profile_provider,
             )
-            agent.refresh_model_profile()
             async for evt in agent.replay_history():
                 await self.emit_event(evt)
             await self.emit_event(
@@ -224,12 +228,16 @@ class ExecutorContext:
             sub_clients=dict(self.llm_clients.sub_clients),
         )
 
+        child_profile = self.model_profile_provider.build_profile(
+            child_llm_clients.main,
+            AgentRole.sub(state.sub_agent_type),
+        )
         child_agent = Agent(
             llm_clients=child_llm_clients,
             session=child_session,
-            vanilla=self.vanilla,
+            initial_profile=child_profile,
+            model_profile_provider=self.model_profile_provider,
         )
-        child_agent.refresh_model_profile(state.sub_agent_type)
 
         log_debug(f"Running sub-agent {state.sub_agent_type} in session {child_session.id}", style="cyan")
 
@@ -262,9 +270,9 @@ class Executor:
         event_queue: asyncio.Queue[events.Event],
         llm_clients: AgentLLMClients,
         llm_config: llm_parameter.LLMConfigParameter,
-        vanilla: bool = False,
+        model_profile_provider: ModelProfileProvider | None = None,
     ):
-        self.context = ExecutorContext(event_queue, llm_clients, llm_config, vanilla)
+        self.context = ExecutorContext(event_queue, llm_clients, llm_config, model_profile_provider)
         self.submission_queue: asyncio.Queue[Submission] = asyncio.Queue()
         self.running = False
         self.task_completion_events: dict[str, asyncio.Event] = {}

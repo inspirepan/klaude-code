@@ -23,7 +23,6 @@ class ClearCommand(CommandABC):
         # Create a new session instance to replace the current one
         new_session = Session(work_dir=agent.session.work_dir)
         new_session.model_name = agent.session.model_name
-        new_session.system_prompt = agent.session.system_prompt
 
         # Replace the agent's session with the new one
         agent.session = new_session

@@ -4,13 +4,18 @@ import asyncio
 import time
 from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass, field
-from typing import Literal, cast
+from typing import Literal, Protocol, cast
 
-from klaude_code.core.prompt import get_system_prompt
-from klaude_code.core.reminders import Reminder, get_main_agent_reminders, get_sub_agent_reminders
+from klaude_code.core.prompt import get_system_prompt as load_system_prompt
+from klaude_code.core.reminders import (
+    Reminder,
+    get_main_agent_reminders,
+    get_sub_agent_reminders,
+    get_vanilla_reminders,
+)
 from klaude_code.core.sub_agent import get_sub_agent_profile, is_sub_agent_tool
 from klaude_code.core.tool.tool_context import current_session_var
-from klaude_code.core.tool.tool_registry import get_main_agent_tools, get_sub_agent_tools, run_tool
+from klaude_code.core.tool.tool_registry import get_main_agent_tools, get_sub_agent_tools, get_vanilla_tools, run_tool
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.protocol import events, llm_parameter, model, tools
 from klaude_code.session import Session
@@ -54,26 +59,116 @@ class _MetadataMergeState:
     throughput_tracked_tokens: int = 0
 
 
+@dataclass(frozen=True)
+class AgentRole:
+    """Defines the role context when configuring an agent."""
+
+    name: Literal["main", "sub"]
+    sub_agent_type: tools.SubAgentType | None = None
+
+    @classmethod
+    def main(cls) -> "AgentRole":
+        return cls(name="main")
+
+    @classmethod
+    def sub(cls, sub_agent_type: tools.SubAgentType) -> "AgentRole":
+        return cls(name="sub", sub_agent_type=sub_agent_type)
+
+    def require_sub_agent_type(self) -> tools.SubAgentType:
+        if self.sub_agent_type is None:
+            raise ValueError("Sub-agent role requires sub_agent_type")
+        return self.sub_agent_type
+
+
+@dataclass(frozen=True)
+class AgentProfile:
+    """Encapsulates the active LLM client plus prompt/tools/reminders."""
+
+    llm_client: LLMClientABC
+    role: AgentRole
+    system_prompt: str | None
+    tools: list[llm_parameter.ToolSchema]
+    reminders: list[Reminder]
+
+
+class ModelProfileProvider(Protocol):
+    """Strategy interface for constructing agent profiles."""
+
+    def build_profile(
+        self,
+        llm_client: LLMClientABC,
+        agent_role: AgentRole,
+    ) -> AgentProfile: ...
+
+
+class DefaultModelProfileProvider(ModelProfileProvider):
+    """Default provider backed by global prompt/tool/reminder registries."""
+
+    def build_profile(
+        self,
+        llm_client: LLMClientABC,
+        agent_role: AgentRole,
+    ) -> AgentProfile:
+        model_name = llm_client.model_name
+
+        if agent_role.name == "main":
+            prompt_key = "main"
+        else:
+            prompt_key = get_sub_agent_profile(agent_role.require_sub_agent_type()).prompt_key
+        system_prompt = load_system_prompt(model_name, prompt_key)
+
+        if agent_role.name == "main":
+            tools = get_main_agent_tools(model_name)
+            reminders = get_main_agent_reminders(model_name)
+        else:
+            sub_agent_type = agent_role.require_sub_agent_type()
+            tools = get_sub_agent_tools(model_name, sub_agent_type)
+            reminders = get_sub_agent_reminders(model_name)
+
+        return AgentProfile(
+            llm_client=llm_client,
+            role=agent_role,
+            system_prompt=system_prompt,
+            tools=tools,
+            reminders=reminders,
+        )
+
+
+class VanillaModelProfileProvider(ModelProfileProvider):
+    """Provider that strips prompts, reminders, and tools for vanilla mode."""
+
+    def build_profile(
+        self,
+        llm_client: LLMClientABC,
+        agent_role: AgentRole,
+    ) -> AgentProfile:
+        return AgentProfile(
+            llm_client=llm_client,
+            role=agent_role,
+            system_prompt=None,
+            tools=get_vanilla_tools(),
+            reminders=get_vanilla_reminders(),
+        )
+
+
 class Agent:
     def __init__(
         self,
         llm_clients: AgentLLMClients,
         session: Session,
-        tools: list[llm_parameter.ToolSchema] | None = None,
-        reminders: list[Reminder] | None = None,
-        vanilla: bool = False,
+        initial_profile: AgentProfile,
+        *,
+        model_profile_provider: ModelProfileProvider | None = None,
     ):
         self.session: Session = session
-        self.tools: list[llm_parameter.ToolSchema] | None = tools
-        self.reminders: list[Reminder] | None = reminders
         self.llm_clients = llm_clients
-        self.vanilla = vanilla
+        self.model_profile_provider: ModelProfileProvider = model_profile_provider or DefaultModelProfileProvider()
+        self.profile: AgentProfile | None = None
         # Track tool calls that are pending or in-progress within the current turn
         # Keyed by tool_call_id
         self.turn_inflight_tool_calls: dict[str, UnfinishedToolCallItem] = {}
-        self.session.model_name = llm_clients.main.model_name
         # Ensure runtime configuration matches the active model on initialization
-        self.refresh_model_profile()
+        self.set_model_profile(initial_profile)
 
     def cancel(self) -> Iterable[events.Event]:
         """Handle agent cancellation and persist an interrupt marker and tool cancellations.
@@ -323,6 +418,8 @@ class Agent:
         )
 
     async def run_turn(self) -> AsyncGenerator[events.Event, None]:
+        profile = self._require_profile()
+
         yield events.TurnStartEvent(
             session_id=self.session.id,
         )
@@ -335,11 +432,11 @@ class Agent:
         current_response_id: str | None = None
         response_failed = False
 
-        async for response_item in self.get_llm_client().call(
+        async for response_item in profile.llm_client.call(
             llm_parameter.LLMCallParameter(
                 input=self.session.conversation_history,
-                system=self.session.system_prompt,
-                tools=self.tools,
+                system=profile.system_prompt,
+                tools=profile.tools,
                 store=False,
                 session_id=self.session.id,
             )
@@ -417,9 +514,10 @@ class Agent:
         yield events.TurnEndEvent(session_id=self.session.id)
 
     async def process_reminders(self) -> AsyncGenerator[events.DeveloperMessageEvent, None]:
-        if self.reminders is None:
+        reminders = self._require_profile().reminders
+        if not reminders:
             return
-        for reminder in self.reminders:
+        for reminder in reminders:
             item = await reminder(self.session)
             if item is not None:
                 self.session.append_history([item])
@@ -430,39 +528,31 @@ class Agent:
         delay = INITIAL_RETRY_DELAY_S * (2 ** (capped_attempt - 1))
         return min(delay, MAX_RETRY_DELAY_S)
 
-    def refresh_model_profile(self, sub_agent_type: tools.SubAgentType | None = None) -> None:
-        """Refresh system prompt, tools, and reminders for the active model."""
+    def set_model_profile(self, profile: AgentProfile) -> None:
+        """Apply a fully constructed profile to the agent."""
 
-        active_client = self._resolve_llm_client_for(sub_agent_type)
-        active_model_name = active_client.model_name
-        self.session.model_name = active_model_name
+        self.profile = profile
+        # Keep shared client registry in sync for main-agent switches
+        if profile.role.name == "main":
+            self.llm_clients.main = profile.llm_client
+        self.session.model_name = profile.llm_client.model_name
 
-        if self.vanilla:
-            self.session.system_prompt = None
-        else:
-            prompt_key = "main"
-            if sub_agent_type is not None:
-                prompt_key = get_sub_agent_profile(sub_agent_type).prompt_key
-            self.session.system_prompt = get_system_prompt(active_model_name, prompt_key)
-
-        if sub_agent_type is not None:
-            self.tools = get_sub_agent_tools(active_model_name, sub_agent_type)
-            self.reminders = get_sub_agent_reminders(self.vanilla, active_model_name)
-        else:
-            self.tools = get_main_agent_tools(active_model_name)
-            self.reminders = get_main_agent_reminders(self.vanilla, active_model_name)
-
-    def set_llm_client(self, llm_client: LLMClientABC) -> None:
-        self.llm_clients.main = llm_client
-        self.refresh_model_profile()
+    def build_model_profile(
+        self,
+        llm_client: LLMClientABC,
+        agent_role: AgentRole | None = None,
+    ) -> AgentProfile:
+        if agent_role is None:
+            agent_role = AgentRole.main()
+        return self.model_profile_provider.build_profile(llm_client, agent_role)
 
     def get_llm_client(self) -> LLMClientABC:
-        return self._resolve_llm_client_for()
+        return self._require_profile().llm_client
 
-    def _resolve_llm_client_for(self, sub_agent_type: tools.SubAgentType | None = None) -> LLMClientABC:
-        if sub_agent_type is not None:
-            return self.llm_clients.get_sub_agent_client(sub_agent_type)
-        return self.llm_clients.main
+    def _require_profile(self) -> AgentProfile:
+        if self.profile is None:
+            raise RuntimeError("Agent profile is not initialized")
+        return self.profile
 
     def _partition_tool_calls(
         self, tool_calls: list[model.ToolCallItem]

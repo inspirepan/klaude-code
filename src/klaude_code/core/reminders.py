@@ -426,10 +426,11 @@ ALL_REMINDERS = [
 ]
 
 
-def get_main_agent_reminders(vanilla: bool, model_name: str) -> list[Reminder]:
-    if vanilla:
-        return [at_file_reader_reminder, clipboard_image_reminder]
+def get_vanilla_reminders() -> list[Reminder]:
+    return [at_file_reader_reminder, clipboard_image_reminder]
 
+
+def get_main_agent_reminders(model_name: str) -> list[Reminder]:
     reminders: list[Reminder] = []
 
     # For GPT-5, we do not show empty todo and todo not used recently reminders
@@ -450,10 +451,7 @@ def get_main_agent_reminders(vanilla: bool, model_name: str) -> list[Reminder]:
     return reminders
 
 
-def get_sub_agent_reminders(vanilla: bool, model_name: str) -> list[Reminder]:
-    if vanilla:
-        return [at_file_reader_reminder, clipboard_image_reminder]
-
+def get_sub_agent_reminders(model_name: str) -> list[Reminder]:
     reminders: list[Reminder] = []
     reminders.extend(
         [
