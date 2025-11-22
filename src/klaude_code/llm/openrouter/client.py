@@ -227,8 +227,17 @@ class ReasoningStreamHandler:
             title_candidate = line[opening_index : closing_index + 2]
             stripped_title = title_candidate.strip()
             if self._is_gpt5_title_line(stripped_title):
+                # Treat as a GPT-5 title only when everything after the
+                # bold segment is either whitespace or starts a new bold
+                # title. This prevents inline bold like `**xxx**yyyy`
+                # from being misclassified as a section title while
+                # preserving support for consecutive titles in one line.
+                after = line[closing_index + 2 :]
+                if after.strip() and not after.lstrip().startswith("**"):
+                    search_start = closing_index + 2
+                    continue
                 prefix_segment = line[:opening_index]
-                remainder_segment = line[closing_index + 2 :]
+                remainder_segment = after
                 return (
                     prefix_segment if prefix_segment else None,
                     stripped_title,
