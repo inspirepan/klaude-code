@@ -144,12 +144,6 @@ class AnthropicClient(LLMClientABC):
                                 if first_token_time is None:
                                     first_token_time = time.time()
                                 last_token_time = time.time()
-                                full_thinking = "".join(accumulated_thinking)
-                                accumulated_thinking.clear()
-                                yield model.ReasoningTextItem(
-                                    content=full_thinking,
-                                    response_id=response_id,
-                                )
                                 yield model.ReasoningEncryptedItem(
                                     encrypted_content=delta.signature,
                                     response_id=response_id,
@@ -181,6 +175,13 @@ class AnthropicClient(LLMClientABC):
                             case _:
                                 pass
                     case BetaRawContentBlockStopEvent() as event:
+                        if len(accumulated_thinking) > 0:
+                            full_thinking = "".join(accumulated_thinking)
+                            yield model.ReasoningTextItem(
+                                content=full_thinking,
+                                response_id=response_id,
+                            )
+                            accumulated_thinking.clear()
                         if len(accumulated_content) > 0:
                             yield model.AssistantMessageItem(
                                 content="".join(accumulated_content),

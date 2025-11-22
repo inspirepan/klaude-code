@@ -169,6 +169,16 @@ def convert_history_to_input(
                         case _:
                             pass
 
+                if (
+                    len(current_reasoning_content or "") > 0
+                ):  # Moonshot.ai's Kimi does not always send reasoning signatures
+                    assistant_message["content"] = [
+                        {
+                            "type": "thinking",
+                            "thinking": current_reasoning_content,
+                        }
+                    ].extend(assistant_message["content"])
+
                 messages.append(assistant_message)
             case "other":
                 pass
