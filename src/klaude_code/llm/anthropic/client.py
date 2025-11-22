@@ -30,7 +30,6 @@ from klaude_code.protocol.llm_parameter import (
 from klaude_code.protocol.model import StreamErrorItem
 from klaude_code.trace import DebugType, log_debug
 
-
 P = ParamSpec("P")
 R = TypeVar("R")
 
@@ -96,8 +95,7 @@ class AnthropicClient(LLMClientABC):
             betas=["interleaved-thinking-2025-05-14", "context-1m-2025-08-07"],
             thinking=anthropic.types.ThinkingConfigEnabledParam(
                 type=param.thinking.type,
-                budget_tokens=param.thinking.budget_tokens
-                or llm_parameter.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
+                budget_tokens=param.thinking.budget_tokens or llm_parameter.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
             )
             if param.thinking and param.thinking.type == "enabled"
             else anthropic.types.ThinkingConfigDisabledParam(

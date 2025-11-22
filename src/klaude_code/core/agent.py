@@ -349,7 +349,7 @@ class Agent:
                 combined_error_message = error_message
                 if last_turn_error_message:
                     combined_error_message = f"{error_message} · {last_turn_error_message}"
-                yield events.ErrorEvent(error_message=combined_error_message)
+                yield events.ErrorEvent(error_message=combined_error_message, can_retry=True)
                 await asyncio.sleep(retry_delay)
             else:
                 # This 'else' belongs to the 'while' loop. It runs if the loop completes without a 'break'.
@@ -362,7 +362,7 @@ class Agent:
                 final_error_message = f"Turn failed after {MAX_FAILED_TURN_RETRIES} retries."
                 if last_turn_error_message:
                     final_error_message = f"{last_turn_error_message}\n{final_error_message}"
-                yield events.ErrorEvent(error_message=final_error_message)
+                yield events.ErrorEvent(error_message=final_error_message, can_retry=False)
                 return  # Exit the entire run_task method
 
             if not turn_has_tool_call:
@@ -504,7 +504,7 @@ class Agent:
                 case model.StreamErrorItem() as item:
                     response_failed = True
                     log_debug("[StreamError]", item.error, style="red", debug_type=DebugType.RESPONSE)
-                    yield events.ErrorEvent(error_message=item.error)
+                    yield events.ErrorEvent(error_message=item.error, can_retry=True)
                 case model.ToolCallItem() as item:
                     turn_tool_calls.append(item)
                 case _:

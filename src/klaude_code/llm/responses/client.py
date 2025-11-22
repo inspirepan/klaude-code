@@ -30,7 +30,6 @@ from klaude_code.protocol.model import (
 )
 from klaude_code.trace import DebugType, log_debug
 
-
 P = ParamSpec("P")
 R = TypeVar("R")
 

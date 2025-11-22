@@ -221,7 +221,10 @@ class ExecutorContext:
             )
             log_debug(traceback.format_exc(), style="red", debug_type=DebugType.EXECUTION)
             await self.emit_event(
-                events.ErrorEvent(error_message=f"Agent task failed: [{e.__class__.__name__}] {str(e)}")
+                events.ErrorEvent(
+                    error_message=f"Agent task failed: [{e.__class__.__name__}] {str(e)}",
+                    can_retry=False,
+                )
             )
 
         finally:
@@ -381,7 +384,9 @@ class Executor:
             except Exception as e:
                 # Handle unexpected errors
                 log_debug(f"Executor error: {str(e)}", style="red", debug_type=DebugType.EXECUTION)
-                await self.context.emit_event(events.ErrorEvent(error_message=f"Executor error: {str(e)}"))
+                await self.context.emit_event(
+                    events.ErrorEvent(error_message=f"Executor error: {str(e)}", can_retry=False)
+                )
 
     async def stop(self) -> None:
         """Stop the executor and clean up resources."""
@@ -441,7 +446,9 @@ class Executor:
                 style="red",
                 debug_type=DebugType.EXECUTION,
             )
-            await self.context.emit_event(events.ErrorEvent(error_message=f"Operation failed: {str(e)}"))
+            await self.context.emit_event(
+                events.ErrorEvent(error_message=f"Operation failed: {str(e)}", can_retry=False)
+            )
             # Set completion event even on error to prevent wait_for_completion from hanging
             completion_event = self.task_completion_events.get(submission.id)
             if completion_event is not None:

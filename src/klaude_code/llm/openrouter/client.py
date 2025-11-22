@@ -22,7 +22,6 @@ from klaude_code.protocol.llm_parameter import (
 from klaude_code.protocol.model import StreamErrorItem
 from klaude_code.trace import DebugType, log, log_debug
 
-
 P = ParamSpec("P")
 R = TypeVar("R")
 

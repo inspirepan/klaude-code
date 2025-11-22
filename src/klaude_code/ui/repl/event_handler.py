@@ -177,13 +177,15 @@ class DisplayEventHandler:
             case events.ErrorEvent() as error_event:
                 emit_osc94(OSC94States.ERROR)
                 await self.stage_manager.transition_to(Stage.WAITING)
+                self.renderer.spinner.stop()
                 self.renderer.print(
                     r_errors.render_error(
                         self.renderer.console.render_str(truncate_display(error_event.error_message)),
                         indent=0,
                     )
                 )
-                self.renderer.spinner.start()
+                if error_event.can_retry:
+                    self.renderer.spinner.start()
             case events.EndEvent():
                 emit_osc94(OSC94States.HIDDEN)
                 await self.stage_manager.transition_to(Stage.WAITING)
