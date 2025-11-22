@@ -425,7 +425,6 @@ class Agent:
         )
         # Clear pending map for new turn
         self.turn_inflight_tool_calls.clear()
-        # TODO: If LLM API error occurred, we will discard (not append to history) and retry
         turn_reasoning_items: list[model.ReasoningTextItem | model.ReasoningEncryptedItem] = []
         turn_assistant_message: model.AssistantMessageItem | None = None
         turn_tool_calls: list[model.ToolCallItem] = []

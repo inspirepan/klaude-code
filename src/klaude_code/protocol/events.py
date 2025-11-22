@@ -78,6 +78,7 @@ class ToolCallEvent(BaseModel):
     tool_call_id: str
     tool_name: str
     arguments: str
+    is_replay: bool = False
 
 
 class ToolResultEvent(BaseModel):
@@ -88,6 +89,7 @@ class ToolResultEvent(BaseModel):
     result: str
     ui_extra: model.ToolResultUIExtra | None = None
     status: Literal["success", "error"]
+    is_replay: bool = False
 
 
 class ResponseMetadataEvent(BaseModel):

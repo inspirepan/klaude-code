@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Iterator
@@ -12,6 +13,7 @@ from rich.status import Status
 from rich.style import Style, StyleType
 from rich.text import Text
 
+from klaude_code.core.sub_agent import get_sub_agent_profile_by_tool
 from klaude_code.protocol import events, model, tools
 from klaude_code.ui.base.theme import ThemeKey, get_theme
 from klaude_code.ui.renderers import developer as r_developer
@@ -19,6 +21,7 @@ from klaude_code.ui.renderers import diffs as r_diffs
 from klaude_code.ui.renderers import errors as r_errors
 from klaude_code.ui.renderers import metadata as r_metadata
 from klaude_code.ui.renderers import status as r_status
+from klaude_code.ui.renderers import sub_agent as r_sub_agent
 from klaude_code.ui.renderers import tools as r_tools
 from klaude_code.ui.renderers import user_input as r_user_input
 from klaude_code.ui.renderers.common import truncate_display
@@ -104,6 +107,14 @@ class REPLRenderer:
         self.console.print(*objects, style=style, end=end)
 
     def display_tool_call(self, e: events.ToolCallEvent) -> None:
+        if r_tools.is_sub_agent_tool(e.tool_name):
+            # In replay mode, render sub-agent call here
+            # In normal execution, handled by TaskStartEvent
+            if e.is_replay:
+                state = self._build_sub_agent_state_from_tool_call(e)
+                if state is not None:
+                    self.print(r_sub_agent.render_sub_agent_call(state))
+            return
         match e.tool_name:
             case tools.READ:
                 self.print(r_tools.render_read_tool_call(e.arguments))
@@ -123,12 +134,16 @@ class REPLRenderer:
                 self.print(r_tools.render_mermaid_tool_call(e.arguments))
             case tools.SKILL:
                 self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments, "◈"))
-            case _ if r_tools.is_sub_agent_tool(e.tool_name):
-                pass  # handled in TaskStartEvent
             case _:
                 self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments))
 
     def display_tool_call_result(self, e: events.ToolResultEvent) -> None:
+        if r_tools.is_sub_agent_tool(e.tool_name):
+            # In replay mode, render sub-agent result here
+            # In normal execution, handled by TaskFinishEvent
+            if e.is_replay:
+                self.print(r_sub_agent.render_sub_agent_result(e.result, code_theme=self.themes.code_theme))
+            return
         if e.status == "error" and e.ui_extra is None:
             self.print(r_errors.render_error(Text(truncate_display(e.result))))
             return
@@ -144,8 +159,6 @@ class REPLRenderer:
                 self.print(r_tools.render_todo(e))
             case tools.MERMAID:
                 self.print(r_tools.render_mermaid_tool_result(e))
-            case _ if r_tools.is_sub_agent_tool(e.tool_name):
-                pass  # handled in TaskFinishEvent
             case _:
                 if e.tool_name in (tools.BASH, tools.APPLY_PATCH) and e.result.startswith("diff --git"):
                     self.print(r_diffs.render_diff_panel(e.result, show_file_name=True))
@@ -156,6 +169,29 @@ class REPLRenderer:
                 if len(e.result.strip()) == 0:
                     e.result = "(no content)"
                 self.print(r_tools.render_generic_tool_result(e.result))
+
+    def _build_sub_agent_state_from_tool_call(self, e: events.ToolCallEvent) -> model.SubAgentState | None:
+        profile = get_sub_agent_profile_by_tool(e.tool_name)
+        if profile is None:
+            return None
+        description = profile.config_key
+        prompt = ""
+        if e.arguments:
+            try:
+                payload: dict[str, object] = json.loads(e.arguments)
+            except json.JSONDecodeError:
+                payload = {}
+            desc_value = payload.get("description")
+            if isinstance(desc_value, str) and desc_value.strip():
+                description = desc_value.strip()
+            prompt_value = payload.get("prompt") or payload.get("task")
+            if isinstance(prompt_value, str):
+                prompt = prompt_value.strip()
+        return model.SubAgentState(
+            sub_agent_type=profile.type,
+            sub_agent_desc=description,
+            sub_agent_prompt=prompt,
+        )
 
     def display_thinking(self, content: str) -> None:
         if len(content.strip()) > 0:

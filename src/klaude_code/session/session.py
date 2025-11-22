@@ -259,6 +259,7 @@ class Session(BaseModel):
                         arguments=tc.arguments,
                         response_id=tc.response_id,
                         session_id=self.id,
+                        is_replay=True,
                     )
                 case model.ToolResultItem() as tr:
                     yield events.ToolResultEvent(
@@ -268,6 +269,7 @@ class Session(BaseModel):
                         ui_extra=tr.ui_extra,
                         session_id=self.id,
                         status=tr.status,
+                        is_replay=True,
                     )
                     # TODO: Replay Sub-Agent Events
                 case model.UserMessageItem() as um:

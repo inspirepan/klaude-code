@@ -9,8 +9,11 @@ from klaude_code.ui.rich_ext.markdown import NoInsetMarkdown
 
 
 def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) -> RenderableType:
-    """Render sub-agent tool call header and quoted body."""
-    desc = Text(f" {e.sub_agent_desc} ", style=Style(color=style.color if style else None, bold=True, reverse=True))
+    """Render sub-agent tool call header and prompt body."""
+    desc = Text(
+        f" {e.sub_agent_desc} ",
+        style=Style(color=style.color if style else None, bold=True, reverse=True),
+    )
     return Group(
         Text.assemble((e.sub_agent_type.value, ThemeKey.TOOL_NAME), " ", desc),
         Text(e.sub_agent_prompt, style=style or ""),
@@ -20,13 +23,13 @@ def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) ->
 def render_sub_agent_result(result: str, *, code_theme: str) -> RenderableType:
     stripped_result = result.strip()
     lines = stripped_result.splitlines()
-    max_lines = 12
-    if len(lines) > max_lines:
-        hidden_count = len(lines) - max_lines
-        truncated_text = "\n".join(lines[-max_lines:])
+    MAX_LINES = 30
+    if len(lines) > MAX_LINES:
+        hidden_count = len(lines) - MAX_LINES
+        truncated_text = "\n".join(lines[-MAX_LINES:])
         return Panel.fit(
             Group(
-                Text(f"... more {hidden_count} lines", style=ThemeKey.METADATA_DIM),
+                Text(f"... more {hidden_count} lines — use /export to view full output", style=ThemeKey.METADATA_DIM),
                 NoInsetMarkdown(truncated_text, code_theme=code_theme),
             ),
             border_style=ThemeKey.LINES,
