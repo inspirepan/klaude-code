@@ -15,21 +15,22 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
 
     # Line 1: Model and Provider
     model_text = Text()
-    model_text.append_text(Text("↑ ", style=ThemeKey.METADATA)).append_text(
+    model_text.append_text(Text("▪ ", style=ThemeKey.METADATA)).append_text(
         Text(metadata.model_name, style=ThemeKey.METADATA_BOLD)
     )
     if metadata.provider is not None:
-        model_text.append_text(Text("@", style=ThemeKey.METADATA_DIM)).append_text(
-            Text(metadata.provider.lower().replace(" ", "-"), style=ThemeKey.METADATA_DIM)
+        model_text.append_text(Text("@", style=ThemeKey.METADATA)).append_text(
+            Text(metadata.provider.lower().replace(" ", "-"), style=ThemeKey.METADATA)
         )
 
     renderables: list[RenderableType] = [model_text]
 
-    # Line 2: Token consumption
+    # Line 2: Token consumption, Context, TPS, Cost
+    parts: list[Text] = []
+
     if metadata.usage is not None:
-        token_parts: list[Text] = []
         # Input
-        token_parts.append(
+        parts.append(
             Text.assemble(
                 ("input:", ThemeKey.METADATA_DIM),
                 (format_number(metadata.usage.input_tokens), ThemeKey.METADATA_DIM),
@@ -38,7 +39,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
 
         # Cached
         if metadata.usage.cached_tokens > 0:
-            token_parts.append(
+            parts.append(
                 Text.assemble(
                     ("cached", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
@@ -47,7 +48,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
             )
 
         # Output
-        token_parts.append(
+        parts.append(
             Text.assemble(
                 ("output:", ThemeKey.METADATA_DIM),
                 (format_number(metadata.usage.output_tokens), ThemeKey.METADATA_DIM),
@@ -56,24 +57,17 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
 
         # Reasoning
         if metadata.usage.reasoning_tokens > 0:
-            token_parts.append(
+            parts.append(
                 Text.assemble(
-                    ("reasoning", ThemeKey.METADATA_DIM),
+                    ("thinking", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
                     (format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA_DIM),
                 )
             )
 
-        if token_parts:
-            line2 = Text("  ", style=ThemeKey.METADATA_DIM).join(token_parts)
-            renderables.append(Padding(line2, (0, 0, 0, 2)))
-
-    # Line 3: Context, TPS, Cost
-    stats_parts: list[Text] = []
-
-    if metadata.usage is not None:
+        # Context
         if metadata.usage.context_usage_percent is not None:
-            stats_parts.append(
+            parts.append(
                 Text.assemble(
                     ("context", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
@@ -81,8 +75,9 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
                 )
             )
 
+        # TPS
         if metadata.usage.throughput_tps is not None:
-            stats_parts.append(
+            parts.append(
                 Text.assemble(
                     ("tps", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
@@ -90,8 +85,9 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
                 )
             )
 
+    # Cost
     if metadata.task_duration_s is not None:
-        stats_parts.append(
+        parts.append(
             Text.assemble(
                 ("cost", ThemeKey.METADATA_DIM),
                 (":", ThemeKey.METADATA_DIM),
@@ -99,9 +95,9 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
             )
         )
 
-    if stats_parts:
-        line3 = Text("  ", style=ThemeKey.METADATA_DIM).join(stats_parts)
-        renderables.append(Padding(line3, (0, 0, 0, 2)))
+    if parts:
+        line2 = Text("/", style=ThemeKey.METADATA_DIM).join(parts)
+        renderables.append(Padding(line2, (0, 0, 0, 2)))
 
     return Group(*renderables)
 
