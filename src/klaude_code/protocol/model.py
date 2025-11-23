@@ -159,6 +159,7 @@ class ReasoningTextItem(BaseModel):
     id: str | None = None
     response_id: str | None = None
     content: str
+    model: str | None = None
 
 
 class ReasoningEncryptedItem(BaseModel):

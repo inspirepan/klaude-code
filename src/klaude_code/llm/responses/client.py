@@ -136,6 +136,7 @@ class ResponsesClient(LLMClientABC):
                             yield ReasoningTextItem(
                                 content=event.text,
                                 response_id=response_id,
+                                model=str(param.model),
                             )
                     case responses.ResponseTextDeltaEvent() as event:
                         if first_token_time is None:

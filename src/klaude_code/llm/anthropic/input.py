@@ -165,6 +165,8 @@ def convert_history_to_input(
                                 )
                                 current_reasoning_content = None
                         case ReasoningTextItem() as r:
+                            if model_name != r.model:
+                                continue
                             current_reasoning_content = r.content
                         case _:
                             pass

@@ -116,6 +116,7 @@ class OpenAICompatibleClient(LLMClientABC):
             item = model.ReasoningTextItem(
                 content="".join(accumulated_reasoning),
                 response_id=response_id,
+                model=str(param.model),
             )
             accumulated_reasoning = []
             return [item]

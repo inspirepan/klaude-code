@@ -180,6 +180,7 @@ class AnthropicClient(LLMClientABC):
                             yield model.ReasoningTextItem(
                                 content=full_thinking,
                                 response_id=response_id,
+                                model=str(param.model),
                             )
                             accumulated_thinking.clear()
                         if len(accumulated_content) > 0:

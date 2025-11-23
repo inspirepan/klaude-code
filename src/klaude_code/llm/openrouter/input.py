@@ -115,6 +115,8 @@ def convert_history_to_input(
                                     }
                                 )
                         case ReasoningTextItem() as r:
+                            if model_name != r.model:
+                                continue
                             reasoning_details = assistant_message.setdefault("reasoning_details", [])
                             reasoning_details.append(
                                 {

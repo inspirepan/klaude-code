@@ -67,6 +67,8 @@ def convert_history_to_input(
                 # If no encrypted item follows (e.g. incomplete stream?), this text might be lost
                 # or we can choose to output it if the next item is NOT reasoning?
                 # For now, based on instructions, we pair them.
+                if model_name != item.model:
+                    continue
                 pending_reasoning_text = item.content
 
             case ReasoningEncryptedItem() as item:

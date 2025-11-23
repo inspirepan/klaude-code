@@ -134,6 +134,7 @@ class ReasoningStreamHandler:
             id=self._reasoning_id,
             content=content,
             response_id=self._response_id,
+            model=self._param_model,
         )
 
     def _build_encrypted_item(
