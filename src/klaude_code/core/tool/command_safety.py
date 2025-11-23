@@ -587,39 +587,33 @@ def strip_bash_lc(command: str) -> str:
 
 
 def is_safe_command(command: str) -> SafetyCheckResult:
-    """Conservatively determine if a command is known-safe."""
-    # First, try direct exec-style argv safety (e.g., "ls -l").
+    """Determine if a command is safe enough to run.
+
+    The check is intentionally lightweight: it blocks only a small set of
+    obviously dangerous patterns (rm/trash/git remotes, unsafe sed/awk,
+    find -exec/-delete, etc.) and otherwise lets the real shell surface
+    syntax errors (for example, unmatched quotes in complex multiline
+    scripts).
+    """
+
+    # Try to parse into an argv-style list first. If this fails (e.g. due
+    # to unterminated quotes in a complex heredoc), treat the command as
+    # safe here and let bash itself perform syntax checking instead of
+    # blocking execution pre-emptively.
     try:
         argv = shlex.split(command, posix=True)
     except ValueError:
-        argv = []
-        # Don't return error here, try sequence parsing below
+        # If we cannot reliably parse the command (e.g. due to unterminated
+        # quotes in a complex heredoc), treat it as safe here and let the
+        # real shell surface any syntax errors instead of blocking execution
+        # pre-emptively.
+        return SafetyCheckResult(True)
 
-    if argv:
-        result = _is_safe_argv(argv)
-        if result.is_safe:
-            return result
-        fallback_needed = result.error_msg == "Shell redirection and pipelines are not allowed in single commands"
-        if not fallback_needed:
-            fallback_needed = any(op in command for op in ("&&", "||", ";"))
-        if not fallback_needed:
-            return result
+    # All further safety checks are done directly on the parsed argv via
+    # _is_safe_argv. We intentionally avoid trying to re-interpret complex
+    # shell sequences here and rely on the real shell to handle syntax.
 
-    # seq, parse_error = parse_command_sequence(command)
-    # if seq:
-    #     for cmd in seq:
-    #         result = _is_safe_argv(cmd)
-    #         if not result.is_safe:
-    #             return result
-    #     return SafetyCheckResult(True)
-
-    # # If we got here, command failed both checks
-    # if parse_error:
-    #     return SafetyCheckResult(False, f"Script contains {parse_error}")
-
-    if argv and not argv[0]:
+    if not argv:
         return SafetyCheckResult(False, "Empty command")
-    if argv:
-        # We have argv but it failed safety check earlier
-        return _is_safe_argv(argv)
-    return SafetyCheckResult(False, "Failed to parse command")
+
+    return _is_safe_argv(argv)

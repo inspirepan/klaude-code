@@ -261,6 +261,14 @@ class TestCommandSafety(unittest.TestCase):
         self.assert_safe("python --version")
         self.assert_safe("custom-tool --flag value")
 
+    def test_parse_error_treated_as_safe(self):
+        """Commands with parse errors should not be pre-emptively blocked."""
+
+        # Unterminated quotes trigger shlex parsing errors, but we still
+        # treat them as safe here and let the real shell surface the syntax
+        # error instead of blocking execution inside the safety layer.
+        self.assert_safe("echo 'unterminated")
+
     # def test_cat_with_heredoc_redirection(self):
     #     """Ensure cat with heredoc redirection is rejected."""
     #     self.assert_unsafe("cat > filename <<EOF")
