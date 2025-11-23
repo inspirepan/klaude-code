@@ -24,7 +24,7 @@ from klaude_code.ui.renderers import status as r_status
 from klaude_code.ui.renderers import sub_agent as r_sub_agent
 from klaude_code.ui.renderers import tools as r_tools
 from klaude_code.ui.renderers import user_input as r_user_input
-from klaude_code.ui.renderers.common import truncate_display
+from klaude_code.ui.renderers.common import create_grid, truncate_display
 from klaude_code.ui.rich_ext.markdown import NoInsetMarkdown
 from klaude_code.ui.rich_ext.quote import Quote
 
@@ -43,7 +43,7 @@ class REPLRenderer:
         self.console: Console = Console(theme=self.themes.app_theme)
         self.console.push_theme(self.themes.markdown_theme)
         self.spinner: Status = self.console.status(
-            r_status.render_status_text("Thinking …", ThemeKey.SPINNER_STATUS_BOLD),
+            r_status.render_status_text("Thinking …", ThemeKey.SPINNER_STATUS_TEXT),
             spinner=r_status.spinner_name(),
             spinner_style=ThemeKey.SPINNER_STATUS,
         )
@@ -197,12 +197,15 @@ class REPLRenderer:
         if len(content.strip()) > 0:
             self.console.push_theme(theme=self.themes.thinking_markdown_theme)
             self.print(
-                NoInsetMarkdown(
-                    content.rstrip()
-                    .replace("**\n\n", "**  \n")
-                    .replace("****", "**\n\n**"),  # remove extra newlines after bold titles
-                    code_theme=self.themes.code_theme,
-                    style=self.console.get_style(ThemeKey.THINKING),
+                Padding.indent(
+                    NoInsetMarkdown(
+                        content.rstrip()
+                        .replace("**\n\n", "**  \n")
+                        .replace("****", "**\n\n**"),  # remove extra newlines after bold titles
+                        code_theme=self.themes.code_theme,
+                        style=self.console.get_style(ThemeKey.THINKING),
+                    ),
+                    level=2,
                 )
             )
             self.console.pop_theme()
@@ -216,12 +219,15 @@ class REPLRenderer:
                     self.print()
                 case events.AssistantMessageEvent() as assistant_event:
                     if len(assistant_event.content.strip()) > 0:
-                        self.print(
+                        grid = create_grid()
+                        grid.add_row(
+                            "•",
                             NoInsetMarkdown(
                                 assistant_event.content.strip(),
                                 code_theme=self.themes.code_theme,
-                            )
+                            ),
                         )
+                        self.print(grid)
                         self.print()
                 case events.ThinkingEvent() as thinking_event:
                     self.display_thinking(thinking_event.content)

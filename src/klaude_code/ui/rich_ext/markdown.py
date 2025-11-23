@@ -15,8 +15,6 @@ from rich.syntax import Syntax
 from rich.text import Text
 from rich.theme import Theme
 
-from klaude_code.ui.rich_ext.live import CropAboveLive
-
 
 class NoInsetCodeBlock(CodeBlock):
     """A code block with syntax highlighting and no padding."""
@@ -80,13 +78,17 @@ class MarkdownStream:
         theme: Theme | None = None,
         console: Console | None = None,
         spinner: Spinner | None = None,
-    ):
+        mark: str | None = None,
+        indent: int = 0,
+    ) -> None:
         """Initialize the markdown stream.
 
         Args:
             mdargs (dict, optional): Additional arguments to pass to rich Markdown renderer
             theme (Theme, optional): Theme for rendering markdown
             console (Console, optional): External console to use for rendering
+            mark (str | None, optional): Marker shown before the first non-empty line when indent >= 2
+            indent (int, optional): Number of spaces to indent all rendered lines on the left
         """
         self.printed: list[str] = []  # Stores lines that have already been printed
 
@@ -107,6 +109,8 @@ class MarkdownStream:
         self.theme = theme
         self.console = console
         self.spinner: Spinner | None = spinner
+        self.mark: str | None = mark
+        self.indent: int = max(indent, 0)
 
     def _render_markdown_to_lines(self, text: str) -> list[str]:
         """Render markdown text to a list of lines.
@@ -119,25 +123,51 @@ class MarkdownStream:
         """
         # Render the markdown to a string buffer
         string_io = io.StringIO()
-        # Use external console for consistent theming, or create temporary one
+
+        # Determine console width and adjust for left indent so that
+        # the rendered content plus indent does not exceed the available width.
         if self.console is not None:
-            # Use external console settings but render to string_io
-            temp_console = Console(
-                file=string_io,
-                force_terminal=True,
-                theme=self.theme,
-                width=self.console.options.max_width,
-            )
+            base_width = self.console.options.max_width
         else:
-            temp_console = Console(file=string_io, force_terminal=True, theme=self.theme)
+            probe_console = Console(theme=self.theme)
+            base_width = probe_console.options.max_width
+
+        effective_width = max(base_width - self.indent, 1)
+
+        # Use external console for consistent theming, or create temporary one
+        temp_console = Console(
+            file=string_io,
+            force_terminal=True,
+            theme=self.theme,
+            width=effective_width,
+        )
 
         markdown = NoInsetMarkdown(text, **self.mdargs)
         temp_console.print(markdown)
         output = string_io.getvalue()
 
-        # Split rendered output into lines and remove trailing spaces from each line
+        # Split rendered output into lines, strip trailing spaces, and apply left indent.
         lines = output.splitlines(keepends=True)
-        return [line.rstrip() + ("\n" if line.endswith("\n") else "") for line in lines]
+        indent_prefix = " " * self.indent if self.indent > 0 else ""
+        processed_lines: list[str] = []
+        mark_applied = False
+        use_mark = bool(self.mark) and self.indent >= 2
+
+        for line in lines:
+            stripped = line.rstrip()
+
+            # Apply mark to the first non-empty line only when indent is at least 2.
+            if use_mark and not mark_applied and stripped:
+                stripped = f"{self.mark} {stripped}"
+                mark_applied = True
+            elif indent_prefix:
+                stripped = indent_prefix + stripped
+
+            if line.endswith("\n"):
+                stripped += "\n"
+            processed_lines.append(stripped)
+
+        return processed_lines
 
     def __del__(self) -> None:
         """Destructor to ensure Live display is properly cleaned up."""
@@ -247,59 +277,3 @@ class MarkdownStream:
         Splits text into chunks on blank lines "\n\n".
         """
         return None
-
-
-class MarkdownStream2:
-    def __init__(
-        self,
-        mdargs: dict[str, Any] | None = None,
-        theme: Theme | None = None,
-        console: Console | None = None,
-        spinner: Spinner | None = None,
-    ) -> None:
-        self.mdargs: dict[str, Any] = mdargs or {}
-        self.theme = theme
-        self.console = console
-        self.spinner: Spinner | None = spinner
-
-        self.live: Live | None = None
-        self._live_started: bool = False
-
-    def __del__(self) -> None:
-        if self.live:
-            try:
-                self.live.stop()
-            except Exception:
-                pass
-
-    def _renderable(self, text: str, final: bool) -> RenderableType:
-        md = NoInsetMarkdown(text, **self.mdargs)
-        if not final and self.spinner:
-            return Group(md, Text(), self.spinner)
-        return md
-
-    def update(self, text: str, final: bool = False) -> None:
-        console = self.console or Console(theme=self.theme)
-
-        if not self._live_started:
-            self.live = CropAboveLive(
-                self._renderable(text, final=False),
-                console=console,
-                refresh_per_second=20,
-                transient=False,
-            )
-            self.live.start()
-            self._live_started = True
-            if final:
-                self.live.stop()
-                self.live = None
-                console.print()
-            return
-
-        live = self.live
-        if live is None:
-            return
-        live.update(self._renderable(text, final))
-        if final:
-            live.stop()
-            self.live = None

@@ -29,7 +29,7 @@ def render_sub_agent_result(result: str, *, code_theme: str) -> RenderableType:
         truncated_text = "\n".join(lines[-MAX_LINES:])
         return Panel.fit(
             Group(
-                Text(f"... more {hidden_count} lines — use /export to view full output", style=ThemeKey.METADATA_DIM),
+                Text(f"... more {hidden_count} lines — use /export to view full output", style=ThemeKey.TOOL_RESULT),
                 NoInsetMarkdown(truncated_text, code_theme=code_theme),
             ),
             border_style=ThemeKey.LINES,

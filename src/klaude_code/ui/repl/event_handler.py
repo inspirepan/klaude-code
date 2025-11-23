@@ -103,6 +103,8 @@ class DisplayEventHandler:
                         theme=self.renderer.themes.markdown_theme,
                         console=self.renderer.console,
                         spinner=self.renderer.spinner.renderable,
+                        mark="•",
+                        indent=2,
                     )
                 self.assistant_stream.debouncer.schedule()
             case events.AssistantMessageEvent() as assistant_event:
@@ -147,11 +149,11 @@ class DisplayEventHandler:
                 active_form_status_text = self._extract_active_form_text(todo_event)
                 if len(active_form_status_text) > 0:
                     self.renderer.spinner.update(
-                        r_status.render_status_text(active_form_status_text, ThemeKey.SPINNER_STATUS_BOLD)
+                        r_status.render_status_text(active_form_status_text, ThemeKey.SPINNER_STATUS_TEXT)
                     )
                 else:
                     self.renderer.spinner.update(
-                        r_status.render_status_text("Thinking …", ThemeKey.SPINNER_STATUS_BOLD)
+                        r_status.render_status_text("Thinking …", ThemeKey.SPINNER_STATUS_TEXT)
                     )
             case events.TurnEndEvent():
                 pass
@@ -235,10 +237,11 @@ class DisplayEventHandler:
         return squashed
 
     def _extract_active_form_text(self, todo_event: events.TodoChangeEvent) -> str:
+        status_text = ""
         for todo in todo_event.todos:
             if todo.status == "in_progress":
                 if len(todo.activeForm) > 0:
-                    return todo.activeForm
+                    status_text = todo.activeForm
                 if len(todo.content) > 0:
-                    return todo.content
-        return ""
+                    status_text = todo.content
+        return status_text.replace("\n", "")

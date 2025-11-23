@@ -607,7 +607,7 @@ class ExportCommand(CommandABC):
                     f"</div>"
                 )
             elif isinstance(item, ReasoningTextItem):
-                text = self._escape_html(item.content)
+                text = self._escape_html(item.content.strip())
                 blocks.append(f'<div class="thinking-block">{text.replace("\n", "<br>")}</div>')
             elif isinstance(item, ReasoningEncryptedItem):
                 pass

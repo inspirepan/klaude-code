@@ -1,6 +1,7 @@
 from rich import box
 from rich.box import Box
 from rich.console import Group, RenderableType
+from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
 
@@ -11,27 +12,33 @@ from klaude_code.ui.base.utils import format_number
 
 def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
     metadata = e.metadata
-    metadata_text = Text()
-    metadata_text.append_text(Text("↑ ", style=ThemeKey.METADATA)).append_text(
+
+    # Line 1: Model and Provider
+    model_text = Text()
+    model_text.append_text(Text("↑ ", style=ThemeKey.METADATA)).append_text(
         Text(metadata.model_name, style=ThemeKey.METADATA_BOLD)
     )
     if metadata.provider is not None:
-        metadata_text.append_text(Text("@", style=ThemeKey.METADATA_DIM)).append_text(
+        model_text.append_text(Text("@", style=ThemeKey.METADATA_DIM)).append_text(
             Text(metadata.provider.lower().replace(" ", "-"), style=ThemeKey.METADATA_DIM)
         )
 
-    detail_parts: list[Text] = []
+    renderables: list[RenderableType] = [model_text]
 
+    # Line 2: Token consumption
     if metadata.usage is not None:
-        detail_parts.append(
+        token_parts: list[Text] = []
+        # Input
+        token_parts.append(
             Text.assemble(
-                ("↑", ThemeKey.METADATA_DIM),
+                ("input:", ThemeKey.METADATA_DIM),
                 (format_number(metadata.usage.input_tokens), ThemeKey.METADATA_DIM),
             )
         )
 
+        # Cached
         if metadata.usage.cached_tokens > 0:
-            detail_parts.append(
+            token_parts.append(
                 Text.assemble(
                     ("cached", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
@@ -39,15 +46,17 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
                 )
             )
 
-        detail_parts.append(
+        # Output
+        token_parts.append(
             Text.assemble(
-                ("↓", ThemeKey.METADATA_DIM),
+                ("output:", ThemeKey.METADATA_DIM),
                 (format_number(metadata.usage.output_tokens), ThemeKey.METADATA_DIM),
             )
         )
 
+        # Reasoning
         if metadata.usage.reasoning_tokens > 0:
-            detail_parts.append(
+            token_parts.append(
                 Text.assemble(
                     ("reasoning", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
@@ -55,8 +64,16 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
                 )
             )
 
+        if token_parts:
+            line2 = Text("  ", style=ThemeKey.METADATA_DIM).join(token_parts)
+            renderables.append(Padding(line2, (0, 0, 0, 2)))
+
+    # Line 3: Context, TPS, Cost
+    stats_parts: list[Text] = []
+
+    if metadata.usage is not None:
         if metadata.usage.context_usage_percent is not None:
-            detail_parts.append(
+            stats_parts.append(
                 Text.assemble(
                     ("context", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
@@ -65,7 +82,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
             )
 
         if metadata.usage.throughput_tps is not None:
-            detail_parts.append(
+            stats_parts.append(
                 Text.assemble(
                     ("tps", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
@@ -74,7 +91,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
             )
 
     if metadata.task_duration_s is not None:
-        detail_parts.append(
+        stats_parts.append(
             Text.assemble(
                 ("cost", ThemeKey.METADATA_DIM),
                 (":", ThemeKey.METADATA_DIM),
@@ -82,14 +99,11 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
             )
         )
 
-    if detail_parts:
-        details = Text()
-        for i, part in enumerate(detail_parts):
-            if i > 0:
-                details.append("/", style=ThemeKey.METADATA_DIM)
-            details.append_text(part)
-        metadata_text.append_text(Text(" ", style=ThemeKey.METADATA_DIM)).append_text(details)
-    return metadata_text
+    if stats_parts:
+        line3 = Text("  ", style=ThemeKey.METADATA_DIM).join(stats_parts)
+        renderables.append(Padding(line3, (0, 0, 0, 2)))
+
+    return Group(*renderables)
 
 
 def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> RenderableType:

@@ -1,8 +1,8 @@
 import re
 
 from rich.console import Group, RenderableType
-from rich.text import Text
 from rich.rule import Rule
+from rich.text import Text
 
 from klaude_code.protocol.commands import CommandName
 from klaude_code.ui.base.theme import ThemeKey

@@ -85,7 +85,7 @@ class ThemeKey(str, Enum):
     METADATA_BOLD = "metadata.bold"
     # SPINNER_STATUS
     SPINNER_STATUS = "spinner.status"
-    SPINNER_STATUS_BOLD = "spinner.status.bold"
+    SPINNER_STATUS_TEXT = "spinner.status.text"
     # STATUS
     STATUS_HINT = "status.hint"
     # USER_INPUT
@@ -168,15 +168,15 @@ def get_theme(theme: str | None = None) -> Themes:
                 # USER_INPUT
                 ThemeKey.USER_INPUT.value: palette.magenta,
                 ThemeKey.USER_INPUT_PROMPT.value: palette.magenta,
-                ThemeKey.USER_INPUT_AT_PATTERN.value: palette.purple + " bold",
+                ThemeKey.USER_INPUT_AT_PATTERN.value: palette.purple,
                 ThemeKey.USER_INPUT_SLASH_COMMAND.value: "bold reverse " + palette.blue,
                 # METADATA
                 ThemeKey.METADATA.value: palette.grey_blue,
                 ThemeKey.METADATA_DIM.value: "dim " + palette.grey_blue,
                 ThemeKey.METADATA_BOLD.value: "bold " + palette.grey_blue,
                 # SPINNER_STATUS
-                ThemeKey.SPINNER_STATUS.value: palette.green,
-                ThemeKey.SPINNER_STATUS_BOLD.value: "bold " + palette.green,
+                ThemeKey.SPINNER_STATUS.value: palette.cyan,
+                ThemeKey.SPINNER_STATUS_TEXT.value: palette.cyan,
                 # STATUS
                 ThemeKey.STATUS_HINT.value: palette.grey2,
                 # REMINDER
