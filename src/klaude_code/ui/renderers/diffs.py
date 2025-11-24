@@ -1,5 +1,3 @@
-from typing import Optional
-
 from rich import box
 from rich.console import Group, RenderableType
 from rich.padding import Padding
@@ -9,6 +7,27 @@ from rich.text import Text
 from klaude_code.ui.base.theme import ThemeKey
 from klaude_code.ui.renderers.common import create_grid
 
+PREFIX_WIDTH = 4
+
+
+def _make_diff_prefix(line: str, new_ln: int | None, width: int) -> tuple[str, int | None]:
+    kind = line[0]
+
+    number = " " * width
+    if kind in {"+", " "} and new_ln is not None:
+        number = f"{new_ln:>{width}}"
+        new_ln += 1
+
+    if kind == "-":
+        marker = "-"
+    elif kind == "+":
+        marker = "+"
+    else:
+        marker = " "
+
+    prefix = f"{number} {marker}"
+    return prefix, new_ln
+
 
 def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
     if diff_text == "":
@@ -16,9 +35,10 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
 
     lines = diff_text.split("\n")
     grid = create_grid()
+    grid.padding = (0, 0)
 
     # Track line numbers based on hunk headers
-    new_ln: Optional[int] = None
+    new_ln: int | None = None
     # Track if we're in untracked files section
     in_untracked_section = False
     # Track whether we've already rendered a file header
@@ -42,7 +62,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
                 in_untracked_section = False
             elif line.strip():  # Non-empty line in untracked section
                 file_text = Text(line.strip(), style=ThemeKey.TOOL_PARAM_BOLD)
-                grid.add_row(Text("   +", style=ThemeKey.TOOL_PARAM_BOLD), file_text)
+                grid.add_row(Text(f"{'+':>{PREFIX_WIDTH}}", style=ThemeKey.TOOL_PARAM_BOLD), file_text)
                 continue
 
         # Parse file name from diff headers
@@ -96,7 +116,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
             else:
                 file_mark = "±"
 
-            grid.add_row(Text(f"   {file_mark}", style=ThemeKey.DIFF_FILE_NAME), file_line)
+            grid.add_row(Text(f"{file_mark:>{PREFIX_WIDTH}}  ", style=ThemeKey.DIFF_FILE_NAME), file_line)
             has_rendered_file_header = True
             has_rendered_diff_content = False
             continue
@@ -115,7 +135,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
             except Exception:
                 new_ln = None
             if has_rendered_diff_content:
-                grid.add_row(Text("   ⋮", style=ThemeKey.TOOL_RESULT), "")
+                grid.add_row(Text(f"{'⋮':>{PREFIX_WIDTH}}", style=ThemeKey.TOOL_RESULT), "")
             continue
 
         # Skip file header lines entirely
@@ -127,25 +147,15 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
         if not line or line[:1] not in {" ", "+", "-"}:
             continue
 
-        # Compute line number prefix and advance counters
-        prefix = "    "
-        kind = line[0]
-        if kind == "-":
-            pass
-        elif kind == "+":
-            if new_ln is not None:
-                prefix = f"{new_ln:>4}"
-                new_ln += 1
-        else:  # context line ' '
-            if new_ln is not None:
-                prefix = f"{new_ln:>4}"
-                new_ln += 1
+        # Compute line number prefix and style diff content
+        prefix, new_ln = _make_diff_prefix(line, new_ln, PREFIX_WIDTH)
 
-        # Style only true diff content lines
         if line.startswith("-"):
-            text = Text.assemble(("-", ThemeKey.TOOL_RESULT), (line[1:], ThemeKey.DIFF_REMOVE))
+            text = Text(line[1:])
+            text.stylize(ThemeKey.DIFF_REMOVE)
         elif line.startswith("+"):
-            text = Text.assemble(("+", ThemeKey.TOOL_RESULT), (line[1:], ThemeKey.DIFF_ADD))
+            text = Text(line[1:])
+            text.stylize(ThemeKey.DIFF_ADD)
         else:
             text = Text(line, style=ThemeKey.TOOL_RESULT)
         grid.add_row(Text(prefix, ThemeKey.TOOL_RESULT), text)
