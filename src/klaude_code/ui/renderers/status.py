@@ -18,7 +18,7 @@ SPINNERS.update(
 
 
 def spinner_name() -> str:
-    return "claude"
+    return "bouncingBall"
 
 
 def render_status_text(main_text: str, main_style: ThemeKey) -> Text:
