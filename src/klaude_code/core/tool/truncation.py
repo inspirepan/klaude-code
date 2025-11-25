@@ -3,12 +3,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
-from klaude_code.config.constants import (
-    TOOL_OUTPUT_DISPLAY_HEAD,
-    TOOL_OUTPUT_DISPLAY_TAIL,
-    TOOL_OUTPUT_MAX_LENGTH,
-    TOOL_OUTPUT_TRUNCATION_DIR,
-)
+from klaude_code.config.constants import (TOOL_OUTPUT_DISPLAY_HEAD,
+                                          TOOL_OUTPUT_DISPLAY_TAIL,
+                                          TOOL_OUTPUT_MAX_LENGTH,
+                                          TOOL_OUTPUT_TRUNCATION_DIR)
 
 
 @dataclass
@@ -95,15 +93,15 @@ class SmartTruncationStrategy(TruncationStrategy):
         # Build truncated output with file info
         if saved_file_path:
             header = (
-            f"<system-reminder>Output truncated: {truncated_length} chars hidden. "
-            f"Full output saved to {saved_file_path}. "
-            f"Use Read with limit+offset or rg/grep to inspect.\n"
-            f"Showing first {self.head_chars} and last {self.tail_chars} chars:</system-reminder>\n\n"
+                f"<system-reminder>Output truncated: {truncated_length} chars hidden. "
+                f"Full output saved to {saved_file_path}. "
+                f"Use Read with limit+offset or rg/grep to inspect.\n"
+                f"Showing first {self.head_chars} and last {self.tail_chars} chars:</system-reminder>\n\n"
             )
         else:
             header = (
-            f"<system-reminder>Output truncated: {truncated_length} chars hidden. "
-            f"Showing first {self.head_chars} and last {self.tail_chars} chars:</system-reminder>\n\n"
+                f"<system-reminder>Output truncated: {truncated_length} chars hidden. "
+                f"Showing first {self.head_chars} and last {self.tail_chars} chars:</system-reminder>\n\n"
             )
 
         truncated_output = (
@@ -119,6 +117,7 @@ class SmartTruncationStrategy(TruncationStrategy):
             original_length=original_length,
             truncated_length=truncated_length,
         )
+
 
 _default_strategy: TruncationStrategy = SmartTruncationStrategy()
 

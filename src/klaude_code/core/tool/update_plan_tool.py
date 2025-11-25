@@ -8,15 +8,9 @@ from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.tool_context import current_session_var
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import (
-    TodoItem,
-    TodoStatusType,
-    TodoUIExtra,
-    ToolResultItem,
-    ToolResultUIExtra,
-    ToolResultUIExtraType,
-    ToolSideEffect,
-)
+from klaude_code.protocol.model import (TodoItem, TodoStatusType, TodoUIExtra,
+                                        ToolResultItem, ToolResultUIExtra,
+                                        ToolResultUIExtraType, ToolSideEffect)
 from klaude_code.protocol.tools import UPDATE_PLAN
 
 from .todo_write_tool import get_new_completed_todos

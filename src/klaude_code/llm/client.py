@@ -2,7 +2,8 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from typing import cast
 
-from klaude_code.protocol.llm_parameter import LLMCallParameter, LLMConfigParameter
+from klaude_code.protocol.llm_parameter import (LLMCallParameter,
+                                                LLMConfigParameter)
 from klaude_code.protocol.model import ConversationItem
 
 

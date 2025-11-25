@@ -18,7 +18,8 @@ from klaude_code.core.reminders import at_file_reader_reminder  # noqa: E402
 from klaude_code.core.tool.edit_tool import EditTool  # noqa: E402
 from klaude_code.core.tool.multi_edit_tool import MultiEditTool  # noqa: E402
 from klaude_code.core.tool.read_tool import ReadTool  # noqa: E402
-from klaude_code.core.tool.tool_context import current_session_var  # noqa: E402
+from klaude_code.core.tool.tool_context import \
+    current_session_var  # noqa: E402
 from klaude_code.protocol import model  # noqa: E402
 from klaude_code.session.session import Session  # noqa: E402
 

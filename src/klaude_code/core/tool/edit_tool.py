@@ -11,7 +11,8 @@ from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.tool_context import current_session_var
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
+from klaude_code.protocol.model import (ToolResultItem, ToolResultUIExtra,
+                                        ToolResultUIExtraType)
 from klaude_code.protocol.tools import EDIT
 
 

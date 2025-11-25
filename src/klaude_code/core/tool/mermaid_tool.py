@@ -9,7 +9,9 @@ from pydantic import BaseModel, Field
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import MermaidLinkUIExtra, ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
+from klaude_code.protocol.model import (MermaidLinkUIExtra, ToolResultItem,
+                                        ToolResultUIExtra,
+                                        ToolResultUIExtraType)
 from klaude_code.protocol.tools import MERMAID
 
 _MERMAID_LIVE_PREFIX = "https://mermaid.live/view#pako:"

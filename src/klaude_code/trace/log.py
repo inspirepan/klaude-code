@@ -7,7 +7,8 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.text import Text
 
-from klaude_code.config.constants import DEFAULT_DEBUG_LOG_FILE, LOG_BACKUP_COUNT, LOG_MAX_BYTES
+from klaude_code.config.constants import (DEFAULT_DEBUG_LOG_FILE,
+                                          LOG_BACKUP_COUNT, LOG_MAX_BYTES)
 
 # Module-level logger
 logger = logging.getLogger("klaude_code")

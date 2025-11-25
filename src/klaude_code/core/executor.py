@@ -10,18 +10,15 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from klaude_code.command import dispatch_command
-from klaude_code.core.agent import Agent, AgentLLMClients, AgentRole, DefaultModelProfileProvider, ModelProfileProvider
+from klaude_code.core.agent import (Agent, AgentLLMClients, AgentRole,
+                                    DefaultModelProfileProvider,
+                                    ModelProfileProvider)
 from klaude_code.core.sub_agent import SubAgentResult
 from klaude_code.core.tool.tool_context import current_run_subtask_callback
 from klaude_code.protocol import events, llm_parameter, model
-from klaude_code.protocol.op import (
-    EndOperation,
-    InitAgentOperation,
-    InterruptOperation,
-    Operation,
-    Submission,
-    UserInputOperation,
-)
+from klaude_code.protocol.op import (EndOperation, InitAgentOperation,
+                                     InterruptOperation, Operation, Submission,
+                                     UserInputOperation)
 from klaude_code.session.session import Session
 from klaude_code.trace import DebugType, log_debug
 

@@ -150,7 +150,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
             flags=re.MULTILINE,
         )
     else:
-        content = content.rstrip() + f"\n\n[Unreleased]: https://github.com/user/klaude-code/compare/{tag_name}...HEAD{link_section}\n"
+        content = (
+            content.rstrip()
+            + f"\n\n[Unreleased]: https://github.com/user/klaude-code/compare/{tag_name}...HEAD{link_section}\n"
+        )
 
     changelog_path.write_text(content)
 

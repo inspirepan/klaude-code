@@ -13,7 +13,9 @@ from typing import TYPE_CHECKING, ClassVar
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.tool_context import current_run_subtask_callback
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import SubAgentState, ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
+from klaude_code.protocol.model import (SubAgentState, ToolResultItem,
+                                        ToolResultUIExtra,
+                                        ToolResultUIExtraType)
 
 if TYPE_CHECKING:
     from klaude_code.core.sub_agent import SubAgentProfile

@@ -1,6 +1,7 @@
 from rich.table import Table
 
-from klaude_code.config.constants import TRUNCATE_DISPLAY_MAX_LINE_LENGTH, TRUNCATE_DISPLAY_MAX_LINES
+from klaude_code.config.constants import (TRUNCATE_DISPLAY_MAX_LINE_LENGTH,
+                                          TRUNCATE_DISPLAY_MAX_LINES)
 
 
 def create_grid() -> Table:

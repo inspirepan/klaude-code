@@ -8,13 +8,9 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from klaude_code.config.constants import (
-    READ_CHAR_LIMIT_PER_LINE,
-    READ_GLOBAL_LINE_CAP,
-    READ_MAX_CHARS,
-    READ_MAX_IMAGE_BYTES,
-    READ_MAX_KB,
-)
+from klaude_code.config.constants import (READ_CHAR_LIMIT_PER_LINE,
+                                          READ_GLOBAL_LINE_CAP, READ_MAX_CHARS,
+                                          READ_MAX_IMAGE_BYTES, READ_MAX_KB)
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.tool_context import current_session_var
 from klaude_code.core.tool.tool_registry import register
@@ -221,7 +217,7 @@ class ReadTool(ToolABC):
                     "Please use a Python script with `pdfplumber` to extract text/tables:\n\n"
                     "```python\n"
                     "# /// script\n"
-                    "# dependencies = [\"pdfplumber\"]\n"
+                    '# dependencies = ["pdfplumber"]\n'
                     "# ///\n"
                     "import pdfplumber\n\n"
                     "with pdfplumber.open('file.pdf') as pdf:\n"

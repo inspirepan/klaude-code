@@ -21,15 +21,14 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
 
 from klaude_code.command import get_commands
-from klaude_code.core.clipboard_manifest import (
-    CLIPBOARD_IMAGES_DIR,
-    ClipboardManifest,
-    ClipboardManifestEntry,
-    next_session_token,
-    persist_clipboard_manifest,
-)
+from klaude_code.core.clipboard_manifest import (CLIPBOARD_IMAGES_DIR,
+                                                 ClipboardManifest,
+                                                 ClipboardManifestEntry,
+                                                 next_session_token,
+                                                 persist_clipboard_manifest)
 from klaude_code.ui.base.input_abc import InputProviderABC
-from klaude_code.ui.base.utils import get_current_git_branch, show_path_with_tilde
+from klaude_code.ui.base.utils import (get_current_git_branch,
+                                       show_path_with_tilde)
 
 
 class REPLStatusSnapshot(NamedTuple):
@@ -39,6 +38,7 @@ class REPLStatusSnapshot(NamedTuple):
     context_usage_percent: float | None
     llm_calls: int
     tool_calls: int
+    update_message: str | None = None
 
 
 kb = KeyBindings()
@@ -208,8 +208,31 @@ class PromptToolkitInput(InputProviderABC):
         )
 
     def _render_bottom_toolbar(self) -> FormattedText:
-        """Render bottom toolbar with working directory, git branch on left, model name and context usage on right."""
-        # Left side: path and git branch
+        """Render bottom toolbar with working directory, git branch on left, model name and context usage on right.
+
+        If an update is available, only show the update message on the left side.
+        """
+        # Check for update message first
+        update_message: str | None = None
+        if self._status_provider:
+            try:
+                status = self._status_provider()
+                update_message = status.update_message
+            except Exception:
+                pass
+
+        # If update available, show only the update message
+        if update_message:
+            left_text = " " + update_message
+            try:
+                terminal_width = shutil.get_terminal_size().columns
+                padding = " " * max(0, terminal_width - len(left_text))
+            except Exception:
+                padding = ""
+            toolbar_text = left_text + padding
+            return FormattedText([("#ansiyellow", toolbar_text)])
+
+        # Normal mode: Left side: path and git branch
         left_parts: list[str] = []
         left_parts.append(show_path_with_tilde())
 

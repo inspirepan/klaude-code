@@ -2,7 +2,8 @@ import ast
 from pathlib import Path
 from typing import Iterable
 
-from klaude_code.llm.openrouter.client import ReasoningDetail, ReasoningStreamHandler
+from klaude_code.llm.openrouter.client import (ReasoningDetail,
+                                               ReasoningStreamHandler)
 from klaude_code.protocol import model
 
 

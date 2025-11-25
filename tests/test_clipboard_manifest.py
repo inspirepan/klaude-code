@@ -5,11 +5,8 @@ import time
 from pathlib import Path
 
 from klaude_code.core.clipboard_manifest import (
-    ClipboardManifest,
-    ClipboardManifestEntry,
-    load_latest_clipboard_manifest,
-    persist_clipboard_manifest,
-)
+    ClipboardManifest, ClipboardManifestEntry, load_latest_clipboard_manifest,
+    persist_clipboard_manifest)
 
 
 def test_persist_and_load_manifest(tmp_path: Path) -> None:

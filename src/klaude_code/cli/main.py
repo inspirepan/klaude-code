@@ -22,7 +22,9 @@ from klaude_code.config import config_path, load_config
 from klaude_code.config.config import Config
 from klaude_code.config.list_model import display_models_and_providers
 from klaude_code.config.select_model import select_model_from_config
-from klaude_code.core.agent import AgentLLMClients, DefaultModelProfileProvider, VanillaModelProfileProvider
+from klaude_code.core.agent import (AgentLLMClients,
+                                    DefaultModelProfileProvider,
+                                    VanillaModelProfileProvider)
 from klaude_code.core.executor import Executor
 from klaude_code.core.sub_agent import iter_sub_agent_profiles
 from klaude_code.core.tool.skill_loader import SkillLoader
@@ -37,6 +39,7 @@ from klaude_code.trace import DebugType, log, log_debug, set_debug_logging
 from klaude_code.ui.base.progress_bar import OSC94States, emit_osc94
 from klaude_code.ui.base.terminal_color import is_light_terminal_background
 from klaude_code.ui.repl.input import REPLStatusSnapshot
+from klaude_code.version import get_update_message
 
 
 def set_terminal_title(title: str) -> None:
@@ -328,7 +331,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             model_name = agent.session.model_name or components.llm_clients.main.model_name
 
             # Count AssistantMessageItem and ToolCallItem in conversation history
-            from klaude_code.protocol.model import AssistantMessageItem, ToolCallItem
+            from klaude_code.protocol.model import (AssistantMessageItem,
+                                                    ToolCallItem)
 
             for item in agent.session.conversation_history:
                 if isinstance(item, AssistantMessageItem):
@@ -347,11 +351,15 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             # Fallback to main LLM client model name if no agent exists yet
             model_name = components.llm_clients.main.model_name
 
+        # Check for updates (returns None if uv not available)
+        update_message = get_update_message()
+
         return REPLStatusSnapshot(
             model_name=model_name,
             context_usage_percent=context_usage_percent,
             llm_calls=llm_calls,
             tool_calls=tool_calls,
+            update_message=update_message,
         )
 
     # Set up input provider for interactive mode

@@ -6,7 +6,9 @@ from klaude_code.protocol import events
 from klaude_code.ui.base.debouncer import Debouncer
 from klaude_code.ui.base.progress_bar import OSC94States, emit_osc94
 from klaude_code.ui.base.stage_manager import Stage, StageManager
-from klaude_code.ui.base.terminal_notifier import Notification, NotificationType, TerminalNotifier
+from klaude_code.ui.base.terminal_notifier import (Notification,
+                                                   NotificationType,
+                                                   TerminalNotifier)
 from klaude_code.ui.base.theme import ThemeKey
 from klaude_code.ui.renderers import errors as r_errors
 from klaude_code.ui.renderers import metadata as r_metadata

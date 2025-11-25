@@ -13,19 +13,12 @@ from klaude_code.core import Agent
 from klaude_code.protocol.commands import CommandName
 from klaude_code.protocol.events import DeveloperMessageEvent
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import (
-    AssistantMessageItem,
-    CommandOutput,
-    ConversationItem,
-    DeveloperMessageItem,
-    ReasoningEncryptedItem,
-    ReasoningTextItem,
-    ToolCallItem,
-    ToolResultItem,
-    ToolResultUIExtra,
-    ToolResultUIExtraType,
-    UserMessageItem,
-)
+from klaude_code.protocol.model import (AssistantMessageItem, CommandOutput,
+                                        ConversationItem, DeveloperMessageItem,
+                                        ReasoningEncryptedItem,
+                                        ReasoningTextItem, ToolCallItem,
+                                        ToolResultItem, ToolResultUIExtra,
+                                        ToolResultUIExtraType, UserMessageItem)
 
 COLORS: Final[dict[str, str]] = {
     "bodyBg": "#09090b",  # Zinc 950
