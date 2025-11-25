@@ -62,7 +62,7 @@ BASH_DEFAULT_TIMEOUT_MS = 120000
 
 # -- Tool Output --
 # Maximum length for tool output before truncation
-TOOL_OUTPUT_MAX_LENGTH = 40000
+TOOL_OUTPUT_MAX_LENGTH = 100000
 
 # Characters to show from the beginning of truncated output
 TOOL_OUTPUT_DISPLAY_HEAD = 10000
