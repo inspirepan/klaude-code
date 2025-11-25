@@ -160,6 +160,7 @@ class ReadTool(ToolABC):
                 "- This tool can only read files, not directories. To read a directory, use an ls command via the Bash tool.\n"
                 "- You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful. \n"
                 "- If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.\n"
+                "- This tool does NOT support reading PDF files. Use a Python script with `pdfplumber` (for text/tables) or `pypdf` (for basic operations) to extract content from PDFs.\n"
             ),
             parameters={
                 "type": "object",
@@ -210,6 +211,26 @@ class ReadTool(ToolABC):
             )
         if not _file_exists(file_path):
             return ToolResultItem(status="error", output="<tool_use_error>File does not exist.</tool_use_error>")
+
+        # Check for PDF files
+        if Path(file_path).suffix.lower() == ".pdf":
+            return ToolResultItem(
+                status="error",
+                output=(
+                    "<tool_use_error>PDF files are not supported by this tool. "
+                    "Please use a Python script with `pdfplumber` to extract text/tables:\n\n"
+                    "```python\n"
+                    "# /// script\n"
+                    "# dependencies = [\"pdfplumber\"]\n"
+                    "# ///\n"
+                    "import pdfplumber\n\n"
+                    "with pdfplumber.open('file.pdf') as pdf:\n"
+                    "    for page in pdf.pages:\n"
+                    "        print(page.extract_text())\n"
+                    "```\n"
+                    "</tool_use_error>"
+                ),
+            )
 
         # If file is too large and no pagination provided (only check if limits are enabled)
         try:
