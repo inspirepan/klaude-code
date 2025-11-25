@@ -25,22 +25,20 @@ class TaskTool(ToolABC):
             description=(
                 "Launch a new agent to handle complex, multi-step tasks autonomously. "
                 "\n"
-                "When to use the Task tool:\n"
-                '- If you are searching for a keyword like "config" or "logger", or for questions like "which file does X?", the Task tool is strongly recommended\n'
-                "\n"
                 "When NOT to use the Task tool:\n"
-                "- If you want to read a specific file path, use the Read or Bash tool for `rg` instead of the Agent tool, to find the match more quickly\n"
+                "- If you want to read a specific file path, use the Read or Bash tool for `rg` instead of the Task tool, to find the match more quickly\n"
                 '- If you are searching for a specific class definition like "class Foo", use the Bash tool for `rg` instead, to find the match more quickly\n'
-                "- If you are searching for code within a specific file or set of 2-3 files, use the Read tool instead of the Agent tool, to find the match more quickly\n"
+                "- If you are searching for code within a specific file or set of 2-3 files, use the Read tool instead of the Task tool, to find the match more quickly\n"
                 "- Other tasks that are not related to the agent descriptions above\n"
                 "\n"
                 "Usage notes:\n"
-                "1. Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses\n"
-                "2. When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result.\n"
-                "3. Each agent invocation is stateless. You will not be able to send additional messages to the agent, nor will the agent be able to communicate with you outside of its final report. Therefore, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.\n"
-                "4. The agent's outputs should generally be trusted\n"
-                "5. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, etc.), since it is not aware of the user's intent\n"
-                "6. If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.\n"
+                "- Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses\n"
+                "- When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result.\n"
+                "- Each agent invocation is stateless. You will not be able to send additional messages to the agent, nor will the agent be able to communicate with you outside of its final report. Therefore, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.\n"
+                "- The agent's outputs should generally be trusted\n"
+                "- Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, etc.), since it is not aware of the user's intent\n"
+                "- If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.\n"
+                '- If the user specifies that they want you to run agents "in parallel", you MUST send a single message with multiple Task tool use content blocks. For example, if you need to launch both a code-reviewer agent and a test-runner agent in parallel, send a single message with both tool calls.'
             ),
             parameters={
                 "type": "object",
