@@ -23,9 +23,11 @@ class VersionInfo(NamedTuple):
     update_available: bool
 
 
+# Async check state
 _cached_version_info: VersionInfo | None = None
 _last_check_time: float = 0.0
 _check_lock = threading.Lock()
+_check_in_progress = False
 
 
 def _has_uv() -> bool:
@@ -95,24 +97,11 @@ def _compare_versions(installed: str, latest: str) -> bool:
         return False
 
 
-def check_for_updates() -> VersionInfo | None:
-    """Check for updates to klaude-code.
+def _do_version_check() -> None:
+    """Perform version check in background thread."""
+    global _cached_version_info, _last_check_time, _check_in_progress
 
-    Returns VersionInfo if uv is available, None otherwise.
-    Results are cached for CHECK_INTERVAL_SECONDS.
-    """
-    global _cached_version_info, _last_check_time
-
-    if not _has_uv():
-        return None
-
-    now = time.time()
-
-    with _check_lock:
-        # Return cached result if still valid
-        if _cached_version_info is not None and (now - _last_check_time) < CHECK_INTERVAL_SECONDS:
-            return _cached_version_info
-
+    try:
         installed = _get_installed_version()
         latest = _get_latest_version()
 
@@ -120,20 +109,53 @@ def check_for_updates() -> VersionInfo | None:
         if installed and latest:
             update_available = _compare_versions(installed, latest)
 
-        _cached_version_info = VersionInfo(
-            installed=installed,
-            latest=latest,
-            update_available=update_available,
-        )
-        _last_check_time = now
+        with _check_lock:
+            _cached_version_info = VersionInfo(
+                installed=installed,
+                latest=latest,
+                update_available=update_available,
+            )
+            _last_check_time = time.time()
+    finally:
+        with _check_lock:
+            _check_in_progress = False
 
+
+def check_for_updates() -> VersionInfo | None:
+    """Check for updates to klaude-code asynchronously.
+
+    Returns cached VersionInfo immediately if available.
+    Triggers background check if cache is stale or missing.
+    Returns None if uv is not available or no cached result yet.
+    """
+    global _check_in_progress
+
+    if not _has_uv():
+        return None
+
+    now = time.time()
+
+    with _check_lock:
+        cache_valid = _cached_version_info is not None and (now - _last_check_time) < CHECK_INTERVAL_SECONDS
+
+        if cache_valid:
+            return _cached_version_info
+
+        # Start background check if not already in progress
+        if not _check_in_progress:
+            _check_in_progress = True
+            thread = threading.Thread(target=_do_version_check, daemon=True)
+            thread.start()
+
+        # Return cached result (may be stale) or None if no cache yet
         return _cached_version_info
 
 
 def get_update_message() -> str | None:
     """Get update message if an update is available.
 
-    Returns a formatted message string, or None if no update or uv unavailable.
+    Returns immediately with cached result. Triggers async check if needed.
+    Returns None if no update, uv unavailable, or check not complete yet.
     """
     info = check_for_updates()
     if info is None or not info.update_available:
