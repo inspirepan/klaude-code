@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2025-11-25
+
+### Fixed
+
+- correct hatch build configuration to include Python files (`1c45516`)
 ## [1.0.2] - 2025-11-25
 
 ### Added
@@ -39,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/user/klaude-code/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/user/klaude-code/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/user/klaude-code/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/user/klaude-code/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/user/klaude-code/compare/v1.0.0...v1.0.1
