@@ -480,6 +480,38 @@ class ExportCommand(CommandABC):
         .expandable.expanded .full-text {{ display: block; }}
         .expandable.expanded .collapse-hint {{ display: block; cursor: pointer; color: var(--accent); font-size: 11px; font-style: italic; margin-top: 4px; border-top: 1px dashed var(--border); padding-top: 4px; }}
         .expand-hint {{ font-size: 11px; color: var(--accent); font-style: italic; margin-top: 4px; }}
+
+        /* Todo List */
+        .todo-list {{
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }}
+        .todo-item {{
+            display: flex;
+            gap: 8px;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            line-height: 1.5;
+            align-items: flex-start;
+        }}
+        .todo-bullet {{
+            flex-shrink: 0;
+            font-size: 10px;
+            line-height: 1.5;
+            opacity: 0.7;
+        }}
+        .todo-item.status-completed {{
+            color: var(--text-dim);
+            text-decoration: line-through;
+        }}
+        .todo-item.status-in_progress {{
+            color: var(--success);
+            font-weight: 500;
+        }}
+        .todo-item.status-pending {{
+            color: var(--text-dim);
+        }}
     </style>
 </head>
 <body>
@@ -645,14 +677,53 @@ class ExportCommand(CommandABC):
             f"</div>"
         )
 
-    def _format_tool_call(self, tool_call: ToolCallItem, result: ToolResultItem | None) -> str:
+    def _try_render_todo_args(self, arguments: str) -> str | None:
         try:
-            parsed = json.loads(tool_call.arguments)
-            args_text = json.dumps(parsed, ensure_ascii=False, indent=2)
-        except Exception:
-            args_text = tool_call.arguments
+            parsed = json.loads(arguments)
+            if not isinstance(parsed, dict) or "todos" not in parsed or not isinstance(parsed["todos"], list):
+                return None
 
-        args_html = self._escape_html(args_text or "")
+            todos = parsed["todos"]
+            if not todos:
+                return None
+
+            items_html: list[str] = []
+            for todo in todos:
+                if not isinstance(todo, dict):
+                    continue
+
+                content = self._escape_html(todo.get("content", ""))
+                status = todo.get("status", "pending")
+                status_class = f"status-{status}"
+
+                items_html.append(
+                    f'<div class="todo-item {status_class}">'
+                    f'<span class="todo-bullet">●</span>'
+                    f'<span class="todo-content">{content}</span>'
+                    f"</div>"
+                )
+
+            if not items_html:
+                return None
+
+            return f'<div class="todo-list">{"".join(items_html)}</div>'
+        except Exception:
+            return None
+
+    def _format_tool_call(self, tool_call: ToolCallItem, result: ToolResultItem | None) -> str:
+        args_html = None
+        if tool_call.name == "TodoWrite":
+            args_html = self._try_render_todo_args(tool_call.arguments)
+
+        if args_html is None:
+            try:
+                parsed = json.loads(tool_call.arguments)
+                args_text = json.dumps(parsed, ensure_ascii=False, indent=2)
+            except Exception:
+                args_text = tool_call.arguments
+
+            args_html = self._escape_html(args_text or "")
+
         if not args_html:
             args_html = '<span style="color: var(--text-dim); font-style: italic;">(no arguments)</span>'
 
@@ -667,25 +738,32 @@ class ExportCommand(CommandABC):
         ]
 
         if result:
-            # Determine result status class
-            status_class = result.status if result.status in ("success", "error") else "success"
-            html_parts.append(f'<div class="tool-result {status_class}">')
-
-            if result.output:
-                html_parts.append(self._render_text_block(result.output))
-
             diff_text = self._get_diff_text(result.ui_extra)
-            if diff_text:
-                html_parts.append(self._render_diff_block(diff_text))
-
             mermaid_html = self._get_mermaid_link_html(result.ui_extra)
+
+            should_hide_text = tool_call.name == "TodoWrite" and result.status != "error"
+
+            items_to_render: list[str] = []
+
+            if result.output and not should_hide_text:
+                items_to_render.append(self._render_text_block(result.output))
+
+            if diff_text:
+                items_to_render.append(self._render_diff_block(diff_text))
+
             if mermaid_html:
-                html_parts.append(mermaid_html)
+                items_to_render.append(mermaid_html)
 
-            if not result.output and not diff_text:
-                html_parts.append('<div style="color: var(--text-dim); font-style: italic;">(empty output)</div>')
+            if not items_to_render and not result.output and not should_hide_text:
+                items_to_render.append(
+                    '<div style="color: var(--text-dim); font-style: italic;">(empty output)</div>'
+                )
 
-            html_parts.append("</div>")
+            if items_to_render:
+                status_class = result.status if result.status in ("success", "error") else "success"
+                html_parts.append(f'<div class="tool-result {status_class}">')
+                html_parts.extend(items_to_render)
+                html_parts.append("</div>")
         else:
             html_parts.append('<div class="tool-result pending">Executing...</div>')
 
