@@ -15,7 +15,7 @@ def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) ->
         style=Style(color=style.color if style else None, bold=True, reverse=True),
     )
     return Group(
-        Text.assemble((e.sub_agent_type.value, ThemeKey.TOOL_NAME), " ", desc),
+        Text.assemble((e.sub_agent_type, ThemeKey.TOOL_NAME), " ", desc),
         Text(e.sub_agent_prompt, style=style or ""),
     )
 

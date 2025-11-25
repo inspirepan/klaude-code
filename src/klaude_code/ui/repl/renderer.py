@@ -174,7 +174,7 @@ class REPLRenderer:
         profile = get_sub_agent_profile_by_tool(e.tool_name)
         if profile is None:
             return None
-        description = profile.config_key
+        description = profile.name
         prompt = ""
         if e.arguments:
             try:
@@ -188,7 +188,7 @@ class REPLRenderer:
             if isinstance(prompt_value, str):
                 prompt = prompt_value.strip()
         return model.SubAgentState(
-            sub_agent_type=profile.type,
+            sub_agent_type=profile.name,
             sub_agent_desc=description,
             sub_agent_prompt=prompt,
         )

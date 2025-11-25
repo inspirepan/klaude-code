@@ -114,7 +114,7 @@ class DefaultModelProfileProvider(ModelProfileProvider):
         if agent_role.name == "main":
             prompt_key = "main"
         else:
-            prompt_key = get_sub_agent_profile(agent_role.require_sub_agent_type()).prompt_key
+            prompt_key = get_sub_agent_profile(agent_role.require_sub_agent_type()).name
         system_prompt = load_system_prompt(model_name, prompt_key)
 
         if agent_role.name == "main":

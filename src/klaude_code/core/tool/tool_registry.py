@@ -1,7 +1,8 @@
 import asyncio
 from typing import Callable, TypeVar
 
-from klaude_code.core.sub_agent import get_sub_agent_profile, sub_agent_tool_names
+from klaude_code.core.sub_agent import get_sub_agent_profile, iter_sub_agent_profiles, sub_agent_tool_names
+from klaude_code.core.tool.sub_agent_tool import SubAgentTool
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.protocol import tools
 from klaude_code.protocol.llm_parameter import ToolSchema
@@ -18,6 +19,16 @@ def register(name: str) -> Callable[[type[T]], type[T]]:
         return cls
 
     return _decorator
+
+
+def _register_sub_agent_tools() -> None:
+    """Automatically register all sub-agent tools based on their profiles."""
+    for profile in iter_sub_agent_profiles():
+        tool_cls = SubAgentTool.for_profile(profile)
+        _REGISTRY[profile.name] = tool_cls
+
+
+_register_sub_agent_tools()
 
 
 def list_tools() -> list[str]:

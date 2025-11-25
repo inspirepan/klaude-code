@@ -41,7 +41,7 @@ class Config(BaseModel):
         raw_val: Any = data.get("subagent_models") or {}
         raw_models: dict[str, Any] = cast(dict[str, Any], raw_val) if isinstance(raw_val, dict) else {}
         normalized: dict[str, str] = {}
-        key_map = {p.config_key.lower(): p.config_key for p in iter_sub_agent_profiles()}
+        key_map = {p.name.lower(): p.name for p in iter_sub_agent_profiles()}
         for key, value in dict(raw_models).items():
             canonical = key_map.get(str(key).lower(), str(key))
             normalized[canonical] = str(value)

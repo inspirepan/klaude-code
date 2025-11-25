@@ -205,16 +205,16 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     model_profile_provider = VanillaModelProfileProvider() if init_config.vanilla else DefaultModelProfileProvider()
 
     for profile in iter_sub_agent_profiles():
-        model_name = config.subagent_models.get(profile.config_key)
+        model_name = config.subagent_models.get(profile.name)
         if not model_name:
             continue
         if not profile.enabled_for_model(llm_client.model_name):
             continue
         sub_llm_config = config.get_model_config(model_name)
         sub_llm_client = create_llm_client(sub_llm_config)
-        llm_clients.set_sub_agent_client(profile.type, sub_llm_client)
+        llm_clients.set_sub_agent_client(profile.name, sub_llm_client)
         log_debug(
-            f"Sub-agent {profile.type.value} model config",
+            f"Sub-agent {profile.name} model config",
             sub_llm_config.model_dump_json(exclude_none=True),
             style="yellow",
             debug_type=DebugType.LLM_CONFIG,

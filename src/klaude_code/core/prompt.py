@@ -16,9 +16,10 @@ PROMPT_FILES: dict[str, str] = {
     "main_codex": "prompt/prompt-codex.md",
     "main_claude": "prompt/prompt-claude-code.md",
     "main_gemini": "prompt/prompt-gemini.md",  # https://ai.google.dev/gemini-api/docs/prompting-strategies?hl=zh-cn#agentic-si-template
-    "subagent": "prompt/prompt-subagent.md",
-    "oracle": "prompt/prompt-subagent-oracle.md",
-    "subagent_explore": "prompt/prompt-subagent-explore.md",
+    # Sub-agent prompts keyed by their name
+    "Task": "prompt/prompt-subagent.md",
+    "Oracle": "prompt/prompt-subagent-oracle.md",
+    "Explore": "prompt/prompt-subagent-explore.md",
 }
 
 

@@ -42,6 +42,7 @@ dev = [
 "src/klaude_code/command/prompt-update-dev-doc.md" = "klaude_code/command/prompt-update-dev-doc.md"
 "src/klaude_code/core/prompt/prompt-subagent.md" = "klaude_code/core/prompt/prompt-subagent.md"
 "src/klaude_code/core/prompt/prompt-subagent-oracle.md" = "klaude_code/core/prompt/prompt-subagent-oracle.md"
+"src/klaude_code/core/prompt/prompt-subagent-explore.md" = "klaude_code/core/prompt/prompt-subagent-explore.md"
 
 [tool.ruff]
 line-length = 120

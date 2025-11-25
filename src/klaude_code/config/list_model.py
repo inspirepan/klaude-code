@@ -146,12 +146,12 @@ def display_models_and_providers(config: Config):
     console.print(Text.assemble(("Default Model: ", "bold"), (config.main_model, ThemeKey.CONFIG_STATUS_PRIMARY)))
 
     for profile in iter_sub_agent_profiles():
-        sub_model_name = config.subagent_models.get(profile.config_key)
+        sub_model_name = config.subagent_models.get(profile.name)
         if not sub_model_name:
             continue
         console.print(
             Text.assemble(
-                (f"{profile.config_key} Model: ", "bold"),
+                (f"{profile.name} Model: ", "bold"),
                 (sub_model_name, ThemeKey.CONFIG_STATUS_PRIMARY),
             )
         )
