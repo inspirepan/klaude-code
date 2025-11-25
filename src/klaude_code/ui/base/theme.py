@@ -51,7 +51,7 @@ DARK_PALETTE = Palette(
     yellow="yellow",
     green="sea_green3",
     cyan="cyan",
-    blue="dodger_blue1",
+    blue="deep_sky_blue1",
     orange="#e6704e",
     magenta="magenta",
     grey_blue="steel_blue",
@@ -121,6 +121,7 @@ class ThemeKey(str, Enum):
     TODO_IN_PROGRESS = "todo.in_progress"
     TODO_NEW_COMPLETED = "todo.new_completed"
     # WELCOME
+    WELCOME_HIGHLIGHT_BOLD = "welcome.highlight.bold"
     WELCOME_HIGHLIGHT = "welcome.highlight"
     WELCOME_INFO = "welcome.info"
     # RESUME
@@ -208,7 +209,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TODO_IN_PROGRESS.value: "bold " + palette.blue,
                 ThemeKey.TODO_NEW_COMPLETED.value: "bold strike " + palette.green,
                 # WELCOME
-                ThemeKey.WELCOME_HIGHLIGHT.value: "bold",
+                ThemeKey.WELCOME_HIGHLIGHT_BOLD.value: "bold " + palette.blue,
+                ThemeKey.WELCOME_HIGHLIGHT.value: palette.blue,
                 ThemeKey.WELCOME_INFO.value: palette.grey1,
                 # RESUME
                 ThemeKey.RESUME_FLAG.value: "bold reverse " + palette.green,

@@ -119,7 +119,7 @@ def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> R
 
     # First line: Klaude Code version
     panel_content = Text.assemble(
-        ("Klaude Code", ThemeKey.WELCOME_HIGHLIGHT),
+        ("Klaude Code", ThemeKey.WELCOME_HIGHLIGHT_BOLD),
         (f" v{_get_version()}\n", ThemeKey.WELCOME_INFO),
         (str(e.llm_config.model), ThemeKey.WELCOME_HIGHLIGHT),
         (" @ ", ThemeKey.WELCOME_INFO),
@@ -130,48 +130,46 @@ def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> R
         if e.llm_config.thinking.reasoning_effort:
             panel_content.append_text(
                 Text.assemble(
-                    ("\n• reasoning-effort: ", ThemeKey.WELCOME_INFO),
-                    (e.llm_config.thinking.reasoning_effort, ThemeKey.WELCOME_HIGHLIGHT),
+                    ("\n✔ reasoning-effort: ", ThemeKey.WELCOME_INFO),
+                    (e.llm_config.thinking.reasoning_effort, ThemeKey.WELCOME_INFO),
                 )
             )
         if e.llm_config.thinking.reasoning_summary:
             panel_content.append_text(
                 Text.assemble(
-                    ("\n• reasoning-summary: ", ThemeKey.WELCOME_INFO),
-                    (e.llm_config.thinking.reasoning_summary, ThemeKey.WELCOME_HIGHLIGHT),
+                    ("\n✔ reasoning-summary: ", ThemeKey.WELCOME_INFO),
+                    (e.llm_config.thinking.reasoning_summary, ThemeKey.WELCOME_INFO),
                 )
             )
         if e.llm_config.thinking.budget_tokens:
             panel_content.append_text(
                 Text.assemble(
-                    ("\n• thinking-budget: ", ThemeKey.WELCOME_INFO),
-                    (str(e.llm_config.thinking.budget_tokens), ThemeKey.WELCOME_HIGHLIGHT),
+                    ("\n✔ thinking-budget: ", ThemeKey.WELCOME_INFO),
+                    (str(e.llm_config.thinking.budget_tokens), ThemeKey.WELCOME_INFO),
                 )
             )
     if e.llm_config.verbosity:
         panel_content.append_text(
             Text.assemble(
-                ("\n• verbosity: ", ThemeKey.WELCOME_INFO), (str(e.llm_config.verbosity), ThemeKey.WELCOME_HIGHLIGHT)
+                ("\n✔ verbosity: ", ThemeKey.WELCOME_INFO), (str(e.llm_config.verbosity), ThemeKey.WELCOME_INFO)
             )
         )
 
     if pr := e.llm_config.provider_routing:
         if pr.sort:
             panel_content.append_text(
-                Text.assemble(
-                    ("\n• provider-sort: ", ThemeKey.WELCOME_INFO), (str(pr.sort), ThemeKey.WELCOME_HIGHLIGHT)
-                )
+                Text.assemble(("\n✔ provider-sort: ", ThemeKey.WELCOME_INFO), (str(pr.sort), ThemeKey.WELCOME_INFO))
             )
         if pr.only:
             panel_content.append_text(
                 Text.assemble(
-                    ("\n• provider-only: ", ThemeKey.WELCOME_INFO), (">".join(pr.only), ThemeKey.WELCOME_HIGHLIGHT)
+                    ("\n✔ provider-only: ", ThemeKey.WELCOME_INFO), (">".join(pr.only), ThemeKey.WELCOME_INFO)
                 )
             )
         if pr.order:
             panel_content.append_text(
                 Text.assemble(
-                    ("\n• provider-order: ", ThemeKey.WELCOME_INFO), (">".join(pr.order), ThemeKey.WELCOME_HIGHLIGHT)
+                    ("\n✔ provider-order: ", ThemeKey.WELCOME_INFO), (">".join(pr.order), ThemeKey.WELCOME_INFO)
                 )
             )
 
