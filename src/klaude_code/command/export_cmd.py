@@ -228,62 +228,65 @@ class ExportCommand(CommandABC):
 
         /* Components */
         details {{
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            margin-bottom: 12px;
-            overflow: hidden;
+            background: transparent;
+            margin-bottom: 4px;
         }}
 
         summary {{
-            padding: 8px 14px;
+            padding: 4px 0;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
             font-weight: 600;
             cursor: pointer;
             user-select: none;
-            background: rgba(255,255,255,0.02);
-            transition: background 0.2s;
             list-style: none;
             display: flex;
             align-items: center;
             gap: 8px;
-            min-height: 34px;
+            min-height: 24px;
             line-height: 1.2;
+            color: var(--text-dim);
+            transition: color 0.2s;
+        }}
+
+        summary:hover, details[open] summary {{
+            color: var(--text);
         }}
         
         summary::-webkit-details-marker {{ display: none; }}
         summary::before {{
-            content: "▶";
-            font-size: 10px;
-            transition: transform 0.2s;
-            display: inline-flex;
-            align-items: center;
+            content: "[+]";
+            color: var(--accent);
+            font-family: var(--font-mono);
+            margin-right: 4px;
+            display: inline-block;
+            min-width: 24px;
         }}
         details[open] summary::before {{
-            transform: rotate(90deg);
+            content: "[-]";
         }}
 
-        summary:hover {{ background: rgba(255,255,255,0.04); }}
-
         .details-content {{
-            padding: 16px;
-            border-top: 1px solid var(--border);
+            padding: 8px 0 16px 24px;
             font-size: 14px;
             color: var(--text-dim);
-            background: var(--bg-body);
             overflow-x: auto;
+            border-left: 1px solid var(--border);
+            margin-left: 10px;
         }}
 
         /* Messages */
         .message-stream {{
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
+            display: block;
         }}
 
         .message-group {{
             display: flex;
             flex-direction: column;
             gap: 6px;
+            margin-bottom: 16px;
         }}
 
         .role-label {{
@@ -385,6 +388,7 @@ class ExportCommand(CommandABC):
 
         .thinking-block {{
             margin-top: 8px;
+            margin-bottom: 16px;
             padding: 12px 16px;
             border-left: 2px solid var(--border);
             color: var(--text-dim);
@@ -396,6 +400,7 @@ class ExportCommand(CommandABC):
         /* Tool Calls */
         .tool-call {{
             margin-top: 16px;
+            margin-bottom: 16px;
             border: 1px solid var(--border);
             border-radius: 6px;
             overflow: hidden;
