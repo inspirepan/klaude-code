@@ -149,7 +149,7 @@ class ExportCommand(CommandABC):
     <title>Session Export - {self._escape_html(session_id)}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
     <style>
         :root {{
             --bg-body: {COLORS["bodyBg"]};
@@ -162,8 +162,8 @@ class ExportCommand(CommandABC):
             --accent-dim: rgba(34, 211, 238, 0.1);
             --success: {COLORS["green"]};
             --error: {COLORS["red"]};
-            --font-sans: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
-            --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+            --font-sans: 'IBM Plex Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+            --font-mono: 'IBM Plex Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
         }}
 
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
@@ -224,6 +224,9 @@ class ExportCommand(CommandABC):
             font-family: var(--font-mono);
             font-size: 13px;
             color: var(--text);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }}
 
         /* Components */
