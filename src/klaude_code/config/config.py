@@ -32,8 +32,6 @@ class Config(BaseModel):
     main_model: str
     subagent_models: dict[str, str] = Field(default_factory=dict)
     theme: str | None = None
-    user_skills_dir: str = "~/.claude/skills"
-    project_skills_dir: str = "./.claude/skills"
 
     @model_validator(mode="before")
     @classmethod

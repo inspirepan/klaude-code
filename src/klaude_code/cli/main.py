@@ -168,10 +168,7 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
         raise typer.Exit(1)
 
     # Initialize skills
-    skill_loader = SkillLoader(
-        user_skills_dir=config.user_skills_dir,
-        project_skills_dir=config.project_skills_dir,
-    )
+    skill_loader = SkillLoader()
     skills = skill_loader.discover_skills()
     if skills:
         user_count = sum(1 for s in skills if s.location == "user")

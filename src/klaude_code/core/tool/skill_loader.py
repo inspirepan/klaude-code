@@ -33,15 +33,17 @@ class Skill:
 class SkillLoader:
     """Load and manage Claude Skills from SKILL.md files"""
 
-    def __init__(self, user_skills_dir: str | Path | None = None, project_skills_dir: str | Path | None = None):
-        """Initialize with skills directory paths
+    # User-level skills directories (checked in order, later ones override earlier ones with same name)
+    USER_SKILLS_DIRS = [
+        Path("~/.claude/skills"),
+        Path("~/.klaude/skills"),
+        Path("~/.claude/plugins/marketplaces"),
+    ]
+    # Project-level skills directory
+    PROJECT_SKILLS_DIR = Path("./.claude/skills")
 
-        Args:
-            user_skills_dir: User-level skills directory (e.g., ~/.claude/skills)
-            project_skills_dir: Project-level skills directory (e.g., ./.claude/skills)
-        """
-        self.user_skills_dir = Path(user_skills_dir).expanduser() if user_skills_dir else None
-        self.project_skills_dir = Path(project_skills_dir) if project_skills_dir else None
+    def __init__(self) -> None:
+        """Initialize the skill loader"""
         self.loaded_skills: dict[str, Skill] = {}
 
     def load_skill(self, skill_path: Path, location: str) -> Skill | None:
@@ -122,21 +124,24 @@ class SkillLoader:
         """
         skills: list[Skill] = []
 
-        # Load user-level skills
-        if self.user_skills_dir and self.user_skills_dir.exists():
-            for skill_file in self.user_skills_dir.rglob("SKILL.md"):
-                skill = self.load_skill(skill_file, location="user")
-                if skill:
-                    skills.append(skill)
-                    self.loaded_skills[skill.name] = skill
+        # Load user-level skills from all directories
+        for user_dir in self.USER_SKILLS_DIRS:
+            expanded_dir = user_dir.expanduser()
+            if expanded_dir.exists():
+                for skill_file in expanded_dir.rglob("SKILL.md"):
+                    skill = self.load_skill(skill_file, location="user")
+                    if skill:
+                        skills.append(skill)
+                        self.loaded_skills[skill.name] = skill
 
         # Load project-level skills (override user skills if same name)
-        if self.project_skills_dir and self.project_skills_dir.exists():
-            for skill_file in self.project_skills_dir.rglob("SKILL.md"):
+        project_dir = self.PROJECT_SKILLS_DIR.resolve()
+        if project_dir.exists():
+            for skill_file in project_dir.rglob("SKILL.md"):
                 skill = self.load_skill(skill_file, location="project")
                 if skill:
                     skills.append(skill)
-                    self.loaded_skills[skill.name] = skill  # Project skills override user skills
+                    self.loaded_skills[skill.name] = skill
 
         return skills
 
