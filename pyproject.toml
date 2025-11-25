@@ -35,6 +35,7 @@ dev = [
 
 [tool.hatch.build.targets.wheel.force-include]
 "src/klaude_code/core/prompt/prompt-codex.md" = "klaude_code/core/prompt/prompt-codex.md"
+"src/klaude_code/core/prompt/prompt-gemini.md" = "klaude_code/core/prompt/prompt-gemini.md"
 "src/klaude_code/core/prompt/prompt-claude-code.md" = "klaude_code/core/prompt/prompt-claude-code.md"
 "src/klaude_code/command/prompt-init.md" = "klaude_code/command/prompt-init.md"
 "src/klaude_code/command/prompt-dev-doc.md" = "klaude_code/command/prompt-dev-doc.md"

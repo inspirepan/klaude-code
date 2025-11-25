@@ -15,6 +15,7 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
 PROMPT_FILES: dict[str, str] = {
     "main_codex": "prompt/prompt-codex.md",
     "main_claude": "prompt/prompt-claude-code.md",
+    "main_gemini": "prompt/prompt-gemini.md",  # https://ai.google.dev/gemini-api/docs/prompting-strategies?hl=zh-cn#agentic-si-template
     "subagent": "prompt/prompt-subagent.md",
     "oracle": "prompt/prompt-subagent-oracle.md",
     "subagent_explore": "prompt/prompt-subagent-explore.md",
@@ -35,7 +36,13 @@ def get_system_prompt(model_name: str, key: str = "main") -> str:
             available_tools.append(f"{command}: {desc}")
 
     if key == "main":
-        file_key = "main_codex" if "gpt-5" in model_name else "main_claude"
+        match model_name:
+            case name if "gpt-5" in name:
+                file_key = "main_codex"
+            case name if "gemini" in name:
+                file_key = "main_gemini"
+            case _:
+                file_key = "main_claude"
     else:
         file_key = key
 

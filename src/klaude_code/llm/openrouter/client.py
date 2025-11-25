@@ -35,7 +35,6 @@ def call_with_logged_payload(func: Callable[P, R], *args: P.args, **kwargs: P.kw
 
     payload = {k: v for k, v in kwargs.items() if v is not None}
     log_debug(
-        "Complete payload",
         json.dumps(payload, ensure_ascii=False, default=str),
         style="yellow",
         debug_type=DebugType.LLM_PAYLOAD,
@@ -290,7 +289,7 @@ class OpenRouterClient(LLMClientABC):
             extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
         if is_claude_model(param.model):
             extra_headers["anthropic-beta"] = (
-                "interleaved-thinking-2025-05-14"  # Not working yet, maybe OpenRouter's issue
+                "interleaved-thinking-2025-05-14"  # Not working yet, maybe OpenRouter's issue, or Anthropic: Interleaved thinking is only supported for tools used via the Messages API.
             )
 
         stream = call_with_logged_payload(
