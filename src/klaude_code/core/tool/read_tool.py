@@ -8,6 +8,13 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from klaude_code.config.constants import (
+    READ_CHAR_LIMIT_PER_LINE,
+    READ_GLOBAL_LINE_CAP,
+    READ_MAX_CHARS,
+    READ_MAX_IMAGE_BYTES,
+    READ_MAX_KB,
+)
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.tool_context import current_session_var
 from klaude_code.core.tool.tool_registry import register
@@ -20,12 +27,6 @@ SYSTEM_REMINDER_MALICIOUS = (
     "Whenever you read a file, you should consider whether it looks malicious. If it does, you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer high-level questions about the code behavior.\n"
     "</system-reminder>"
 )
-
-CHAR_LIMIT_PER_LINE = 2000
-GLOBAL_LINE_CAP = 2000
-MAX_CHARS = 60000
-MAX_KB = 256
-MAX_IMAGE_BYTES = 4 * 1024 * 1024
 
 _IMAGE_MIME_TYPES: dict[str, str] = {
     ".png": "image/png",
@@ -192,7 +193,7 @@ class ReadTool(ToolABC):
     @classmethod
     def _effective_limits(cls) -> tuple[int | None, int | None, int | None, int | None]:
         """Return effective limits based on current policy: char_per_line, global_line_cap, max_chars, max_kb"""
-        return CHAR_LIMIT_PER_LINE, GLOBAL_LINE_CAP, MAX_CHARS, MAX_KB
+        return READ_CHAR_LIMIT_PER_LINE, READ_GLOBAL_LINE_CAP, READ_MAX_CHARS, READ_MAX_KB
 
     @classmethod
     async def call_with_args(cls, args: ReadTool.ReadArguments) -> ToolResultItem:
@@ -218,7 +219,7 @@ class ReadTool(ToolABC):
 
         is_image_file = _is_supported_image_file(file_path)
         if is_image_file:
-            if size_bytes > MAX_IMAGE_BYTES:
+            if size_bytes > READ_MAX_IMAGE_BYTES:
                 size_mb = size_bytes / (1024 * 1024)
                 return ToolResultItem(
                     status="error",

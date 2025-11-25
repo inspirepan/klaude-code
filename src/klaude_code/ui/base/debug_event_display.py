@@ -1,12 +1,13 @@
 from typing import override
 
+from klaude_code.config.constants import DEFAULT_DEBUG_LOG_FILE
 from klaude_code.protocol.events import Event
 from klaude_code.trace import DebugType, log_debug
 from klaude_code.ui.base.display_abc import DisplayABC
 
 
 class DebugEventDisplay(DisplayABC):
-    def __init__(self, wrapped_display: DisplayABC | None = None, log_file: str = "debug.log"):
+    def __init__(self, wrapped_display: DisplayABC | None = None, log_file: str = DEFAULT_DEBUG_LOG_FILE):
         self.wrapped_display = wrapped_display
         self.log_file = log_file
 

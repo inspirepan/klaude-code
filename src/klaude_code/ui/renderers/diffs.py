@@ -4,10 +4,9 @@ from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
 
+from klaude_code.config.constants import DIFF_PREFIX_WIDTH, MAX_DIFF_LINES
 from klaude_code.ui.base.theme import ThemeKey
 from klaude_code.ui.renderers.common import create_grid
-
-PREFIX_WIDTH = 4
 
 
 def _make_diff_prefix(line: str, new_ln: int | None, width: int) -> tuple[str, int | None]:
@@ -62,7 +61,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
                 in_untracked_section = False
             elif line.strip():  # Non-empty line in untracked section
                 file_text = Text(line.strip(), style=ThemeKey.TOOL_PARAM_BOLD)
-                grid.add_row(Text(f"{'+':>{PREFIX_WIDTH}}", style=ThemeKey.TOOL_PARAM_BOLD), file_text)
+                grid.add_row(Text(f"{'+':>{DIFF_PREFIX_WIDTH}}", style=ThemeKey.TOOL_PARAM_BOLD), file_text)
                 continue
 
         # Parse file name from diff headers
@@ -116,7 +115,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
             else:
                 file_mark = "±"
 
-            grid.add_row(Text(f"{file_mark:>{PREFIX_WIDTH}}  ", style=ThemeKey.DIFF_FILE_NAME), file_line)
+            grid.add_row(Text(f"{file_mark:>{DIFF_PREFIX_WIDTH}}  ", style=ThemeKey.DIFF_FILE_NAME), file_line)
             has_rendered_file_header = True
             has_rendered_diff_content = False
             continue
@@ -135,7 +134,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
             except Exception:
                 new_ln = None
             if has_rendered_diff_content:
-                grid.add_row(Text(f"{'⋮':>{PREFIX_WIDTH}}", style=ThemeKey.TOOL_RESULT), "")
+                grid.add_row(Text(f"{'⋮':>{DIFF_PREFIX_WIDTH}}", style=ThemeKey.TOOL_RESULT), "")
             continue
 
         # Skip file header lines entirely
@@ -148,7 +147,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
             continue
 
         # Compute line number prefix and style diff content
-        prefix, new_ln = _make_diff_prefix(line, new_ln, PREFIX_WIDTH)
+        prefix, new_ln = _make_diff_prefix(line, new_ln, DIFF_PREFIX_WIDTH)
 
         if line.startswith("-"):
             text = Text(line[1:])
@@ -162,9 +161,6 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
         has_rendered_diff_content = True
 
     return grid
-
-
-MAX_DIFF_LINES = 1000
 
 
 def render_diff_panel(

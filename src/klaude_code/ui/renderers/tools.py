@@ -5,12 +5,11 @@ from rich.console import RenderableType
 from rich.padding import Padding
 from rich.text import Text
 
+from klaude_code.config.constants import INVALID_TOOL_CALL_MAX_LENGTH
 from klaude_code.core.sub_agent import is_sub_agent_tool as _is_sub_agent_tool
 from klaude_code.protocol import events, model
 from klaude_code.ui.base.theme import ThemeKey
 from klaude_code.ui.renderers.common import create_grid, truncate_display
-
-INVALID_TOOL_CALL_MAX_LENGTH = 500
 
 
 def is_sub_agent_tool(tool_name: str) -> bool:

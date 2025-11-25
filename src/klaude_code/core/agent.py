@@ -6,6 +6,13 @@ from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass, field
 from typing import Literal, Protocol, cast
 
+from klaude_code.config.constants import (
+    CANCEL_OUTPUT,
+    FIRST_EVENT_TIMEOUT_S,
+    INITIAL_RETRY_DELAY_S,
+    MAX_FAILED_TURN_RETRIES,
+    MAX_RETRY_DELAY_S,
+)
 from klaude_code.core.prompt import get_system_prompt as load_system_prompt
 from klaude_code.core.reminders import (
     Reminder,
@@ -20,13 +27,6 @@ from klaude_code.llm.client import LLMClientABC
 from klaude_code.protocol import events, llm_parameter, model, tools
 from klaude_code.session import Session
 from klaude_code.trace import DebugType, log_debug
-
-# Constant for cancellation message
-CANCEL_OUTPUT = "[Request interrupted by user for tool use]"
-FIRST_EVENT_TIMEOUT_S = 200.0
-MAX_FAILED_TURN_RETRIES = 10
-INITIAL_RETRY_DELAY_S = 1.0
-MAX_RETRY_DELAY_S = 30.0
 
 
 @dataclass

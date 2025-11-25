@@ -1,0 +1,86 @@
+"""Centralized configuration constants for klaude_code.
+
+This module consolidates all magic numbers and configuration values
+that were previously scattered across the codebase.
+"""
+
+# =============================================================================
+# Agent Configuration
+# =============================================================================
+
+# Timeout for waiting for the first event from LLM (seconds)
+FIRST_EVENT_TIMEOUT_S = 200.0
+
+# Maximum number of retry attempts for failed turns
+MAX_FAILED_TURN_RETRIES = 10
+
+# Initial delay before retrying a failed turn (seconds)
+INITIAL_RETRY_DELAY_S = 1.0
+
+# Maximum delay between retries (seconds)
+MAX_RETRY_DELAY_S = 30.0
+
+# Message shown when a tool call is cancelled by the user
+CANCEL_OUTPUT = "[Request interrupted by user for tool use]"
+
+
+# =============================================================================
+# LLM Parameters
+# =============================================================================
+
+# Default maximum tokens for LLM responses
+DEFAULT_MAX_TOKENS = 32000
+
+# Default temperature for LLM requests
+DEFAULT_TEMPERATURE = 1.0
+
+# Default thinking budget tokens for Anthropic models
+DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS = 2048
+
+
+# =============================================================================
+# Read Tool Limits
+# =============================================================================
+
+# Maximum characters per line before truncation
+READ_CHAR_LIMIT_PER_LINE = 2000
+
+# Maximum number of lines to read from a file
+READ_GLOBAL_LINE_CAP = 2000
+
+# Maximum total characters to read
+READ_MAX_CHARS = 60000
+
+# Maximum file size in KB for text files
+READ_MAX_KB = 256
+
+# Maximum image file size in bytes (4MB)
+READ_MAX_IMAGE_BYTES = 4 * 1024 * 1024
+
+
+# =============================================================================
+# Debug / Logging
+# =============================================================================
+
+# Default debug log file path
+DEFAULT_DEBUG_LOG_FILE = "debug.log"
+
+# Maximum log file size before rotation (10MB)
+LOG_MAX_BYTES = 10 * 1024 * 1024
+
+# Number of backup log files to keep
+LOG_BACKUP_COUNT = 3
+
+
+# =============================================================================
+# UI / Display
+# =============================================================================
+
+# Width of line number prefix in diff display
+DIFF_PREFIX_WIDTH = 4
+
+# Maximum lines to show in diff output
+MAX_DIFF_LINES = 1000
+
+# Maximum length for invalid tool call display
+INVALID_TOOL_CALL_MAX_LENGTH = 500
