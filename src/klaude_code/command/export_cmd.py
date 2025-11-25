@@ -342,6 +342,26 @@ class ExportCommand(CommandABC):
             border-color: var(--accent);
             background: rgba(34, 211, 238, 0.08);
         }}
+
+        .copy-raw-btn {{
+            margin-left: 8px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-dim);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 2px 10px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: color 0.2s, border-color 0.2s, background 0.2s;
+            font-weight: 600;
+        }}
+        .copy-raw-btn:hover {{
+            color: var(--text);
+            border-color: var(--accent);
+        }}
+
         .assistant-rendered {{
             width: 100%;
         }}
@@ -583,8 +603,48 @@ class ExportCommand(CommandABC):
         // Assistant raw toggle
         document.querySelectorAll('.assistant-message').forEach(block => {{
             const toggle = block.querySelector('.raw-toggle');
+            const copyBtn = block.querySelector('.copy-raw-btn');
             const rendered = block.querySelector('.assistant-rendered');
             const raw = block.querySelector('.assistant-raw');
+            
+            // Copy button logic
+            if (copyBtn && rendered) {{
+                copyBtn.addEventListener('click', async (e) => {{
+                    e.stopPropagation();
+                    const rawContent = rendered.dataset.raw;
+                    if (!rawContent) return;
+                    
+                    try {{
+                        // Decode HTML entities for copy
+                        const textarea = document.createElement('textarea');
+                        textarea.innerHTML = rawContent;
+                        const decoded = textarea.value;
+                        
+                        await navigator.clipboard.writeText(decoded);
+                        
+                        // Visual feedback
+                        const originalText = copyBtn.textContent;
+                        copyBtn.textContent = 'Copied!';
+                        copyBtn.style.color = 'var(--success)';
+                        copyBtn.style.borderColor = 'var(--success)';
+                        
+                        setTimeout(() => {{
+                            copyBtn.textContent = originalText;
+                            copyBtn.style.color = '';
+                            copyBtn.style.borderColor = '';
+                        }}, 2000);
+                    }} catch (err) {{
+                        console.error('Failed to copy:', err);
+                        copyBtn.textContent = 'Error';
+                        copyBtn.style.color = 'var(--error)';
+                        setTimeout(() => {{
+                            copyBtn.textContent = 'Copy';
+                            copyBtn.style.color = '';
+                        }}, 2000);
+                    }}
+                }});
+            }}
+
             if (!toggle || !rendered || !raw) {{
                 return;
             }}
@@ -668,6 +728,7 @@ class ExportCommand(CommandABC):
             f'<div class="message-content assistant-message">'
             f'<div class="assistant-toolbar">'
             f'<button type="button" class="raw-toggle" aria-pressed="false" title="Toggle raw text view">Raw</button>'
+            f'<button type="button" class="copy-raw-btn" title="Copy raw content">Copy</button>'
             f"</div>"
             f'<div class="assistant-rendered markdown-content markdown-body" data-raw="{encoded}">'
             f'<noscript><pre style="white-space: pre-wrap;">{encoded}</pre></noscript>'
