@@ -22,7 +22,13 @@ from klaude_code.core.reminders import (
 )
 from klaude_code.core.sub_agent import get_sub_agent_profile, is_sub_agent_tool
 from klaude_code.core.tool.tool_context import current_session_var
-from klaude_code.core.tool.tool_registry import get_main_agent_tools, get_sub_agent_tools, get_vanilla_tools, run_tool
+from klaude_code.core.tool.tool_registry import (
+    get_main_agent_tools,
+    get_registry,
+    get_sub_agent_tools,
+    get_vanilla_tools,
+)
+from klaude_code.core.tool.tool_runner import run_tool
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.protocol import events, llm_parameter, model, tools
 from klaude_code.session import Session
@@ -624,7 +630,7 @@ class Agent:
         session_token = current_session_var.set(self.session)
         try:
             self.turn_inflight_tool_calls[tool_call.call_id].status = "in_progress"
-            tool_result: model.ToolResultItem = await run_tool(tool_call)
+            tool_result: model.ToolResultItem = await run_tool(tool_call, get_registry())
         finally:
             current_session_var.reset(session_token)
 

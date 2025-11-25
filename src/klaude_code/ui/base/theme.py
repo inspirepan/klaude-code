@@ -103,6 +103,7 @@ class ThemeKey(str, Enum):
     TOOL_PARAM = "tool.param"
     TOOL_PARAM_BOLD = "tool.param.bold"
     TOOL_RESULT = "tool.result"
+    TOOL_RESULT_BOLD = "tool.result.bold"
     TOOL_MARK = "tool.mark"
     TOOL_APPROVED = "tool.approved"
     TOOL_REJECTED = "tool.rejected"
@@ -189,6 +190,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_PARAM.value: palette.green,
                 ThemeKey.TOOL_PARAM_BOLD.value: "bold " + palette.green,
                 ThemeKey.TOOL_RESULT.value: palette.grey_green,
+                ThemeKey.TOOL_RESULT_BOLD.value: "bold " + palette.grey_green,
                 ThemeKey.TOOL_MARK.value: "bold",
                 ThemeKey.TOOL_APPROVED.value: palette.green + " bold reverse",
                 ThemeKey.TOOL_REJECTED.value: palette.red + " bold reverse",

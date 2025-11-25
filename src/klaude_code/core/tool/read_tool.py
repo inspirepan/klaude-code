@@ -61,8 +61,8 @@ class ReadOptions:
     file_path: str
     offset: int
     limit: int | None
-    char_limit_per_line: int | None = 2000
-    global_line_cap: int | None = 2000
+    char_limit_per_line: int | None = READ_CHAR_LIMIT_PER_LINE
+    global_line_cap: int | None = READ_GLOBAL_LINE_CAP
 
 
 @dataclass

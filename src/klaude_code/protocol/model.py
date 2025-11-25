@@ -38,6 +38,7 @@ class ToolResultUIExtraType(str, Enum):
     TODO_LIST = "todo_list"
     SESSION_ID = "session_id"
     MERMAID_LINK = "mermaid_link"
+    TRUNCATION = "truncation"
 
 
 class ToolSideEffect(str, Enum):
@@ -49,12 +50,19 @@ class MermaidLinkUIExtra(BaseModel):
     line_count: int
 
 
+class TruncationUIExtra(BaseModel):
+    saved_file_path: str
+    original_length: int
+    truncated_length: int
+
+
 class ToolResultUIExtra(BaseModel):
     type: ToolResultUIExtraType
     diff_text: str | None = None
     todo_list: TodoUIExtra | None = None
     session_id: str | None = None
     mermaid_link: MermaidLinkUIExtra | None = None
+    truncation: TruncationUIExtra | None = None
 
 
 class AtPatternParseResult(BaseModel):

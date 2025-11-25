@@ -23,11 +23,6 @@ MAX_RETRY_DELAY_S = 30.0
 # Message shown when a tool call is cancelled by the user
 CANCEL_OUTPUT = "[Request interrupted by user for tool use]"
 
-
-# =============================================================================
-# LLM Parameters
-# =============================================================================
-
 # Default maximum tokens for LLM responses
 DEFAULT_MAX_TOKENS = 32000
 
@@ -37,11 +32,15 @@ DEFAULT_TEMPERATURE = 1.0
 # Default thinking budget tokens for Anthropic models
 DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS = 2048
 
+# Tool call count threshold for todo reminder
+TODO_REMINDER_TOOL_CALL_THRESHOLD = 10
+
 
 # =============================================================================
-# Read Tool Limits
+# Tool
 # =============================================================================
 
+# -- Read Tool --
 # Maximum characters per line before truncation
 READ_CHAR_LIMIT_PER_LINE = 2000
 
@@ -57,6 +56,46 @@ READ_MAX_KB = 256
 # Maximum image file size in bytes (4MB)
 READ_MAX_IMAGE_BYTES = 4 * 1024 * 1024
 
+# -- Bash Tool --
+# Default timeout for bash commands (milliseconds)
+BASH_DEFAULT_TIMEOUT_MS = 120000
+
+# -- Tool Output --
+# Maximum length for tool output before truncation
+TOOL_OUTPUT_MAX_LENGTH = 40000
+
+# Characters to show from the beginning of truncated output
+TOOL_OUTPUT_DISPLAY_HEAD = 10000
+
+# Characters to show from the end of truncated output
+TOOL_OUTPUT_DISPLAY_TAIL = 10000
+
+# Directory for saving full truncated output
+TOOL_OUTPUT_TRUNCATION_DIR = "/tmp/klaude"
+
+
+# =============================================================================
+# UI
+# =============================================================================
+
+# Width of line number prefix in diff display
+DIFF_PREFIX_WIDTH = 4
+
+# Maximum lines to show in diff output
+MAX_DIFF_LINES = 1000
+
+# Maximum length for invalid tool call display
+INVALID_TOOL_CALL_MAX_LENGTH = 500
+
+# Maximum line length for truncated display output
+TRUNCATE_DISPLAY_MAX_LINE_LENGTH = 1000
+
+# Maximum lines for truncated display output
+TRUNCATE_DISPLAY_MAX_LINES = 10
+
+# Maximum lines for sub-agent result display
+SUB_AGENT_RESULT_MAX_LINES = 30
+
 
 # =============================================================================
 # Debug / Logging
@@ -70,17 +109,3 @@ LOG_MAX_BYTES = 10 * 1024 * 1024
 
 # Number of backup log files to keep
 LOG_BACKUP_COUNT = 3
-
-
-# =============================================================================
-# UI / Display
-# =============================================================================
-
-# Width of line number prefix in diff display
-DIFF_PREFIX_WIDTH = 4
-
-# Maximum lines to show in diff output
-MAX_DIFF_LINES = 1000
-
-# Maximum length for invalid tool call display
-INVALID_TOOL_CALL_MAX_LENGTH = 500

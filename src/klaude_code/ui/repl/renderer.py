@@ -148,6 +148,12 @@ class REPLRenderer:
             self.print(r_errors.render_error(Text(truncate_display(e.result))))
             return
 
+        # Show truncation info if output was truncated and saved to file
+        truncation_info = r_tools.get_truncation_info(e)
+        if truncation_info:
+            self.print(r_tools.render_truncation_info(truncation_info))
+            return
+
         diff_text = self._extract_diff_text(e.ui_extra)
 
         match e.tool_name:

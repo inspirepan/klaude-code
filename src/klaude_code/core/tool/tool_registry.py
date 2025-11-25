@@ -1,4 +1,3 @@
-import asyncio
 from typing import Callable, TypeVar
 
 from klaude_code.core.sub_agent import get_sub_agent_profile, iter_sub_agent_profiles, sub_agent_tool_names
@@ -6,7 +5,6 @@ from klaude_code.core.tool.sub_agent_tool import SubAgentTool
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.protocol import tools
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import ToolCallItem, ToolResultItem
 
 _REGISTRY: dict[str, type[ToolABC]] = {}
 
@@ -44,29 +42,9 @@ def get_tool_schemas(tool_names: list[str]) -> list[ToolSchema]:
     return schemas
 
 
-async def run_tool(tool_call: ToolCallItem) -> ToolResultItem:
-    if tool_call.name not in _REGISTRY:
-        return ToolResultItem(
-            call_id=tool_call.call_id,
-            output=f"Tool {tool_call.name} not exists",
-            status="error",
-            tool_name=tool_call.name,
-        )
-    try:
-        tool_result = await _REGISTRY[tool_call.name].call(tool_call.arguments)
-        tool_result.call_id = tool_call.call_id
-        tool_result.tool_name = tool_call.name
-        return tool_result
-    except asyncio.CancelledError:
-        # Propagate cooperative cancellation so outer layers can handle interrupts correctly.
-        raise
-    except Exception as e:
-        return ToolResultItem(
-            call_id=tool_call.call_id,
-            output=f"Tool {tool_call.name} execution error: {e.__class__.__name__} {e}",
-            status="error",
-            tool_name=tool_call.name,
-        )
+def get_registry() -> dict[str, type[ToolABC]]:
+    """Get the global tool registry."""
+    return _REGISTRY
 
 
 def get_vanilla_tools() -> list[ToolSchema]:

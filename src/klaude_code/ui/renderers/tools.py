@@ -252,3 +252,32 @@ def render_mermaid_tool_result(tr: events.ToolResultEvent) -> RenderableType:
 
     link_text = Text.from_markup(f"[blue u][link={link_info.link}]Command+click to view[/link][/blue u]")
     return Padding.indent(link_text, level=2)
+
+
+def _extract_truncation(ui_extra: model.ToolResultUIExtra | None) -> model.TruncationUIExtra | None:
+    if ui_extra is None:
+        return None
+    if ui_extra.type != model.ToolResultUIExtraType.TRUNCATION:
+        return None
+    return ui_extra.truncation
+
+
+def render_truncation_info(ui_extra: model.TruncationUIExtra) -> RenderableType:
+    """Render truncation info for the user."""
+    original_kb = ui_extra.original_length / 1024
+    truncated_kb = ui_extra.truncated_length / 1024
+    text = Text.assemble(
+        ("Output truncated: ", ThemeKey.TOOL_RESULT),
+        (f"{original_kb:.1f}KB", ThemeKey.TOOL_RESULT),
+        (" total, ", ThemeKey.TOOL_RESULT),
+        (f"{truncated_kb:.1f}KB", ThemeKey.TOOL_RESULT_BOLD),
+        (" hidden\nFull output saved to ", ThemeKey.TOOL_RESULT),
+        (ui_extra.saved_file_path, ThemeKey.TOOL_RESULT),
+        ("\nUse Read with limit+offset or rg/grep to inspect", ThemeKey.TOOL_RESULT),
+    )
+    return Padding.indent(text, level=2)
+
+
+def get_truncation_info(tr: events.ToolResultEvent) -> model.TruncationUIExtra | None:
+    """Extract truncation info from a tool result event."""
+    return _extract_truncation(tr.ui_extra)

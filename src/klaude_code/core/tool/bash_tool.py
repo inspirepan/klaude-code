@@ -3,9 +3,9 @@ import subprocess
 
 from pydantic import BaseModel
 
+from klaude_code.config.constants import BASH_DEFAULT_TIMEOUT_MS
 from klaude_code.core.tool.command_safety import is_safe_command, strip_bash_lc
 from klaude_code.core.tool.tool_abc import ToolABC
-from klaude_code.core.tool.tool_common import truncate_tool_output
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
 from klaude_code.protocol.model import ToolResultItem
@@ -73,8 +73,8 @@ git commit -m "$(cat <<'EOF'
                     },
                     "timeout_ms": {
                         "type": "integer",
-                        "description": "The timeout for the command in milliseconds, default is 120000",
-                        "default": 120000,
+                        "description": f"The timeout for the command in milliseconds, default is {BASH_DEFAULT_TIMEOUT_MS}",
+                        "default": BASH_DEFAULT_TIMEOUT_MS,
                     },
                 },
                 "required": ["command"],
@@ -83,7 +83,7 @@ git commit -m "$(cat <<'EOF'
 
     class BashArguments(BaseModel):
         command: str
-        timeout_ms: int = 120000
+        timeout_ms: int = BASH_DEFAULT_TIMEOUT_MS
 
     @classmethod
     async def call(cls, arguments: str) -> ToolResultItem:
@@ -132,7 +132,6 @@ git commit -m "$(cat <<'EOF'
                 # Include stderr if there is useful diagnostics despite success
                 if stderr.strip():
                     output = (output + ("\n" if output else "")) + f"[stderr]\n{stderr}"
-                output = truncate_tool_output(output)
                 return ToolResultItem(
                     status="success",
                     output=output.strip(),
@@ -145,7 +144,6 @@ git commit -m "$(cat <<'EOF'
                     combined += f"[stderr]\n{stderr}"
                 if not combined:
                     combined = f"Command exited with code {rc}"
-                combined = truncate_tool_output(combined)
                 return ToolResultItem(
                     status="error",
                     output=combined.strip(),
