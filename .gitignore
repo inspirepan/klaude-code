@@ -12,4 +12,3 @@ wheels/
 .DS_Store
 debug.log
 .vscode/
-.claude/
