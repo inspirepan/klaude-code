@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "klaude-code"
-version = "0.1.0"
+version = "1.0.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -25,6 +25,13 @@ klaude = "klaude_code.cli.main:app"
 
 [tool.hatch.build]
 sources = ["src"]
+include = [
+    "src/klaude_code/**/*.py",
+    "src/klaude_code/**/*.md",
+]
+artifacts = [
+    "*.md",
+]
 
 [dependency-groups]
 dev = [
@@ -33,16 +40,7 @@ dev = [
     "pytest>=8.4.1",
 ]
 
-[tool.hatch.build.targets.wheel.force-include]
-"src/klaude_code/core/prompt/prompt-codex.md" = "klaude_code/core/prompt/prompt-codex.md"
-"src/klaude_code/core/prompt/prompt-gemini.md" = "klaude_code/core/prompt/prompt-gemini.md"
-"src/klaude_code/core/prompt/prompt-claude-code.md" = "klaude_code/core/prompt/prompt-claude-code.md"
-"src/klaude_code/command/prompt-init.md" = "klaude_code/command/prompt-init.md"
-"src/klaude_code/command/prompt-dev-doc.md" = "klaude_code/command/prompt-dev-doc.md"
-"src/klaude_code/command/prompt-update-dev-doc.md" = "klaude_code/command/prompt-update-dev-doc.md"
-"src/klaude_code/core/prompt/prompt-subagent.md" = "klaude_code/core/prompt/prompt-subagent.md"
-"src/klaude_code/core/prompt/prompt-subagent-oracle.md" = "klaude_code/core/prompt/prompt-subagent-oracle.md"
-"src/klaude_code/core/prompt/prompt-subagent-explore.md" = "klaude_code/core/prompt/prompt-subagent-explore.md"
+
 
 [tool.ruff]
 line-length = 120

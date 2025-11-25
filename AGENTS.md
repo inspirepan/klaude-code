@@ -126,3 +126,9 @@ Add the prompt file to `[tool.hatch.build.targets.wheel.force-include]`:
 - Prefer `str | None` over `Optional[str]`
 - Prefer `list[str]` over `typing.List[str]`
 - For complex function inputs or outputs, define a Pydantic model rather than returning tuples
+
+## Publishing to PyPI
+
+1. Update version in `pyproject.toml`
+2. Build: `uv build`
+3. Publish: `uv publish` (uses `UV_PUBLISH_TOKEN` from environment)
