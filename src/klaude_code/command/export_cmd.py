@@ -5,7 +5,7 @@ import json
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Final
+from typing import Any, Final, cast
 
 from klaude_code.command.command_abc import CommandABC, CommandResult
 from klaude_code.command.registry import register_command
@@ -235,7 +235,7 @@ class ExportCommand(CommandABC):
         summary {{
             padding: 4px 0;
             font-family: var(--font-mono);
-            font-size: 12px;
+            font-size: 13px;
             text-transform: uppercase;
             letter-spacing: 0.05em;
             font-weight: 600;
@@ -264,7 +264,7 @@ class ExportCommand(CommandABC):
             display: inline-block;
             min-width: 24px;
         }}
-        details[open] summary::before {{
+        details[open] > summary::before {{
             content: "[-]";
         }}
 
@@ -289,6 +289,17 @@ class ExportCommand(CommandABC):
             margin-bottom: 16px;
         }}
 
+        .message-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }}
+        
+        .message-header .role-label {{
+            margin-bottom: 0;
+        }}
+
         .role-label {{
             font-size: 12px;
             font-weight: 600;
@@ -304,6 +315,14 @@ class ExportCommand(CommandABC):
         
         .role-label.user {{ color: var(--accent); }}
         .role-label.assistant {{ color: var(--success); }}
+
+        details.developer-message {{
+            margin-bottom: 4px;
+        }}
+        
+        details.developer-message.gap-below {{
+            margin-bottom: 16px;
+        }}
 
         .message-content {{
             background: var(--bg-card);
@@ -462,6 +481,8 @@ class ExportCommand(CommandABC):
             border-radius: 4px;
         }}
         .markdown-body p {{ margin-bottom: 12px; }}
+        .markdown-body > *:first-child {{ margin-top: 0; }}
+        .markdown-body > *:last-child {{ margin-bottom: 0; }}
         .markdown-body ul, .markdown-body ol {{
             margin-bottom: 12px;
             padding-left: 1.5rem;
@@ -537,6 +558,65 @@ class ExportCommand(CommandABC):
         .todo-item.status-pending {{
             color: var(--text-dim);
         }}
+
+        /* Tool details in Available Tools section */
+        .tool-details {{
+            margin-bottom: 2px;
+        }}
+        .tool-details summary {{
+            color: var(--accent);
+            font-weight: 500;
+            text-transform: none;
+            letter-spacing: normal;
+        }}
+        .tool-details summary:hover {{
+            color: var(--text);
+        }}
+        .tool-details summary::before {{
+            content: "[+]";
+            min-width: 24px;
+        }}
+        .tool-details[open] summary::before {{
+            content: "[-]";
+        }}
+        .tool-description {{
+            white-space: pre-wrap;
+            font-size: 13px;
+        }}
+        .tool-params {{
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px dashed var(--border);
+        }}
+        .tool-params-title {{
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+        }}
+        .tool-param {{
+            margin-bottom: 8px;
+            padding-left: 12px;
+            font-size: 13px;
+        }}
+        .tool-param-name {{
+            color: var(--success);
+            font-weight: 500;
+        }}
+        .tool-param-type {{
+            color: var(--text-dim);
+        }}
+        .tool-param-required {{
+            color: var(--error);
+            margin-left: 4px;
+        }}
+        .tool-param-desc {{
+            color: var(--text-dim);
+            font-size: 12px;
+            margin-top: 2px;
+        }}
     </style>
 </head>
 <body>
@@ -606,11 +686,12 @@ class ExportCommand(CommandABC):
         }});
 
         // Assistant raw toggle
-        document.querySelectorAll('.assistant-message').forEach(block => {{
-            const toggle = block.querySelector('.raw-toggle');
-            const copyBtn = block.querySelector('.copy-raw-btn');
-            const rendered = block.querySelector('.assistant-rendered');
-            const raw = block.querySelector('.assistant-raw');
+        document.querySelectorAll('.assistant-message-group').forEach(group => {{
+            const toggle = group.querySelector('.raw-toggle');
+            const copyBtn = group.querySelector('.copy-raw-btn');
+            const block = group.querySelector('.assistant-message');
+            const rendered = block ? block.querySelector('.assistant-rendered') : null;
+            const raw = block ? block.querySelector('.assistant-raw') : null;
             
             // Copy button logic
             if (copyBtn && rendered) {{
@@ -678,10 +759,62 @@ class ExportCommand(CommandABC):
         for tool in tools:
             name = self._escape_html(tool.name)
             description = self._escape_html(tool.description)
+            params_html = self._build_tool_params_html(tool.parameters)
             chunks.append(
-                f'<div style="margin-bottom: 8px; font-family: var(--font-mono);"><strong style="color: var(--text);">{name}</strong> <span style="color: var(--text-dim);">- {description}</span></div>'
+                f'<details class="tool-details">'
+                f"<summary>{name}</summary>"
+                f'<div class="details-content">'
+                f'<div class="tool-description">{description}</div>'
+                f"{params_html}"
+                f"</div>"
+                f"</details>"
             )
         return "".join(chunks)
+
+    def _build_tool_params_html(self, parameters: dict[str, object]) -> str:
+        if not parameters:
+            return ""
+        properties = parameters.get("properties")
+        if not properties or not isinstance(properties, dict):
+            return ""
+        required_list = cast(list[str], parameters.get("required", []))
+        required_params: set[str] = set(required_list)
+
+        params_items: list[str] = []
+        typed_properties = cast(dict[str, dict[str, Any]], properties)
+        for param_name, param_schema in typed_properties.items():
+            escaped_name = self._escape_html(param_name)
+            param_type_raw = param_schema.get("type", "any")
+            if isinstance(param_type_raw, list):
+                type_list = cast(list[str], param_type_raw)
+                param_type = " | ".join(type_list)
+            else:
+                param_type = str(param_type_raw)
+            escaped_type = self._escape_html(param_type)
+            param_desc_raw = param_schema.get("description", "")
+            escaped_desc = self._escape_html(str(param_desc_raw))
+
+            required_badge = ""
+            if param_name in required_params:
+                required_badge = '<span class="tool-param-required">(required)</span>'
+
+            desc_html = ""
+            if escaped_desc:
+                desc_html = f'<div class="tool-param-desc">{escaped_desc}</div>'
+
+            params_items.append(
+                f'<div class="tool-param">'
+                f'<span class="tool-param-name">{escaped_name}</span> '
+                f'<span class="tool-param-type">[{escaped_type}]</span>'
+                f"{required_badge}"
+                f"{desc_html}"
+                f"</div>"
+            )
+
+        if not params_items:
+            return ""
+
+        return f'<div class="tool-params"><div class="tool-params-title">Parameters:</div>{"".join(params_items)}</div>'
 
     def _build_messages_html(
         self,
@@ -691,10 +824,10 @@ class ExportCommand(CommandABC):
         blocks: list[str] = []
         assistant_counter = 0
 
-        for item in history:
-            if isinstance(item, ToolResultItem):
-                continue
+        # Filter output-producing items
+        renderable_items = [item for item in history if not isinstance(item, (ToolResultItem, ReasoningEncryptedItem))]
 
+        for i, item in enumerate(renderable_items):
             if isinstance(item, UserMessageItem):
                 text = self._escape_html(item.content or "")
                 blocks.append(
@@ -706,15 +839,20 @@ class ExportCommand(CommandABC):
             elif isinstance(item, ReasoningTextItem):
                 text = self._escape_html(item.content.strip())
                 blocks.append(f'<div class="thinking-block">{text.replace("\n", "<br>")}</div>')
-            elif isinstance(item, ReasoningEncryptedItem):
-                pass
             elif isinstance(item, AssistantMessageItem):
                 assistant_counter += 1
                 blocks.append(self._render_assistant_message(assistant_counter, item.content or ""))
             elif isinstance(item, DeveloperMessageItem):
                 content = self._escape_html(item.content or "")
+
+                # Determine spacing based on next item
+                next_item = renderable_items[i + 1] if i + 1 < len(renderable_items) else None
+                extra_class = ""
+                if isinstance(next_item, (UserMessageItem, AssistantMessageItem)):
+                    extra_class = " gap-below"
+
                 blocks.append(
-                    f"<details>"
+                    f'<details class="developer-message{extra_class}">'
                     f'<summary class="role-label">Developer</summary>'
                     f'<div class="details-content message-content" style="border-left: 3px solid var(--accent); white-space: pre-wrap;">{content}</div>'
                     f"</details>"
@@ -728,13 +866,15 @@ class ExportCommand(CommandABC):
     def _render_assistant_message(self, index: int, content: str) -> str:
         encoded = self._escape_html(content)
         return (
-            f'<div class="message-group">'
+            f'<div class="message-group assistant-message-group">'
+            f'<div class="message-header">'
             f'<div class="role-label assistant">Assistant</div>'
-            f'<div class="message-content assistant-message">'
             f'<div class="assistant-toolbar">'
             f'<button type="button" class="raw-toggle" aria-pressed="false" title="Toggle raw text view">Raw</button>'
             f'<button type="button" class="copy-raw-btn" title="Copy raw content">Copy</button>'
             f"</div>"
+            f"</div>"
+            f'<div class="message-content assistant-message">'
             f'<div class="assistant-rendered markdown-content markdown-body" data-raw="{encoded}">'
             f'<noscript><pre style="white-space: pre-wrap;">{encoded}</pre></noscript>'
             f"</div>"
@@ -749,15 +889,12 @@ class ExportCommand(CommandABC):
             if not isinstance(parsed, dict) or "todos" not in parsed or not isinstance(parsed["todos"], list):
                 return None
 
-            todos = parsed["todos"]
+            todos = cast(list[dict[str, str]], parsed["todos"])
             if not todos:
                 return None
 
             items_html: list[str] = []
             for todo in todos:
-                if not isinstance(todo, dict):
-                    continue
-
                 content = self._escape_html(todo.get("content", ""))
                 status = todo.get("status", "pending")
                 status_class = f"status-{status}"
@@ -808,12 +945,8 @@ class ExportCommand(CommandABC):
             mermaid_html = self._get_mermaid_link_html(result.ui_extra)
 
             should_hide_text = tool_call.name == "TodoWrite" and result.status != "error"
-            
-            if (
-                tool_call.name == "Edit"
-                and not diff_text
-                and result.status != "error"
-            ):
+
+            if tool_call.name == "Edit" and not diff_text and result.status != "error":
                 # Try to detect file creation where old_string is empty and show it as diff
                 try:
                     args_data = json.loads(tool_call.arguments)
@@ -836,9 +969,7 @@ class ExportCommand(CommandABC):
                 items_to_render.append(mermaid_html)
 
             if not items_to_render and not result.output and not should_hide_text:
-                items_to_render.append(
-                    '<div style="color: var(--text-dim); font-style: italic;">(empty output)</div>'
-                )
+                items_to_render.append('<div style="color: var(--text-dim); font-style: italic;">(empty output)</div>')
 
             if items_to_render:
                 status_class = result.status if result.status in ("success", "error") else "success"

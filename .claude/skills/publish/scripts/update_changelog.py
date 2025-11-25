@@ -35,7 +35,7 @@ def get_commits_since_tag(tag: str | None) -> list[tuple[str, str]]:
     if result.returncode != 0:
         return []
 
-    commits = []
+    commits: list[tuple[str, str]] = []
     for line in result.stdout.strip().split("\n"):
         if line:
             parts = line.split(" ", 1)
