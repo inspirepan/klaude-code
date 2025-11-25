@@ -1,3 +1,5 @@
+from importlib.metadata import version
+
 from rich import box
 from rich.box import Box
 from rich.console import Group, RenderableType
@@ -8,6 +10,14 @@ from rich.text import Text
 from klaude_code.protocol import events
 from klaude_code.ui.base.theme import ThemeKey
 from klaude_code.ui.base.utils import format_number
+
+
+def _get_version() -> str:
+    """Get the current version of klaude-code."""
+    try:
+        return version("klaude-code")
+    except Exception:
+        return "unknown"
 
 
 def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
@@ -107,7 +117,10 @@ def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> R
     if box_style is None:
         box_style = box.ROUNDED
 
-    model_info = Text.assemble(
+    # First line: Klaude Code version
+    panel_content = Text.assemble(
+        ("Klaude Code", ThemeKey.WELCOME_HIGHLIGHT),
+        (f" v{_get_version()}\n", ThemeKey.WELCOME_INFO),
         (str(e.llm_config.model), ThemeKey.WELCOME_HIGHLIGHT),
         (" @ ", ThemeKey.WELCOME_INFO),
         (e.llm_config.provider_name, ThemeKey.WELCOME_INFO),
@@ -115,28 +128,28 @@ def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> R
 
     if e.llm_config.thinking is not None:
         if e.llm_config.thinking.reasoning_effort:
-            model_info.append_text(
+            panel_content.append_text(
                 Text.assemble(
                     ("\n• reasoning-effort: ", ThemeKey.WELCOME_INFO),
                     (e.llm_config.thinking.reasoning_effort, ThemeKey.WELCOME_HIGHLIGHT),
                 )
             )
         if e.llm_config.thinking.reasoning_summary:
-            model_info.append_text(
+            panel_content.append_text(
                 Text.assemble(
                     ("\n• reasoning-summary: ", ThemeKey.WELCOME_INFO),
                     (e.llm_config.thinking.reasoning_summary, ThemeKey.WELCOME_HIGHLIGHT),
                 )
             )
         if e.llm_config.thinking.budget_tokens:
-            model_info.append_text(
+            panel_content.append_text(
                 Text.assemble(
                     ("\n• thinking-budget: ", ThemeKey.WELCOME_INFO),
                     (str(e.llm_config.thinking.budget_tokens), ThemeKey.WELCOME_HIGHLIGHT),
                 )
             )
     if e.llm_config.verbosity:
-        model_info.append_text(
+        panel_content.append_text(
             Text.assemble(
                 ("\n• verbosity: ", ThemeKey.WELCOME_INFO), (str(e.llm_config.verbosity), ThemeKey.WELCOME_HIGHLIGHT)
             )
@@ -144,26 +157,26 @@ def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> R
 
     if pr := e.llm_config.provider_routing:
         if pr.sort:
-            model_info.append_text(
+            panel_content.append_text(
                 Text.assemble(
                     ("\n• provider-sort: ", ThemeKey.WELCOME_INFO), (str(pr.sort), ThemeKey.WELCOME_HIGHLIGHT)
                 )
             )
         if pr.only:
-            model_info.append_text(
+            panel_content.append_text(
                 Text.assemble(
                     ("\n• provider-only: ", ThemeKey.WELCOME_INFO), (">".join(pr.only), ThemeKey.WELCOME_HIGHLIGHT)
                 )
             )
         if pr.order:
-            model_info.append_text(
+            panel_content.append_text(
                 Text.assemble(
                     ("\n• provider-order: ", ThemeKey.WELCOME_INFO), (">".join(pr.order), ThemeKey.WELCOME_HIGHLIGHT)
                 )
             )
 
     return Group(
-        Panel.fit(model_info, border_style=ThemeKey.LINES, box=box_style),
+        Panel.fit(panel_content, border_style=ThemeKey.LINES, box=box_style),
         "",  # empty line
     )
 
