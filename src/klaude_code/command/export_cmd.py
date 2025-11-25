@@ -742,6 +742,21 @@ class ExportCommand(CommandABC):
             mermaid_html = self._get_mermaid_link_html(result.ui_extra)
 
             should_hide_text = tool_call.name == "TodoWrite" and result.status != "error"
+            
+            if (
+                tool_call.name == "Edit"
+                and not diff_text
+                and result.status != "error"
+            ):
+                # Try to detect file creation where old_string is empty and show it as diff
+                try:
+                    args_data = json.loads(tool_call.arguments)
+                    old_string = args_data.get("old_string", "")
+                    new_string = args_data.get("new_string", "")
+                    if old_string == "" and new_string:
+                        diff_text = "\n".join(f"+{line}" for line in new_string.splitlines())
+                except Exception:
+                    pass
 
             items_to_render: list[str] = []
 
