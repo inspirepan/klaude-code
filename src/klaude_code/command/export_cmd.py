@@ -380,6 +380,24 @@ class ExportCommand(CommandABC):
             border-color: var(--accent);
         }}
 
+        .copy-mermaid-btn {{
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-dim);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 2px 10px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: color 0.2s, border-color 0.2s, background 0.2s;
+            font-weight: 600;
+        }}
+        .copy-mermaid-btn:hover {{
+            color: var(--text);
+            border-color: var(--accent);
+        }}
+
         .assistant-rendered {{
             width: 100%;
         }}
@@ -744,6 +762,42 @@ class ExportCommand(CommandABC):
                 setState(nextState);
             }});
         }});
+
+        // Mermaid copy button
+        document.querySelectorAll('.copy-mermaid-btn').forEach(btn => {{
+            btn.addEventListener('click', async (e) => {{
+                e.stopPropagation();
+                const rawContent = btn.dataset.code;
+                if (!rawContent) return;
+                
+                try {{
+                    const textarea = document.createElement('textarea');
+                    textarea.innerHTML = rawContent;
+                    const decoded = textarea.value;
+                    
+                    await navigator.clipboard.writeText(decoded);
+                    
+                    const originalText = btn.textContent;
+                    btn.textContent = 'Copied!';
+                    btn.style.color = 'var(--success)';
+                    btn.style.borderColor = 'var(--success)';
+                    
+                    setTimeout(() => {{
+                        btn.textContent = originalText;
+                        btn.style.color = '';
+                        btn.style.borderColor = '';
+                    }}, 2000);
+                }} catch (err) {{
+                    console.error('Failed to copy:', err);
+                    btn.textContent = 'Error';
+                    btn.style.color = 'var(--error)';
+                    setTimeout(() => {{
+                        btn.textContent = 'Copy Code';
+                        btn.style.color = '';
+                    }}, 2000);
+                }}
+            }});
+        }});
     </script>
 </body>
 </html>"""
@@ -938,7 +992,7 @@ class ExportCommand(CommandABC):
 
         if result:
             diff_text = self._get_diff_text(result.ui_extra)
-            mermaid_html = self._get_mermaid_link_html(result.ui_extra)
+            mermaid_html = self._get_mermaid_link_html(result.ui_extra, tool_call)
 
             should_hide_text = tool_call.name == "TodoWrite" and result.status != "error"
 
@@ -1034,7 +1088,7 @@ class ExportCommand(CommandABC):
             return None
         return ui_extra.diff_text
 
-    def _get_mermaid_link_html(self, ui_extra: ToolResultUIExtra | None) -> str | None:
+    def _get_mermaid_link_html(self, ui_extra: ToolResultUIExtra | None, tool_call: ToolCallItem | None = None) -> str | None:
         if ui_extra is None:
             return None
         if ui_extra.type != ToolResultUIExtraType.MERMAID_LINK:
@@ -1043,9 +1097,25 @@ class ExportCommand(CommandABC):
             return None
         link = self._escape_html(ui_extra.mermaid_link.link)
         lines = ui_extra.mermaid_link.line_count
+
+        copy_btn = ""
+        if tool_call and tool_call.name == "Mermaid":
+            try:
+                import json
+                args = json.loads(tool_call.arguments)
+                code = args.get("code")
+                if code:
+                    escaped_code = self._escape_html(code)
+                    copy_btn = f'<button type="button" class="copy-mermaid-btn" data-code="{escaped_code}" title="Copy Mermaid Code">Copy Code</button>'
+            except Exception:
+                pass
+
         return (
             '<div style="display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono);">'
             f"<span>Lines: {lines}</span>"
-            f'<a href="{link}" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: underline;">View Diagram</a>'
+            f"<div>"
+            f"{copy_btn}"
+            f'<a href="{link}" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: underline; margin-left: 8px;">View Diagram</a>'
+            f"</div>"
             "</div>"
         )

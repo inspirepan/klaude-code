@@ -48,7 +48,6 @@ class MermaidTool(ToolABC):
                 "- Decision trees and conditional logic\n\n"
                 "# Styling\n"
                 '- When defining custom classDefs, always define fill color, stroke color, and text color ("fill", "stroke", "color") explicitly\n'
-                "- IMPORTANT!!! Use DARK fill colors (close to #000) with light stroke and text colors (close to #fff)"
             ),
             parameters={
                 "type": "object",
