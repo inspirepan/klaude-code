@@ -21,10 +21,17 @@ uv sync
 uv run klaude [--model <name>] [--select-model]
 ```
 
+**Options:**
+- `--version`/`-V`: Show version and exit.
 - `--model`/`-m`: Select a model by logical name from config.
 - `--select-model`/`-s`: Interactively choose a model at startup.
-- `--debug`/`-d`: Verbose logging and LLM trace.
 - `--continue`/`-c`: Resume the most recent session.
+- `--resume`/`-r`: Select a session to resume for this project.
+- `--vanilla`: Minimal mode with only basic tools (Bash, Read, Edit) and no system prompts.
+
+**Debug Options:**
+- `--debug`/`-d`: Enable debug mode with verbose logging and LLM trace.
+- `--debug-filter`: Filter debug output by type (comma-separated).
 
 
 ### Configuration

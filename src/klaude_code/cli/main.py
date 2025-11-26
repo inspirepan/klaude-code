@@ -16,6 +16,8 @@ import typer
 from rich.style import StyleType
 from rich.text import Text
 
+from importlib.metadata import version as pkg_version
+
 from klaude_code import ui
 from klaude_code.command.registry import is_interactive_command
 from klaude_code.config import config_path, load_config
@@ -469,6 +471,17 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         await cleanup_app_components(components)
 
 
+def _version_callback(value: bool) -> None:
+    """Show version and exit."""
+    if value:
+        try:
+            ver = pkg_version("klaude-code")
+        except Exception:
+            ver = "unknown"
+        print(f"klaude-code {ver}")
+        raise typer.Exit(0)
+
+
 app = typer.Typer(
     add_completion=False,
     pretty_exceptions_enable=False,
@@ -554,11 +567,18 @@ def exec_command(
         help="Interactively choose a model at startup",
         rich_help_panel="LLM",
     ),
-    debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
+    debug: bool = typer.Option(
+        False,
+        "--debug",
+        "-d",
+        help="Enable debug mode",
+        rich_help_panel="Debug",
+    ),
     debug_filter: str | None = typer.Option(
         None,
         "--debug-filter",
         help=DEBUG_FILTER_HELP,
+        rich_help_panel="Debug",
     ),
     vanilla: bool = typer.Option(
         False,
@@ -623,6 +643,14 @@ def exec_command(
 @app.callback(invoke_without_command=True)
 def main_callback(
     ctx: typer.Context,
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-V",
+        help="Show version and exit",
+        callback=_version_callback,
+        is_eager=True,
+    ),
     model: str | None = typer.Option(
         None,
         "--model",
@@ -639,11 +667,18 @@ def main_callback(
         help="Interactively choose a model at startup",
         rich_help_panel="LLM",
     ),
-    debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
+    debug: bool = typer.Option(
+        False,
+        "--debug",
+        "-d",
+        help="Enable debug mode",
+        rich_help_panel="Debug",
+    ),
     debug_filter: str | None = typer.Option(
         None,
         "--debug-filter",
         help=DEBUG_FILTER_HELP,
+        rich_help_panel="Debug",
     ),
     vanilla: bool = typer.Option(
         False,
