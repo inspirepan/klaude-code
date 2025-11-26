@@ -2,15 +2,20 @@ from __future__ import annotations
 
 import math
 import time
+from typing import TYPE_CHECKING
 
 from rich._spinners import SPINNERS
 from rich.color import Color
-from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
-from rich.style import Style
+from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
+from rich.status import Status
+from rich.style import Style, StyleType
 from rich.text import Text
 
 from klaude_code.config import constants as config_constants
 from klaude_code.ui.base.theme import ThemeKey
+
+if TYPE_CHECKING:
+    from rich.spinner import Spinner
 
 SPINNERS.update(
     {
@@ -124,3 +129,85 @@ def spinner_name() -> str:
 def render_status_text(main_text: str, main_style: ThemeKey) -> RenderableType:
     """Create animated status text with shimmer main text and hint suffix."""
     return ShimmerStatusText(main_text, main_style)
+
+
+class PaddedStatus:
+    """Wrapper around rich.Status that adds an empty line above the status."""
+
+    def __init__(
+        self,
+        console: Console,
+        status: RenderableType,
+        *,
+        spinner: str = "dots",
+        spinner_style: StyleType = "status.spinner",
+        speed: float = 1.0,
+        refresh_per_second: float = 12.5,
+    ) -> None:
+        self._console = console
+        self._status = Status(
+            status,
+            console=console,
+            spinner=spinner,
+            spinner_style=spinner_style,
+            speed=speed,
+            refresh_per_second=refresh_per_second,
+        )
+
+    @property
+    def renderable(self) -> RenderableType:
+        return Group(Text(), self._status.renderable)
+
+    @property
+    def console(self) -> Console:
+        return self._status.console
+
+    @property
+    def spinner(self) -> Spinner:
+        return self._status._spinner  # pyright: ignore[reportPrivateUsage]
+
+    def update(
+        self,
+        status: RenderableType | None = None,
+        *,
+        spinner: str | None = None,
+        spinner_style: StyleType | None = None,
+        speed: float | None = None,
+    ) -> None:
+        self._status.update(status, spinner=spinner, spinner_style=spinner_style, speed=speed)
+
+    def start(self) -> None:
+        self._status.start()
+
+    def stop(self) -> None:
+        self._status.stop()
+
+    def __rich__(self) -> RenderableType:
+        return self.renderable
+
+    def __enter__(self) -> PaddedStatus:
+        self.start()
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.stop()
+
+
+def create_status(
+    console: Console,
+    status: RenderableType,
+    *,
+    spinner: str = "dots",
+    spinner_style: StyleType = "status.spinner",
+    speed: float = 1.0,
+    refresh_per_second: float = 12.5,
+) -> PaddedStatus:
+    """Create a PaddedStatus that prints an empty line before starting."""
+    return PaddedStatus(
+        console,
+        status,
+        spinner=spinner,
+        spinner_style=spinner_style,
+        speed=speed,
+        refresh_per_second=refresh_per_second,
+    )
