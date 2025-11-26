@@ -5,8 +5,7 @@ import io
 import time
 from typing import Any, ClassVar
 
-from rich.console import (Console, ConsoleOptions, Group, RenderableType,
-                          RenderResult)
+from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.live import Live
 from rich.markdown import CodeBlock, Heading, Markdown
 from rich.rule import Rule

@@ -6,20 +6,28 @@ from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass, field
 from typing import Literal, Protocol, cast
 
-from klaude_code.config.constants import (CANCEL_OUTPUT, FIRST_EVENT_TIMEOUT_S,
-                                          INITIAL_RETRY_DELAY_S,
-                                          MAX_FAILED_TURN_RETRIES,
-                                          MAX_RETRY_DELAY_S)
+from klaude_code.config.constants import (
+    CANCEL_OUTPUT,
+    FIRST_EVENT_TIMEOUT_S,
+    INITIAL_RETRY_DELAY_S,
+    MAX_FAILED_TURN_RETRIES,
+    MAX_RETRY_DELAY_S,
+)
 from klaude_code.core.prompt import get_system_prompt as load_system_prompt
-from klaude_code.core.reminders import (Reminder, get_main_agent_reminders,
-                                        get_sub_agent_reminders,
-                                        get_vanilla_reminders)
+from klaude_code.core.reminders import (
+    Reminder,
+    get_main_agent_reminders,
+    get_sub_agent_reminders,
+    get_vanilla_reminders,
+)
 from klaude_code.core.sub_agent import get_sub_agent_profile, is_sub_agent_tool
 from klaude_code.core.tool.tool_context import current_session_var
-from klaude_code.core.tool.tool_registry import (get_main_agent_tools,
-                                                 get_registry,
-                                                 get_sub_agent_tools,
-                                                 get_vanilla_tools)
+from klaude_code.core.tool.tool_registry import (
+    get_main_agent_tools,
+    get_registry,
+    get_sub_agent_tools,
+    get_vanilla_tools,
+)
 from klaude_code.core.tool.tool_runner import run_tool
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.protocol import events, llm_parameter, model, tools

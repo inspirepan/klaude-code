@@ -22,9 +22,7 @@ from klaude_code.config import config_path, load_config
 from klaude_code.config.config import Config
 from klaude_code.config.list_model import display_models_and_providers
 from klaude_code.config.select_model import select_model_from_config
-from klaude_code.core.agent import (AgentLLMClients,
-                                    DefaultModelProfileProvider,
-                                    VanillaModelProfileProvider)
+from klaude_code.core.agent import AgentLLMClients, DefaultModelProfileProvider, VanillaModelProfileProvider
 from klaude_code.core.executor import Executor
 from klaude_code.core.sub_agent import iter_sub_agent_profiles
 from klaude_code.core.tool.skill_loader import SkillLoader
@@ -349,8 +347,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             model_name = agent.session.model_name or components.llm_clients.main.model_name
 
             # Count AssistantMessageItem and ToolCallItem in conversation history
-            from klaude_code.protocol.model import (AssistantMessageItem,
-                                                    ToolCallItem)
+            from klaude_code.protocol.model import AssistantMessageItem, ToolCallItem
 
             for item in agent.session.conversation_history:
                 if isinstance(item, AssistantMessageItem):

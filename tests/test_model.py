@@ -1,13 +1,9 @@
 from typing import Any, cast
 
-from klaude_code.llm.anthropic.input import \
-    convert_history_to_input as anthropic_history
-from klaude_code.llm.openai_compatible.input import \
-    convert_history_to_input as openai_history
-from klaude_code.llm.openrouter.input import \
-    convert_history_to_input as openrouter_history
-from klaude_code.llm.responses.input import \
-    convert_history_to_input as responses_history
+from klaude_code.llm.anthropic.input import convert_history_to_input as anthropic_history
+from klaude_code.llm.openai_compatible.input import convert_history_to_input as openai_history
+from klaude_code.llm.openrouter.input import convert_history_to_input as openrouter_history
+from klaude_code.llm.responses.input import convert_history_to_input as responses_history
 from klaude_code.protocol import model
 from klaude_code.protocol.model import group_response_items_gen
 

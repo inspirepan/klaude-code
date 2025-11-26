@@ -8,8 +8,7 @@ from typing import ClassVar
 from pydantic import BaseModel, Field
 
 from klaude_code.protocol import events, model
-from klaude_code.protocol.model import (ConversationItem, SubAgentState,
-                                        TodoItem)
+from klaude_code.protocol.model import ConversationItem, SubAgentState, TodoItem
 
 
 class Session(BaseModel):

@@ -5,8 +5,10 @@ from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaValue
 
 from klaude_code.config.constants import (
-    DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS, DEFAULT_MAX_TOKENS,
-    DEFAULT_TEMPERATURE)
+    DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_TEMPERATURE,
+)
 from klaude_code.protocol.model import ConversationItem
 
 

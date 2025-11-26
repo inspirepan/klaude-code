@@ -7,31 +7,26 @@ import anthropic
 import httpx
 from anthropic import RateLimitError
 from anthropic.types.beta.beta_input_json_delta import BetaInputJSONDelta
-from anthropic.types.beta.beta_raw_content_block_delta_event import \
-    BetaRawContentBlockDeltaEvent
-from anthropic.types.beta.beta_raw_content_block_start_event import \
-    BetaRawContentBlockStartEvent
-from anthropic.types.beta.beta_raw_content_block_stop_event import \
-    BetaRawContentBlockStopEvent
-from anthropic.types.beta.beta_raw_message_delta_event import \
-    BetaRawMessageDeltaEvent
-from anthropic.types.beta.beta_raw_message_start_event import \
-    BetaRawMessageStartEvent
+from anthropic.types.beta.beta_raw_content_block_delta_event import BetaRawContentBlockDeltaEvent
+from anthropic.types.beta.beta_raw_content_block_start_event import BetaRawContentBlockStartEvent
+from anthropic.types.beta.beta_raw_content_block_stop_event import BetaRawContentBlockStopEvent
+from anthropic.types.beta.beta_raw_message_delta_event import BetaRawMessageDeltaEvent
+from anthropic.types.beta.beta_raw_message_start_event import BetaRawMessageStartEvent
 from anthropic.types.beta.beta_signature_delta import BetaSignatureDelta
 from anthropic.types.beta.beta_text_delta import BetaTextDelta
 from anthropic.types.beta.beta_thinking_delta import BetaThinkingDelta
 from anthropic.types.beta.beta_tool_use_block import BetaToolUseBlock
 
-from klaude_code.llm.anthropic.input import (convert_history_to_input,
-                                             convert_system_to_input,
-                                             convert_tool_schema)
+from klaude_code.llm.anthropic.input import convert_history_to_input, convert_system_to_input, convert_tool_schema
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.registry import register
 from klaude_code.protocol import llm_parameter, model
-from klaude_code.protocol.llm_parameter import (LLMCallParameter,
-                                                LLMClientProtocol,
-                                                LLMConfigParameter,
-                                                apply_config_defaults)
+from klaude_code.protocol.llm_parameter import (
+    LLMCallParameter,
+    LLMClientProtocol,
+    LLMConfigParameter,
+    apply_config_defaults,
+)
 from klaude_code.protocol.model import StreamErrorItem
 from klaude_code.trace import DebugType, log_debug
 

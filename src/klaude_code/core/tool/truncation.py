@@ -3,10 +3,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
-from klaude_code.config.constants import (TOOL_OUTPUT_DISPLAY_HEAD,
-                                          TOOL_OUTPUT_DISPLAY_TAIL,
-                                          TOOL_OUTPUT_MAX_LENGTH,
-                                          TOOL_OUTPUT_TRUNCATION_DIR)
+from klaude_code.config.constants import (
+    TOOL_OUTPUT_DISPLAY_HEAD,
+    TOOL_OUTPUT_DISPLAY_TAIL,
+    TOOL_OUTPUT_MAX_LENGTH,
+    TOOL_OUTPUT_TRUNCATION_DIR,
+)
 
 
 @dataclass

@@ -13,12 +13,19 @@ from klaude_code.core import Agent
 from klaude_code.protocol.commands import CommandName
 from klaude_code.protocol.events import DeveloperMessageEvent
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import (AssistantMessageItem, CommandOutput,
-                                        ConversationItem, DeveloperMessageItem,
-                                        ReasoningEncryptedItem,
-                                        ReasoningTextItem, ToolCallItem,
-                                        ToolResultItem, ToolResultUIExtra,
-                                        ToolResultUIExtraType, UserMessageItem)
+from klaude_code.protocol.model import (
+    AssistantMessageItem,
+    CommandOutput,
+    ConversationItem,
+    DeveloperMessageItem,
+    ReasoningEncryptedItem,
+    ReasoningTextItem,
+    ToolCallItem,
+    ToolResultItem,
+    ToolResultUIExtra,
+    ToolResultUIExtraType,
+    UserMessageItem,
+)
 
 COLORS: Final[dict[str, str]] = {
     "bodyBg": "#09090b",  # Zinc 950
@@ -1088,7 +1095,9 @@ class ExportCommand(CommandABC):
             return None
         return ui_extra.diff_text
 
-    def _get_mermaid_link_html(self, ui_extra: ToolResultUIExtra | None, tool_call: ToolCallItem | None = None) -> str | None:
+    def _get_mermaid_link_html(
+        self, ui_extra: ToolResultUIExtra | None, tool_call: ToolCallItem | None = None
+    ) -> str | None:
         if ui_extra is None:
             return None
         if ui_extra.type != ToolResultUIExtraType.MERMAID_LINK:
@@ -1102,6 +1111,7 @@ class ExportCommand(CommandABC):
         if tool_call and tool_call.name == "Mermaid":
             try:
                 import json
+
                 args = json.loads(tool_call.arguments)
                 code = args.get("code")
                 if code:

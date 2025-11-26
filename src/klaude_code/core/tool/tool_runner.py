@@ -2,10 +2,13 @@ import asyncio
 
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.truncation import truncate_tool_output
-from klaude_code.protocol.model import (ToolCallItem, ToolResultItem,
-                                        ToolResultUIExtra,
-                                        ToolResultUIExtraType,
-                                        TruncationUIExtra)
+from klaude_code.protocol.model import (
+    ToolCallItem,
+    ToolResultItem,
+    ToolResultUIExtra,
+    ToolResultUIExtraType,
+    TruncationUIExtra,
+)
 
 
 async def run_tool(tool_call: ToolCallItem, registry: dict[str, type[ToolABC]]) -> ToolResultItem:

@@ -6,11 +6,16 @@ from typing import Any
 from openai.types import responses
 
 from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import (AssistantMessageItem, ConversationItem,
-                                        DeveloperMessageItem,
-                                        ReasoningEncryptedItem,
-                                        ReasoningTextItem, ToolCallItem,
-                                        ToolResultItem, UserMessageItem)
+from klaude_code.protocol.model import (
+    AssistantMessageItem,
+    ConversationItem,
+    DeveloperMessageItem,
+    ReasoningEncryptedItem,
+    ReasoningTextItem,
+    ToolCallItem,
+    ToolResultItem,
+    UserMessageItem,
+)
 
 
 def _build_user_content_parts(user: UserMessageItem) -> list[responses.ResponseInputContentParam]:

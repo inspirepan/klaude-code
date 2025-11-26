@@ -9,18 +9,25 @@ from openai.types import responses
 
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.registry import register
-from klaude_code.llm.responses.input import (convert_history_to_input,
-                                             convert_tool_schema)
-from klaude_code.protocol.llm_parameter import (LLMCallParameter,
-                                                LLMClientProtocol,
-                                                LLMConfigParameter,
-                                                apply_config_defaults)
-from klaude_code.protocol.model import (AssistantMessageDelta,
-                                        AssistantMessageItem, ConversationItem,
-                                        ReasoningEncryptedItem,
-                                        ReasoningTextItem,
-                                        ResponseMetadataItem, StartItem,
-                                        StreamErrorItem, ToolCallItem, Usage)
+from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
+from klaude_code.protocol.llm_parameter import (
+    LLMCallParameter,
+    LLMClientProtocol,
+    LLMConfigParameter,
+    apply_config_defaults,
+)
+from klaude_code.protocol.model import (
+    AssistantMessageDelta,
+    AssistantMessageItem,
+    ConversationItem,
+    ReasoningEncryptedItem,
+    ReasoningTextItem,
+    ResponseMetadataItem,
+    StartItem,
+    StreamErrorItem,
+    ToolCallItem,
+    Usage,
+)
 from klaude_code.trace import DebugType, log_debug
 
 P = ParamSpec("P")

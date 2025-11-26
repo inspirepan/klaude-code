@@ -7,12 +7,14 @@ import yaml
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from klaude_code.core.sub_agent import iter_sub_agent_profiles
-from klaude_code.protocol.llm_parameter import (LLMClientProtocol,
-                                                LLMConfigModelParameter,
-                                                LLMConfigParameter,
-                                                LLMConfigProviderParameter,
-                                                OpenRouterProviderRouting,
-                                                Thinking)
+from klaude_code.protocol.llm_parameter import (
+    LLMClientProtocol,
+    LLMConfigModelParameter,
+    LLMConfigParameter,
+    LLMConfigProviderParameter,
+    OpenRouterProviderRouting,
+    Thinking,
+)
 from klaude_code.trace import log
 
 config_path = Path.home() / ".klaude" / "klaude-config.yaml"

@@ -21,14 +21,15 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
 
 from klaude_code.command import get_commands
-from klaude_code.core.clipboard_manifest import (CLIPBOARD_IMAGES_DIR,
-                                                 ClipboardManifest,
-                                                 ClipboardManifestEntry,
-                                                 next_session_token,
-                                                 persist_clipboard_manifest)
+from klaude_code.core.clipboard_manifest import (
+    CLIPBOARD_IMAGES_DIR,
+    ClipboardManifest,
+    ClipboardManifestEntry,
+    next_session_token,
+    persist_clipboard_manifest,
+)
 from klaude_code.ui.base.input_abc import InputProviderABC
-from klaude_code.ui.base.utils import (get_current_git_branch,
-                                       show_path_with_tilde)
+from klaude_code.ui.base.utils import get_current_git_branch, show_path_with_tilde
 
 
 class REPLStatusSnapshot(NamedTuple):
