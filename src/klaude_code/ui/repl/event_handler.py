@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable
 
+from klaude_code.config.constants import UI_REFRESH_RATE_FPS
 from klaude_code.protocol import events
 from klaude_code.ui.base.debouncer import Debouncer
 from klaude_code.ui.base.progress_bar import OSC94States, emit_osc94
@@ -42,7 +43,9 @@ class DisplayEventHandler:
     def __init__(self, renderer: REPLRenderer, notifier: TerminalNotifier | None = None):
         self.renderer = renderer
         self.notifier = notifier
-        self.assistant_stream = StreamState(interval=1 / 10, flush_handler=self._flush_assistant_buffer)
+        self.assistant_stream = StreamState(
+            interval=1 / UI_REFRESH_RATE_FPS, flush_handler=self._flush_assistant_buffer
+        )
 
         self.stage_manager = StageManager(
             finish_assistant=self.finish_assistant_stream,
@@ -144,9 +147,7 @@ class DisplayEventHandler:
                 if self.renderer.is_sub_agent_session(tool_result_event.session_id):
                     return
                 await self.stage_manager.transition_to(Stage.TOOL_RESULT)
-                self.renderer.spinner.stop()
                 self.renderer.display_tool_call_result(tool_result_event)
-                self.renderer.spinner.start()
             case events.ResponseMetadataEvent() as metadata_event:
                 with self.renderer.session_print_context(metadata_event.session_id):
                     self.renderer.print(r_metadata.render_response_metadata(metadata_event))
@@ -185,15 +186,14 @@ class DisplayEventHandler:
             case events.ErrorEvent() as error_event:
                 emit_osc94(OSC94States.ERROR)
                 await self.stage_manager.transition_to(Stage.WAITING)
-                self.renderer.spinner.stop()
                 self.renderer.print(
                     r_errors.render_error(
                         self.renderer.console.render_str(truncate_display(error_event.error_message)),
                         indent=0,
                     )
                 )
-                if error_event.can_retry:
-                    self.renderer.spinner.start()
+                if not error_event.can_retry:
+                    self.renderer.spinner.stop()
             case events.EndEvent():
                 emit_osc94(OSC94States.HIDDEN)
                 await self.stage_manager.transition_to(Stage.WAITING)

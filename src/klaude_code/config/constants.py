@@ -97,6 +97,20 @@ TRUNCATE_DISPLAY_MAX_LINES = 10
 SUB_AGENT_RESULT_MAX_LINES = 12
 
 
+# UI refresh rate (frames per second) for debounced content streaming
+UI_REFRESH_RATE_FPS = 5
+
+# Status shimmer animation
+# Horizontal padding used when computing shimmer band position
+STATUS_SHIMMER_PADDING = 10
+# Duration in seconds for one full shimmer sweep across the text
+STATUS_SHIMMER_SWEEP_SECONDS = 1.5
+# Half-width of the shimmer band in characters
+STATUS_SHIMMER_BAND_HALF_WIDTH = 3.0
+# Scale factor applied to shimmer intensity when blending colors
+STATUS_SHIMMER_ALPHA_SCALE = 0.7
+
+
 # =============================================================================
 # Debug / Logging
 # =============================================================================

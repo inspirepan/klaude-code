@@ -277,8 +277,8 @@ class MarkdownStream:
         if final or not self.spinner:
             return rest
         else:
-            ellipsis = Text("  ...", style=ThemeKey.STATUS_HINT)
-            return Group(rest, ellipsis, Text(), self.spinner)
+            ellipsis = Text(" ...", style=ThemeKey.STATUS_HINT)
+            return Group(rest.append(ellipsis), Text(), self.spinner)
 
     def find_minimal_suffix(self, text: str, match_lines: int = 50) -> None:
         """
