@@ -40,8 +40,8 @@ LIGHT_PALETTE = Palette(
     grey3="#c4ced4",
     grey_green="#96a696",
     purple="slate_blue3",
-    diff_add="#333333 on #69db7c",
-    diff_remove="#333333 on #ffa8b4",
+    diff_add="#2e5a32 on #e8f5e9",
+    diff_remove="#5a2e32 on #ffebee",
     code_theme="ansi_light",
     text_background="#f0f0f0",
 )
@@ -60,8 +60,8 @@ DARK_PALETTE = Palette(
     grey3="#646464",
     grey_green="#6d8672",
     purple="#afbafe",
-    diff_add="#ffffff on #007938",
-    diff_remove="#ffffff on #a1223b",
+    diff_add="#c8e6c9 on #2e4a32",
+    diff_remove="#ffcdd2 on #4a2e32",
     code_theme="ansi_dark",
     text_background="#2f3440",
 )
