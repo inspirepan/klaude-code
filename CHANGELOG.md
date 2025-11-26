@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.5] - 2025-11-26
+
+### Added
+
+- add shimmer animation effect to status text (`0a9e3f9`)
+- add copy button for Mermaid code (`fb3565f`)
+
+### Changed
+
+- update marker character (`5cae7a3`)
+- remove unused Rule import and grid line separator (`3b47ed3`)
+- use softer diff highlight colors (`7b3684f`)
+- use tree-style prefixes for welcome panel config items (`9dd5460`)
+
+### Fixed
+
+- change default spinner name from 'copilot' to 'claude' (`05d4c31`)
+- reduce flicker during spinner-to-stream transition (`b4c3055`)
+- reduce maximum lines for sub-agent result display from 30 to 12 (`49d92f2`)
+- cursor disappears after double ctrl+c in Ghostty (`b86b753`)
+
+### Other
+
+- format imports (`3beefa9`)
 ## [1.0.4] - 2025-11-25
 
 ### Added
@@ -54,7 +78,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/user/klaude-code/compare/v1.0.4...HEAD
+[Unreleased]: https://github.com/user/klaude-code/compare/v1.0.5...HEAD
+[1.0.5]: https://github.com/user/klaude-code/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/user/klaude-code/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/user/klaude-code/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/user/klaude-code/compare/v1.0.1...v1.0.2
