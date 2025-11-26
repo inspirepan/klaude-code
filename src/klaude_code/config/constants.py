@@ -94,7 +94,7 @@ TRUNCATE_DISPLAY_MAX_LINE_LENGTH = 1000
 TRUNCATE_DISPLAY_MAX_LINES = 10
 
 # Maximum lines for sub-agent result display
-SUB_AGENT_RESULT_MAX_LINES = 30
+SUB_AGENT_RESULT_MAX_LINES = 12
 
 
 # =============================================================================
