@@ -103,7 +103,7 @@ class DisplayEventHandler:
                         mdargs={"code_theme": self.renderer.themes.code_theme},
                         theme=self.renderer.themes.markdown_theme,
                         console=self.renderer.console,
-                        spinner=self.renderer.spinner.spinner,
+                        spinner=self.renderer.spinner.renderable,
                         mark="⏺",
                         indent=2,
                     )

@@ -9,6 +9,7 @@ from rich import box
 from rich.box import Box
 from rich.console import Console
 from rich.padding import Padding
+from rich.status import Status
 from rich.style import Style, StyleType
 from rich.text import Text
 
@@ -24,7 +25,6 @@ from klaude_code.ui.renderers import sub_agent as r_sub_agent
 from klaude_code.ui.renderers import tools as r_tools
 from klaude_code.ui.renderers import user_input as r_user_input
 from klaude_code.ui.renderers.common import create_grid, truncate_display
-from klaude_code.ui.renderers.status import PaddedStatus
 from klaude_code.ui.rich_ext.markdown import NoInsetMarkdown
 from klaude_code.ui.rich_ext.quote import Quote
 
@@ -42,8 +42,7 @@ class REPLRenderer:
         self.themes = get_theme(theme)
         self.console: Console = Console(theme=self.themes.app_theme)
         self.console.push_theme(self.themes.markdown_theme)
-        self.spinner: PaddedStatus = r_status.create_status(
-            self.console,
+        self.spinner: Status = self.console.status(
             r_status.render_status_text("Thinking …", ThemeKey.SPINNER_STATUS_TEXT),
             spinner=r_status.spinner_name(),
             spinner_style=ThemeKey.SPINNER_STATUS,
