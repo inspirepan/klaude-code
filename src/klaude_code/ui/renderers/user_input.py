@@ -1,7 +1,6 @@
 import re
 
 from rich.console import Group, RenderableType
-from rich.rule import Rule
 from rich.text import Text
 
 from klaude_code.protocol.commands import CommandName
@@ -63,7 +62,6 @@ def render_user_input(content: str) -> RenderableType:
         renderables.append(line_text)
     grid = create_grid()
     grid.add_row(Text("❯", style=ThemeKey.USER_INPUT_PROMPT), Group(*renderables))
-    grid.add_row(Text(" "), Rule(style=ThemeKey.LINES, characters="-"))
     return grid
 
 
