@@ -8,6 +8,7 @@ from typing import Any, ClassVar
 from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.live import Live
 from rich.markdown import CodeBlock, Heading, Markdown
+from rich.panel import Panel
 from rich.rule import Rule
 from rich.spinner import Spinner
 from rich.style import Style
@@ -28,9 +29,9 @@ class NoInsetCodeBlock(CodeBlock):
             self.lexer_name,
             theme=self.theme,
             word_wrap=True,
-            padding=(1, 0),
+            padding=(0, 1),
         )
-        yield syntax
+        yield Panel.fit(syntax, padding=0, border_style="markdown.code.panel")
 
 
 class LeftHeading(Heading):

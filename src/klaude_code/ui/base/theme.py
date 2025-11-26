@@ -227,6 +227,7 @@ def get_theme(theme: str | None = None) -> Themes:
         markdown_theme=Theme(
             styles={
                 "markdown.code": palette.purple,
+                "markdown.code.panel": palette.grey3,
                 "markdown.h1": "bold reverse",
                 "markdown.h1.border": palette.grey3,
                 "markdown.h2.border": palette.grey3,
@@ -240,6 +241,7 @@ def get_theme(theme: str | None = None) -> Themes:
         thinking_markdown_theme=Theme(
             styles={
                 "markdown.code": palette.grey1 + " on " + palette.text_background,
+                "markdown.code.panel": palette.grey3,
                 "markdown.h1": "bold reverse",
                 "markdown.h1.border": palette.grey3,
                 "markdown.h2.border": palette.grey3,
