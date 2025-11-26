@@ -126,52 +126,38 @@ def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> R
         (e.llm_config.provider_name, ThemeKey.WELCOME_INFO),
     )
 
+    # Collect all config items to display
+    config_items: list[tuple[str, str]] = []
+
     if e.llm_config.thinking is not None:
         if e.llm_config.thinking.reasoning_effort:
-            panel_content.append_text(
-                Text.assemble(
-                    ("\n✔ reasoning-effort: ", ThemeKey.WELCOME_INFO),
-                    (e.llm_config.thinking.reasoning_effort, ThemeKey.WELCOME_INFO),
-                )
-            )
+            config_items.append(("reasoning-effort", e.llm_config.thinking.reasoning_effort))
         if e.llm_config.thinking.reasoning_summary:
-            panel_content.append_text(
-                Text.assemble(
-                    ("\n✔ reasoning-summary: ", ThemeKey.WELCOME_INFO),
-                    (e.llm_config.thinking.reasoning_summary, ThemeKey.WELCOME_INFO),
-                )
-            )
+            config_items.append(("reasoning-summary", e.llm_config.thinking.reasoning_summary))
         if e.llm_config.thinking.budget_tokens:
-            panel_content.append_text(
-                Text.assemble(
-                    ("\n✔ thinking-budget: ", ThemeKey.WELCOME_INFO),
-                    (str(e.llm_config.thinking.budget_tokens), ThemeKey.WELCOME_INFO),
-                )
-            )
+            config_items.append(("thinking-budget", str(e.llm_config.thinking.budget_tokens)))
+
     if e.llm_config.verbosity:
-        panel_content.append_text(
-            Text.assemble(
-                ("\n✔ verbosity: ", ThemeKey.WELCOME_INFO), (str(e.llm_config.verbosity), ThemeKey.WELCOME_INFO)
-            )
-        )
+        config_items.append(("verbosity", str(e.llm_config.verbosity)))
 
     if pr := e.llm_config.provider_routing:
         if pr.sort:
-            panel_content.append_text(
-                Text.assemble(("\n✔ provider-sort: ", ThemeKey.WELCOME_INFO), (str(pr.sort), ThemeKey.WELCOME_INFO))
-            )
+            config_items.append(("provider-sort", str(pr.sort)))
         if pr.only:
-            panel_content.append_text(
-                Text.assemble(
-                    ("\n✔ provider-only: ", ThemeKey.WELCOME_INFO), (">".join(pr.only), ThemeKey.WELCOME_INFO)
-                )
-            )
+            config_items.append(("provider-only", ">".join(pr.only)))
         if pr.order:
-            panel_content.append_text(
-                Text.assemble(
-                    ("\n✔ provider-order: ", ThemeKey.WELCOME_INFO), (">".join(pr.order), ThemeKey.WELCOME_INFO)
-                )
+            config_items.append(("provider-order", ">".join(pr.order)))
+
+    # Render config items with tree-style prefixes
+    for i, (key, value) in enumerate(config_items):
+        is_last = i == len(config_items) - 1
+        prefix = "└─ " if is_last else "├─ "
+        panel_content.append_text(
+            Text.assemble(
+                (f"\n{prefix}{key}: ", ThemeKey.WELCOME_INFO),
+                (value, ThemeKey.WELCOME_INFO),
             )
+        )
 
     return Group(
         Panel.fit(panel_content, border_style=ThemeKey.LINES, box=box_style),

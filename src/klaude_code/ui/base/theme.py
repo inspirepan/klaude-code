@@ -209,7 +209,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TODO_IN_PROGRESS.value: "bold " + palette.blue,
                 ThemeKey.TODO_NEW_COMPLETED.value: "bold strike " + palette.green,
                 # WELCOME
-                ThemeKey.WELCOME_HIGHLIGHT_BOLD.value: "bold " + palette.blue,
+                ThemeKey.WELCOME_HIGHLIGHT_BOLD.value: "bold",
                 ThemeKey.WELCOME_HIGHLIGHT.value: palette.blue,
                 ThemeKey.WELCOME_INFO.value: palette.grey1,
                 # RESUME
