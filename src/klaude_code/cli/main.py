@@ -271,13 +271,31 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
 
 async def cleanup_app_components(components: AppComponents) -> None:
     """Clean up all application components."""
-    # Clean shutdown
-    await components.executor.stop()
-    components.executor_task.cancel()
+    try:
+        # Clean shutdown
+        await components.executor.stop()
+        components.executor_task.cancel()
 
-    # Signal UI to stop
-    await components.event_queue.put(EndEvent())
-    await components.display_task
+        # Signal UI to stop
+        await components.event_queue.put(EndEvent())
+        await components.display_task
+    finally:
+        # Always attempt to clear Ghostty progress bar and restore cursor visibility
+        try:
+            emit_osc94(OSC94States.HIDDEN)
+        except Exception:
+            # Best-effort only; never fail cleanup due to OSC errors
+            pass
+
+        try:
+            # Ensure the terminal cursor is visible even if Rich's Status spinner
+            # did not get a chance to stop cleanly (e.g. on KeyboardInterrupt).
+            stream = getattr(sys, "__stdout__", None) or sys.stdout
+            stream.write("\033[?25h")
+            stream.flush()
+        except Exception:
+            # If this fails the shell can still recover via `reset`/`stty sane`.
+            pass
 
 
 async def run_exec(init_config: AppInitConfig, input_content: str) -> None:

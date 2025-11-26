@@ -28,3 +28,9 @@ class REPLDisplay(DisplayABC):
     @override
     async def stop(self) -> None:
         await self.event_handler.stop()
+        # Ensure any active spinner is stopped so Rich restores the cursor.
+        try:
+            self.renderer.spinner.stop()
+        except Exception:
+            # Spinner may already be stopped or not started; ignore.
+            pass
