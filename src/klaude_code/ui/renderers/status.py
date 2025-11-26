@@ -118,7 +118,7 @@ class ShimmerStatusText:
 
 
 def spinner_name() -> str:
-    return "copilot"
+    return "claude"
 
 
 def render_status_text(main_text: str, main_style: ThemeKey) -> RenderableType:
