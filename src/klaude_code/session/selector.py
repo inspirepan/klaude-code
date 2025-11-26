@@ -31,12 +31,11 @@ def resume_select_session() -> str | None:
             model_display = s.model_name or "N/A"
 
             title = [
-                ("class:d", f"{_fmt(s.created_at):<16} "),
                 ("class:d", f"{_fmt(s.updated_at):<16} "),
                 ("class:b", f"{msg_count_display:>3}  "),
                 (
                     "class:t",
-                    f"{model_display[:14] + '…' if len(model_display) > 14 else model_display:<15}  ",
+                    f"{model_display[:29] + '…' if len(model_display) > 29 else model_display:<30}  ",
                 ),
                 (
                     "class:t",
@@ -45,7 +44,7 @@ def resume_select_session() -> str | None:
             ]
             choices.append(questionary.Choice(title=title, value=s.id))
         return questionary.select(
-            message=f"{' Created at':<17} {'Updated at':<16} {'Msg':>3}  {'Model':<15}  {'First message':<50}",
+            message=f"{' Updated at':<17} {'Msg':>3}  {'Model':<30}  {'First message':<50}",
             choices=choices,
             pointer="→",
             instruction="↑↓ to move",
@@ -65,7 +64,7 @@ def resume_select_session() -> str | None:
             model_display = s.model_name or "N/A"
             print(
                 f"{i}. {_fmt(s.updated_at)}  {msg_count_display:>3} "
-                f"{model_display[:14] + '…' if len(model_display) > 14 else model_display:<15} {s.id}  {s.work_dir}"
+                f"{model_display[:29] + '…' if len(model_display) > 29 else model_display:<30} {s.id}  {s.work_dir}"
             )
         try:
             raw = input("Select a session number: ").strip()

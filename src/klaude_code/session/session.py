@@ -147,8 +147,10 @@ class Session(BaseModel):
                     # Best-effort load; skip malformed lines
                     continue
             sess.conversation_history = history
-            # Update messages count based on loaded history
-            sess.messages_count = len(history)
+            # Update messages count based on loaded history (only UserMessageItem and AssistantMessageItem)
+            sess.messages_count = sum(
+                1 for it in history if isinstance(it, (model.UserMessageItem, model.AssistantMessageItem))
+            )
 
         return sess
 
@@ -182,8 +184,10 @@ class Session(BaseModel):
     def append_history(self, items: Sequence[ConversationItem]):
         # Append to in-memory history
         self.conversation_history.extend(items)
-        # Update messages count
-        self.messages_count = len(self.conversation_history)
+        # Update messages count (only UserMessageItem and AssistantMessageItem)
+        self.messages_count += sum(
+            1 for it in items if isinstance(it, (model.UserMessageItem, model.AssistantMessageItem))
+        )
 
         # Incrementally persist to JSONL under messages directory
         messages_dir = self._messages_dir()
