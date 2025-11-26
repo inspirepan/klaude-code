@@ -42,7 +42,7 @@ class DisplayEventHandler:
     def __init__(self, renderer: REPLRenderer, notifier: TerminalNotifier | None = None):
         self.renderer = renderer
         self.notifier = notifier
-        self.assistant_stream = StreamState(interval=1 / 20, flush_handler=self._flush_assistant_buffer)
+        self.assistant_stream = StreamState(interval=1 / 10, flush_handler=self._flush_assistant_buffer)
 
         self.stage_manager = StageManager(
             finish_assistant=self.finish_assistant_stream,
@@ -94,10 +94,8 @@ class DisplayEventHandler:
                     return
                 if len(assistant_delta.content.strip()) == 0 and self.stage_manager.current_stage != Stage.ASSISTANT:
                     return
-                self.renderer.spinner.stop()
-                await self.stage_manager.transition_to(Stage.ASSISTANT)
-                self.assistant_stream.append(assistant_delta.content)
-                if self.assistant_stream.mdstream is None:
+                first_delta = self.assistant_stream.mdstream is None
+                if first_delta:
                     self.assistant_stream.mdstream = MarkdownStream(
                         mdargs={"code_theme": self.renderer.themes.code_theme},
                         theme=self.renderer.themes.markdown_theme,
@@ -106,6 +104,14 @@ class DisplayEventHandler:
                         mark="⏺",
                         indent=2,
                     )
+                self.assistant_stream.append(assistant_delta.content)
+                if first_delta and self.assistant_stream.mdstream is not None:
+                    # Stop spinner and immediately start MarkdownStream's Live
+                    # to avoid flicker. The update() call starts the Live with
+                    # the spinner embedded, providing seamless transition.
+                    self.renderer.spinner.stop()
+                    self.assistant_stream.mdstream.update(self.assistant_stream.buffer)
+                await self.stage_manager.transition_to(Stage.ASSISTANT)
                 self.assistant_stream.debouncer.schedule()
             case events.AssistantMessageEvent() as assistant_event:
                 if self.renderer.is_sub_agent_session(assistant_event.session_id):

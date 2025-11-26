@@ -15,6 +15,8 @@ from rich.syntax import Syntax
 from rich.text import Text
 from rich.theme import Theme
 
+from klaude_code.ui.base.theme import ThemeKey
+
 
 class NoInsetCodeBlock(CodeBlock):
     """A code block with syntax highlighting and no padding."""
@@ -112,6 +114,10 @@ class MarkdownStream:
         self.mark: str | None = mark
         self.indent: int = max(indent, 0)
 
+        # Defer Live creation until the first update
+        self.live: Live | None = None
+        self._live_started: bool = False
+
     def _render_markdown_to_lines(self, text: str) -> list[str]:
         """Render markdown text to a list of lines.
 
@@ -194,12 +200,13 @@ class MarkdownStream:
         Markdown going to the console works better in terminal scrollback buffers.
         The live window doesn't play nice with terminal scrollback.
         """
-        # On the first call, stop the spinner and start the Live renderer
-        if not getattr(self, "_live_started", False):
+        # On the first call, start the Live renderer
+        if not self._live_started:
+            initial_content = self._live_renderable(Text(""), final=False)
             self.live = Live(
-                Text(""),
+                initial_content,
                 refresh_per_second=1.0 / self.min_delay,
-                console=self.console,  # Use external console if provided
+                console=self.console,
             )
             self.live.start()
             self._live_started = True
@@ -270,7 +277,8 @@ class MarkdownStream:
         if final or not self.spinner:
             return rest
         else:
-            return Group(rest, Text(), self.spinner)
+            ellipsis = Text("  ...", style=ThemeKey.STATUS_HINT)
+            return Group(rest, ellipsis, Text(), self.spinner)
 
     def find_minimal_suffix(self, text: str, match_lines: int = 50) -> None:
         """
