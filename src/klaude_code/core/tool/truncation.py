@@ -96,7 +96,7 @@ class SmartTruncationStrategy(TruncationStrategy):
         if saved_file_path:
             header = (
                 f"<system-reminder>Output truncated: {truncated_length} chars hidden. "
-                f"Full output saved to {saved_file_path}. "
+                f"Full tool output saved to {saved_file_path}. "
                 f"Use Read with limit+offset or rg/grep to inspect.\n"
                 f"Showing first {self.head_chars} and last {self.tail_chars} chars:</system-reminder>\n\n"
             )

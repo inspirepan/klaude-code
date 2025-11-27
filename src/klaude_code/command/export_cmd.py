@@ -501,6 +501,14 @@ class ExportCommand(CommandABC):
             padding: 2px 4px;
             border-radius: 4px;
         }}
+        .markdown-body pre code {{
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+        }}
+        .markdown-body pre code.hljs {{
+            background: transparent;
+        }}
         .markdown-body p {{ margin-bottom: 12px; }}
         .markdown-body > *:first-child {{ margin-top: 0; }}
         .markdown-body > *:last-child {{ margin-bottom: 0; }}
@@ -685,13 +693,23 @@ class ExportCommand(CommandABC):
         </div>
     </div>
 
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
-        // Markdown rendering
+        // Markdown rendering and Syntax Highlighting
         document.querySelectorAll('.markdown-content').forEach((el) => {{
             const raw = el.dataset.raw;
             if (raw && window.marked) {{
+                // 1. Render Markdown
                 el.innerHTML = window.marked.parse(raw);
+                
+                // 2. Apply Syntax Highlighting to generated code blocks
+                if (window.hljs) {{
+                    el.querySelectorAll('pre code').forEach((block) => {{
+                        hljs.highlightElement(block);
+                    }});
+                }}
             }}
         }});
 

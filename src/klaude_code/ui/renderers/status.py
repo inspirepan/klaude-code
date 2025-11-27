@@ -3,19 +3,18 @@ from __future__ import annotations
 import math
 import time
 
+import rich.status as rich_status
 from rich._spinners import SPINNERS
 from rich.color import Color
 from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
 from rich.spinner import Spinner as RichSpinner
-from rich.table import Table
 from rich.style import Style
+from rich.table import Table
 from rich.text import Text
-import rich.status as rich_status
 
 from klaude_code.config import constants as config_constants
 from klaude_code.ui.base.terminal_color import get_last_terminal_background_rgb
 from klaude_code.ui.base.theme import ThemeKey
-
 
 BREATHING_SPINNER_NAME = "dot"
 

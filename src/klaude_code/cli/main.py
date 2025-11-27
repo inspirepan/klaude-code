@@ -10,13 +10,12 @@ import time
 import tty
 import uuid
 from dataclasses import dataclass
+from importlib.metadata import version as pkg_version
 from typing import Any, Protocol
 
 import typer
 from rich.style import StyleType
 from rich.text import Text
-
-from importlib.metadata import version as pkg_version
 
 from klaude_code import ui
 from klaude_code.command.registry import is_interactive_command
