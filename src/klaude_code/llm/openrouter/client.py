@@ -272,7 +272,9 @@ class OpenRouterClient(LLMClientABC):
         first_token_time: float | None = None
         last_token_time: float | None = None
 
-        extra_body = {}
+        extra_body: dict[str, object] = {
+            "usage": {"include": True}  # To get the cache tokens at the end of the response
+        }
         extra_headers = {}
 
         if param.thinking:

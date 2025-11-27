@@ -2,6 +2,9 @@
 # pyright: reportArgumentType=false
 # pyright: reportUnknownMemberType=false
 # pyright: reportAttributeAccessIssue=false
+# pyright: reportAssignmentType=false
+# pyright: reportUnnecessaryIsInstance=false
+# pyright: reportGeneralTypeIssues=false
 
 from openai.types import chat
 
@@ -36,15 +39,32 @@ def convert_history_to_input(
         system: System message.
         model_name: Model name. Used to verify that signatures are valid for the same model.
     """
+    use_cache_control = is_claude_model(model_name)
+
     messages: list[chat.ChatCompletionMessageParam] = (
         [
             {
                 "role": "system",
-                "content": system,
+                "content": [
+                    {
+                        "type": "text",
+                        "text": system,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
             }
         ]
-        if system
-        else []
+        if system and use_cache_control
+        else (
+            [
+                {
+                    "role": "system",
+                    "content": system,
+                }
+            ]
+            if system
+            else []
+        )
     )
 
     for group_kind, group in group_response_items_gen(history):
@@ -132,6 +152,18 @@ def convert_history_to_input(
                 messages.append(assistant_message)
             case "other":
                 pass
+
+    # Add cache_control to the last user or tool message for Claude models
+    if use_cache_control and len(messages) > 0:
+        for msg in reversed(messages):
+            role = msg.get("role")
+            if role in ("user", "tool"):
+                content = msg.get("content")
+                if isinstance(content, list) and len(content) > 0:
+                    last_part = content[-1]
+                    if isinstance(last_part, dict) and last_part.get("type") == "text":
+                        last_part["cache_control"] = {"type": "ephemeral"}
+                break
 
     return messages
 
