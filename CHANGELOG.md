@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.6] - 2025-11-27
+
+### Added
+
+- add syntax highlighting to markdown code blocks (`65e7c19`)
+- add breathing spinner animation and improve streaming stability (`a778c63`)
+- add --version option and organize help panels (`27e3d22`)
+- add PaddedStatus wrapper for improved status display (`62a55d1`)
+
+### Fixed
+
+- update spinner animation duration and color for consistency (`ab2ff3e`)
+- remove ellipsis in stream markdown (`b29e88d`)
+- improve streaming stability (`bfa064a`)
+- improve session selector UI and fix message count calculation (`8fada4a`)
+- improve markdown code block styling with panel (`5e3181e`)
+
+### Other
+
+- Revert "feat(ui): add PaddedStatus wrapper for improved status display" (`63b06af`)
 ## [1.0.5] - 2025-11-26
 
 ### Added
@@ -78,7 +98,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/user/klaude-code/compare/v1.0.5...HEAD
+[Unreleased]: https://github.com/user/klaude-code/compare/v1.0.6...HEAD
+[1.0.6]: https://github.com/user/klaude-code/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/user/klaude-code/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/user/klaude-code/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/user/klaude-code/compare/v1.0.2...v1.0.3
