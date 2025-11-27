@@ -154,7 +154,9 @@ def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> R
         prefix = "└─ " if is_last else "├─ "
         panel_content.append_text(
             Text.assemble(
-                (f"\n{prefix}{key}: ", ThemeKey.WELCOME_INFO),
+                ("\n", ThemeKey.WELCOME_INFO),
+                (prefix, ThemeKey.LINES),
+                (f"{key}: ", ThemeKey.WELCOME_INFO),
                 (value, ThemeKey.WELCOME_INFO),
             )
         )
