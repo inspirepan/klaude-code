@@ -140,19 +140,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     tag_name = f"v{version}"
     last_tag_name = last_tag if last_tag else f"v{version}"
 
-    link_section = f"\n[{version}]: https://github.com/user/klaude-code/compare/{last_tag_name}...{tag_name}"
+    link_section = f"\n[{version}]: https://github.com/inspirepan/klaude-code/compare/{last_tag_name}...{tag_name}"
 
     if re.search(r"\[Unreleased\]:", content):
         content = re.sub(
             r"(\[Unreleased\]:.*?)$",
-            f"[Unreleased]: https://github.com/user/klaude-code/compare/{tag_name}...HEAD{link_section}",
+            f"[Unreleased]: https://github.com/inspirepan/klaude-code/compare/{tag_name}...HEAD{link_section}",
             content,
             flags=re.MULTILINE,
         )
     else:
         content = (
             content.rstrip()
-            + f"\n\n[Unreleased]: https://github.com/user/klaude-code/compare/{tag_name}...HEAD{link_section}\n"
+            + f"\n\n[Unreleased]: https://github.com/inspirepan/klaude-code/compare/{tag_name}...HEAD{link_section}\n"
         )
 
     changelog_path.write_text(content)
