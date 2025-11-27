@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2025-11-27
+
+### Added
+
+- add WebFetchAgent sub-agent for fetching and analyzing web content (`82e2e87`)
+- add Memory tool for persistent context storage (`cbbb17b`)
+- add cache control support for Gemini models via OpenRouter (`ca403cd`)
+- add cache control support for Claude models via OpenRouter (`5e010f1`)
+- press 'c' to copy selected text to system clipboard (`2689cbd`)
+
+### Changed
+
+- add input shortcuts section to README (`ea4b5ba`)
+
+### Fixed
+
+- update model text bullet style in response metadata rendering (`f138846`)
+- Move dev docs back to dev/active (`f620ff4`)
+- update memory tool mark (`67ba1cc`)
+- improve sub-agent color handling and replay rendering (`80ce897`)
+- update memory tool mark (`c0a0417`)
+- style welcome metadata prefixes (`e298e3b`)
+- handle text selection when pressing backspace (`c4ad37b`)
 ## [1.1.0] - 2025-11-27
 
 ### Added
@@ -116,7 +139,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/user/klaude-code/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/user/klaude-code/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/user/klaude-code/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/user/klaude-code/compare/v1.0.6...v1.1.0
 [1.0.6]: https://github.com/user/klaude-code/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/user/klaude-code/compare/v1.0.4...v1.0.5
