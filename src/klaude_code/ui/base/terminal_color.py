@@ -17,6 +17,9 @@ BEL: Final[int] = 7
 # Match OSC 11 response like: ESC ] 11 ; <payload> BEL/ST
 _OSC_BG_REGEX = re.compile(r"\x1b]11;([^\x07\x1b\\]*)")
 
+# Cache for the last successfully detected terminal background RGB.
+_last_bg_rgb: tuple[int, int, int] | None = None
+
 
 def is_light_terminal_background(timeout: float = 0.5) -> bool | None:
     """Detect whether the current terminal background is light.
@@ -28,10 +31,24 @@ def is_light_terminal_background(timeout: float = 0.5) -> bool | None:
     if rgb is None:
         return None
 
+    global _last_bg_rgb
+    _last_bg_rgb = rgb
+
     r, g, b = rgb
     # Same luminance formula as codex-rs: 0.299*r + 0.587*g + 0.114*b > 128.0
     y = 0.299 * float(r) + 0.587 * float(g) + 0.114 * float(b)
     return y > 128.0
+
+
+def get_last_terminal_background_rgb() -> tuple[int, int, int] | None:
+    """Return the last detected terminal background RGB, if available.
+
+    The value is populated as a side effect of ``is_light_terminal_background``
+    (which queries OSC 11). If detection has not run or failed, this returns
+    None.
+    """
+
+    return _last_bg_rgb
 
 
 def _query_color_slot(slot: int, timeout: float) -> tuple[int, int, int] | None:

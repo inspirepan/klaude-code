@@ -16,6 +16,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 from rich.theme import Theme
 
+from klaude_code.config.constants import MARKDOWN_STREAM_LIVE_WINDOW
 from klaude_code.ui.base.theme import ThemeKey
 
 
@@ -107,7 +108,11 @@ class MarkdownStream:
         # Streaming control
         self.when: float = 0.0  # Timestamp of last update
         self.min_delay: float = 1.0 / 20  # Minimum time between updates (20fps)
-        self.live_window: int = 6  # Number of lines to keep visible at bottom
+        self.live_window: int = MARKDOWN_STREAM_LIVE_WINDOW
+        # Track the maximum height the live window has ever reached
+        # so we only pad when it shrinks from a previous height,
+        # instead of always padding to live_window from the start.
+        self._live_window_seen_height: int = 0
 
         self.theme = theme
         self.console = console
@@ -265,9 +270,26 @@ class MarkdownStream:
             return
 
         # Update Live window to prevent timing issues
-        # with console.print above
-        rest = lines[num_lines:]
-        rest = "".join(rest)
+        # with console.print above. We pad the live region
+        # so that its height stays stable when it shrinks
+        # from a previously reached height, avoiding spinner jitter.
+        rest_lines = lines[num_lines:]
+
+        if not final:
+            current_height = len(rest_lines)
+
+            # Update the maximum height we've seen so far for this live window.
+            if current_height > self._live_window_seen_height:
+                # Never exceed configured live_window, even if logic changes later.
+                self._live_window_seen_height = min(current_height, self.live_window)
+
+            target_height = min(self._live_window_seen_height, self.live_window)
+            if target_height > 0 and current_height < target_height:
+                pad_count = target_height - current_height + 1
+                # Pad after the existing lines so spinner visually stays at the bottom.
+                rest_lines = rest_lines + ["\n"] * pad_count
+
+        rest = "".join(rest_lines)
         rest = Text.from_ansi(rest)
         live = self.live
         assert live is not None

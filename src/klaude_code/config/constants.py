@@ -98,7 +98,10 @@ SUB_AGENT_RESULT_MAX_LINES = 12
 
 
 # UI refresh rate (frames per second) for debounced content streaming
-UI_REFRESH_RATE_FPS = 5
+UI_REFRESH_RATE_FPS = 20
+
+# Number of lines to keep visible at bottom of markdown streaming window
+MARKDOWN_STREAM_LIVE_WINDOW = 20
 
 # Status shimmer animation
 # Horizontal padding used when computing shimmer band position
@@ -109,6 +112,10 @@ STATUS_SHIMMER_SWEEP_SECONDS = 1.5
 STATUS_SHIMMER_BAND_HALF_WIDTH = 3.0
 # Scale factor applied to shimmer intensity when blending colors
 STATUS_SHIMMER_ALPHA_SCALE = 0.7
+
+# Spinner breathing animation
+# Duration in seconds for one full breathe-in + breathe-out cycle
+SPINNER_BREATH_PERIOD_SECONDS = 1.8
 
 
 # =============================================================================
