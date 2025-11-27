@@ -12,8 +12,10 @@ from typing import NamedTuple, cast, override
 
 from PIL import Image, ImageGrab
 from prompt_toolkit import PromptSession
+from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.completion import Completer, Completion, ThreadedCompleter
 from prompt_toolkit.document import Document
+from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import HTML, FormattedText
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
@@ -230,6 +232,9 @@ class PromptToolkitInput(InputProviderABC):
     def __init__(self, prompt: str = "❯ ", status_provider: Callable[[], REPLStatusSnapshot] | None = None):  # ▌
         self._status_provider = status_provider
 
+        # Mouse is disabled by default; only enabled when input becomes multi-line.
+        self._mouse_enabled: bool = False
+
         project = str(Path.cwd()).strip("/").replace("/", "-")
         history_path = Path.home() / ".klaude" / "project" / f"{project}" / "input_history.txt"
 
@@ -237,6 +242,8 @@ class PromptToolkitInput(InputProviderABC):
             history_path.parent.mkdir(parents=True, exist_ok=True)
         if not history_path.exists():
             history_path.touch()
+
+        mouse_support_filter = Condition(lambda: self._mouse_enabled)
 
         self._session: PromptSession[str] = PromptSession(
             [(INPUT_PROMPT_STYLE, prompt)],
@@ -248,6 +255,7 @@ class PromptToolkitInput(InputProviderABC):
             complete_while_typing=True,
             erase_when_done=True,
             bottom_toolbar=self._render_bottom_toolbar,
+            mouse_support=mouse_support_filter,
             style=Style.from_dict(
                 {
                     "completion-menu": "bg:default",
@@ -261,6 +269,12 @@ class PromptToolkitInput(InputProviderABC):
                 }
             ),
         )
+
+        try:
+            self._session.default_buffer.on_text_changed += self._on_buffer_text_changed
+        except Exception:
+            # If we can't hook the buffer events for any reason, fall back to static behavior.
+            pass
 
     def _render_bottom_toolbar(self) -> FormattedText:
         """Render bottom toolbar with working directory, git branch on left, model name and context usage on right.
@@ -334,9 +348,30 @@ class PromptToolkitInput(InputProviderABC):
     @override
     async def iter_inputs(self) -> AsyncIterator[str]:
         while True:
+            # For each new prompt, start with mouse disabled so users can select history.
+            self._mouse_enabled = False
             with patch_stdout():
                 line: str = await self._session.prompt_async()
             yield line
+
+    def _on_buffer_text_changed(self, buf: Buffer) -> None:
+        """Toggle mouse support based on current buffer content.
+
+        Mouse stays disabled when input is empty. It is enabled only when
+        the user has entered more than one line of text.
+        """
+        try:
+            text = buf.text
+        except Exception:
+            return
+        self._mouse_enabled = self._should_enable_mouse(text)
+
+    def _should_enable_mouse(self, text: str) -> bool:
+        """Return True when mouse support should be enabled for current input."""
+        if not text.strip():
+            return False
+        # Enable mouse only when input spans multiple lines.
+        return "\n" in text
 
 
 class _CmdResult(NamedTuple):
