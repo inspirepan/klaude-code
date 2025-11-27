@@ -10,20 +10,6 @@ An minimal and opinionated code agent with multi-model support.
 - **Simple TUI**: Clean interface offering full visibility into model responses, reasoning and actions.
 - **Core Utilities**: Slash commands, sub-agents, image pasting, terminal notifications, file mentioning, and auto-theming.
 
-### Input Shortcuts
-
-| Key | Action |
-|-----|--------|
-| `Enter` | Submit input |
-| `Shift+Enter` | Insert newline (requires `/terminal-setup`) |
-| `Ctrl+J` | Insert newline |
-| `Ctrl+V` | Paste image from clipboard |
-| `Left/Right` | Move cursor (wraps across lines) |
-| `Backspace` | Delete character or selected text |
-| `c` (with selection) | Copy selected text to clipboard |
-
-Mouse support is automatically enabled when input spans multiple lines.
-
 ## Installation
 
 ```bash
@@ -127,6 +113,22 @@ Inside the interactive session (`klaude`), use these commands to streamline your
 - `/clear` - Clear the current conversation context.
 - `/diff` - Show local git diff changes.
 - `/help` - List all available commands.
+
+
+### Input Shortcuts
+
+| Key                  | Action                                      |
+| -------------------- | ------------------------------------------- |
+| `Enter`              | Submit input                                |
+| `Shift+Enter`        | Insert newline (requires `/terminal-setup`) |
+| `Ctrl+J`             | Insert newline                              |
+| `Ctrl+V`             | Paste image from clipboard                  |
+| `Left/Right`         | Move cursor (wraps across lines)            |
+| `Backspace`          | Delete character or selected text           |
+| `c` (with selection) | Copy selected text to clipboard             |
+
+Mouse support is automatically enabled when input spans multiple lines.
+
 
 ### Non-Interactive Headless Mode (exec)
 
