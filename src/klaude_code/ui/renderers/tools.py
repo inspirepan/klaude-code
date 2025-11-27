@@ -238,14 +238,14 @@ def render_memory_tool_call(arguments: str) -> RenderableType:
     try:
         payload: dict[str, str] = json.loads(arguments)
     except json.JSONDecodeError:
-        tool_name_column = Text.assemble(("☆", ThemeKey.TOOL_MARK), " ", ("Memory", ThemeKey.TOOL_NAME))
+        tool_name_column = Text.assemble(("★", ThemeKey.TOOL_MARK), " ", ("Memory", ThemeKey.TOOL_NAME))
         summary = Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS)
         grid.add_row(tool_name_column, summary)
         return grid
 
     command = payload.get("command", "")
     display_name = command_display_names.get(command, command.title())
-    tool_name_column = Text.assemble(("☆", ThemeKey.TOOL_MARK), " ", (f"{display_name} Memory", ThemeKey.TOOL_NAME))
+    tool_name_column = Text.assemble(("★", ThemeKey.TOOL_MARK), " ", (f"{display_name} Memory", ThemeKey.TOOL_NAME))
 
     summary = Text("", ThemeKey.TOOL_PARAM)
     path = payload.get("path")
