@@ -17,6 +17,7 @@ dependencies = [
     "pyyaml>=6.0.2",
     "questionary>=2.1.1",
     "rich>=14.1.0",
+    "trafilatura>=2.0.0",
     "typer>=0.17.3",
 ]
 
@@ -39,6 +40,7 @@ packages = ["src/klaude_code"]
 "src/klaude_code/core/prompt/prompt-subagent.md" = "klaude_code/core/prompt/prompt-subagent.md"
 "src/klaude_code/core/prompt/prompt-subagent-explore.md" = "klaude_code/core/prompt/prompt-subagent-explore.md"
 "src/klaude_code/core/prompt/prompt-subagent-oracle.md" = "klaude_code/core/prompt/prompt-subagent-oracle.md"
+"src/klaude_code/core/prompt/prompt-subagent-webfetch.md" = "klaude_code/core/prompt/prompt-subagent-webfetch.md"
 "src/klaude_code/core/tool/apply_patch_tool_instructions.md" = "klaude_code/core/tool/apply_patch_tool_instructions.md"
 
 [dependency-groups]
@@ -49,6 +51,11 @@ dev = [
 ]
 
 
+
+[tool.pytest.ini_options]
+markers = [
+    "network: marks tests as requiring network access (deselect with '-m \"not network\"')",
+]
 
 [tool.ruff]
 line-length = 120

@@ -8,6 +8,7 @@ UPDATE_PLAN = "update_plan"
 SKILL = "Skill"
 MERMAID = "Mermaid"
 MEMORY = "Memory"
+WEB_FETCH = "WebFetch"
 
 # SubAgentType is just a string alias now; agent types are defined via SubAgentProfile
 SubAgentType = str

@@ -20,6 +20,7 @@ PROMPT_FILES: dict[str, str] = {
     "Task": "prompt/prompt-subagent.md",
     "Oracle": "prompt/prompt-subagent-oracle.md",
     "Explore": "prompt/prompt-subagent-explore.md",
+    "WebFetchAgent": "prompt/prompt-subagent-webfetch.md",
 }
 
 

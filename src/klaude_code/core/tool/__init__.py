@@ -12,6 +12,7 @@ from .tool_registry import get_main_agent_tools, get_registry, get_sub_agent_too
 from .tool_runner import run_tool
 from .truncation import SimpleTruncationStrategy, TruncationStrategy, get_truncation_strategy, set_truncation_strategy
 from .update_plan_tool import UpdatePlanTool
+from .web_fetch_tool import WebFetchTool
 
 __all__ = [
     "BashTool",
@@ -25,6 +26,7 @@ __all__ = [
     "UpdatePlanTool",
     "ApplyPatchTool",
     "MermaidTool",
+    "WebFetchTool",
     "get_tool_schemas",
     "get_registry",
     "run_tool",

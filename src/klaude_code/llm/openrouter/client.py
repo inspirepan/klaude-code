@@ -404,6 +404,7 @@ class OpenRouterClient(LLMClientABC):
                             yield item
                     stage = "tool"
                     accumulated_tool_calls.add(delta.tool_calls)
+
         except (openai.OpenAIError, httpx.HTTPError) as e:
             yield StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
 

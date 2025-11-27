@@ -1,0 +1,167 @@
+import asyncio
+import json
+import urllib.error
+import urllib.request
+from http.client import HTTPResponse
+
+from pydantic import BaseModel
+
+from klaude_code.core.tool.tool_abc import ToolABC
+from klaude_code.core.tool.tool_registry import register
+from klaude_code.protocol.llm_parameter import ToolSchema
+from klaude_code.protocol.model import ToolResultItem
+from klaude_code.protocol.tools import WEB_FETCH
+
+DEFAULT_TIMEOUT_SEC = 30
+DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; KlaudeCode/1.0)"
+
+
+def _extract_content_type(response: HTTPResponse) -> str:
+    """Extract the base content type without charset parameters."""
+    content_type = response.getheader("Content-Type", "")
+    return content_type.split(";")[0].strip().lower()
+
+
+def _validate_utf8(data: bytes) -> str:
+    """Validate and decode bytes as UTF-8."""
+    return data.decode("utf-8")
+
+
+def _convert_html_to_markdown(html: str) -> str:
+    """Convert HTML to Markdown using trafilatura."""
+    import trafilatura
+
+    result = trafilatura.extract(html, output_format="markdown", include_links=True, include_images=True)
+    return result or ""
+
+
+def _format_json(text: str) -> str:
+    """Format JSON with indentation."""
+    try:
+        parsed = json.loads(text)
+        return json.dumps(parsed, indent=2, ensure_ascii=False)
+    except json.JSONDecodeError:
+        return text
+
+
+def _process_content(content_type: str, text: str) -> str:
+    """Process content based on Content-Type header."""
+    if content_type == "text/html":
+        return _convert_html_to_markdown(text)
+    elif content_type == "text/markdown":
+        return text
+    elif content_type in ("application/json", "text/json"):
+        return _format_json(text)
+    else:
+        return text
+
+
+def _fetch_url(url: str, timeout: int = DEFAULT_TIMEOUT_SEC) -> tuple[str, str]:
+    """
+    Fetch URL content synchronously.
+
+    Returns:
+        Tuple of (content_type, response_text)
+
+    Raises:
+        Various exceptions on failure
+    """
+    headers = {
+        "Accept": "text/markdown, */*",
+        "User-Agent": DEFAULT_USER_AGENT,
+    }
+    request = urllib.request.Request(url, headers=headers)
+
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        content_type = _extract_content_type(response)
+        data = response.read()
+        text = _validate_utf8(data)
+        return content_type, text
+
+
+@register(WEB_FETCH)
+class WebFetchTool(ToolABC):
+    @classmethod
+    def schema(cls) -> ToolSchema:
+        return ToolSchema(
+            name=WEB_FETCH,
+            type="function",
+            description="""Fetch content from a URL and return it in a readable format.
+
+The tool automatically processes the response based on Content-Type:
+- HTML pages are converted to Markdown for easier reading
+- JSON responses are formatted with indentation
+- Markdown and other text content is returned as-is
+
+Use this tool to retrieve web page content for analysis.""",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The URL to fetch",
+                    },
+                },
+                "required": ["url"],
+            },
+        )
+
+    class WebFetchArguments(BaseModel):
+        url: str
+
+    @classmethod
+    async def call(cls, arguments: str) -> ToolResultItem:
+        try:
+            args = WebFetchTool.WebFetchArguments.model_validate_json(arguments)
+        except ValueError as e:
+            return ToolResultItem(
+                status="error",
+                output=f"Invalid arguments: {e}",
+            )
+        return await cls.call_with_args(args)
+
+    @classmethod
+    async def call_with_args(cls, args: WebFetchArguments) -> ToolResultItem:
+        url = args.url
+
+        # Basic URL validation
+        if not url.startswith(("http://", "https://")):
+            return ToolResultItem(
+                status="error",
+                output="Invalid URL: must start with http:// or https://",
+            )
+
+        try:
+            content_type, text = await asyncio.to_thread(_fetch_url, url)
+            processed = _process_content(content_type, text)
+
+            return ToolResultItem(
+                status="success",
+                output=processed,
+            )
+
+        except urllib.error.HTTPError as e:
+            return ToolResultItem(
+                status="error",
+                output=f"HTTP error {e.code}: {e.reason}",
+            )
+        except urllib.error.URLError as e:
+            return ToolResultItem(
+                status="error",
+                output=f"URL error: {e.reason}",
+            )
+        except UnicodeDecodeError as e:
+            return ToolResultItem(
+                status="error",
+                output=f"Content is not valid UTF-8: {e}",
+            )
+        except TimeoutError:
+            return ToolResultItem(
+                status="error",
+                output=f"Request timed out after {DEFAULT_TIMEOUT_SEC} seconds",
+            )
+        except Exception as e:
+            return ToolResultItem(
+                status="error",
+                output=f"Failed to fetch URL: {e}",
+            )
