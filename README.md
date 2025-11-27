@@ -11,14 +11,24 @@ An minimal and opinionated code agent with multi-model support.
 - **Core Utilities**: Slash commands, sub-agents, image pasting, terminal notifications, file mentioning, and auto-theming.
 
 
+## Installation
+
+```bash
+uv tool install klaude-code
+```
+
+To update:
+
+```bash
+uv tool upgrade klaude-code
+```
+
 ## Usage
 
 ### Interactive Mode
 
 ```bash
-git clone https://github.com/inspirepan/klaude-code.git && cd klaude-code
-uv sync
-uv run klaude [--model <name>] [--select-model]
+klaude [--model <name>] [--select-model]
 ```
 
 **Options:**
@@ -41,7 +51,7 @@ An example config will be created in `~/.klaude/config.yaml` when first run.
 Open the configuration file in editor:
 
 ```bash
-uv run klaude config
+klaude config
 ```
 
 An minimal example config yaml using OpenRouter's API Key:
@@ -90,7 +100,7 @@ subagent_models:
 List configured providers and models:
 
 ```bash
-uv run klaude list
+klaude list
 ```
 
 ### Slash Commands
@@ -117,5 +127,5 @@ klaude exec "what is 2+2?"
 echo "hello world" | klaude exec
 
 # With model selection
-echo "generate quicksort in python" | uv run klaude exec --model gpt-5.1
+echo "generate quicksort in python" | klaude exec --model gpt-5.1
 ```
