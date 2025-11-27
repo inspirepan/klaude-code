@@ -8,7 +8,7 @@ We're approaching context limits. Please update the development documentation to
 ## Required Updates
 
 ### 1. Update Active Task Documentation
-For each task in `.claude/memories/dev/active/`:
+For each task in `/dev/active/`:
 - Update `[task-name]-context.md` with:
   - Current implementation state
   - Key decisions made this session

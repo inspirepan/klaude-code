@@ -28,8 +28,8 @@ You are an elite strategic planning specialist. Create a comprehensive, actionab
    - Estimate effort levels (S/M/L/XL)
 
 5. **Create task management structure**:
-   - Create directory: `.claude/memories/dev/active/[task-name]/` (relative to project root) 
-   - Generate three files: (Use `Edit` tool with empty `old_string` rather than `Memory` tool here)
+   - Create directory: `dev/active/[task-name]/` (relative to project root)
+   - Generate three files:
      - `[task-name]-plan.md` - The comprehensive plan
      - `[task-name]-context.md` - Key files, decisions, dependencies
      - `[task-name]-tasks.md` - Checklist format for tracking progress
