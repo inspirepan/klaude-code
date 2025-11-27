@@ -26,6 +26,10 @@ def is_claude_model(model_name: str | None):
     return model_name is not None and model_name.startswith("anthropic/claude")
 
 
+def is_gemini_model(model_name: str | None):
+    return model_name is not None and model_name.startswith("google/gemini")
+
+
 def convert_history_to_input(
     history: list[ConversationItem],
     system: str | None = None,
@@ -39,7 +43,7 @@ def convert_history_to_input(
         system: System message.
         model_name: Model name. Used to verify that signatures are valid for the same model.
     """
-    use_cache_control = is_claude_model(model_name)
+    use_cache_control = is_claude_model(model_name) or is_gemini_model(model_name)
 
     messages: list[chat.ChatCompletionMessageParam] = (
         [
