@@ -17,7 +17,6 @@ from rich.text import Text
 from rich.theme import Theme
 
 from klaude_code.config.constants import MARKDOWN_STREAM_LIVE_WINDOW
-from klaude_code.ui.base.theme import ThemeKey
 
 
 class NoInsetCodeBlock(CodeBlock):
@@ -300,8 +299,7 @@ class MarkdownStream:
         if final or not self.spinner:
             return rest
         else:
-            ellipsis = Text("\n  ...", style=ThemeKey.STATUS_HINT)
-            return Group(rest.append(ellipsis), Text(), self.spinner)
+            return Group(rest, Text(), self.spinner)
 
     def find_minimal_suffix(self, text: str, match_lines: int = 50) -> None:
         """
