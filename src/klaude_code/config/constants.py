@@ -107,7 +107,7 @@ MARKDOWN_STREAM_LIVE_WINDOW = 20
 # Horizontal padding used when computing shimmer band position
 STATUS_SHIMMER_PADDING = 10
 # Duration in seconds for one full shimmer sweep across the text
-STATUS_SHIMMER_SWEEP_SECONDS = 1.5
+STATUS_SHIMMER_SWEEP_SECONDS = 2
 # Half-width of the shimmer band in characters
 STATUS_SHIMMER_BAND_HALF_WIDTH = 3.0
 # Scale factor applied to shimmer intensity when blending colors
@@ -116,7 +116,7 @@ STATUS_SHIMMER_ALPHA_SCALE = 0.7
 # Spinner breathing animation
 # Duration in seconds for one full breathe-in + breathe-out cycle
 # Keep in sync with STATUS_SHIMMER_SWEEP_SECONDS for visual consistency
-SPINNER_BREATH_PERIOD_SECONDS = 1.5
+SPINNER_BREATH_PERIOD_SECONDS = 2
 
 
 # =============================================================================
