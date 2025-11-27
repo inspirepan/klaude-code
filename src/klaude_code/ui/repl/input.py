@@ -172,6 +172,60 @@ def _(event):  # type: ignore
         pass
 
 
+@kb.add("left")
+def _(event):  # type: ignore
+    """Support wrapping to previous line when pressing left at column 0."""
+    buf = event.current_buffer  # type: ignore
+    try:
+        doc = buf.document  # type: ignore[reportUnknownMemberType]
+        row = cast(int, doc.cursor_position_row)  # type: ignore[reportUnknownMemberType]
+        col = cast(int, doc.cursor_position_col)  # type: ignore[reportUnknownMemberType]
+
+        # At the beginning of a non-first line: jump to previous line end.
+        if col == 0 and row > 0:
+            lines = cast(list[str], doc.lines)  # type: ignore[reportUnknownMemberType]
+            prev_row = row - 1
+            if 0 <= prev_row < len(lines):
+                prev_line = lines[prev_row]
+                new_index = doc.translate_row_col_to_index(prev_row, len(prev_line))  # type: ignore[reportUnknownMemberType]
+                buf.cursor_position = new_index  # type: ignore[reportUnknownMemberType]
+            return
+
+        # Default behavior: move one character left when possible.
+        if doc.cursor_position > 0:  # type: ignore[reportUnknownMemberType]
+            buf.cursor_left()  # type: ignore[reportUnknownMemberType]
+    except Exception:
+        pass
+
+
+@kb.add("right")
+def _(event):  # type: ignore
+    """Support wrapping to next line when pressing right at line end."""
+    buf = event.current_buffer  # type: ignore
+    try:
+        doc = buf.document  # type: ignore[reportUnknownMemberType]
+        row = cast(int, doc.cursor_position_row)  # type: ignore[reportUnknownMemberType]
+        col = cast(int, doc.cursor_position_col)  # type: ignore[reportUnknownMemberType]
+        lines = cast(list[str], doc.lines)  # type: ignore[reportUnknownMemberType]
+
+        current_line = lines[row] if 0 <= row < len(lines) else ""
+        at_line_end = col >= len(current_line)
+        is_last_line = row >= len(lines) - 1 if lines else True
+
+        # At end of a non-last line: jump to next line start.
+        if at_line_end and not is_last_line:
+            next_row = row + 1
+            new_index = doc.translate_row_col_to_index(next_row, 0)  # type: ignore[reportUnknownMemberType]
+            buf.cursor_position = new_index  # type: ignore[reportUnknownMemberType]
+            return
+
+        # Default behavior: move one character right when possible.
+        if doc.cursor_position < len(doc.text):  # type: ignore[reportUnknownMemberType]
+            buf.cursor_right()  # type: ignore[reportUnknownMemberType]
+    except Exception:
+        pass
+
+
 class PromptToolkitInput(InputProviderABC):
     def __init__(self, prompt: str = "❯ ", status_provider: Callable[[], REPLStatusSnapshot] | None = None):  # ▌
         self._status_provider = status_provider
