@@ -177,8 +177,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.METADATA_DIM.value: "dim " + palette.grey_blue,
                 ThemeKey.METADATA_BOLD.value: "bold " + palette.grey_blue,
                 # SPINNER_STATUS
-                ThemeKey.SPINNER_STATUS.value: palette.orange,
-                ThemeKey.SPINNER_STATUS_TEXT.value: palette.orange,
+                ThemeKey.SPINNER_STATUS.value: palette.green,
+                ThemeKey.SPINNER_STATUS_TEXT.value: palette.green,
                 # STATUS
                 ThemeKey.STATUS_HINT.value: palette.grey2,
                 # REMINDER

@@ -115,7 +115,8 @@ STATUS_SHIMMER_ALPHA_SCALE = 0.7
 
 # Spinner breathing animation
 # Duration in seconds for one full breathe-in + breathe-out cycle
-SPINNER_BREATH_PERIOD_SECONDS = 1.8
+# Keep in sync with STATUS_SHIMMER_SWEEP_SECONDS for visual consistency
+SPINNER_BREATH_PERIOD_SECONDS = 1.5
 
 
 # =============================================================================
