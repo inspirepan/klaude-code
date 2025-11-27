@@ -145,6 +145,41 @@ def _(event):  # type: ignore
     event.current_buffer.insert_text("\n")  # type: ignore
 
 
+@kb.add("c")
+def _(event):  # type: ignore
+    """Copy selected text to system clipboard, or insert 'c' if no selection."""
+    buf = event.current_buffer  # type: ignore
+    if buf.selection_state:  # type: ignore[reportUnknownMemberType]
+        doc = buf.document  # type: ignore[reportUnknownMemberType]
+        start, end = doc.selection_range()  # type: ignore[reportUnknownMemberType]
+        selected_text: str = doc.text[start:end]  # type: ignore[reportUnknownMemberType]
+
+        if selected_text:
+            _copy_to_clipboard(selected_text)  # type: ignore[reportUnknownArgumentType]
+        buf.exit_selection()  # type: ignore[reportUnknownMemberType]
+    else:
+        buf.insert_text("c")  # type: ignore[reportUnknownMemberType]
+
+
+def _copy_to_clipboard(text: str) -> None:
+    """Copy text to system clipboard using platform-specific commands."""
+    import sys
+
+    try:
+        if sys.platform == "darwin":
+            subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=True)
+        elif sys.platform == "win32":
+            subprocess.run(["clip"], input=text.encode("utf-16"), check=True)
+        else:
+            # Linux: try xclip first, then xsel
+            if shutil.which("xclip"):
+                subprocess.run(["xclip", "-selection", "clipboard"], input=text.encode("utf-8"), check=True)
+            elif shutil.which("xsel"):
+                subprocess.run(["xsel", "--clipboard", "--input"], input=text.encode("utf-8"), check=True)
+    except Exception:
+        pass
+
+
 @kb.add("backspace")
 def _(event):  # type: ignore
     """Ensure completions refresh on backspace when editing an @token.
