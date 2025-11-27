@@ -153,8 +153,11 @@ def _(event):  # type: ignore
     trigger completion refresh if the caret is still within an @... token.
     """
     buf = event.current_buffer  # type: ignore
-    # Perform the default backspace behavior
-    buf.delete_before_cursor()  # type: ignore[reportUnknownMemberType]
+    # Handle selection: cut selection if present, otherwise delete one character
+    if buf.selection_state:  # type: ignore[reportUnknownMemberType]
+        buf.cut_selection()  # type: ignore[reportUnknownMemberType]
+    else:
+        buf.delete_before_cursor()  # type: ignore[reportUnknownMemberType]
     # If the token pattern still applies, refresh completion popup
     try:
         text_before = buf.document.text_before_cursor  # type: ignore[reportUnknownMemberType, reportUnknownVariableType]
