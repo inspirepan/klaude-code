@@ -10,6 +10,19 @@ An minimal and opinionated code agent with multi-model support.
 - **Simple TUI**: Clean interface offering full visibility into model responses, reasoning and actions.
 - **Core Utilities**: Slash commands, sub-agents, image pasting, terminal notifications, file mentioning, and auto-theming.
 
+### Input Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Submit input |
+| `Shift+Enter` | Insert newline (requires `/terminal-setup`) |
+| `Ctrl+J` | Insert newline |
+| `Ctrl+V` | Paste image from clipboard |
+| `Left/Right` | Move cursor (wraps across lines) |
+| `Backspace` | Delete character or selected text |
+| `c` (with selection) | Copy selected text to clipboard |
+
+Mouse support is automatically enabled when input spans multiple lines.
 
 ## Installation
 
