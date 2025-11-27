@@ -25,7 +25,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
 
     # Line 1: Model and Provider
     model_text = Text()
-    model_text.append_text(Text("• ", style=ThemeKey.METADATA)).append_text(
+    model_text.append_text(Text("- ", style=ThemeKey.METADATA_BOLD)).append_text(
         Text(metadata.model_name, style=ThemeKey.METADATA_BOLD)
     )
     if metadata.provider is not None:
