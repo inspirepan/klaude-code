@@ -104,7 +104,7 @@ class DisplayEventHandler:
                         theme=self.renderer.themes.markdown_theme,
                         console=self.renderer.console,
                         spinner=self.renderer.spinner.renderable,
-                        mark="⏺",
+                        mark="➤",
                         indent=2,
                     )
                 self.assistant_stream.append(assistant_delta.content)

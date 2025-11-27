@@ -25,7 +25,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
 
     # Line 1: Model and Provider
     model_text = Text()
-    model_text.append_text(Text("▪ ", style=ThemeKey.METADATA)).append_text(
+    model_text.append_text(Text("• ", style=ThemeKey.METADATA)).append_text(
         Text(metadata.model_name, style=ThemeKey.METADATA_BOLD)
     )
     if metadata.provider is not None:
@@ -162,13 +162,4 @@ def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> R
     return Group(
         Panel.fit(panel_content, border_style=ThemeKey.LINES, box=box_style),
         "",  # empty line
-    )
-
-
-def render_resume_loaded(updated_at: float) -> RenderableType:
-    from time import localtime, strftime
-
-    return Text.assemble(
-        Text(" LOADED ", style=ThemeKey.RESUME_FLAG),
-        Text(f" ◷ {strftime('%Y-%m-%d %H:%M:%S', localtime(updated_at))}", style=ThemeKey.RESUME_INFO),
     )

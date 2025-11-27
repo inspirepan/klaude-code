@@ -207,6 +207,7 @@ class REPLRenderer:
                     NoInsetMarkdown(
                         content.rstrip()
                         .replace("**\n\n", "**  \n")
+                        .replace("\\n\\n\n\n", "")  # Weird case of Gemini 3
                         .replace("****", "**\n\n**"),  # remove extra newlines after bold titles
                         code_theme=self.themes.code_theme,
                         style=self.console.get_style(ThemeKey.THINKING),
