@@ -59,16 +59,31 @@ def get_vanilla_tools() -> list[ToolSchema]:
 def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
     def _base_main_tools(name: str) -> list[str]:
         if "gpt-5" in name:
-            base = [tools.UPDATE_PLAN, tools.BASH, tools.APPLY_PATCH, tools.READ]
-            base.append(tools.MERMAID)
-            return base
+            return [
+                tools.UPDATE_PLAN,
+                tools.BASH,
+                tools.APPLY_PATCH,
+                tools.READ,
+                tools.MERMAID,
+                tools.MEMORY,
+            ]
         if "gemini-3" in name:
-            base = [tools.TODO_WRITE, tools.BASH, tools.READ, tools.EDIT]
-            base.append(tools.MERMAID)
-            return base
-        base = [tools.TODO_WRITE, tools.BASH, tools.READ, tools.EDIT]
-        base.append(tools.MERMAID)
-        return base
+            return [
+                tools.TODO_WRITE,
+                tools.BASH,
+                tools.READ,
+                tools.EDIT,
+                tools.MERMAID,
+                tools.MEMORY,
+            ]
+        return [
+            tools.TODO_WRITE,
+            tools.BASH,
+            tools.READ,
+            tools.EDIT,
+            tools.MERMAID,
+            tools.MEMORY,
+        ]
 
     tool_names = _base_main_tools(model_name)
     tool_names.extend(sub_agent_tool_names(enabled_only=True, model_name=model_name))

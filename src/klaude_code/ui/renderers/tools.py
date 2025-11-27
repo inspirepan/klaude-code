@@ -224,6 +224,57 @@ def _extract_mermaid_link(ui_extra: model.ToolResultUIExtra | None) -> model.Mer
     return ui_extra.mermaid_link
 
 
+def render_memory_tool_call(arguments: str) -> RenderableType:
+    grid = create_grid()
+    command_display_names: dict[str, str] = {
+        "view": "View",
+        "create": "Create",
+        "str_replace": "Replace",
+        "insert": "Insert",
+        "delete": "Delete",
+        "rename": "Rename",
+    }
+
+    try:
+        payload: dict[str, str] = json.loads(arguments)
+    except json.JSONDecodeError:
+        tool_name_column = Text.assemble(("✎", ThemeKey.TOOL_MARK), " ", ("Memory", ThemeKey.TOOL_NAME))
+        summary = Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS)
+        grid.add_row(tool_name_column, summary)
+        return grid
+
+    command = payload.get("command", "")
+    display_name = command_display_names.get(command, command.title())
+    tool_name_column = Text.assemble(("✎", ThemeKey.TOOL_MARK), " ", (f"{display_name} Memory", ThemeKey.TOOL_NAME))
+
+    summary = Text("", ThemeKey.TOOL_PARAM)
+    path = payload.get("path")
+    old_path = payload.get("old_path")
+    new_path = payload.get("new_path")
+
+    if command == "rename" and old_path and new_path:
+        summary = Text.assemble(
+            Text(old_path, ThemeKey.TOOL_PARAM_FILE_PATH),
+            Text(" -> ", ThemeKey.TOOL_PARAM),
+            Text(new_path, ThemeKey.TOOL_PARAM_FILE_PATH),
+        )
+    elif command == "insert" and path:
+        insert_line = payload.get("insert_line")
+        summary = Text(path, ThemeKey.TOOL_PARAM_FILE_PATH)
+        if insert_line is not None:
+            summary.append(f" line {insert_line}", ThemeKey.TOOL_PARAM)
+    elif command == "view" and path:
+        view_range = payload.get("view_range")
+        summary = Text(path, ThemeKey.TOOL_PARAM_FILE_PATH)
+        if view_range and isinstance(view_range, list) and len(view_range) >= 2:
+            summary.append(f" {view_range[0]}:{view_range[1]}", ThemeKey.TOOL_PARAM)
+    elif path:
+        summary = Text(path, ThemeKey.TOOL_PARAM_FILE_PATH)
+
+    grid.add_row(tool_name_column, summary)
+    return grid
+
+
 def render_mermaid_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
     tool_name_column = Text.assemble(("⧉", ThemeKey.TOOL_MARK), " ", ("Mermaid", ThemeKey.TOOL_NAME))

@@ -19,6 +19,9 @@ The project follows a Python package structure with source code located in `src/
 
 Tests are located in the `tests/` directory. Configuration files include `pyproject.toml` for project settings and `pyrightconfig.json` for TypeScript-style checking.
 
+## Dev docs
+- `.claude/memories/dev/active` for active and `.claude/memories/dev/archive` for archive
+
 ## Build, Test, and Development Commands
 
 - `uv run isort . && uv run ruff format`: Format and sort imports

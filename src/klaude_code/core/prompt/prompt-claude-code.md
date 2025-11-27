@@ -85,3 +85,14 @@ assistant: [Uses the Explore tool to find the files that handle client errors in
 user: What is the codebase structure?
 assistant: [Uses the Explore tool]
 </example>
+
+## Memory
+MEMORY PROTOCOL:
+1. Use the `view` command of your `Memory` tool to check for earlier progress.
+2. ... (work on the task) ...
+     - As you make progress, record status / progress / thoughts etc in your memory.
+ASSUME INTERRUPTION: Your context window might be reset at any moment, so you risk losing any progress that is not recorded in your memory directory.
+
+Note: when editing your memory folder, always try to keep its content up-to-date, coherent and organized. You can rename or delete files that are no longer relevant. Do not create new files unless necessary.
+
+Only write down information relevant to current project in your memory system.

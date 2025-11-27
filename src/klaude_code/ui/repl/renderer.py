@@ -132,6 +132,8 @@ class REPLRenderer:
                 self.print(r_tools.render_update_plan_tool_call(e.arguments))
             case tools.MERMAID:
                 self.print(r_tools.render_mermaid_tool_call(e.arguments))
+            case tools.MEMORY:
+                self.print(r_tools.render_memory_tool_call(e.arguments))
             case tools.SKILL:
                 self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments, "◈"))
             case _:
@@ -161,6 +163,11 @@ class REPLRenderer:
                 pass
             case tools.EDIT | tools.MULTI_EDIT:
                 self.print(Padding.indent(r_diffs.render_diff(diff_text or ""), level=2))
+            case tools.MEMORY:
+                if diff_text:
+                    self.print(Padding.indent(r_diffs.render_diff(diff_text), level=2))
+                elif len(e.result.strip()) > 0:
+                    self.print(r_tools.render_generic_tool_result(e.result))
             case tools.TODO_WRITE | tools.UPDATE_PLAN:
                 self.print(r_tools.render_todo(e))
             case tools.MERMAID:
