@@ -21,7 +21,7 @@ def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) ->
     )
 
 
-def render_sub_agent_result(result: str, *, code_theme: str) -> RenderableType:
+def render_sub_agent_result(result: str, *, code_theme: str, style: Style | None = None) -> RenderableType:
     stripped_result = result.strip()
     lines = stripped_result.splitlines()
     if len(lines) > SUB_AGENT_RESULT_MAX_LINES:
@@ -30,7 +30,7 @@ def render_sub_agent_result(result: str, *, code_theme: str) -> RenderableType:
         return Panel.fit(
             Group(
                 Text(f"... more {hidden_count} lines — use /export to view full output", style=ThemeKey.TOOL_RESULT),
-                NoInsetMarkdown(truncated_text, code_theme=code_theme),
+                NoInsetMarkdown(truncated_text, code_theme=code_theme, style=style or ""),
             ),
             border_style=ThemeKey.LINES,
         )

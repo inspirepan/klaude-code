@@ -16,7 +16,7 @@ from klaude_code.ui.renderers import sub_agent as r_sub_agent
 from klaude_code.ui.renderers import thinking as r_thinking
 from klaude_code.ui.renderers import user_input as r_user_input
 from klaude_code.ui.renderers.common import truncate_display
-from klaude_code.ui.repl.renderer import REPLRenderer, SessionStatus
+from klaude_code.ui.repl.renderer import REPLRenderer
 from klaude_code.ui.rich_ext.markdown import MarkdownStream, NoInsetMarkdown
 
 
@@ -63,20 +63,14 @@ class DisplayEventHandler:
                 self.renderer.print(r_user_input.render_user_input(user_event.content))
             case events.TaskStartEvent() as task_event:
                 self.renderer.spinner.start()
-                session_status = SessionStatus(
-                    sub_agent_state=task_event.sub_agent_state,
-                )
-                if task_event.sub_agent_state is not None:
-                    color = self.renderer.pick_sub_agent_color()
-                    session_status.color = color
-
-                self.renderer.register_session(task_event.session_id, session_status)
+                self.renderer.register_session(task_event.session_id, task_event.sub_agent_state)
                 if task_event.sub_agent_state is not None:
                     # Print sub-agent task call
                     with self.renderer.session_print_context(task_event.session_id):
                         self.renderer.print(
                             r_sub_agent.render_sub_agent_call(
-                                task_event.sub_agent_state, self.renderer.get_sub_agent_color(task_event.session_id)
+                                task_event.sub_agent_state,
+                                self.renderer.get_session_sub_agent_color(task_event.session_id),
                             )
                         )
                 emit_osc94(OSC94States.INDETERMINATE)

@@ -255,14 +255,14 @@ def get_theme(theme: str | None = None) -> Themes:
         ),
         code_theme=palette.code_theme,
         sub_agent_colors=[
-            Style(color=palette.yellow),
+            Style(color=palette.cyan),
             Style(color=palette.green),
             Style(color=palette.blue),
             Style(color=palette.purple),
             Style(color=palette.orange),
-            Style(color=palette.cyan),
-            Style(color=palette.red),
             Style(color=palette.grey_blue),
+            Style(color=palette.red),
             Style(color=palette.grey1),
+            Style(color=palette.yellow),
         ],
     )

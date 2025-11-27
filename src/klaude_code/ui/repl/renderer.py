@@ -52,8 +52,13 @@ class REPLRenderer:
         self.current_sub_agent_color: Style | None = None
         self.subagent_color_index = 0
 
-    def register_session(self, session_id: str, status: SessionStatus) -> None:
-        self.session_map[session_id] = status
+    def register_session(self, session_id: str, sub_agent_state: model.SubAgentState | None = None) -> None:
+        session_status = SessionStatus(
+            sub_agent_state=sub_agent_state,
+        )
+        if sub_agent_state is not None:
+            session_status.color = self.pick_sub_agent_color()
+        self.session_map[session_id] = session_status
 
     def is_sub_agent_session(self, session_id: str) -> bool:
         return session_id in self.session_map and self.session_map[session_id].sub_agent_state is not None
@@ -72,7 +77,7 @@ class REPLRenderer:
             return Style()
         return palette[self.subagent_color_index]
 
-    def get_sub_agent_color(self, session_id: str) -> Style:
+    def get_session_sub_agent_color(self, session_id: str) -> Style:
         status = self.session_map.get(session_id)
         if status and status.color:
             return status.color
@@ -113,7 +118,15 @@ class REPLRenderer:
             if e.is_replay:
                 state = self._build_sub_agent_state_from_tool_call(e)
                 if state is not None:
-                    self.print(r_sub_agent.render_sub_agent_call(state))
+                    sub_agent_default_style = (
+                        self.themes.sub_agent_colors[0] if self.themes.sub_agent_colors else Style()
+                    )
+                    self.print(
+                        Quote(
+                            r_sub_agent.render_sub_agent_call(state, sub_agent_default_style),
+                            style=sub_agent_default_style,
+                        )
+                    )
             return
         match e.tool_name:
             case tools.READ:
@@ -144,7 +157,17 @@ class REPLRenderer:
             # In replay mode, render sub-agent result here
             # In normal execution, handled by TaskFinishEvent
             if e.is_replay:
-                self.print(r_sub_agent.render_sub_agent_result(e.result, code_theme=self.themes.code_theme))
+                sub_agent_default_style = self.themes.sub_agent_colors[0] if self.themes.sub_agent_colors else Style()
+                self.print(
+                    Quote(
+                        r_sub_agent.render_sub_agent_result(
+                            e.result,
+                            code_theme=self.themes.code_theme,
+                            style=sub_agent_default_style,
+                        ),
+                        style=sub_agent_default_style,
+                    )
+                )
             return
         if e.status == "error" and e.ui_extra is None:
             self.print(r_errors.render_error(Text(truncate_display(e.result))))
