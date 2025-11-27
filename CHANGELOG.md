@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-11-27
+
+### Added
+
+- enable dynamic mouse support based on input content (`483a3e1`)
+- support arrow key wrapping across lines in multiline input (`93069de`)
+
+### Changed
+
+- update installation instructions to use uv tool (`d69311b`)
+
+### Fixed
+
+- update bullet style and spinner mark for consistency; clean up markdown rendering (`968041f`)
+
+### Other
+
+- adjust shimmer and spinner animation timings for consistency (`c6dc386`)
 ## [1.0.6] - 2025-11-27
 
 ### Added
@@ -98,7 +116,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/user/klaude-code/compare/v1.0.6...HEAD
+[Unreleased]: https://github.com/user/klaude-code/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/user/klaude-code/compare/v1.0.6...v1.1.0
 [1.0.6]: https://github.com/user/klaude-code/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/user/klaude-code/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/user/klaude-code/compare/v1.0.3...v1.0.4
