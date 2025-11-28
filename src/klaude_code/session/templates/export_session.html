@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Jetbrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap"
       rel="stylesheet"
     />
     <style>
@@ -19,13 +19,24 @@
         --text: $color_text;
         --text-dim: $color_textDim;
         --accent: $color_cyan;
-        --accent-dim: rgba(34, 211, 238, 0.1);
+        --accent-dim: rgba(8, 145, 178, 0.08);
         --success: $color_green;
         --error: $color_red;
-        --font-sans: "IBM Plex Mono", "Fira Code", "SF Mono", Consolas,
-          monospace;
-        --font-mono: "IBM Plex Mono", "Fira Code", "SF Mono", Consolas,
-          monospace;
+        --bg-error: $color_toolErrorBg;
+        --bg-code: $color_codeBg;
+        --font-sans: "SF Mono", "Jetbrains Mono", Consolas, monospace;
+        --font-mono: "SF Mono", "Jetbrains Mono", Consolas, monospace;
+        --font-size-xs: 10px;
+        --font-size-sm: 11px;
+        --font-size-base: 12px;
+        --font-size-lg: 15px;
+        --spacing-xs: 4px;
+        --spacing-sm: 8px;
+        --spacing-md: 12px;
+        --spacing-lg: 16px;
+        --spacing-xl: 24px;
+        --radius-sm: 4px;
+        --radius-md: 6px;
       }
 
       * {
@@ -39,7 +50,7 @@
         color: var(--text);
         font-family: var(--font-sans);
         line-height: 1.6;
-        font-size: 15px;
+        font-size: var(--font-size-lg);
         -webkit-font-smoothing: antialiased;
       }
 
@@ -60,10 +71,7 @@
         font-size: 20px;
         font-weight: 700;
         margin-bottom: 16px;
-        background: linear-gradient(to right, var(--accent), #818cf8);
-        background-clip: text;
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: var(--text);
         display: inline-block;
       }
 
@@ -80,8 +88,8 @@
       }
 
       .meta-label {
-        font-size: 12px;
-        font-weight: 600;
+        font-size: var(--font-size-sm);
+        font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         color: var(--text-dim);
@@ -89,26 +97,30 @@
 
       .meta-value {
         font-family: var(--font-mono);
-        font-size: 13px;
+        font-size: var(--font-size-base);
         color: var(--text);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
-      /* Components */
-      details {
+      /* Components - Collapsible sections */
+      details.collapsible-section {
         background: transparent;
         margin-bottom: 4px;
       }
 
-      summary {
+      details.collapsible-section:last-of-type {
+        margin-bottom: 16px;
+      }
+
+      details.collapsible-section > summary {
         padding: 4px 0;
         font-family: var(--font-mono);
-        font-size: 13px;
+        font-size: var(--font-size-sm);
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        font-weight: 600;
+        font-weight: 700;
         cursor: pointer;
         user-select: none;
         list-style: none;
@@ -121,15 +133,15 @@
         transition: color 0.2s;
       }
 
-      summary:hover,
-      details[open] summary {
+      details.collapsible-section > summary:hover,
+      details.collapsible-section[open] > summary {
         color: var(--text);
       }
 
-      summary::-webkit-details-marker {
+      details.collapsible-section > summary::-webkit-details-marker {
         display: none;
       }
-      summary::before {
+      details.collapsible-section > summary::before {
         content: "[+]";
         color: var(--accent);
         font-family: var(--font-mono);
@@ -137,13 +149,13 @@
         display: inline-block;
         min-width: 24px;
       }
-      details[open] > summary::before {
+      details.collapsible-section[open] > summary::before {
         content: "[-]";
       }
 
-      .details-content {
+      details.collapsible-section > .details-content {
         padding: 8px 0 16px 24px;
-        font-size: 14px;
+        font-size: var(--font-size-sm);
         color: var(--text-dim);
         overflow-x: auto;
         border-left: 1px solid var(--border);
@@ -174,8 +186,8 @@
       }
 
       .role-label {
-        font-size: 12px;
-        font-weight: 600;
+        font-size: var(--font-size-sm);
+        font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         margin-bottom: 4px;
@@ -184,10 +196,6 @@
         align-items: center;
         gap: 8px;
       }
-      summary.role-label {
-        margin-bottom: 0;
-      }
-
       .role-label.user {
         color: var(--accent);
       }
@@ -196,7 +204,56 @@
       }
 
       details.developer-message {
+        background: transparent;
         margin-bottom: 4px;
+      }
+
+      details.developer-message > summary {
+        padding: 4px 0;
+        font-family: var(--font-mono);
+        font-size: var(--font-size-xs);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 700;
+        cursor: pointer;
+        user-select: none;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 24px;
+        line-height: 1.2;
+        color: var(--text-dim);
+        transition: color 0.2s;
+      }
+
+      details.developer-message > summary:hover,
+      details.developer-message[open] > summary {
+        color: var(--text);
+      }
+
+      details.developer-message > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.developer-message > summary::before {
+        content: "[+]";
+        color: var(--accent);
+        font-family: var(--font-mono);
+        margin-right: 4px;
+        display: inline-block;
+        min-width: 24px;
+      }
+      details.developer-message[open] > summary::before {
+        content: "[-]";
+      }
+
+      details.developer-message > .details-content {
+        padding: 8px 0 16px 24px;
+        font-size: var(--font-size-xs);
+        color: var(--text-dim);
+        overflow-x: auto;
+        border-left: 1px solid var(--border);
+        margin-left: 10px;
       }
 
       details.developer-message.gap-below {
@@ -206,10 +263,10 @@
       .message-content {
         background: var(--bg-card);
         border: 1px solid var(--border);
-        border-radius: 6px;
+        border-radius: var(--radius-md);
         padding: 12px;
-        box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
-        font-size: 13px;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+        font-size: var(--font-size-base);
       }
       .assistant-message {
         display: flex;
@@ -225,14 +282,14 @@
         border: 1px solid var(--border);
         background: transparent;
         color: var(--text-dim);
-        font-size: 11px;
+        font-size: var(--font-size-xs);
         text-transform: uppercase;
         letter-spacing: 0.08em;
         padding: 2px 10px;
         border-radius: 999px;
         cursor: pointer;
         transition: color 0.2s, border-color 0.2s, background 0.2s;
-        font-weight: 600;
+        font-weight: 700;
       }
       .raw-toggle:hover {
         color: var(--text);
@@ -241,7 +298,7 @@
       .raw-toggle.active {
         color: var(--accent);
         border-color: var(--accent);
-        background: rgba(34, 211, 238, 0.08);
+        background: var(--accent-dim);
       }
 
       .copy-raw-btn {
@@ -249,14 +306,14 @@
         border: 1px solid var(--border);
         background: transparent;
         color: var(--text-dim);
-        font-size: 11px;
+        font-size: var(--font-size-xs);
         text-transform: uppercase;
         letter-spacing: 0.08em;
         padding: 2px 10px;
         border-radius: 999px;
         cursor: pointer;
         transition: color 0.2s, border-color 0.2s, background 0.2s;
-        font-weight: 600;
+        font-weight: 700;
       }
       .copy-raw-btn:hover {
         color: var(--text);
@@ -267,14 +324,14 @@
         border: 1px solid var(--border);
         background: transparent;
         color: var(--text-dim);
-        font-size: 11px;
+        font-size: var(--font-size-xs);
         text-transform: uppercase;
         letter-spacing: 0.08em;
         padding: 2px 10px;
         border-radius: 999px;
         cursor: pointer;
         transition: color 0.2s, border-color 0.2s, background 0.2s;
-        font-weight: 600;
+        font-weight: 700;
       }
       .copy-mermaid-btn:hover {
         color: var(--text);
@@ -287,11 +344,11 @@
       .assistant-raw {
         display: none;
         font-family: var(--font-mono);
-        font-size: 13px;
+        font-size: var(--font-size-base);
         white-space: pre-wrap;
-        background: rgba(255, 255, 255, 0.02);
+        background: var(--bg-body);
         border: 1px dashed var(--border);
-        border-radius: 4px;
+        border-radius: var(--radius-sm);
         padding: 12px;
       }
       .assistant-message.show-raw .assistant-rendered {
@@ -302,8 +359,12 @@
       }
 
       .message-content.user {
-        background: rgba(39, 39, 42, 0.5);
-        border-left: 3px solid var(--accent);
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        padding: 0;
+        box-shadow: none;
+        font-weight: 700;
       }
 
       .thinking-block {
@@ -313,8 +374,8 @@
         border-left: 2px solid var(--border);
         color: var(--text-dim);
         font-style: italic;
-        font-size: 13px;
-        background: rgba(255, 255, 255, 0.02);
+        font-size: var(--font-size-base);
+        background: var(--bg-body);
       }
 
       /* Tool Calls */
@@ -322,9 +383,9 @@
         margin-top: 16px;
         margin-bottom: 16px;
         border: 1px solid var(--border);
-        border-radius: 6px;
+        border-radius: var(--radius-md);
         overflow: hidden;
-        font-size: 13px;
+        font-size: var(--font-size-base);
       }
 
       .tool-header {
@@ -338,12 +399,12 @@
       }
 
       .tool-name {
-        font-weight: 600;
+        font-weight: 700;
         color: var(--accent);
       }
       .tool-id {
         color: var(--text-dim);
-        font-size: 11px;
+        font-size: var(--font-size-xs);
       }
 
       .tool-args {
@@ -353,23 +414,79 @@
         color: var(--text-dim);
         overflow-x: auto;
         white-space: pre-wrap;
+        font-size: var(--font-size-sm);
+      }
+
+      /* Collapsible tool-args */
+      details.tool-args-collapsible {
+        padding: 0;
+        background: var(--bg-body);
+      }
+      details.tool-args-collapsible > summary {
+        padding: 8px 12px;
+        font-family: var(--font-mono);
+        font-size: var(--font-size-xs);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 700;
+        cursor: pointer;
+        user-select: none;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--text-dim);
+        transition: color 0.2s;
+      }
+      details.tool-args-collapsible > summary:hover,
+      details.tool-args-collapsible[open] > summary {
+        color: var(--text);
+      }
+      details.tool-args-collapsible > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.tool-args-collapsible > summary::before {
+        content: "[+]";
+        color: var(--accent);
+        font-family: var(--font-mono);
+        display: inline-block;
+        min-width: 24px;
+      }
+      details.tool-args-collapsible[open] > summary::before {
+        content: "[-]";
+      }
+      details.tool-args-collapsible > .tool-args-content {
+        padding: 12px;
+        font-family: var(--font-mono);
+        color: var(--text-dim);
+        overflow-x: auto;
+        white-space: pre-wrap;
+        font-size: var(--font-size-sm);
+        border-top: 1px dashed var(--border);
       }
 
       .tool-result {
         border-top: 1px solid var(--border);
         padding: 12px;
+        font-size: var(--font-size-sm);
+      }
+      .tool-result .full-text,
+      .tool-result .preview-text,
+      .tool-result pre,
+      .tool-result code {
+        font-size: var(--font-size-sm);
       }
 
       .tool-result.success {
-        background: rgba(74, 222, 128, 0.05);
+        background: var(--bg-card);
         color: var(--text);
       }
       .tool-result.error {
-        background: rgba(248, 113, 113, 0.05);
+        background: var(--bg-error);
         color: var(--error);
       }
       .tool-result.pending {
-        background: rgba(255, 255, 255, 0.02);
+        background: var(--bg-body);
         color: var(--text-dim);
       }
 
@@ -395,11 +512,11 @@
       .subagent-raw {
         display: none;
         font-family: var(--font-mono);
-        font-size: 13px;
+        font-size: var(--font-size-base);
         white-space: pre-wrap;
-        background: rgba(255, 255, 255, 0.02);
+        background: var(--bg-body);
         border: 1px dashed var(--border);
-        border-radius: 4px;
+        border-radius: var(--radius-sm);
         padding: 12px;
       }
 
@@ -421,9 +538,9 @@
         border-top: 1px solid var(--border);
       }
       .markdown-body pre {
-        background: #111;
+        background: var(--bg-code);
         padding: 16px;
-        border-radius: 6px;
+        border-radius: var(--radius-md);
         overflow-x: auto;
         margin: 12px 0;
         border: 1px solid var(--border);
@@ -431,9 +548,9 @@
       .markdown-body code {
         font-family: var(--font-mono);
         font-size: 0.9em;
-        background: rgba(255, 255, 255, 0.1);
+        background: var(--bg-code);
         padding: 2px 4px;
-        border-radius: 4px;
+        border-radius: var(--radius-sm);
       }
       .markdown-body pre code {
         background: transparent;
@@ -468,35 +585,78 @@
       /* Diff View */
       .diff-view {
         font-family: var(--font-mono);
-        background: #111;
+        background: var(--bg-code);
         padding: 12px;
-        border-radius: 6px;
+        border-radius: var(--radius-md);
         overflow-x: auto;
+        border: 1px solid var(--border);
       }
       .diff-line {
         white-space: pre;
       }
       .diff-plus {
-        color: var(--success);
-        background: rgba(74, 222, 128, 0.1);
+        color: #166534;
+        background: #e7f5e9;
         display: block;
       }
       .diff-minus {
-        color: var(--error);
-        background: rgba(248, 113, 113, 0.1);
+        color: #991b1b;
+        background: #ffebee;
         display: block;
       }
       .diff-ctx {
         color: var(--text-dim);
-        opacity: 0.6;
+        opacity: 0.7;
         display: block;
+      }
+
+      /* Collapsible Diff View */
+      details.diff-collapsible {
+        background: transparent;
+        margin-top: 8px;
+      }
+      details.diff-collapsible > summary {
+        padding: 4px 0;
+        font-family: var(--font-mono);
+        font-size: var(--font-size-xs);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 700;
+        cursor: pointer;
+        user-select: none;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--text-dim);
+        transition: color 0.2s;
+      }
+      details.diff-collapsible > summary:hover,
+      details.diff-collapsible[open] > summary {
+        color: var(--text);
+      }
+      details.diff-collapsible > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.diff-collapsible > summary::before {
+        content: "[+]";
+        color: var(--accent);
+        font-family: var(--font-mono);
+        display: inline-block;
+        min-width: 24px;
+      }
+      details.diff-collapsible[open] > summary::before {
+        content: "[-]";
+      }
+      details.diff-collapsible > .diff-view {
+        margin-top: 8px;
       }
 
       .footer {
         margin-top: 60px;
         text-align: center;
         color: var(--text-dim);
-        font-size: 12px;
+        font-size: var(--font-size-sm);
         border-top: 1px solid var(--border);
         padding-top: 24px;
       }
@@ -526,16 +686,14 @@
         display: block;
         cursor: pointer;
         color: var(--accent);
-        font-size: 11px;
-        font-style: italic;
+        font-size: var(--font-size-xs);
         margin-top: 4px;
         border-top: 1px dashed var(--border);
         padding-top: 4px;
       }
       .expand-hint {
-        font-size: 11px;
+        font-size: var(--font-size-xs);
         color: var(--accent);
-        font-style: italic;
         margin-top: 4px;
       }
 
@@ -549,7 +707,7 @@
         display: flex;
         gap: 8px;
         font-family: var(--font-mono);
-        font-size: 13px;
+        font-size: var(--font-size-sm);
         line-height: 1.5;
         align-items: flex-start;
       }
@@ -580,6 +738,15 @@
         font-weight: 500;
         text-transform: none;
         letter-spacing: normal;
+        cursor: pointer;
+        user-select: none;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .tool-details summary::-webkit-details-marker {
+        display: none;
       }
       .tool-details summary:hover {
         color: var(--text);
@@ -587,13 +754,14 @@
       .tool-details summary::before {
         content: "[+]";
         min-width: 24px;
+        display: inline-block;
       }
       .tool-details[open] summary::before {
         content: "[-]";
       }
       .tool-description {
         white-space: pre-wrap;
-        font-size: 13px;
+        font-size: var(--font-size-sm);
       }
       .tool-params {
         margin-top: 12px;
@@ -601,8 +769,8 @@
         border-top: 1px dashed var(--border);
       }
       .tool-params-title {
-        font-size: 11px;
-        font-weight: 600;
+        font-size: var(--font-size-xs);
+        font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         color: var(--text-dim);
@@ -611,7 +779,7 @@
       .tool-param {
         margin-bottom: 8px;
         padding-left: 12px;
-        font-size: 13px;
+        font-size: var(--font-size-sm);
       }
       .tool-param-name {
         color: var(--success);
@@ -626,7 +794,7 @@
       }
       .tool-param-desc {
         color: var(--text-dim);
-        font-size: 12px;
+        font-size: var(--font-size-sm);
         margin-top: 2px;
       }
     </style>
@@ -638,7 +806,9 @@
         <div class="meta-grid">
           <div class="meta-item">
             <span class="meta-label">First Message</span>
-            <span class="meta-value" title="$first_user_message">$first_user_message</span>
+            <span class="meta-value" title="$first_user_message"
+              >$first_user_message</span
+            >
           </div>
           <div class="meta-item">
             <span class="meta-label">Model</span>
@@ -655,7 +825,7 @@
         </div>
       </div>
 
-      <details>
+      <details class="collapsible-section">
         <summary>System Prompt</summary>
         <div
           class="details-content system-prompt-content"
@@ -665,7 +835,7 @@
         </div>
       </details>
 
-      <details>
+      <details class="collapsible-section">
         <summary>Available Tools</summary>
         <div class="details-content">$tools_html</div>
       </details>
@@ -680,7 +850,7 @@
 
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css"
     />
     <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>

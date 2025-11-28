@@ -30,22 +30,23 @@ if TYPE_CHECKING:
     from klaude_code.session.session import Session
 
 COLORS: Final[dict[str, str]] = {
-    "bodyBg": "#09090b",  # Zinc 950
-    "containerBg": "#18181b",  # Zinc 900
-    "cardBg": "#27272a",  # Zinc 800
-    "borderColor": "#3f3f46",  # Zinc 700
-    "userMessageBg": "#27272a",  # Zinc 800
-    "toolPendingBg": "#2a2a35",
-    "toolSuccessBg": "#1c2e26",
-    "toolErrorBg": "#2e1c1c",
-    "text": "#f4f4f5",  # Zinc 100
-    "textDim": "#a1a1aa",  # Zinc 400
-    "cyan": "#22d3ee",  # Cyan 400
-    "green": "#4ade80",  # Green 400
-    "red": "#f87171",  # Red 400
-    "yellow": "#facc15",  # Yellow 400
-    "blue": "#60a5fa",  # Blue 400
-    "italic": "#a1a1aa",
+    "bodyBg": "#ededed",  # Slate 50 - paper-like off-white
+    "containerBg": "#f0f0f0",  # Pure white for containers
+    "cardBg": "#f0f0f0",  # White cards
+    "codeBg": "#f3f3f3",  # Slightly brighter for code blocks
+    "borderColor": "#c8c8c8",  # Slate 200 - subtle borders
+    "userMessageBg": "#ededed",  # Slate 100
+    "toolPendingBg": "#f0f0f0",
+    "toolSuccessBg": "#f0f0f0",  # Green 50
+    "toolErrorBg": "#ffebee",  # Red 50
+    "text": "#333333",  # Slate 900
+    "textDim": "#64748b",  # Slate 500
+    "cyan": "#0851b2",  # Cyan 600 - deeper for light bg
+    "green": "#15803d",  # Green 700
+    "red": "#dc2626",  # Red 600
+    "yellow": "#ca8a04",  # Yellow 600
+    "blue": "#0851b2",  # Blue 600
+    "italic": "#64748b",
 }
 
 _TOOL_OUTPUT_PREVIEW_LINES: Final[int] = 12
@@ -246,19 +247,28 @@ def _render_text_block(text: str) -> str:
 
     if len(lines) <= _TOOL_OUTPUT_PREVIEW_LINES:
         content = "\n".join(escaped_lines)
-        return f'<div style="white-space: pre-wrap; font-family: var(--font-mono); font-size: 13px;">{content}</div>'
+        return f'<div style="white-space: pre-wrap; font-family: var(--font-mono);">{content}</div>'
 
     preview = "\n".join(escaped_lines[:_TOOL_OUTPUT_PREVIEW_LINES])
     full = "\n".join(escaped_lines)
 
     return (
         f'<div class="expandable-output expandable">'
-        f'<div class="preview-text" style="white-space: pre-wrap; font-family: var(--font-mono); font-size: 13px;">{preview}</div>'
+        f'<div class="preview-text" style="white-space: pre-wrap; font-family: var(--font-mono);">{preview}</div>'
         f'<div class="expand-hint expand-text">Click to expand full output ({len(lines)} lines)</div>'
-        f'<div class="full-text" style="white-space: pre-wrap; font-family: var(--font-mono); font-size: 13px;">{full}</div>'
+        f'<div class="full-text" style="white-space: pre-wrap; font-family: var(--font-mono);">{full}</div>'
         f'<div class="collapse-hint">Click to collapse</div>'
         f"</div>"
     )
+
+
+_COLLAPSIBLE_LINE_THRESHOLD: Final[int] = 100
+_COLLAPSIBLE_CHAR_THRESHOLD: Final[int] = 10000
+
+
+def _should_collapse(text: str) -> bool:
+    """Check if content should be collapsed (over 100 lines or 10000 chars)."""
+    return text.count("\n") + 1 > _COLLAPSIBLE_LINE_THRESHOLD or len(text) > _COLLAPSIBLE_CHAR_THRESHOLD
 
 
 def _render_diff_block(diff: str) -> str:
@@ -272,7 +282,14 @@ def _render_diff_block(diff: str) -> str:
             rendered.append(f'<span class="diff-line diff-minus">{escaped}</span>')
         else:
             rendered.append(f'<span class="diff-line diff-ctx">{escaped}</span>')
-    return f'<div class="diff-view">{"".join(rendered)}</div>'
+    diff_content = f'<div class="diff-view">{"".join(rendered)}</div>'
+    open_attr = "" if _should_collapse(diff) else " open"
+    return (
+        f'<details class="diff-collapsible"{open_attr}>'
+        f"<summary>Diff ({len(lines)} lines)</summary>"
+        f"{diff_content}"
+        "</details>"
+    )
 
 
 def _get_diff_text(ui_extra: ToolResultUIExtra | None) -> str | None:
@@ -317,8 +334,11 @@ def _get_mermaid_link_html(ui_extra: ToolResultUIExtra | None, tool_call: ToolCa
 
 def _format_tool_call(tool_call: ToolCallItem, result: ToolResultItem | None) -> str:
     args_html = None
+    is_todo_list = False
     if tool_call.name == "TodoWrite":
         args_html = _try_render_todo_args(tool_call.arguments)
+        if args_html:
+            is_todo_list = True
 
     if args_html is None:
         try:
@@ -332,13 +352,25 @@ def _format_tool_call(tool_call: ToolCallItem, result: ToolResultItem | None) ->
     if not args_html:
         args_html = '<span style="color: var(--text-dim); font-style: italic;">(no arguments)</span>'
 
+    # Wrap tool-args with collapsible details element (except for TodoWrite which renders as a list)
+    if is_todo_list:
+        args_section = f'<div class="tool-args">{args_html}</div>'
+    else:
+        open_attr = "" if _should_collapse(args_html) else " open"
+        args_section = (
+            f'<details class="tool-args-collapsible"{open_attr}>'
+            "<summary>Arguments</summary>"
+            f'<div class="tool-args-content">{args_html}</div>'
+            "</details>"
+        )
+
     html_parts = [
         '<div class="tool-call">',
         '<div class="tool-header">',
         f'<span class="tool-name">{_escape_html(tool_call.name)}</span>',
         f'<span class="tool-id">{_escape_html(tool_call.call_id)}</span>',
         "</div>",
-        f'<div class="tool-args">{args_html}</div>',
+        args_section,
     ]
 
     if result:
@@ -420,8 +452,8 @@ def _build_messages_html(
 
             blocks.append(
                 f'<details class="developer-message{extra_class}">'
-                f'<summary class="role-label">Developer</summary>'
-                f'<div class="details-content message-content" style="border-left: 3px solid var(--accent); white-space: pre-wrap;">{content}</div>'
+                f"<summary>Developer</summary>"
+                f'<div class="details-content" style="white-space: pre-wrap;">{content}</div>'
                 f"</details>"
             )
         elif isinstance(item, ToolCallItem):
@@ -484,4 +516,6 @@ def build_export_html(
         color_cyan=COLORS["cyan"],
         color_green=COLORS["green"],
         color_red=COLORS["red"],
+        color_toolErrorBg=COLORS["toolErrorBg"],
+        color_codeBg=COLORS["codeBg"],
     )

@@ -63,6 +63,7 @@ def get_system_prompt(model_name: str, key: str = "main") -> str:
             is_git_repo=is_git_repo,
             model_name=model_name,
         )
+        .strip()
     )
 
     env_lines: list[str] = [
