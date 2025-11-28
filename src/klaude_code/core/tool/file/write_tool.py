@@ -8,7 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
-from klaude_code.core.tool.tool_context import current_session_var
+from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
 from klaude_code.protocol.model import ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
@@ -86,13 +86,13 @@ class WriteTool(ToolABC):
                 output="<tool_use_error>Illegal operation on a directory. write</tool_use_error>",
             )
 
-        session = current_session_var.get()
+        file_tracker = get_current_file_tracker()
         exists = _file_exists(file_path)
 
         if exists:
             tracked_mtime: float | None = None
-            if session is not None:
-                tracked_mtime = session.file_tracker.get(file_path)
+            if file_tracker is not None:
+                tracked_mtime = file_tracker.get(file_path)
             if tracked_mtime is None:
                 return ToolResultItem(
                     status="error",
@@ -124,9 +124,9 @@ class WriteTool(ToolABC):
         except Exception as e:  # pragma: no cover
             return ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
 
-        if session is not None:
+        if file_tracker is not None:
             try:
-                session.file_tracker[file_path] = Path(file_path).stat().st_mtime
+                file_tracker[file_path] = Path(file_path).stat().st_mtime
             except Exception:
                 pass
 

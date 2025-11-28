@@ -16,8 +16,6 @@ class Session(BaseModel):
     work_dir: Path
     conversation_history: list[ConversationItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     sub_agent_state: SubAgentState | None = None
-    # Last response id: for OpenAI Responses API
-    last_response_id: str | None = None
     # FileTracker: track file path -> last modification time when last read/edited
     file_tracker: dict[str, float] = Field(default_factory=dict)
     # Todo list for the session
@@ -103,7 +101,6 @@ class Session(BaseModel):
 
         sub_agent_state_raw = raw.get("sub_agent_state")
         sub_agent_state = SubAgentState(**sub_agent_state_raw) if sub_agent_state_raw else None
-        last_response_id = raw.get("last_response_id")
         file_tracker = dict(raw.get("file_tracker", {}))
         todos: list[TodoItem] = [TodoItem(**item) for item in raw.get("todos", [])]
         loaded_memory = list(raw.get("loaded_memory", []))
@@ -116,7 +113,6 @@ class Session(BaseModel):
             id=id,
             work_dir=Path(work_dir_str),
             sub_agent_state=sub_agent_state,
-            last_response_id=last_response_id,
             file_tracker=file_tracker,
             todos=todos,
             loaded_memory=loaded_memory,
@@ -174,7 +170,6 @@ class Session(BaseModel):
             "id": self.id,
             "work_dir": str(self.work_dir),
             "sub_agent_state": self.sub_agent_state.model_dump() if self.sub_agent_state else None,
-            "last_response_id": self.last_response_id,
             "file_tracker": self.file_tracker,
             "todos": [todo.model_dump() for todo in self.todos],
             "loaded_memory": self.loaded_memory,

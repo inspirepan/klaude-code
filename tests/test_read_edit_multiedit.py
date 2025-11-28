@@ -18,7 +18,11 @@ from klaude_code.core.reminders import at_file_reader_reminder  # noqa: E402
 from klaude_code.core.tool.file.edit_tool import EditTool  # noqa: E402
 from klaude_code.core.tool.file.multi_edit_tool import MultiEditTool  # noqa: E402
 from klaude_code.core.tool.file.read_tool import ReadTool  # noqa: E402
-from klaude_code.core.tool.tool_context import current_session_var  # noqa: E402
+from klaude_code.core.tool.tool_context import (  # noqa: E402
+    ToolContextToken,
+    reset_tool_context,
+    set_tool_context_from_session,
+)
 from klaude_code.protocol import model  # noqa: E402
 from klaude_code.session.session import Session  # noqa: E402
 
@@ -35,11 +39,11 @@ class BaseTempDirTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         os.chdir(self._tmp.name)
         self.session = Session(work_dir=Path.cwd())
-        self._token = current_session_var.set(self.session)
+        self._token: ToolContextToken = set_tool_context_from_session(self.session)
 
     def tearDown(self) -> None:
         try:
-            current_session_var.reset(self._token)
+            reset_tool_context(self._token)
         except Exception:
             pass
         os.chdir(self._orig_cwd)

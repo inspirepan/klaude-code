@@ -7,7 +7,7 @@ from pathlib import Path
 from pydantic import BaseModel, field_validator
 
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
-from klaude_code.core.tool.tool_context import current_session_var
+from klaude_code.core.tool.tool_context import get_current_todo_context
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
 from klaude_code.protocol.model import (
@@ -95,13 +95,14 @@ class UpdatePlanTool(ToolABC):
         except ValueError as exc:
             return ToolResultItem(status="error", output=f"Invalid arguments: {exc}")
 
-        session = current_session_var.get()
-        if session is None:
+        todo_context = get_current_todo_context()
+        if todo_context is None:
             return ToolResultItem(status="error", output="No active session found")
 
         new_todos = [TodoItem(content=item.step, status=item.status) for item in args.plan]
-        new_completed = get_new_completed_todos(session.todos, new_todos)
-        session.todos = new_todos
+        old_todos = todo_context.get_todos()
+        new_completed = get_new_completed_todos(old_todos, new_todos)
+        todo_context.set_todos(new_todos)
 
         ui_extra = TodoUIExtra(todos=new_todos, new_completed=new_completed)
 

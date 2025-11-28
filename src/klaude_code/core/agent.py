@@ -21,7 +21,7 @@ from klaude_code.core.reminders import (
     get_vanilla_reminders,
 )
 from klaude_code.core.sub_agent import get_sub_agent_profile, is_sub_agent_tool
-from klaude_code.core.tool.tool_context import current_session_var
+from klaude_code.core.tool.tool_context import reset_tool_context, set_tool_context_from_session
 from klaude_code.core.tool.tool_registry import (
     get_main_agent_tools,
     get_registry,
@@ -459,7 +459,6 @@ class Agent:
         turn_reasoning_items: list[model.ReasoningTextItem | model.ReasoningEncryptedItem] = []
         turn_assistant_message: model.AssistantMessageItem | None = None
         turn_tool_calls: list[model.ToolCallItem] = []
-        current_response_id: str | None = None
         response_failed = False
 
         async for response_item in profile.llm_client.call(
@@ -479,7 +478,7 @@ class Agent:
             )
             match response_item:
                 case model.StartItem() as item:
-                    current_response_id = item.response_id
+                    pass
                 case model.ReasoningTextItem() as item:
                     turn_reasoning_items.append(item)
                     yield events.ThinkingEvent(
@@ -527,8 +526,6 @@ class Agent:
                     self.turn_inflight_tool_calls[item.call_id] = UnfinishedToolCallItem(
                         tool_call_item=item, status="pending"
                     )
-        if current_response_id is not None and not response_failed:
-            self.session.last_response_id = current_response_id
         if response_failed:
             # Clear any pending tool calls when the response failed before execution
             self.turn_inflight_tool_calls.clear()
@@ -627,12 +624,12 @@ class Agent:
                 yield tool_event
 
     async def _run_tool_call(self, tool_call: model.ToolCallItem) -> list[events.Event]:
-        session_token = current_session_var.set(self.session)
+        context_token = set_tool_context_from_session(self.session)
         try:
             self.turn_inflight_tool_calls[tool_call.call_id].status = "in_progress"
             tool_result: model.ToolResultItem = await run_tool(tool_call, get_registry())
         finally:
-            current_session_var.reset(session_token)
+            reset_tool_context(context_token)
 
         self.session.append_history([tool_result])
         result_event = events.ToolResultEvent(

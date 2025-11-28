@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from klaude_code.core.tool.file.edit_tool import EditTool
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
-from klaude_code.core.tool.tool_context import current_session_var
+from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
 from klaude_code.protocol.model import ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
@@ -113,12 +113,12 @@ class MultiEditTool(ToolABC):
                 output="<tool_use_error>Illegal operation on a directory. multi_edit</tool_use_error>",
             )
 
-        session = current_session_var.get()
+        file_tracker = get_current_file_tracker()
 
         # FileTracker check:
         if _file_exists(file_path):
-            if session is not None:
-                tracked = session.file_tracker.get(file_path)
+            if file_tracker is not None:
+                tracked = file_tracker.get(file_path)
                 if tracked is None:
                     return ToolResultItem(
                         status="error",
@@ -188,9 +188,9 @@ class MultiEditTool(ToolABC):
         ui_extra = ToolResultUIExtra(type=ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text)
 
         # Update tracker
-        if session is not None:
+        if file_tracker is not None:
             try:
-                session.file_tracker[file_path] = Path(file_path).stat().st_mtime
+                file_tracker[file_path] = Path(file_path).stat().st_mtime
             except Exception:
                 pass
 

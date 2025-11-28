@@ -16,7 +16,7 @@ from klaude_code.const import (
     READ_MAX_KB,
 )
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
-from klaude_code.core.tool.tool_context import current_session_var
+from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
 from klaude_code.protocol.model import ImageURLPart, ToolResultItem
@@ -108,11 +108,11 @@ def _read_segment(options: ReadOptions) -> ReadSegmentResult:
 
 
 def _track_file_access(file_path: str) -> None:
-    session = current_session_var.get()
-    if session is None or not _file_exists(file_path) or _is_directory(file_path):
+    file_tracker = get_current_file_tracker()
+    if file_tracker is None or not _file_exists(file_path) or _is_directory(file_path):
         return
     try:
-        session.file_tracker[file_path] = Path(file_path).stat().st_mtime
+        file_tracker[file_path] = Path(file_path).stat().st_mtime
     except Exception:
         pass
 

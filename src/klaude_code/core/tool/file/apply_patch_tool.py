@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from klaude_code.core.tool.file import apply_patch as apply_patch_module
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
-from klaude_code.core.tool.tool_context import current_session_var
+from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import tools
 from klaude_code.protocol.llm_parameter import ToolSchema
@@ -39,7 +39,7 @@ class ApplyPatchHandler:
             raise ap.DiffError("apply_patch content must start with *** Begin Patch")
 
         workspace_root = os.path.realpath(os.getcwd())
-        session = current_session_var.get()
+        file_tracker = get_current_file_tracker()
 
         def resolve_path(path: str) -> str:
             candidate = os.path.realpath(path if os.path.isabs(path) else os.path.join(workspace_root, path))
@@ -79,9 +79,9 @@ class ApplyPatchHandler:
             with open(resolved, "w", encoding="utf-8") as handle:
                 handle.write(content)
 
-            if session is not None:
+            if file_tracker is not None:
                 try:
-                    session.file_tracker[resolved] = Path(resolved).stat().st_mtime
+                    file_tracker[resolved] = Path(resolved).stat().st_mtime
                 except Exception:  # pragma: no cover - file tracker best-effort
                     pass
 
@@ -93,9 +93,9 @@ class ApplyPatchHandler:
                 raise ap.DiffError(f"Cannot delete directory: {path}")
             os.remove(resolved)
 
-            if session is not None:
+            if file_tracker is not None:
                 try:
-                    session.file_tracker.pop(resolved, None)
+                    file_tracker.pop(resolved, None)
                 except Exception:  # pragma: no cover - file tracker best-effort
                     pass
 

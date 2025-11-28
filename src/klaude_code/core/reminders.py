@@ -9,7 +9,7 @@ from klaude_code.const import TODO_REMINDER_TOOL_CALL_THRESHOLD
 from klaude_code.core.clipboard_manifest import load_latest_clipboard_manifest, next_session_token
 from klaude_code.core.tool.file.read_tool import ReadTool
 from klaude_code.core.tool.shell.bash_tool import BashTool
-from klaude_code.core.tool.tool_context import current_session_var
+from klaude_code.core.tool.tool_context import reset_tool_context, set_tool_context_from_session
 from klaude_code.protocol import model, tools
 from klaude_code.session import Session
 
@@ -50,7 +50,7 @@ async def at_file_reader_reminder(session: Session) -> model.DeveloperMessageIte
 
     for pattern in at_patterns:
         path = Path(pattern).resolve()
-        token = current_session_var.set(session)
+        context_token = set_tool_context_from_session(session)
         try:
             if path.exists() and path.is_file():
                 args = ReadTool.ReadArguments(file_path=str(path))
@@ -77,7 +77,7 @@ async def at_file_reader_reminder(session: Session) -> model.DeveloperMessageIte
                     operation="List",
                 )
         finally:
-            current_session_var.reset(token)
+            reset_tool_context(context_token)
 
     if len(at_files) == 0:
         return None
@@ -181,7 +181,7 @@ async def file_changed_externally_reminder(session: Session) -> model.DeveloperM
         for path, mtime in session.file_tracker.items():
             try:
                 if Path(path).stat().st_mtime > mtime:
-                    token = current_session_var.set(session)
+                    context_token = set_tool_context_from_session(session)
                     try:
                         tool_result = await ReadTool.call_with_args(
                             ReadTool.ReadArguments(file_path=path)
@@ -191,7 +191,7 @@ async def file_changed_externally_reminder(session: Session) -> model.DeveloperM
                             if tool_result.images:
                                 collected_images.extend(tool_result.images)
                     finally:
-                        current_session_var.reset(token)
+                        reset_tool_context(context_token)
             except (FileNotFoundError, IsADirectoryError, OSError, PermissionError, UnicodeDecodeError):
                 continue
     if len(changed_files) > 0:
@@ -391,7 +391,7 @@ async def clipboard_image_reminder(session: Session) -> model.DeveloperMessageIt
             if path in processed_paths:
                 continue
 
-            token = current_session_var.set(session)
+            context_token = set_tool_context_from_session(session)
             try:
                 # We use ReadTool to get the image object in the correct format
                 # This assumes ReadTool handles image files correctly
@@ -403,7 +403,7 @@ async def clipboard_image_reminder(session: Session) -> model.DeveloperMessageIt
                     processed_paths.add(path)
                     attached_tags.append(tag)
             finally:
-                current_session_var.reset(token)
+                reset_tool_context(context_token)
 
     if not collected_images:
         return None

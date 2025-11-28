@@ -3,7 +3,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
-from klaude_code.core.tool.tool_context import current_session_var
+from klaude_code.core.tool.tool_context import get_current_todo_context
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
 from klaude_code.protocol.model import (
@@ -93,21 +93,22 @@ class TodoWriteTool(ToolABC):
                 output=f"Invalid arguments: {e}",
             )
 
-        # Get current session to store todos
-        session = current_session_var.get()
-        if session is None:
+        # Get current todo context to store todos
+        todo_context = get_current_todo_context()
+        if todo_context is None:
             return ToolResultItem(
                 status="error",
                 output="No active session found",
             )
 
         # Get current todos before updating (for comparison)
+        old_todos = todo_context.get_todos()
 
         # Find newly completed todos
-        new_completed = get_new_completed_todos(session.todos, args.todos)
+        new_completed = get_new_completed_todos(old_todos, args.todos)
 
-        # Store todos directly as TodoItem objects in session
-        session.todos = args.todos
+        # Store todos via todo context
+        todo_context.set_todos(args.todos)
 
         ui_extra = TodoUIExtra(todos=args.todos, new_completed=new_completed)
 
