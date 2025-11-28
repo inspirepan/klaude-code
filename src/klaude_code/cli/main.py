@@ -492,11 +492,20 @@ app.add_typer(session_app, name="session")
 
 
 @app.command("list")
-def list_models():
+def list_models() -> None:
     """List all models and providers configuration"""
     config = load_config()
     if config is None:
         raise typer.Exit(1)
+
+    # Auto-detect theme when not explicitly set in config, to match other CLI entrypoints.
+    if config.theme is None:
+        detected = is_light_terminal_background()
+        if detected is True:
+            config.theme = "light"
+        elif detected is False:
+            config.theme = "dark"
+
     display_models_and_providers(config)
 
 
