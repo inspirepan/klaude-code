@@ -33,7 +33,7 @@ async def run_tool(tool_call: ToolCallItem, registry: dict[str, type[ToolABC]]) 
         tool_result.call_id = tool_call.call_id
         tool_result.tool_name = tool_call.name
         if tool_result.output:
-            truncation_result = truncate_tool_output(tool_result.output, tool_call.name, tool_call.call_id)
+            truncation_result = truncate_tool_output(tool_result.output, tool_call)
             tool_result.output = truncation_result.output
             if truncation_result.was_truncated and truncation_result.saved_file_path:
                 tool_result.ui_extra = ToolResultUIExtra(

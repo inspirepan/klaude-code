@@ -20,6 +20,16 @@ Guidelines:
 - Use absolute file paths when referencing saved files
 - Avoid using emojis
 
+Source attribution:
+- ALWAYS include source references at the end of your response for traceability
+- List each URL with its corresponding local file path (if saved)
+- Format example for multiple sources:
+  ```
+  Sources:
+  - https://example.com/page1 (local: /tmp/klaude/WebFetch-call_1.txt)
+  - https://example.com/page2
+  ```
+
 Handling truncated content:
 When WebFetch output is too large, it will be truncated and the full content saved to a temporary file.
 The file path will be shown in a system-reminder tag. Use these approaches to access the full content:
