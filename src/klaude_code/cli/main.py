@@ -333,7 +333,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
         if session_id and session_id in components.executor.context.active_agents:
             agent = components.executor.context.active_agents[session_id]
-            model_name = agent.session.model_name or (agent.profile.llm_client.model_name if agent.profile else "N/A")
+            model_name = agent.profile.llm_client.model_name if agent.profile else "N/A"
 
             # Count AssistantMessageItem and ToolCallItem in conversation history
             from klaude_code.protocol.model import AssistantMessageItem, ToolCallItem

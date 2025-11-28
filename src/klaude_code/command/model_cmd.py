@@ -31,7 +31,8 @@ class ModelCommand(CommandABC):
     async def run(self, raw: str, agent: Agent) -> CommandResult:
         selected_model = await asyncio.to_thread(select_model_from_config, preferred=raw)
 
-        if selected_model is None or selected_model == agent.session.model_name:
+        current_model = agent.profile.llm_client.model_name if agent.profile else None
+        if selected_model is None or selected_model == current_model:
             return CommandResult(
                 events=[
                     DeveloperMessageEvent(

@@ -88,5 +88,5 @@ class ExportCommand(CommandABC):
         profile = agent.profile
         system_prompt = (profile.system_prompt if profile else "") or ""
         tools = profile.tools if profile else []
-        model_name = agent.session.model_name or (profile.llm_client.model_name if profile else "unknown")
+        model_name = profile.llm_client.model_name if profile else "unknown"
         return build_export_html(agent.session, system_prompt, tools, model_name)
