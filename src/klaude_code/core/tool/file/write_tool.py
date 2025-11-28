@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from klaude_code.core.tool.tool_abc import ToolABC
+from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import current_session_var
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
@@ -53,16 +53,7 @@ class WriteTool(ToolABC):
         return ToolSchema(
             name=WRITE,
             type="function",
-            description=(
-                "Writes a file to the local filesystem.\n\n"
-                "Usage:\n"
-                "This tool will overwrite the existing file if there is one at the provided path.\n"
-                "If this is an existing file, you MUST use the Read tool first to read the file's contents. "
-                "This tool will fail if you did not read the file first.\n"
-                "ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.\n"
-                "NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.\n"
-                "Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.\n"
-            ),
+            description=load_desc(Path(__file__).parent / "write_tool.md"),
             parameters={
                 "type": "object",
                 "properties": {

@@ -3,10 +3,11 @@ from __future__ import annotations
 import base64
 import json
 import zlib
+from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from klaude_code.core.tool.tool_abc import ToolABC
+from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
 from klaude_code.protocol.model import MermaidLinkUIExtra, ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
@@ -27,26 +28,7 @@ class MermaidTool(ToolABC):
         return ToolSchema(
             name=MERMAID,
             type="function",
-            description=(
-                "Renders a Mermaid diagram from the provided code.\n\n"
-                "PROACTIVELY USE DIAGRAMS when they would better convey information than prose alone."
-                " The diagrams produced by this tool are shown to the user..\n\n"
-                "You should create diagrams WITHOUT being explicitly asked in these scenarios:\n"
-                "- When explaining system architecture or component relationships\n"
-                "- When describing workflows, data flows, or user journeys\n"
-                "- When explaining algorithms or complex processes\n"
-                "- When illustrating class hierarchies or entity relationships\n"
-                "- When showing state transitions or event sequences\n\n"
-                "Diagrams are especially valuable for visualizing:\n"
-                "- Application architecture and dependencies\n"
-                "- API interactions and data flow\n"
-                "- Component hierarchies and relationships\n"
-                "- State machines and transitions\n"
-                "- Sequence and timing of operations\n"
-                "- Decision trees and conditional logic\n\n"
-                "# Styling\n"
-                '- When defining custom classDefs, always define fill color, stroke color, and text color ("fill", "stroke", "color") explicitly\n'
-            ),
+            description=load_desc(Path(__file__).parent / "mermaid_tool.md"),
             parameters={
                 "type": "object",
                 "properties": {

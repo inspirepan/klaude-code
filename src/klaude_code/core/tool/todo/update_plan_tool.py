@@ -2,9 +2,11 @@
 update_plan tool: Codex variant of todo_write tool
 """
 
+from pathlib import Path
+
 from pydantic import BaseModel, field_validator
 
-from klaude_code.core.tool.tool_abc import ToolABC
+from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import current_session_var
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
@@ -56,11 +58,7 @@ class UpdatePlanTool(ToolABC):
         return ToolSchema(
             name=UPDATE_PLAN,
             type="function",
-            description=(
-                "Updates the task plan.\n"
-                "Provide an optional explanation and a list of plan items, each with a step and status.\n"
-                "At most one step can be in_progress at a time."
-            ),
+            description=load_desc(Path(__file__).parent / "update_plan_tool.md"),
             parameters={
                 "type": "object",
                 "properties": {

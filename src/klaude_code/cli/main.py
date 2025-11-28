@@ -26,8 +26,8 @@ from klaude_code.config.select_model import select_model_from_config
 from klaude_code.core.agent import AgentLLMClients, DefaultModelProfileProvider, VanillaModelProfileProvider
 from klaude_code.core.executor import Executor
 from klaude_code.core.sub_agent import iter_sub_agent_profiles
-from klaude_code.core.tool.skill_loader import SkillLoader
-from klaude_code.core.tool.skill_tool import SkillTool
+from klaude_code.core.tool.memory.skill_loader import SkillLoader
+from klaude_code.core.tool.memory.skill_tool import SkillTool
 from klaude_code.llm import LLMClientABC, create_llm_client
 from klaude_code.protocol import op
 from klaude_code.protocol.events import EndEvent, Event

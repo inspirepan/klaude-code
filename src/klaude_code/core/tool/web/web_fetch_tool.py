@@ -3,10 +3,11 @@ import json
 import urllib.error
 import urllib.request
 from http.client import HTTPResponse
+from pathlib import Path
 
 from pydantic import BaseModel
 
-from klaude_code.core.tool.tool_abc import ToolABC
+from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
 from klaude_code.protocol.model import ToolResultItem
@@ -86,14 +87,7 @@ class WebFetchTool(ToolABC):
         return ToolSchema(
             name=WEB_FETCH,
             type="function",
-            description="""Fetch content from a URL and return it in a readable format.
-
-The tool automatically processes the response based on Content-Type:
-- HTML pages are converted to Markdown for easier reading
-- JSON responses are formatted with indentation
-- Markdown and other text content is returned as-is
-
-Use this tool to retrieve web page content for analysis.""",
+            description=load_desc(Path(__file__).parent / "web_fetch_tool.md"),
             parameters={
                 "type": "object",
                 "properties": {

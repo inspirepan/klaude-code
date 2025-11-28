@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from klaude_code.core.tool.tool_abc import ToolABC
+from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
 from klaude_code.protocol.model import ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
@@ -140,25 +140,7 @@ class MemoryTool(ToolABC):
         return ToolSchema(
             name=MEMORY,
             type="function",
-            description=(
-                "Stores and retrieves information across conversations through a memory file directory. "
-                "Use this tool to persist knowledge, progress, and context that should survive between sessions.\n\n"
-                "The memory directory is located at `.claude/memories/` in the current project root "
-                "(git repository root if present, otherwise the current working directory). "
-                "Memories are scoped to the current project/directory and are not shared globally. "
-                "All paths must start with `/memories` (e.g., `/memories/notes.txt`).\n\n"
-                "Commands:\n"
-                "- `view`: Show directory contents or file contents with optional line range\n"
-                "- `create`: Create or overwrite a file\n"
-                "- `str_replace`: Replace text in a file\n"
-                "- `insert`: Insert text at a specific line\n"
-                "- `delete`: Delete a file or directory\n"
-                "- `rename`: Rename or move a file/directory\n\n"
-                "Usage tips:\n"
-                "- Check your memory directory before starting tasks to recall previous context\n"
-                "- Record important decisions, progress, and learnings as you work\n"
-                "- Keep memory files organized and up-to-date; delete obsolete files\n"
-            ),
+            description=load_desc(Path(__file__).parent / "memory_tool.md"),
             parameters={
                 "type": "object",
                 "properties": {

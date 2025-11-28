@@ -1,7 +1,9 @@
+from pathlib import Path
+
 from pydantic import BaseModel
 
-from klaude_code.core.tool.skill_loader import SkillLoader
-from klaude_code.core.tool.tool_abc import ToolABC
+from klaude_code.core.tool.memory.skill_loader import SkillLoader
+from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
 from klaude_code.protocol.model import ToolResultItem
@@ -27,30 +29,7 @@ class SkillTool(ToolABC):
         return ToolSchema(
             name=SKILL,
             type="function",
-            description=f"""Execute a skill within the main conversation
-
-<skills_instructions>
-When users ask you to perform tasks, check if any of the available skills below can help complete the task more effectively. Skills provide specialized capabilities and domain knowledge.
-
-How to use skills:
-- Invoke skills using this tool with the skill name only (no arguments)
-- When you invoke a skill, you will see <command-message>The "{{name}}" skill is loading</command-message>
-- The skill's prompt will expand and provide detailed instructions on how to complete the task
-
-Examples:
-- command: "pdf" - invoke the pdf skill
-- command: "xlsx" - invoke the xlsx skill
-- command: "document-skills:pdf" - invoke using fully qualified name
-
-Important:
-- Only use skills listed in <available_skills> below
-- Do not invoke a skill that is already running
-- Do not use this tool for built-in CLI commands (like /help, /clear, etc.)
-</skills_instructions>
-
-<available_skills>
-{skills_xml}
-</available_skills>""",
+            description=load_desc(Path(__file__).parent / "skill_tool.md", {"skills_xml": skills_xml}),
             parameters={
                 "type": "object",
                 "properties": {

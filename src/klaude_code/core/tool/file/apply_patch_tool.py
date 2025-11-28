@@ -7,8 +7,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from klaude_code.core.tool import apply_patch as apply_patch_module
-from klaude_code.core.tool.tool_abc import ToolABC
+from klaude_code.core.tool.file import apply_patch as apply_patch_module
+from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import current_session_var
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import tools
@@ -180,7 +180,7 @@ class ApplyPatchTool(ToolABC):
         return ToolSchema(
             name=tools.APPLY_PATCH,
             type="function",
-            description="""Apply a unified diff patch to a file within the workspace.""",
+            description=load_desc(Path(__file__).parent / "apply_patch_tool.md"),
             parameters={
                 "type": "object",
                 "properties": {

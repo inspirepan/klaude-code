@@ -7,8 +7,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from klaude_code.core.tool.edit_tool import EditTool
-from klaude_code.core.tool.tool_abc import ToolABC
+from klaude_code.core.tool.file.edit_tool import EditTool
+from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import current_session_var
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol.llm_parameter import ToolSchema
@@ -58,42 +58,7 @@ class MultiEditTool(ToolABC):
         return ToolSchema(
             name=MULTI_EDIT,
             type="function",
-            description=(
-                "This is a tool for making multiple edits to a single file in one operation. It is built on top of the Edit tool and allows you to perform multiple find-and-replace operations efficiently. Prefer this tool over the Edit tool when you need to make multiple edits to the same file.\n\n"
-                "Before using this tool:\n\n"
-                "1. Use the Read tool to understand the file's contents and context\n"
-                "2. Verify the directory path is correct\n\n"
-                "To make multiple file edits, provide the following:\n"
-                "1. file_path: The absolute path to the file to modify (must be absolute, not relative)\n"
-                "2. edits: An array of edit operations to perform, where each edit contains:\n"
-                "   - old_string: The text to replace (must match the file contents exactly, including all whitespace and indentation)\n"
-                "   - new_string: The edited text to replace the old_string\n"
-                "   - replace_all: Replace all occurences of old_string. This parameter is optional and defaults to false.\n\n"
-                "IMPORTANT:\n"
-                "- All edits are applied in sequence, in the order they are provided\n"
-                "- Each edit operates on the result of the previous edit\n"
-                "- All edits must be valid for the operation to succeed - if any edit fails, none will be applied\n"
-                "- This tool is ideal when you need to make several changes to different parts of the same file\n"
-                "- For Jupyter notebooks (.ipynb files), use the NotebookEdit instead\n\n"
-                "CRITICAL REQUIREMENTS:\n"
-                "1. All edits follow the same requirements as the single Edit tool\n"
-                "2. The edits are atomic - either all succeed or none are applied\n"
-                "3. Plan your edits carefully to avoid conflicts between sequential operations\n\n"
-                "WARNING:\n"
-                "- The tool will fail if edits.old_string doesn't match the file contents exactly (including whitespace)\n"
-                "- The tool will fail if edits.old_string and edits.new_string are the same\n"
-                "- Since edits are applied in sequence, ensure that earlier edits don't affect the text that later edits are trying to find\n\n"
-                "When making edits:\n"
-                "- Ensure all edits result in idiomatic, correct code\n"
-                "- Do not leave the code in a broken state\n"
-                "- Always use absolute file paths (starting with /)\n"
-                "- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.\n"
-                "- Use replace_all for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.\n\n"
-                "If you want to create a new file, use:\n"
-                "- A new file path, including dir name if needed\n"
-                "- First edit: empty old_string and the new file's contents as new_string\n"
-                "- Subsequent edits: normal edit operations on the created content\n"
-            ),
+            description=load_desc(Path(__file__).parent / "multi_edit_tool.md"),
             parameters={
                 "type": "object",
                 "properties": {

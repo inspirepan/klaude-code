@@ -7,7 +7,7 @@ import zlib
 
 import pytest
 
-from klaude_code.core.tool.mermaid_tool import MermaidTool
+from klaude_code.core.tool.web.mermaid_tool import MermaidTool
 from klaude_code.protocol.model import ToolResultUIExtraType
 
 
