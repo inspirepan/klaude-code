@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Callable, TypeVar
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.protocol.llm_parameter import LLMClientProtocol, LLMConfigParameter
 from klaude_code.protocol.tools import SubAgentType
+from klaude_code.trace import DebugType, log_debug
 
 if TYPE_CHECKING:
     from klaude_code.config.config import Config
@@ -48,7 +49,7 @@ class LLMClients:
         config: Config,
         model_override: str | None = None,
         enabled_sub_agents: list[SubAgentType] | None = None,
-    ) -> tuple[LLMClients, LLMConfigParameter]:
+    ) -> LLMClients:
         """Create LLMClients from application config.
 
         Args:
@@ -57,7 +58,7 @@ class LLMClients:
             enabled_sub_agents: List of sub-agent types to initialize clients for
 
         Returns:
-            Tuple of (LLMClients instance, main LLM config parameter)
+            LLMClients instance
         """
         from klaude_code.core.sub_agent import get_sub_agent_profile
 
@@ -66,6 +67,13 @@ class LLMClients:
             llm_config = config.get_model_config(model_override)
         else:
             llm_config = config.get_main_model_config()
+
+        log_debug(
+            "Main LLM config",
+            llm_config.model_dump_json(exclude_none=True),
+            style="yellow",
+            debug_type=DebugType.LLM_CONFIG,
+        )
 
         main_client = create_llm_client(llm_config)
         sub_clients: dict[SubAgentType, LLMClientABC] = {}
@@ -81,4 +89,4 @@ class LLMClients:
             sub_llm_config = config.get_model_config(model_name)
             sub_clients[sub_agent_type] = create_llm_client(sub_llm_config)
 
-        return cls(main=main_client, sub_clients=sub_clients), llm_config
+        return cls(main=main_client, sub_clients=sub_clients)

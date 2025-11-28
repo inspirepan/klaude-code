@@ -14,7 +14,7 @@ from klaude_code.core.agent import Agent, DefaultModelProfileProvider, ModelProf
 from klaude_code.llm import LLMClients
 from klaude_code.core.sub_agent import SubAgentResult
 from klaude_code.core.tool.tool_context import current_run_subtask_callback
-from klaude_code.protocol import events, llm_parameter, model
+from klaude_code.protocol import events, model
 from klaude_code.protocol.op import (
     EndOperation,
     InitAgentOperation,
@@ -45,12 +45,10 @@ class ExecutorContext:
         self,
         event_queue: asyncio.Queue[events.Event],
         llm_clients: LLMClients,
-        llm_config: llm_parameter.LLMConfigParameter,
         model_profile_provider: ModelProfileProvider | None = None,
     ):
         self.event_queue = event_queue
         self.llm_clients = llm_clients
-        self.llm_config = llm_config
         self.model_profile_provider: ModelProfileProvider = model_profile_provider or DefaultModelProfileProvider()
 
         # Track active agents by session ID
@@ -83,7 +81,7 @@ class ExecutorContext:
             await self.emit_event(
                 events.WelcomeEvent(
                     work_dir=str(session.work_dir),
-                    llm_config=self.llm_config,
+                    llm_config=self.llm_clients.main.get_llm_config(),
                 )
             )
             self.active_agents[operation.session_id] = agent
@@ -297,10 +295,9 @@ class Executor:
         self,
         event_queue: asyncio.Queue[events.Event],
         llm_clients: LLMClients,
-        llm_config: llm_parameter.LLMConfigParameter,
         model_profile_provider: ModelProfileProvider | None = None,
     ):
-        self.context = ExecutorContext(event_queue, llm_clients, llm_config, model_profile_provider)
+        self.context = ExecutorContext(event_queue, llm_clients, model_profile_provider)
         self.submission_queue: asyncio.Queue[Submission] = asyncio.Queue()
         self.running = False
         self.task_completion_events: dict[str, asyncio.Event] = {}
@@ -381,11 +378,20 @@ class Executor:
         """Stop the executor and clean up resources."""
         self.running = False
 
-        # Cancel all active tasks
+        # Cancel all active tasks and collect them for awaiting
+        tasks_to_await: list[asyncio.Task[None]] = []
         for active in self.context.active_tasks.values():
             task = active.task
             if not task.done():
                 task.cancel()
+                tasks_to_await.append(task)
+
+        # Wait for all cancelled tasks to complete
+        if tasks_to_await:
+            await asyncio.gather(*tasks_to_await, return_exceptions=True)
+
+        # Clear the active_tasks dictionary
+        self.context.active_tasks.clear()
 
         # Send EndOperation to wake up the start() loop
         try:

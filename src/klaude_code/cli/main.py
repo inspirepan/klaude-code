@@ -31,7 +31,6 @@ from klaude_code.core.tool.memory.skill_tool import SkillTool
 from klaude_code.llm import LLMClients
 from klaude_code.protocol import op
 from klaude_code.protocol.events import EndEvent, Event
-from klaude_code.protocol.llm_parameter import LLMConfigParameter
 from klaude_code.protocol.model import ResponseMetadataItem
 from klaude_code.session import Session, resume_select_session
 from klaude_code.trace import DebugType, log, log_debug, set_debug_logging
@@ -151,8 +150,6 @@ class AppComponents:
     """Initialized application components."""
 
     config: Config
-    llm_clients: LLMClients
-    llm_config: LLMConfigParameter
     executor: Executor
     executor_task: asyncio.Task[None]
     event_queue: asyncio.Queue[Event]
@@ -186,7 +183,7 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     # Initialize LLM clients
     try:
         enabled_sub_agents = [p.name for p in iter_sub_agent_profiles()]
-        llm_clients, llm_config = LLMClients.from_config(
+        llm_clients = LLMClients.from_config(
             config,
             model_override=init_config.model,
             enabled_sub_agents=enabled_sub_agents,
@@ -199,12 +196,6 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
             log((f"Error: failed to load the default model configuration: {exc}", "red"))
         raise typer.Exit(2) from None
 
-    log_debug(
-        "Main model config",
-        llm_config.model_dump_json(exclude_none=True),
-        style="yellow",
-        debug_type=DebugType.LLM_CONFIG,
-    )
     model_profile_provider = VanillaModelProfileProvider() if init_config.vanilla else DefaultModelProfileProvider()
 
     # Create event queue for communication between executor and UI
@@ -214,7 +205,6 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     executor = Executor(
         event_queue,
         llm_clients,
-        llm_config,
         model_profile_provider=model_profile_provider,
     )
 
@@ -245,8 +235,6 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
 
     return AppComponents(
         config=config,
-        llm_clients=llm_clients,
-        llm_config=llm_config,
         executor=executor,
         executor_task=executor_task,
         event_queue=event_queue,
@@ -352,8 +340,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                         context_usage_percent = usage.context_usage_percent
                     break
         else:
-            # Fallback to main LLM client model name if no agent exists yet
-            model_name = components.llm_clients.main.model_name
+            model_name = ""
 
         # Check for updates (returns None if uv not available)
         update_message = get_update_message()
@@ -498,7 +485,7 @@ def list_models() -> None:
 
 
 @app.command("config")
-def edit_config():
+def edit_config() -> None:
     """Open the configuration file in $EDITOR or default system editor"""
     editor = os.environ.get("EDITOR")
 
@@ -581,7 +568,7 @@ def _session_confirm(sessions: list[Session.SessionMetaBrief], message: str) -> 
 def session_clean(
     min_messages: int = typer.Option(5, "--min", "-n", help="Minimum messages to keep a session"),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
-):
+) -> None:
     """Remove sessions with fewer than N messages (default: 5)"""
     sessions = Session.list_sessions()
     to_delete = [s for s in sessions if 0 <= s.messages_count < min_messages]
@@ -602,7 +589,7 @@ def session_clean(
 @session_app.command("clean-all")
 def session_clean_all(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
-):
+) -> None:
     """Remove all sessions for the current project"""
     sessions = Session.list_sessions()
 
@@ -654,7 +641,7 @@ def exec_command(
         "--vanilla",
         help="Vanilla mode exposes the model's raw API behavior: it provides only minimal tools (Bash, Read & Edit) and omits system prompts and reminders.",
     ),
-):
+) -> None:
     """Execute non-interactively with provided input."""
 
     # Set terminal title with current folder name
@@ -754,7 +741,7 @@ def main_callback(
         "--vanilla",
         help="Vanilla mode exposes the model's raw API behavior: it provides only minimal tools (Bash, Read & Edit) and omits system prompts and reminders.",
     ),
-):
+) -> None:
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
         # Set terminal title with current folder name

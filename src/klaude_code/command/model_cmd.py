@@ -49,7 +49,7 @@ class ModelCommand(CommandABC):
         llm_config = config.get_model_config(selected_model)
 
         log_debug(
-            "Updated model config",
+            "Updated LLM config",
             llm_config.model_dump_json(exclude_none=True),
             style="yellow",
             debug_type=DebugType.LLM_CONFIG,

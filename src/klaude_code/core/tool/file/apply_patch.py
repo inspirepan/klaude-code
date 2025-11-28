@@ -226,7 +226,7 @@ class Parser(BaseModel):
 
 def find_context_core(lines: list[str], context: list[str], start: int) -> tuple[int, int]:
     if not context:
-        print("context is empty")
+        # print("context is empty")
         return start, 0
 
     # Prefer identical
@@ -361,7 +361,7 @@ def _get_updated_file(text: str, action: PatchAction, path: str) -> str:
     for chunk in action.chunks:
         # Process the unchanged lines before the chunk
         if chunk.orig_index > len(orig_lines):
-            print(f"_get_updated_file: {path}: chunk.orig_index {chunk.orig_index} > len(lines) {len(orig_lines)}")
+            # print(f"_get_updated_file: {path}: chunk.orig_index {chunk.orig_index} > len(lines) {len(orig_lines)}")
             raise DiffError(
                 f"_get_updated_file: {path}: chunk.orig_index {chunk.orig_index} > len(lines) {len(orig_lines)}"
             )
