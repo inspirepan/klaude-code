@@ -143,7 +143,9 @@ class MemoryTool(ToolABC):
             description=(
                 "Stores and retrieves information across conversations through a memory file directory. "
                 "Use this tool to persist knowledge, progress, and context that should survive between sessions.\n\n"
-                "The memory directory is located at `.claude/memories/` in the project root. "
+                "The memory directory is located at `.claude/memories/` in the current project root "
+                "(git repository root if present, otherwise the current working directory). "
+                "Memories are scoped to the current project/directory and are not shared globally. "
                 "All paths must start with `/memories` (e.g., `/memories/notes.txt`).\n\n"
                 "Commands:\n"
                 "- `view`: Show directory contents or file contents with optional line range\n"
