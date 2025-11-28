@@ -18,11 +18,75 @@ if TYPE_CHECKING:
     from klaude_code.core.agent import AgentProfile
 
 
-@dataclass
-class _MetadataMergeState:
-    accumulated: model.ResponseMetadataItem
-    throughput_weighted_sum: float = 0.0
-    throughput_tracked_tokens: int = 0
+class MetadataAccumulator:
+    """Accumulates response metadata across multiple turns.
+
+    Tracks usage statistics including tokens, latency, and throughput,
+    merging them into a single aggregated result.
+    """
+
+    def __init__(self, model_name: str) -> None:
+        self._accumulated = model.ResponseMetadataItem(model_name=model_name)
+        self._throughput_weighted_sum: float = 0.0
+        self._throughput_tracked_tokens: int = 0
+
+    def add(self, turn_metadata: model.ResponseMetadataItem) -> None:
+        """Merge a turn's metadata into the accumulated state."""
+        accumulated = self._accumulated
+        usage = turn_metadata.usage
+
+        if usage is not None:
+            if accumulated.usage is None:
+                accumulated.usage = model.Usage()
+            acc_usage = accumulated.usage
+            acc_usage.input_tokens += usage.input_tokens
+            acc_usage.cached_tokens += usage.cached_tokens
+            acc_usage.reasoning_tokens += usage.reasoning_tokens
+            acc_usage.output_tokens += usage.output_tokens
+            acc_usage.total_tokens += usage.total_tokens
+
+            if usage.context_usage_percent is not None:
+                acc_usage.context_usage_percent = usage.context_usage_percent
+
+            if usage.first_token_latency_ms is not None:
+                if acc_usage.first_token_latency_ms is None:
+                    acc_usage.first_token_latency_ms = usage.first_token_latency_ms
+                else:
+                    acc_usage.first_token_latency_ms = min(
+                        acc_usage.first_token_latency_ms,
+                        usage.first_token_latency_ms,
+                    )
+
+            if usage.throughput_tps is not None:
+                current_output = usage.output_tokens
+                if current_output > 0:
+                    self._throughput_weighted_sum += usage.throughput_tps * current_output
+                    self._throughput_tracked_tokens += current_output
+
+        if turn_metadata.provider is not None:
+            accumulated.provider = turn_metadata.provider
+        if turn_metadata.model_name:
+            accumulated.model_name = turn_metadata.model_name
+        if turn_metadata.response_id:
+            accumulated.response_id = turn_metadata.response_id
+        if turn_metadata.status is not None:
+            accumulated.status = turn_metadata.status
+        if turn_metadata.error_reason is not None:
+            accumulated.error_reason = turn_metadata.error_reason
+
+    def finalize(self, task_duration_s: float) -> model.ResponseMetadataItem:
+        """Return the final accumulated metadata with computed throughput and duration."""
+        accumulated = self._accumulated
+        if accumulated.usage is not None:
+            if self._throughput_tracked_tokens > 0:
+                accumulated.usage.throughput_tps = (
+                    self._throughput_weighted_sum / self._throughput_tracked_tokens
+                )
+            else:
+                accumulated.usage.throughput_tps = None
+
+        accumulated.task_duration_s = task_duration_s
+        return accumulated
 
 
 @dataclass
@@ -77,9 +141,7 @@ class TaskExecutor:
         ctx.append_history([model.UserMessageItem(content=user_input)])
 
         profile = ctx.profile
-        metadata_state = _MetadataMergeState(
-            accumulated=model.ResponseMetadataItem(model_name=profile.llm_client.model_name)
-        )
+        metadata_accumulator = MetadataAccumulator(model_name=profile.llm_client.model_name)
         last_assistant_message: events.AssistantMessageEvent | None = None
 
         while True:
@@ -115,7 +177,7 @@ class TaskExecutor:
                                     last_assistant_message = am
                                 yield am
                             case events.ResponseMetadataEvent() as e:
-                                self._merge_turn_metadata(metadata_state, e.metadata)
+                                metadata_accumulator.add(e.metadata)
                             case _:
                                 yield turn_event
 
@@ -150,16 +212,8 @@ class TaskExecutor:
                 break
 
         # Finalize metadata
-        accumulated = metadata_state.accumulated
-        if accumulated.usage is not None:
-            if metadata_state.throughput_tracked_tokens > 0:
-                accumulated.usage.throughput_tps = (
-                    metadata_state.throughput_weighted_sum / metadata_state.throughput_tracked_tokens
-                )
-            else:
-                accumulated.usage.throughput_tps = None
-
-        accumulated.task_duration_s = time.perf_counter() - self._started_at
+        task_duration_s = time.perf_counter() - self._started_at
+        accumulated = metadata_accumulator.finalize(task_duration_s)
 
         yield events.ResponseMetadataEvent(metadata=accumulated, session_id=ctx.session_id)
         ctx.append_history([accumulated])
@@ -167,51 +221,6 @@ class TaskExecutor:
             session_id=ctx.session_id,
             task_result=last_assistant_message.content if last_assistant_message else "",
         )
-
-    def _merge_turn_metadata(
-        self,
-        state: _MetadataMergeState,
-        turn_metadata: model.ResponseMetadataItem,
-    ) -> None:
-        accumulated = state.accumulated
-        usage = turn_metadata.usage
-        if usage is not None:
-            if accumulated.usage is None:
-                accumulated.usage = model.Usage()
-            acc_usage = accumulated.usage
-            acc_usage.input_tokens += usage.input_tokens
-            acc_usage.cached_tokens += usage.cached_tokens
-            acc_usage.reasoning_tokens += usage.reasoning_tokens
-            acc_usage.output_tokens += usage.output_tokens
-            acc_usage.total_tokens += usage.total_tokens
-            if usage.context_usage_percent is not None:
-                acc_usage.context_usage_percent = usage.context_usage_percent
-
-            if usage.first_token_latency_ms is not None:
-                if acc_usage.first_token_latency_ms is None:
-                    acc_usage.first_token_latency_ms = usage.first_token_latency_ms
-                else:
-                    acc_usage.first_token_latency_ms = min(
-                        acc_usage.first_token_latency_ms,
-                        usage.first_token_latency_ms,
-                    )
-
-            if usage.throughput_tps is not None:
-                current_output = usage.output_tokens
-                if current_output > 0:
-                    state.throughput_weighted_sum += usage.throughput_tps * current_output
-                    state.throughput_tracked_tokens += current_output
-
-        if turn_metadata.provider is not None:
-            accumulated.provider = turn_metadata.provider
-        if turn_metadata.model_name:
-            accumulated.model_name = turn_metadata.model_name
-        if turn_metadata.response_id:
-            accumulated.response_id = turn_metadata.response_id
-        if turn_metadata.status is not None:
-            accumulated.status = turn_metadata.status
-        if turn_metadata.error_reason is not None:
-            accumulated.error_reason = turn_metadata.error_reason
 
 
 def _retry_delay_seconds(attempt: int) -> float:
