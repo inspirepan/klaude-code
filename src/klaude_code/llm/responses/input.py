@@ -140,13 +140,12 @@ def convert_reasoning_inputs(
 ) -> responses.ResponseInputItemParam:
     result = {"type": "reasoning", "content": None}
 
-    if text_content is not None:
-        result["summary"] = [
-            {
-                "type": "summary_text",
-                "text": text_content,
-            }
-        ]
+    result["summary"] = [
+        {
+            "type": "summary_text",
+            "text": text_content or "",
+        }
+    ]
     if encrypted_item.encrypted_content:
         result["encrypted_content"] = encrypted_item.encrypted_content
     if encrypted_item.id is not None:
