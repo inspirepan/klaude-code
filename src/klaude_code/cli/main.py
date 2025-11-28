@@ -23,12 +23,12 @@ from klaude_code.config import config_path, load_config
 from klaude_code.config.config import Config
 from klaude_code.config.list_model import display_models_and_providers
 from klaude_code.config.select_model import select_model_from_config
-from klaude_code.core.agent import AgentLLMClients, DefaultModelProfileProvider, VanillaModelProfileProvider
+from klaude_code.core.agent import DefaultModelProfileProvider, VanillaModelProfileProvider
 from klaude_code.core.executor import Executor
 from klaude_code.core.sub_agent import iter_sub_agent_profiles
 from klaude_code.core.tool.memory.skill_loader import SkillLoader
 from klaude_code.core.tool.memory.skill_tool import SkillTool
-from klaude_code.llm import LLMClientABC, create_llm_client
+from klaude_code.llm import LLMClients
 from klaude_code.protocol import op
 from klaude_code.protocol.events import EndEvent, Event
 from klaude_code.protocol.llm_parameter import LLMConfigParameter
@@ -151,7 +151,7 @@ class AppComponents:
     """Initialized application components."""
 
     config: Config
-    llm_clients: AgentLLMClients
+    llm_clients: LLMClients
     llm_config: LLMConfigParameter
     executor: Executor
     executor_task: asyncio.Task[None]
@@ -182,9 +182,15 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
             parts.append(f"{project_count} project")
         log_debug(f"Discovered {len(skills)} Claude Skills ({', '.join(parts)})")
     SkillTool.set_skill_loader(skill_loader)
-    # Resolve main agent LLM config
+
+    # Initialize LLM clients
     try:
-        llm_config = config.get_model_config(init_config.model) if init_config.model else config.get_main_model_config()
+        enabled_sub_agents = [p.name for p in iter_sub_agent_profiles()]
+        llm_clients, llm_config = LLMClients.from_config(
+            config,
+            model_override=init_config.model,
+            enabled_sub_agents=enabled_sub_agents,
+        )
     except ValueError as exc:
         if init_config.model:
             log((f"Error: model '{init_config.model}' is not defined in the config", "red"))
@@ -192,32 +198,14 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
         else:
             log((f"Error: failed to load the default model configuration: {exc}", "red"))
         raise typer.Exit(2) from None
-    llm_client: LLMClientABC = create_llm_client(llm_config)
+
     log_debug(
         "Main model config",
         llm_config.model_dump_json(exclude_none=True),
         style="yellow",
         debug_type=DebugType.LLM_CONFIG,
     )
-
-    llm_clients = AgentLLMClients(main=llm_client)
     model_profile_provider = VanillaModelProfileProvider() if init_config.vanilla else DefaultModelProfileProvider()
-
-    for profile in iter_sub_agent_profiles():
-        model_name = config.subagent_models.get(profile.name)
-        if not model_name:
-            continue
-        if not profile.enabled_for_model(llm_client.model_name):
-            continue
-        sub_llm_config = config.get_model_config(model_name)
-        sub_llm_client = create_llm_client(sub_llm_config)
-        llm_clients.set_sub_agent_client(profile.name, sub_llm_client)
-        log_debug(
-            f"Sub-agent {profile.name} model config",
-            sub_llm_config.model_dump_json(exclude_none=True),
-            style="yellow",
-            debug_type=DebugType.LLM_CONFIG,
-        )
 
     # Create event queue for communication between executor and UI
     event_queue: asyncio.Queue[Event] = asyncio.Queue()
@@ -345,7 +333,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
         if session_id and session_id in components.executor.context.active_agents:
             agent = components.executor.context.active_agents[session_id]
-            model_name = agent.session.model_name or components.llm_clients.main.model_name
+            model_name = agent.session.model_name or (agent.profile.llm_client.model_name if agent.profile else "N/A")
 
             # Count AssistantMessageItem and ToolCallItem in conversation history
             from klaude_code.protocol.model import AssistantMessageItem, ToolCallItem

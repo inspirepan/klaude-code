@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from klaude_code.command import dispatch_command
-from klaude_code.core.agent import Agent, AgentLLMClients, AgentRole, DefaultModelProfileProvider, ModelProfileProvider
+from klaude_code.core.agent import Agent, DefaultModelProfileProvider, ModelProfileProvider
+from klaude_code.llm import LLMClients
 from klaude_code.core.sub_agent import SubAgentResult
 from klaude_code.core.tool.tool_context import current_run_subtask_callback
 from klaude_code.protocol import events, llm_parameter, model
@@ -43,7 +44,7 @@ class ExecutorContext:
     def __init__(
         self,
         event_queue: asyncio.Queue[events.Event],
-        llm_clients: AgentLLMClients,
+        llm_clients: LLMClients,
         llm_config: llm_parameter.LLMConfigParameter,
         model_profile_provider: ModelProfileProvider | None = None,
     ):
@@ -71,14 +72,10 @@ class ExecutorContext:
 
         # Create agent if not exists
         if operation.session_id not in self.active_agents:
-            initial_profile = self.model_profile_provider.build_profile(
-                self.llm_clients.main,
-                AgentRole.main(),
-            )
+            profile = self.model_profile_provider.build_profile(self.llm_clients.main)
             agent = Agent(
-                llm_clients=self.llm_clients,
                 session=session,
-                initial_profile=initial_profile,
+                profile=profile,
                 model_profile_provider=self.model_profile_provider,
             )
             async for evt in agent.replay_history():
@@ -244,21 +241,13 @@ class ExecutorContext:
         child_session = Session(work_dir=parent_session.work_dir)
         child_session.sub_agent_state = state
 
-        # Build a fresh AgentLLMClients wrapper to avoid mutating parent's pointers
-        child_llm_clients = AgentLLMClients(
-            main=self.llm_clients.get_sub_agent_client(state.sub_agent_type),
-            fast=self.llm_clients.fast,
-            sub_clients=dict(self.llm_clients.sub_clients),
-        )
-
         child_profile = self.model_profile_provider.build_profile(
-            child_llm_clients.main,
-            AgentRole.sub(state.sub_agent_type),
+            self.llm_clients.get_client(state.sub_agent_type),
+            state.sub_agent_type,
         )
         child_agent = Agent(
-            llm_clients=child_llm_clients,
             session=child_session,
-            initial_profile=child_profile,
+            profile=child_profile,
             model_profile_provider=self.model_profile_provider,
         )
 
@@ -307,7 +296,7 @@ class Executor:
     def __init__(
         self,
         event_queue: asyncio.Queue[events.Event],
-        llm_clients: AgentLLMClients,
+        llm_clients: LLMClients,
         llm_config: llm_parameter.LLMConfigParameter,
         model_profile_provider: ModelProfileProvider | None = None,
     ):

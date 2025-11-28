@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Iterable
-from dataclasses import dataclass, field
-from typing import Literal, Protocol, cast
+from dataclasses import dataclass
+from typing import Protocol
 
 from klaude_code.core.prompt import get_system_prompt as load_system_prompt
 from klaude_code.core.reminders import (
@@ -26,48 +26,11 @@ from klaude_code.session import Session
 from klaude_code.trace import DebugType, log_debug
 
 
-@dataclass
-class AgentLLMClients:
-    main: LLMClientABC
-    fast: LLMClientABC | None = None  # Not used for now
-    sub_clients: dict[tools.SubAgentType, LLMClientABC | None] = field(
-        default_factory=lambda: cast(dict[tools.SubAgentType, LLMClientABC | None], {})
-    )
-
-    def get_sub_agent_client(self, sub_agent_type: tools.SubAgentType) -> LLMClientABC:
-        return self.sub_clients.get(sub_agent_type) or self.main
-
-    def set_sub_agent_client(self, sub_agent_type: tools.SubAgentType, client: LLMClientABC) -> None:
-        self.sub_clients[sub_agent_type] = client
-
-
-@dataclass(frozen=True)
-class AgentRole:
-    """Defines the role context when configuring an agent."""
-
-    name: Literal["main", "sub"]
-    sub_agent_type: tools.SubAgentType | None = None
-
-    @classmethod
-    def main(cls) -> "AgentRole":
-        return cls(name="main")
-
-    @classmethod
-    def sub(cls, sub_agent_type: tools.SubAgentType) -> "AgentRole":
-        return cls(name="sub", sub_agent_type=sub_agent_type)
-
-    def require_sub_agent_type(self) -> tools.SubAgentType:
-        if self.sub_agent_type is None:
-            raise ValueError("Sub-agent role requires sub_agent_type")
-        return self.sub_agent_type
-
-
 @dataclass(frozen=True)
 class AgentProfile:
     """Encapsulates the active LLM client plus prompt/tools/reminders."""
 
     llm_client: LLMClientABC
-    role: AgentRole
     system_prompt: str | None
     tools: list[llm_parameter.ToolSchema]
     reminders: list[Reminder]
@@ -79,7 +42,7 @@ class ModelProfileProvider(Protocol):
     def build_profile(
         self,
         llm_client: LLMClientABC,
-        agent_role: AgentRole,
+        sub_agent_type: tools.SubAgentType | None = None,
     ) -> AgentProfile: ...
 
 
@@ -89,29 +52,25 @@ class DefaultModelProfileProvider(ModelProfileProvider):
     def build_profile(
         self,
         llm_client: LLMClientABC,
-        agent_role: AgentRole,
+        sub_agent_type: tools.SubAgentType | None = None,
     ) -> AgentProfile:
         model_name = llm_client.model_name
 
-        if agent_role.name == "main":
+        if sub_agent_type is None:
             prompt_key = "main"
-        else:
-            prompt_key = get_sub_agent_profile(agent_role.require_sub_agent_type()).name
-        system_prompt = load_system_prompt(model_name, prompt_key)
-
-        if agent_role.name == "main":
-            tools = get_main_agent_tools(model_name)
+            tool_list = get_main_agent_tools(model_name)
             reminders = get_main_agent_reminders(model_name)
         else:
-            sub_agent_type = agent_role.require_sub_agent_type()
-            tools = get_sub_agent_tools(model_name, sub_agent_type)
+            prompt_key = get_sub_agent_profile(sub_agent_type).name
+            tool_list = get_sub_agent_tools(model_name, sub_agent_type)
             reminders = get_sub_agent_reminders(model_name)
+
+        system_prompt = load_system_prompt(model_name, prompt_key)
 
         return AgentProfile(
             llm_client=llm_client,
-            role=agent_role,
             system_prompt=system_prompt,
-            tools=tools,
+            tools=tool_list,
             reminders=reminders,
         )
 
@@ -122,11 +81,10 @@ class VanillaModelProfileProvider(ModelProfileProvider):
     def build_profile(
         self,
         llm_client: LLMClientABC,
-        agent_role: AgentRole,
+        sub_agent_type: tools.SubAgentType | None = None,
     ) -> AgentProfile:
         return AgentProfile(
             llm_client=llm_client,
-            role=agent_role,
             system_prompt=None,
             tools=get_vanilla_tools(),
             reminders=get_vanilla_reminders(),
@@ -136,20 +94,18 @@ class VanillaModelProfileProvider(ModelProfileProvider):
 class Agent:
     def __init__(
         self,
-        llm_clients: AgentLLMClients,
         session: Session,
-        initial_profile: AgentProfile,
+        profile: AgentProfile,
         *,
         model_profile_provider: ModelProfileProvider | None = None,
     ):
         self.session: Session = session
-        self.llm_clients = llm_clients
         self.model_profile_provider: ModelProfileProvider = model_profile_provider or DefaultModelProfileProvider()
         self.profile: AgentProfile | None = None
         # Active task executor, if any
         self._current_task: TaskExecutor | None = None
         # Ensure runtime configuration matches the active model on initialization
-        self.set_model_profile(initial_profile)
+        self.set_model_profile(profile)
 
     def cancel(self) -> Iterable[events.Event]:
         """Handle agent cancellation and persist an interrupt marker and tool cancellations.
@@ -216,19 +172,14 @@ class Agent:
         """Apply a fully constructed profile to the agent."""
 
         self.profile = profile
-        # Keep shared client registry in sync for main-agent switches
-        if profile.role.name == "main":
-            self.llm_clients.main = profile.llm_client
         self.session.model_name = profile.llm_client.model_name
 
     def build_model_profile(
         self,
         llm_client: LLMClientABC,
-        agent_role: AgentRole | None = None,
+        sub_agent_type: tools.SubAgentType | None = None,
     ) -> AgentProfile:
-        if agent_role is None:
-            agent_role = AgentRole.main()
-        return self.model_profile_provider.build_profile(llm_client, agent_role)
+        return self.model_profile_provider.build_profile(llm_client, sub_agent_type)
 
     def get_llm_client(self) -> LLMClientABC:
         return self._require_profile().llm_client
