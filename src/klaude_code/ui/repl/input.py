@@ -526,6 +526,9 @@ class _AtFilesCompleter(Completer):
         self._rg_file_list: list[str] | None = None
         self._rg_file_list_time: float = 0.0
 
+        # Cache for ignored paths (gitignored files)
+        self._last_ignored_paths: set[str] = set()
+
     # ---- prompt_toolkit API ----
     def get_completions(self, document: Document, complete_event) -> Iterable[Completion]:  # type: ignore[override]
         text_before = document.text_before_cursor
@@ -580,17 +583,18 @@ class _AtFilesCompleter(Completer):
                 )
                 if is_narrowing and (now - self._last_cmd_time) < self._debounce_sec:
                     # For narrowing, fast-filter previous results to avoid expensive calls
-                    return self._filter_and_format(self._last_results, cwd, key_norm)
+                    return self._filter_and_format(self._last_results, cwd, key_norm, self._last_ignored_paths)
 
         # Cache TTL: reuse cached results for same query within TTL
         if self._last_results and self._last_query_key == query_key and now - self._last_results_time < self._cache_ttl:
-            return self._filter_and_format(self._last_results, cwd, key_norm)
+            return self._filter_and_format(self._last_results, cwd, key_norm, self._last_ignored_paths)
 
         # Prefer fd; otherwise fallback to rg --files
         results: list[str] = []
+        ignored_paths: set[str] = set()
         if self._has_cmd("fd"):
             # Use fd to search anywhere in full path (files and directories), case-insensitive
-            results = self._run_fd_search(cwd, key_norm)
+            results, ignored_paths = self._run_fd_search(cwd, key_norm)
         elif self._has_cmd("rg"):
             # Use rg to search only in current directory
             if self._rg_file_list is None or now - self._rg_file_list_time > max(self._cache_ttl, 30.0):
@@ -606,6 +610,7 @@ class _AtFilesCompleter(Completer):
             all_files = self._rg_file_list or []
             kn = key_norm
             results = [p for p in all_files if kn in p.lower()]
+            # For rg fallback, we don't distinguish ignored files (no priority sorting)
         else:
             return []
 
@@ -614,13 +619,19 @@ class _AtFilesCompleter(Completer):
         self._last_query_key = query_key
         self._last_results = results
         self._last_results_time = now
-        return self._filter_and_format(results, cwd, key_norm)
+        self._last_ignored_paths = ignored_paths
+        return self._filter_and_format(results, cwd, key_norm, ignored_paths)
 
-    def _filter_and_format(self, paths_from_root: list[str], cwd: Path, keyword_norm: str) -> list[str]:
-        # Filter to keyword (case-insensitive) and rank by basename hit first, then path hit position, then length
+    def _filter_and_format(
+        self, paths_from_root: list[str], cwd: Path, keyword_norm: str, ignored_paths: set[str] | None = None
+    ) -> list[str]:
+        # Filter to keyword (case-insensitive) and rank by:
+        # 1. Non-gitignored files first (is_ignored: 0 or 1)
+        # 2. Basename hit first, then path hit position, then length
         # Since both fd and rg now search from current directory, all paths are relative to cwd
         kn = keyword_norm
-        out: list[tuple[str, tuple[int, int, int]]] = []
+        ignored_paths = ignored_paths or set()
+        out: list[tuple[str, tuple[int, int, int, int, int]]] = []
         for p in paths_from_root:
             pl = p.lower()
             if kn not in pl:
@@ -631,13 +642,15 @@ class _AtFilesCompleter(Completer):
             base = os.path.basename(p).lower()
             base_pos = base.find(kn)
             path_pos = pl.find(kn)
-            score = (0 if base_pos != -1 else 1, base_pos if base_pos != -1 else 10_000, path_pos, len(p))
+            # Check if this path is in the ignored set (gitignored files)
+            is_ignored = 1 if rel_to_cwd in ignored_paths else 0
+            score = (is_ignored, 0 if base_pos != -1 else 1, base_pos if base_pos != -1 else 10_000, path_pos, len(p))
 
             # Append trailing slash for directories
             full_path = cwd / rel_to_cwd
             if full_path.is_dir() and not rel_to_cwd.endswith("/"):
                 rel_to_cwd = rel_to_cwd + "/"
-            out.append((rel_to_cwd, score))  # type: ignore[reportArgumentType]
+            out.append((rel_to_cwd, score))
         # Sort by score
         out.sort(key=lambda x: x[1])
         # Unique while preserving order
@@ -669,11 +682,15 @@ class _AtFilesCompleter(Completer):
             return None, None
 
     # ---- Utilities ----
-    def _run_fd_search(self, cwd: Path, keyword_norm: str) -> list[str]:
-        # Use fd regex matching anywhere in the full path; escape user input
-        # Fixed to search only in current working directory
+    def _run_fd_search(self, cwd: Path, keyword_norm: str) -> tuple[list[str], set[str]]:
+        """Run fd search and return (all_results, ignored_paths).
+
+        First runs fd without --no-ignore to get tracked files,
+        then runs with --no-ignore to get all files including gitignored ones.
+        Returns the combined results and a set of paths that are gitignored.
+        """
         pattern = self._escape_regex(keyword_norm)
-        cmd = [
+        base_cmd = [
             "fd",
             "--color=never",
             "--type",
@@ -681,7 +698,6 @@ class _AtFilesCompleter(Completer):
             "--type",
             "d",
             "--hidden",
-            "--no-ignore",
             "--full-path",
             "-i",
             "--max-results",
@@ -695,9 +711,21 @@ class _AtFilesCompleter(Completer):
             pattern,
             ".",
         ]
-        # Run fd from current working directory
-        r = self._run_cmd(cmd, cwd=cwd)
-        return r.lines if r.ok else []
+
+        # First run: get tracked (non-ignored) files
+        r_tracked = self._run_cmd(base_cmd, cwd=cwd)
+        tracked_paths: set[str] = set(p.lstrip("./") for p in r_tracked.lines) if r_tracked.ok else set()
+
+        # Second run: get all files including ignored ones
+        cmd_all = base_cmd.copy()
+        cmd_all.insert(2, "--no-ignore")  # Insert after --color=never
+        r_all = self._run_cmd(cmd_all, cwd=cwd)
+        all_paths = r_all.lines if r_all.ok else []
+
+        # Calculate which paths are gitignored (in all but not in tracked)
+        ignored_paths = set(p.lstrip("./") for p in all_paths) - tracked_paths
+
+        return all_paths, ignored_paths
 
     def _escape_regex(self, s: str) -> str:
         # Escape for fd (regex by default). Keep '/' as is for path boundaries.
