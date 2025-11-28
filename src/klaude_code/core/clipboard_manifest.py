@@ -10,7 +10,6 @@ from typing import Any, cast
 CLIPBOARD_ROOT = Path.home() / ".klaude" / "clipboard"
 CLIPBOARD_IMAGES_DIR = CLIPBOARD_ROOT / "images"
 CLIPBOARD_MANIFESTS_DIR = CLIPBOARD_ROOT / "manifests"
-LEGACY_MANIFEST_FILE = CLIPBOARD_ROOT / "last_clipboard_images.json"
 
 
 @dataclass(slots=True)
@@ -50,12 +49,6 @@ def _manifest_dir(storage_dir: Path | None = None) -> Path:
     return CLIPBOARD_MANIFESTS_DIR
 
 
-def _legacy_manifest_file(storage_dir: Path | None = None) -> Path:
-    if storage_dir:
-        return storage_dir / "last_clipboard_images.json"
-    return LEGACY_MANIFEST_FILE
-
-
 def persist_clipboard_manifest(
     manifest: ClipboardManifest,
     *,
@@ -74,11 +67,7 @@ def persist_clipboard_manifest(
 
 def load_latest_clipboard_manifest(*, storage_dir: Path | None = None) -> ClipboardManifest | None:
     manifest_dir = _manifest_dir(storage_dir)
-    latest_manifest = _load_latest_manifest_file(manifest_dir)
-    if latest_manifest:
-        return latest_manifest
-    legacy_path = _legacy_manifest_file(storage_dir)
-    return _load_legacy_manifest(legacy_path)
+    return _load_latest_manifest_file(manifest_dir)
 
 
 def _load_latest_manifest_file(manifest_dir: Path) -> ClipboardManifest | None:
@@ -120,26 +109,6 @@ def _manifest_from_payload(payload: dict[str, Any]) -> ClipboardManifest | None:
     if source_id is not None and not isinstance(source_id, str):
         source_id = None
     return ClipboardManifest(entries=entries, created_at_ts=created_at_val, source_id=source_id)
-
-
-def _load_legacy_manifest(path: Path) -> ClipboardManifest | None:
-    if not path.exists():
-        return None
-    try:
-        payload_raw = json.loads(path.read_text())
-    except (json.JSONDecodeError, OSError):
-        return None
-    if not isinstance(payload_raw, dict):
-        return None
-    payload = cast(dict[str, Any], payload_raw)
-    entries: list[ClipboardManifestEntry] = []
-    for tag, raw_path in payload.items():
-        if not isinstance(raw_path, str):
-            continue
-        entries.append(ClipboardManifestEntry(tag=tag, path=raw_path, saved_at_ts=time.time()))
-    if not entries:
-        return None
-    return ClipboardManifest(entries=entries, created_at_ts=time.time(), source_id="legacy")
 
 
 def next_session_token() -> str:
