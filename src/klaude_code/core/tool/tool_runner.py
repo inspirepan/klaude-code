@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator, Callable, Iterable
+from collections.abc import AsyncGenerator, Callable, Iterable, Sequence
 from dataclasses import dataclass
 
 from klaude_code.const import CANCEL_OUTPUT
@@ -102,7 +102,7 @@ class ToolExecutor:
         self,
         *,
         registry: dict[str, type[ToolABC]],
-        append_history: Callable[[list[model.MessageItem]], None],
+        append_history: Callable[[Sequence[model.ConversationItem]], None],
     ) -> None:
         self._registry = registry
         self._append_history = append_history

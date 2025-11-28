@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import asyncio
-import time
 from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass, field
 from typing import Literal, Protocol, cast
 
-from klaude_code.const import FIRST_EVENT_TIMEOUT_S, INITIAL_RETRY_DELAY_S, MAX_FAILED_TURN_RETRIES, MAX_RETRY_DELAY_S
 from klaude_code.core.prompt import get_system_prompt as load_system_prompt
 from klaude_code.core.reminders import (
     Reminder,
@@ -15,19 +12,13 @@ from klaude_code.core.reminders import (
     get_vanilla_reminders,
 )
 from klaude_code.core.sub_agent import get_sub_agent_profile
-from klaude_code.core.tool.tool_context import reset_tool_context, set_tool_context_from_session
+from klaude_code.core.task import TaskExecutionContext, TaskExecutor
+from klaude_code.core.tool.tool_context import TodoContext
 from klaude_code.core.tool.tool_registry import (
     get_main_agent_tools,
     get_registry,
     get_sub_agent_tools,
     get_vanilla_tools,
-)
-from klaude_code.core.tool.tool_runner import (
-    ToolExecutionCallStarted,
-    ToolExecutionResult,
-    ToolExecutionTodoChange,
-    ToolExecutor,
-    ToolExecutorEvent,
 )
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.protocol import events, llm_parameter, model, tools
@@ -48,13 +39,6 @@ class AgentLLMClients:
 
     def set_sub_agent_client(self, sub_agent_type: tools.SubAgentType, client: LLMClientABC) -> None:
         self.sub_clients[sub_agent_type] = client
-
-
-@dataclass
-class _MetadataMergeState:
-    accumulated: "model.ResponseMetadataItem"
-    throughput_weighted_sum: float = 0.0
-    throughput_tracked_tokens: int = 0
 
 
 @dataclass(frozen=True)
@@ -162,8 +146,8 @@ class Agent:
         self.llm_clients = llm_clients
         self.model_profile_provider: ModelProfileProvider = model_profile_provider or DefaultModelProfileProvider()
         self.profile: AgentProfile | None = None
-        # Active tool executor for the current turn, if any
-        self._tool_executor: ToolExecutor | None = None
+        # Active task executor, if any
+        self._current_task: TaskExecutor | None = None
         # Ensure runtime configuration matches the active model on initialization
         self.set_model_profile(initial_profile)
 
@@ -172,215 +156,44 @@ class Agent:
 
         - Appends an `InterruptItem` into the session history so interruptions are reflected
           in persisted conversation logs.
-        - For any tool calls that are pending or in-progress in the current turn, delegate to
-          the active ToolExecutor to append synthetic ToolResultItem entries with error status
+        - For any tool calls that are pending or in-progress in the current task, delegate to
+          the active TaskExecutor to append synthetic ToolResultItem entries with error status
           to indicate cancellation.
         """
-        # First, cancel any running tools for the current turn so they stop emitting events.
-        if self._tool_executor is not None:
-            for exec_event in self._tool_executor.cancel():
-                for ui_event in self._build_events_from_tool_executor_event(exec_event):
-                    yield ui_event
-            self._tool_executor = None
+        # First, cancel any running task so it stops emitting events.
+        if self._current_task is not None:
+            for ui_event in self._current_task.cancel():
+                yield ui_event
+            self._current_task = None
 
         # Record an interrupt marker in the session history
         self.session.append_history([model.InterruptItem()])
         log_debug(f"Session {self.session.id} interrupted", style="yellow", debug_type=DebugType.EXECUTION)
 
     async def run_task(self, user_input: str) -> AsyncGenerator[events.Event, None]:
-        task_started_at = time.perf_counter()
-        yield events.TaskStartEvent(
+        context = TaskExecutionContext(
             session_id=self.session.id,
+            profile=self._require_profile(),
+            get_conversation_history=lambda: self.session.conversation_history,
+            append_history=self.session.append_history,
+            tool_registry=get_registry(),
+            file_tracker=self.session.file_tracker,
+            todo_context=TodoContext(
+                get_todos=lambda: self.session.todos,
+                set_todos=lambda todos: setattr(self.session, "todos", todos),
+            ),
+            process_reminder=self._process_reminder,
             sub_agent_state=self.session.sub_agent_state,
         )
 
-        self.session.append_history([model.UserMessageItem(content=user_input)])
+        task = TaskExecutor(context)
+        self._current_task = task
 
-        metadata_merge_state = _MetadataMergeState(
-            accumulated=model.ResponseMetadataItem(model_name=self.get_llm_client().model_name)
-        )
-        last_assistant_message: events.AssistantMessageEvent | None = None
-
-        while True:
-            # Each outer loop is a new turn. Process reminders at the start of each turn.
-            async for event in self.process_reminders():
+        try:
+            async for event in task.run(user_input):
                 yield event
-
-            failed_turn_attempts = 0
-            last_turn_error_message: str | None = None
-            while failed_turn_attempts <= MAX_FAILED_TURN_RETRIES:
-                # The inner loop handles the execution and potential retries of a single turn.
-                turn_has_tool_call = False
-                turn_failed = False
-                last_turn_error_message = None
-
-                def handle_turn_event(turn_event: events.Event) -> events.Event | None:
-                    nonlocal turn_has_tool_call, turn_failed, last_assistant_message, last_turn_error_message
-                    match turn_event:
-                        case events.ToolCallEvent() as tc:
-                            turn_has_tool_call = True
-                            return tc
-                        case events.ToolResultEvent() as tr:
-                            return tr
-                        case events.AssistantMessageEvent() as am:
-                            if am.content.strip() != "":
-                                last_assistant_message = am
-                            return am
-                        case events.ErrorEvent() as err:
-                            turn_failed = True
-                            last_turn_error_message = err.error_message
-                            return None
-                        case events.ResponseMetadataEvent() as e:
-                            self._merge_turn_metadata(
-                                metadata_merge_state,
-                                e.metadata,
-                            )
-                            status = e.metadata.status
-                            if status is not None and status != "completed":
-                                turn_failed = True
-                            return None
-                        case _ as other:
-                            return other
-
-                turn_generator = self.run_turn()
-                turn_timed_out = False
-
-                try:
-                    async with asyncio.timeout(FIRST_EVENT_TIMEOUT_S):
-                        # Process events until the first meaningful one, with a timeout.
-                        # A "meaningful" event is any event other than TurnStartEvent.
-                        async for turn_event in turn_generator:
-                            event_to_yield = handle_turn_event(turn_event)
-                            if event_to_yield is not None:
-                                yield event_to_yield
-
-                            # After yielding, check if it was a meaningful event to break the timeout context
-                            if not isinstance(turn_event, events.TurnStartEvent):
-                                break
-                except (TimeoutError, asyncio.TimeoutError):
-                    turn_timed_out = True
-                    turn_failed = True
-                    log_debug(
-                        "Turn timed out before first meaningful event, retrying",
-                        style="red",
-                        debug_type=DebugType.EXECUTION,
-                    )
-                    try:
-                        await turn_generator.aclose()
-                    except Exception:
-                        pass  # Suppress errors on closing the generator
-
-                # If the turn hasn't timed out, continue processing the rest of the events.
-                if not turn_timed_out:
-                    async for turn_event in turn_generator:
-                        event_to_yield = handle_turn_event(turn_event)
-                        if event_to_yield is not None:
-                            yield event_to_yield
-
-                if not turn_failed:
-                    # If the turn succeeded, break the inner retry loop.
-                    break
-
-                # If the turn failed, increment the attempt counter and the inner loop will continue.
-                failed_turn_attempts += 1
-                if failed_turn_attempts > MAX_FAILED_TURN_RETRIES:
-                    # Retry budget exhausted; let the loop terminate and emit final error below
-                    continue
-
-                retry_delay = self._retry_delay_seconds(failed_turn_attempts)
-                if turn_timed_out:
-                    error_message = (
-                        f"Turn timed out after {FIRST_EVENT_TIMEOUT_S} seconds. "
-                        f"Retrying {failed_turn_attempts}/{MAX_FAILED_TURN_RETRIES} in {retry_delay:.1f}s"
-                    )
-                else:
-                    error_message = f"Retrying {failed_turn_attempts}/{MAX_FAILED_TURN_RETRIES} in {retry_delay:.1f}s"
-
-                combined_error_message = error_message
-                if last_turn_error_message:
-                    combined_error_message = f"{error_message} · {last_turn_error_message}"
-                yield events.ErrorEvent(error_message=combined_error_message, can_retry=True)
-                await asyncio.sleep(retry_delay)
-            else:
-                # This 'else' belongs to the 'while' loop. It runs if the loop completes without a 'break'.
-                # This means all retries have been exhausted and failed.
-                log_debug(
-                    "Maximum consecutive failed turns reached, aborting task",
-                    style="red",
-                    debug_type=DebugType.EXECUTION,
-                )
-                final_error_message = f"Turn failed after {MAX_FAILED_TURN_RETRIES} retries."
-                if last_turn_error_message:
-                    final_error_message = f"{last_turn_error_message}\n{final_error_message}"
-                yield events.ErrorEvent(error_message=final_error_message, can_retry=False)
-                return  # Exit the entire run_task method
-
-            if not turn_has_tool_call:
-                break
-
-        accumulated_metadata = metadata_merge_state.accumulated
-
-        if accumulated_metadata.usage is not None:
-            if metadata_merge_state.throughput_tracked_tokens > 0:
-                accumulated_metadata.usage.throughput_tps = (
-                    metadata_merge_state.throughput_weighted_sum / metadata_merge_state.throughput_tracked_tokens
-                )
-            else:
-                accumulated_metadata.usage.throughput_tps = None
-
-        accumulated_metadata.task_duration_s = time.perf_counter() - task_started_at
-
-        yield events.ResponseMetadataEvent(metadata=accumulated_metadata, session_id=self.session.id)
-        self.session.append_history([accumulated_metadata])
-        yield events.TaskFinishEvent(
-            session_id=self.session.id,
-            task_result=last_assistant_message.content if last_assistant_message else "",
-        )
-
-    def _merge_turn_metadata(
-        self,
-        state: _MetadataMergeState,
-        turn_metadata: model.ResponseMetadataItem,
-    ) -> None:
-        accumulated_metadata = state.accumulated
-        usage = turn_metadata.usage
-        if usage is not None:
-            if accumulated_metadata.usage is None:
-                accumulated_metadata.usage = model.Usage()
-            accumulated_usage = accumulated_metadata.usage
-            accumulated_usage.input_tokens += usage.input_tokens
-            accumulated_usage.cached_tokens += usage.cached_tokens
-            accumulated_usage.reasoning_tokens += usage.reasoning_tokens
-            accumulated_usage.output_tokens += usage.output_tokens
-            accumulated_usage.total_tokens += usage.total_tokens
-            if usage.context_usage_percent is not None:
-                accumulated_usage.context_usage_percent = usage.context_usage_percent
-
-            if usage.first_token_latency_ms is not None:
-                if accumulated_usage.first_token_latency_ms is None:
-                    accumulated_usage.first_token_latency_ms = usage.first_token_latency_ms
-                else:
-                    accumulated_usage.first_token_latency_ms = min(
-                        accumulated_usage.first_token_latency_ms,
-                        usage.first_token_latency_ms,
-                    )
-
-            if usage.throughput_tps is not None:
-                current_output = usage.output_tokens
-                if current_output > 0:
-                    state.throughput_weighted_sum += usage.throughput_tps * current_output
-                    state.throughput_tracked_tokens += current_output
-
-        if turn_metadata.provider is not None:
-            accumulated_metadata.provider = turn_metadata.provider
-        if turn_metadata.model_name:
-            accumulated_metadata.model_name = turn_metadata.model_name
-        if turn_metadata.response_id:
-            accumulated_metadata.response_id = turn_metadata.response_id
-        if turn_metadata.status is not None:
-            accumulated_metadata.status = turn_metadata.status
-        if turn_metadata.error_reason is not None:
-            accumulated_metadata.error_reason = turn_metadata.error_reason
+        finally:
+            self._current_task = None
 
     async def replay_history(self) -> AsyncGenerator[events.Event, None]:
         """Yield UI events reconstructed from saved conversation history."""
@@ -392,108 +205,12 @@ class Agent:
             events=list(self.session.get_history_item()), updated_at=self.session.updated_at, session_id=self.session.id
         )
 
-    async def run_turn(self) -> AsyncGenerator[events.Event, None]:
-        profile = self._require_profile()
-
-        yield events.TurnStartEvent(
-            session_id=self.session.id,
-        )
-        turn_reasoning_items: list[model.ReasoningTextItem | model.ReasoningEncryptedItem] = []
-        turn_assistant_message: model.AssistantMessageItem | None = None
-        turn_tool_calls: list[model.ToolCallItem] = []
-        response_failed = False
-
-        async for response_item in profile.llm_client.call(
-            llm_parameter.LLMCallParameter(
-                input=self.session.conversation_history,
-                system=profile.system_prompt,
-                tools=profile.tools,
-                store=False,
-                session_id=self.session.id,
-            )
-        ):
-            log_debug(
-                f"[{response_item.__class__.__name__}]",
-                response_item.model_dump_json(exclude_none=True),
-                style="green",
-                debug_type=DebugType.RESPONSE,
-            )
-            match response_item:
-                case model.StartItem() as item:
-                    pass
-                case model.ReasoningTextItem() as item:
-                    turn_reasoning_items.append(item)
-                    yield events.ThinkingEvent(
-                        content=item.content,
-                        response_id=item.response_id,
-                        session_id=self.session.id,
-                    )
-                case model.ReasoningEncryptedItem() as item:
-                    turn_reasoning_items.append(item)
-                case model.AssistantMessageDelta() as item:
-                    yield events.AssistantMessageDeltaEvent(
-                        content=item.content,
-                        response_id=item.response_id,
-                        session_id=self.session.id,
-                    )
-                case model.AssistantMessageItem() as item:
-                    turn_assistant_message = item
-                    yield events.AssistantMessageEvent(
-                        content=item.content or "",
-                        response_id=item.response_id,
-                        session_id=self.session.id,
-                    )
-                case model.ResponseMetadataItem() as item:
-                    yield events.ResponseMetadataEvent(
-                        session_id=self.session.id,
-                        metadata=item,
-                    )
-                case model.StreamErrorItem() as item:
-                    response_failed = True
-                    log_debug("[StreamError]", item.error, style="red", debug_type=DebugType.RESPONSE)
-                    yield events.ErrorEvent(error_message=item.error, can_retry=True)
-                case model.ToolCallItem() as item:
-                    turn_tool_calls.append(item)
-                case _:
-                    pass
-        if not response_failed:
-            if turn_reasoning_items:
-                self.session.append_history(turn_reasoning_items)
-            if turn_assistant_message:
-                self.session.append_history([turn_assistant_message])
-            if turn_tool_calls:
-                self.session.append_history(turn_tool_calls)
-        if turn_tool_calls and not response_failed:
-            context_token = set_tool_context_from_session(self.session)
-            try:
-                executor = ToolExecutor(
-                    registry=get_registry(),
-                    append_history=self.session.append_history,
-                )
-                self._tool_executor = executor
-
-                async for exec_event in executor.run_tools(turn_tool_calls):
-                    for ui_event in self._build_events_from_tool_executor_event(exec_event):
-                        yield ui_event
-            finally:
-                self._tool_executor = None
-                reset_tool_context(context_token)
-        yield events.TurnEndEvent(session_id=self.session.id)
-
-    async def process_reminders(self) -> AsyncGenerator[events.DeveloperMessageEvent, None]:
-        reminders = self._require_profile().reminders
-        if not reminders:
-            return
-        for reminder in reminders:
-            item = await reminder(self.session)
-            if item is not None:
-                self.session.append_history([item])
-                yield events.DeveloperMessageEvent(session_id=self.session.id, item=item)
-
-    def _retry_delay_seconds(self, attempt: int) -> float:
-        capped_attempt = max(1, attempt)
-        delay = INITIAL_RETRY_DELAY_S * (2 ** (capped_attempt - 1))
-        return min(delay, MAX_RETRY_DELAY_S)
+    async def _process_reminder(self, reminder: Reminder) -> AsyncGenerator[events.DeveloperMessageEvent, None]:
+        """Process a single reminder and yield events if it produces output."""
+        item = await reminder(self.session)
+        if item is not None:
+            self.session.append_history([item])
+            yield events.DeveloperMessageEvent(session_id=self.session.id, item=item)
 
     def set_model_profile(self, profile: AgentProfile) -> None:
         """Apply a fully constructed profile to the agent."""
@@ -520,41 +237,3 @@ class Agent:
         if self.profile is None:
             raise RuntimeError("Agent profile is not initialized")
         return self.profile
-
-    def _build_events_from_tool_executor_event(self, event: ToolExecutorEvent) -> list[events.Event]:
-        """Translate internal tool executor events into public protocol events."""
-
-        ui_events: list[events.Event] = []
-
-        match event:
-            case ToolExecutionCallStarted(tool_call=tool_call):
-                ui_events.append(
-                    events.ToolCallEvent(
-                        session_id=self.session.id,
-                        response_id=tool_call.response_id,
-                        tool_call_id=tool_call.call_id,
-                        tool_name=tool_call.name,
-                        arguments=tool_call.arguments,
-                    )
-                )
-            case ToolExecutionResult(tool_call=tool_call, tool_result=tool_result):
-                ui_events.append(
-                    events.ToolResultEvent(
-                        session_id=self.session.id,
-                        response_id=tool_call.response_id,
-                        tool_call_id=tool_call.call_id,
-                        tool_name=tool_call.name,
-                        result=tool_result.output or "",
-                        ui_extra=tool_result.ui_extra,
-                        status=tool_result.status,
-                    )
-                )
-            case ToolExecutionTodoChange(todos=todos):
-                ui_events.append(
-                    events.TodoChangeEvent(
-                        session_id=self.session.id,
-                        todos=todos,
-                    )
-                )
-
-        return ui_events
