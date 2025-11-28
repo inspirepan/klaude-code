@@ -8,7 +8,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from klaude_code.config.constants import (
+from klaude_code.const import (
     READ_CHAR_LIMIT_PER_LINE,
     READ_GLOBAL_LINE_CAP,
     READ_MAX_CHARS,

@@ -1,11 +1,10 @@
 import asyncio
 import subprocess
-
 from pathlib import Path
 
 from pydantic import BaseModel
 
-from klaude_code.config.constants import BASH_DEFAULT_TIMEOUT_MS
+from klaude_code.const import BASH_DEFAULT_TIMEOUT_MS
 from klaude_code.core.tool.shell.command_safety import is_safe_command, strip_bash_lc
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register

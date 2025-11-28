@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
-from klaude_code.config.constants import (
+from klaude_code.const import (
     TOOL_OUTPUT_DISPLAY_HEAD,
     TOOL_OUTPUT_DISPLAY_TAIL,
     TOOL_OUTPUT_MAX_LENGTH,

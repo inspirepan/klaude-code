@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable
 
-from klaude_code.config.constants import UI_REFRESH_RATE_FPS
+from klaude_code.const import UI_REFRESH_RATE_FPS
 from klaude_code.protocol import events
 from klaude_code.ui.base.debouncer import Debouncer
 from klaude_code.ui.base.progress_bar import OSC94States, emit_osc94

@@ -225,7 +225,6 @@ def _render_metadata_item(item: ResponseMetadataItem) -> str:
     )
 
 
-
 def _render_assistant_message(index: int, content: str) -> str:
     encoded = _escape_html(content)
     return (

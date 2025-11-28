@@ -3,7 +3,7 @@ from rich.panel import Panel
 from rich.style import Style
 from rich.text import Text
 
-from klaude_code.config.constants import SUB_AGENT_RESULT_MAX_LINES
+from klaude_code.const import SUB_AGENT_RESULT_MAX_LINES
 from klaude_code.protocol import model
 from klaude_code.ui.base.theme import ThemeKey
 from klaude_code.ui.rich_ext.markdown import NoInsetMarkdown

@@ -5,7 +5,7 @@ from typing import Awaitable, Callable
 
 from pydantic import BaseModel
 
-from klaude_code.config.constants import TODO_REMINDER_TOOL_CALL_THRESHOLD
+from klaude_code.const import TODO_REMINDER_TOOL_CALL_THRESHOLD
 from klaude_code.core.clipboard_manifest import load_latest_clipboard_manifest, next_session_token
 from klaude_code.core.tool.file.read_tool import ReadTool
 from klaude_code.core.tool.shell.bash_tool import BashTool

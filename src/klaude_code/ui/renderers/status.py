@@ -12,7 +12,7 @@ from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 
-from klaude_code.config import constants as config_constants
+from klaude_code import const
 from klaude_code.ui.base.terminal_color import get_last_terminal_background_rgb
 from klaude_code.ui.base.theme import ThemeKey
 
@@ -51,13 +51,13 @@ def _shimmer_profile(main_text: str) -> list[tuple[str, float]]:
     if not chars:
         return []
 
-    padding = config_constants.STATUS_SHIMMER_PADDING
+    padding = const.STATUS_SHIMMER_PADDING
     period = len(chars) + padding * 2
-    sweep_seconds = config_constants.STATUS_SHIMMER_SWEEP_SECONDS
+    sweep_seconds = const.STATUS_SHIMMER_SWEEP_SECONDS
     elapsed = _elapsed_since_start()
     pos_f = (elapsed % sweep_seconds) / sweep_seconds * float(period)
     pos = int(pos_f)
-    band_half_width = config_constants.STATUS_SHIMMER_BAND_HALF_WIDTH
+    band_half_width = const.STATUS_SHIMMER_BAND_HALF_WIDTH
 
     profile: list[tuple[str, float]] = []
     for index, ch in enumerate(chars):
@@ -83,7 +83,7 @@ def _shimmer_style(console: Console, base_style: Style, intensity: float) -> Sty
     if intensity <= 0.0:
         return base_style
 
-    alpha = max(0.0, min(1.0, intensity * config_constants.STATUS_SHIMMER_ALPHA_SCALE))
+    alpha = max(0.0, min(1.0, intensity * const.STATUS_SHIMMER_ALPHA_SCALE))
 
     base_color = base_style.color or Color.default()
     base_triplet = base_color.get_truecolor()
@@ -108,7 +108,7 @@ def _breathing_intensity() -> float:
     then returning to 0, giving a subtle "breathing" effect.
     """
 
-    period = max(config_constants.SPINNER_BREATH_PERIOD_SECONDS, 0.1)
+    period = max(const.SPINNER_BREATH_PERIOD_SECONDS, 0.1)
     elapsed = _elapsed_since_start()
     phase = (elapsed % period) / period
     return 0.5 * (1.0 - math.cos(2.0 * math.pi * phase))

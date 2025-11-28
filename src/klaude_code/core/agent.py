@@ -6,7 +6,7 @@ from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass, field
 from typing import Literal, Protocol, cast
 
-from klaude_code.config.constants import (
+from klaude_code.const import (
     CANCEL_OUTPUT,
     FIRST_EVENT_TIMEOUT_S,
     INITIAL_RETRY_DELAY_S,

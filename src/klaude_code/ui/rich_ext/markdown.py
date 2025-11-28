@@ -16,7 +16,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 from rich.theme import Theme
 
-from klaude_code.config.constants import MARKDOWN_STREAM_LIVE_WINDOW
+from klaude_code import const
 
 
 class NoInsetCodeBlock(CodeBlock):
@@ -107,7 +107,7 @@ class MarkdownStream:
         # Streaming control
         self.when: float = 0.0  # Timestamp of last update
         self.min_delay: float = 1.0 / 20  # Minimum time between updates (20fps)
-        self.live_window: int = MARKDOWN_STREAM_LIVE_WINDOW
+        self.live_window: int = const.MARKDOWN_STREAM_LIVE_WINDOW
         # Track the maximum height the live window has ever reached
         # so we only pad when it shrinks from a previous height,
         # instead of always padding to live_window from the start.

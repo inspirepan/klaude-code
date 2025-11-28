@@ -4,7 +4,7 @@ from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
 
-from klaude_code.config.constants import DIFF_PREFIX_WIDTH, MAX_DIFF_LINES
+from klaude_code.const import DIFF_PREFIX_WIDTH, MAX_DIFF_LINES
 from klaude_code.ui.base.theme import ThemeKey
 from klaude_code.ui.renderers.common import create_grid
 
