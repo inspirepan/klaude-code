@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Klaude Code - $first_user_message</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-body: $color_bodyBg;
+        --bg-container: $color_containerBg;
+        --bg-card: $color_cardBg;
+        --border: $color_borderColor;
+        --text: $color_text;
+        --text-dim: $color_textDim;
+        --accent: $color_cyan;
+        --accent-dim: rgba(34, 211, 238, 0.1);
+        --success: $color_green;
+        --error: $color_red;
+        --font-sans: "IBM Plex Mono", "Fira Code", "SF Mono", Consolas,
+          monospace;
+        --font-mono: "IBM Plex Mono", "Fira Code", "SF Mono", Consolas,
+          monospace;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background-color: var(--bg-body);
+        color: var(--text);
+        font-family: var(--font-sans);
+        line-height: 1.6;
+        font-size: 15px;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .container {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      /* Header */
+      .header {
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .header h1 {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 16px;
+        background: linear-gradient(to right, var(--accent), #818cf8);
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        display: inline-block;
+      }
+
+      .meta-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+      }
+
+      .meta-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .meta-label {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-dim);
+      }
+
+      .meta-value {
+        font-family: var(--font-mono);
+        font-size: 13px;
+        color: var(--text);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* Components */
+      details {
+        background: transparent;
+        margin-bottom: 4px;
+      }
+
+      summary {
+        padding: 4px 0;
+        font-family: var(--font-mono);
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 600;
+        cursor: pointer;
+        user-select: none;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 24px;
+        line-height: 1.2;
+        color: var(--text-dim);
+        transition: color 0.2s;
+      }
+
+      summary:hover,
+      details[open] summary {
+        color: var(--text);
+      }
+
+      summary::-webkit-details-marker {
+        display: none;
+      }
+      summary::before {
+        content: "[+]";
+        color: var(--accent);
+        font-family: var(--font-mono);
+        margin-right: 4px;
+        display: inline-block;
+        min-width: 24px;
+      }
+      details[open] > summary::before {
+        content: "[-]";
+      }
+
+      .details-content {
+        padding: 8px 0 16px 24px;
+        font-size: 14px;
+        color: var(--text-dim);
+        overflow-x: auto;
+        border-left: 1px solid var(--border);
+        margin-left: 10px;
+      }
+
+      /* Messages */
+      .message-stream {
+        display: block;
+      }
+
+      .message-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 16px;
+      }
+
+      .message-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+
+      .message-header .role-label {
+        margin-bottom: 0;
+      }
+
+      .role-label {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 4px;
+        color: var(--text-dim);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      summary.role-label {
+        margin-bottom: 0;
+      }
+
+      .role-label.user {
+        color: var(--accent);
+      }
+      .role-label.assistant {
+        color: var(--success);
+      }
+
+      details.developer-message {
+        margin-bottom: 4px;
+      }
+
+      details.developer-message.gap-below {
+        margin-bottom: 16px;
+      }
+
+      .message-content {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 12px;
+        box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+        font-size: 13px;
+      }
+      .assistant-message {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .assistant-toolbar {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+      }
+      .raw-toggle {
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text-dim);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 2px 10px;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: color 0.2s, border-color 0.2s, background 0.2s;
+        font-weight: 600;
+      }
+      .raw-toggle:hover {
+        color: var(--text);
+        border-color: var(--accent);
+      }
+      .raw-toggle.active {
+        color: var(--accent);
+        border-color: var(--accent);
+        background: rgba(34, 211, 238, 0.08);
+      }
+
+      .copy-raw-btn {
+        margin-left: 8px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text-dim);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 2px 10px;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: color 0.2s, border-color 0.2s, background 0.2s;
+        font-weight: 600;
+      }
+      .copy-raw-btn:hover {
+        color: var(--text);
+        border-color: var(--accent);
+      }
+
+      .copy-mermaid-btn {
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text-dim);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 2px 10px;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: color 0.2s, border-color 0.2s, background 0.2s;
+        font-weight: 600;
+      }
+      .copy-mermaid-btn:hover {
+        color: var(--text);
+        border-color: var(--accent);
+      }
+
+      .assistant-rendered {
+        width: 100%;
+      }
+      .assistant-raw {
+        display: none;
+        font-family: var(--font-mono);
+        font-size: 13px;
+        white-space: pre-wrap;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px dashed var(--border);
+        border-radius: 4px;
+        padding: 12px;
+      }
+      .assistant-message.show-raw .assistant-rendered {
+        display: none;
+      }
+      .assistant-message.show-raw .assistant-raw {
+        display: block;
+      }
+
+      .message-content.user {
+        background: rgba(39, 39, 42, 0.5);
+        border-left: 3px solid var(--accent);
+      }
+
+      .thinking-block {
+        margin-top: 8px;
+        margin-bottom: 16px;
+        padding: 12px 16px;
+        border-left: 2px solid var(--border);
+        color: var(--text-dim);
+        font-style: italic;
+        font-size: 13px;
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      /* Tool Calls */
+      .tool-call {
+        margin-top: 16px;
+        margin-bottom: 16px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        overflow: hidden;
+        font-size: 13px;
+      }
+
+      .tool-header {
+        padding: 8px 12px;
+        background: var(--bg-container);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-family: var(--font-mono);
+      }
+
+      .tool-name {
+        font-weight: 600;
+        color: var(--accent);
+      }
+      .tool-id {
+        color: var(--text-dim);
+        font-size: 11px;
+      }
+
+      .tool-args {
+        padding: 12px;
+        background: var(--bg-body);
+        font-family: var(--font-mono);
+        color: var(--text-dim);
+        overflow-x: auto;
+        white-space: pre-wrap;
+      }
+
+      .tool-result {
+        border-top: 1px solid var(--border);
+        padding: 12px;
+      }
+
+      .tool-result.success {
+        background: rgba(74, 222, 128, 0.05);
+        color: var(--text);
+      }
+      .tool-result.error {
+        background: rgba(248, 113, 113, 0.05);
+        color: var(--error);
+      }
+      .tool-result.pending {
+        background: rgba(255, 255, 255, 0.02);
+        color: var(--text-dim);
+      }
+
+      /* Sub Agent Result */
+      .subagent-result-container {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .subagent-toolbar {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+
+      .subagent-content {
+        width: 100%;
+      }
+
+      .subagent-raw {
+        display: none;
+        font-family: var(--font-mono);
+        font-size: 13px;
+        white-space: pre-wrap;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px dashed var(--border);
+        border-radius: 4px;
+        padding: 12px;
+      }
+
+      .subagent-content.show-raw .subagent-rendered {
+        display: none;
+      }
+      .subagent-content.show-raw .subagent-raw {
+        display: block;
+      }
+
+      /* Markdown Elements */
+      .markdown-body {
+        font-family: var(--font-sans);
+      }
+      .markdown-body hr {
+        height: 0;
+        margin: 24px 0;
+        border: none;
+        border-top: 1px solid var(--border);
+      }
+      .markdown-body pre {
+        background: #111;
+        padding: 16px;
+        border-radius: 6px;
+        overflow-x: auto;
+        margin: 12px 0;
+        border: 1px solid var(--border);
+      }
+      .markdown-body code {
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 2px 4px;
+        border-radius: 4px;
+      }
+      .markdown-body pre code {
+        background: transparent;
+        padding: 0;
+        border-radius: 0;
+      }
+      .markdown-body pre code.hljs {
+        background: transparent;
+      }
+      .markdown-body p {
+        margin-bottom: 12px;
+      }
+      .markdown-body > *:first-child {
+        margin-top: 0;
+      }
+      .markdown-body > *:last-child {
+        margin-bottom: 0;
+      }
+      .markdown-body ul,
+      .markdown-body ol {
+        margin-bottom: 12px;
+        padding-left: 1.5rem;
+        list-style-position: outside;
+      }
+      .markdown-body ul ul,
+      .markdown-body ol ul,
+      .markdown-body ul ol,
+      .markdown-body ol ol {
+        margin-left: 1rem;
+      }
+
+      /* Diff View */
+      .diff-view {
+        font-family: var(--font-mono);
+        background: #111;
+        padding: 12px;
+        border-radius: 6px;
+        overflow-x: auto;
+      }
+      .diff-line {
+        white-space: pre;
+      }
+      .diff-plus {
+        color: var(--success);
+        background: rgba(74, 222, 128, 0.1);
+        display: block;
+      }
+      .diff-minus {
+        color: var(--error);
+        background: rgba(248, 113, 113, 0.1);
+        display: block;
+      }
+      .diff-ctx {
+        color: var(--text-dim);
+        opacity: 0.6;
+        display: block;
+      }
+
+      .footer {
+        margin-top: 60px;
+        text-align: center;
+        color: var(--text-dim);
+        font-size: 12px;
+        border-top: 1px solid var(--border);
+        padding-top: 24px;
+      }
+
+      .expandable {
+        cursor: pointer;
+      }
+      .expandable.expanded {
+        cursor: auto;
+      }
+      .expandable .full-text {
+        display: none;
+      }
+      .expandable .collapse-hint {
+        display: none;
+      }
+      .expandable.expanded .preview-text {
+        display: none;
+      }
+      .expandable.expanded .expand-hint {
+        display: none;
+      }
+      .expandable.expanded .full-text {
+        display: block;
+      }
+      .expandable.expanded .collapse-hint {
+        display: block;
+        cursor: pointer;
+        color: var(--accent);
+        font-size: 11px;
+        font-style: italic;
+        margin-top: 4px;
+        border-top: 1px dashed var(--border);
+        padding-top: 4px;
+      }
+      .expand-hint {
+        font-size: 11px;
+        color: var(--accent);
+        font-style: italic;
+        margin-top: 4px;
+      }
+
+      /* Todo List */
+      .todo-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .todo-item {
+        display: flex;
+        gap: 8px;
+        font-family: var(--font-mono);
+        font-size: 13px;
+        line-height: 1.5;
+        align-items: flex-start;
+      }
+      .todo-bullet {
+        flex-shrink: 0;
+        font-size: 10px;
+        line-height: 1.5;
+        opacity: 0.7;
+      }
+      .todo-item.status-completed {
+        color: var(--text-dim);
+        text-decoration: line-through;
+      }
+      .todo-item.status-in_progress {
+        color: var(--success);
+        font-weight: 500;
+      }
+      .todo-item.status-pending {
+        color: var(--text-dim);
+      }
+
+      /* Tool details in Available Tools section */
+      .tool-details {
+        margin-bottom: 2px;
+      }
+      .tool-details summary {
+        color: var(--accent);
+        font-weight: 500;
+        text-transform: none;
+        letter-spacing: normal;
+      }
+      .tool-details summary:hover {
+        color: var(--text);
+      }
+      .tool-details summary::before {
+        content: "[+]";
+        min-width: 24px;
+      }
+      .tool-details[open] summary::before {
+        content: "[-]";
+      }
+      .tool-description {
+        white-space: pre-wrap;
+        font-size: 13px;
+      }
+      .tool-params {
+        margin-top: 12px;
+        padding-top: 8px;
+        border-top: 1px dashed var(--border);
+      }
+      .tool-params-title {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-dim);
+        margin-bottom: 8px;
+      }
+      .tool-param {
+        margin-bottom: 8px;
+        padding-left: 12px;
+        font-size: 13px;
+      }
+      .tool-param-name {
+        color: var(--success);
+        font-weight: 500;
+      }
+      .tool-param-type {
+        color: var(--text-dim);
+      }
+      .tool-param-required {
+        color: var(--error);
+        margin-left: 4px;
+      }
+      .tool-param-desc {
+        color: var(--text-dim);
+        font-size: 12px;
+        margin-top: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Klaude Code</h1>
+        <div class="meta-grid">
+          <div class="meta-item">
+            <span class="meta-label">First Message</span>
+            <span class="meta-value" title="$first_user_message">$first_user_message</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Model</span>
+            <span class="meta-value">$model_name</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Updated</span>
+            <span class="meta-value">$session_updated</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Directory</span>
+            <span class="meta-value" title="$work_dir_full">$work_dir</span>
+          </div>
+        </div>
+      </div>
+
+      <details>
+        <summary>System Prompt</summary>
+        <div
+          class="details-content system-prompt-content"
+          style="font-family: var(--font-mono); white-space: pre-wrap"
+        >
+          $system_prompt
+        </div>
+      </details>
+
+      <details>
+        <summary>Available Tools</summary>
+        <div class="details-content">$tools_html</div>
+      </details>
+
+      <div class="message-stream">$messages_html</div>
+
+      <div class="footer">
+        Generated by klaude-code &bull; $footer_time &bull; $total_messages
+        messages
+      </div>
+    </div>
+
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+      // Markdown rendering and Syntax Highlighting
+      document.querySelectorAll(".markdown-content").forEach((el) => {
+        const raw = el.dataset.raw;
+        if (raw && window.marked) {
+          // 1. Render Markdown
+          el.innerHTML = window.marked.parse(raw);
+
+          // 2. Apply Syntax Highlighting to generated code blocks
+          if (window.hljs) {
+            el.querySelectorAll("pre code").forEach((block) => {
+              hljs.highlightElement(block);
+            });
+          }
+        }
+      });
+
+      // Expandable tool outputs
+      document.querySelectorAll(".expandable").forEach((el) => {
+        el.addEventListener("click", (e) => {
+          if (!el.classList.contains("expanded")) {
+            el.classList.add("expanded");
+          } else if (e.target.classList.contains("collapse-hint")) {
+            el.classList.remove("expanded");
+          }
+        });
+      });
+
+      // Assistant raw toggle
+      document.querySelectorAll(".assistant-message-group").forEach((group) => {
+        const toggle = group.querySelector(".raw-toggle");
+        const copyBtn = group.querySelector(".copy-raw-btn");
+        const block = group.querySelector(".assistant-message");
+        const rendered = block
+          ? block.querySelector(".assistant-rendered")
+          : null;
+        const raw = block ? block.querySelector(".assistant-raw") : null;
+
+        // Copy button logic
+        if (copyBtn && rendered) {
+          copyBtn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const rawContent = rendered.dataset.raw;
+            if (!rawContent) return;
+
+            try {
+              // Decode HTML entities for copy
+              const textarea = document.createElement("textarea");
+              textarea.innerHTML = rawContent;
+              const decoded = textarea.value;
+
+              await navigator.clipboard.writeText(decoded);
+
+              // Visual feedback
+              const originalText = copyBtn.textContent;
+              copyBtn.textContent = "Copied!";
+              copyBtn.style.color = "var(--success)";
+              copyBtn.style.borderColor = "var(--success)";
+
+              setTimeout(() => {
+                copyBtn.textContent = originalText;
+                copyBtn.style.color = "";
+                copyBtn.style.borderColor = "";
+              }, 2000);
+            } catch (err) {
+              console.error("Failed to copy:", err);
+              copyBtn.textContent = "Error";
+              copyBtn.style.color = "var(--error)";
+              setTimeout(() => {
+                copyBtn.textContent = "Copy";
+                copyBtn.style.color = "";
+              }, 2000);
+            }
+          });
+        }
+
+        if (!toggle || !rendered || !raw) {
+          return;
+        }
+
+        const setState = (showRaw) => {
+          block.classList.toggle("show-raw", showRaw);
+          toggle.classList.toggle("active", showRaw);
+          toggle.setAttribute("aria-pressed", String(showRaw));
+          toggle.textContent = showRaw ? "Markdown" : "Raw";
+        };
+
+        toggle.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const nextState = !block.classList.contains("show-raw");
+          setState(nextState);
+        });
+      });
+
+      // Subagent raw toggle
+      document
+        .querySelectorAll(".subagent-result-container")
+        .forEach((group) => {
+          const toggle = group.querySelector(".raw-toggle");
+          const copyBtn = group.querySelector(".copy-raw-btn");
+          const block = group.querySelector(".subagent-content");
+          const rendered = block
+            ? block.querySelector(".subagent-rendered")
+            : null;
+          const raw = block ? block.querySelector(".subagent-raw") : null;
+
+          // Copy button logic
+          if (copyBtn && rendered) {
+            copyBtn.addEventListener("click", async (e) => {
+              e.stopPropagation();
+              const rawContent = rendered.dataset.raw;
+              if (!rawContent) return;
+
+              try {
+                const textarea = document.createElement("textarea");
+                textarea.innerHTML = rawContent;
+                const decoded = textarea.value;
+
+                await navigator.clipboard.writeText(decoded);
+
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = "Copied!";
+                copyBtn.style.color = "var(--success)";
+                copyBtn.style.borderColor = "var(--success)";
+
+                setTimeout(() => {
+                  copyBtn.textContent = originalText;
+                  copyBtn.style.color = "";
+                  copyBtn.style.borderColor = "";
+                }, 2000);
+              } catch (err) {
+                console.error("Failed to copy:", err);
+                copyBtn.textContent = "Error";
+                copyBtn.style.color = "var(--error)";
+                setTimeout(() => {
+                  copyBtn.textContent = "Copy";
+                  copyBtn.style.color = "";
+                }, 2000);
+              }
+            });
+          }
+
+          if (!toggle || !rendered || !raw) {
+            return;
+          }
+
+          const setState = (showRaw) => {
+            block.classList.toggle("show-raw", showRaw);
+            toggle.classList.toggle("active", showRaw);
+            toggle.setAttribute("aria-pressed", String(showRaw));
+            toggle.textContent = showRaw ? "Markdown" : "Raw";
+          };
+
+          toggle.addEventListener("click", (event) => {
+            event.stopPropagation();
+            const nextState = !block.classList.contains("show-raw");
+            setState(nextState);
+          });
+        });
+
+      // Mermaid copy button
+      document.querySelectorAll(".copy-mermaid-btn").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const rawContent = btn.dataset.code;
+          if (!rawContent) return;
+
+          try {
+            const textarea = document.createElement("textarea");
+            textarea.innerHTML = rawContent;
+            const decoded = textarea.value;
+
+            await navigator.clipboard.writeText(decoded);
+
+            const originalText = btn.textContent;
+            btn.textContent = "Copied!";
+            btn.style.color = "var(--success)";
+            btn.style.borderColor = "var(--success)";
+
+            setTimeout(() => {
+              btn.textContent = originalText;
+              btn.style.color = "";
+              btn.style.borderColor = "";
+            }, 2000);
+          } catch (err) {
+            console.error("Failed to copy:", err);
+            btn.textContent = "Error";
+            btn.style.color = "var(--error)";
+            setTimeout(() => {
+              btn.textContent = "Copy Code";
+              btn.style.color = "";
+            }, 2000);
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

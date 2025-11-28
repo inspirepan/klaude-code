@@ -64,7 +64,7 @@ class Session(BaseModel):
 
     @classmethod
     def _base_dir(cls) -> Path:
-        return Path.home() / ".klaude" / "project" / cls._project_key()
+        return Path.home() / ".klaude" / "projects" / cls._project_key()
 
     @classmethod
     def _sessions_dir(cls) -> Path:
@@ -73,6 +73,10 @@ class Session(BaseModel):
     @classmethod
     def _messages_dir(cls) -> Path:
         return cls._base_dir() / "messages"
+
+    @classmethod
+    def _exports_dir(cls) -> Path:
+        return cls._base_dir() / "exports"
 
     def _session_file(self) -> Path:
         prefix = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime(self.created_at))

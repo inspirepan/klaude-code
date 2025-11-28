@@ -42,6 +42,7 @@ packages = ["src/klaude_code"]
 "src/klaude_code/core/prompt/prompt-subagent-oracle.md" = "klaude_code/core/prompt/prompt-subagent-oracle.md"
 "src/klaude_code/core/prompt/prompt-subagent-webfetch.md" = "klaude_code/core/prompt/prompt-subagent-webfetch.md"
 "src/klaude_code/core/tool/apply_patch_tool_instructions.md" = "klaude_code/core/tool/apply_patch_tool_instructions.md"
+"src/klaude_code/session/templates/export_session.html" = "klaude_code/session/templates/export_session.html"
 
 [dependency-groups]
 dev = [

@@ -274,7 +274,7 @@ class PromptToolkitInput(InputProviderABC):
         self._mouse_enabled: bool = False
 
         project = str(Path.cwd()).strip("/").replace("/", "-")
-        history_path = Path.home() / ".klaude" / "project" / f"{project}" / "input_history.txt"
+        history_path = Path.home() / ".klaude" / "projects" / f"{project}" / "input_history.txt"
 
         if not history_path.parent.exists():
             history_path.parent.mkdir(parents=True, exist_ok=True)
