@@ -30,26 +30,6 @@ from klaude_code.protocol.model import (
 if TYPE_CHECKING:
     from klaude_code.session.session import Session
 
-COLORS: Final[dict[str, str]] = {
-    "bodyBg": "#ededed",  # Slate 50 - paper-like off-white
-    "containerBg": "#f0f0f0",  # Pure white for containers
-    "cardBg": "#f0f0f0",  # White cards
-    "codeBg": "#f3f3f3",  # Slightly brighter for code blocks
-    "borderColor": "#c8c8c8",  # Slate 200 - subtle borders
-    "userMessageBg": "#ededed",  # Slate 100
-    "toolPendingBg": "#f0f0f0",
-    "toolSuccessBg": "#f0f0f0",  # Green 50
-    "toolErrorBg": "#ffebee",  # Red 50
-    "text": "#333333",  # Slate 900
-    "textDim": "#64748b",  # Slate 500
-    "cyan": "#0851b2",  # Cyan 600 - deeper for light bg
-    "green": "#15803d",  # Green 700
-    "red": "#dc2626",  # Red 600
-    "yellow": "#ca8a04",  # Yellow 600
-    "blue": "#0851b2",  # Blue 600
-    "italic": "#64748b",
-}
-
 _TOOL_OUTPUT_PREVIEW_LINES: Final[int] = 12
 _MAX_FILENAME_MESSAGE_LEN: Final[int] = 50
 
@@ -563,15 +543,4 @@ def build_export_html(
         footer_time=_escape_html(footer_time),
         total_messages=total_messages,
         first_user_message=_escape_html(first_user_message),
-        color_bodyBg=COLORS["bodyBg"],
-        color_containerBg=COLORS["containerBg"],
-        color_cardBg=COLORS["cardBg"],
-        color_borderColor=COLORS["borderColor"],
-        color_text=COLORS["text"],
-        color_textDim=COLORS["textDim"],
-        color_cyan=COLORS["cyan"],
-        color_green=COLORS["green"],
-        color_red=COLORS["red"],
-        color_toolErrorBg=COLORS["toolErrorBg"],
-        color_codeBg=COLORS["codeBg"],
     )
