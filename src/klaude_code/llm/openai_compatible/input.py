@@ -6,31 +6,64 @@
 from openai.types import chat
 from openai.types.chat import ChatCompletionContentPartParam
 
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import (
-    AssistantMessageItem,
-    ConversationItem,
-    DeveloperMessageItem,
-    ReasoningEncryptedItem,
-    ReasoningTextItem,
-    ToolCallItem,
-    ToolResultItem,
-    UserMessageItem,
-    group_response_items_gen,
+from klaude_code.llm.input_common import (
+    AssistantGroup,
+    ToolGroup,
+    UserGroup,
+    merge_reminder_text,
+    parse_message_groups,
 )
+from klaude_code.protocol.llm_parameter import ToolSchema
+from klaude_code.protocol.model import ConversationItem, ImageURLPart
 
 
-def build_user_content_parts(group: list[ConversationItem]) -> list[ChatCompletionContentPartParam]:
+def _user_group_to_message(group: UserGroup) -> chat.ChatCompletionMessageParam:
     parts: list[ChatCompletionContentPartParam] = []
-    for item in group:
-        if isinstance(item, (UserMessageItem, DeveloperMessageItem)):
-            if item.content is not None:
-                parts.append({"type": "text", "text": item.content + "\n"})
-            for image in item.images or []:
-                parts.append({"type": "image_url", "image_url": {"url": image.image_url.url}})
+    for text in group.text_parts:
+        parts.append({"type": "text", "text": text + "\n"})
+    for image in group.images:
+        parts.append({"type": "image_url", "image_url": {"url": image.image_url.url}})
     if not parts:
         parts.append({"type": "text", "text": ""})
-    return parts
+    return {"role": "user", "content": parts}
+
+
+def _tool_group_to_message(group: ToolGroup) -> chat.ChatCompletionMessageParam:
+    merged_text = merge_reminder_text(group.tool_result.output, group.reminder_texts)
+    if not merged_text:
+        merged_text = "<system-reminder>Tool ran without output or errors</system-reminder>"
+    return {
+        "role": "tool",
+        "content": [{"type": "text", "text": merged_text}],
+        "tool_call_id": group.tool_result.call_id,
+    }
+
+
+def _assistant_group_to_message(group: AssistantGroup) -> chat.ChatCompletionMessageParam:
+    assistant_message: dict[str, object] = {"role": "assistant"}
+
+    if group.text_content:
+        assistant_message["content"] = group.text_content
+
+    if group.tool_calls:
+        assistant_message["tool_calls"] = [
+            {
+                "id": tc.call_id,
+                "type": "function",
+                "function": {
+                    "name": tc.name,
+                    "arguments": tc.arguments,
+                },
+            }
+            for tc in group.tool_calls
+        ]
+
+    return assistant_message
+
+
+def build_user_content_parts(images: list[ImageURLPart]) -> list[ChatCompletionContentPartParam]:
+    """Build content parts for images only. Used by OpenRouter."""
+    return [{"type": "image_url", "image_url": {"url": image.image_url.url}} for image in images]
 
 
 def convert_history_to_input(
@@ -44,80 +77,20 @@ def convert_history_to_input(
     Args:
         history: List of conversation items.
         system: System message.
-        model_name: Model name. Used to verify that signatures are valid for the same model.
+        model_name: Model name. Not used in OpenAI-compatible, kept for API consistency.
     """
     messages: list[chat.ChatCompletionMessageParam] = (
-        [
-            {
-                "role": "system",
-                "content": system,
-            }
-        ]
-        if system
-        else []
+        [{"role": "system", "content": system}] if system else []
     )
 
-    for group_kind, group in group_response_items_gen(history):
-        match group_kind:
-            case "user":
-                messages.append({"role": "user", "content": build_user_content_parts(group)})
-            case "tool":
-                if len(group) == 0 or not isinstance(group[0], ToolResultItem):
-                    continue
-                tool_result = group[0]
-                reminders: list[DeveloperMessageItem] = [i for i in group if isinstance(i, DeveloperMessageItem)]
-                reminders_str = "\n" + "\n".join(i.content for i in reminders if i.content)
-                messages.append(
-                    {
-                        "role": "tool",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": (
-                                    tool_result.output
-                                    or "<system-reminder>Tool ran without output or errors</system-reminder>"
-                                )
-                                + reminders_str,
-                            }
-                        ],
-                        "tool_call_id": tool_result.call_id,
-                    }
-                )
-            case "assistant":
-                # Merge all items into a single assistant message
-                assistant_message = {
-                    "role": "assistant",
-                }
-
-                for item in group:
-                    match item:
-                        case AssistantMessageItem() as a:
-                            if a.content:
-                                if "content" not in assistant_message:
-                                    assistant_message["content"] = a.content
-                                else:
-                                    assistant_message["content"] += a.content
-                        case ToolCallItem() as t:
-                            if "tool_calls" not in assistant_message:
-                                assistant_message["tool_calls"] = []
-                            assistant_message["tool_calls"].append(
-                                {
-                                    "id": t.call_id,
-                                    "type": "function",
-                                    "function": {
-                                        "name": t.name,
-                                        "arguments": t.arguments,
-                                    },
-                                }
-                            )
-                        case ReasoningTextItem() | ReasoningEncryptedItem():
-                            continue  # Skip reasoning items in OpenAICompatible assistant message
-                        case _:
-                            pass
-
-                messages.append(assistant_message)
-            case "other":
-                pass
+    for group in parse_message_groups(history):
+        match group:
+            case UserGroup():
+                messages.append(_user_group_to_message(group))
+            case ToolGroup():
+                messages.append(_tool_group_to_message(group))
+            case AssistantGroup():
+                messages.append(_assistant_group_to_message(group))
 
     return messages
 

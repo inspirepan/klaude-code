@@ -17,8 +17,15 @@ from anthropic.types.beta.beta_text_block_param import BetaTextBlockParam
 from anthropic.types.beta.beta_tool_param import BetaToolParam
 from anthropic.types.beta.beta_url_image_source_param import BetaURLImageSourceParam
 
+from klaude_code.llm.input_common import (
+    AssistantGroup,
+    ToolGroup,
+    UserGroup,
+    merge_reminder_text,
+    parse_message_groups,
+)
+from klaude_code.protocol import model as protocol_model
 from klaude_code.protocol import llm_parameter, model
-from klaude_code.protocol.model import ReasoningEncryptedItem, ReasoningTextItem
 
 AllowedMediaType = Literal["image/png", "image/jpeg", "image/gif", "image/webp"]
 _INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (
@@ -62,20 +69,92 @@ def _image_part_to_block(image: model.ImageURLPart) -> BetaImageBlockParam:
     return {"type": "image", "source": source_url}
 
 
-def _append_user_content_blocks(
-    blocks: list[BetaTextBlockParam | BetaImageBlockParam],
-    item: model.MessageItem,
-) -> None:
-    if isinstance(item, model.UserMessageItem):
-        if item.content is not None:
-            blocks.append({"type": "text", "text": item.content + "\n"})
-        for image in item.images or []:
-            blocks.append(_image_part_to_block(image))
-    elif isinstance(item, model.DeveloperMessageItem):
-        if item.content is not None:
-            blocks.append({"type": "text", "text": item.content + "\n"})
-        for image in item.images or []:
-            blocks.append(_image_part_to_block(image))
+def _user_group_to_message(group: UserGroup) -> BetaMessageParam:
+    blocks: list[BetaTextBlockParam | BetaImageBlockParam] = []
+    for text in group.text_parts:
+        blocks.append({"type": "text", "text": text + "\n"})
+    for image in group.images:
+        blocks.append(_image_part_to_block(image))
+    if not blocks:
+        blocks.append({"type": "text", "text": ""})
+    return {"role": "user", "content": blocks}
+
+
+def _tool_group_to_message(group: ToolGroup) -> BetaMessageParam:
+    tool_content: list[BetaTextBlockParam | BetaImageBlockParam] = []
+    merged_text = merge_reminder_text(group.tool_result.output, group.reminder_texts)
+    tool_content.append({"type": "text", "text": merged_text})
+    for image in group.tool_result.images or []:
+        tool_content.append(_image_part_to_block(image))
+    for image in group.reminder_images:
+        tool_content.append(_image_part_to_block(image))
+    return {
+        "role": "user",
+        "content": [
+            {
+                "type": "tool_result",
+                "tool_use_id": group.tool_result.call_id,
+                "is_error": group.tool_result.status == "error",
+                "content": tool_content,
+            }
+        ],
+    }
+
+
+def _assistant_group_to_message(group: AssistantGroup, model_name: str | None) -> BetaMessageParam:
+    content: list[dict[str, object]] = []
+    current_reasoning_content: str | None = None
+
+    # Process reasoning items in original order so that text and
+    # encrypted parts are paired correctly for the given model.
+    for item in group.reasoning_items:
+        if isinstance(item, protocol_model.ReasoningTextItem):
+            if model_name != item.model:
+                continue
+            current_reasoning_content = item.content
+        elif isinstance(item, protocol_model.ReasoningEncryptedItem):
+            if model_name != item.model:
+                continue
+            if item.encrypted_content and len(item.encrypted_content) > 0:
+                content.append(
+                    {
+                        "type": "thinking",
+                        "thinking": current_reasoning_content or "",
+                        "signature": item.encrypted_content,
+                    }
+                )
+                current_reasoning_content = None
+
+    # Moonshot.ai's Kimi does not always send reasoning signatures;
+    # if we saw reasoning text without any matching encrypted item,
+    # emit it as a plain thinking block.
+    if len(current_reasoning_content or "") > 0:
+        content.insert(0, {"type": "thinking", "thinking": current_reasoning_content})
+
+    if group.text_content:
+        content.append({"type": "text", "text": group.text_content})
+
+    for tc in group.tool_calls:
+        content.append(
+            {
+                "type": "tool_use",
+                "id": tc.call_id,
+                "name": tc.name,
+                "input": json.loads(tc.arguments) if tc.arguments else None,
+            }
+        )
+
+    return {"role": "assistant", "content": content}
+
+
+def _add_cache_control(messages: list[BetaMessageParam]) -> None:
+    if len(messages) > 0:
+        last_message = messages[-1]
+        content_list = list(last_message.get("content", []))
+        if content_list:
+            last_content_part = content_list[-1]
+            if last_content_part.get("type", "") in ["text", "tool_result", "tool_use"]:
+                last_content_part["cache_control"] = {"type": "ephemeral"}  # type: ignore
 
 
 def convert_history_to_input(
@@ -90,109 +169,16 @@ def convert_history_to_input(
         model_name: Model name. Used to verify that signatures are valid for the same model
     """
     messages: list[BetaMessageParam] = []
-    for group_kind, group in model.group_response_items_gen(history):
-        match group_kind:
-            case "user":
-                content_blocks: list[BetaTextBlockParam | BetaImageBlockParam] = []
-                for item in group:
-                    _append_user_content_blocks(content_blocks, item)
-                if not content_blocks:
-                    content_blocks.append({"type": "text", "text": ""})
-                messages.append({"role": "user", "content": content_blocks})
-            case "tool":
-                if len(group) == 0 or not isinstance(group[0], model.ToolResultItem):
-                    continue
-                tool_result = group[0]
-                reminders: list[model.DeveloperMessageItem] = [
-                    i for i in group if isinstance(i, model.DeveloperMessageItem)
-                ]
-                reminders_str = "\n" + "\n".join(i.content for i in reminders if i.content)
-                tool_content: list[BetaTextBlockParam | BetaImageBlockParam] = []
-                tool_text = (tool_result.output or "") + reminders_str
-                tool_content.append({"type": "text", "text": tool_text})
-                for image in tool_result.images or []:
-                    tool_content.append(_image_part_to_block(image))
-                for reminder in reminders:
-                    for image in reminder.images or []:
-                        tool_content.append(_image_part_to_block(image))
+    for group in parse_message_groups(history):
+        match group:
+            case UserGroup():
+                messages.append(_user_group_to_message(group))
+            case ToolGroup():
+                messages.append(_tool_group_to_message(group))
+            case AssistantGroup():
+                messages.append(_assistant_group_to_message(group, model_name))
 
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": tool_result.call_id,
-                                "is_error": tool_result.status == "error",
-                                "content": tool_content,
-                            }
-                        ],
-                    }
-                )
-            case "assistant":
-                assistant_message = {
-                    "role": "assistant",
-                    "content": [],
-                }
-                current_reasoning_content: str | None = None
-
-                for item in group:
-                    match item:
-                        case model.AssistantMessageItem() as a:
-                            assistant_message["content"].append(
-                                {
-                                    "type": "text",
-                                    "text": a.content,
-                                }
-                            )
-                        case model.ToolCallItem() as t:
-                            assistant_message["content"].append(
-                                {
-                                    "type": "tool_use",
-                                    "id": t.call_id,
-                                    "name": t.name,
-                                    "input": json.loads(t.arguments) if t.arguments else None,
-                                }
-                            )
-                        case ReasoningEncryptedItem() as r:
-                            if r.encrypted_content and len(r.encrypted_content) > 0 and model_name == r.model:
-                                assistant_message["content"].append(
-                                    {
-                                        "type": "thinking",
-                                        "thinking": current_reasoning_content or "",
-                                        "signature": r.encrypted_content,
-                                    }
-                                )
-                                current_reasoning_content = None
-                        case ReasoningTextItem() as r:
-                            if model_name != r.model:
-                                continue
-                            current_reasoning_content = r.content
-                        case _:
-                            pass
-
-                if (
-                    len(current_reasoning_content or "") > 0
-                ):  # Moonshot.ai's Kimi does not always send reasoning signatures
-                    assistant_message["content"] = [
-                        {
-                            "type": "thinking",
-                            "thinking": current_reasoning_content,
-                        }
-                    ].extend(assistant_message["content"])
-
-                messages.append(assistant_message)
-            case "other":
-                pass
-
-    # Cache control
-    if len(messages) > 0:
-        last_message = messages[-1]
-        content_list = list(last_message.get("content", []))
-        if content_list:
-            last_content_part = content_list[-1]
-            if last_content_part.get("type", "") in ["text", "tool_result", "tool_use"]:
-                last_content_part["cache_control"] = {"type": "ephemeral"}  # type: ignore
+    _add_cache_control(messages)
     return messages
 
 

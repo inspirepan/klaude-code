@@ -7,19 +7,18 @@
 # pyright: reportGeneralTypeIssues=false
 
 from openai.types import chat
+from openai.types.chat import ChatCompletionContentPartParam
 
-from klaude_code.llm.openai_compatible.input import build_user_content_parts
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import (
-    AssistantMessageItem,
-    ConversationItem,
-    DeveloperMessageItem,
-    ReasoningEncryptedItem,
-    ReasoningTextItem,
-    ToolCallItem,
-    ToolResultItem,
-    group_response_items_gen,
+from klaude_code.llm.input_common import (
+    AssistantGroup,
+    ToolGroup,
+    UserGroup,
+    merge_reminder_text,
+    parse_message_groups,
 )
+from klaude_code.protocol import model as protocol_model
+from klaude_code.protocol.llm_parameter import ToolSchema
+from klaude_code.protocol.model import ConversationItem
 
 
 def is_claude_model(model_name: str | None):
@@ -28,6 +27,95 @@ def is_claude_model(model_name: str | None):
 
 def is_gemini_model(model_name: str | None):
     return model_name is not None and model_name.startswith("google/gemini")
+
+
+def _user_group_to_message(group: UserGroup) -> chat.ChatCompletionMessageParam:
+    parts: list[ChatCompletionContentPartParam] = []
+    for text in group.text_parts:
+        parts.append({"type": "text", "text": text + "\n"})
+    for image in group.images:
+        parts.append({"type": "image_url", "image_url": {"url": image.image_url.url}})
+    if not parts:
+        parts.append({"type": "text", "text": ""})
+    return {"role": "user", "content": parts}
+
+
+def _tool_group_to_message(group: ToolGroup) -> chat.ChatCompletionMessageParam:
+    merged_text = merge_reminder_text(group.tool_result.output, group.reminder_texts)
+    if not merged_text:
+        merged_text = "<system-reminder>Tool ran without output or errors</system-reminder>"
+    return {
+        "role": "tool",
+        "content": [{"type": "text", "text": merged_text}],
+        "tool_call_id": group.tool_result.call_id,
+    }
+
+
+def _assistant_group_to_message(group: AssistantGroup, model_name: str | None) -> chat.ChatCompletionMessageParam:
+    assistant_message: dict[str, object] = {"role": "assistant"}
+
+    if group.text_content:
+        assistant_message["content"] = group.text_content
+
+    if group.tool_calls:
+        assistant_message["tool_calls"] = [
+            {
+                "id": tc.call_id,
+                "type": "function",
+                "function": {
+                    "name": tc.name,
+                    "arguments": tc.arguments,
+                },
+            }
+            for tc in group.tool_calls
+        ]
+
+    # Handle reasoning for OpenRouter (reasoning_details array).
+    # The order of items in reasoning_details must match the original
+    # stream order from the provider, so we iterate reasoning_items
+    # instead of the separated reasoning_text / reasoning_encrypted lists.
+    reasoning_details: list[dict[str, object]] = []
+    for item in group.reasoning_items:
+        if model_name != item.model:
+            continue
+        if isinstance(item, protocol_model.ReasoningEncryptedItem):
+            if item.encrypted_content and len(item.encrypted_content) > 0:
+                reasoning_details.append(
+                    {
+                        "id": item.id,
+                        "type": "reasoning.encrypted",
+                        "data": item.encrypted_content,
+                        "format": item.format,
+                        "index": len(reasoning_details),
+                    }
+                )
+        elif isinstance(item, protocol_model.ReasoningTextItem):
+            reasoning_details.append(
+                {
+                    "id": item.id,
+                    "type": "reasoning.text",
+                    "text": item.content,
+                    "index": len(reasoning_details),
+                }
+            )
+    if reasoning_details:
+        assistant_message["reasoning_details"] = reasoning_details
+
+    return assistant_message
+
+
+def _add_cache_control(messages: list[chat.ChatCompletionMessageParam], use_cache_control: bool) -> None:
+    if not use_cache_control or len(messages) == 0:
+        return
+    for msg in reversed(messages):
+        role = msg.get("role")
+        if role in ("user", "tool"):
+            content = msg.get("content")
+            if isinstance(content, list) and len(content) > 0:
+                last_part = content[-1]
+                if isinstance(last_part, dict) and last_part.get("type") == "text":
+                    last_part["cache_control"] = {"type": "ephemeral"}
+            break
 
 
 def convert_history_to_input(
@@ -59,116 +147,19 @@ def convert_history_to_input(
             }
         ]
         if system and use_cache_control
-        else (
-            [
-                {
-                    "role": "system",
-                    "content": system,
-                }
-            ]
-            if system
-            else []
-        )
+        else ([{"role": "system", "content": system}] if system else [])
     )
 
-    for group_kind, group in group_response_items_gen(history):
-        match group_kind:
-            case "user":
-                messages.append({"role": "user", "content": build_user_content_parts(group)})
-            case "tool":
-                if len(group) == 0 or not isinstance(group[0], ToolResultItem):
-                    continue
-                tool_result = group[0]
-                reminders: list[DeveloperMessageItem] = [i for i in group if isinstance(i, DeveloperMessageItem)]
-                reminders_str = "\n" + "\n".join(i.content for i in reminders if i.content)
-                messages.append(
-                    {
-                        "role": "tool",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": (
-                                    tool_result.output
-                                    or "<system-reminder>Tool ran without output or errors</system-reminder>"
-                                )
-                                + reminders_str,
-                            }
-                        ],
-                        "tool_call_id": tool_result.call_id,
-                    }
-                )
-            case "assistant":
-                # Merge all items into a single assistant message
-                assistant_message = {
-                    "role": "assistant",
-                }
+    for group in parse_message_groups(history):
+        match group:
+            case UserGroup():
+                messages.append(_user_group_to_message(group))
+            case ToolGroup():
+                messages.append(_tool_group_to_message(group))
+            case AssistantGroup():
+                messages.append(_assistant_group_to_message(group, model_name))
 
-                for item in group:
-                    match item:
-                        case AssistantMessageItem() as a:
-                            if a.content:
-                                if "content" not in assistant_message:
-                                    assistant_message["content"] = a.content
-                                else:
-                                    assistant_message["content"] += a.content
-                        case ToolCallItem() as t:
-                            if "tool_calls" not in assistant_message:
-                                assistant_message["tool_calls"] = []
-                            assistant_message["tool_calls"].append(
-                                {
-                                    "id": t.call_id,
-                                    "type": "function",
-                                    "function": {
-                                        "name": t.name,
-                                        "arguments": t.arguments,
-                                    },
-                                }
-                            )
-                        case ReasoningEncryptedItem() as r:
-                            if model_name != r.model:
-                                continue
-                            if r.encrypted_content and len(r.encrypted_content) > 0:
-                                reasoning_details = assistant_message.setdefault("reasoning_details", [])
-                                reasoning_details.append(
-                                    {
-                                        "id": r.id,
-                                        "type": "reasoning.encrypted",
-                                        "data": r.encrypted_content,
-                                        "format": r.format,
-                                        "index": len(reasoning_details),
-                                    }
-                                )
-                        case ReasoningTextItem() as r:
-                            if model_name != r.model:
-                                continue
-                            reasoning_details = assistant_message.setdefault("reasoning_details", [])
-                            reasoning_details.append(
-                                {
-                                    "id": r.id,
-                                    "type": "reasoning.text",
-                                    "text": r.content,
-                                    "index": len(reasoning_details),
-                                }
-                            )
-                        case _:
-                            pass
-
-                messages.append(assistant_message)
-            case "other":
-                pass
-
-    # Add cache_control to the last user or tool message for Claude models
-    if use_cache_control and len(messages) > 0:
-        for msg in reversed(messages):
-            role = msg.get("role")
-            if role in ("user", "tool"):
-                content = msg.get("content")
-                if isinstance(content, list) and len(content) > 0:
-                    last_part = content[-1]
-                    if isinstance(last_part, dict) and last_part.get("type") == "text":
-                        last_part["cache_control"] = {"type": "ephemeral"}
-                break
-
+    _add_cache_control(messages, use_cache_control)
     return messages
 
 

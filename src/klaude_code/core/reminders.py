@@ -374,7 +374,6 @@ async def clipboard_image_reminder(session: Session) -> model.DeveloperMessageIt
         return None
 
     collected_images: list[model.ImageURLPart] = []
-    found_images: list[str] = []  # To list in the text message
 
     # Find all tokens
     # Regex for [Image #(\d+)]
@@ -399,7 +398,6 @@ async def clipboard_image_reminder(session: Session) -> model.DeveloperMessageIt
                 tool_result = await ReadTool.call_with_args(args)
                 if tool_result.images:
                     collected_images.extend(tool_result.images)
-                    found_images.append(f"{tag}: {path}")
                     processed_paths.add(path)
                     attached_tags.append(tag)
             finally:
@@ -408,9 +406,8 @@ async def clipboard_image_reminder(session: Session) -> model.DeveloperMessageIt
     if not collected_images:
         return None
 
-    msg = "\n".join(found_images)
     return model.DeveloperMessageItem(
-        content=f"<system-reminder>Attached clipboard images:\n{msg}</system-reminder>",
+        content="",
         images=collected_images,
         clipboard_images=attached_tags,
     )

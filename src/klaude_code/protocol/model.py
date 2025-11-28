@@ -1,6 +1,5 @@
-from collections.abc import Iterator
 from enum import Enum
-from typing import Iterable, Literal
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -230,71 +229,6 @@ MessageItem = (
 StreamItem = AssistantMessageDelta
 
 ConversationItem = StartItem | InterruptItem | StreamErrorItem | StreamItem | MessageItem | ResponseMetadataItem
-
-
-def group_response_items_gen(
-    items: Iterable[ConversationItem],
-) -> Iterator[tuple[Literal["assistant", "user", "tool", "other"], list[ConversationItem]]]:
-    """
-    Group response items into sublists with predictable attachment rules:
-    - Consecutive assistant-side items (ReasoningTextItem | ReasoningEncryptedItem | AssistantMessageItem | ToolCallItem) group together.
-    - Consecutive UserMessage group together.
-    - Each ToolMessage (ToolResultItem) is a single group, but allow following DeveloperMessage to attach to it.
-    - DeveloperMessage only attaches to the previous UserMessage/ToolMessage group.
-    """
-
-    # Current buffered group and its kind; None means no active group
-    buffer: list[ConversationItem] = []
-    buffer_kind: Literal["assistant", "user", "tool", "other"] | None = None
-
-    def kind_of(it: ConversationItem) -> Literal["assistant", "user", "tool", "developer", "other"]:
-        if isinstance(it, (ReasoningTextItem, ReasoningEncryptedItem, AssistantMessageItem, ToolCallItem)):
-            return "assistant"
-        if isinstance(it, UserMessageItem):
-            return "user"
-        if isinstance(it, ToolResultItem):
-            return "tool"
-        if isinstance(it, DeveloperMessageItem):
-            return "developer"
-        return "other"  # Metadata etc.
-
-    def flush() -> Iterator[tuple[Literal["assistant", "user", "tool", "other"], list[ConversationItem]]]:
-        nonlocal buffer, buffer_kind
-        if buffer and buffer_kind is not None:
-            yield (buffer_kind, buffer)
-        # reset
-        buffer = []
-        buffer_kind = None
-
-    for item in items:
-        k = kind_of(item)
-        if k == "other":
-            continue
-
-        if k == "developer":
-            # Attach only to previous user/tool group
-            if buffer and buffer_kind in ("user", "tool"):
-                buffer.append(item)
-            # else: drop developer if there's no suitable previous group
-            continue
-
-        if not buffer:
-            buffer = [item]
-            buffer_kind = "tool" if k == "tool" else k
-            continue
-
-        # Same kind merge rules: assistant/user merge; tool stays single
-        if k == buffer_kind and k != "tool":
-            buffer.append(item)
-            continue
-
-        # Kind switched or consecutive tool: flush current, start new
-        yield from flush()
-        buffer = [item]
-        buffer_kind = "tool" if k == "tool" else k
-
-    if buffer and buffer_kind is not None:
-        yield (buffer_kind, buffer)
 
 
 def todo_list_str(todos: list[TodoItem]) -> str:
