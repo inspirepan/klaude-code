@@ -114,15 +114,40 @@ def render_edit_tool_call(arguments: str) -> Text:
     try:
         json_dict = json.loads(arguments)
         file_path = json_dict.get("file_path")
-        old_string = json_dict.get("old_string", "")
         render_result = (
-            render_result.append_text(Text("Create" if old_string == "" else "Edit", ThemeKey.TOOL_NAME))
+            render_result.append_text(Text("Edit", ThemeKey.TOOL_NAME))
             .append_text(Text(" "))
             .append_text(render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH))
         )
     except json.JSONDecodeError:
         render_result = (
             render_result.append_text(Text("Edit", ThemeKey.TOOL_NAME))
+            .append_text(Text(" "))
+            .append_text(Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS))
+        )
+    return render_result
+
+
+def render_write_tool_call(arguments: str) -> Text:
+    render_result: Text = Text.assemble(("→ ", ThemeKey.TOOL_MARK))
+    try:
+        json_dict = json.loads(arguments)
+        file_path = json_dict.get("file_path")
+        op_label = "Create"
+        if isinstance(file_path, str):
+            abs_path = Path(file_path)
+            if not abs_path.is_absolute():
+                abs_path = (Path().cwd() / abs_path).resolve()
+            if abs_path.exists():
+                op_label = "Overwrite"
+        render_result = (
+            render_result.append_text(Text(op_label, ThemeKey.TOOL_NAME))
+            .append_text(Text(" "))
+            .append_text(render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH))
+        )
+    except json.JSONDecodeError:
+        render_result = (
+            render_result.append_text(Text("Write", ThemeKey.TOOL_NAME))
             .append_text(Text(" "))
             .append_text(Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS))
         )

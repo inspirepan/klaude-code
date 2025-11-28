@@ -63,7 +63,6 @@ class EditTool(ToolABC):
                 "- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.\n"
                 "- The edit will FAIL if `old_string` is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use `replace_all` to change every instance of `old_string`. \n"
                 "- Use `replace_all` for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.\n"
-                "- You can use this tool to create new files by providing an empty old_string.\n"
             ),
             parameters={
                 "type": "object",
@@ -100,9 +99,6 @@ class EditTool(ToolABC):
             return (
                 "<tool_use_error>No changes to make: old_string and new_string are exactly the same.</tool_use_error>"
             )
-        if old_string == "":
-            # Creation is allowed at call-level; for in-memory validation just ok
-            return None
         count = content.count(old_string)
         if count == 0:
             return f"<tool_use_error>String to replace not found in file.\nString: {old_string}</tool_use_error>"
@@ -140,68 +136,41 @@ class EditTool(ToolABC):
                 output="<tool_use_error>Illegal operation on a directory. edit</tool_use_error>",
             )
 
-        # FileTracker checks (only for editing existing files; creation handled separately)
+        if args.old_string == "":
+            return ToolResultItem(
+                status="error",
+                output=(
+                    "<tool_use_error>old_string must not be empty for Edit. "
+                    "To create or overwrite a file, use the Write tool instead.</tool_use_error>"
+                ),
+            )
+
+        # FileTracker checks (only for editing existing files)
         session = current_session_var.get()
-        if args.old_string != "":
-            if not _file_exists(file_path):
-                # We require reading before editing
+        if not _file_exists(file_path):
+            # We require reading before editing
+            return ToolResultItem(
+                status="error",
+                output=("File has not been read yet. Read it first before writing to it."),
+            )
+        if session is not None:
+            tracked = session.file_tracker.get(file_path)
+            if tracked is None:
                 return ToolResultItem(
                     status="error",
                     output=("File has not been read yet. Read it first before writing to it."),
                 )
-            if session is not None:
-                tracked = session.file_tracker.get(file_path)
-                if tracked is None:
-                    return ToolResultItem(
-                        status="error",
-                        output=("File has not been read yet. Read it first before writing to it."),
-                    )
-                try:
-                    current_mtime = Path(file_path).stat().st_mtime
-                except Exception:
-                    current_mtime = tracked
-                if current_mtime != tracked:
-                    return ToolResultItem(
-                        status="error",
-                        output=(
-                            "File has been modified externally. Either by user or a linter. Read it first before writing to it."
-                        ),
-                    )
-
-        # Creation cases
-        if args.old_string == "":
-            if _file_exists(file_path):
-                # Check if the existing file is empty, if so, allow overwriting
-                try:
-                    existing_content = await asyncio.to_thread(_read_text, file_path)
-                    if existing_content.strip() != "":
-                        return ToolResultItem(
-                            status="error",
-                            output="<tool_use_error>Cannot create new file - file already exists.</tool_use_error>",
-                        )
-                except Exception:
-                    return ToolResultItem(
-                        status="error",
-                        output="<tool_use_error>Cannot read existing file to check if it's empty.</tool_use_error>",
-                    )
-            # Create new file or overwrite empty file
             try:
-                was_existing = _file_exists(file_path)
-                await asyncio.to_thread(_write_text, file_path, args.new_string)
-                # Update tracker
-                if session is not None:
-                    try:
-                        session.file_tracker[file_path] = Path(file_path).stat().st_mtime
-                    except Exception:
-                        pass
-                if was_existing:
-                    return ToolResultItem(
-                        status="success", output=f"Empty file overwritten successfully at: {file_path}"
-                    )
-                else:
-                    return ToolResultItem(status="success", output=f"File created successfully at: {file_path}")
-            except Exception as e:  # pragma: no cover
-                return ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
+                current_mtime = Path(file_path).stat().st_mtime
+            except Exception:
+                current_mtime = tracked
+            if current_mtime != tracked:
+                return ToolResultItem(
+                    status="error",
+                    output=(
+                        "File has been modified externally. Either by user or a linter. Read it first before writing to it."
+                    ),
+                )
 
         # Edit existing file: validate and apply
         try:

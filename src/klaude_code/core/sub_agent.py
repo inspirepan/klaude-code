@@ -140,7 +140,7 @@ register_sub_agent(
         name="Task",
         description=TASK_DESCRIPTION,
         parameters=TASK_PARAMETERS,
-        tool_set=(tools.BASH, tools.READ, tools.EDIT),
+        tool_set=(tools.BASH, tools.READ, tools.EDIT, tools.WRITE),
     )
 )
 

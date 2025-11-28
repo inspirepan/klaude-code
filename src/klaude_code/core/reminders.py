@@ -283,7 +283,7 @@ async def last_path_memory_reminder(session: Session) -> model.DeveloperMessageI
         return None
     paths: list[str] = []
     for tool_call in tool_calls:
-        if tool_call.name in (tools.READ, tools.EDIT, tools.MULTI_EDIT):
+        if tool_call.name in (tools.READ, tools.EDIT, tools.MULTI_EDIT, tools.WRITE):
             try:
                 json_dict = json.loads(tool_call.arguments)
                 if path := json_dict.get("file_path", ""):

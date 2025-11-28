@@ -133,6 +133,8 @@ class REPLRenderer:
                 self.print(r_tools.render_read_tool_call(e.arguments))
             case tools.EDIT:
                 self.print(r_tools.render_edit_tool_call(e.arguments))
+            case tools.WRITE:
+                self.print(r_tools.render_write_tool_call(e.arguments))
             case tools.MULTI_EDIT:
                 self.print(r_tools.render_multi_edit_tool_call(e.arguments))
             case tools.BASH:
@@ -184,7 +186,7 @@ class REPLRenderer:
         match e.tool_name:
             case tools.READ:
                 pass
-            case tools.EDIT | tools.MULTI_EDIT:
+            case tools.EDIT | tools.MULTI_EDIT | tools.WRITE:
                 self.print(Padding.indent(r_diffs.render_diff(diff_text or ""), level=2))
             case tools.MEMORY:
                 if diff_text:

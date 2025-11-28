@@ -274,8 +274,7 @@ class TestEditTool(BaseTempDirTest):
             "<tool_use_error>No changes to make: old_string and new_string are exactly the same.</tool_use_error>",
         )
 
-    def test_edit_create_file_or_exists_error(self):
-        # create new file
+    def test_edit_rejects_empty_old_string(self):
         p = os.path.abspath("newfile.txt")
         res = arun(
             EditTool.call(
@@ -289,24 +288,11 @@ class TestEditTool(BaseTempDirTest):
                 )
             )
         )
-        self.assertEqual(res.status, "success")
-        self.assertEqual(res.output, f"File created successfully at: {p}")
-
-        # cannot create if exists
-        res2 = arun(
-            EditTool.call(
-                json.dumps(
-                    {
-                        "file_path": p,
-                        "old_string": "",
-                        "new_string": "hello\n",
-                        "replace_all": False,
-                    }
-                )
-            )
+        self.assertEqual(res.status, "error")
+        self.assertEqual(
+            res.output,
+            "<tool_use_error>old_string must not be empty for Edit. To create or overwrite a file, use the Write tool instead.</tool_use_error>",
         )
-        self.assertEqual(res2.status, "error")
-        self.assertEqual(res2.output, "<tool_use_error>Cannot create new file - file already exists.</tool_use_error>")
 
     def test_edit_directory_error(self):
         dir_path = os.path.abspath(".")
