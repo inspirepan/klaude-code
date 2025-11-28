@@ -1,448 +1,26 @@
 import asyncio
 import os
-import select
-import signal
 import subprocess
 import sys
-import termios
-import threading
-import time
-import tty
 import uuid
-from dataclasses import dataclass
 from importlib.metadata import version as pkg_version
-from typing import Any, Protocol
 
 import typer
-from rich.style import StyleType
-from rich.text import Text
 
-from klaude_code import ui
-from klaude_code.command.registry import is_interactive_command
+from klaude_code.cli.runtime import DEBUG_FILTER_HELP, AppInitConfig, resolve_debug_settings, run_exec, run_interactive
+from klaude_code.cli.session_cmd import register_session_commands
 from klaude_code.config import config_path, load_config
-from klaude_code.config.config import Config
 from klaude_code.config.list_model import display_models_and_providers
 from klaude_code.config.select_model import select_model_from_config
-from klaude_code.core.agent import DefaultModelProfileProvider, VanillaModelProfileProvider
-from klaude_code.core.executor import Executor
-from klaude_code.core.sub_agent import iter_sub_agent_profiles
-from klaude_code.core.tool.memory.skill_loader import SkillLoader
-from klaude_code.core.tool.memory.skill_tool import SkillTool
-from klaude_code.llm import LLMClients
-from klaude_code.protocol import op
-from klaude_code.protocol.events import EndEvent, Event
-from klaude_code.protocol.model import ResponseMetadataItem
 from klaude_code.session import Session, resume_select_session
-from klaude_code.trace import DebugType, log, log_debug, set_debug_logging
-from klaude_code.ui.base.progress_bar import OSC94States, emit_osc94
+from klaude_code.trace import log
 from klaude_code.ui.base.terminal_color import is_light_terminal_background
-from klaude_code.ui.repl.input import REPLStatusSnapshot
-from klaude_code.version import get_update_message
 
 
 def set_terminal_title(title: str) -> None:
     """Set terminal window title using ANSI escape sequence."""
     sys.stdout.write(f"\033]0;{title}\007")
     sys.stdout.flush()
-
-
-class PrintCapable(Protocol):
-    """Protocol for objects that can print styled content."""
-
-    def print(self, *objects: Any, style: StyleType | None = None, end: str = "\n") -> None: ...
-
-
-def start_esc_interrupt_monitor(
-    executor: Executor, session_id: str | None
-) -> tuple[threading.Event, asyncio.Task[None]]:
-    """Start ESC monitoring thread: Detect pure ESC keypress, print `esc` once and submit interrupt operation.
-    Returns (stop_event, esc_task).
-    """
-    stop_event = threading.Event()
-    loop = asyncio.get_running_loop()
-
-    def _esc_monitor(stop: threading.Event) -> None:
-        try:
-            fd = sys.stdin.fileno()
-            old = termios.tcgetattr(fd)
-        except Exception as e:
-            log((f"esc monitor init error: {e}", "r red"))
-            return
-        try:
-            tty.setcbreak(fd)
-            while not stop.is_set():
-                r, _, _ = select.select([sys.stdin], [], [], 0.05)
-                if not r:
-                    continue
-                try:
-                    ch = os.read(fd, 1).decode(errors="ignore")
-                except Exception:
-                    continue
-                if ch == "\x1b":
-                    seq = ""
-                    r2, _, _ = select.select([sys.stdin], [], [], 0.005)
-                    while r2:
-                        try:
-                            seq += os.read(fd, 1).decode(errors="ignore")
-                        except Exception:
-                            break
-                        r2, _, _ = select.select([sys.stdin], [], [], 0.0)
-                    if seq == "":
-                        try:
-                            asyncio.run_coroutine_threadsafe(
-                                executor.submit(op.InterruptOperation(target_session_id=session_id)),
-                                loop,
-                            )
-                        except Exception:
-                            pass
-                        stop.set()
-        except Exception as e:
-            log((f"esc monitor error: {e}", "r red"))
-        finally:
-            try:
-                termios.tcsetattr(fd, termios.TCSADRAIN, old)
-            except Exception:
-                pass
-
-    esc_task: asyncio.Task[None] = asyncio.create_task(asyncio.to_thread(_esc_monitor, stop_event))
-    return stop_event, esc_task
-
-
-DEBUG_FILTER_HELP = "Comma-separated debug types: " + ", ".join(dt.value for dt in DebugType)
-
-
-def _parse_debug_filters(raw: str | None) -> set[DebugType] | None:
-    if raw is None:
-        return None
-    filters: set[DebugType] = set()
-    for chunk in raw.split(","):
-        normalized = chunk.strip().lower().replace("-", "_")
-        if not normalized:
-            continue
-        try:
-            filters.add(DebugType(normalized))
-        except ValueError:  # pragma: no cover - user input validation
-            valid_options = ", ".join(dt.value for dt in DebugType)
-            log((f"Invalid debug filter '{normalized}'. Valid options: {valid_options}", "red"))
-            raise typer.Exit(2) from None
-    return filters or None
-
-
-def _resolve_debug_settings(flag: bool, raw_filters: str | None) -> tuple[bool, set[DebugType] | None]:
-    filters = _parse_debug_filters(raw_filters)
-    effective_flag = flag or (filters is not None)
-    return effective_flag, filters
-
-
-@dataclass
-class AppInitConfig:
-    """Configuration for initializing the application components."""
-
-    model: str | None
-    debug: bool
-    vanilla: bool
-    is_exec_mode: bool = False
-    debug_filters: set[DebugType] | None = None
-
-
-@dataclass
-class AppComponents:
-    """Initialized application components."""
-
-    config: Config
-    executor: Executor
-    executor_task: asyncio.Task[None]
-    event_queue: asyncio.Queue[Event]
-    display: ui.DisplayABC
-    display_task: asyncio.Task[None]
-    theme: str | None
-
-
-async def initialize_app_components(init_config: AppInitConfig) -> AppComponents:
-    """Initialize all application components (LLM clients, executor, UI)."""
-    set_debug_logging(init_config.debug, filters=init_config.debug_filters)
-
-    config = load_config()
-    if config is None:
-        raise typer.Exit(1)
-
-    # Initialize skills
-    skill_loader = SkillLoader()
-    skills = skill_loader.discover_skills()
-    if skills:
-        user_count = sum(1 for s in skills if s.location == "user")
-        project_count = sum(1 for s in skills if s.location == "project")
-        parts: list[str] = []
-        if user_count > 0:
-            parts.append(f"{user_count} user")
-        if project_count > 0:
-            parts.append(f"{project_count} project")
-        log_debug(f"Discovered {len(skills)} Claude Skills ({', '.join(parts)})")
-    SkillTool.set_skill_loader(skill_loader)
-
-    # Initialize LLM clients
-    try:
-        enabled_sub_agents = [p.name for p in iter_sub_agent_profiles()]
-        llm_clients = LLMClients.from_config(
-            config,
-            model_override=init_config.model,
-            enabled_sub_agents=enabled_sub_agents,
-        )
-    except ValueError as exc:
-        if init_config.model:
-            log((f"Error: model '{init_config.model}' is not defined in the config", "red"))
-            log(("Hint: run `klaude list` to view available models", "yellow"))
-        else:
-            log((f"Error: failed to load the default model configuration: {exc}", "red"))
-        raise typer.Exit(2) from None
-
-    model_profile_provider = VanillaModelProfileProvider() if init_config.vanilla else DefaultModelProfileProvider()
-
-    # Create event queue for communication between executor and UI
-    event_queue: asyncio.Queue[Event] = asyncio.Queue()
-
-    # Create executor with the LLM client
-    executor = Executor(
-        event_queue,
-        llm_clients,
-        model_profile_provider=model_profile_provider,
-    )
-
-    # Start executor in background
-    executor_task = asyncio.create_task(executor.start())
-
-    theme: str | None = config.theme
-    if theme is None:
-        # Auto-detect theme from terminal background when config does not specify a theme.
-        detected = is_light_terminal_background()
-        if detected is True:
-            theme = "light"
-        elif detected is False:
-            theme = "dark"
-
-    # Set up UI components
-    display: ui.DisplayABC
-    if init_config.is_exec_mode:
-        # Use ExecDisplay for exec mode - only shows task results
-        display = ui.ExecDisplay()
-    else:
-        # Use REPLDisplay for interactive mode
-        repl_display = ui.REPLDisplay(theme=theme)
-        display = repl_display if not init_config.debug else ui.DebugEventDisplay(repl_display)
-
-    # Start UI display task
-    display_task = asyncio.create_task(display.consume_event_loop(event_queue))
-
-    return AppComponents(
-        config=config,
-        executor=executor,
-        executor_task=executor_task,
-        event_queue=event_queue,
-        display=display,
-        display_task=display_task,
-        theme=theme,
-    )
-
-
-async def cleanup_app_components(components: AppComponents) -> None:
-    """Clean up all application components."""
-    try:
-        # Clean shutdown
-        await components.executor.stop()
-        components.executor_task.cancel()
-
-        # Signal UI to stop
-        await components.event_queue.put(EndEvent())
-        await components.display_task
-    finally:
-        # Always attempt to clear Ghostty progress bar and restore cursor visibility
-        try:
-            emit_osc94(OSC94States.HIDDEN)
-        except Exception:
-            # Best-effort only; never fail cleanup due to OSC errors
-            pass
-
-        try:
-            # Ensure the terminal cursor is visible even if Rich's Status spinner
-            # did not get a chance to stop cleanly (e.g. on KeyboardInterrupt).
-            stream = getattr(sys, "__stdout__", None) or sys.stdout
-            stream.write("\033[?25h")
-            stream.flush()
-        except Exception:
-            # If this fails the shell can still recover via `reset`/`stty sane`.
-            pass
-
-
-async def run_exec(init_config: AppInitConfig, input_content: str) -> None:
-    """Run a single command non-interactively using the provided configuration."""
-
-    components = await initialize_app_components(init_config)
-
-    try:
-        # Generate a new session ID for exec mode
-        session_id = uuid.uuid4().hex
-
-        # Init Agent
-        init_id = await components.executor.submit(op.InitAgentOperation(session_id=session_id))
-        await components.executor.wait_for_completion(init_id)
-        await components.event_queue.join()
-
-        # Submit the input content directly
-        submission_id = await components.executor.submit(
-            op.UserInputOperation(content=input_content, session_id=session_id)
-        )
-        await components.executor.wait_for_completion(submission_id)
-
-    except KeyboardInterrupt:
-        log("Bye!")
-        # Send interrupt to stop any running tasks
-        try:
-            await components.executor.submit(op.InterruptOperation(target_session_id=None))
-        except:  # noqa: E722
-            pass  # Executor might already be stopping
-    finally:
-        await cleanup_app_components(components)
-
-
-async def run_interactive(init_config: AppInitConfig, session_id: str | None = None) -> None:
-    """Run the interactive REPL using the provided configuration."""
-
-    components = await initialize_app_components(init_config)
-
-    # No theme persistence from CLI anymore; config.theme controls theme when set.
-
-    # Create status provider for bottom toolbar
-    def _status_provider() -> REPLStatusSnapshot:
-        # Get model name from active agent or fallback to main LLM client
-        model_name = "N/A"
-        context_usage_percent: float | None = None
-        llm_calls = 0
-        tool_calls = 0
-
-        if session_id and session_id in components.executor.context.active_agents:
-            agent = components.executor.context.active_agents[session_id]
-            model_name = agent.profile.llm_client.model_name if agent.profile else "N/A"
-
-            # Count AssistantMessageItem and ToolCallItem in conversation history
-            from klaude_code.protocol.model import AssistantMessageItem, ToolCallItem
-
-            for item in agent.session.conversation_history:
-                if isinstance(item, AssistantMessageItem):
-                    llm_calls += 1
-                elif isinstance(item, ToolCallItem):
-                    tool_calls += 1
-
-            # Find the most recent ResponseMetadataItem in conversation history
-            for item in reversed(agent.session.conversation_history):
-                if isinstance(item, ResponseMetadataItem):
-                    usage = item.usage
-                    if usage and hasattr(usage, "context_usage_percent"):
-                        context_usage_percent = usage.context_usage_percent
-                    break
-        else:
-            model_name = ""
-
-        # Check for updates (returns None if uv not available)
-        update_message = get_update_message()
-
-        return REPLStatusSnapshot(
-            model_name=model_name,
-            context_usage_percent=context_usage_percent,
-            llm_calls=llm_calls,
-            tool_calls=tool_calls,
-            update_message=update_message,
-        )
-
-    # Set up input provider for interactive mode
-    input_provider: ui.InputProviderABC = ui.PromptToolkitInput(status_provider=_status_provider)
-
-    # --- Custom Ctrl+C handler: double-press within 2s to exit, single press shows toast ---
-    last_sigint_time: float = 0.0
-    original_sigint = signal.getsignal(signal.SIGINT)
-
-    def _show_toast_once() -> None:
-        try:
-            # Keep message short; avoid interfering with spinner layout
-            printer: PrintCapable | None = None
-
-            # Check if it's a REPLDisplay with renderer
-            if isinstance(components.display, ui.REPLDisplay):
-                printer = components.display.renderer
-            # Check if it's a DebugEventDisplay wrapping a REPLDisplay
-            elif isinstance(components.display, ui.DebugEventDisplay) and components.display.wrapped_display:
-                if isinstance(components.display.wrapped_display, ui.REPLDisplay):
-                    printer = components.display.wrapped_display.renderer
-
-            if printer is not None:
-                printer.print(Text(" Press ctrl+c again to exit ", style="bold yellow reverse"))
-            else:
-                print("Press ctrl+c again to exit", file=sys.stderr)
-        except Exception:
-            # Fallback if themed print is unavailable
-            print("Press ctrl+c again to exit", file=sys.stderr)
-
-    def _sigint_handler(signum, frame):  # type: ignore[no-untyped-def]
-        nonlocal last_sigint_time
-        now = time.monotonic()
-        if now - last_sigint_time <= 2:
-            # Second press within window: exit by raising KeyboardInterrupt
-            emit_osc94(OSC94States.HIDDEN)
-            raise KeyboardInterrupt
-        # First press: remember and show toast
-        last_sigint_time = now
-        _show_toast_once()
-
-    signal.signal(signal.SIGINT, _sigint_handler)  # type: ignore[assignment]
-
-    try:
-        # Init Agent
-        init_id = await components.executor.submit(op.InitAgentOperation(session_id=session_id))
-        await components.executor.wait_for_completion(init_id)
-        await components.event_queue.join()
-        # Input
-        await input_provider.start()
-        async for user_input in input_provider.iter_inputs():
-            # Handle special commands
-            if user_input.strip().lower() in {"exit", ":q", "quit"}:
-                break
-            elif user_input.strip() == "":
-                continue
-            # Submit user input operation
-            submission_id = await components.executor.submit(
-                op.UserInputOperation(content=user_input, session_id=session_id)
-            )
-            # If it's an interactive command (e.g., /model), avoid starting the ESC monitor
-            # to prevent TTY conflicts with interactive prompts (questionary/prompt_toolkit).
-            if is_interactive_command(user_input):
-                await components.executor.wait_for_completion(submission_id)
-            else:
-                # Esc monitor for long-running, interruptible operations
-                stop_event, esc_task = start_esc_interrupt_monitor(components.executor, session_id)
-                # Wait for this specific task to complete before accepting next input
-                try:
-                    await components.executor.wait_for_completion(submission_id)
-                finally:
-                    # Stop ESC monitor and wait for it to finish cleaning up TTY
-                    stop_event.set()
-                    try:
-                        await esc_task
-                    except Exception:
-                        pass
-
-    except KeyboardInterrupt:
-        log("Bye!")
-        # Send interrupt to stop any running tasks
-        try:
-            await components.executor.submit(op.InterruptOperation(target_session_id=None))
-        except:  # noqa: E722
-            pass  # Executor might already be stopping
-    finally:
-        try:
-            # Restore original SIGINT handler
-            signal.signal(signal.SIGINT, original_sigint)
-        except Exception:
-            pass
-        await cleanup_app_components(components)
 
 
 def _version_callback(value: bool) -> None:
@@ -463,6 +41,7 @@ app = typer.Typer(
 )
 
 session_app = typer.Typer(help="Manage sessions for the current project")
+register_session_commands(session_app)
 app.add_typer(session_app, name="session")
 
 
@@ -534,76 +113,6 @@ def edit_config() -> None:
         log((f"Error: Editor '{editor}' not found", "red"))
         log("Please install a text editor or set your $EDITOR environment variable")
         raise typer.Exit(1)
-
-
-def _session_confirm(sessions: list[Session.SessionMetaBrief], message: str) -> bool:
-    """Show session list and confirm deletion using questionary."""
-    import questionary
-
-    def _fmt(ts: float) -> str:
-        try:
-            return time.strftime("%m-%d %H:%M:%S", time.localtime(ts))
-        except Exception:
-            return str(ts)
-
-    log(f"Sessions to delete ({len(sessions)}):")
-    for s in sessions:
-        msg_count_display = "N/A" if s.messages_count == -1 else str(s.messages_count)
-        first_msg = (s.first_user_message or "").strip().replace("\n", " ")[:50]
-        if len(s.first_user_message or "") > 50:
-            first_msg += "..."
-        log(f"  {_fmt(s.updated_at)}  {msg_count_display:>3} msgs  {first_msg}")
-
-    return (
-        questionary.confirm(
-            message,
-            default=False,
-            style=questionary.Style([("question", "bold")]),
-        ).ask()
-        or False
-    )
-
-
-@session_app.command("clean")
-def session_clean(
-    min_messages: int = typer.Option(5, "--min", "-n", help="Minimum messages to keep a session"),
-    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
-) -> None:
-    """Remove sessions with fewer than N messages (default: 5)"""
-    sessions = Session.list_sessions()
-    to_delete = [s for s in sessions if 0 <= s.messages_count < min_messages]
-
-    if not to_delete:
-        log(f"No sessions with fewer than {min_messages} messages found.")
-        return
-
-    if not yes:
-        if not _session_confirm(to_delete, "Delete these sessions?"):
-            log("Aborted.")
-            return
-
-    deleted = Session.clean_small_sessions(min_messages)
-    log(f"Deleted {deleted} session(s).")
-
-
-@session_app.command("clean-all")
-def session_clean_all(
-    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
-) -> None:
-    """Remove all sessions for the current project"""
-    sessions = Session.list_sessions()
-
-    if not sessions:
-        log("No sessions found.")
-        return
-
-    if not yes:
-        if not _session_confirm(sessions, "Delete ALL sessions? This cannot be undone."):
-            log("Aborted.")
-            return
-
-    deleted = Session.clean_all_sessions()
-    log(f"Deleted {deleted} session(s).")
 
 
 @app.command("exec")
@@ -678,7 +187,7 @@ def exec_command(
         if chosen_model is None:
             return
 
-    debug_enabled, debug_filters = _resolve_debug_settings(debug, debug_filter)
+    debug_enabled, debug_filters = resolve_debug_settings(debug, debug_filter)
 
     init_config = AppInitConfig(
         model=chosen_model,
@@ -767,7 +276,7 @@ def main_callback(
         if session_id is None:
             session_id = uuid.uuid4().hex
 
-        debug_enabled, debug_filters = _resolve_debug_settings(debug, debug_filter)
+        debug_enabled, debug_filters = resolve_debug_settings(debug, debug_filter)
 
         init_config = AppInitConfig(
             model=chosen_model,

@@ -112,7 +112,7 @@ def _assistant_group_to_message(group: AssistantGroup, model_name: str | None) -
             if model_name != item.model:
                 continue
             current_reasoning_content = item.content
-        elif isinstance(item, protocol_model.ReasoningEncryptedItem):
+        else:
             if model_name != item.model:
                 continue
             if item.encrypted_content and len(item.encrypted_content) > 0:

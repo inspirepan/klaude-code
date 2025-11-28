@@ -4,6 +4,8 @@ from pathlib import Path
 
 import yaml
 
+from klaude_code.trace import log_debug
+
 
 @dataclass
 class Skill:
@@ -142,6 +144,17 @@ class SkillLoader:
                 if skill:
                     skills.append(skill)
                     self.loaded_skills[skill.name] = skill
+
+        # Log discovery summary
+        if skills:
+            user_count = sum(1 for s in skills if s.location == "user")
+            project_count = sum(1 for s in skills if s.location == "project")
+            parts: list[str] = []
+            if user_count > 0:
+                parts.append(f"{user_count} user")
+            if project_count > 0:
+                parts.append(f"{project_count} project")
+            log_debug(f"Discovered {len(skills)} Claude Skills ({', '.join(parts)})")
 
         return skills
 
