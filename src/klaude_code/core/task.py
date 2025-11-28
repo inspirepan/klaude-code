@@ -162,6 +162,7 @@ class TaskExecutor:
                 todo_context=ctx.todo_context,
             )
 
+            turn: TurnExecutor | None = None
             turn_succeeded = False
             last_error_message: str | None = None
 
@@ -207,8 +208,7 @@ class TaskExecutor:
                 yield events.ErrorEvent(error_message=final_error, can_retry=False)
                 return
 
-            # turn is always bound here since turn_succeeded implies the loop ran at least once
-            if not turn.has_tool_call:  # pyright: ignore[reportPossiblyUnboundVariable]
+            if turn is None or not turn.has_tool_call:
                 break
 
         # Finalize metadata

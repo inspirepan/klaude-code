@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, MutableMapping
+from collections.abc import Awaitable, Callable, Generator, MutableMapping
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
 
@@ -69,6 +70,21 @@ def reset_tool_context(token: ToolContextToken) -> None:
         current_file_tracker_var.reset(token.file_tracker_token)
     if token.todo_token is not None:
         current_todo_context_var.reset(token.todo_token)
+
+
+@contextmanager
+def tool_context(
+    file_tracker: MutableMapping[str, float], todo_ctx: TodoContext
+) -> Generator[ToolContextToken, None, None]:
+    """Context manager for setting and resetting tool execution context."""
+
+    file_tracker_token = current_file_tracker_var.set(file_tracker)
+    todo_token = current_todo_context_var.set(todo_ctx)
+    token = ToolContextToken(file_tracker_token=file_tracker_token, todo_token=todo_token)
+    try:
+        yield token
+    finally:
+        reset_tool_context(token)
 
 
 def get_current_file_tracker() -> MutableMapping[str, float] | None:

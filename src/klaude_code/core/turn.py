@@ -4,13 +4,7 @@ from collections.abc import AsyncGenerator, Callable, MutableMapping, Sequence
 from dataclasses import dataclass
 
 from klaude_code.core.tool.tool_abc import ToolABC
-from klaude_code.core.tool.tool_context import (
-    TodoContext,
-    ToolContextToken,
-    current_file_tracker_var,
-    current_todo_context_var,
-    reset_tool_context,
-)
+from klaude_code.core.tool.tool_context import TodoContext, tool_context
 from klaude_code.core.tool.tool_runner import (
     ToolExecutionCallStarted,
     ToolExecutionResult,
@@ -110,13 +104,6 @@ class TurnExecutor:
             self._tool_executor = None
         return ui_events
 
-    def _set_tool_context(self) -> ToolContextToken:
-        """Set tool context vars and return token for reset."""
-        ctx = self._context
-        file_tracker_token = current_file_tracker_var.set(ctx.file_tracker)
-        todo_token = current_todo_context_var.set(ctx.todo_context)
-        return ToolContextToken(file_tracker_token=file_tracker_token, todo_token=todo_token)
-
     async def run(self) -> AsyncGenerator[events.Event, None]:
         """Execute the turn, yielding events as they occur.
 
@@ -206,8 +193,7 @@ class TurnExecutor:
 
         # Execute tools
         if turn_tool_calls:
-            context_token = self._set_tool_context()
-            try:
+            with tool_context(ctx.file_tracker, ctx.todo_context):
                 executor = ToolExecutor(
                     registry=ctx.tool_registry,
                     append_history=ctx.append_history,
@@ -217,8 +203,6 @@ class TurnExecutor:
                 async for exec_event in executor.run_tools(turn_tool_calls):
                     for ui_event in build_events_from_tool_executor_event(ctx.session_id, exec_event):
                         yield ui_event
-            finally:
                 self._tool_executor = None
-                reset_tool_context(context_token)
 
         yield events.TurnEndEvent(session_id=ctx.session_id)
