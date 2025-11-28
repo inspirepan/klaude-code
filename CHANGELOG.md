@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2025-11-29
+
+### Added
+
+- prioritize non-gitignored files in @ completion (`92d564c`)
+- auto-detect terminal theme in list_models command (`66e2a0e`)
+- add Write tool for file creation and overwriting (`664e78b`)
+- add response metadata rendering in HTML export (`61e218a`)
+- add session clean commands for managing sessions (`a76dd6f`)
+- add link following capability and improve response format (`bd653eb`)
+- improve source traceability for WebFetchAgent (`44af42b`)
+
+### Changed
+
+- split main.py into runtime, session_cmd, and terminal_control modules (`360a529`)
+- simplify LLMClients initialization and cleanup (`bd09560`)
+- hardcode colors in template and update font styles (`2e0ed76`)
+- centralize history grouping and fix OpenRouter reasoning order (`2bae405`)
+- extract MetadataAccumulator class (`2edd655`)
+- use profile.llm_client.model_name as runtime source of truth (`11aa6c5`)
+- simplify Agent and LLM client management (`2273952`)
+- split agent.py into TaskExecutor, TurnExecutor (`fa21b67`)
+- remove legacy manifest format support (`3d6649e`)
+- delegate tool execution to ToolExecutor (`1e7791c`)
+- decouple tool context from Session (`bcb3c6e`)
+- move constant package (`f04a954`)
+- split tool desc to md file (`9d8c8b6`)
+- switch from hatchling to uv_build (`b415ca9`)
+- switch to light theme and add collapsible sections (`1428fbf`)
+- improve HTML export with better template organization (`64ca042`)
+- update readme (`e87b9de`)
+
+### Fixed
+
+- responses api empty summary (`16958e6`)
+- update GitHub username in changelog (`ca33f5a`)
+- update GitHub username in changelog script (`ce7e022`)
+
+### Other
+
+- Refactor tool context management with context manager pattern (`d64d9da`)
+- remove docs (`8b1a9ad`)
+- memories (`2fa1ab3`)
+- clarify memory tool project scope (`8b1016a`)
 ## [1.2.0] - 2025-11-27
 
 ### Added
@@ -139,7 +183,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/inspirepan/klaude-code/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/inspirepan/klaude-code/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/inspirepan/klaude-code/compare/v1.0.6...v1.1.0
 [1.0.6]: https://github.com/inspirepan/klaude-code/compare/v1.0.5...v1.0.6
