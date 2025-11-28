@@ -412,3 +412,54 @@ class Session(BaseModel):
         # Sort by updated_at desc
         items.sort(key=lambda d: d.updated_at, reverse=True)
         return items
+
+    @classmethod
+    def clean_small_sessions(cls, min_messages: int = 5) -> int:
+        """Remove sessions with fewer than min_messages messages.
+
+        Returns the number of sessions deleted.
+        """
+        sessions = cls.list_sessions()
+        deleted_count = 0
+
+        for session_meta in sessions:
+            # Skip sessions with unknown message count
+            if session_meta.messages_count < 0:
+                continue
+            if session_meta.messages_count < min_messages:
+                cls._delete_session_files(session_meta.id, session_meta.created_at)
+                deleted_count += 1
+
+        return deleted_count
+
+    @classmethod
+    def clean_all_sessions(cls) -> int:
+        """Remove all sessions for the current project.
+
+        Returns the number of sessions deleted.
+        """
+        sessions = cls.list_sessions()
+        deleted_count = 0
+
+        for session_meta in sessions:
+            cls._delete_session_files(session_meta.id, session_meta.created_at)
+            deleted_count += 1
+
+        return deleted_count
+
+    @classmethod
+    def _delete_session_files(cls, session_id: str, created_at: float) -> None:
+        """Delete session and messages files for a given session."""
+        sessions_dir = cls._sessions_dir()
+        messages_dir = cls._messages_dir()
+
+        # Delete session file
+        prefix = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime(created_at))
+        session_file = sessions_dir / f"{prefix}-{session_id}.json"
+        if session_file.exists():
+            session_file.unlink()
+
+        # Delete messages file
+        messages_file = messages_dir / f"{prefix}-{session_id}.jsonl"
+        if messages_file.exists():
+            messages_file.unlink()

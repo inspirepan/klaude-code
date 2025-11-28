@@ -102,6 +102,21 @@ List configured providers and models:
 klaude list
 ```
 
+### Session Management
+
+Clean up sessions with few messages:
+
+```bash
+# Remove sessions with fewer than 5 messages (default)
+klaude session clean
+
+# Remove sessions with fewer than 10 messages
+klaude session clean --min 10
+
+# Remove all sessions for the current project
+klaude session clean-all
+```
+
 ### Slash Commands
 
 Inside the interactive session (`klaude`), use these commands to streamline your workflow:

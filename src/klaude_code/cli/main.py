@@ -487,6 +487,9 @@ app = typer.Typer(
     no_args_is_help=False,
 )
 
+session_app = typer.Typer(help="Manage sessions for the current project")
+app.add_typer(session_app, name="session")
+
 
 @app.command("list")
 def list_models():
@@ -547,6 +550,76 @@ def edit_config():
         log((f"Error: Editor '{editor}' not found", "red"))
         log("Please install a text editor or set your $EDITOR environment variable")
         raise typer.Exit(1)
+
+
+def _session_confirm(sessions: list[Session.SessionMetaBrief], message: str) -> bool:
+    """Show session list and confirm deletion using questionary."""
+    import questionary
+
+    def _fmt(ts: float) -> str:
+        try:
+            return time.strftime("%m-%d %H:%M:%S", time.localtime(ts))
+        except Exception:
+            return str(ts)
+
+    log(f"Sessions to delete ({len(sessions)}):")
+    for s in sessions:
+        msg_count_display = "N/A" if s.messages_count == -1 else str(s.messages_count)
+        first_msg = (s.first_user_message or "").strip().replace("\n", " ")[:50]
+        if len(s.first_user_message or "") > 50:
+            first_msg += "..."
+        log(f"  {_fmt(s.updated_at)}  {msg_count_display:>3} msgs  {first_msg}")
+
+    return (
+        questionary.confirm(
+            message,
+            default=False,
+            style=questionary.Style([("question", "bold")]),
+        ).ask()
+        or False
+    )
+
+
+@session_app.command("clean")
+def session_clean(
+    min_messages: int = typer.Option(5, "--min", "-n", help="Minimum messages to keep a session"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+):
+    """Remove sessions with fewer than N messages (default: 5)"""
+    sessions = Session.list_sessions()
+    to_delete = [s for s in sessions if 0 <= s.messages_count < min_messages]
+
+    if not to_delete:
+        log(f"No sessions with fewer than {min_messages} messages found.")
+        return
+
+    if not yes:
+        if not _session_confirm(to_delete, "Delete these sessions?"):
+            log("Aborted.")
+            return
+
+    deleted = Session.clean_small_sessions(min_messages)
+    log(f"Deleted {deleted} session(s).")
+
+
+@session_app.command("clean-all")
+def session_clean_all(
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+):
+    """Remove all sessions for the current project"""
+    sessions = Session.list_sessions()
+
+    if not sessions:
+        log("No sessions found.")
+        return
+
+    if not yes:
+        if not _session_confirm(sessions, "Delete ALL sessions? This cannot be undone."):
+            log("Aborted.")
+            return
+
+    deleted = Session.clean_all_sessions()
+    log(f"Deleted {deleted} session(s).")
 
 
 @app.command("exec")
