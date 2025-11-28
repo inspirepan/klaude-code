@@ -39,7 +39,7 @@ def render_user_input(content: str) -> RenderableType:
     - Highlights slash command on the first line if recognized
     - Highlights @file patterns in all lines
     """
-    lines = content.split("\n")
+    lines = content.strip().split("\n")
     renderables: list[RenderableType] = []
     for i, line in enumerate(lines):
         line_text = render_at_pattern(line)

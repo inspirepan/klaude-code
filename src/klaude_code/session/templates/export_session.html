@@ -378,6 +378,37 @@
         background: var(--bg-body);
       }
 
+      /* Response Metadata */
+      .response-metadata {
+        margin: 8px 0 16px 0;
+        padding: 0;
+        font-family: var(--font-mono);
+        font-size: var(--font-size-xs);
+        color: var(--text-dim);
+        border-left: 2px solid transparent;
+      }
+      .metadata-line {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        line-height: 1.4;
+      }
+      .metadata-model {
+        font-weight: 700;
+        color: var(--text);
+      }
+      .metadata-provider {
+        opacity: 0.8;
+      }
+      .metadata-stat {
+        white-space: nowrap;
+      }
+      .metadata-divider {
+        color: var(--border);
+        margin: 0 2px;
+      }
+
       /* Tool Calls */
       .tool-call {
         margin-top: 16px;

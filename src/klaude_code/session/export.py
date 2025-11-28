@@ -19,6 +19,7 @@ from klaude_code.protocol.model import (
     DeveloperMessageItem,
     ReasoningEncryptedItem,
     ReasoningTextItem,
+    ResponseMetadataItem,
     ToolCallItem,
     ToolResultItem,
     ToolResultUIExtra,
@@ -169,6 +170,60 @@ def _build_tool_params_html(parameters: dict[str, object]) -> str:
         return ""
 
     return f'<div class="tool-params"><div class="tool-params-title">Parameters:</div>{"".join(params_items)}</div>'
+
+
+def _format_token_count(count: int) -> str:
+    if count < 1000:
+        return str(count)
+    if count < 1000000:
+        k = count / 1000
+        return f"{int(k)}k" if k.is_integer() else f"{k:.1f}k"
+    m = count // 1000000
+    rem = (count % 1000000) // 1000
+    return f"{m}M" if rem == 0 else f"{m}M{rem}k"
+
+
+def _render_metadata_item(item: ResponseMetadataItem) -> str:
+    # Line 1: Model Name [@ Provider]
+    model_parts = [f'<span class="metadata-model">{_escape_html(item.model_name)}</span>']
+    if item.provider:
+        provider = _escape_html(item.provider.lower().replace(" ", "-"))
+        model_parts.append(f'<span class="metadata-provider">@{provider}</span>')
+
+    line1 = "".join(model_parts)
+
+    # Line 2: Stats
+    stats_parts: list[str] = []
+    if item.usage:
+        u = item.usage
+        stats_parts.append(f'<span class="metadata-stat">input: {_format_token_count(u.input_tokens)}</span>')
+        if u.cached_tokens > 0:
+            stats_parts.append(f'<span class="metadata-stat">cached: {_format_token_count(u.cached_tokens)}</span>')
+        stats_parts.append(f'<span class="metadata-stat">output: {_format_token_count(u.output_tokens)}</span>')
+        if u.reasoning_tokens > 0:
+            stats_parts.append(
+                f'<span class="metadata-stat">thinking: {_format_token_count(u.reasoning_tokens)}</span>'
+            )
+        if u.context_usage_percent is not None:
+            stats_parts.append(f'<span class="metadata-stat">context: {u.context_usage_percent:.1f}%</span>')
+        if u.throughput_tps is not None:
+            stats_parts.append(f'<span class="metadata-stat">tps: {u.throughput_tps:.1f}</span>')
+
+    if item.task_duration_s is not None:
+        stats_parts.append(f'<span class="metadata-stat">cost: {item.task_duration_s:.1f}s</span>')
+
+    stats_html = ""
+    if stats_parts:
+        divider = '<span class="metadata-divider">/</span>'
+        stats_html = divider.join(stats_parts)
+
+    return (
+        f'<div class="response-metadata">'
+        f'<div class="metadata-line">{line1}</div>'
+        f'<div class="metadata-line">{stats_html}</div>'
+        f"</div>"
+    )
+
 
 
 def _render_assistant_message(index: int, content: str) -> str:
@@ -442,6 +497,8 @@ def _build_messages_html(
         elif isinstance(item, AssistantMessageItem):
             assistant_counter += 1
             blocks.append(_render_assistant_message(assistant_counter, item.content or ""))
+        elif isinstance(item, ResponseMetadataItem):
+            blocks.append(_render_metadata_item(item))
         elif isinstance(item, DeveloperMessageItem):
             content = _escape_html(item.content or "")
 
