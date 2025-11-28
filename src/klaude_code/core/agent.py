@@ -6,13 +6,7 @@ from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass, field
 from typing import Literal, Protocol, cast
 
-from klaude_code.const import (
-    CANCEL_OUTPUT,
-    FIRST_EVENT_TIMEOUT_S,
-    INITIAL_RETRY_DELAY_S,
-    MAX_FAILED_TURN_RETRIES,
-    MAX_RETRY_DELAY_S,
-)
+from klaude_code.const import FIRST_EVENT_TIMEOUT_S, INITIAL_RETRY_DELAY_S, MAX_FAILED_TURN_RETRIES, MAX_RETRY_DELAY_S
 from klaude_code.core.prompt import get_system_prompt as load_system_prompt
 from klaude_code.core.reminders import (
     Reminder,
@@ -20,7 +14,7 @@ from klaude_code.core.reminders import (
     get_sub_agent_reminders,
     get_vanilla_reminders,
 )
-from klaude_code.core.sub_agent import get_sub_agent_profile, is_sub_agent_tool
+from klaude_code.core.sub_agent import get_sub_agent_profile
 from klaude_code.core.tool.tool_context import reset_tool_context, set_tool_context_from_session
 from klaude_code.core.tool.tool_registry import (
     get_main_agent_tools,
@@ -28,7 +22,13 @@ from klaude_code.core.tool.tool_registry import (
     get_sub_agent_tools,
     get_vanilla_tools,
 )
-from klaude_code.core.tool.tool_runner import run_tool
+from klaude_code.core.tool.tool_runner import (
+    ToolExecutionCallStarted,
+    ToolExecutionResult,
+    ToolExecutionTodoChange,
+    ToolExecutor,
+    ToolExecutorEvent,
+)
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.protocol import events, llm_parameter, model, tools
 from klaude_code.session import Session
@@ -48,14 +48,6 @@ class AgentLLMClients:
 
     def set_sub_agent_client(self, sub_agent_type: tools.SubAgentType, client: LLMClientABC) -> None:
         self.sub_clients[sub_agent_type] = client
-
-
-@dataclass
-class UnfinishedToolCallItem:
-    """Tracks an inflight tool call and its execution status."""
-
-    tool_call_item: model.ToolCallItem
-    status: Literal["pending", "in_progress"]
 
 
 @dataclass
@@ -170,72 +162,26 @@ class Agent:
         self.llm_clients = llm_clients
         self.model_profile_provider: ModelProfileProvider = model_profile_provider or DefaultModelProfileProvider()
         self.profile: AgentProfile | None = None
-        # Track tool calls that are pending or in-progress within the current turn
-        # Keyed by tool_call_id
-        self.turn_inflight_tool_calls: dict[str, UnfinishedToolCallItem] = {}
-        # Track async tasks spawned for sub-agent tool calls so they can be cancelled on interrupt
-        self._sub_agent_tasks: set[asyncio.Task[list[events.Event]]] = set()
+        # Active tool executor for the current turn, if any
+        self._tool_executor: ToolExecutor | None = None
         # Ensure runtime configuration matches the active model on initialization
         self.set_model_profile(initial_profile)
-
-    def _register_sub_agent_task(self, task: asyncio.Task[list[events.Event]]) -> None:
-        """Track a sub-agent tool task for later cancellation.
-
-        The task is automatically removed from the tracking set when it finishes.
-        """
-        self._sub_agent_tasks.add(task)
-
-        def _cleanup(completed: asyncio.Task[list[events.Event]]) -> None:
-            self._sub_agent_tasks.discard(completed)
-
-        task.add_done_callback(_cleanup)
 
     def cancel(self) -> Iterable[events.Event]:
         """Handle agent cancellation and persist an interrupt marker and tool cancellations.
 
         - Appends an `InterruptItem` into the session history so interruptions are reflected
           in persisted conversation logs.
-        - For any tool calls that are pending or in-progress in the current turn, append a
-          synthetic ToolResultItem with error status to indicate cancellation.
+        - For any tool calls that are pending or in-progress in the current turn, delegate to
+          the active ToolExecutor to append synthetic ToolResultItem entries with error status
+          to indicate cancellation.
         """
-        # First, cancel any running sub-agent tool tasks so they stop emitting events.
-        for task in list(self._sub_agent_tasks):
-            if not task.done():
-                task.cancel()
-        self._sub_agent_tasks.clear()
-
-        # Persist cancel results for pending tool calls
-        if self.turn_inflight_tool_calls:
-            for _, unfinished in list(self.turn_inflight_tool_calls.items()):
-                # Create synthetic error result for cancellation
-                tc = unfinished.tool_call_item
-                cancel_result = model.ToolResultItem(
-                    call_id=tc.call_id,
-                    output=CANCEL_OUTPUT,
-                    status="error",
-                    tool_name=tc.name,
-                    ui_extra=None,
-                )
-                if unfinished.status == "pending":
-                    # Emit ToolCallEvent for pending calls before error result
-                    yield events.ToolCallEvent(
-                        session_id=self.session.id,
-                        response_id=tc.response_id,
-                        tool_call_id=tc.call_id,
-                        tool_name=tc.name,
-                        arguments=tc.arguments,
-                    )
-                yield events.ToolResultEvent(
-                    session_id=self.session.id,
-                    response_id=tc.response_id,
-                    tool_call_id=tc.call_id,
-                    tool_name=tc.name,
-                    result=CANCEL_OUTPUT,
-                    status="error",
-                )
-                self.session.append_history([cancel_result])
-            # Clear pending map after recording cancellations
-            self.turn_inflight_tool_calls.clear()
+        # First, cancel any running tools for the current turn so they stop emitting events.
+        if self._tool_executor is not None:
+            for exec_event in self._tool_executor.cancel():
+                for ui_event in self._build_events_from_tool_executor_event(exec_event):
+                    yield ui_event
+            self._tool_executor = None
 
         # Record an interrupt marker in the session history
         self.session.append_history([model.InterruptItem()])
@@ -319,8 +265,6 @@ class Agent:
                         style="red",
                         debug_type=DebugType.EXECUTION,
                     )
-                    # Ensure pending calls are cleared on timeout
-                    self.turn_inflight_tool_calls.clear()
                     try:
                         await turn_generator.aclose()
                     except Exception:
@@ -454,8 +398,6 @@ class Agent:
         yield events.TurnStartEvent(
             session_id=self.session.id,
         )
-        # Clear pending map for new turn
-        self.turn_inflight_tool_calls.clear()
         turn_reasoning_items: list[model.ReasoningTextItem | model.ReasoningEncryptedItem] = []
         turn_assistant_message: model.AssistantMessageItem | None = None
         turn_tool_calls: list[model.ToolCallItem] = []
@@ -521,24 +463,21 @@ class Agent:
                 self.session.append_history([turn_assistant_message])
             if turn_tool_calls:
                 self.session.append_history(turn_tool_calls)
-                # Track tool calls for cancellation handling
-                for item in turn_tool_calls:
-                    self.turn_inflight_tool_calls[item.call_id] = UnfinishedToolCallItem(
-                        tool_call_item=item, status="pending"
-                    )
-        if response_failed:
-            # Clear any pending tool calls when the response failed before execution
-            self.turn_inflight_tool_calls.clear()
         if turn_tool_calls and not response_failed:
-            regular_tool_calls, sub_agent_tool_calls = self._partition_tool_calls(turn_tool_calls)
+            context_token = set_tool_context_from_session(self.session)
+            try:
+                executor = ToolExecutor(
+                    registry=get_registry(),
+                    append_history=self.session.append_history,
+                )
+                self._tool_executor = executor
 
-            for tool_call in regular_tool_calls:
-                async for tool_event in self._execute_tool_call(tool_call):
-                    yield tool_event
-
-            if sub_agent_tool_calls:
-                async for tool_event in self._execute_sub_agent_calls(sub_agent_tool_calls):
-                    yield tool_event
+                async for exec_event in executor.run_tools(turn_tool_calls):
+                    for ui_event in self._build_events_from_tool_executor_event(exec_event):
+                        yield ui_event
+            finally:
+                self._tool_executor = None
+                reset_tool_context(context_token)
         yield events.TurnEndEvent(session_id=self.session.id)
 
     async def process_reminders(self) -> AsyncGenerator[events.DeveloperMessageEvent, None]:
@@ -582,83 +521,40 @@ class Agent:
             raise RuntimeError("Agent profile is not initialized")
         return self.profile
 
-    def _partition_tool_calls(
-        self, tool_calls: list[model.ToolCallItem]
-    ) -> tuple[list[model.ToolCallItem], list[model.ToolCallItem]]:
-        regular_tool_calls: list[model.ToolCallItem] = []
-        sub_agent_tool_calls: list[model.ToolCallItem] = []
-        for tool_call in tool_calls:
-            if is_sub_agent_tool(tool_call.name):
-                sub_agent_tool_calls.append(tool_call)
-            else:
-                regular_tool_calls.append(tool_call)
-        return regular_tool_calls, sub_agent_tool_calls
+    def _build_events_from_tool_executor_event(self, event: ToolExecutorEvent) -> list[events.Event]:
+        """Translate internal tool executor events into public protocol events."""
 
-    def _build_tool_call_event(self, tool_call: model.ToolCallItem) -> events.ToolCallEvent:
-        return events.ToolCallEvent(
-            tool_call_id=tool_call.call_id,
-            tool_name=tool_call.name,
-            arguments=tool_call.arguments,
-            response_id=tool_call.response_id,
-            session_id=self.session.id,
-        )
+        ui_events: list[events.Event] = []
 
-    async def _execute_tool_call(self, tool_call: model.ToolCallItem) -> AsyncGenerator[events.Event, None]:
-        yield self._build_tool_call_event(tool_call)
-
-        for tool_event in await self._run_tool_call(tool_call):
-            yield tool_event
-
-    async def _execute_sub_agent_calls(
-        self, tool_calls: list[model.ToolCallItem]
-    ) -> AsyncGenerator[events.Event, None]:
-        execution_tasks: list[asyncio.Task[list[events.Event]]] = []
-        for tool_call in tool_calls:
-            yield self._build_tool_call_event(tool_call)
-            task = asyncio.create_task(self._run_tool_call(tool_call))
-            self._register_sub_agent_task(task)
-            execution_tasks.append(task)
-
-        for task in asyncio.as_completed(execution_tasks):
-            for tool_event in await task:
-                yield tool_event
-
-    async def _run_tool_call(self, tool_call: model.ToolCallItem) -> list[events.Event]:
-        context_token = set_tool_context_from_session(self.session)
-        try:
-            self.turn_inflight_tool_calls[tool_call.call_id].status = "in_progress"
-            tool_result: model.ToolResultItem = await run_tool(tool_call, get_registry())
-        finally:
-            reset_tool_context(context_token)
-
-        self.session.append_history([tool_result])
-        result_event = events.ToolResultEvent(
-            tool_call_id=tool_call.call_id,
-            tool_name=tool_call.name,
-            result=tool_result.output or "",
-            ui_extra=tool_result.ui_extra,
-            response_id=tool_call.response_id,
-            session_id=self.session.id,
-            status=tool_result.status,
-        )
-
-        self.turn_inflight_tool_calls.pop(tool_call.call_id, None)
-
-        extra_events = self._build_tool_side_effect_events(tool_result)
-
-        return [result_event, *extra_events]
-
-    def _build_tool_side_effect_events(self, tool_result: model.ToolResultItem) -> list[events.Event]:
-        if not tool_result.side_effects:
-            return []
-
-        side_effect_events: list[events.Event] = []
-        for side_effect in tool_result.side_effects:
-            if side_effect == model.ToolSideEffect.TODO_CHANGE:
-                side_effect_events.append(
-                    events.TodoChangeEvent(
+        match event:
+            case ToolExecutionCallStarted(tool_call=tool_call):
+                ui_events.append(
+                    events.ToolCallEvent(
                         session_id=self.session.id,
-                        todos=self.session.todos,
+                        response_id=tool_call.response_id,
+                        tool_call_id=tool_call.call_id,
+                        tool_name=tool_call.name,
+                        arguments=tool_call.arguments,
                     )
                 )
-        return side_effect_events
+            case ToolExecutionResult(tool_call=tool_call, tool_result=tool_result):
+                ui_events.append(
+                    events.ToolResultEvent(
+                        session_id=self.session.id,
+                        response_id=tool_call.response_id,
+                        tool_call_id=tool_call.call_id,
+                        tool_name=tool_call.name,
+                        result=tool_result.output or "",
+                        ui_extra=tool_result.ui_extra,
+                        status=tool_result.status,
+                    )
+                )
+            case ToolExecutionTodoChange(todos=todos):
+                ui_events.append(
+                    events.TodoChangeEvent(
+                        session_id=self.session.id,
+                        todos=todos,
+                    )
+                )
+
+        return ui_events

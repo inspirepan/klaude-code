@@ -1,12 +1,18 @@
 import asyncio
+from collections.abc import AsyncGenerator, Callable, Iterable
+from dataclasses import dataclass
 
+from klaude_code.const import CANCEL_OUTPUT
+from klaude_code.core.sub_agent import is_sub_agent_tool
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.truncation import truncate_tool_output
+from klaude_code.protocol import model
 from klaude_code.protocol.model import (
     ToolCallItem,
     ToolResultItem,
     ToolResultUIExtra,
     ToolResultUIExtraType,
+    ToolSideEffect,
     TruncationUIExtra,
 )
 
@@ -55,3 +61,200 @@ async def run_tool(tool_call: ToolCallItem, registry: dict[str, type[ToolABC]]) 
             status="error",
             tool_name=tool_call.name,
         )
+
+
+@dataclass
+class ToolExecutionCallStarted:
+    """Represents the start of a tool call execution."""
+
+    tool_call: ToolCallItem
+
+
+@dataclass
+class ToolExecutionResult:
+    """Represents the completion of a tool call with its result."""
+
+    tool_call: ToolCallItem
+    tool_result: ToolResultItem
+
+
+@dataclass
+class ToolExecutionTodoChange:
+    """Represents a todo list change side effect emitted by a tool."""
+
+    todos: list[model.TodoItem]
+
+
+ToolExecutorEvent = ToolExecutionCallStarted | ToolExecutionResult | ToolExecutionTodoChange
+
+
+class ToolExecutor:
+    """Execute and coordinate a batch of tool calls for a single turn.
+
+    The executor is responsible for:
+    - Partitioning tool calls into regular tools and sub-agent tools
+    - Running regular tools sequentially and sub-agent tools concurrently
+    - Emitting ToolCall/ToolResult events and tool side-effect events
+    - Tracking unfinished calls so `cancel()` can synthesize cancellation results
+    """
+
+    def __init__(
+        self,
+        *,
+        registry: dict[str, type[ToolABC]],
+        append_history: Callable[[list[model.MessageItem]], None],
+    ) -> None:
+        self._registry = registry
+        self._append_history = append_history
+
+        self._unfinished_calls: dict[str, ToolCallItem] = {}
+        self._call_event_emitted: set[str] = set()
+        self._sub_agent_tasks: set[asyncio.Task[list[ToolExecutorEvent]]] = set()
+
+    async def run_tools(self, tool_calls: list[ToolCallItem]) -> AsyncGenerator[ToolExecutorEvent, None]:
+        """Run the given tool calls and yield execution events.
+
+        Tool calls are partitioned into regular tools and sub-agent tools. Regular tools
+        run sequentially, while sub-agent tools run concurrently. All results are
+        appended to history via the injected `append_history` callback.
+        """
+
+        for tool_call in tool_calls:
+            self._unfinished_calls[tool_call.call_id] = tool_call
+
+        regular_tool_calls, sub_agent_tool_calls = self._partition_tool_calls(tool_calls)
+
+        # Run regular tools sequentially.
+        for tool_call in regular_tool_calls:
+            tool_call_event = self._build_tool_call_started(tool_call)
+            self._call_event_emitted.add(tool_call.call_id)
+            yield tool_call_event
+
+            try:
+                result_events = await self._run_single_tool_call(tool_call)
+            except asyncio.CancelledError:
+                # Propagate cooperative cancellation so the agent task can be stopped.
+                raise
+
+            for exec_event in result_events:
+                yield exec_event
+
+        # Run sub-agent tools concurrently.
+        if sub_agent_tool_calls:
+            execution_tasks: list[asyncio.Task[list[ToolExecutorEvent]]] = []
+            for tool_call in sub_agent_tool_calls:
+                tool_call_event = self._build_tool_call_started(tool_call)
+                self._call_event_emitted.add(tool_call.call_id)
+                yield tool_call_event
+
+                task = asyncio.create_task(self._run_single_tool_call(tool_call))
+                self._register_sub_agent_task(task)
+                execution_tasks.append(task)
+
+            for task in asyncio.as_completed(execution_tasks):
+                try:
+                    result_events = await task
+                except asyncio.CancelledError:
+                    # Task was cancelled by ToolExecutor.cancel(); skip synthetic events here.
+                    continue
+
+                for exec_event in result_events:
+                    yield exec_event
+
+    def cancel(self) -> Iterable[ToolExecutorEvent]:
+        """Cancel unfinished tool calls and synthesize error results.
+
+        - Cancels any running sub-agent tool tasks so they stop emitting events.
+        - For each unfinished tool call, yields a ToolExecutionCallStarted (if not
+          already emitted for this turn) followed by a ToolExecutionResult with
+          error status and a standard cancellation output. The corresponding
+          ToolResultItem is appended to history via `append_history`.
+        """
+
+        events_to_yield: list[ToolExecutorEvent] = []
+
+        # Cancel running sub-agent tool tasks.
+        for task in list(self._sub_agent_tasks):
+            if not task.done():
+                task.cancel()
+        self._sub_agent_tasks.clear()
+
+        if not self._unfinished_calls:
+            return events_to_yield
+
+        for call_id, tool_call in list(self._unfinished_calls.items()):
+            cancel_result = ToolResultItem(
+                call_id=tool_call.call_id,
+                output=CANCEL_OUTPUT,
+                status="error",
+                tool_name=tool_call.name,
+                ui_extra=None,
+            )
+
+            if call_id not in self._call_event_emitted:
+                events_to_yield.append(
+                    ToolExecutionCallStarted(tool_call=tool_call)
+                )
+                self._call_event_emitted.add(call_id)
+
+            events_to_yield.append(
+                ToolExecutionResult(tool_call=tool_call, tool_result=cancel_result)
+            )
+
+            self._append_history([cancel_result])
+            self._unfinished_calls.pop(call_id, None)
+
+        return events_to_yield
+
+    def _register_sub_agent_task(self, task: asyncio.Task[list[ToolExecutorEvent]]) -> None:
+        self._sub_agent_tasks.add(task)
+
+        def _cleanup(completed: asyncio.Task[list[ToolExecutorEvent]]) -> None:
+            self._sub_agent_tasks.discard(completed)
+
+        task.add_done_callback(_cleanup)
+
+    @staticmethod
+    def _partition_tool_calls(
+        tool_calls: list[ToolCallItem],
+    ) -> tuple[list[ToolCallItem], list[ToolCallItem]]:
+        regular_tool_calls: list[ToolCallItem] = []
+        sub_agent_tool_calls: list[ToolCallItem] = []
+        for tool_call in tool_calls:
+            if is_sub_agent_tool(tool_call.name):
+                sub_agent_tool_calls.append(tool_call)
+            else:
+                regular_tool_calls.append(tool_call)
+        return regular_tool_calls, sub_agent_tool_calls
+
+    def _build_tool_call_started(self, tool_call: ToolCallItem) -> ToolExecutionCallStarted:
+        return ToolExecutionCallStarted(tool_call=tool_call)
+
+    async def _run_single_tool_call(self, tool_call: ToolCallItem) -> list[ToolExecutorEvent]:
+        tool_result: ToolResultItem = await run_tool(tool_call, self._registry)
+
+        self._append_history([tool_result])
+
+        result_event = ToolExecutionResult(tool_call=tool_call, tool_result=tool_result)
+
+        self._unfinished_calls.pop(tool_call.call_id, None)
+
+        extra_events = self._build_tool_side_effect_events(tool_result)
+        return [result_event, *extra_events]
+
+    def _build_tool_side_effect_events(self, tool_result: ToolResultItem) -> list[ToolExecutorEvent]:
+        side_effects = tool_result.side_effects
+        if not side_effects:
+            return []
+
+        side_effect_events: list[ToolExecutorEvent] = []
+
+        for side_effect in side_effects:
+            if side_effect == ToolSideEffect.TODO_CHANGE:
+                todos: list[model.TodoItem] | None = None
+                if tool_result.ui_extra is not None and tool_result.ui_extra.todo_list is not None:
+                    todos = tool_result.ui_extra.todo_list.todos
+                if todos is not None:
+                    side_effect_events.append(ToolExecutionTodoChange(todos=todos))
+
+        return side_effect_events
