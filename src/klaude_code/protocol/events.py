@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from klaude_code.protocol import llm_parameter, model
+from klaude_code.protocol import llm_param, model
 
 """
 Event is how Agent Executor and UI Display communicate.
@@ -108,7 +108,7 @@ class UserMessageEvent(BaseModel):
 
 class WelcomeEvent(BaseModel):
     work_dir: str
-    llm_config: llm_parameter.LLMConfigParameter
+    llm_config: llm_param.LLMConfigParameter
 
 
 class InterruptEvent(BaseModel):

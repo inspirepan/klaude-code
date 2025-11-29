@@ -5,7 +5,7 @@ from typing import Any
 
 from openai.types import responses
 
-from klaude_code.protocol import llm_parameter, model
+from klaude_code.protocol import llm_param, model
 
 
 def _build_user_content_parts(
@@ -152,7 +152,7 @@ def convert_reasoning_inputs(
 
 
 def convert_tool_schema(
-    tools: list[llm_parameter.ToolSchema] | None,
+    tools: list[llm_param.ToolSchema] | None,
 ) -> list[responses.ToolParam]:
     if tools is None:
         return []

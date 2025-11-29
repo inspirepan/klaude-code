@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_parameter, model, tools
+from klaude_code.protocol import llm_param, model, tools
 
 
 def _is_directory(path: str) -> bool:
@@ -48,8 +48,8 @@ class EditTool(ToolABC):
         replace_all: bool = Field(default=False)
 
     @classmethod
-    def schema(cls) -> llm_parameter.ToolSchema:
-        return llm_parameter.ToolSchema(
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
             name=tools.EDIT,
             type="function",
             description=load_desc(Path(__file__).parent / "edit_tool.md"),

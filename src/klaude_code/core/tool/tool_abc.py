@@ -2,7 +2,7 @@ import string
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from klaude_code.protocol import llm_parameter, model
+from klaude_code.protocol import llm_param, model
 
 
 def load_desc(path: Path, substitutions: dict[str, str] | None = None) -> str:
@@ -16,7 +16,7 @@ def load_desc(path: Path, substitutions: dict[str, str] | None = None) -> str:
 class ToolABC(ABC):
     @classmethod
     @abstractmethod
-    def schema(cls) -> llm_parameter.ToolSchema:
+    def schema(cls) -> llm_param.ToolSchema:
         raise NotImplementedError
 
     @classmethod

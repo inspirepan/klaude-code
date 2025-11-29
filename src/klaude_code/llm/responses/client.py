@@ -11,13 +11,13 @@ from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
-from klaude_code.protocol import llm_parameter, model
+from klaude_code.protocol import llm_param, model
 from klaude_code.trace import DebugType, log_debug
 
 
-@register(llm_parameter.LLMClientProtocol.RESPONSES)
+@register(llm_param.LLMClientProtocol.RESPONSES)
 class ResponsesClient(LLMClientABC):
-    def __init__(self, config: llm_parameter.LLMConfigParameter):
+    def __init__(self, config: llm_param.LLMConfigParameter):
         super().__init__(config)
         if config.is_azure:
             if not config.base_url:
@@ -38,11 +38,11 @@ class ResponsesClient(LLMClientABC):
 
     @classmethod
     @override
-    def create(cls, config: llm_parameter.LLMConfigParameter) -> "LLMClientABC":
+    def create(cls, config: llm_param.LLMConfigParameter) -> "LLMClientABC":
         return cls(config)
 
     @override
-    async def call(self, param: llm_parameter.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         param = apply_config_defaults(param, self.get_llm_config())
 
         request_start_time = time.time()

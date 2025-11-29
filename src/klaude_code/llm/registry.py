@@ -4,19 +4,19 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, TypeVar
 
 from klaude_code.llm.client import LLMClientABC
-from klaude_code.protocol import llm_parameter
+from klaude_code.protocol import llm_param
 from klaude_code.protocol import tools
 from klaude_code.trace import DebugType, log_debug
 
 if TYPE_CHECKING:
     from klaude_code.config import Config
 
-_REGISTRY: dict[llm_parameter.LLMClientProtocol, type[LLMClientABC]] = {}
+_REGISTRY: dict[llm_param.LLMClientProtocol, type[LLMClientABC]] = {}
 
 T = TypeVar("T", bound=LLMClientABC)
 
 
-def register(name: llm_parameter.LLMClientProtocol) -> Callable[[type[T]], type[T]]:
+def register(name: llm_param.LLMClientProtocol) -> Callable[[type[T]], type[T]]:
     def _decorator(cls: type[T]) -> type[T]:
         _REGISTRY[name] = cls
         return cls
@@ -24,7 +24,7 @@ def register(name: llm_parameter.LLMClientProtocol) -> Callable[[type[T]], type[
     return _decorator
 
 
-def create_llm_client(config: llm_parameter.LLMConfigParameter) -> LLMClientABC:
+def create_llm_client(config: llm_param.LLMConfigParameter) -> LLMClientABC:
     if config.protocol not in _REGISTRY:
         raise ValueError(f"Unknown LLMClient protocol: {config.protocol}")
     return _REGISTRY[config.protocol].create(config)

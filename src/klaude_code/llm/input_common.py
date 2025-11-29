@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Iterable
 from klaude_code import const
 
 if TYPE_CHECKING:
-    from klaude_code.protocol.llm_parameter import LLMCallParameter, LLMConfigParameter
+    from klaude_code.protocol.llm_param import LLMCallParameter, LLMConfigParameter
 
 from klaude_code.protocol import model
 

@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_parameter, model, tools
+from klaude_code.protocol import llm_param, model, tools
 
 DEFAULT_TIMEOUT_SEC = 30
 DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; KlaudeCode/1.0)"
@@ -81,8 +81,8 @@ def _fetch_url(url: str, timeout: int = DEFAULT_TIMEOUT_SEC) -> tuple[str, str]:
 @register(tools.WEB_FETCH)
 class WebFetchTool(ToolABC):
     @classmethod
-    def schema(cls) -> llm_parameter.ToolSchema:
-        return llm_parameter.ToolSchema(
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
             name=tools.WEB_FETCH,
             type="function",
             description=load_desc(Path(__file__).parent / "web_fetch_tool.md"),

@@ -3,7 +3,7 @@ from typing import Callable, TypeVar
 from klaude_code.core.sub_agent import get_sub_agent_profile, iter_sub_agent_profiles, sub_agent_tool_names
 from klaude_code.core.tool.sub_agent_tool import SubAgentTool
 from klaude_code.core.tool.tool_abc import ToolABC
-from klaude_code.protocol import llm_parameter, tools
+from klaude_code.protocol import llm_param, tools
 
 _REGISTRY: dict[str, type[ToolABC]] = {}
 
@@ -32,8 +32,8 @@ def list_tools() -> list[str]:
     return list(_REGISTRY.keys())
 
 
-def get_tool_schemas(tool_names: list[str]) -> list[llm_parameter.ToolSchema]:
-    schemas: list[llm_parameter.ToolSchema] = []
+def get_tool_schemas(tool_names: list[str]) -> list[llm_param.ToolSchema]:
+    schemas: list[llm_param.ToolSchema] = []
     for tool_name in tool_names:
         if tool_name not in _REGISTRY:
             raise ValueError(f"Unknown Tool: {tool_name}")
@@ -48,7 +48,7 @@ def get_registry() -> dict[str, type[ToolABC]]:
 
 def load_agent_tools(
     model_name: str, sub_agent_type: tools.SubAgentType | None = None, *, vanilla: bool = False
-) -> list[llm_parameter.ToolSchema]:
+) -> list[llm_param.ToolSchema]:
     """Get tools for an agent based on model and agent type.
 
     Args:

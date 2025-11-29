@@ -11,7 +11,7 @@ from klaude_code.core.tool.file.edit_tool import EditTool
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_parameter, model, tools
+from klaude_code.protocol import llm_param, model, tools
 
 
 def _is_directory(path: str) -> bool:
@@ -52,8 +52,8 @@ class MultiEditTool(ToolABC):
         edits: list[MultiEditTool.MultiEditEditItem]
 
     @classmethod
-    def schema(cls) -> llm_parameter.ToolSchema:
-        return llm_parameter.ToolSchema(
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
             name=tools.MULTI_EDIT,
             type="function",
             description=load_desc(Path(__file__).parent / "multi_edit_tool.md"),

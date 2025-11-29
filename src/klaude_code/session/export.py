@@ -12,7 +12,7 @@ from string import Template
 from typing import TYPE_CHECKING, Any, Final, cast
 
 from klaude_code.core.sub_agent import is_sub_agent_tool
-from klaude_code.protocol import llm_parameter, model
+from klaude_code.protocol import llm_param, model
 
 if TYPE_CHECKING:
     from klaude_code.session.session import Session
@@ -73,7 +73,7 @@ def _load_template() -> str:
     return template_file.read_text(encoding="utf-8")
 
 
-def _build_tools_html(tools: list[llm_parameter.ToolSchema]) -> str:
+def _build_tools_html(tools: list[llm_param.ToolSchema]) -> str:
     if not tools:
         return '<div style="padding: 12px; font-style: italic;">No tools registered for this session.</div>'
     chunks: list[str] = []
@@ -493,7 +493,7 @@ def _build_messages_html(
 def build_export_html(
     session: Session,
     system_prompt: str,
-    tools: list[llm_parameter.ToolSchema],
+    tools: list[llm_param.ToolSchema],
     model_name: str,
 ) -> str:
     """Build HTML export for a session.

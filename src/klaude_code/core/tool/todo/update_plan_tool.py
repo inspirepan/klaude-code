@@ -9,7 +9,7 @@ from pydantic import BaseModel, field_validator
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_todo_context
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_parameter, model, tools
+from klaude_code.protocol import llm_param, model, tools
 
 from .todo_write_tool import get_new_completed_todos
 
@@ -44,8 +44,8 @@ class UpdatePlanArguments(BaseModel):
 @register(tools.UPDATE_PLAN)
 class UpdatePlanTool(ToolABC):
     @classmethod
-    def schema(cls) -> llm_parameter.ToolSchema:
-        return llm_parameter.ToolSchema(
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
             name=tools.UPDATE_PLAN,
             type="function",
             description=load_desc(Path(__file__).parent / "update_plan_tool.md"),

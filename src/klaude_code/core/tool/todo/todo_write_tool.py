@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_todo_context
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_parameter, model, tools
+from klaude_code.protocol import llm_param, model, tools
 
 
 def get_new_completed_todos(old_todos: list[model.TodoItem], new_todos: list[model.TodoItem]) -> list[str]:
@@ -45,8 +45,8 @@ class TodoWriteArguments(BaseModel):
 @register(tools.TODO_WRITE)
 class TodoWriteTool(ToolABC):
     @classmethod
-    def schema(cls) -> llm_parameter.ToolSchema:
-        return llm_parameter.ToolSchema(
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
             name=tools.TODO_WRITE,
             type="function",
             description=load_desc(Path(__file__).parent / "todo_write_tool.md"),

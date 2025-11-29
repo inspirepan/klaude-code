@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_parameter, model, tools
+from klaude_code.protocol import llm_param, model, tools
 
 MEMORY_VIRTUAL_ROOT = "/memories"
 MEMORY_DIR_NAME = ".claude/memories"
@@ -134,8 +134,8 @@ class MemoryTool(ToolABC):
         new_path: str | None = Field(default=None)
 
     @classmethod
-    def schema(cls) -> llm_parameter.ToolSchema:
-        return llm_parameter.ToolSchema(
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
             name=tools.MEMORY,
             type="function",
             description=load_desc(Path(__file__).parent / "memory_tool.md"),

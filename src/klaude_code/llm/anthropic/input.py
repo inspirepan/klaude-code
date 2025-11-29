@@ -18,7 +18,7 @@ from anthropic.types.beta.beta_tool_param import BetaToolParam
 from anthropic.types.beta.beta_url_image_source_param import BetaURLImageSourceParam
 
 from klaude_code.llm.input_common import AssistantGroup, ToolGroup, UserGroup, merge_reminder_text, parse_message_groups
-from klaude_code.protocol import llm_parameter, model
+from klaude_code.protocol import llm_param, model
 
 AllowedMediaType = Literal["image/png", "image/jpeg", "image/gif", "image/webp"]
 _INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (
@@ -182,7 +182,7 @@ def convert_system_to_input(system: str | None) -> list[BetaTextBlockParam]:
 
 
 def convert_tool_schema(
-    tools: list[llm_parameter.ToolSchema] | None,
+    tools: list[llm_param.ToolSchema] | None,
 ) -> list[BetaToolParam]:
     if tools is None:
         return []

@@ -8,14 +8,14 @@ from klaude_code import const
 from klaude_code.core.tool.shell.command_safety import is_safe_command, strip_bash_lc
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_parameter, model, tools
+from klaude_code.protocol import llm_param, model, tools
 
 
 @register(tools.BASH)
 class BashTool(ToolABC):
     @classmethod
-    def schema(cls) -> llm_parameter.ToolSchema:
-        return llm_parameter.ToolSchema(
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
             name=tools.BASH,
             type="function",
             description=load_desc(Path(__file__).parent / "bash_tool.md"),

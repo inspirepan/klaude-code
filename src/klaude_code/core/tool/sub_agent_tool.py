@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.tool_context import current_run_subtask_callback
-from klaude_code.protocol import llm_parameter, model
+from klaude_code.protocol import llm_param, model
 
 if TYPE_CHECKING:
     from klaude_code.core.sub_agent import SubAgentProfile
@@ -37,9 +37,9 @@ class SubAgentTool(ToolABC):
         )
 
     @classmethod
-    def schema(cls) -> llm_parameter.ToolSchema:
+    def schema(cls) -> llm_param.ToolSchema:
         profile = cls._profile
-        return llm_parameter.ToolSchema(
+        return llm_param.ToolSchema(
             name=profile.name,
             type="function",
             description=profile.description,

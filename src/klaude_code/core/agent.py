@@ -9,7 +9,7 @@ from klaude_code.core.reminders import Reminder, load_agent_reminders
 from klaude_code.core.task import TaskExecutionContext, TaskExecutor
 from klaude_code.core.tool import TodoContext, get_registry, load_agent_tools
 from klaude_code.llm import LLMClientABC
-from klaude_code.protocol import events, llm_parameter, model, tools
+from klaude_code.protocol import events, llm_param, model, tools
 from klaude_code.protocol.model import UserInputPayload
 from klaude_code.session import Session
 from klaude_code.trace import DebugType, log_debug
@@ -21,7 +21,7 @@ class AgentProfile:
 
     llm_client: LLMClientABC
     system_prompt: str | None
-    tools: list[llm_parameter.ToolSchema]
+    tools: list[llm_param.ToolSchema]
     reminders: list[Reminder]
 
 

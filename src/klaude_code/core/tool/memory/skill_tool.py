@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from klaude_code.core.tool.memory.skill_loader import SkillLoader
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_parameter, model, tools
+from klaude_code.protocol import llm_param, model, tools
 
 
 @register(tools.SKILL)
@@ -20,11 +20,11 @@ class SkillTool(ToolABC):
         cls._skill_loader = loader
 
     @classmethod
-    def schema(cls) -> llm_parameter.ToolSchema:
+    def schema(cls) -> llm_param.ToolSchema:
         """Generate schema with embedded available skills metadata"""
         skills_xml = cls._generate_skills_xml()
 
-        return llm_parameter.ToolSchema(
+        return llm_param.ToolSchema(
             name=tools.SKILL,
             type="function",
             description=load_desc(Path(__file__).parent / "skill_tool.md", {"skills_xml": skills_xml}),

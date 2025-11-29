@@ -7,7 +7,7 @@ from openai.types import chat
 from openai.types.chat import ChatCompletionContentPartParam
 
 from klaude_code.llm.input_common import AssistantGroup, ToolGroup, UserGroup, merge_reminder_text, parse_message_groups
-from klaude_code.protocol import llm_parameter, model
+from klaude_code.protocol import llm_param, model
 
 
 def _user_group_to_message(group: UserGroup) -> chat.ChatCompletionMessageParam:
@@ -91,7 +91,7 @@ def convert_history_to_input(
 
 
 def convert_tool_schema(
-    tools: list[llm_parameter.ToolSchema] | None,
+    tools: list[llm_param.ToolSchema] | None,
 ) -> list[chat.ChatCompletionToolParam]:
     if tools is None:
         return []

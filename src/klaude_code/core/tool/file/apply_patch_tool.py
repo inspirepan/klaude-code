@@ -11,7 +11,7 @@ from klaude_code.core.tool.file import apply_patch as apply_patch_module
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_parameter, model, tools
+from klaude_code.protocol import llm_param, model, tools
 
 
 class ApplyPatchHandler:
@@ -174,8 +174,8 @@ class ApplyPatchTool(ToolABC):
         patch: str
 
     @classmethod
-    def schema(cls) -> llm_parameter.ToolSchema:
-        return llm_parameter.ToolSchema(
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
             name=tools.APPLY_PATCH,
             type="function",
             description=load_desc(Path(__file__).parent / "apply_patch_tool.md"),

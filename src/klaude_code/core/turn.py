@@ -12,7 +12,7 @@ from klaude_code.core.tool.tool_runner import (
     ToolExecutorEvent,
 )
 from klaude_code.llm import LLMClientABC
-from klaude_code.protocol import events, llm_parameter, model
+from klaude_code.protocol import events, llm_param, model
 from klaude_code.trace import DebugType, log_debug
 
 
@@ -31,7 +31,7 @@ class TurnExecutionContext:
     append_history: Callable[[Sequence[model.ConversationItem]], None]
     llm_client: LLMClientABC
     system_prompt: str | None
-    tools: list[llm_parameter.ToolSchema]
+    tools: list[llm_param.ToolSchema]
     tool_registry: dict[str, type[ToolABC]]
     # For tool context
     file_tracker: MutableMapping[str, float]
@@ -120,7 +120,7 @@ class TurnExecutor:
         error_message: str | None = None
 
         async for response_item in ctx.llm_client.call(
-            llm_parameter.LLMCallParameter(
+            llm_param.LLMCallParameter(
                 input=ctx.get_conversation_history(),
                 system=ctx.system_prompt,
                 tools=ctx.tools,

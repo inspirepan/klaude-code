@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_parameter, model, tools
+from klaude_code.protocol import llm_param, model, tools
 
 _MERMAID_LIVE_PREFIX = "https://mermaid.live/view#pako:"
 
@@ -22,8 +22,8 @@ class MermaidTool(ToolABC):
         code: str = Field(description="The Mermaid diagram code to render")
 
     @classmethod
-    def schema(cls) -> llm_parameter.ToolSchema:
-        return llm_parameter.ToolSchema(
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
             name=tools.MERMAID,
             type="function",
             description=load_desc(Path(__file__).parent / "mermaid_tool.md"),
