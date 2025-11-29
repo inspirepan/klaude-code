@@ -6,7 +6,7 @@ import openai
 
 from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
 from klaude_code.llm.input_common import apply_config_defaults
-from klaude_code.llm.metadata_tracker import MetadataTracker
+from klaude_code.llm.usage import MetadataTracker, convert_usage
 from klaude_code.llm.openai_compatible.input import convert_tool_schema
 from klaude_code.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
 from klaude_code.llm.openrouter.input import convert_history_to_input, is_claude_model
@@ -198,19 +198,3 @@ class OpenRouterClient(LLMClientABC):
 
         metadata_tracker.set_response_id(response_id)
         yield metadata_tracker.finalize()
-
-
-def convert_usage(usage: openai.types.CompletionUsage, context_limit: int | None = None) -> model.Usage:
-    total_tokens = usage.total_tokens
-    context_usage_percent = (total_tokens / context_limit) * 100 if context_limit else None
-    return model.Usage(
-        input_tokens=usage.prompt_tokens,
-        cached_tokens=(usage.prompt_tokens_details.cached_tokens if usage.prompt_tokens_details else 0) or 0,
-        reasoning_tokens=(usage.completion_tokens_details.reasoning_tokens if usage.completion_tokens_details else 0)
-        or 0,
-        output_tokens=usage.completion_tokens,
-        total_tokens=total_tokens,
-        context_usage_percent=context_usage_percent,
-        throughput_tps=None,
-        first_token_latency_ms=None,
-    )

@@ -1,5 +1,7 @@
 import time
 
+import openai.types
+
 from klaude_code.protocol import model
 
 
@@ -60,3 +62,20 @@ class MetadataTracker:
                     self._metadata_item.usage.throughput_tps = self._metadata_item.usage.output_tokens / time_duration
 
         return self._metadata_item
+
+
+def convert_usage(usage: openai.types.CompletionUsage, context_limit: int | None = None) -> model.Usage:
+    """Convert OpenAI CompletionUsage to internal Usage model."""
+    total_tokens = usage.total_tokens
+    context_usage_percent = (total_tokens / context_limit) * 100 if context_limit else None
+    return model.Usage(
+        input_tokens=usage.prompt_tokens,
+        cached_tokens=(usage.prompt_tokens_details.cached_tokens if usage.prompt_tokens_details else 0) or 0,
+        reasoning_tokens=(usage.completion_tokens_details.reasoning_tokens if usage.completion_tokens_details else 0)
+        or 0,
+        output_tokens=usage.completion_tokens,
+        total_tokens=total_tokens,
+        context_usage_percent=context_usage_percent,
+        throughput_tps=None,
+        first_token_latency_ms=None,
+    )
