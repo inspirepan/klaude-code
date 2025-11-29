@@ -11,19 +11,18 @@ from rich.spinner import Spinner
 from rich.status import Status
 from rich.style import Style, StyleType
 
-from klaude_code.ui.rich.status import ShimmerStatusText
-
 from klaude_code.protocol import events, model
 from klaude_code.ui.renderers import assistant as r_assistant
 from klaude_code.ui.renderers import developer as r_developer
 from klaude_code.ui.renderers import errors as r_errors
 from klaude_code.ui.renderers import metadata as r_metadata
-from klaude_code.ui.rich import status as r_status
 from klaude_code.ui.renderers import sub_agent as r_sub_agent
 from klaude_code.ui.renderers import thinking as r_thinking
 from klaude_code.ui.renderers import tools as r_tools
 from klaude_code.ui.renderers import user_input as r_user_input
+from klaude_code.ui.rich import status as r_status
 from klaude_code.ui.rich.quote import Quote
+from klaude_code.ui.rich.status import ShimmerStatusText
 from klaude_code.ui.rich.theme import ThemeKey, get_theme
 from klaude_code.ui.utils.common import truncate_display
 
