@@ -1,5 +1,4 @@
 import json
-import time
 from collections.abc import AsyncGenerator
 from typing import Literal, override
 
@@ -9,6 +8,7 @@ from openai import APIError, RateLimitError
 
 from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
 from klaude_code.llm.input_common import apply_config_defaults
+from klaude_code.llm.metadata_tracker import MetadataTracker
 from klaude_code.llm.openai_compatible.input import convert_history_to_input, convert_tool_schema
 from klaude_code.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
 from klaude_code.llm.registry import register
@@ -48,9 +48,7 @@ class OpenAICompatibleClient(LLMClientABC):
         messages = convert_history_to_input(param.input, param.system, param.model)
         tools = convert_tool_schema(param.tools)
 
-        request_start_time = time.time()
-        first_token_time: float | None = None
-        last_token_time: float | None = None
+        metadata_tracker = MetadataTracker()
 
         extra_body = {}
         extra_headers = {"extra": json.dumps({"session_id": param.session_id})}
@@ -81,7 +79,6 @@ class OpenAICompatibleClient(LLMClientABC):
         accumulated_content: list[str] = []
         accumulated_tool_calls: ToolCallAccumulatorABC = BasicToolCallAccumulator()
         response_id: str | None = None
-        metadata_item = model.ResponseMetadataItem()
 
         def flush_reasoning_items() -> list[model.ConversationItem]:
             nonlocal accumulated_reasoning
@@ -127,11 +124,11 @@ class OpenAICompatibleClient(LLMClientABC):
                 if (
                     event.usage is not None and event.usage.completion_tokens is not None  # pyright: ignore[reportUnnecessaryComparison] gcp gemini will return None usage field
                 ):
-                    metadata_item.usage = convert_usage(event.usage, param.context_limit)
+                    metadata_tracker.set_usage(convert_usage(event.usage, param.context_limit))
                 if event.model:
-                    metadata_item.model_name = event.model
+                    metadata_tracker.set_model_name(event.model)
                 if provider := getattr(event, "provider", None):
-                    metadata_item.provider = str(provider)
+                    metadata_tracker.set_provider(str(provider))
 
                 if len(event.choices) == 0:
                     continue
@@ -139,9 +136,11 @@ class OpenAICompatibleClient(LLMClientABC):
 
                 # Support Kimi K2's usage field in choice
                 if hasattr(event.choices[0], "usage") and getattr(event.choices[0], "usage"):
-                    metadata_item.usage = convert_usage(
-                        openai.types.CompletionUsage.model_validate(getattr(event.choices[0], "usage")),
-                        param.context_limit,
+                    metadata_tracker.set_usage(
+                        convert_usage(
+                            openai.types.CompletionUsage.model_validate(getattr(event.choices[0], "usage")),
+                            param.context_limit,
+                        )
                     )
 
                 # Reasoning
@@ -151,9 +150,7 @@ class OpenAICompatibleClient(LLMClientABC):
                 if hasattr(delta, "reasoning_content") and getattr(delta, "reasoning_content"):
                     reasoning_content = getattr(delta, "reasoning_content")
                 if reasoning_content:
-                    if first_token_time is None:
-                        first_token_time = time.time()
-                    last_token_time = time.time()
+                    metadata_tracker.record_token()
                     stage = "reasoning"
                     accumulated_reasoning.append(reasoning_content)
 
@@ -161,9 +158,7 @@ class OpenAICompatibleClient(LLMClientABC):
                 if delta.content and (
                     stage == "assistant" or delta.content.strip()
                 ):  # Process all content in assistant stage, filter empty content in reasoning stage
-                    if first_token_time is None:
-                        first_token_time = time.time()
-                    last_token_time = time.time()
+                    metadata_tracker.record_token()
                     if stage == "reasoning":
                         for item in flush_reasoning_items():
                             yield item
@@ -179,9 +174,7 @@ class OpenAICompatibleClient(LLMClientABC):
 
                 # Tool
                 if delta.tool_calls and len(delta.tool_calls) > 0:
-                    if first_token_time is None:
-                        first_token_time = time.time()
-                    last_token_time = time.time()
+                    metadata_tracker.record_token()
                     if stage == "reasoning":
                         for item in flush_reasoning_items():
                             yield item
@@ -204,18 +197,8 @@ class OpenAICompatibleClient(LLMClientABC):
             for tool_call_item in flush_tool_call_items():
                 yield tool_call_item
 
-        metadata_item.response_id = response_id
-
-        # Calculate performance metrics if we have timing data
-        if metadata_item.usage and first_token_time is not None:
-            metadata_item.usage.first_token_latency_ms = (first_token_time - request_start_time) * 1000
-
-            if last_token_time is not None and metadata_item.usage.output_tokens > 0:
-                time_duration = last_token_time - first_token_time
-                if time_duration >= 0.15:
-                    metadata_item.usage.throughput_tps = metadata_item.usage.output_tokens / time_duration
-
-        yield metadata_item
+        metadata_tracker.set_response_id(response_id)
+        yield metadata_tracker.finalize()
 
 
 def convert_usage(usage: openai.types.CompletionUsage, context_limit: int | None = None) -> model.Usage:
