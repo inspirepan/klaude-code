@@ -103,5 +103,5 @@ class TerminalNotifier:
 def _compact(text: str, limit: int = 160) -> str:
     squashed = " ".join(text.split())
     if len(squashed) > limit:
-        return squashed[: limit - 3] + "..."
+        return squashed[: limit - 3] + "…"
     return squashed

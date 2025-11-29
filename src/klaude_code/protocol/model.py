@@ -188,6 +188,18 @@ class ReasoningEncryptedItem(BaseModel):
     model: str | None
 
 
+class ToolCallStartItem(BaseModel):
+    """Transient streaming signal when LLM starts a tool call.
+
+    This is NOT persisted to conversation history. Used only for
+    real-time UI feedback (e.g., "Calling Bash ...").
+    """
+
+    response_id: str | None = None
+    call_id: str
+    name: str
+
+
 class ToolCallItem(BaseModel):
     id: str | None = None
     response_id: str | None = None
@@ -239,7 +251,9 @@ MessageItem = (
 
 StreamItem = AssistantMessageDelta
 
-ConversationItem = StartItem | InterruptItem | StreamErrorItem | StreamItem | MessageItem | ResponseMetadataItem
+ConversationItem = (
+    StartItem | InterruptItem | StreamErrorItem | StreamItem | MessageItem | ResponseMetadataItem | ToolCallStartItem
+)
 
 
 def todo_list_str(todos: list[TodoItem]) -> str:

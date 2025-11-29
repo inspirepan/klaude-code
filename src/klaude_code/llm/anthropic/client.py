@@ -144,6 +144,11 @@ class AnthropicClient(LLMClientABC):
                     case BetaRawContentBlockStartEvent() as event:
                         match event.content_block:
                             case BetaToolUseBlock() as block:
+                                yield model.ToolCallStartItem(
+                                    response_id=response_id,
+                                    call_id=block.id,
+                                    name=block.name,
+                                )
                                 current_tool_name = block.name
                                 current_tool_call_id = block.id
                                 current_tool_inputs = []

@@ -78,6 +78,7 @@ class OpenAICompatibleClient(LLMClientABC):
         accumulated_reasoning: list[str] = []
         accumulated_content: list[str] = []
         accumulated_tool_calls: ToolCallAccumulatorABC = BasicToolCallAccumulator()
+        emitted_tool_start_indices: set[int] = set()
         response_id: str | None = None
 
         def flush_reasoning_items() -> list[model.ConversationItem]:
@@ -182,6 +183,15 @@ class OpenAICompatibleClient(LLMClientABC):
                         for item in flush_assistant_items():
                             yield item
                     stage = "tool"
+                    # Emit ToolCallStartItem for new tool calls
+                    for tc in delta.tool_calls:
+                        if tc.index not in emitted_tool_start_indices and tc.function and tc.function.name:
+                            emitted_tool_start_indices.add(tc.index)
+                            yield model.ToolCallStartItem(
+                                response_id=response_id,
+                                call_id=tc.id or "",
+                                name=tc.function.name,
+                            )
                     accumulated_tool_calls.add(delta.tool_calls)
         except (RateLimitError, APIError) as e:
             yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")

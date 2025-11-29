@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable
 
+from rich.text import Text
+
 from klaude_code import const
 from klaude_code.protocol import events
 from klaude_code.ui.core.stage_manager import Stage, StageManager
@@ -29,6 +31,91 @@ class StreamState:
         self.buffer = ""
 
 
+class SpinnerStatusState:
+    """Multi-layer spinner status state management.
+
+    Layers (from low to high priority):
+    - base_status: Set by TodoChange, persistent within a turn
+    - composing: True when assistant is streaming text
+    - tool_calls: Accumulated from ToolCallStart
+
+    Display logic:
+    - If tool_calls: show base + tool_calls (composing is hidden)
+    - Elif composing: show base + "Composing"
+    - Elif base_status: show base_status
+    - Else: show "Thinking …"
+    """
+
+    DEFAULT_STATUS = "Thinking …"
+
+    def __init__(self) -> None:
+        self._base_status: str | None = None
+        self._composing: bool = False
+        self._tool_calls: dict[str, int] = {}
+        self._pending_clear: bool = False
+
+    def reset(self) -> None:
+        """Reset all layers."""
+        self._base_status = None
+        self._composing = False
+        self._tool_calls = {}
+        self._pending_clear = False
+
+    def set_base_status(self, status: str | None) -> None:
+        """Set base status from TodoChange."""
+        self._base_status = status
+
+    def set_composing(self, composing: bool) -> None:
+        """Set composing state when assistant is streaming."""
+        self._composing = composing
+
+    def add_tool_call(self, tool_name: str) -> None:
+        """Add a tool call to the accumulator."""
+        if self._pending_clear:
+            self._tool_calls = {}
+            self._composing = False
+            self._pending_clear = False
+        self._tool_calls[tool_name] = self._tool_calls.get(tool_name, 0) + 1
+
+    def clear_tool_calls(self) -> None:
+        """Clear tool calls and composing state immediately."""
+        self._tool_calls = {}
+        self._composing = False
+        self._pending_clear = False
+
+    def mark_pending_clear(self) -> None:
+        """Mark tool calls to be cleared on next add_tool_call or set_composing."""
+        self._pending_clear = True
+
+    def get_status(self) -> Text:
+        """Get current spinner status as rich Text."""
+        # Build activity text (tool_calls or composing)
+        activity_text: Text | None = None
+        if self._tool_calls:
+            activity_text = Text()
+            first = True
+            for name, count in self._tool_calls.items():
+                if not first:
+                    activity_text.append(", ")
+                activity_text.append(name, style="bold")
+                if count > 1:
+                    activity_text.append(f" × {count}")
+                first = False
+        elif self._composing:
+            activity_text = Text("Composing")
+
+        if self._base_status:
+            result = Text(self._base_status)
+            if activity_text:
+                result.append(" ")
+                result.append_text(activity_text)
+            return result
+        if activity_text:
+            activity_text.append(" …")
+            return activity_text
+        return Text(self.DEFAULT_STATUS)
+
+
 class DisplayEventHandler:
     """Handle REPL events, buffering and delegating rendering work."""
 
@@ -38,6 +125,7 @@ class DisplayEventHandler:
         self.assistant_stream = StreamState(
             interval=1 / const.UI_REFRESH_RATE_FPS, flush_handler=self._flush_assistant_buffer
         )
+        self.spinner_status = SpinnerStatusState()
 
         self.stage_manager = StageManager(
             finish_assistant=self._finish_assistant_stream,
@@ -64,8 +152,8 @@ class DisplayEventHandler:
                 await self._on_assistant_delta(e)
             case events.AssistantMessageEvent() as e:
                 await self._on_assistant_message(e)
-            case events.TurnToolCallStartEvent():
-                pass
+            case events.TurnToolCallStartEvent() as e:
+                self._on_tool_call_start(e)
             case events.ToolCallEvent() as e:
                 await self._on_tool_call(e)
             case events.ToolResultEvent() as e:
@@ -115,10 +203,12 @@ class DisplayEventHandler:
     def _on_turn_start(self, event: events.TurnStartEvent) -> None:
         emit_osc94(OSC94States.INDETERMINATE)
         self.renderer.display_turn_start(event)
+        self.spinner_status.mark_pending_clear()
 
     async def _on_thinking(self, event: events.ThinkingEvent) -> None:
         if self.renderer.is_sub_agent_session(event.session_id):
             return
+        self._clear_and_update_spinner()
         await self.stage_manager.enter_thinking_stage()
         self.renderer.display_thinking(event.content)
 
@@ -129,6 +219,9 @@ class DisplayEventHandler:
             return
         first_delta = self.assistant_stream.mdstream is None
         if first_delta:
+            self.spinner_status.clear_tool_calls()
+            self.spinner_status.set_composing(True)
+            self._update_spinner()
             self.assistant_stream.mdstream = MarkdownStream(
                 mdargs={"code_theme": self.renderer.themes.code_theme},
                 theme=self.renderer.themes.markdown_theme,
@@ -158,8 +251,16 @@ class DisplayEventHandler:
             self.renderer.display_assistant_message(event.content)
         self.assistant_stream.clear()
         self.assistant_stream.mdstream = None
+        self.spinner_status.set_composing(False)
         await self.stage_manager.transition_to(Stage.WAITING)
         self.renderer.spinner_start()
+
+    def _on_tool_call_start(self, event: events.TurnToolCallStartEvent) -> None:
+        from klaude_code.ui.renderers.tools import get_tool_active_form
+
+        self.spinner_status.set_composing(False)
+        self.spinner_status.add_tool_call(get_tool_active_form(event.tool_name))
+        self._update_spinner()
 
     async def _on_tool_call(self, event: events.ToolCallEvent) -> None:
         await self.stage_manager.transition_to(Stage.TOOL_CALL)
@@ -177,10 +278,9 @@ class DisplayEventHandler:
 
     def _on_todo_change(self, event: events.TodoChangeEvent) -> None:
         active_form_status_text = self._extract_active_form_text(event)
-        if len(active_form_status_text) > 0:
-            self.renderer.spinner_update(active_form_status_text)
-        else:
-            self.renderer.spinner_update("Thinking …")
+        self.spinner_status.set_base_status(active_form_status_text if active_form_status_text else None)
+        # Clear tool calls when todo changes, as the tool execution has advanced
+        self._clear_and_update_spinner()
 
     async def _on_task_finish(self, event: events.TaskFinishEvent) -> None:
         self.renderer.display_task_finish(event)
@@ -222,6 +322,15 @@ class DisplayEventHandler:
     def _print_thinking_prefix(self) -> None:
         self.renderer.display_thinking_prefix()
 
+    def _update_spinner(self) -> None:
+        """Update spinner text from current status state."""
+        self.renderer.spinner_update(self.spinner_status.get_status())
+
+    def _clear_and_update_spinner(self) -> None:
+        """Clear tool calls and update spinner."""
+        self.spinner_status.clear_tool_calls()
+        self._update_spinner()
+
     async def _flush_assistant_buffer(self, state: StreamState) -> None:
         if state.mdstream is not None:
             state.mdstream.update(state.buffer)
@@ -248,7 +357,7 @@ class DisplayEventHandler:
             return None
         squashed = " ".join(stripped.split())
         if len(squashed) > 200:
-            return squashed[:197] + "..."
+            return squashed[:197] + "…"
         return squashed
 
     def _extract_active_form_text(self, todo_event: events.TodoChangeEvent) -> str:

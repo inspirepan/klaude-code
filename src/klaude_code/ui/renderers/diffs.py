@@ -194,7 +194,7 @@ def render_diff_panel(
     if len(lines) > const.MAX_DIFF_LINES:
         truncated_lines = len(lines) - const.MAX_DIFF_LINES
         diff_text = "\n".join(lines[: const.MAX_DIFF_LINES])
-        truncated_notice = Text(f"... truncated {truncated_lines} lines", style=ThemeKey.TOOL_MARK)
+        truncated_notice = Text(f"… truncated {truncated_lines} lines", style=ThemeKey.TOOL_MARK)
 
     diff_body = render_diff(diff_text, show_file_name=show_file_name)
     renderables: list[RenderableType] = [

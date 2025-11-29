@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.spinner import Spinner
 from rich.status import Status
 from rich.style import Style, StyleType
+from rich.text import Text
 
 from klaude_code.protocol import events, model
 from klaude_code.ui.renderers import assistant as r_assistant
@@ -271,7 +272,7 @@ class REPLRenderer:
         """Stop the spinner animation."""
         self._spinner.stop()
 
-    def spinner_update(self, status_text: str) -> None:
+    def spinner_update(self, status_text: str | Text) -> None:
         """Update the spinner status text."""
         self._spinner.update(ShimmerStatusText(status_text, ThemeKey.SPINNER_STATUS_TEXT))
 

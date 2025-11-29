@@ -107,6 +107,13 @@ class ResponsesClient(LLMClientABC):
                             first_token_time = time.time()
                         last_token_time = time.time()
                         yield model.AssistantMessageDelta(content=event.delta, response_id=response_id)
+                    case responses.ResponseOutputItemAddedEvent() as event:
+                        if isinstance(event.item, responses.ResponseFunctionToolCall):
+                            yield model.ToolCallStartItem(
+                                response_id=response_id,
+                                call_id=event.item.call_id,
+                                name=event.item.name,
+                            )
                     case responses.ResponseOutputItemDoneEvent() as event:
                         match event.item:
                             case responses.ResponseReasoningItem() as item:

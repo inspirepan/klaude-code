@@ -44,6 +44,9 @@ class SubAgentProfile:
     tool_set: tuple[str, ...] = ()  # Tools available to this sub agent
     prompt_builder: PromptBuilder = _default_prompt_builder  # Builds the sub agent prompt from tool arguments
 
+    # UI display
+    active_form: str = ""  # Active form for spinner status (e.g., "Tasking", "Exploring")
+
     # Availability
     enabled_by_default: bool = True
     show_in_main_agent: bool = True
@@ -141,6 +144,7 @@ register_sub_agent(
         description=TASK_DESCRIPTION,
         parameters=TASK_PARAMETERS,
         tool_set=(tools.BASH, tools.READ, tools.EDIT, tools.WRITE),
+        active_form="Tasking",
     )
 )
 
@@ -228,6 +232,7 @@ register_sub_agent(
         parameters=ORACLE_PARAMETERS,
         tool_set=(tools.READ, tools.BASH),
         prompt_builder=_oracle_prompt_builder,
+        active_form="Consulting Oracle",
         target_model_filter=lambda model: ("gpt-5" not in model) and ("gemini-3" not in model),
     )
 )
@@ -279,6 +284,7 @@ register_sub_agent(
         parameters=EXPLORE_PARAMETERS,
         tool_set=(tools.BASH, tools.READ),
         prompt_builder=_explore_prompt_builder,
+        active_form="Exploring",
     )
 )
 
@@ -337,5 +343,6 @@ register_sub_agent(
         parameters=WEB_FETCH_AGENT_PARAMETERS,
         tool_set=(tools.BASH, tools.READ, tools.WEB_FETCH),
         prompt_builder=_web_fetch_prompt_builder,
+        active_form="Fetching Web",
     )
 )

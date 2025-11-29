@@ -423,6 +423,40 @@ _TOOL_MARKS: dict[str, str] = {
     "Skill": "◈",
 }
 
+# Tool name to active form mapping (for spinner status)
+_TOOL_ACTIVE_FORM: dict[str, str] = {
+    "Bash": "Bashing",
+    "apply_patch": "Patching",
+    "Edit": "Editing",
+    "MultiEdit": "Editing",
+    "Read": "Reading",
+    "Write": "Writing",
+    "TodoWrite": "Planning",
+    "update_plan": "Planning",
+    "Skill": "Skilling",
+    "Mermaid": "Diagramming",
+    "Memory": "Memorizing",
+    "WebFetch": "Fetching",
+}
+
+
+def get_tool_active_form(tool_name: str) -> str:
+    """Get the active form of a tool name for spinner status.
+
+    Checks both the static mapping and sub agent profiles.
+    """
+    if tool_name in _TOOL_ACTIVE_FORM:
+        return _TOOL_ACTIVE_FORM[tool_name]
+
+    # Check sub agent profiles
+    from klaude_code.core.sub_agent import get_sub_agent_profile_by_tool
+
+    profile = get_sub_agent_profile_by_tool(tool_name)
+    if profile and profile.active_form:
+        return profile.active_form
+
+    return f"Calling {tool_name}"
+
 
 def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
     """Unified entry point for rendering tool calls.

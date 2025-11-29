@@ -177,6 +177,14 @@ class TurnExecutor:
                         style="red",
                         debug_type=DebugType.RESPONSE,
                     )
+                case model.ToolCallStartItem() as item:
+                    yield events.TurnToolCallStartEvent(
+                        session_id=ctx.session_id,
+                        response_id=item.response_id,
+                        tool_call_id=item.call_id,
+                        tool_name=item.name,
+                        arguments="",
+                    )
                 case model.ToolCallItem() as item:
                     turn_tool_calls.append(item)
                 case _:

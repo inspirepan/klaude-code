@@ -144,26 +144,31 @@ def _breathing_style(console: Console, base_style: Style, intensity: float) -> S
 class ShimmerStatusText:
     """Renderable status line with shimmer effect on the main text and hint."""
 
-    def __init__(self, main_text: str, main_style: ThemeKey) -> None:
-        self._main_text = main_text
+    def __init__(self, main_text: str | Text, main_style: ThemeKey) -> None:
+        self._main_text = main_text if isinstance(main_text, Text) else Text(main_text)
         self._main_style = main_style
-        self._hint_text = " (esc to interrupt)"
+        self._hint_text = Text(" (esc to interrupt)")
         self._hint_style = ThemeKey.STATUS_HINT
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
-        text = Text()
+        result = Text()
         main_style = console.get_style(str(self._main_style))
         hint_style = console.get_style(str(self._hint_style))
 
-        combined_text = f"{self._main_text}{self._hint_text}"
-        split_index = len(self._main_text)
+        combined_text = self._main_text.plain + self._hint_text.plain
+        split_index = len(self._main_text.plain)
 
         for index, (ch, intensity) in enumerate(_shimmer_profile(combined_text)):
-            base_style = main_style if index < split_index else hint_style
+            if index < split_index:
+                # Get style from main_text, merge with main_style
+                char_style = self._main_text.get_style_at_offset(console, index)
+                base_style = main_style + char_style
+            else:
+                base_style = hint_style
             style = _shimmer_style(console, base_style, intensity)
-            text.append(ch, style=style)
+            result.append(ch, style=style)
 
-        yield text
+        yield result
 
 
 def spinner_name() -> str:
