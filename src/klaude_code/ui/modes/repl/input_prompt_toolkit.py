@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import time
 import uuid
+from base64 import b64encode
 from collections.abc import AsyncIterator, Callable, Iterable
 from pathlib import Path
 from typing import NamedTuple, cast, override
@@ -23,15 +24,15 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
 
 from klaude_code.command import get_commands
-from klaude_code.core.clipboard_manifest import (
-    CLIPBOARD_IMAGES_DIR,
-    ClipboardManifest,
-    ClipboardManifestEntry,
-    next_session_token,
-    persist_clipboard_manifest,
-)
+from klaude_code.protocol.model import ImageURLPart, UserInputPayload
 from klaude_code.ui.core.input import InputProviderABC
 from klaude_code.ui.utils.common import get_current_git_branch, show_path_with_tilde
+
+# Directory for storing clipboard images
+CLIPBOARD_IMAGES_DIR = Path.home() / ".klaude" / "clipboard" / "images"
+
+# Pattern to match [Image #N] tags in user input
+_IMAGE_TAG_RE = re.compile(r"\[Image #(\d+)\]")
 
 
 class REPLStatusSnapshot(NamedTuple):
@@ -52,13 +53,15 @@ INPUT_PROMPT_STYLE = "ansimagenta"
 
 
 class ClipboardCaptureState:
-    def __init__(self, images_dir: Path | None = None, session_token: str | None = None):
+    """Captures clipboard images and maps tags to file paths in memory."""
+
+    def __init__(self, images_dir: Path | None = None):
         self._images_dir = images_dir or CLIPBOARD_IMAGES_DIR
-        self._session_token = session_token or next_session_token()
-        self._pending: list[ClipboardManifestEntry] = []
+        self._pending: dict[str, str] = {}  # tag -> path mapping
         self._counter = 1
 
     def capture_from_clipboard(self) -> str | None:
+        """Capture image from clipboard, save to disk, and return a tag like [Image #N]."""
         try:
             clipboard_data = ImageGrab.grabclipboard()
         except Exception:
@@ -77,21 +80,19 @@ class ClipboardCaptureState:
             return None
         tag = f"[Image #{self._counter}]"
         self._counter += 1
-        saved_entry = ClipboardManifestEntry(tag=tag, path=str(path), saved_at_ts=time.time())
-        self._pending.append(saved_entry)
+        self._pending[tag] = str(path)
         return tag
 
-    def flush_manifest(self) -> ClipboardManifest | None:
-        if not self._pending:
-            return None
-        manifest = ClipboardManifest(
-            entries=list(self._pending),
-            created_at_ts=time.time(),
-            source_id=self._session_token,
-        )
-        self._pending = []
+    def get_pending_images(self) -> dict[str, str]:
+        """Return the current tag-to-path mapping for pending images."""
+        return dict(self._pending)
+
+    def flush(self) -> dict[str, str]:
+        """Flush pending images and return tag-to-path mapping, then reset state."""
+        result = dict(self._pending)
+        self._pending = {}
         self._counter = 1
-        return manifest
+        return result
 
 
 _clipboard_state = ClipboardCaptureState()
@@ -130,13 +131,7 @@ def _(event):  # type: ignore
         buf.insert_text("\n")  # type: ignore
         return
 
-    manifest = _clipboard_state.flush_manifest()
-    if manifest:
-        try:
-            persist_clipboard_manifest(manifest)
-        except Exception:
-            pass
-
+    # No need to persist manifest anymore - iter_inputs will handle image extraction
     buf.validate_and_handle()  # type: ignore
 
 
@@ -396,13 +391,58 @@ class PromptToolkitInput(InputProviderABC):
         pass
 
     @override
-    async def iter_inputs(self) -> AsyncIterator[str]:
+    async def iter_inputs(self) -> AsyncIterator[UserInputPayload]:
         while True:
             # For each new prompt, start with mouse disabled so users can select history.
             self._mouse_enabled = False
             with patch_stdout():
                 line: str = await self._session.prompt_async()
-            yield line
+
+            # Extract images referenced in the input text
+            images = self._extract_images_from_text(line)
+
+            yield UserInputPayload(text=line, images=images if images else None)
+
+    def _extract_images_from_text(self, text: str) -> list[ImageURLPart]:
+        """Extract images from pending clipboard state based on tags in text.
+
+        Parses [Image #N] tags in the text, looks up corresponding image paths
+        in the clipboard state, and creates ImageURLPart objects from them.
+        """
+        pending_images = _clipboard_state.flush()
+        if not pending_images:
+            return []
+
+        # Find all [Image #N] tags in text
+        found_tags = set(_IMAGE_TAG_RE.findall(text))
+        if not found_tags:
+            return []
+
+        images: list[ImageURLPart] = []
+        for tag, path in pending_images.items():
+            # Extract the number from the tag and check if it's referenced
+            match = _IMAGE_TAG_RE.match(tag)
+            if match and match.group(1) in found_tags:
+                image_part = self._encode_image_file(path)
+                if image_part:
+                    images.append(image_part)
+
+        return images
+
+    @staticmethod
+    def _encode_image_file(file_path: str) -> ImageURLPart | None:
+        """Encode an image file as base64 data URL and create ImageURLPart."""
+        try:
+            path = Path(file_path)
+            if not path.exists():
+                return None
+            with open(path, "rb") as f:
+                encoded = b64encode(f.read()).decode("ascii")
+            # Clipboard images are always saved as PNG
+            data_url = f"data:image/png;base64,{encoded}"
+            return ImageURLPart(image_url=ImageURLPart.ImageURL(url=data_url, id=None))
+        except Exception:
+            return None
 
     def _on_buffer_text_changed(self, buf: Buffer) -> None:
         """Toggle mouse support based on current buffer content.

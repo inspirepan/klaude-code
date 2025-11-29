@@ -148,6 +148,17 @@ class ImageURLPart(BaseModel):
     image_url: ImageURL
 
 
+class UserInputPayload(BaseModel):
+    """Structured payload for user input containing text and optional images.
+
+    This is the unified data structure for user input across the entire
+    UI -> CLI -> Executor -> Agent -> Task chain.
+    """
+
+    text: str
+    images: list["ImageURLPart"] | None = None
+
+
 class UserMessageItem(BaseModel):
     id: str | None = None
     role: RoleType = "user"

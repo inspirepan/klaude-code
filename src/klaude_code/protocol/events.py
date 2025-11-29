@@ -103,6 +103,7 @@ class ResponseMetadataEvent(BaseModel):
 class UserMessageEvent(BaseModel):
     session_id: str
     content: str
+    images: list[model.ImageURLPart] | None = None
 
 
 class WelcomeEvent(BaseModel):

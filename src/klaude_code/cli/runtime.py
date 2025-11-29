@@ -16,6 +16,7 @@ from klaude_code.core.sub_agent import iter_sub_agent_profiles
 from klaude_code.core.tool import SkillLoader, SkillTool
 from klaude_code.llm import LLMClients
 from klaude_code.protocol import events, op
+from klaude_code.protocol.model import UserInputPayload
 from klaude_code.trace import DebugType, log, set_debug_logging
 from klaude_code.ui.terminal.color import is_light_terminal_background
 from klaude_code.ui.terminal.control import install_sigint_double_press_exit, start_esc_interrupt_monitor
@@ -221,7 +222,7 @@ async def run_exec(init_config: AppInitConfig, input_content: str) -> None:
 
         # Submit the input content directly
         submission_id = await components.executor.submit(
-            op.UserInputOperation(content=input_content, session_id=session_id)
+            op.UserInputOperation(input=UserInputPayload(text=input_content), session_id=session_id)
         )
         await components.executor.wait_for_completion(submission_id)
 
@@ -292,17 +293,17 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         await input_provider.start()
         async for user_input in input_provider.iter_inputs():
             # Handle special commands
-            if user_input.strip().lower() in {"exit", ":q", "quit"}:
+            if user_input.text.strip().lower() in {"exit", ":q", "quit"}:
                 break
-            elif user_input.strip() == "":
+            elif user_input.text.strip() == "":
                 continue
-            # Submit user input operation
+            # Submit user input operation - directly use the payload from iter_inputs
             submission_id = await components.executor.submit(
-                op.UserInputOperation(content=user_input, session_id=session_id)
+                op.UserInputOperation(input=user_input, session_id=session_id)
             )
             # If it's an interactive command (e.g., /model), avoid starting the ESC monitor
             # to prevent TTY conflicts with interactive prompts (questionary/prompt_toolkit).
-            if is_interactive_command(user_input):
+            if is_interactive_command(user_input.text):
                 await components.executor.wait_for_completion(submission_id)
             else:
                 # Esc monitor for long-running, interruptible operations

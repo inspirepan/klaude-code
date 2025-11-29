@@ -1,12 +1,10 @@
 import json
-import re
 from pathlib import Path
 from typing import Awaitable, Callable
 
 from pydantic import BaseModel
 
 from klaude_code import const
-from klaude_code.core.clipboard_manifest import load_latest_clipboard_manifest, next_session_token
 from klaude_code.core.tool import BashTool, ReadTool, reset_tool_context, set_tool_context_from_session
 from klaude_code.protocol import model, tools
 from klaude_code.session import Session
@@ -381,65 +379,6 @@ async def last_path_memory_reminder(
         )
 
 
-async def clipboard_image_reminder(
-    session: Session,
-) -> model.DeveloperMessageItem | None:
-    """Parse [Image #N] and attach images from clipboard history."""
-    last_user_input = get_last_new_user_input(session)
-    if not last_user_input or "[Image #" not in last_user_input:
-        return None
-
-    manifest = load_latest_clipboard_manifest()
-    if manifest is None:
-        return None
-    manifest_source = manifest.source_id
-    current_source = next_session_token()
-    if manifest_source and manifest_source != current_source:
-        return None
-    image_map = manifest.tag_map()
-    if not image_map:
-        return None
-
-    collected_images: list[model.ImageURLPart] = []
-
-    # Find all tokens
-    # Regex for [Image #(\d+)]
-    matches = re.findall(r"\[Image #(\d+)\]", last_user_input)
-    requested_tags = [f"[Image #{num}]" for num in matches]
-
-    processed_paths: set[str] = set()
-
-    attached_tags: list[str] = []
-
-    for tag in requested_tags:
-        if tag in image_map:
-            path = image_map[tag]
-            if path in processed_paths:
-                continue
-
-            context_token = set_tool_context_from_session(session)
-            try:
-                # We use ReadTool to get the image object in the correct format
-                # This assumes ReadTool handles image files correctly
-                args = ReadTool.ReadArguments(file_path=path)
-                tool_result = await ReadTool.call_with_args(args)
-                if tool_result.images:
-                    collected_images.extend(tool_result.images)
-                    processed_paths.add(path)
-                    attached_tags.append(tag)
-            finally:
-                reset_tool_context(context_token)
-
-    if not collected_images:
-        return None
-
-    return model.DeveloperMessageItem(
-        content="",
-        images=collected_images,
-        clipboard_images=attached_tags,
-    )
-
-
 ALL_REMINDERS = [
     empty_todo_reminder,
     todo_not_used_recently_reminder,
@@ -447,7 +386,6 @@ ALL_REMINDERS = [
     memory_reminder,
     last_path_memory_reminder,
     at_file_reader_reminder,
-    clipboard_image_reminder,
 ]
 
 
@@ -462,7 +400,7 @@ def load_agent_reminders(
         vanilla: If True, returns minimal vanilla reminders (ignores sub_agent_type).
     """
     if vanilla:
-        return [at_file_reader_reminder, clipboard_image_reminder]
+        return [at_file_reader_reminder]
 
     reminders: list[Reminder] = []
 
@@ -476,7 +414,6 @@ def load_agent_reminders(
             memory_reminder,
             last_path_memory_reminder,
             at_file_reader_reminder,
-            clipboard_image_reminder,
             file_changed_externally_reminder,
         ]
     )

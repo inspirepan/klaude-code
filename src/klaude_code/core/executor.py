@@ -94,14 +94,19 @@ class ExecutorContext:
             await self.handle_init_agent(op.InitAgentOperation(id=str(uuid4()), session_id=operation.session_id))
 
         agent = self.active_agents[operation.session_id]
+        user_input = operation.input
 
         # emit user input event
-        await self.emit_event(events.UserMessageEvent(content=operation.content, session_id=operation.session_id))
+        await self.emit_event(
+            events.UserMessageEvent(
+                content=user_input.text, session_id=operation.session_id, images=user_input.images
+            )
+        )
 
-        result = await dispatch_command(operation.content, agent)
+        result = await dispatch_command(user_input.text, agent)
         if not result.agent_input:
             # If this command do not need run agent, we should append user message to session history here
-            agent.session.append_history([model.UserMessageItem(content=operation.content)])
+            agent.session.append_history([model.UserMessageItem(content=user_input.text, images=user_input.images)])
 
         if result.events:
             agent.session.append_history(
@@ -111,9 +116,11 @@ class ExecutorContext:
                 await self.emit_event(evt)
 
         if result.agent_input:
+            # Construct new UserInputPayload with command-processed text, preserving original images
+            task_input = model.UserInputPayload(text=result.agent_input, images=user_input.images)
             # Start task to process user input (do NOT await here so the executor loop stays responsive)
             task: asyncio.Task[None] = asyncio.create_task(
-                self._run_agent_task(agent, result.agent_input, operation.id, operation.session_id)
+                self._run_agent_task(agent, task_input, operation.id, operation.session_id)
             )
             self.active_tasks[operation.id] = ActiveTask(task=task, session_id=operation.session_id)
             # Do not await task here; completion will be tracked by the executor
@@ -162,7 +169,9 @@ class ExecutorContext:
             # Remove from active tasks immediately
             self.active_tasks.pop(task_id, None)
 
-    async def _run_agent_task(self, agent: Agent, user_input: str, task_id: str, session_id: str) -> None:
+    async def _run_agent_task(
+        self, agent: Agent, user_input: model.UserInputPayload, task_id: str, session_id: str
+    ) -> None:
         """
         Run an agent task and forward all events to the UI.
 
@@ -254,7 +263,8 @@ class ExecutorContext:
         try:
             # Not emit the subtask's user input since task tool call is already rendered
             result: str = ""
-            async for event in child_agent.run_task(state.sub_agent_prompt):
+            sub_agent_input = model.UserInputPayload(text=state.sub_agent_prompt, images=None)
+            async for event in child_agent.run_task(sub_agent_input):
                 # Capture TaskFinishEvent content for return
                 if isinstance(event, events.TaskFinishEvent):
                     result = event.task_result

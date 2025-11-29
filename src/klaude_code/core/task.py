@@ -125,7 +125,7 @@ class TaskExecutor:
             self._current_turn = None
         return ui_events
 
-    async def run(self, user_input: str) -> AsyncGenerator[events.Event, None]:
+    async def run(self, user_input: model.UserInputPayload) -> AsyncGenerator[events.Event, None]:
         """Execute the task, yielding events as they occur."""
         ctx = self._context
         self._started_at = time.perf_counter()
@@ -135,7 +135,7 @@ class TaskExecutor:
             sub_agent_state=ctx.sub_agent_state,
         )
 
-        ctx.append_history([model.UserMessageItem(content=user_input)])
+        ctx.append_history([model.UserMessageItem(content=user_input.text, images=user_input.images)])
 
         profile = ctx.profile
         metadata_accumulator = MetadataAccumulator(model_name=profile.llm_client.model_name)

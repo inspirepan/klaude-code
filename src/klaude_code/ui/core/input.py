@@ -3,6 +3,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 
+from klaude_code.protocol.model import UserInputPayload
+
 
 class InputProviderABC(ABC):
     """
@@ -22,9 +24,9 @@ class InputProviderABC(ABC):
         await input_provider.start()
         try:
             async for user_input in input_provider.iter_inputs():
-                if user_input.strip().lower() in {"exit", "quit"}:
+                if user_input.text.strip().lower() in {"exit", "quit"}:
                     break
-                # Process user_input...
+                # Process user_input.text and user_input.images...
         finally:
             await input_provider.stop()
 
@@ -52,17 +54,18 @@ class InputProviderABC(ABC):
         """
 
     @abstractmethod
-    async def iter_inputs(self) -> AsyncIterator[str]:
+    async def iter_inputs(self) -> AsyncIterator[UserInputPayload]:
         """
-        Yield user input strings asynchronously.
+        Yield user input payloads asynchronously.
 
         This is the main method for collecting user input. Each yield returns
-        one complete user input (e.g., after the user presses Enter). The
-        iterator completes when the user signals end of input (e.g., Ctrl+D)
-        or when the application requests shutdown.
+        one complete user input payload containing text and optional images
+        (e.g., after the user presses Enter). The iterator completes when the
+        user signals end of input (e.g., Ctrl+D) or when the application
+        requests shutdown.
 
         Yields:
-            User input strings. Empty strings may be yielded for blank input.
+            UserInputPayload with text and optional images.
         """
         raise NotImplementedError
-        yield ""  # pyright: ignore[reportUnreachable]
+        yield UserInputPayload(text="")  # pyright: ignore[reportUnreachable]

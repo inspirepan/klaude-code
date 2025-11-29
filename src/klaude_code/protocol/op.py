@@ -12,6 +12,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from klaude_code.protocol.model import UserInputPayload
+
 if TYPE_CHECKING:
     from klaude_code.core.executor import ExecutorContext
 
@@ -38,10 +40,10 @@ class Operation(BaseModel, ABC):
 
 
 class UserInputOperation(Operation):
-    """Operation for handling user text input that should be processed by an agent."""
+    """Operation for handling user input (text and optional images) that should be processed by an agent."""
 
     type: OperationType = OperationType.USER_INPUT
-    content: str
+    input: UserInputPayload
     session_id: str | None = None
 
     async def execute(self, context: "ExecutorContext") -> None:

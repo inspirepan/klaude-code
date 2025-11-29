@@ -10,6 +10,7 @@ from klaude_code.core.task import TaskExecutionContext, TaskExecutor
 from klaude_code.core.tool import TodoContext, get_registry, load_agent_tools
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import events, llm_parameter, model, tools
+from klaude_code.protocol.model import UserInputPayload
 from klaude_code.session import Session
 from klaude_code.trace import DebugType, log_debug
 
@@ -107,7 +108,7 @@ class Agent:
             debug_type=DebugType.EXECUTION,
         )
 
-    async def run_task(self, user_input: str) -> AsyncGenerator[events.Event, None]:
+    async def run_task(self, user_input: UserInputPayload) -> AsyncGenerator[events.Event, None]:
         context = TaskExecutionContext(
             session_id=self.session.id,
             profile=self._require_profile(),
