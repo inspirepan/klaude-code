@@ -6,9 +6,7 @@ from klaude_code import const
 from klaude_code.protocol import events
 from klaude_code.ui.core.stage_manager import Stage, StageManager
 from klaude_code.ui.modes.repl.renderer import REPLRenderer
-from klaude_code.ui.renderers import status as r_status
 from klaude_code.ui.rich.markdown import MarkdownStream
-from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.terminal.notifier import Notification, NotificationType, TerminalNotifier
 from klaude_code.ui.terminal.progress_bar import OSC94States, emit_osc94
 from klaude_code.ui.utils.debouncer import Debouncer
@@ -97,7 +95,7 @@ class DisplayEventHandler:
 
     async def _on_replay_history(self, event: events.ReplayHistoryEvent) -> None:
         await self.renderer.replay_history(event)
-        self.renderer.spinner.stop()
+        self.renderer.spinner_stop()
 
     def _on_welcome(self, event: events.WelcomeEvent) -> None:
         self.renderer.display_welcome(event)
@@ -106,7 +104,7 @@ class DisplayEventHandler:
         self.renderer.display_user_message(event)
 
     def _on_task_start(self, event: events.TaskStartEvent) -> None:
-        self.renderer.spinner.start()
+        self.renderer.spinner_start()
         self.renderer.display_task_start(event)
         emit_osc94(OSC94States.INDETERMINATE)
 
@@ -135,7 +133,7 @@ class DisplayEventHandler:
                 mdargs={"code_theme": self.renderer.themes.code_theme},
                 theme=self.renderer.themes.markdown_theme,
                 console=self.renderer.console,
-                spinner=self.renderer.spinner.renderable,
+                spinner=self.renderer.spinner_renderable(),
                 mark="➤",
                 indent=2,
             )
@@ -144,7 +142,7 @@ class DisplayEventHandler:
             # Stop spinner and immediately start MarkdownStream's Live
             # to avoid flicker. The update() call starts the Live with
             # the spinner embedded, providing seamless transition.
-            self.renderer.spinner.stop()
+            self.renderer.spinner_stop()
             self.assistant_stream.mdstream.update(self.assistant_stream.buffer)
         await self.stage_manager.transition_to(Stage.ASSISTANT)
         self.assistant_stream.debouncer.schedule()
@@ -161,7 +159,7 @@ class DisplayEventHandler:
         self.assistant_stream.clear()
         self.assistant_stream.mdstream = None
         await self.stage_manager.transition_to(Stage.WAITING)
-        self.renderer.spinner.start()
+        self.renderer.spinner_start()
 
     async def _on_tool_call(self, event: events.ToolCallEvent) -> None:
         await self.stage_manager.transition_to(Stage.TOOL_CALL)
@@ -180,22 +178,20 @@ class DisplayEventHandler:
     def _on_todo_change(self, event: events.TodoChangeEvent) -> None:
         active_form_status_text = self._extract_active_form_text(event)
         if len(active_form_status_text) > 0:
-            self.renderer.spinner.update(
-                r_status.render_status_text(active_form_status_text, ThemeKey.SPINNER_STATUS_TEXT)
-            )
+            self.renderer.spinner_update(active_form_status_text)
         else:
-            self.renderer.spinner.update(r_status.render_status_text("Thinking …", ThemeKey.SPINNER_STATUS_TEXT))
+            self.renderer.spinner_update("Thinking ...")
 
     async def _on_task_finish(self, event: events.TaskFinishEvent) -> None:
         self.renderer.display_task_finish(event)
         if not self.renderer.is_sub_agent_session(event.session_id):
             emit_osc94(OSC94States.HIDDEN)
-        self.renderer.spinner.stop()
+        self.renderer.spinner_stop()
         await self.stage_manager.transition_to(Stage.WAITING)
         self._maybe_notify_task_finish(event)
 
     async def _on_interrupt(self, event: events.InterruptEvent) -> None:
-        self.renderer.spinner.stop()
+        self.renderer.spinner_stop()
         await self.stage_manager.transition_to(Stage.WAITING)
         emit_osc94(OSC94States.HIDDEN)
         self.renderer.display_interrupt()
@@ -205,12 +201,12 @@ class DisplayEventHandler:
         await self.stage_manager.transition_to(Stage.WAITING)
         self.renderer.display_error(event)
         if not event.can_retry:
-            self.renderer.spinner.stop()
+            self.renderer.spinner_stop()
 
     async def _on_end(self, event: events.EndEvent) -> None:
         emit_osc94(OSC94States.HIDDEN)
         await self.stage_manager.transition_to(Stage.WAITING)
-        self.renderer.spinner.stop()
+        self.renderer.spinner_stop()
 
     # ─────────────────────────────────────────────────────────────────────────────
     # Private helper methods

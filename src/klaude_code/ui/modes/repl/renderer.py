@@ -7,15 +7,18 @@ from typing import Any, Iterator
 from rich import box
 from rich.box import Box
 from rich.console import Console
+from rich.spinner import Spinner
 from rich.status import Status
 from rich.style import Style, StyleType
+
+from klaude_code.ui.rich.status import ShimmerStatusText
 
 from klaude_code.protocol import events, model
 from klaude_code.ui.renderers import assistant as r_assistant
 from klaude_code.ui.renderers import developer as r_developer
 from klaude_code.ui.renderers import errors as r_errors
 from klaude_code.ui.renderers import metadata as r_metadata
-from klaude_code.ui.renderers import status as r_status
+from klaude_code.ui.rich import status as r_status
 from klaude_code.ui.renderers import sub_agent as r_sub_agent
 from klaude_code.ui.renderers import thinking as r_thinking
 from klaude_code.ui.renderers import tools as r_tools
@@ -38,8 +41,8 @@ class REPLRenderer:
         self.themes = get_theme(theme)
         self.console: Console = Console(theme=self.themes.app_theme)
         self.console.push_theme(self.themes.markdown_theme)
-        self.spinner: Status = self.console.status(
-            r_status.render_status_text("Thinking …", ThemeKey.SPINNER_STATUS_TEXT),
+        self._spinner: Status = self.console.status(
+            ShimmerStatusText("Thinking ...", ThemeKey.SPINNER_STATUS_TEXT),
             spinner=r_status.spinner_name(),
             spinner_style=ThemeKey.SPINNER_STATUS,
         )
@@ -256,3 +259,23 @@ class REPLRenderer:
 
     def display_thinking_prefix(self) -> None:
         self.print(r_thinking.thinking_prefix())
+
+    # -------------------------------------------------------------------------
+    # Spinner control methods
+    # -------------------------------------------------------------------------
+
+    def spinner_start(self) -> None:
+        """Start the spinner animation."""
+        self._spinner.start()
+
+    def spinner_stop(self) -> None:
+        """Stop the spinner animation."""
+        self._spinner.stop()
+
+    def spinner_update(self, status_text: str) -> None:
+        """Update the spinner status text."""
+        self._spinner.update(ShimmerStatusText(status_text, ThemeKey.SPINNER_STATUS_TEXT))
+
+    def spinner_renderable(self) -> Spinner:
+        """Return the spinner's renderable for embedding in other components."""
+        return self._spinner.renderable

@@ -170,11 +170,6 @@ def spinner_name() -> str:
     return BREATHING_SPINNER_NAME
 
 
-def render_status_text(main_text: str, main_style: ThemeKey) -> RenderableType:
-    """Create animated status text with shimmer main text and hint suffix."""
-    return ShimmerStatusText(main_text, main_style)
-
-
 class BreathingSpinner(RichSpinner):
     """Custom spinner that animates color instead of glyphs.
 
