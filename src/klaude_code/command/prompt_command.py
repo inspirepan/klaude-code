@@ -3,7 +3,7 @@ from importlib.resources import files
 import yaml
 
 from klaude_code.command.command_abc import CommandABC, CommandResult
-from klaude_code.core import Agent
+from klaude_code.core.agent import Agent
 from klaude_code.protocol import commands
 
 

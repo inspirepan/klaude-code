@@ -5,7 +5,7 @@ from pathlib import Path
 
 from klaude_code.command.command_abc import CommandABC, CommandResult
 from klaude_code.command.registry import register_command
-from klaude_code.core import Agent
+from klaude_code.core.agent import Agent
 from klaude_code.protocol import commands, events, model
 from klaude_code.session.export import build_export_html, get_default_export_path
 

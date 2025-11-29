@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 from pydantic import BaseModel
 
-from klaude_code.core import Agent
+from klaude_code.core.agent import Agent
 from klaude_code.protocol import commands
 from klaude_code.protocol import events as protocol_events
 

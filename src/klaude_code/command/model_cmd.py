@@ -3,7 +3,7 @@ import asyncio
 from klaude_code.command.command_abc import CommandABC, CommandResult
 from klaude_code.command.registry import register_command
 from klaude_code.config import load_config, select_model_from_config
-from klaude_code.core import Agent
+from klaude_code.core.agent import Agent
 from klaude_code.llm import create_llm_client
 from klaude_code.protocol import commands, events, model
 from klaude_code.trace import DebugType, log_debug
