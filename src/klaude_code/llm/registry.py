@@ -4,8 +4,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, TypeVar
 
 from klaude_code.llm.client import LLMClientABC
-from klaude_code.protocol import llm_param
-from klaude_code.protocol import tools
+from klaude_code.protocol import llm_param, tools
 from klaude_code.trace import DebugType, log_debug
 
 if TYPE_CHECKING:

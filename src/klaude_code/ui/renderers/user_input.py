@@ -4,8 +4,8 @@ from rich.console import Group, RenderableType
 from rich.text import Text
 
 from klaude_code.protocol import commands
-from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.renderers.common import create_grid
+from klaude_code.ui.rich.theme import ThemeKey
 
 
 def render_at_pattern(

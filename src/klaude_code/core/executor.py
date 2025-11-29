@@ -98,9 +98,7 @@ class ExecutorContext:
 
         # emit user input event
         await self.emit_event(
-            events.UserMessageEvent(
-                content=user_input.text, session_id=operation.session_id, images=user_input.images
-            )
+            events.UserMessageEvent(content=user_input.text, session_id=operation.session_id, images=user_input.images)
         )
 
         result = await dispatch_command(user_input.text, agent)

@@ -4,9 +4,9 @@ from typing import override
 
 from klaude_code.protocol import events
 from klaude_code.ui.core.display import DisplayABC
-from klaude_code.ui.terminal.notifier import TerminalNotifier
 from klaude_code.ui.modes.repl.event_handler import DisplayEventHandler
 from klaude_code.ui.modes.repl.renderer import REPLRenderer
+from klaude_code.ui.terminal.notifier import TerminalNotifier
 
 
 class REPLDisplay(DisplayABC):

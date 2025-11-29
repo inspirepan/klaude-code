@@ -2,8 +2,8 @@ from rich.console import RenderableType
 from rich.padding import Padding
 from rich.text import Text
 
-from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.rich.markdown import NoInsetMarkdown
+from klaude_code.ui.rich.theme import ThemeKey
 
 
 def thinking_prefix() -> Text:

@@ -17,19 +17,18 @@ Factory Functions:
 - create_exec_display(): Creates the appropriate display for exec mode
 """
 
-from .modes.debug.display import DebugEventDisplay
-from .modes.exec.display import ExecDisplay
-from .terminal.notifier import TerminalNotifier
-
 # --- Abstract Interfaces ---
 from .core.display import DisplayABC
 from .core.input import InputProviderABC
+from .modes.debug.display import DebugEventDisplay
+from .modes.exec.display import ExecDisplay
 
 # --- Display Mode Implementations ---
 from .modes.repl.display import REPLDisplay
 
 # --- Input Implementations ---
 from .modes.repl.input_prompt_toolkit import PromptToolkitInput
+from .terminal.notifier import TerminalNotifier
 
 
 def create_default_display(

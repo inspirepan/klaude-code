@@ -1,8 +1,8 @@
 from rich.console import RenderableType
 from rich.text import Text
 
-from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.renderers.common import create_grid
+from klaude_code.ui.rich.theme import ThemeKey
 
 
 def render_error(error_msg: Text, indent: int = 2) -> RenderableType:

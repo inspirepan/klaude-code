@@ -5,8 +5,8 @@ from rich.panel import Panel
 from rich.text import Text
 
 from klaude_code import const
-from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.renderers.common import create_grid
+from klaude_code.ui.rich.theme import ThemeKey
 
 
 def _make_diff_prefix(line: str, new_ln: int | None, width: int) -> tuple[str, int | None]:

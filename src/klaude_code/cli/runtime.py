@@ -18,11 +18,11 @@ from klaude_code.llm import LLMClients
 from klaude_code.protocol import events, op
 from klaude_code.protocol.model import UserInputPayload
 from klaude_code.trace import DebugType, log, set_debug_logging
+from klaude_code.ui.modes.repl import build_repl_status_snapshot
+from klaude_code.ui.modes.repl.input_prompt_toolkit import REPLStatusSnapshot
 from klaude_code.ui.terminal.color import is_light_terminal_background
 from klaude_code.ui.terminal.control import install_sigint_double_press_exit, start_esc_interrupt_monitor
 from klaude_code.ui.terminal.progress_bar import OSC94States, emit_osc94
-from klaude_code.ui.modes.repl import build_repl_status_snapshot
-from klaude_code.ui.modes.repl.input_prompt_toolkit import REPLStatusSnapshot
 from klaude_code.version import get_update_message
 
 

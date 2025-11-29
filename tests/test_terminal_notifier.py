@@ -2,12 +2,7 @@ import io
 
 import pytest
 
-from klaude_code.ui.terminal.notifier import (
-    Notification,
-    NotificationType,
-    TerminalNotifier,
-    TerminalNotifierConfig,
-)
+from klaude_code.ui.terminal.notifier import Notification, NotificationType, TerminalNotifier, TerminalNotifierConfig
 
 
 class FakeTTY(io.StringIO):

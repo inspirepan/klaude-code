@@ -47,9 +47,7 @@ def test_user_input_payload_images_preserved_in_user_message_item() -> None:
 def test_user_input_payload_multiple_images() -> None:
     """Test UserInputPayload with multiple images."""
     images = [
-        model.ImageURLPart(
-            image_url=model.ImageURLPart.ImageURL(url=f"data:image/png;base64,img{i}", id=f"id-{i}")
-        )
+        model.ImageURLPart(image_url=model.ImageURLPart.ImageURL(url=f"data:image/png;base64,img{i}", id=f"id-{i}"))
         for i in range(3)
     ]
     payload = model.UserInputPayload(text="Multiple images", images=images)
@@ -62,9 +60,7 @@ def test_user_input_payload_multiple_images() -> None:
 
 def test_user_input_payload_empty_text() -> None:
     """Test UserInputPayload with empty text but images."""
-    image = model.ImageURLPart(
-        image_url=model.ImageURLPart.ImageURL(url="data:image/png;base64,abc", id=None)
-    )
+    image = model.ImageURLPart(image_url=model.ImageURLPart.ImageURL(url="data:image/png;base64,abc", id=None))
     payload = model.UserInputPayload(text="", images=[image])
 
     assert payload.text == ""
