@@ -144,11 +144,15 @@ class ToolExecutor:
                 execution_tasks.append(task)
 
             for task in asyncio.as_completed(execution_tasks):
-                try:
-                    result_events = await task
-                except asyncio.CancelledError:
-                    # Task was cancelled by ToolExecutor.cancel(); skip synthetic events here.
-                    continue
+                # Do not swallow asyncio.CancelledError here:
+                # - If the user interrupts the main agent, the executor cancels the
+                #   outer agent task, which should propagate cancellation up through
+                #   tool execution so the task can terminate and emit TaskFinishEvent.
+                # - Sub-agent tool tasks cancelled via ToolExecutor.cancel() are
+                #   handled by synthesizing ToolExecutionResult events; any
+                #   CancelledError raised here should still bubble up so the
+                #   calling agent can stop cleanly, matching pre-refactor behavior.
+                result_events = await task
 
                 for exec_event in result_events:
                     yield exec_event
