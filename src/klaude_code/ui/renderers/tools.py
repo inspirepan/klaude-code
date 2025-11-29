@@ -9,7 +9,9 @@ from klaude_code import const
 from klaude_code.core.sub_agent import is_sub_agent_tool as _is_sub_agent_tool
 from klaude_code.protocol import events, model
 from klaude_code.ui.rich.theme import ThemeKey
-from klaude_code.ui.renderers.common import create_grid, truncate_display
+from klaude_code.ui.renderers.common import create_grid
+from klaude_code.ui.renderers import diffs as r_diffs
+from klaude_code.ui.utils.common import truncate_display
 
 
 def is_sub_agent_tool(tool_name: str) -> bool:
@@ -404,3 +406,112 @@ def render_truncation_info(ui_extra: model.TruncationUIExtra) -> RenderableType:
 def get_truncation_info(tr: events.ToolResultEvent) -> model.TruncationUIExtra | None:
     """Extract truncation info from a tool result event."""
     return _extract_truncation(tr.ui_extra)
+
+
+# Tool name to mark mapping
+_TOOL_MARKS: dict[str, str] = {
+    "Read": "←",
+    "Edit": "→",
+    "Write": "→",
+    "MultiEdit": "→",
+    "Bash": ">",
+    "apply_patch": "→",
+    "TodoWrite": "◎",
+    "update_plan": "◎",
+    "Mermaid": "⧉",
+    "Memory": "★",
+    "Skill": "◈",
+}
+
+
+def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
+    """Unified entry point for rendering tool calls.
+
+    Returns a Rich Renderable or None if the tool call should not be rendered.
+    """
+    from klaude_code.protocol import tools
+
+    if is_sub_agent_tool(e.tool_name):
+        return None
+
+    match e.tool_name:
+        case tools.READ:
+            return render_read_tool_call(e.arguments)
+        case tools.EDIT:
+            return render_edit_tool_call(e.arguments)
+        case tools.WRITE:
+            return render_write_tool_call(e.arguments)
+        case tools.MULTI_EDIT:
+            return render_multi_edit_tool_call(e.arguments)
+        case tools.BASH:
+            return render_generic_tool_call(e.tool_name, e.arguments, ">")
+        case tools.APPLY_PATCH:
+            return render_apply_patch_tool_call(e.arguments)
+        case tools.TODO_WRITE:
+            return render_generic_tool_call("Update Todos", "", "◎")
+        case tools.UPDATE_PLAN:
+            return render_update_plan_tool_call(e.arguments)
+        case tools.MERMAID:
+            return render_mermaid_tool_call(e.arguments)
+        case tools.MEMORY:
+            return render_memory_tool_call(e.arguments)
+        case tools.SKILL:
+            return render_generic_tool_call(e.tool_name, e.arguments, "◈")
+        case _:
+            return render_generic_tool_call(e.tool_name, e.arguments)
+
+
+def _extract_diff_text(ui_extra: model.ToolResultUIExtra | None) -> str | None:
+    if ui_extra is None:
+        return None
+    if ui_extra.type == model.ToolResultUIExtraType.DIFF_TEXT:
+        return ui_extra.diff_text
+    return None
+
+
+def render_tool_result(e: events.ToolResultEvent) -> RenderableType | None:
+    """Unified entry point for rendering tool results.
+
+    Returns a Rich Renderable or None if the tool result should not be rendered.
+    """
+    from klaude_code.protocol import tools
+    from klaude_code.ui.renderers import errors as r_errors
+
+    if is_sub_agent_tool(e.tool_name):
+        return None
+
+    # Handle error case
+    if e.status == "error" and e.ui_extra is None:
+        error_msg = Text(truncate_display(e.result))
+        return r_errors.render_error(error_msg)
+
+    # Show truncation info if output was truncated and saved to file
+    truncation_info = get_truncation_info(e)
+    if truncation_info:
+        return render_truncation_info(truncation_info)
+
+    diff_text = _extract_diff_text(e.ui_extra)
+
+    match e.tool_name:
+        case tools.READ:
+            return None
+        case tools.EDIT | tools.MULTI_EDIT | tools.WRITE:
+            return Padding.indent(r_diffs.render_diff(diff_text or ""), level=2)
+        case tools.MEMORY:
+            if diff_text:
+                return Padding.indent(r_diffs.render_diff(diff_text), level=2)
+            elif len(e.result.strip()) > 0:
+                return render_generic_tool_result(e.result)
+            return None
+        case tools.TODO_WRITE | tools.UPDATE_PLAN:
+            return render_todo(e)
+        case tools.MERMAID:
+            return render_mermaid_tool_result(e)
+        case _:
+            if e.tool_name in (tools.BASH, tools.APPLY_PATCH) and e.result.startswith("diff --git"):
+                return r_diffs.render_diff_panel(e.result, show_file_name=True)
+            if e.tool_name == tools.APPLY_PATCH and diff_text:
+                return Padding.indent(r_diffs.render_diff(diff_text, show_file_name=True), level=2)
+            if len(e.result.strip()) == 0:
+                return render_generic_tool_result("(no content)")
+            return render_generic_tool_result(e.result)

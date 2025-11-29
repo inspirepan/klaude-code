@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Iterator
@@ -8,24 +7,19 @@ from typing import Any, Iterator
 from rich import box
 from rich.box import Box
 from rich.console import Console
-from rich.padding import Padding
 from rich.status import Status
 from rich.style import Style, StyleType
-from rich.text import Text
 
-from klaude_code.core.sub_agent import get_sub_agent_profile_by_tool
-from klaude_code.protocol import events, model, tools
+from klaude_code.protocol import events, model
 from klaude_code.ui.rich.theme import ThemeKey, get_theme
+from klaude_code.ui.renderers import assistant as r_assistant
 from klaude_code.ui.renderers import developer as r_developer
-from klaude_code.ui.renderers import diffs as r_diffs
-from klaude_code.ui.renderers import errors as r_errors
 from klaude_code.ui.renderers import metadata as r_metadata
 from klaude_code.ui.renderers import status as r_status
 from klaude_code.ui.renderers import sub_agent as r_sub_agent
+from klaude_code.ui.renderers import thinking as r_thinking
 from klaude_code.ui.renderers import tools as r_tools
 from klaude_code.ui.renderers import user_input as r_user_input
-from klaude_code.ui.renderers.common import create_grid, truncate_display
-from klaude_code.ui.rich.markdown import NoInsetMarkdown
 from klaude_code.ui.rich.quote import Quote
 
 
@@ -86,14 +80,6 @@ class REPLRenderer:
     def box_style(self) -> Box:
         return box.ROUNDED
 
-    @staticmethod
-    def _extract_diff_text(ui_extra: model.ToolResultUIExtra | None) -> str | None:
-        if ui_extra is None:
-            return None
-        if ui_extra.type == model.ToolResultUIExtraType.DIFF_TEXT:
-            return ui_extra.diff_text
-        return None
-
     @contextmanager
     def session_print_context(self, session_id: str) -> Iterator[None]:
         """Temporarily switch to sub-agent quote style."""
@@ -112,11 +98,10 @@ class REPLRenderer:
         self.console.print(*objects, style=style, end=end)
 
     def display_tool_call(self, e: events.ToolCallEvent) -> None:
+        # Handle sub-agent tool calls in replay mode
         if r_tools.is_sub_agent_tool(e.tool_name):
-            # In replay mode, render sub-agent call here
-            # In normal execution, handled by TaskStartEvent
             if e.is_replay:
-                state = self._build_sub_agent_state_from_tool_call(e)
+                state = r_sub_agent.build_sub_agent_state_from_tool_call(e)
                 if state is not None:
                     sub_agent_default_style = (
                         self.themes.sub_agent_colors[0] if self.themes.sub_agent_colors else Style()
@@ -128,36 +113,14 @@ class REPLRenderer:
                         )
                     )
             return
-        match e.tool_name:
-            case tools.READ:
-                self.print(r_tools.render_read_tool_call(e.arguments))
-            case tools.EDIT:
-                self.print(r_tools.render_edit_tool_call(e.arguments))
-            case tools.WRITE:
-                self.print(r_tools.render_write_tool_call(e.arguments))
-            case tools.MULTI_EDIT:
-                self.print(r_tools.render_multi_edit_tool_call(e.arguments))
-            case tools.BASH:
-                self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments, ">"))
-            case tools.APPLY_PATCH:
-                self.print(r_tools.render_apply_patch_tool_call(e.arguments))
-            case tools.TODO_WRITE:
-                self.print(r_tools.render_generic_tool_call("Update Todos", "", "◎"))
-            case tools.UPDATE_PLAN:
-                self.print(r_tools.render_update_plan_tool_call(e.arguments))
-            case tools.MERMAID:
-                self.print(r_tools.render_mermaid_tool_call(e.arguments))
-            case tools.MEMORY:
-                self.print(r_tools.render_memory_tool_call(e.arguments))
-            case tools.SKILL:
-                self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments, "◈"))
-            case _:
-                self.print(r_tools.render_generic_tool_call(e.tool_name, e.arguments))
+
+        renderable = r_tools.render_tool_call(e)
+        if renderable is not None:
+            self.print(renderable)
 
     def display_tool_call_result(self, e: events.ToolResultEvent) -> None:
+        # Handle sub-agent tool results in replay mode
         if r_tools.is_sub_agent_tool(e.tool_name):
-            # In replay mode, render sub-agent result here
-            # In normal execution, handled by TaskFinishEvent
             if e.is_replay:
                 sub_agent_default_style = self.themes.sub_agent_colors[0] if self.themes.sub_agent_colors else Style()
                 self.print(
@@ -171,85 +134,20 @@ class REPLRenderer:
                     )
                 )
             return
-        if e.status == "error" and e.ui_extra is None:
-            self.print(r_errors.render_error(Text(truncate_display(e.result))))
-            return
 
-        # Show truncation info if output was truncated and saved to file
-        truncation_info = r_tools.get_truncation_info(e)
-        if truncation_info:
-            self.print(r_tools.render_truncation_info(truncation_info))
-            return
-
-        diff_text = self._extract_diff_text(e.ui_extra)
-
-        match e.tool_name:
-            case tools.READ:
-                pass
-            case tools.EDIT | tools.MULTI_EDIT | tools.WRITE:
-                self.print(Padding.indent(r_diffs.render_diff(diff_text or ""), level=2))
-            case tools.MEMORY:
-                if diff_text:
-                    self.print(Padding.indent(r_diffs.render_diff(diff_text), level=2))
-                elif len(e.result.strip()) > 0:
-                    self.print(r_tools.render_generic_tool_result(e.result))
-            case tools.TODO_WRITE | tools.UPDATE_PLAN:
-                self.print(r_tools.render_todo(e))
-            case tools.MERMAID:
-                self.print(r_tools.render_mermaid_tool_result(e))
-            case _:
-                if e.tool_name in (
-                    tools.BASH,
-                    tools.APPLY_PATCH,
-                ) and e.result.startswith("diff --git"):
-                    self.print(r_diffs.render_diff_panel(e.result, show_file_name=True))
-                    return
-                if e.tool_name == tools.APPLY_PATCH and diff_text:
-                    self.print(Padding.indent(r_diffs.render_diff(diff_text, show_file_name=True), level=2))
-                    return
-                if len(e.result.strip()) == 0:
-                    e.result = "(no content)"
-                self.print(r_tools.render_generic_tool_result(e.result))
-
-    def _build_sub_agent_state_from_tool_call(self, e: events.ToolCallEvent) -> model.SubAgentState | None:
-        profile = get_sub_agent_profile_by_tool(e.tool_name)
-        if profile is None:
-            return None
-        description = profile.name
-        prompt = ""
-        if e.arguments:
-            try:
-                payload: dict[str, object] = json.loads(e.arguments)
-            except json.JSONDecodeError:
-                payload = {}
-            desc_value = payload.get("description")
-            if isinstance(desc_value, str) and desc_value.strip():
-                description = desc_value.strip()
-            prompt_value = payload.get("prompt") or payload.get("task")
-            if isinstance(prompt_value, str):
-                prompt = prompt_value.strip()
-        return model.SubAgentState(
-            sub_agent_type=profile.name,
-            sub_agent_desc=description,
-            sub_agent_prompt=prompt,
-        )
+        renderable = r_tools.render_tool_result(e)
+        if renderable is not None:
+            self.print(renderable)
 
     def display_thinking(self, content: str) -> None:
-        if len(content.strip()) > 0:
+        renderable = r_thinking.render_thinking(
+            content,
+            code_theme=self.themes.code_theme,
+            style=ThemeKey.THINKING,
+        )
+        if renderable is not None:
             self.console.push_theme(theme=self.themes.thinking_markdown_theme)
-            self.print(
-                Padding.indent(
-                    NoInsetMarkdown(
-                        content.rstrip()
-                        .replace("**\n\n", "**  \n")
-                        .replace("\\n\\n\n\n", "")  # Weird case of Gemini 3
-                        .replace("****", "**\n\n**"),  # remove extra newlines after bold titles
-                        code_theme=self.themes.code_theme,
-                        style=self.console.get_style(ThemeKey.THINKING),
-                    ),
-                    level=2,
-                )
-            )
+            self.print(renderable)
             self.console.pop_theme()
             self.print()
 
@@ -260,16 +158,11 @@ class REPLRenderer:
                 case events.TurnStartEvent():
                     self.print()
                 case events.AssistantMessageEvent() as assistant_event:
-                    if len(assistant_event.content.strip()) > 0:
-                        grid = create_grid()
-                        grid.add_row(
-                            "•",
-                            NoInsetMarkdown(
-                                assistant_event.content.strip(),
-                                code_theme=self.themes.code_theme,
-                            ),
-                        )
-                        self.print(grid)
+                    renderable = r_assistant.render_assistant_message(
+                        assistant_event.content, code_theme=self.themes.code_theme
+                    )
+                    if renderable is not None:
+                        self.print(renderable)
                         self.print()
                 case events.ThinkingEvent() as thinking_event:
                     self.display_thinking(thinking_event.content)

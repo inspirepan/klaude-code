@@ -5,7 +5,8 @@ from rich.text import Text
 from klaude_code.protocol import commands, events
 from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.renderers import diffs as r_diffs
-from klaude_code.ui.renderers.common import create_grid, truncate_display
+from klaude_code.ui.renderers.common import create_grid
+from klaude_code.ui.utils.common import truncate_display
 from klaude_code.ui.renderers.tools import render_path
 
 

@@ -15,7 +15,7 @@ from klaude_code.ui.renderers import status as r_status
 from klaude_code.ui.renderers import sub_agent as r_sub_agent
 from klaude_code.ui.renderers import thinking as r_thinking
 from klaude_code.ui.renderers import user_input as r_user_input
-from klaude_code.ui.renderers.common import truncate_display
+from klaude_code.ui.utils.common import truncate_display
 from klaude_code.ui.modes.repl.renderer import REPLRenderer
 from klaude_code.ui.rich.markdown import MarkdownStream, NoInsetMarkdown
 
