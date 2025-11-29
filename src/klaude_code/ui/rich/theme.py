@@ -124,6 +124,9 @@ class ThemeKey(str, Enum):
     WELCOME_HIGHLIGHT_BOLD = "welcome.highlight.bold"
     WELCOME_HIGHLIGHT = "welcome.highlight"
     WELCOME_INFO = "welcome.info"
+    # WELCOME DEBUG
+    WELCOME_DEBUG_TITLE = "welcome.debug.title"
+    WELCOME_DEBUG_BORDER = "welcome.debug.border"
     # RESUME
     RESUME_FLAG = "resume.flag"
     RESUME_INFO = "resume.info"
@@ -212,6 +215,9 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.WELCOME_HIGHLIGHT_BOLD.value: "bold",
                 ThemeKey.WELCOME_HIGHLIGHT.value: palette.blue,
                 ThemeKey.WELCOME_INFO.value: palette.grey1,
+                # WELCOME DEBUG
+                ThemeKey.WELCOME_DEBUG_TITLE.value: "bold " + palette.red,
+                ThemeKey.WELCOME_DEBUG_BORDER.value: palette.red,
                 # RESUME
                 ThemeKey.RESUME_FLAG.value: "bold reverse " + palette.green,
                 ThemeKey.RESUME_INFO.value: palette.green,

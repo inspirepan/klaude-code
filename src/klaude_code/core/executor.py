@@ -21,6 +21,7 @@ from klaude_code.trace import DebugType, log_debug
 @dataclass
 class ActiveTask:
     """Track an in-flight task and its owning session."""
+
     task: asyncio.Task[None]
     session_id: str
 
@@ -41,9 +42,7 @@ class ExecutorContext:
     ):
         self.event_queue: asyncio.Queue[events.Event] = event_queue
         self.llm_clients: LLMClients = llm_clients
-        self.model_profile_provider: ModelProfileProvider = (
-            model_profile_provider or DefaultModelProfileProvider()
-        )
+        self.model_profile_provider: ModelProfileProvider = model_profile_provider or DefaultModelProfileProvider()
 
         # Track active agents by session ID
         self.active_agents: dict[str, Agent] = {}

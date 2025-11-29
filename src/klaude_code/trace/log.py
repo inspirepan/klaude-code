@@ -161,3 +161,8 @@ def _build_message(objects: Iterable[str | tuple[str, str]]) -> str:
         else:
             parts.append(obj)
     return " ".join(parts)
+
+
+def is_debug_enabled() -> bool:
+    """Check if debug logging is currently enabled."""
+    return _debug_enabled

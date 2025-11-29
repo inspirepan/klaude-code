@@ -8,6 +8,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from klaude_code.protocol import events
+from klaude_code.trace import is_debug_enabled
 from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.utils.common import format_number
 
@@ -126,9 +127,12 @@ def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> R
     if box_style is None:
         box_style = box.ROUNDED
 
+    debug_mode = is_debug_enabled()
+
     # First line: Klaude Code version
+    klaude_code_style = ThemeKey.WELCOME_DEBUG_TITLE if debug_mode else ThemeKey.WELCOME_HIGHLIGHT_BOLD
     panel_content = Text.assemble(
-        ("Klaude Code", ThemeKey.WELCOME_HIGHLIGHT_BOLD),
+        ("Klaude Code", klaude_code_style),
         (f" v{_get_version()}\n", ThemeKey.WELCOME_INFO),
         (str(e.llm_config.model), ThemeKey.WELCOME_HIGHLIGHT),
         (" @ ", ThemeKey.WELCOME_INFO),
@@ -170,7 +174,8 @@ def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> R
             )
         )
 
+    border_style = ThemeKey.WELCOME_DEBUG_BORDER if debug_mode else ThemeKey.LINES
     return Group(
-        Panel.fit(panel_content, border_style=ThemeKey.LINES, box=box_style),
+        Panel.fit(panel_content, border_style=border_style, box=box_style),
         "",  # empty line
     )
