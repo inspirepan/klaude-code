@@ -3,17 +3,18 @@ from abc import ABC, abstractmethod
 from pydantic import BaseModel
 
 from klaude_code.core import Agent
-from klaude_code.protocol.commands import CommandName
-from klaude_code.protocol.events import DeveloperMessageEvent, ReplayHistoryEvent, WelcomeEvent
+from klaude_code.protocol import commands
+from klaude_code.protocol import events as protocol_events
 
 
 class CommandResult(BaseModel):
     """Result of a command execution."""
 
     agent_input: str | None = None  # Input to be submitted to agent, or None if no input needed
-    events: list[DeveloperMessageEvent | WelcomeEvent | ReplayHistoryEvent] | None = (
-        None  # List of UI events to display immediately
-    )
+    events: (
+        list[protocol_events.DeveloperMessageEvent | protocol_events.WelcomeEvent | protocol_events.ReplayHistoryEvent]
+        | None
+    ) = None  # List of UI events to display immediately
 
 
 class CommandABC(ABC):
@@ -21,7 +22,7 @@ class CommandABC(ABC):
 
     @property
     @abstractmethod
-    def name(self) -> CommandName | str:
+    def name(self) -> commands.CommandName | str:
         """Command name without the leading slash."""
         pass
 

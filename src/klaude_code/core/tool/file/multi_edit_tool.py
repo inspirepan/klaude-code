@@ -11,9 +11,7 @@ from klaude_code.core.tool.file.edit_tool import EditTool
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
-from klaude_code.protocol.tools import MULTI_EDIT
+from klaude_code.protocol import llm_parameter, model, tools
 
 
 def _is_directory(path: str) -> bool:
@@ -42,7 +40,7 @@ def _write_text(path: str, content: str) -> None:
         f.write(content)
 
 
-@register(MULTI_EDIT)
+@register(tools.MULTI_EDIT)
 class MultiEditTool(ToolABC):
     class MultiEditEditItem(BaseModel):
         old_string: str
@@ -54,9 +52,9 @@ class MultiEditTool(ToolABC):
         edits: list[MultiEditTool.MultiEditEditItem]
 
     @classmethod
-    def schema(cls) -> ToolSchema:
-        return ToolSchema(
-            name=MULTI_EDIT,
+    def schema(cls) -> llm_parameter.ToolSchema:
+        return llm_parameter.ToolSchema(
+            name=tools.MULTI_EDIT,
             type="function",
             description=load_desc(Path(__file__).parent / "multi_edit_tool.md"),
             parameters={
@@ -98,17 +96,17 @@ class MultiEditTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultItem:
         try:
             args = MultiEditTool.MultiEditArguments.model_validate_json(arguments)
         except Exception as e:  # pragma: no cover - defensive
-            return ToolResultItem(status="error", output=f"Invalid arguments: {e}")
+            return model.ToolResultItem(status="error", output=f"Invalid arguments: {e}")
 
         file_path = os.path.abspath(args.file_path)
 
         # Directory error first
         if _is_directory(file_path):
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output="<tool_use_error>Illegal operation on a directory. multi_edit</tool_use_error>",
             )
@@ -120,7 +118,7 @@ class MultiEditTool(ToolABC):
             if file_tracker is not None:
                 tracked = file_tracker.get(file_path)
                 if tracked is None:
-                    return ToolResultItem(
+                    return model.ToolResultItem(
                         status="error",
                         output=("File has not been read yet. Read it first before writing to it."),
                     )
@@ -129,7 +127,7 @@ class MultiEditTool(ToolABC):
                 except Exception:
                     current_mtime = tracked
                 if current_mtime != tracked:
-                    return ToolResultItem(
+                    return model.ToolResultItem(
                         status="error",
                         output=(
                             "File has been modified externally. Either by user or a linter. Read it first before writing to it."
@@ -138,7 +136,7 @@ class MultiEditTool(ToolABC):
         else:
             # Allow creation only if first edit is creating content (old_string == "")
             if not args.edits or args.edits[0].old_string != "":
-                return ToolResultItem(
+                return model.ToolResultItem(
                     status="error",
                     output=("File has not been read yet. Read it first before writing to it."),
                 )
@@ -159,7 +157,7 @@ class MultiEditTool(ToolABC):
                 replace_all=edit.replace_all,
             )
             if err is not None:
-                return ToolResultItem(status="error", output=err)
+                return model.ToolResultItem(status="error", output=err)
             # Apply to staged content
             staged = EditTool.execute(
                 content=staged,
@@ -172,7 +170,7 @@ class MultiEditTool(ToolABC):
         try:
             await asyncio.to_thread(_write_text, file_path, staged)
         except Exception as e:  # pragma: no cover
-            return ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
+            return model.ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
 
         # Prepare UI extra: unified diff
         diff_lines = list(
@@ -185,7 +183,7 @@ class MultiEditTool(ToolABC):
             )
         )
         diff_text = "\n".join(diff_lines)
-        ui_extra = ToolResultUIExtra(type=ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text)
+        ui_extra = model.ToolResultUIExtra(type=model.ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text)
 
         # Update tracker
         if file_tracker is not None:
@@ -198,4 +196,4 @@ class MultiEditTool(ToolABC):
         lines = [f"Applied {len(args.edits)} edits to {file_path}:"]
         for i, edit in enumerate(args.edits, start=1):
             lines.append(f'{i}. Replaced "{edit.old_string}" with "{edit.new_string}"')
-        return ToolResultItem(status="success", output="\n".join(lines), ui_extra=ui_extra)
+        return model.ToolResultItem(status="success", output="\n".join(lines), ui_extra=ui_extra)

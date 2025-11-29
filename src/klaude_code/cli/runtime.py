@@ -17,8 +17,7 @@ from klaude_code.core.sub_agent import iter_sub_agent_profiles
 from klaude_code.core.tool.memory.skill_loader import SkillLoader
 from klaude_code.core.tool.memory.skill_tool import SkillTool
 from klaude_code.llm import LLMClients
-from klaude_code.protocol import op
-from klaude_code.protocol.events import EndEvent, Event
+from klaude_code.protocol import events, op
 from klaude_code.trace import DebugType, log, set_debug_logging
 from klaude_code.ui.base.progress_bar import OSC94States, emit_osc94
 from klaude_code.ui.base.terminal_color import is_light_terminal_background
@@ -83,7 +82,7 @@ class AppComponents:
     config: Config
     executor: Executor
     executor_task: asyncio.Task[None]
-    event_queue: asyncio.Queue[Event]
+    event_queue: asyncio.Queue[events.Event]
     display: ui.DisplayABC
     display_task: asyncio.Task[None]
     theme: str | None
@@ -126,7 +125,7 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     model_profile_provider = VanillaModelProfileProvider() if init_config.vanilla else DefaultModelProfileProvider()
 
     # Create event queue for communication between executor and UI
-    event_queue: asyncio.Queue[Event] = asyncio.Queue()
+    event_queue: asyncio.Queue[events.Event] = asyncio.Queue()
 
     # Create executor with the LLM client
     executor = Executor(
@@ -179,7 +178,7 @@ async def cleanup_app_components(components: AppComponents) -> None:
         components.executor_task.cancel()
 
         # Signal UI to stop
-        await components.event_queue.put(EndEvent())
+        await components.event_queue.put(events.EndEvent())
         await components.display_task
     finally:
         # Always attempt to clear Ghostty progress bar and restore cursor visibility

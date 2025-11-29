@@ -7,17 +7,9 @@ from klaude_code.core.sub_agent import is_sub_agent_tool
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.truncation import truncate_tool_output
 from klaude_code.protocol import model
-from klaude_code.protocol.model import (
-    ToolCallItem,
-    ToolResultItem,
-    ToolResultUIExtra,
-    ToolResultUIExtraType,
-    ToolSideEffect,
-    TruncationUIExtra,
-)
 
 
-async def run_tool(tool_call: ToolCallItem, registry: dict[str, type[ToolABC]]) -> ToolResultItem:
+async def run_tool(tool_call: model.ToolCallItem, registry: dict[str, type[ToolABC]]) -> model.ToolResultItem:
     """Execute a tool call and return the result.
 
     Args:
@@ -28,7 +20,7 @@ async def run_tool(tool_call: ToolCallItem, registry: dict[str, type[ToolABC]]) 
         The result of the tool execution.
     """
     if tool_call.name not in registry:
-        return ToolResultItem(
+        return model.ToolResultItem(
             call_id=tool_call.call_id,
             output=f"Tool {tool_call.name} not exists",
             status="error",
@@ -42,9 +34,9 @@ async def run_tool(tool_call: ToolCallItem, registry: dict[str, type[ToolABC]]) 
             truncation_result = truncate_tool_output(tool_result.output, tool_call)
             tool_result.output = truncation_result.output
             if truncation_result.was_truncated and truncation_result.saved_file_path:
-                tool_result.ui_extra = ToolResultUIExtra(
-                    type=ToolResultUIExtraType.TRUNCATION,
-                    truncation=TruncationUIExtra(
+                tool_result.ui_extra = model.ToolResultUIExtra(
+                    type=model.ToolResultUIExtraType.TRUNCATION,
+                    truncation=model.TruncationUIExtra(
                         saved_file_path=truncation_result.saved_file_path,
                         original_length=truncation_result.original_length,
                         truncated_length=truncation_result.truncated_length,
@@ -55,7 +47,7 @@ async def run_tool(tool_call: ToolCallItem, registry: dict[str, type[ToolABC]]) 
         # Propagate cooperative cancellation so outer layers can handle interrupts correctly.
         raise
     except Exception as e:
-        return ToolResultItem(
+        return model.ToolResultItem(
             call_id=tool_call.call_id,
             output=f"Tool {tool_call.name} execution error: {e.__class__.__name__} {e}",
             status="error",
@@ -67,15 +59,15 @@ async def run_tool(tool_call: ToolCallItem, registry: dict[str, type[ToolABC]]) 
 class ToolExecutionCallStarted:
     """Represents the start of a tool call execution."""
 
-    tool_call: ToolCallItem
+    tool_call: model.ToolCallItem
 
 
 @dataclass
 class ToolExecutionResult:
     """Represents the completion of a tool call with its result."""
 
-    tool_call: ToolCallItem
-    tool_result: ToolResultItem
+    tool_call: model.ToolCallItem
+    tool_result: model.ToolResultItem
 
 
 @dataclass
@@ -107,11 +99,11 @@ class ToolExecutor:
         self._registry = registry
         self._append_history = append_history
 
-        self._unfinished_calls: dict[str, ToolCallItem] = {}
+        self._unfinished_calls: dict[str, model.ToolCallItem] = {}
         self._call_event_emitted: set[str] = set()
         self._sub_agent_tasks: set[asyncio.Task[list[ToolExecutorEvent]]] = set()
 
-    async def run_tools(self, tool_calls: list[ToolCallItem]) -> AsyncGenerator[ToolExecutorEvent, None]:
+    async def run_tools(self, tool_calls: list[model.ToolCallItem]) -> AsyncGenerator[ToolExecutorEvent, None]:
         """Run the given tool calls and yield execution events.
 
         Tool calls are partitioned into regular tools and sub-agent tools. Regular tools
@@ -183,7 +175,7 @@ class ToolExecutor:
             return events_to_yield
 
         for call_id, tool_call in list(self._unfinished_calls.items()):
-            cancel_result = ToolResultItem(
+            cancel_result = model.ToolResultItem(
                 call_id=tool_call.call_id,
                 output=CANCEL_OUTPUT,
                 status="error",
@@ -212,10 +204,10 @@ class ToolExecutor:
 
     @staticmethod
     def _partition_tool_calls(
-        tool_calls: list[ToolCallItem],
-    ) -> tuple[list[ToolCallItem], list[ToolCallItem]]:
-        regular_tool_calls: list[ToolCallItem] = []
-        sub_agent_tool_calls: list[ToolCallItem] = []
+        tool_calls: list[model.ToolCallItem],
+    ) -> tuple[list[model.ToolCallItem], list[model.ToolCallItem]]:
+        regular_tool_calls: list[model.ToolCallItem] = []
+        sub_agent_tool_calls: list[model.ToolCallItem] = []
         for tool_call in tool_calls:
             if is_sub_agent_tool(tool_call.name):
                 sub_agent_tool_calls.append(tool_call)
@@ -223,11 +215,11 @@ class ToolExecutor:
                 regular_tool_calls.append(tool_call)
         return regular_tool_calls, sub_agent_tool_calls
 
-    def _build_tool_call_started(self, tool_call: ToolCallItem) -> ToolExecutionCallStarted:
+    def _build_tool_call_started(self, tool_call: model.ToolCallItem) -> ToolExecutionCallStarted:
         return ToolExecutionCallStarted(tool_call=tool_call)
 
-    async def _run_single_tool_call(self, tool_call: ToolCallItem) -> list[ToolExecutorEvent]:
-        tool_result: ToolResultItem = await run_tool(tool_call, self._registry)
+    async def _run_single_tool_call(self, tool_call: model.ToolCallItem) -> list[ToolExecutorEvent]:
+        tool_result: model.ToolResultItem = await run_tool(tool_call, self._registry)
 
         self._append_history([tool_result])
 
@@ -238,7 +230,7 @@ class ToolExecutor:
         extra_events = self._build_tool_side_effect_events(tool_result)
         return [result_event, *extra_events]
 
-    def _build_tool_side_effect_events(self, tool_result: ToolResultItem) -> list[ToolExecutorEvent]:
+    def _build_tool_side_effect_events(self, tool_result: model.ToolResultItem) -> list[ToolExecutorEvent]:
         side_effects = tool_result.side_effects
         if not side_effects:
             return []
@@ -246,7 +238,7 @@ class ToolExecutor:
         side_effect_events: list[ToolExecutorEvent] = []
 
         for side_effect in side_effects:
-            if side_effect == ToolSideEffect.TODO_CHANGE:
+            if side_effect == model.ToolSideEffect.TODO_CHANGE:
                 todos: list[model.TodoItem] | None = None
                 if tool_result.ui_extra is not None and tool_result.ui_extra.todo_list is not None:
                     todos = tool_result.ui_extra.todo_list.todos

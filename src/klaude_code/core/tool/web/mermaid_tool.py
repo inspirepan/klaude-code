@@ -9,14 +9,12 @@ from pydantic import BaseModel, Field
 
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import MermaidLinkUIExtra, ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
-from klaude_code.protocol.tools import MERMAID
+from klaude_code.protocol import llm_parameter, model, tools
 
 _MERMAID_LIVE_PREFIX = "https://mermaid.live/view#pako:"
 
 
-@register(MERMAID)
+@register(tools.MERMAID)
 class MermaidTool(ToolABC):
     """Create shareable Mermaid.live links for diagram rendering."""
 
@@ -24,9 +22,9 @@ class MermaidTool(ToolABC):
         code: str = Field(description="The Mermaid diagram code to render")
 
     @classmethod
-    def schema(cls) -> ToolSchema:
-        return ToolSchema(
-            name=MERMAID,
+    def schema(cls) -> llm_parameter.ToolSchema:
+        return llm_parameter.ToolSchema(
+            name=tools.MERMAID,
             type="function",
             description=load_desc(Path(__file__).parent / "mermaid_tool.md"),
             parameters={
@@ -43,20 +41,20 @@ class MermaidTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultItem:
         try:
             args = cls.MermaidArguments.model_validate_json(arguments)
         except Exception as exc:  # pragma: no cover - defensive
-            return ToolResultItem(status="error", output=f"Invalid arguments: {exc}")
+            return model.ToolResultItem(status="error", output=f"Invalid arguments: {exc}")
 
         link = cls._build_link(args.code)
         line_count = cls._count_lines(args.code)
-        ui_extra = ToolResultUIExtra(
-            type=ToolResultUIExtraType.MERMAID_LINK,
-            mermaid_link=MermaidLinkUIExtra(link=link, line_count=line_count),
+        ui_extra = model.ToolResultUIExtra(
+            type=model.ToolResultUIExtraType.MERMAID_LINK,
+            mermaid_link=model.MermaidLinkUIExtra(link=link, line_count=line_count),
         )
         output = f"Mermaid diagram rendered successfully ({line_count} lines)."
-        return ToolResultItem(status="success", output=output, ui_extra=ui_extra)
+        return model.ToolResultItem(status="success", output=output, ui_extra=ui_extra)
 
     @staticmethod
     def _build_link(code: str) -> str:

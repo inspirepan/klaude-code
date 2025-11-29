@@ -1,13 +1,13 @@
 from abc import ABC, abstractmethod
 from asyncio import Queue
 
-from klaude_code.protocol.events import EndEvent, Event
+from klaude_code.protocol import events
 from klaude_code.trace import log
 
 
 class DisplayABC(ABC):
     @abstractmethod
-    async def consume_event(self, event: Event) -> None:
+    async def consume_event(self, event: events.Event) -> None:
         pass
 
     @abstractmethod
@@ -18,12 +18,12 @@ class DisplayABC(ABC):
     async def stop(self) -> None:
         pass
 
-    async def consume_event_loop(self, q: Queue[Event]) -> None:
+    async def consume_event_loop(self, q: Queue[events.Event]) -> None:
         await self.start()
         while True:
             event = await q.get()
             try:
-                if isinstance(event, EndEvent):
+                if isinstance(event, events.EndEvent):
                     await self.stop()
                     break
                 await self.consume_event(event)

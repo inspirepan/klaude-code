@@ -12,8 +12,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.tool_context import current_run_subtask_callback
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import SubAgentState, ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
+from klaude_code.protocol import llm_parameter, model
 
 if TYPE_CHECKING:
     from klaude_code.core.sub_agent import SubAgentProfile
@@ -38,9 +37,9 @@ class SubAgentTool(ToolABC):
         )
 
     @classmethod
-    def schema(cls) -> ToolSchema:
+    def schema(cls) -> llm_parameter.ToolSchema:
         profile = cls._profile
-        return ToolSchema(
+        return llm_parameter.ToolSchema(
             name=profile.name,
             type="function",
             description=profile.description,
@@ -48,17 +47,17 @@ class SubAgentTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultItem:
         profile = cls._profile
 
         try:
             args = json.loads(arguments)
         except json.JSONDecodeError as e:
-            return ToolResultItem(status="error", output=f"Invalid JSON arguments: {e}")
+            return model.ToolResultItem(status="error", output=f"Invalid JSON arguments: {e}")
 
         runner = current_run_subtask_callback.get()
         if runner is None:
-            return ToolResultItem(status="error", output="No subtask runner available in this context")
+            return model.ToolResultItem(status="error", output="No subtask runner available in this context")
 
         # Build the prompt using the profile's prompt builder
         prompt = profile.prompt_builder(args)
@@ -66,7 +65,7 @@ class SubAgentTool(ToolABC):
 
         try:
             result = await runner(
-                SubAgentState(
+                model.SubAgentState(
                     sub_agent_type=profile.name,
                     sub_agent_desc=description,
                     sub_agent_prompt=prompt,
@@ -75,10 +74,10 @@ class SubAgentTool(ToolABC):
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            return ToolResultItem(status="error", output=f"Failed to run subtask: {e}")
+            return model.ToolResultItem(status="error", output=f"Failed to run subtask: {e}")
 
-        return ToolResultItem(
+        return model.ToolResultItem(
             status="success" if not result.error else "error",
             output=result.task_result or "",
-            ui_extra=ToolResultUIExtra(type=ToolResultUIExtraType.SESSION_ID, session_id=result.session_id),
+            ui_extra=model.ToolResultUIExtra(type=model.ToolResultUIExtraType.SESSION_ID, session_id=result.session_id),
         )

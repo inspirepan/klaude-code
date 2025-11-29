@@ -8,17 +8,15 @@ from klaude_code.const import BASH_DEFAULT_TIMEOUT_MS
 from klaude_code.core.tool.shell.command_safety import is_safe_command, strip_bash_lc
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import ToolResultItem
-from klaude_code.protocol.tools import BASH
+from klaude_code.protocol import llm_parameter, model, tools
 
 
-@register(BASH)
+@register(tools.BASH)
 class BashTool(ToolABC):
     @classmethod
-    def schema(cls) -> ToolSchema:
-        return ToolSchema(
-            name=BASH,
+    def schema(cls) -> llm_parameter.ToolSchema:
+        return llm_parameter.ToolSchema(
+            name=tools.BASH,
             type="function",
             description=load_desc(Path(__file__).parent / "bash_tool.md"),
             parameters={
@@ -43,24 +41,24 @@ class BashTool(ToolABC):
         timeout_ms: int = BASH_DEFAULT_TIMEOUT_MS
 
     @classmethod
-    async def call(cls, arguments: str) -> ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultItem:
         try:
             args = BashTool.BashArguments.model_validate_json(arguments)
         except ValueError as e:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=f"Invalid arguments: {e}",
             )
         return await cls.call_with_args(args)
 
     @classmethod
-    async def call_with_args(cls, args: BashArguments) -> ToolResultItem:
+    async def call_with_args(cls, args: BashArguments) -> model.ToolResultItem:
         command_str = strip_bash_lc(args.command)
 
         # Safety check: only execute commands proven as "known safe"
         result = is_safe_command(command_str)
         if not result.is_safe:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=f"Command rejected: {result.error_msg}",
             )
@@ -89,7 +87,7 @@ class BashTool(ToolABC):
                 # Include stderr if there is useful diagnostics despite success
                 if stderr.strip():
                     output = (output + ("\n" if output else "")) + f"[stderr]\n{stderr}"
-                return ToolResultItem(
+                return model.ToolResultItem(
                     status="success",
                     output=output.strip(),
                 )
@@ -101,23 +99,23 @@ class BashTool(ToolABC):
                     combined += f"[stderr]\n{stderr}"
                 if not combined:
                     combined = f"Command exited with code {rc}"
-                return ToolResultItem(
+                return model.ToolResultItem(
                     status="error",
                     output=combined.strip(),
                 )
 
         except subprocess.TimeoutExpired:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=f"Timeout after {args.timeout_ms} ms running: {command_str}",
             )
         except FileNotFoundError:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output="bash not found on system path",
             )
         except Exception as e:  # safeguard against unexpected failures
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=f"Execution error: {e}",
             )

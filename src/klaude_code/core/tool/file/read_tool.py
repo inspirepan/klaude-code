@@ -18,9 +18,7 @@ from klaude_code.const import (
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import ImageURLPart, ToolResultItem
-from klaude_code.protocol.tools import READ
+from klaude_code.protocol import llm_parameter, model, tools
 
 SYSTEM_REMINDER_MALICIOUS = (
     "<system-reminder>\n"
@@ -135,7 +133,7 @@ def _encode_image_to_data_url(file_path: str, mime_type: str) -> str:
     return f"data:{mime_type};base64,{encoded}"
 
 
-@register(READ)
+@register(tools.READ)
 class ReadTool(ToolABC):
     class ReadArguments(BaseModel):
         file_path: str
@@ -143,9 +141,9 @@ class ReadTool(ToolABC):
         limit: int | None = Field(default=None)
 
     @classmethod
-    def schema(cls) -> ToolSchema:
-        return ToolSchema(
-            name=READ,
+    def schema(cls) -> llm_parameter.ToolSchema:
+        return llm_parameter.ToolSchema(
+            name=tools.READ,
             type="function",
             description=load_desc(Path(__file__).parent / "read_tool.md"),
             parameters={
@@ -170,11 +168,11 @@ class ReadTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultItem:
         try:
             args = ReadTool.ReadArguments.model_validate_json(arguments)
         except Exception as e:  # pragma: no cover - defensive
-            return ToolResultItem(status="error", output=f"Invalid arguments: {e}")
+            return model.ToolResultItem(status="error", output=f"Invalid arguments: {e}")
         return await cls.call_with_args(args)
 
     @classmethod
@@ -188,7 +186,7 @@ class ReadTool(ToolABC):
         )
 
     @classmethod
-    async def call_with_args(cls, args: ReadTool.ReadArguments) -> ToolResultItem:
+    async def call_with_args(cls, args: ReadTool.ReadArguments) -> model.ToolResultItem:
         # Accept relative path by resolving to absolute (schema encourages absolute)
         file_path = os.path.abspath(args.file_path)
 
@@ -197,19 +195,19 @@ class ReadTool(ToolABC):
 
         # Common file errors
         if _is_directory(file_path):
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output="<tool_use_error>Illegal operation on a directory. read</tool_use_error>",
             )
         if not _file_exists(file_path):
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output="<tool_use_error>File does not exist.</tool_use_error>",
             )
 
         # Check for PDF files
         if Path(file_path).suffix.lower() == ".pdf":
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=(
                     "<tool_use_error>PDF files are not supported by this tool. "
@@ -237,7 +235,7 @@ class ReadTool(ToolABC):
         if is_image_file:
             if size_bytes > READ_MAX_IMAGE_BYTES:
                 size_mb = size_bytes / (1024 * 1024)
-                return ToolResultItem(
+                return model.ToolResultItem(
                     status="error",
                     output=(
                         f"<tool_use_error>Image size ({size_mb:.2f}MB) exceeds maximum supported size (4.00MB) for inline transfer.</tool_use_error>"
@@ -247,7 +245,7 @@ class ReadTool(ToolABC):
                 mime_type = _image_mime_type(file_path)
                 data_url = _encode_image_to_data_url(file_path, mime_type)
             except Exception as exc:
-                return ToolResultItem(
+                return model.ToolResultItem(
                     status="error",
                     output=f"<tool_use_error>Failed to read image file: {exc}</tool_use_error>",
                 )
@@ -255,8 +253,8 @@ class ReadTool(ToolABC):
             _track_file_access(file_path)
             size_kb = size_bytes / 1024.0 if size_bytes else 0.0
             output_text = f"[image] {Path(file_path).name} ({size_kb:.1f}KB)"
-            image_part = ImageURLPart(image_url=ImageURLPart.ImageURL(url=data_url, id=None))
-            return ToolResultItem(status="success", output=output_text, images=[image_part])
+            image_part = model.ImageURLPart(image_url=model.ImageURLPart.ImageURL(url=data_url, id=None))
+            return model.ToolResultItem(status="success", output=output_text, images=[image_part])
 
         if (
             not is_image_file
@@ -266,7 +264,7 @@ class ReadTool(ToolABC):
             and size_bytes > max_kb * 1024
         ):
             size_kb = size_bytes / 1024.0
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=(
                     f"File content ({size_kb:.1f}KB) exceeds maximum allowed size ({max_kb}KB). Please use offset and limit parameters to read specific portions of the file, or use the `rg` command to search for specific content."
@@ -294,12 +292,12 @@ class ReadTool(ToolABC):
             )
 
         except FileNotFoundError:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output="<tool_use_error>File does not exist.</tool_use_error>",
             )
         except IsADirectoryError:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output="<tool_use_error>Illegal operation on a directory. read</tool_use_error>",
             )
@@ -309,11 +307,11 @@ class ReadTool(ToolABC):
             warn = f"<system-reminder>Warning: the file exists but is shorter than the provided offset ({offset}). The file has {read_result.total_lines} lines.</system-reminder>"
             # Update FileTracker (we still consider it as a read attempt)
             _track_file_access(file_path)
-            return ToolResultItem(status="success", output=warn)
+            return model.ToolResultItem(status="success", output=warn)
 
         # After limit/offset, if total selected chars exceed limit, error (only check if limits are enabled)
         if max_chars is not None and read_result.selected_chars_count > max_chars:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=(
                     f"File content ({read_result.selected_chars_count} chars) exceeds maximum allowed tokens ({max_chars}). Please use offset and limit parameters to read specific portions of the file, or use the `rg` command to search for specific content."
@@ -331,4 +329,4 @@ class ReadTool(ToolABC):
         # Update FileTracker with last modified time
         _track_file_access(file_path)
 
-        return ToolResultItem(status="success", output=read_result_str)
+        return model.ToolResultItem(status="success", output=read_result_str)

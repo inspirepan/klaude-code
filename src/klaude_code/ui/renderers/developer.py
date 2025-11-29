@@ -2,8 +2,7 @@ from rich.console import Group, RenderableType
 from rich.padding import Padding
 from rich.text import Text
 
-from klaude_code.protocol import events
-from klaude_code.protocol.commands import CommandName
+from klaude_code.protocol import commands, events
 from klaude_code.ui.base.theme import ThemeKey
 from klaude_code.ui.renderers import diffs as r_diffs
 from klaude_code.ui.renderers.common import create_grid, truncate_display
@@ -95,11 +94,11 @@ def render_command_output(e: events.DeveloperMessageEvent) -> RenderableType:
         return Text("")
 
     match e.item.command_output.command_name:
-        case CommandName.DIFF:
+        case commands.CommandName.DIFF:
             if e.item.content is None or len(e.item.content) == 0:
                 return Padding.indent(Text("(no changes)", style=ThemeKey.TOOL_RESULT), level=2)
             return r_diffs.render_diff_panel(e.item.content, show_file_name=True)
-        case CommandName.HELP:
+        case commands.CommandName.HELP:
             return Padding.indent(Text.from_markup(e.item.content or ""), level=2)
         case _:
             content = e.item.content or "(no content)"

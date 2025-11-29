@@ -11,24 +11,22 @@ from klaude_code.core.tool.file import apply_patch as apply_patch_module
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import tools
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
+from klaude_code.protocol import llm_parameter, model, tools
 
 
 class ApplyPatchHandler:
     @classmethod
-    async def handle_apply_patch(cls, patch_text: str) -> ToolResultItem:
+    async def handle_apply_patch(cls, patch_text: str) -> model.ToolResultItem:
         try:
             output, diff_text = await asyncio.to_thread(cls._apply_patch_in_thread, patch_text)
         except apply_patch_module.DiffError as error:
-            return ToolResultItem(status="error", output=str(error))
+            return model.ToolResultItem(status="error", output=str(error))
         except Exception as error:  # pragma: no cover  # unexpected errors bubbled to tool result
-            return ToolResultItem(status="error", output=f"Execution error: {error}")
-        return ToolResultItem(
+            return model.ToolResultItem(status="error", output=f"Execution error: {error}")
+        return model.ToolResultItem(
             status="success",
             output=output,
-            ui_extra=ToolResultUIExtra(type=ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text),
+            ui_extra=model.ToolResultUIExtra(type=model.ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text),
         )
 
     @staticmethod
@@ -176,8 +174,8 @@ class ApplyPatchTool(ToolABC):
         patch: str
 
     @classmethod
-    def schema(cls) -> ToolSchema:
-        return ToolSchema(
+    def schema(cls) -> llm_parameter.ToolSchema:
+        return llm_parameter.ToolSchema(
             name=tools.APPLY_PATCH,
             type="function",
             description=load_desc(Path(__file__).parent / "apply_patch_tool.md"),
@@ -194,13 +192,13 @@ class ApplyPatchTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultItem:
         try:
             args = cls.ApplyPatchArguments.model_validate_json(arguments)
         except ValueError as exc:
-            return ToolResultItem(status="error", output=f"Invalid arguments: {exc}")
+            return model.ToolResultItem(status="error", output=f"Invalid arguments: {exc}")
         return await cls.call_with_args(args)
 
     @classmethod
-    async def call_with_args(cls, args: ApplyPatchArguments) -> ToolResultItem:
+    async def call_with_args(cls, args: ApplyPatchArguments) -> model.ToolResultItem:
         return await ApplyPatchHandler.handle_apply_patch(args.patch)

@@ -5,9 +5,7 @@ from pathlib import Path
 from klaude_code.command.command_abc import CommandABC, CommandResult
 from klaude_code.command.registry import register_command
 from klaude_code.core import Agent
-from klaude_code.protocol import events
-from klaude_code.protocol.commands import CommandName
-from klaude_code.protocol.model import CommandOutput, DeveloperMessageItem
+from klaude_code.protocol import commands, events, model
 
 
 @register_command
@@ -15,8 +13,8 @@ class TerminalSetupCommand(CommandABC):
     """Setup shift+enter newline functionality in terminal"""
 
     @property
-    def name(self) -> CommandName:
-        return CommandName.TERMINAL_SETUP
+    def name(self) -> commands.CommandName:
+        return commands.CommandName.TERMINAL_SETUP
 
     @property
     def summary(self) -> str:
@@ -231,9 +229,9 @@ class TerminalSetupCommand(CommandABC):
             events=[
                 events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=DeveloperMessageItem(
+                    item=model.DeveloperMessageItem(
                         content=message,
-                        command_output=CommandOutput(command_name=self.name, is_error=False),
+                        command_output=model.CommandOutput(command_name=self.name, is_error=False),
                     ),
                 )
             ]
@@ -245,9 +243,9 @@ class TerminalSetupCommand(CommandABC):
             events=[
                 events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=DeveloperMessageItem(
+                    item=model.DeveloperMessageItem(
                         content=message,
-                        command_output=CommandOutput(command_name=self.name, is_error=True),
+                        command_output=model.CommandOutput(command_name=self.name, is_error=True),
                     ),
                 )
             ]

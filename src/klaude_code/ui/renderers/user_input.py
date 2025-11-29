@@ -3,7 +3,7 @@ import re
 from rich.console import Group, RenderableType
 from rich.text import Text
 
-from klaude_code.protocol.commands import CommandName
+from klaude_code.protocol import commands
 from klaude_code.ui.base.theme import ThemeKey
 from klaude_code.ui.renderers.common import create_grid
 
@@ -27,7 +27,7 @@ def render_at_pattern(
 
 def _is_valid_slash_command(command: str) -> bool:
     try:
-        CommandName(command)
+        commands.CommandName(command)
         return True
     except ValueError:
         return False

@@ -1,8 +1,7 @@
 from klaude_code.command.command_abc import CommandABC, CommandResult
 from klaude_code.command.registry import register_command
 from klaude_code.core import Agent
-from klaude_code.protocol import events
-from klaude_code.protocol.commands import CommandName
+from klaude_code.protocol import commands, events
 
 
 @register_command
@@ -10,8 +9,8 @@ class RefreshTerminalCommand(CommandABC):
     """Refresh terminal display"""
 
     @property
-    def name(self) -> CommandName:
-        return CommandName.REFRESH_TERMINAL
+    def name(self) -> commands.CommandName:
+        return commands.CommandName.REFRESH_TERMINAL
 
     @property
     def summary(self) -> str:

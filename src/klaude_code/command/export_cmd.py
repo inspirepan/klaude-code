@@ -6,9 +6,7 @@ from pathlib import Path
 from klaude_code.command.command_abc import CommandABC, CommandResult
 from klaude_code.command.registry import register_command
 from klaude_code.core import Agent
-from klaude_code.protocol.commands import CommandName
-from klaude_code.protocol.events import DeveloperMessageEvent
-from klaude_code.protocol.model import CommandOutput, DeveloperMessageItem
+from klaude_code.protocol import commands, events, model
 from klaude_code.session.export import build_export_html, get_default_export_path
 
 
@@ -17,8 +15,8 @@ class ExportCommand(CommandABC):
     """Export the current session into a standalone HTML transcript."""
 
     @property
-    def name(self) -> CommandName:
-        return CommandName.EXPORT
+    def name(self) -> commands.CommandName:
+        return commands.CommandName.EXPORT
 
     @property
     def summary(self) -> str:
@@ -41,11 +39,11 @@ class ExportCommand(CommandABC):
             self._open_file(output_path)
             return CommandResult(
                 events=[
-                    DeveloperMessageEvent(
+                    events.DeveloperMessageEvent(
                         session_id=agent.session.id,
-                        item=DeveloperMessageItem(
+                        item=model.DeveloperMessageItem(
                             content=f"Session exported and opened: {output_path}",
-                            command_output=CommandOutput(command_name=self.name),
+                            command_output=model.CommandOutput(command_name=self.name),
                         ),
                     )
                 ]
@@ -53,11 +51,11 @@ class ExportCommand(CommandABC):
         except Exception as exc:  # pragma: no cover - safeguard for unexpected errors
             return CommandResult(
                 events=[
-                    DeveloperMessageEvent(
+                    events.DeveloperMessageEvent(
                         session_id=agent.session.id,
-                        item=DeveloperMessageItem(
+                        item=model.DeveloperMessageItem(
                             content=f"Failed to export session: {exc}",
-                            command_output=CommandOutput(command_name=self.name, is_error=True),
+                            command_output=model.CommandOutput(command_name=self.name, is_error=True),
                         ),
                     )
                 ]

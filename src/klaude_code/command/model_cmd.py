@@ -5,10 +5,8 @@ from klaude_code.command.registry import register_command
 from klaude_code.config import load_config
 from klaude_code.config.select_model import select_model_from_config
 from klaude_code.core import Agent
-from klaude_code.llm.registry import create_llm_client
-from klaude_code.protocol.commands import CommandName
-from klaude_code.protocol.events import DeveloperMessageEvent, WelcomeEvent
-from klaude_code.protocol.model import CommandOutput, DeveloperMessageItem
+from klaude_code.llm import create_llm_client
+from klaude_code.protocol import commands, events, model
 from klaude_code.trace import DebugType, log_debug
 
 
@@ -17,8 +15,8 @@ class ModelCommand(CommandABC):
     """Display or change the model configuration."""
 
     @property
-    def name(self) -> CommandName:
-        return CommandName.MODEL
+    def name(self) -> commands.CommandName:
+        return commands.CommandName.MODEL
 
     @property
     def summary(self) -> str:
@@ -35,11 +33,11 @@ class ModelCommand(CommandABC):
         if selected_model is None or selected_model == current_model:
             return CommandResult(
                 events=[
-                    DeveloperMessageEvent(
+                    events.DeveloperMessageEvent(
                         session_id=agent.session.id,
-                        item=DeveloperMessageItem(
+                        item=model.DeveloperMessageItem(
                             content="(no change)",
-                            command_output=CommandOutput(command_name=self.name),
+                            command_output=model.CommandOutput(command_name=self.name),
                         ),
                     )
                 ]
@@ -61,13 +59,13 @@ class ModelCommand(CommandABC):
 
         return CommandResult(
             events=[
-                DeveloperMessageEvent(
+                events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=DeveloperMessageItem(
+                    item=model.DeveloperMessageItem(
                         content=f"switched to model: {selected_model}",
-                        command_output=CommandOutput(command_name=self.name),
+                        command_output=model.CommandOutput(command_name=self.name),
                     ),
                 ),
-                WelcomeEvent(llm_config=llm_config, work_dir=str(agent.session.work_dir)),
+                events.WelcomeEvent(llm_config=llm_config, work_dir=str(agent.session.work_dir)),
             ]
         )

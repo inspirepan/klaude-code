@@ -1,9 +1,7 @@
 from klaude_code.command.command_abc import CommandABC, CommandResult
 from klaude_code.command.registry import register_command
 from klaude_code.core import Agent
-from klaude_code.protocol.commands import CommandName
-from klaude_code.protocol.events import DeveloperMessageEvent
-from klaude_code.protocol.model import CommandOutput, DeveloperMessageItem
+from klaude_code.protocol import commands, events, model
 from klaude_code.session.session import Session
 
 
@@ -12,8 +10,8 @@ class ClearCommand(CommandABC):
     """Clear current session and start a new conversation"""
 
     @property
-    def name(self) -> CommandName:
-        return CommandName.CLEAR
+    def name(self) -> commands.CommandName:
+        return commands.CommandName.CLEAR
 
     @property
     def summary(self) -> str:
@@ -32,11 +30,11 @@ class ClearCommand(CommandABC):
 
         return CommandResult(
             events=[
-                DeveloperMessageEvent(
+                events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=DeveloperMessageItem(
+                    item=model.DeveloperMessageItem(
                         content="started new conversation",
-                        command_output=CommandOutput(command_name=self.name),
+                        command_output=model.CommandOutput(command_name=self.name),
                     ),
                 ),
             ]

@@ -3,8 +3,7 @@ from typing import Callable, TypeVar
 from klaude_code.core.sub_agent import get_sub_agent_profile, iter_sub_agent_profiles, sub_agent_tool_names
 from klaude_code.core.tool.sub_agent_tool import SubAgentTool
 from klaude_code.core.tool.tool_abc import ToolABC
-from klaude_code.protocol import tools
-from klaude_code.protocol.llm_parameter import ToolSchema
+from klaude_code.protocol import llm_parameter, tools
 
 _REGISTRY: dict[str, type[ToolABC]] = {}
 
@@ -33,8 +32,8 @@ def list_tools() -> list[str]:
     return list(_REGISTRY.keys())
 
 
-def get_tool_schemas(tool_names: list[str]) -> list[ToolSchema]:
-    schemas: list[ToolSchema] = []
+def get_tool_schemas(tool_names: list[str]) -> list[llm_parameter.ToolSchema]:
+    schemas: list[llm_parameter.ToolSchema] = []
     for tool_name in tool_names:
         if tool_name not in _REGISTRY:
             raise ValueError(f"Unknown Tool: {tool_name}")
@@ -47,7 +46,7 @@ def get_registry() -> dict[str, type[ToolABC]]:
     return _REGISTRY
 
 
-def get_vanilla_tools() -> list[ToolSchema]:
+def get_vanilla_tools() -> list[llm_parameter.ToolSchema]:
     base_tool_names = [
         tools.BASH,
         tools.EDIT,
@@ -57,7 +56,7 @@ def get_vanilla_tools() -> list[ToolSchema]:
     return get_tool_schemas(base_tool_names)
 
 
-def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
+def get_main_agent_tools(model_name: str) -> list[llm_parameter.ToolSchema]:
     def _base_main_tools(name: str) -> list[str]:
         if "gpt-5" in name:
             return [
@@ -86,7 +85,7 @@ def get_main_agent_tools(model_name: str) -> list[ToolSchema]:
     return get_tool_schemas(tool_names)
 
 
-def get_sub_agent_tools(model_name: str, sub_agent_type: tools.SubAgentType) -> list[ToolSchema]:
+def get_sub_agent_tools(model_name: str, sub_agent_type: tools.SubAgentType) -> list[llm_parameter.ToolSchema]:
     profile = get_sub_agent_profile(sub_agent_type)
     if not profile.enabled_for_model(model_name):
         return []

@@ -10,9 +10,7 @@ from pydantic import BaseModel, Field
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
-from klaude_code.protocol.tools import EDIT
+from klaude_code.protocol import llm_parameter, model, tools
 
 
 def _is_directory(path: str) -> bool:
@@ -41,7 +39,7 @@ def _write_text(path: str, content: str) -> None:
         f.write(content)
 
 
-@register(EDIT)
+@register(tools.EDIT)
 class EditTool(ToolABC):
     class EditArguments(BaseModel):
         file_path: str
@@ -50,9 +48,9 @@ class EditTool(ToolABC):
         replace_all: bool = Field(default=False)
 
     @classmethod
-    def schema(cls) -> ToolSchema:
-        return ToolSchema(
-            name=EDIT,
+    def schema(cls) -> llm_parameter.ToolSchema:
+        return llm_parameter.ToolSchema(
+            name=tools.EDIT,
             type="function",
             description=load_desc(Path(__file__).parent / "edit_tool.md"),
             parameters={
@@ -112,23 +110,23 @@ class EditTool(ToolABC):
         return content.replace(old_string, new_string, 1)
 
     @classmethod
-    async def call(cls, arguments: str) -> ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultItem:
         try:
             args = EditTool.EditArguments.model_validate_json(arguments)
         except Exception as e:  # pragma: no cover - defensive
-            return ToolResultItem(status="error", output=f"Invalid arguments: {e}")
+            return model.ToolResultItem(status="error", output=f"Invalid arguments: {e}")
 
         file_path = os.path.abspath(args.file_path)
 
         # Common file errors
         if _is_directory(file_path):
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output="<tool_use_error>Illegal operation on a directory. edit</tool_use_error>",
             )
 
         if args.old_string == "":
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=(
                     "<tool_use_error>old_string must not be empty for Edit. "
@@ -140,14 +138,14 @@ class EditTool(ToolABC):
         file_tracker = get_current_file_tracker()
         if not _file_exists(file_path):
             # We require reading before editing
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=("File has not been read yet. Read it first before writing to it."),
             )
         if file_tracker is not None:
             tracked = file_tracker.get(file_path)
             if tracked is None:
-                return ToolResultItem(
+                return model.ToolResultItem(
                     status="error",
                     output=("File has not been read yet. Read it first before writing to it."),
                 )
@@ -156,7 +154,7 @@ class EditTool(ToolABC):
             except Exception:
                 current_mtime = tracked
             if current_mtime != tracked:
-                return ToolResultItem(
+                return model.ToolResultItem(
                     status="error",
                     output=(
                         "File has been modified externally. Either by user or a linter. Read it first before writing to it."
@@ -167,7 +165,7 @@ class EditTool(ToolABC):
         try:
             before = await asyncio.to_thread(_read_text, file_path)
         except FileNotFoundError:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output="File has not been read yet. Read it first before writing to it.",
             )
@@ -179,7 +177,7 @@ class EditTool(ToolABC):
             replace_all=args.replace_all,
         )
         if err is not None:
-            return ToolResultItem(status="error", output=err)
+            return model.ToolResultItem(status="error", output=err)
 
         after = cls.execute(
             content=before,
@@ -190,7 +188,7 @@ class EditTool(ToolABC):
 
         # If nothing changed due to replacement semantics (should not happen after valid), guard anyway
         if before == after:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=(
                     "<tool_use_error>No changes to make: old_string and new_string are exactly the same.</tool_use_error>"
@@ -201,7 +199,7 @@ class EditTool(ToolABC):
         try:
             await asyncio.to_thread(_write_text, file_path, after)
         except Exception as e:  # pragma: no cover
-            return ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
+            return model.ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
 
         # Prepare UI extra: unified diff with 3 context lines
         diff_lines = list(
@@ -214,7 +212,7 @@ class EditTool(ToolABC):
             )
         )
         diff_text = "\n".join(diff_lines)
-        ui_extra = ToolResultUIExtra(type=ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text)
+        ui_extra = model.ToolResultUIExtra(type=model.ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text)
 
         # Update tracker with new mtime
         if file_tracker is not None:
@@ -226,7 +224,7 @@ class EditTool(ToolABC):
         # Build output message
         if args.replace_all:
             msg = f"The file {file_path} has been updated. All occurrences of '{args.old_string}' were successfully replaced with '{args.new_string}'."
-            return ToolResultItem(status="success", output=msg, ui_extra=ui_extra)
+            return model.ToolResultItem(status="success", output=msg, ui_extra=ui_extra)
 
         # For single replacement, show a snippet consisting of context + added lines only
         # Parse the diff to collect target line numbers in the 'after' file
@@ -273,4 +271,4 @@ class EditTool(ToolABC):
             f"The file {file_path} has been updated. Here's the result of running `cat -n` on a snippet of the edited file:\n"
             f"{snippet}"
         )
-        return ToolResultItem(status="success", output=output, ui_extra=ui_extra)
+        return model.ToolResultItem(status="success", output=output, ui_extra=ui_extra)

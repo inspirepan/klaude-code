@@ -12,20 +12,7 @@ from string import Template
 from typing import TYPE_CHECKING, Any, Final, cast
 
 from klaude_code.core.sub_agent import is_sub_agent_tool
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import (
-    AssistantMessageItem,
-    ConversationItem,
-    DeveloperMessageItem,
-    ReasoningEncryptedItem,
-    ReasoningTextItem,
-    ResponseMetadataItem,
-    ToolCallItem,
-    ToolResultItem,
-    ToolResultUIExtra,
-    ToolResultUIExtraType,
-    UserMessageItem,
-)
+from klaude_code.protocol import llm_parameter, model
 
 if TYPE_CHECKING:
     from klaude_code.session.session import Session
@@ -58,10 +45,10 @@ def _format_timestamp(value: float | None) -> str:
     return datetime.fromtimestamp(value).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def get_first_user_message(history: list[ConversationItem]) -> str:
+def get_first_user_message(history: list[model.ConversationItem]) -> str:
     """Extract the first user message content from conversation history."""
     for item in history:
-        if isinstance(item, UserMessageItem) and item.content:
+        if isinstance(item, model.UserMessageItem) and item.content:
             content = item.content.strip()
             first_line = content.split("\n")[0]
             return first_line[:100] if len(first_line) > 100 else first_line
@@ -86,7 +73,7 @@ def _load_template() -> str:
     return template_file.read_text(encoding="utf-8")
 
 
-def _build_tools_html(tools: list[ToolSchema]) -> str:
+def _build_tools_html(tools: list[llm_parameter.ToolSchema]) -> str:
     if not tools:
         return '<div style="padding: 12px; font-style: italic;">No tools registered for this session.</div>'
     chunks: list[str] = []
@@ -163,7 +150,7 @@ def _format_token_count(count: int) -> str:
     return f"{m}M" if rem == 0 else f"{m}M{rem}k"
 
 
-def _render_metadata_item(item: ResponseMetadataItem) -> str:
+def _render_metadata_item(item: model.ResponseMetadataItem) -> str:
     # Line 1: Model Name [@ Provider]
     model_parts = [f'<span class="metadata-model">{_escape_html(item.model_name)}</span>']
     if item.provider:
@@ -326,18 +313,20 @@ def _render_diff_block(diff: str) -> str:
     )
 
 
-def _get_diff_text(ui_extra: ToolResultUIExtra | None) -> str | None:
+def _get_diff_text(ui_extra: model.ToolResultUIExtra | None) -> str | None:
     if ui_extra is None:
         return None
-    if ui_extra.type != ToolResultUIExtraType.DIFF_TEXT:
+    if ui_extra.type != model.ToolResultUIExtraType.DIFF_TEXT:
         return None
     return ui_extra.diff_text
 
 
-def _get_mermaid_link_html(ui_extra: ToolResultUIExtra | None, tool_call: ToolCallItem | None = None) -> str | None:
+def _get_mermaid_link_html(
+    ui_extra: model.ToolResultUIExtra | None, tool_call: model.ToolCallItem | None = None
+) -> str | None:
     if ui_extra is None:
         return None
-    if ui_extra.type != ToolResultUIExtraType.MERMAID_LINK:
+    if ui_extra.type != model.ToolResultUIExtraType.MERMAID_LINK:
         return None
     if ui_extra.mermaid_link is None or not ui_extra.mermaid_link.link:
         return None
@@ -366,7 +355,7 @@ def _get_mermaid_link_html(ui_extra: ToolResultUIExtra | None, tool_call: ToolCa
     )
 
 
-def _format_tool_call(tool_call: ToolCallItem, result: ToolResultItem | None) -> str:
+def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultItem | None) -> str:
     args_html = None
     is_todo_list = False
     if tool_call.name == "TodoWrite":
@@ -453,16 +442,18 @@ def _format_tool_call(tool_call: ToolCallItem, result: ToolResultItem | None) ->
 
 
 def _build_messages_html(
-    history: list[ConversationItem],
-    tool_results: dict[str, ToolResultItem],
+    history: list[model.ConversationItem],
+    tool_results: dict[str, model.ToolResultItem],
 ) -> str:
     blocks: list[str] = []
     assistant_counter = 0
 
-    renderable_items = [item for item in history if not isinstance(item, (ToolResultItem, ReasoningEncryptedItem))]
+    renderable_items = [
+        item for item in history if not isinstance(item, (model.ToolResultItem, model.ReasoningEncryptedItem))
+    ]
 
     for i, item in enumerate(renderable_items):
-        if isinstance(item, UserMessageItem):
+        if isinstance(item, model.UserMessageItem):
             text = _escape_html(item.content or "")
             blocks.append(
                 f'<div class="message-group">'
@@ -470,20 +461,20 @@ def _build_messages_html(
                 f'<div class="message-content user" style="white-space: pre-wrap;">{text}</div>'
                 f"</div>"
             )
-        elif isinstance(item, ReasoningTextItem):
+        elif isinstance(item, model.ReasoningTextItem):
             text = _escape_html(item.content.strip())
             blocks.append(f'<div class="thinking-block">{text.replace(chr(10), "<br>")}</div>')
-        elif isinstance(item, AssistantMessageItem):
+        elif isinstance(item, model.AssistantMessageItem):
             assistant_counter += 1
             blocks.append(_render_assistant_message(assistant_counter, item.content or ""))
-        elif isinstance(item, ResponseMetadataItem):
+        elif isinstance(item, model.ResponseMetadataItem):
             blocks.append(_render_metadata_item(item))
-        elif isinstance(item, DeveloperMessageItem):
+        elif isinstance(item, model.DeveloperMessageItem):
             content = _escape_html(item.content or "")
 
             next_item = renderable_items[i + 1] if i + 1 < len(renderable_items) else None
             extra_class = ""
-            if isinstance(next_item, (UserMessageItem, AssistantMessageItem)):
+            if isinstance(next_item, (model.UserMessageItem, model.AssistantMessageItem)):
                 extra_class = " gap-below"
 
             blocks.append(
@@ -492,7 +483,7 @@ def _build_messages_html(
                 f'<div class="details-content" style="white-space: pre-wrap;">{content}</div>'
                 f"</details>"
             )
-        elif isinstance(item, ToolCallItem):
+        elif isinstance(item, model.ToolCallItem):
             result = tool_results.get(item.call_id)
             blocks.append(_format_tool_call(item, result))
 
@@ -502,7 +493,7 @@ def _build_messages_html(
 def build_export_html(
     session: Session,
     system_prompt: str,
-    tools: list[ToolSchema],
+    tools: list[llm_parameter.ToolSchema],
     model_name: str,
 ) -> str:
     """Build HTML export for a session.
@@ -517,7 +508,7 @@ def build_export_html(
         Complete HTML document as a string.
     """
     history = session.conversation_history
-    tool_results = {item.call_id: item for item in history if isinstance(item, ToolResultItem)}
+    tool_results = {item.call_id: item for item in history if isinstance(item, model.ToolResultItem)}
     messages_html = _build_messages_html(history, tool_results)
     if not messages_html:
         messages_html = '<div class="text-dim p-4 italic">No messages recorded for this session yet.</div>'
@@ -526,7 +517,7 @@ def build_export_html(
     session_id = session.id
     session_updated = _format_timestamp(session.updated_at)
     work_dir = _shorten_path(str(session.work_dir))
-    total_messages = len([item for item in history if not isinstance(item, ToolResultItem)])
+    total_messages = len([item for item in history if not isinstance(item, model.ToolResultItem)])
     footer_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     first_user_message = get_first_user_message(history)
 

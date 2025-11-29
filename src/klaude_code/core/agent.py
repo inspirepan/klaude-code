@@ -20,7 +20,7 @@ from klaude_code.core.tool.tool_registry import (
     get_sub_agent_tools,
     get_vanilla_tools,
 )
-from klaude_code.llm.client import LLMClientABC
+from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import events, llm_parameter, model, tools
 from klaude_code.session import Session
 from klaude_code.trace import DebugType, log_debug

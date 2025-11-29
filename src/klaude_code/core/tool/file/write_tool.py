@@ -10,9 +10,7 @@ from pydantic import BaseModel
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
-from klaude_code.protocol.tools import WRITE
+from klaude_code.protocol import llm_parameter, model, tools
 
 
 def _is_directory(path: str) -> bool:
@@ -46,12 +44,12 @@ class WriteArguments(BaseModel):
     content: str
 
 
-@register(WRITE)
+@register(tools.WRITE)
 class WriteTool(ToolABC):
     @classmethod
-    def schema(cls) -> ToolSchema:
-        return ToolSchema(
-            name=WRITE,
+    def schema(cls) -> llm_parameter.ToolSchema:
+        return llm_parameter.ToolSchema(
+            name=tools.WRITE,
             type="function",
             description=load_desc(Path(__file__).parent / "write_tool.md"),
             parameters={
@@ -72,16 +70,16 @@ class WriteTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultItem:
         try:
             args = WriteArguments.model_validate_json(arguments)
         except Exception as e:  # pragma: no cover - defensive
-            return ToolResultItem(status="error", output=f"Invalid arguments: {e}")
+            return model.ToolResultItem(status="error", output=f"Invalid arguments: {e}")
 
         file_path = os.path.abspath(args.file_path)
 
         if _is_directory(file_path):
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output="<tool_use_error>Illegal operation on a directory. write</tool_use_error>",
             )
@@ -94,7 +92,7 @@ class WriteTool(ToolABC):
             if file_tracker is not None:
                 tracked_mtime = file_tracker.get(file_path)
             if tracked_mtime is None:
-                return ToolResultItem(
+                return model.ToolResultItem(
                     status="error",
                     output=("File has not been read yet. Read it first before writing to it."),
                 )
@@ -103,7 +101,7 @@ class WriteTool(ToolABC):
             except Exception:
                 current_mtime = tracked_mtime
             if current_mtime != tracked_mtime:
-                return ToolResultItem(
+                return model.ToolResultItem(
                     status="error",
                     output=(
                         "File has been modified externally. Either by user or a linter. "
@@ -122,7 +120,7 @@ class WriteTool(ToolABC):
         try:
             await asyncio.to_thread(_write_text, file_path, args.content)
         except Exception as e:  # pragma: no cover
-            return ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
+            return model.ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
 
         if file_tracker is not None:
             try:
@@ -142,7 +140,7 @@ class WriteTool(ToolABC):
             )
         )
         diff_text = "\n".join(diff_lines)
-        ui_extra = ToolResultUIExtra(type=ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text)
+        ui_extra = model.ToolResultUIExtra(type=model.ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text)
 
         message = f"File {'overwritten' if exists else 'created'} successfully at: {file_path}"
-        return ToolResultItem(status="success", output=message, ui_extra=ui_extra)
+        return model.ToolResultItem(status="success", output=message, ui_extra=ui_extra)

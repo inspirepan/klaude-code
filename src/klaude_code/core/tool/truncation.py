@@ -12,8 +12,7 @@ from klaude_code.const import (
     TOOL_OUTPUT_MAX_LENGTH,
     TOOL_OUTPUT_TRUNCATION_DIR,
 )
-from klaude_code.protocol.model import ToolCallItem
-from klaude_code.protocol.tools import WEB_FETCH
+from klaude_code.protocol import model, tools
 
 
 @dataclass
@@ -47,7 +46,7 @@ class TruncationStrategy(ABC):
     """Abstract base class for tool output truncation strategies."""
 
     @abstractmethod
-    def truncate(self, output: str, tool_call: ToolCallItem | None = None) -> TruncationResult:
+    def truncate(self, output: str, tool_call: model.ToolCallItem | None = None) -> TruncationResult:
         """Truncate the output according to the strategy."""
         ...
 
@@ -58,7 +57,7 @@ class SimpleTruncationStrategy(TruncationStrategy):
     def __init__(self, max_length: int = TOOL_OUTPUT_MAX_LENGTH):
         self.max_length = max_length
 
-    def truncate(self, output: str, tool_call: ToolCallItem | None = None) -> TruncationResult:
+    def truncate(self, output: str, tool_call: model.ToolCallItem | None = None) -> TruncationResult:
         if len(output) > self.max_length:
             truncated_length = len(output) - self.max_length
             truncated_output = output[: self.max_length] + f"... (truncated {truncated_length} characters)"
@@ -86,9 +85,9 @@ class SmartTruncationStrategy(TruncationStrategy):
         self.tail_chars = tail_chars
         self.truncation_dir = Path(truncation_dir)
 
-    def _get_file_identifier(self, tool_call: ToolCallItem | None) -> str:
+    def _get_file_identifier(self, tool_call: model.ToolCallItem | None) -> str:
         """Get a file identifier based on tool call. For WebFetch, use URL; otherwise use call_id."""
-        if tool_call and tool_call.name == WEB_FETCH:
+        if tool_call and tool_call.name == tools.WEB_FETCH:
             try:
                 args = json.loads(tool_call.arguments)
                 url = args.get("url", "")
@@ -101,7 +100,7 @@ class SmartTruncationStrategy(TruncationStrategy):
             return tool_call.call_id.replace("/", "_")
         return "unknown"
 
-    def _save_to_file(self, output: str, tool_call: ToolCallItem | None) -> str | None:
+    def _save_to_file(self, output: str, tool_call: model.ToolCallItem | None) -> str | None:
         """Save full output to file. Returns file path or None on failure."""
         try:
             self.truncation_dir.mkdir(parents=True, exist_ok=True)
@@ -115,7 +114,7 @@ class SmartTruncationStrategy(TruncationStrategy):
         except (OSError, IOError):
             return None
 
-    def truncate(self, output: str, tool_call: ToolCallItem | None = None) -> TruncationResult:
+    def truncate(self, output: str, tool_call: model.ToolCallItem | None = None) -> TruncationResult:
         original_length = len(output)
 
         if original_length <= self.max_length:
@@ -171,6 +170,6 @@ def set_truncation_strategy(strategy: TruncationStrategy) -> None:
     _default_strategy = strategy
 
 
-def truncate_tool_output(output: str, tool_call: ToolCallItem | None = None) -> TruncationResult:
+def truncate_tool_output(output: str, tool_call: model.ToolCallItem | None = None) -> TruncationResult:
     """Truncate tool output using the current strategy."""
     return get_truncation_strategy().truncate(output, tool_call)

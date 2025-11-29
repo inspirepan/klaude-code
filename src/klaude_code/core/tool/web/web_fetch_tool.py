@@ -9,9 +9,7 @@ from pydantic import BaseModel
 
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import ToolResultItem
-from klaude_code.protocol.tools import WEB_FETCH
+from klaude_code.protocol import llm_parameter, model, tools
 
 DEFAULT_TIMEOUT_SEC = 30
 DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; KlaudeCode/1.0)"
@@ -80,12 +78,12 @@ def _fetch_url(url: str, timeout: int = DEFAULT_TIMEOUT_SEC) -> tuple[str, str]:
         return content_type, text
 
 
-@register(WEB_FETCH)
+@register(tools.WEB_FETCH)
 class WebFetchTool(ToolABC):
     @classmethod
-    def schema(cls) -> ToolSchema:
-        return ToolSchema(
-            name=WEB_FETCH,
+    def schema(cls) -> llm_parameter.ToolSchema:
+        return llm_parameter.ToolSchema(
+            name=tools.WEB_FETCH,
             type="function",
             description=load_desc(Path(__file__).parent / "web_fetch_tool.md"),
             parameters={
@@ -104,23 +102,23 @@ class WebFetchTool(ToolABC):
         url: str
 
     @classmethod
-    async def call(cls, arguments: str) -> ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultItem:
         try:
             args = WebFetchTool.WebFetchArguments.model_validate_json(arguments)
         except ValueError as e:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=f"Invalid arguments: {e}",
             )
         return await cls.call_with_args(args)
 
     @classmethod
-    async def call_with_args(cls, args: WebFetchArguments) -> ToolResultItem:
+    async def call_with_args(cls, args: WebFetchArguments) -> model.ToolResultItem:
         url = args.url
 
         # Basic URL validation
         if not url.startswith(("http://", "https://")):
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output="Invalid URL: must start with http:// or https://",
             )
@@ -129,33 +127,33 @@ class WebFetchTool(ToolABC):
             content_type, text = await asyncio.to_thread(_fetch_url, url)
             processed = _process_content(content_type, text)
 
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="success",
                 output=processed,
             )
 
         except urllib.error.HTTPError as e:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=f"HTTP error {e.code}: {e.reason}",
             )
         except urllib.error.URLError as e:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=f"URL error: {e.reason}",
             )
         except UnicodeDecodeError as e:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=f"Content is not valid UTF-8: {e}",
             )
         except TimeoutError:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=f"Request timed out after {DEFAULT_TIMEOUT_SEC} seconds",
             )
         except Exception as e:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=f"Failed to fetch URL: {e}",
             )

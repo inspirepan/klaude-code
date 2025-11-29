@@ -5,20 +5,10 @@ from pydantic import BaseModel
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_todo_context
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import (
-    TodoItem,
-    TodoUIExtra,
-    ToolResultItem,
-    ToolResultUIExtra,
-    ToolResultUIExtraType,
-    ToolSideEffect,
-    todo_list_str,
-)
-from klaude_code.protocol.tools import TODO_WRITE
+from klaude_code.protocol import llm_parameter, model, tools
 
 
-def get_new_completed_todos(old_todos: list[TodoItem], new_todos: list[TodoItem]) -> list[str]:
+def get_new_completed_todos(old_todos: list[model.TodoItem], new_todos: list[model.TodoItem]) -> list[str]:
     """
     Compare old and new todo lists to find newly completed todos.
 
@@ -49,15 +39,15 @@ def get_new_completed_todos(old_todos: list[TodoItem], new_todos: list[TodoItem]
 
 
 class TodoWriteArguments(BaseModel):
-    todos: list[TodoItem]
+    todos: list[model.TodoItem]
 
 
-@register(TODO_WRITE)
+@register(tools.TODO_WRITE)
 class TodoWriteTool(ToolABC):
     @classmethod
-    def schema(cls) -> ToolSchema:
-        return ToolSchema(
-            name=TODO_WRITE,
+    def schema(cls) -> llm_parameter.ToolSchema:
+        return llm_parameter.ToolSchema(
+            name=tools.TODO_WRITE,
             type="function",
             description=load_desc(Path(__file__).parent / "todo_write_tool.md"),
             parameters={
@@ -87,11 +77,11 @@ class TodoWriteTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultItem:
         try:
             args = TodoWriteArguments.model_validate_json(arguments)
         except ValueError as e:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=f"Invalid arguments: {e}",
             )
@@ -99,7 +89,7 @@ class TodoWriteTool(ToolABC):
         # Get current todo context to store todos
         todo_context = get_current_todo_context()
         if todo_context is None:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output="No active session found",
             )
@@ -113,19 +103,19 @@ class TodoWriteTool(ToolABC):
         # Store todos via todo context
         todo_context.set_todos(args.todos)
 
-        ui_extra = TodoUIExtra(todos=args.todos, new_completed=new_completed)
+        ui_extra = model.TodoUIExtra(todos=args.todos, new_completed=new_completed)
 
         response = f"""Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable
 
 <system-reminder>
 Your todo list has changed. DO NOT mention this explicitly to the user. Here are the latest contents of your todo list:
 
-{todo_list_str(args.todos)}. Continue on with the tasks at hand if applicable.
+{model.todo_list_str(args.todos)}. Continue on with the tasks at hand if applicable.
 </system-reminder>"""
 
-        return ToolResultItem(
+        return model.ToolResultItem(
             status="success",
             output=response,
-            ui_extra=ToolResultUIExtra(type=ToolResultUIExtraType.TODO_LIST, todo_list=ui_extra),
-            side_effects=[ToolSideEffect.TODO_CHANGE],
+            ui_extra=model.ToolResultUIExtra(type=model.ToolResultUIExtraType.TODO_LIST, todo_list=ui_extra),
+            side_effects=[model.ToolSideEffect.TODO_CHANGE],
         )

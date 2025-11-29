@@ -6,7 +6,7 @@ from contextvars import ContextVar, Token
 from dataclasses import dataclass
 
 from klaude_code.core.sub_agent import SubAgentResult
-from klaude_code.protocol.model import SubAgentState, TodoItem
+from klaude_code.protocol import model
 from klaude_code.session.session import Session
 
 
@@ -18,8 +18,8 @@ class TodoContext:
     a new list; they cannot access the full Session object.
     """
 
-    get_todos: Callable[[], list[TodoItem]]
-    set_todos: Callable[[list[TodoItem]], None]
+    get_todos: Callable[[], list[model.TodoItem]]
+    set_todos: Callable[[list[model.TodoItem]], None]
 
 
 @dataclass
@@ -100,7 +100,7 @@ def get_current_todo_context() -> TodoContext | None:
 
 
 # Holds a handle to run a nested subtask (sub-agent) from within a tool call.
-# The callable takes a SubAgentState and returns a SubAgentResult.
-current_run_subtask_callback: ContextVar[Callable[[SubAgentState], Awaitable[SubAgentResult]] | None] = ContextVar(
-    "current_run_subtask_callback", default=None
+# The callable takes a model.SubAgentState and returns a SubAgentResult.
+current_run_subtask_callback: ContextVar[Callable[[model.SubAgentState], Awaitable[SubAgentResult]] | None] = (
+    ContextVar("current_run_subtask_callback", default=None)
 )

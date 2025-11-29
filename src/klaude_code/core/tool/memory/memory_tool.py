@@ -13,9 +13,7 @@ from pydantic import BaseModel, Field
 
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import ToolResultItem, ToolResultUIExtra, ToolResultUIExtraType
-from klaude_code.protocol.tools import MEMORY
+from klaude_code.protocol import llm_parameter, model, tools
 
 MEMORY_VIRTUAL_ROOT = "/memories"
 MEMORY_DIR_NAME = ".claude/memories"
@@ -102,7 +100,7 @@ def _format_numbered_line(line_no: int, content: str) -> str:
     return f"{line_no:>6}|{content}"
 
 
-def _make_diff_ui_extra(before: str, after: str, path: str) -> ToolResultUIExtra:
+def _make_diff_ui_extra(before: str, after: str, path: str) -> model.ToolResultUIExtra:
     diff_lines = list(
         difflib.unified_diff(
             before.splitlines(),
@@ -113,10 +111,10 @@ def _make_diff_ui_extra(before: str, after: str, path: str) -> ToolResultUIExtra
         )
     )
     diff_text = "\n".join(diff_lines)
-    return ToolResultUIExtra(type=ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text)
+    return model.ToolResultUIExtra(type=model.ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text)
 
 
-@register(MEMORY)
+@register(tools.MEMORY)
 class MemoryTool(ToolABC):
     class MemoryArguments(BaseModel):
         command: Literal["view", "create", "str_replace", "insert", "delete", "rename"]
@@ -136,9 +134,9 @@ class MemoryTool(ToolABC):
         new_path: str | None = Field(default=None)
 
     @classmethod
-    def schema(cls) -> ToolSchema:
-        return ToolSchema(
-            name=MEMORY,
+    def schema(cls) -> llm_parameter.ToolSchema:
+        return llm_parameter.ToolSchema(
+            name=tools.MEMORY,
             type="function",
             description=load_desc(Path(__file__).parent / "memory_tool.md"),
             parameters={
@@ -200,11 +198,11 @@ class MemoryTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultItem:
         try:
             args = cls.MemoryArguments.model_validate_json(arguments)
         except Exception as e:
-            return ToolResultItem(status="error", output=f"Invalid arguments: {e}")
+            return model.ToolResultItem(status="error", output=f"Invalid arguments: {e}")
 
         command = args.command
         if command == "view":
@@ -220,23 +218,23 @@ class MemoryTool(ToolABC):
         elif command == "rename":
             return await cls._rename(args)
         else:
-            return ToolResultItem(status="error", output=f"Unknown command: {command}")
+            return model.ToolResultItem(status="error", output=f"Unknown command: {command}")
 
     @classmethod
-    async def _view(cls, args: MemoryArguments) -> ToolResultItem:
+    async def _view(cls, args: MemoryArguments) -> model.ToolResultItem:
         if args.path is None:
-            return ToolResultItem(status="error", output="path is required for view command")
+            return model.ToolResultItem(status="error", output="path is required for view command")
 
         actual_path, error = _validate_path(args.path)
         if error:
-            return ToolResultItem(status="error", output=error)
+            return model.ToolResultItem(status="error", output=error)
         assert actual_path is not None
 
         # Ensure memories directory exists
         _ensure_memories_dir()
 
         if not actual_path.exists():
-            return ToolResultItem(status="error", output=f"Path does not exist: {args.path}")
+            return model.ToolResultItem(status="error", output=f"Path does not exist: {args.path}")
 
         if actual_path.is_dir():
             # List directory contents
@@ -251,9 +249,9 @@ class MemoryTool(ToolABC):
                     lines.append(f"- {entry.name}{prefix}")
                 if len(entries) == 0:
                     lines.append("(empty directory)")
-                return ToolResultItem(status="success", output="\n".join(lines))
+                return model.ToolResultItem(status="success", output="\n".join(lines))
             except Exception as e:
-                return ToolResultItem(status="error", output=f"Failed to list directory: {e}")
+                return model.ToolResultItem(status="error", output=f"Failed to list directory: {e}")
         else:
             # Read file contents
             try:
@@ -269,7 +267,7 @@ class MemoryTool(ToolABC):
                     end = min(total_lines, args.view_range[1])
 
                 if start > total_lines:
-                    return ToolResultItem(
+                    return model.ToolResultItem(
                         status="success",
                         output=f"File has {total_lines} lines, requested start line {start} is beyond end of file",
                     )
@@ -279,25 +277,25 @@ class MemoryTool(ToolABC):
                 output = "\n".join(numbered)
                 if not output:
                     output = "(empty file)"
-                return ToolResultItem(status="success", output=output)
+                return model.ToolResultItem(status="success", output=output)
             except Exception as e:
-                return ToolResultItem(status="error", output=f"Failed to read file: {e}")
+                return model.ToolResultItem(status="error", output=f"Failed to read file: {e}")
 
     @classmethod
-    async def _create(cls, args: MemoryArguments) -> ToolResultItem:
+    async def _create(cls, args: MemoryArguments) -> model.ToolResultItem:
         if args.path is None:
-            return ToolResultItem(status="error", output="path is required for create command")
+            return model.ToolResultItem(status="error", output="path is required for create command")
         if args.file_text is None:
-            return ToolResultItem(status="error", output="file_text is required for create command")
+            return model.ToolResultItem(status="error", output="file_text is required for create command")
 
         actual_path, error = _validate_path(args.path)
         if error:
-            return ToolResultItem(status="error", output=error)
+            return model.ToolResultItem(status="error", output=error)
         assert actual_path is not None
 
         # Cannot create the root directory itself
         if args.path == MEMORY_VIRTUAL_ROOT or args.path == MEMORY_VIRTUAL_ROOT + "/":
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output="Cannot create the memories root directory as a file",
             )
@@ -313,64 +311,64 @@ class MemoryTool(ToolABC):
             await asyncio.to_thread(actual_path.write_text, args.file_text, encoding="utf-8")
 
             ui_extra = _make_diff_ui_extra(before, args.file_text, args.path)
-            return ToolResultItem(status="success", output=f"File created: {args.path}", ui_extra=ui_extra)
+            return model.ToolResultItem(status="success", output=f"File created: {args.path}", ui_extra=ui_extra)
         except Exception as e:
-            return ToolResultItem(status="error", output=f"Failed to create file: {e}")
+            return model.ToolResultItem(status="error", output=f"Failed to create file: {e}")
 
     @classmethod
-    async def _str_replace(cls, args: MemoryArguments) -> ToolResultItem:
+    async def _str_replace(cls, args: MemoryArguments) -> model.ToolResultItem:
         if args.path is None:
-            return ToolResultItem(status="error", output="path is required for str_replace command")
+            return model.ToolResultItem(status="error", output="path is required for str_replace command")
         if args.old_str is None:
-            return ToolResultItem(status="error", output="old_str is required for str_replace command")
+            return model.ToolResultItem(status="error", output="old_str is required for str_replace command")
         if args.new_str is None:
-            return ToolResultItem(status="error", output="new_str is required for str_replace command")
+            return model.ToolResultItem(status="error", output="new_str is required for str_replace command")
 
         actual_path, error = _validate_path(args.path)
         if error:
-            return ToolResultItem(status="error", output=error)
+            return model.ToolResultItem(status="error", output=error)
         assert actual_path is not None
 
         if not actual_path.exists():
-            return ToolResultItem(status="error", output=f"File does not exist: {args.path}")
+            return model.ToolResultItem(status="error", output=f"File does not exist: {args.path}")
         if actual_path.is_dir():
-            return ToolResultItem(status="error", output="Cannot perform str_replace on a directory")
+            return model.ToolResultItem(status="error", output="Cannot perform str_replace on a directory")
 
         try:
             before = await asyncio.to_thread(actual_path.read_text, encoding="utf-8")
             if args.old_str not in before:
-                return ToolResultItem(status="error", output=f"String not found in file: {args.old_str}")
+                return model.ToolResultItem(status="error", output=f"String not found in file: {args.old_str}")
 
             after = before.replace(args.old_str, args.new_str, 1)
             await asyncio.to_thread(actual_path.write_text, after, encoding="utf-8")
 
             ui_extra = _make_diff_ui_extra(before, after, args.path)
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="success",
                 output=f"Replaced text in {args.path}",
                 ui_extra=ui_extra,
             )
         except Exception as e:
-            return ToolResultItem(status="error", output=f"Failed to replace text: {e}")
+            return model.ToolResultItem(status="error", output=f"Failed to replace text: {e}")
 
     @classmethod
-    async def _insert(cls, args: MemoryArguments) -> ToolResultItem:
+    async def _insert(cls, args: MemoryArguments) -> model.ToolResultItem:
         if args.path is None:
-            return ToolResultItem(status="error", output="path is required for insert command")
+            return model.ToolResultItem(status="error", output="path is required for insert command")
         if args.insert_line is None:
-            return ToolResultItem(status="error", output="insert_line is required for insert command")
+            return model.ToolResultItem(status="error", output="insert_line is required for insert command")
         if args.insert_text is None:
-            return ToolResultItem(status="error", output="insert_text is required for insert command")
+            return model.ToolResultItem(status="error", output="insert_text is required for insert command")
 
         actual_path, error = _validate_path(args.path)
         if error:
-            return ToolResultItem(status="error", output=error)
+            return model.ToolResultItem(status="error", output=error)
         assert actual_path is not None
 
         if not actual_path.exists():
-            return ToolResultItem(status="error", output=f"File does not exist: {args.path}")
+            return model.ToolResultItem(status="error", output=f"File does not exist: {args.path}")
         if actual_path.is_dir():
-            return ToolResultItem(status="error", output="Cannot insert into a directory")
+            return model.ToolResultItem(status="error", output="Cannot insert into a directory")
 
         try:
             before = await asyncio.to_thread(actual_path.read_text, encoding="utf-8")
@@ -394,71 +392,71 @@ class MemoryTool(ToolABC):
             await asyncio.to_thread(actual_path.write_text, after, encoding="utf-8")
 
             ui_extra = _make_diff_ui_extra(before, after, args.path)
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="success",
                 output=f"Inserted text at line {args.insert_line} in {args.path}",
                 ui_extra=ui_extra,
             )
         except Exception as e:
-            return ToolResultItem(status="error", output=f"Failed to insert text: {e}")
+            return model.ToolResultItem(status="error", output=f"Failed to insert text: {e}")
 
     @classmethod
-    async def _delete(cls, args: MemoryArguments) -> ToolResultItem:
+    async def _delete(cls, args: MemoryArguments) -> model.ToolResultItem:
         if args.path is None:
-            return ToolResultItem(status="error", output="path is required for delete command")
+            return model.ToolResultItem(status="error", output="path is required for delete command")
 
         # Prevent deleting the root memories directory
         if args.path == MEMORY_VIRTUAL_ROOT or args.path == MEMORY_VIRTUAL_ROOT + "/":
-            return ToolResultItem(status="error", output="Cannot delete the memories root directory")
+            return model.ToolResultItem(status="error", output="Cannot delete the memories root directory")
 
         actual_path, error = _validate_path(args.path)
         if error:
-            return ToolResultItem(status="error", output=error)
+            return model.ToolResultItem(status="error", output=error)
         assert actual_path is not None
 
         if not actual_path.exists():
-            return ToolResultItem(status="error", output=f"Path does not exist: {args.path}")
+            return model.ToolResultItem(status="error", output=f"Path does not exist: {args.path}")
 
         try:
             if actual_path.is_dir():
                 await asyncio.to_thread(shutil.rmtree, actual_path)
-                return ToolResultItem(status="success", output=f"Directory deleted: {args.path}")
+                return model.ToolResultItem(status="success", output=f"Directory deleted: {args.path}")
             else:
                 await asyncio.to_thread(os.remove, actual_path)
-                return ToolResultItem(status="success", output=f"File deleted: {args.path}")
+                return model.ToolResultItem(status="success", output=f"File deleted: {args.path}")
         except Exception as e:
-            return ToolResultItem(status="error", output=f"Failed to delete: {e}")
+            return model.ToolResultItem(status="error", output=f"Failed to delete: {e}")
 
     @classmethod
-    async def _rename(cls, args: MemoryArguments) -> ToolResultItem:
+    async def _rename(cls, args: MemoryArguments) -> model.ToolResultItem:
         if args.old_path is None:
-            return ToolResultItem(status="error", output="old_path is required for rename command")
+            return model.ToolResultItem(status="error", output="old_path is required for rename command")
         if args.new_path is None:
-            return ToolResultItem(status="error", output="new_path is required for rename command")
+            return model.ToolResultItem(status="error", output="new_path is required for rename command")
 
         # Prevent renaming the root memories directory
         if args.old_path == MEMORY_VIRTUAL_ROOT or args.old_path == MEMORY_VIRTUAL_ROOT + "/":
-            return ToolResultItem(status="error", output="Cannot rename the memories root directory")
+            return model.ToolResultItem(status="error", output="Cannot rename the memories root directory")
 
         old_actual, error = _validate_path(args.old_path)
         if error:
-            return ToolResultItem(status="error", output=f"Invalid old_path: {error}")
+            return model.ToolResultItem(status="error", output=f"Invalid old_path: {error}")
         assert old_actual is not None
 
         new_actual, error = _validate_path(args.new_path)
         if error:
-            return ToolResultItem(status="error", output=f"Invalid new_path: {error}")
+            return model.ToolResultItem(status="error", output=f"Invalid new_path: {error}")
         assert new_actual is not None
 
         if not old_actual.exists():
-            return ToolResultItem(status="error", output=f"Source path does not exist: {args.old_path}")
+            return model.ToolResultItem(status="error", output=f"Source path does not exist: {args.old_path}")
         if new_actual.exists():
-            return ToolResultItem(status="error", output=f"Destination already exists: {args.new_path}")
+            return model.ToolResultItem(status="error", output=f"Destination already exists: {args.new_path}")
 
         try:
             # Ensure parent directory of destination exists
             new_actual.parent.mkdir(parents=True, exist_ok=True)
             await asyncio.to_thread(shutil.move, str(old_actual), str(new_actual))
-            return ToolResultItem(status="success", output=f"Renamed {args.old_path} to {args.new_path}")
+            return model.ToolResultItem(status="success", output=f"Renamed {args.old_path} to {args.new_path}")
         except Exception as e:
-            return ToolResultItem(status="error", output=f"Failed to rename: {e}")
+            return model.ToolResultItem(status="error", output=f"Failed to rename: {e}")

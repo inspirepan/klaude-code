@@ -12,7 +12,7 @@ from klaude_code.core.tool.tool_runner import (
     ToolExecutor,
     ToolExecutorEvent,
 )
-from klaude_code.llm.client import LLMClientABC
+from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import events, llm_parameter, model
 from klaude_code.trace import DebugType, log_debug
 

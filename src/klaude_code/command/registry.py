@@ -4,14 +4,12 @@ from typing import TYPE_CHECKING, TypeVar
 from klaude_code.command.command_abc import CommandResult
 from klaude_code.command.prompt_command import PromptCommand
 from klaude_code.core.agent import Agent
-from klaude_code.protocol.commands import CommandName
-from klaude_code.protocol.events import DeveloperMessageEvent
-from klaude_code.protocol.model import CommandOutput, DeveloperMessageItem
+from klaude_code.protocol import commands, events, model
 
 if TYPE_CHECKING:
     from .command_abc import CommandABC
 
-_COMMANDS: dict[CommandName | str, "CommandABC"] = {}
+_COMMANDS: dict[commands.CommandName | str, "CommandABC"] = {}
 
 T = TypeVar("T", bound="CommandABC")
 
@@ -37,7 +35,7 @@ def load_prompt_commands():
         pass
 
 
-def get_commands() -> dict[CommandName | str, "CommandABC"]:
+def get_commands() -> dict[commands.CommandName | str, "CommandABC"]:
     """Get all registered commands."""
     return _COMMANDS.copy()
 
@@ -65,7 +63,7 @@ async def dispatch_command(raw: str, agent: Agent) -> CommandResult:
     else:
         # Then try Enum conversion for standard commands
         try:
-            enum_key = CommandName(command_name_raw)
+            enum_key = commands.CommandName(command_name_raw)
             if enum_key in _COMMANDS:
                 command_key = enum_key
         except ValueError:
@@ -75,21 +73,21 @@ async def dispatch_command(raw: str, agent: Agent) -> CommandResult:
         return CommandResult(agent_input=raw)
 
     command = _COMMANDS[command_key]
-    command_identifier: CommandName | str = command.name
+    command_identifier: commands.CommandName | str = command.name
 
     try:
         return await command.run(rest, agent)
     except Exception as e:
         command_output = (
-            CommandOutput(command_name=command_identifier, is_error=True)
-            if isinstance(command_identifier, CommandName)
+            model.CommandOutput(command_name=command_identifier, is_error=True)
+            if isinstance(command_identifier, commands.CommandName)
             else None
         )
         return CommandResult(
             events=[
-                DeveloperMessageEvent(
+                events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=DeveloperMessageItem(
+                    item=model.DeveloperMessageItem(
                         content=f"Command {command_identifier} error: [{e.__class__.__name__}] {str(e)}",
                         command_output=command_output,
                     ),
@@ -104,7 +102,7 @@ def is_interactive_command(raw: str) -> bool:
     splits = raw.split(" ", maxsplit=1)
     command_name_raw = splits[0][1:]
     try:
-        command_name = CommandName(command_name_raw)
+        command_name = commands.CommandName(command_name_raw)
     except ValueError:
         return False
     if command_name not in _COMMANDS:

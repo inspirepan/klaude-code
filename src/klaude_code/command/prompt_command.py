@@ -4,7 +4,7 @@ import yaml
 
 from klaude_code.command.command_abc import CommandABC, CommandResult
 from klaude_code.core import Agent
-from klaude_code.protocol.commands import CommandName
+from klaude_code.protocol import commands
 
 
 class PromptCommand(CommandABC):
@@ -17,7 +17,7 @@ class PromptCommand(CommandABC):
         self._metadata: dict[str, str] = {}
 
     @property
-    def name(self) -> str | CommandName:
+    def name(self) -> str | commands.CommandName:
         return self._command_name
 
     @property

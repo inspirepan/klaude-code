@@ -8,18 +8,17 @@ from typing import ClassVar
 from pydantic import BaseModel, Field
 
 from klaude_code.protocol import events, model
-from klaude_code.protocol.model import ConversationItem, SubAgentState, TodoItem
 
 
 class Session(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     work_dir: Path
-    conversation_history: list[ConversationItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    sub_agent_state: SubAgentState | None = None
+    conversation_history: list[model.ConversationItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    sub_agent_state: model.SubAgentState | None = None
     # FileTracker: track file path -> last modification time when last read/edited
     file_tracker: dict[str, float] = Field(default_factory=dict)
     # Todo list for the session
-    todos: list[TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    todos: list[model.TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     # Messages count, redundant state for performance optimization to avoid reading entire jsonl file
     messages_count: int = Field(default=0)
     # Model name used for this session
@@ -104,9 +103,9 @@ class Session(BaseModel):
         work_dir_str = raw.get("work_dir", str(Path.cwd()))
 
         sub_agent_state_raw = raw.get("sub_agent_state")
-        sub_agent_state = SubAgentState(**sub_agent_state_raw) if sub_agent_state_raw else None
+        sub_agent_state = model.SubAgentState(**sub_agent_state_raw) if sub_agent_state_raw else None
         file_tracker = dict(raw.get("file_tracker", {}))
-        todos: list[TodoItem] = [TodoItem(**item) for item in raw.get("todos", [])]
+        todos: list[model.TodoItem] = [model.TodoItem(**item) for item in raw.get("todos", [])]
         loaded_memory = list(raw.get("loaded_memory", []))
         created_at = float(raw.get("created_at", time.time()))
         updated_at = float(raw.get("updated_at", created_at))
@@ -136,7 +135,7 @@ class Session(BaseModel):
         )
         if msg_candidates:
             messages_path = msg_candidates[0]
-            history: list[ConversationItem] = []
+            history: list[model.ConversationItem] = []
             for line in messages_path.read_text().splitlines():
                 line = line.strip()
                 if not line:
@@ -188,7 +187,7 @@ class Session(BaseModel):
         }
         self._session_file().write_text(json.dumps(payload, ensure_ascii=False, indent=2))
 
-    def append_history(self, items: Sequence[ConversationItem]):
+    def append_history(self, items: Sequence[model.ConversationItem]):
         # Append to in-memory history
         self.conversation_history.extend(items)
         # Update messages count (only UserMessageItem and AssistantMessageItem)

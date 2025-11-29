@@ -4,9 +4,7 @@ from pathlib import Path
 from klaude_code.command.command_abc import CommandABC, CommandResult
 from klaude_code.command.registry import register_command
 from klaude_code.core import Agent
-from klaude_code.protocol.commands import CommandName
-from klaude_code.protocol.events import DeveloperMessageEvent
-from klaude_code.protocol.model import CommandOutput, DeveloperMessageItem
+from klaude_code.protocol import commands, events, model
 
 
 @register_command
@@ -14,8 +12,8 @@ class DiffCommand(CommandABC):
     """Show git diff for the current repository."""
 
     @property
-    def name(self) -> CommandName:
-        return CommandName.DIFF
+    def name(self) -> commands.CommandName:
+        return commands.CommandName.DIFF
 
     @property
     def summary(self) -> str:
@@ -34,11 +32,11 @@ class DiffCommand(CommandABC):
 
             if git_check.returncode != 0:
                 # Not in a git repository
-                event = DeveloperMessageEvent(
+                event = events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=DeveloperMessageItem(
+                    item=model.DeveloperMessageItem(
                         content="No in a git repo",
-                        command_output=CommandOutput(command_name=self.name, is_error=True),
+                        command_output=model.CommandOutput(command_name=self.name, is_error=True),
                     ),
                 )
                 return CommandResult(events=[event])
@@ -55,11 +53,11 @@ class DiffCommand(CommandABC):
             if result.returncode != 0:
                 # Git command failed
                 error_msg = result.stderr.strip() or "git diff command failed"
-                event = DeveloperMessageEvent(
+                event = events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=DeveloperMessageItem(
+                    item=model.DeveloperMessageItem(
                         content=f"Error: {error_msg}",
-                        command_output=CommandOutput(command_name=self.name, is_error=True),
+                        command_output=model.CommandOutput(command_name=self.name, is_error=True),
                     ),
                 )
                 return CommandResult(events=[event])
@@ -92,47 +90,49 @@ class DiffCommand(CommandABC):
 
             if not output_parts:
                 # No changes and no untracked files
-                event = DeveloperMessageEvent(
+                event = events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=DeveloperMessageItem(content="", command_output=CommandOutput(command_name=self.name)),
+                    item=model.DeveloperMessageItem(
+                        content="", command_output=model.CommandOutput(command_name=self.name)
+                    ),
                 )
                 return CommandResult(events=[event])
 
             # Has changes or untracked files
             combined_output = "\n\n".join(output_parts)
-            event = DeveloperMessageEvent(
+            event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=DeveloperMessageItem(
+                item=model.DeveloperMessageItem(
                     content=combined_output,
-                    command_output=CommandOutput(command_name=self.name),
+                    command_output=model.CommandOutput(command_name=self.name),
                 ),
             )
             return CommandResult(events=[event])
 
         except subprocess.TimeoutExpired:
-            event = DeveloperMessageEvent(
+            event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=DeveloperMessageItem(
+                item=model.DeveloperMessageItem(
                     content="Error: git diff command timeout",
-                    command_output=CommandOutput(command_name=self.name, is_error=True),
+                    command_output=model.CommandOutput(command_name=self.name, is_error=True),
                 ),
             )
             return CommandResult(events=[event])
         except FileNotFoundError:
-            event = DeveloperMessageEvent(
+            event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=DeveloperMessageItem(
+                item=model.DeveloperMessageItem(
                     content="Error: git command not found",
-                    command_output=CommandOutput(command_name=self.name, is_error=True),
+                    command_output=model.CommandOutput(command_name=self.name, is_error=True),
                 ),
             )
             return CommandResult(events=[event])
         except Exception as e:
-            event = DeveloperMessageEvent(
+            event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=DeveloperMessageItem(
+                item=model.DeveloperMessageItem(
                     content=f"Error：{e}",
-                    command_output=CommandOutput(command_name=self.name, is_error=True),
+                    command_output=model.CommandOutput(command_name=self.name, is_error=True),
                 ),
             )
             return CommandResult(events=[event])

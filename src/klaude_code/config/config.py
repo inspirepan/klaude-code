@@ -7,14 +7,7 @@ import yaml
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from klaude_code.core.sub_agent import iter_sub_agent_profiles
-from klaude_code.protocol.llm_parameter import (
-    LLMClientProtocol,
-    LLMConfigModelParameter,
-    LLMConfigParameter,
-    LLMConfigProviderParameter,
-    OpenRouterProviderRouting,
-    Thinking,
-)
+from klaude_code.protocol import llm_parameter
 from klaude_code.trace import log
 
 config_path = Path.home() / ".klaude" / "klaude-config.yaml"
@@ -23,11 +16,11 @@ config_path = Path.home() / ".klaude" / "klaude-config.yaml"
 class ModelConfig(BaseModel):
     model_name: str
     provider: str
-    model_params: LLMConfigModelParameter
+    model_params: llm_parameter.LLMConfigModelParameter
 
 
 class Config(BaseModel):
-    provider_list: list[LLMConfigProviderParameter]
+    provider_list: list[llm_parameter.LLMConfigProviderParameter]
     model_list: list[ModelConfig]
     main_model: str
     subagent_models: dict[str, str] = Field(default_factory=dict)
@@ -46,10 +39,10 @@ class Config(BaseModel):
         data["subagent_models"] = normalized
         return data
 
-    def get_main_model_config(self) -> LLMConfigParameter:
+    def get_main_model_config(self) -> llm_parameter.LLMConfigParameter:
         return self.get_model_config(self.main_model)
 
-    def get_model_config(self, model_name: str) -> LLMConfigParameter:
+    def get_model_config(self, model_name: str) -> llm_parameter.LLMConfigParameter:
         model = next(
             (model for model in self.model_list if model.model_name == model_name),
             None,
@@ -64,7 +57,7 @@ class Config(BaseModel):
         if provider is None:
             raise ValueError(f"Unknown provider: {model.provider}")
 
-        return LLMConfigParameter(
+        return llm_parameter.LLMConfigParameter(
             **provider.model_dump(),
             **model.model_params.model_dump(),
         )
@@ -88,15 +81,15 @@ def get_example_config() -> Config:
         main_model="gpt-5.1",
         subagent_models={"explore": "haiku", "oracle": "gpt-5.1-high"},
         provider_list=[
-            LLMConfigProviderParameter(
+            llm_parameter.LLMConfigProviderParameter(
                 provider_name="openai",
-                protocol=LLMClientProtocol.RESPONSES,
+                protocol=llm_parameter.LLMClientProtocol.RESPONSES,
                 api_key="your-openai-api-key",
                 base_url="https://api.openai.com/v1",
             ),
-            LLMConfigProviderParameter(
+            llm_parameter.LLMConfigProviderParameter(
                 provider_name="openrouter",
-                protocol=LLMClientProtocol.OPENROUTER,
+                protocol=llm_parameter.LLMClientProtocol.OPENROUTER,
                 api_key="your-openrouter-api-key",
             ),
         ],
@@ -104,11 +97,11 @@ def get_example_config() -> Config:
             ModelConfig(
                 model_name="gpt-5.1",
                 provider="openai",
-                model_params=LLMConfigModelParameter(
+                model_params=llm_parameter.LLMConfigModelParameter(
                     model="gpt-5.1-2025-11-13",
                     max_tokens=32000,
                     verbosity="medium",
-                    thinking=Thinking(
+                    thinking=llm_parameter.Thinking(
                         reasoning_effort="medium",
                         reasoning_summary="auto",
                         type="enabled",
@@ -120,11 +113,11 @@ def get_example_config() -> Config:
             ModelConfig(
                 model_name="gpt-5.1-high",
                 provider="openai",
-                model_params=LLMConfigModelParameter(
+                model_params=llm_parameter.LLMConfigModelParameter(
                     model="gpt-5.1-2025-11-13",
                     max_tokens=32000,
                     verbosity="medium",
-                    thinking=Thinking(
+                    thinking=llm_parameter.Thinking(
                         reasoning_effort="high",
                         reasoning_summary="auto",
                         type="enabled",
@@ -136,10 +129,10 @@ def get_example_config() -> Config:
             ModelConfig(
                 model_name="haiku",
                 provider="openrouter",
-                model_params=LLMConfigModelParameter(
+                model_params=llm_parameter.LLMConfigModelParameter(
                     model="anthropic/claude-haiku-4.5",
                     max_tokens=32000,
-                    provider_routing=OpenRouterProviderRouting(
+                    provider_routing=llm_parameter.OpenRouterProviderRouting(
                         sort="throughput",
                     ),
                     context_limit=168000,

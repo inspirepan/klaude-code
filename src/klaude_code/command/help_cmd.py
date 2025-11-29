@@ -1,9 +1,7 @@
 from klaude_code.command.command_abc import CommandABC, CommandResult
 from klaude_code.command.registry import register_command
 from klaude_code.core import Agent
-from klaude_code.protocol.commands import CommandName
-from klaude_code.protocol.events import DeveloperMessageEvent
-from klaude_code.protocol.model import CommandOutput, DeveloperMessageItem
+from klaude_code.protocol import commands, events, model
 
 
 @register_command
@@ -11,8 +9,8 @@ class HelpCommand(CommandABC):
     """Display help information for all available slash commands."""
 
     @property
-    def name(self) -> CommandName:
-        return CommandName.HELP
+    def name(self) -> commands.CommandName:
+        return commands.CommandName.HELP
 
     @property
     def summary(self) -> str:
@@ -41,11 +39,11 @@ Available slash commands:"""
                 additional_instructions = " \\[additional instructions]" if cmd_obj.support_addition_params else ""
                 lines.append(f"  [b]/{cmd_name}[/b]{additional_instructions} — {cmd_obj.summary}")
 
-        event = DeveloperMessageEvent(
+        event = events.DeveloperMessageEvent(
             session_id=agent.session.id,
-            item=DeveloperMessageItem(
+            item=model.DeveloperMessageItem(
                 content="\n".join(lines),
-                command_output=CommandOutput(command_name=self.name),
+                command_output=model.CommandOutput(command_name=self.name),
             ),
         )
 

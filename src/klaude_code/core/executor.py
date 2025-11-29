@@ -14,15 +14,7 @@ from klaude_code.core.agent import Agent, DefaultModelProfileProvider, ModelProf
 from klaude_code.core.sub_agent import SubAgentResult
 from klaude_code.core.tool.tool_context import current_run_subtask_callback
 from klaude_code.llm import LLMClients
-from klaude_code.protocol import events, model
-from klaude_code.protocol.op import (
-    EndOperation,
-    InitAgentOperation,
-    InterruptOperation,
-    Operation,
-    Submission,
-    UserInputOperation,
-)
+from klaude_code.protocol import events, model, op
 from klaude_code.session.session import Session
 from klaude_code.trace import DebugType, log_debug
 
@@ -60,7 +52,7 @@ class ExecutorContext:
         """Emit an event to the UI display system."""
         await self.event_queue.put(event)
 
-    async def handle_init_agent(self, operation: InitAgentOperation) -> None:
+    async def handle_init_agent(self, operation: op.InitAgentOperation) -> None:
         """Initialize an agent for a session and replay history to UI."""
         if operation.session_id is None:
             raise ValueError("session_id cannot be None")
@@ -91,7 +83,7 @@ class ExecutorContext:
                 debug_type=DebugType.EXECUTION,
             )
 
-    async def handle_user_input(self, operation: UserInputOperation) -> None:
+    async def handle_user_input(self, operation: op.UserInputOperation) -> None:
         """Handle a user input operation by running it through an agent."""
 
         if operation.session_id is None:
@@ -99,7 +91,7 @@ class ExecutorContext:
 
         # Ensure initialized via init_agent
         if operation.session_id not in self.active_agents:
-            await self.handle_init_agent(InitAgentOperation(id=str(uuid4()), session_id=operation.session_id))
+            await self.handle_init_agent(op.InitAgentOperation(id=str(uuid4()), session_id=operation.session_id))
 
         agent = self.active_agents[operation.session_id]
 
@@ -126,7 +118,7 @@ class ExecutorContext:
             self.active_tasks[operation.id] = ActiveTask(task=task, session_id=operation.session_id)
             # Do not await task here; completion will be tracked by the executor
 
-    async def handle_interrupt(self, operation: InterruptOperation) -> None:
+    async def handle_interrupt(self, operation: op.InterruptOperation) -> None:
         """Handle an interrupt by invoking agent.cancel() and cancelling tasks."""
 
         # Determine affected sessions
@@ -304,11 +296,11 @@ class Executor:
         model_profile_provider: ModelProfileProvider | None = None,
     ):
         self.context = ExecutorContext(event_queue, llm_clients, model_profile_provider)
-        self.submission_queue: asyncio.Queue[Submission] = asyncio.Queue()
+        self.submission_queue: asyncio.Queue[op.Submission] = asyncio.Queue()
         self.running = False
         self.task_completion_events: dict[str, asyncio.Event] = {}
 
-    async def submit(self, operation: Operation) -> str:
+    async def submit(self, operation: op.Operation) -> str:
         """
         Submit an operation to the executor for processing.
 
@@ -319,7 +311,7 @@ class Executor:
             Unique submission ID for tracking
         """
 
-        submission = Submission(id=operation.id, operation=operation)
+        submission = op.Submission(id=operation.id, operation=operation)
         await self.submission_queue.put(submission)
 
         # Create completion event for tracking
@@ -358,7 +350,7 @@ class Executor:
                 submission = await self.submission_queue.get()
 
                 # Check for end operation to gracefully exit
-                if isinstance(submission.operation, EndOperation):
+                if isinstance(submission.operation, op.EndOperation):
                     log_debug(
                         "Received EndOperation, stopping executor",
                         style="yellow",
@@ -405,8 +397,8 @@ class Executor:
 
         # Send EndOperation to wake up the start() loop
         try:
-            end_operation = EndOperation()
-            submission = Submission(id=end_operation.id, operation=end_operation)
+            end_operation = op.EndOperation()
+            submission = op.Submission(id=end_operation.id, operation=end_operation)
             await self.submission_queue.put(submission)
         except Exception as e:
             log_debug(
@@ -417,7 +409,7 @@ class Executor:
 
         log_debug("Executor stopped", style="yellow", debug_type=DebugType.EXECUTION)
 
-    async def _handle_submission(self, submission: Submission) -> None:
+    async def _handle_submission(self, submission: op.Submission) -> None:
         """
         Handle a single submission by executing its operation.
 

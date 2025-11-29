@@ -5,12 +5,10 @@ from pydantic import BaseModel
 from klaude_code.core.tool.memory.skill_loader import SkillLoader
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import ToolResultItem
-from klaude_code.protocol.tools import SKILL
+from klaude_code.protocol import llm_parameter, model, tools
 
 
-@register(SKILL)
+@register(tools.SKILL)
 class SkillTool(ToolABC):
     """Tool to execute/load a skill within the main conversation"""
 
@@ -22,12 +20,12 @@ class SkillTool(ToolABC):
         cls._skill_loader = loader
 
     @classmethod
-    def schema(cls) -> ToolSchema:
+    def schema(cls) -> llm_parameter.ToolSchema:
         """Generate schema with embedded available skills metadata"""
         skills_xml = cls._generate_skills_xml()
 
-        return ToolSchema(
-            name=SKILL,
+        return llm_parameter.ToolSchema(
+            name=tools.SKILL,
             type="function",
             description=load_desc(Path(__file__).parent / "skill_tool.md", {"skills_xml": skills_xml}),
             parameters={
@@ -61,18 +59,18 @@ class SkillTool(ToolABC):
         command: str
 
     @classmethod
-    async def call(cls, arguments: str) -> ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultItem:
         """Load and return full skill content"""
         try:
             args = cls.SkillArguments.model_validate_json(arguments)
         except ValueError as e:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=f"Invalid arguments: {e}",
             )
 
         if not cls._skill_loader:
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output="Skill loader not initialized",
             )
@@ -81,7 +79,7 @@ class SkillTool(ToolABC):
 
         if not skill:
             available = ", ".join(cls._skill_loader.list_skills())
-            return ToolResultItem(
+            return model.ToolResultItem(
                 status="error",
                 output=f"Skill '{args.command}' does not exist. Available skills: {available}",
             )
@@ -96,4 +94,4 @@ class SkillTool(ToolABC):
 Base directory for this skill: {base_dir}
 
 {skill.to_prompt()}"""
-        return ToolResultItem(status="success", output=result)
+        return model.ToolResultItem(status="success", output=result)

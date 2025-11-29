@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from klaude_code.protocol.model import AssistantMessageItem, ResponseMetadataItem, ToolCallItem
+from klaude_code.protocol import model
 from klaude_code.ui.repl.input import REPLStatusSnapshot
 
 if TYPE_CHECKING:
@@ -30,13 +30,13 @@ def build_repl_status_snapshot(agent: "Agent | None", update_message: str | None
 
         history = agent.session.conversation_history
         for item in history:
-            if isinstance(item, AssistantMessageItem):
+            if isinstance(item, model.AssistantMessageItem):
                 llm_calls += 1
-            elif isinstance(item, ToolCallItem):
+            elif isinstance(item, model.ToolCallItem):
                 tool_calls += 1
 
         for item in reversed(history):
-            if isinstance(item, ResponseMetadataItem):
+            if isinstance(item, model.ResponseMetadataItem):
                 usage = item.usage
                 if usage is not None and hasattr(usage, "context_usage_percent"):
                     context_usage_percent = usage.context_usage_percent

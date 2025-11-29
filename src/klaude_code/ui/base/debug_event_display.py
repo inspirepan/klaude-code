@@ -1,7 +1,7 @@
 from typing import override
 
 from klaude_code.const import DEFAULT_DEBUG_LOG_FILE
-from klaude_code.protocol.events import Event
+from klaude_code.protocol import events
 from klaude_code.trace import DebugType, log_debug
 from klaude_code.ui.base.display_abc import DisplayABC
 
@@ -16,7 +16,7 @@ class DebugEventDisplay(DisplayABC):
         self.log_file = log_file
 
     @override
-    async def consume_event(self, event: Event) -> None:
+    async def consume_event(self, event: events.Event) -> None:
         log_debug(
             f"[{event.__class__.__name__}]",
             event.model_dump_json(exclude_none=True),

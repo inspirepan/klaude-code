@@ -9,24 +9,14 @@ from pydantic import BaseModel, field_validator
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_todo_context
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import (
-    TodoItem,
-    TodoStatusType,
-    TodoUIExtra,
-    ToolResultItem,
-    ToolResultUIExtra,
-    ToolResultUIExtraType,
-    ToolSideEffect,
-)
-from klaude_code.protocol.tools import UPDATE_PLAN
+from klaude_code.protocol import llm_parameter, model, tools
 
 from .todo_write_tool import get_new_completed_todos
 
 
 class PlanItemArguments(BaseModel):
     step: str
-    status: TodoStatusType
+    status: model.TodoStatusType
 
     @field_validator("step")
     @classmethod
@@ -51,12 +41,12 @@ class UpdatePlanArguments(BaseModel):
         return value
 
 
-@register(UPDATE_PLAN)
+@register(tools.UPDATE_PLAN)
 class UpdatePlanTool(ToolABC):
     @classmethod
-    def schema(cls) -> ToolSchema:
-        return ToolSchema(
-            name=UPDATE_PLAN,
+    def schema(cls) -> llm_parameter.ToolSchema:
+        return llm_parameter.ToolSchema(
+            name=tools.UPDATE_PLAN,
             type="function",
             description=load_desc(Path(__file__).parent / "update_plan_tool.md"),
             parameters={
@@ -89,26 +79,26 @@ class UpdatePlanTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultItem:
         try:
             args = UpdatePlanArguments.model_validate_json(arguments)
         except ValueError as exc:
-            return ToolResultItem(status="error", output=f"Invalid arguments: {exc}")
+            return model.ToolResultItem(status="error", output=f"Invalid arguments: {exc}")
 
         todo_context = get_current_todo_context()
         if todo_context is None:
-            return ToolResultItem(status="error", output="No active session found")
+            return model.ToolResultItem(status="error", output="No active session found")
 
-        new_todos = [TodoItem(content=item.step, status=item.status) for item in args.plan]
+        new_todos = [model.TodoItem(content=item.step, status=item.status) for item in args.plan]
         old_todos = todo_context.get_todos()
         new_completed = get_new_completed_todos(old_todos, new_todos)
         todo_context.set_todos(new_todos)
 
-        ui_extra = TodoUIExtra(todos=new_todos, new_completed=new_completed)
+        ui_extra = model.TodoUIExtra(todos=new_todos, new_completed=new_completed)
 
-        return ToolResultItem(
+        return model.ToolResultItem(
             status="success",
             output="Plan updated",
-            ui_extra=ToolResultUIExtra(type=ToolResultUIExtraType.TODO_LIST, todo_list=ui_extra),
-            side_effects=[ToolSideEffect.TODO_CHANGE],
+            ui_extra=model.ToolResultUIExtra(type=model.ToolResultUIExtraType.TODO_LIST, todo_list=ui_extra),
+            side_effects=[model.ToolSideEffect.TODO_CHANGE],
         )

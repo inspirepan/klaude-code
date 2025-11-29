@@ -19,7 +19,10 @@ from klaude_code.core.tool.file.edit_tool import EditTool  # noqa: E402
 from klaude_code.core.tool.file.multi_edit_tool import MultiEditTool  # noqa: E402
 from klaude_code.core.tool.file.read_tool import ReadTool  # noqa: E402
 from klaude_code.core.tool.tool_context import ToolContextToken  # noqa: E402
-from klaude_code.core.tool.tool_context import reset_tool_context, set_tool_context_from_session
+from klaude_code.core.tool.tool_context import (  # noqa: E402
+    reset_tool_context,
+    set_tool_context_from_session,
+)
 from klaude_code.protocol import model  # noqa: E402
 from klaude_code.session.session import Session  # noqa: E402
 
