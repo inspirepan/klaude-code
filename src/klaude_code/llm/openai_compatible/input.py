@@ -7,8 +7,7 @@ from openai.types import chat
 from openai.types.chat import ChatCompletionContentPartParam
 
 from klaude_code.llm.input_common import AssistantGroup, ToolGroup, UserGroup, merge_reminder_text, parse_message_groups
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import ConversationItem, ImageURLPart
+from klaude_code.protocol import llm_parameter, model
 
 
 def _user_group_to_message(group: UserGroup) -> chat.ChatCompletionMessageParam:
@@ -58,14 +57,14 @@ def _assistant_group_to_message(
 
 
 def build_user_content_parts(
-    images: list[ImageURLPart],
+    images: list[model.ImageURLPart],
 ) -> list[ChatCompletionContentPartParam]:
     """Build content parts for images only. Used by OpenRouter."""
     return [{"type": "image_url", "image_url": {"url": image.image_url.url}} for image in images]
 
 
 def convert_history_to_input(
-    history: list[ConversationItem],
+    history: list[model.ConversationItem],
     system: str | None = None,
     model_name: str | None = None,
 ) -> list[chat.ChatCompletionMessageParam]:
@@ -92,7 +91,7 @@ def convert_history_to_input(
 
 
 def convert_tool_schema(
-    tools: list[ToolSchema] | None,
+    tools: list[llm_parameter.ToolSchema] | None,
 ) -> list[chat.ChatCompletionToolParam]:
     if tools is None:
         return []

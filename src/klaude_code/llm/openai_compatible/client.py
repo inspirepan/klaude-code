@@ -12,15 +12,13 @@ from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_compatible.input import convert_history_to_input, convert_tool_schema
 from klaude_code.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
 from klaude_code.llm.registry import register
-from klaude_code.protocol import model
-from klaude_code.protocol.llm_parameter import LLMCallParameter, LLMClientProtocol, LLMConfigParameter
-from klaude_code.protocol.model import StreamErrorItem
+from klaude_code.protocol import llm_parameter, model
 from klaude_code.trace import DebugType, log_debug
 
 
-@register(LLMClientProtocol.OPENAI)
+@register(llm_parameter.LLMClientProtocol.OPENAI)
 class OpenAICompatibleClient(LLMClientABC):
-    def __init__(self, config: LLMConfigParameter):
+    def __init__(self, config: llm_parameter.LLMConfigParameter):
         super().__init__(config)
         if config.is_azure:
             if not config.base_url:
@@ -41,11 +39,11 @@ class OpenAICompatibleClient(LLMClientABC):
 
     @classmethod
     @override
-    def create(cls, config: LLMConfigParameter) -> "LLMClientABC":
+    def create(cls, config: llm_parameter.LLMConfigParameter) -> "LLMClientABC":
         return cls(config)
 
     @override
-    async def call(self, param: LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
+    async def call(self, param: llm_parameter.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         param = apply_config_defaults(param, self.get_llm_config())
         messages = convert_history_to_input(param.input, param.system, param.model)
         tools = convert_tool_schema(param.tools)
@@ -193,7 +191,7 @@ class OpenAICompatibleClient(LLMClientABC):
                     stage = "tool"
                     accumulated_tool_calls.add(delta.tool_calls)
         except (RateLimitError, APIError) as e:
-            yield StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
+            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
 
         # Finalize
         for item in flush_reasoning_items():

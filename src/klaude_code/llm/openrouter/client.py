@@ -13,9 +13,7 @@ from klaude_code.llm.openai_compatible.input import convert_tool_schema
 from klaude_code.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
 from klaude_code.llm.openrouter.input import convert_history_to_input, is_claude_model
 from klaude_code.llm.registry import register
-from klaude_code.protocol import model
-from klaude_code.protocol.llm_parameter import LLMCallParameter, LLMClientProtocol, LLMConfigParameter
-from klaude_code.protocol.model import StreamErrorItem
+from klaude_code.protocol import llm_parameter, model
 from klaude_code.trace import DebugType, log, log_debug
 
 
@@ -223,9 +221,9 @@ class ReasoningStreamHandler:
             search_start = closing_index + 2
 
 
-@register(LLMClientProtocol.OPENROUTER)
+@register(llm_parameter.LLMClientProtocol.OPENROUTER)
 class OpenRouterClient(LLMClientABC):
-    def __init__(self, config: LLMConfigParameter):
+    def __init__(self, config: llm_parameter.LLMConfigParameter):
         super().__init__(config)
         client = openai.AsyncOpenAI(
             api_key=config.api_key,
@@ -236,11 +234,11 @@ class OpenRouterClient(LLMClientABC):
 
     @classmethod
     @override
-    def create(cls, config: LLMConfigParameter) -> "LLMClientABC":
+    def create(cls, config: llm_parameter.LLMConfigParameter) -> "LLMClientABC":
         return cls(config)
 
     @override
-    async def call(self, param: LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
+    async def call(self, param: llm_parameter.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         param = apply_config_defaults(param, self.get_llm_config())
         messages = convert_history_to_input(param.input, param.system, param.model)
         tools = convert_tool_schema(param.tools)
@@ -389,7 +387,7 @@ class OpenRouterClient(LLMClientABC):
                     accumulated_tool_calls.add(delta.tool_calls)
 
         except (openai.OpenAIError, httpx.HTTPError) as e:
-            yield StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
+            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
 
         # Finalize
         for item in flush_reasoning_items():

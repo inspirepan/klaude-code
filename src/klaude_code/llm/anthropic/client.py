@@ -22,15 +22,13 @@ from klaude_code.llm.anthropic.input import convert_history_to_input, convert_sy
 from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
-from klaude_code.protocol import model
-from klaude_code.protocol.llm_parameter import LLMCallParameter, LLMClientProtocol, LLMConfigParameter
-from klaude_code.protocol.model import StreamErrorItem
+from klaude_code.protocol import llm_parameter, model
 from klaude_code.trace import DebugType, log_debug
 
 
-@register(LLMClientProtocol.ANTHROPIC)
+@register(llm_parameter.LLMClientProtocol.ANTHROPIC)
 class AnthropicClient(LLMClientABC):
-    def __init__(self, config: LLMConfigParameter):
+    def __init__(self, config: llm_parameter.LLMConfigParameter):
         super().__init__(config)
         client = anthropic.AsyncAnthropic(
             api_key=config.api_key,
@@ -41,11 +39,11 @@ class AnthropicClient(LLMClientABC):
 
     @classmethod
     @override
-    def create(cls, config: LLMConfigParameter) -> "LLMClientABC":
+    def create(cls, config: llm_parameter.LLMConfigParameter) -> "LLMClientABC":
         return cls(config)
 
     @override
-    async def call(self, param: LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
+    async def call(self, param: llm_parameter.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         param = apply_config_defaults(param, self.get_llm_config())
 
         request_start_time = time.time()
@@ -212,4 +210,4 @@ class AnthropicClient(LLMClientABC):
                     case _:
                         pass
         except RateLimitError as e:
-            yield StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
+            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")

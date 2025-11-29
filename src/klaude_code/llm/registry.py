@@ -4,19 +4,19 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, TypeVar
 
 from klaude_code.llm.client import LLMClientABC
-from klaude_code.protocol.llm_parameter import LLMClientProtocol, LLMConfigParameter
-from klaude_code.protocol.tools import SubAgentType
+from klaude_code.protocol import llm_parameter
+from klaude_code.protocol import tools
 from klaude_code.trace import DebugType, log_debug
 
 if TYPE_CHECKING:
     from klaude_code.config import Config
 
-_REGISTRY: dict[LLMClientProtocol, type[LLMClientABC]] = {}
+_REGISTRY: dict[llm_parameter.LLMClientProtocol, type[LLMClientABC]] = {}
 
 T = TypeVar("T", bound=LLMClientABC)
 
 
-def register(name: LLMClientProtocol) -> Callable[[type[T]], type[T]]:
+def register(name: llm_parameter.LLMClientProtocol) -> Callable[[type[T]], type[T]]:
     def _decorator(cls: type[T]) -> type[T]:
         _REGISTRY[name] = cls
         return cls
@@ -24,7 +24,7 @@ def register(name: LLMClientProtocol) -> Callable[[type[T]], type[T]]:
     return _decorator
 
 
-def create_llm_client(config: LLMConfigParameter) -> LLMClientABC:
+def create_llm_client(config: llm_parameter.LLMConfigParameter) -> LLMClientABC:
     if config.protocol not in _REGISTRY:
         raise ValueError(f"Unknown LLMClient protocol: {config.protocol}")
     return _REGISTRY[config.protocol].create(config)
@@ -35,9 +35,9 @@ class LLMClients:
     """Container for LLM clients used by main agent and sub-agents."""
 
     main: LLMClientABC
-    sub_clients: dict[SubAgentType, LLMClientABC] = field(default_factory=lambda: {})
+    sub_clients: dict[tools.SubAgentType, LLMClientABC] = field(default_factory=lambda: {})
 
-    def get_client(self, sub_agent_type: SubAgentType | None = None) -> LLMClientABC:
+    def get_client(self, sub_agent_type: tools.SubAgentType | None = None) -> LLMClientABC:
         """Get client for given sub-agent type, or main client if None."""
         if sub_agent_type is None:
             return self.main
@@ -48,7 +48,7 @@ class LLMClients:
         cls,
         config: Config,
         model_override: str | None = None,
-        enabled_sub_agents: list[SubAgentType] | None = None,
+        enabled_sub_agents: list[tools.SubAgentType] | None = None,
     ) -> LLMClients:
         """Create LLMClients from application config.
 
@@ -76,7 +76,7 @@ class LLMClients:
         )
 
         main_client = create_llm_client(llm_config)
-        sub_clients: dict[SubAgentType, LLMClientABC] = {}
+        sub_clients: dict[tools.SubAgentType, LLMClientABC] = {}
 
         # Initialize sub-agent clients
         for sub_agent_type in enabled_sub_agents or []:

@@ -10,8 +10,7 @@ from openai.types import chat
 from openai.types.chat import ChatCompletionContentPartParam
 
 from klaude_code.llm.input_common import AssistantGroup, ToolGroup, UserGroup, merge_reminder_text, parse_message_groups
-from klaude_code.protocol import model as protocol_model
-from klaude_code.protocol.model import ConversationItem
+from klaude_code.protocol import model
 
 
 def is_claude_model(model_name: str | None):
@@ -71,7 +70,7 @@ def _assistant_group_to_message(group: AssistantGroup, model_name: str | None) -
     for item in group.reasoning_items:
         if model_name != item.model:
             continue
-        if isinstance(item, protocol_model.ReasoningEncryptedItem):
+        if isinstance(item, model.ReasoningEncryptedItem):
             if item.encrypted_content and len(item.encrypted_content) > 0:
                 reasoning_details.append(
                     {
@@ -82,7 +81,7 @@ def _assistant_group_to_message(group: AssistantGroup, model_name: str | None) -
                         "index": len(reasoning_details),
                     }
                 )
-        elif isinstance(item, protocol_model.ReasoningTextItem):
+        elif isinstance(item, model.ReasoningTextItem):
             reasoning_details.append(
                 {
                     "id": item.id,
@@ -112,7 +111,7 @@ def _add_cache_control(messages: list[chat.ChatCompletionMessageParam], use_cach
 
 
 def convert_history_to_input(
-    history: list[ConversationItem],
+    history: list[model.ConversationItem],
     system: str | None = None,
     model_name: str | None = None,
 ) -> list[chat.ChatCompletionMessageParam]:

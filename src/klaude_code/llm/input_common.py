@@ -15,17 +15,7 @@ from klaude_code import const
 if TYPE_CHECKING:
     from klaude_code.protocol.llm_parameter import LLMCallParameter, LLMConfigParameter
 
-from klaude_code.protocol.model import (
-    AssistantMessageItem,
-    ConversationItem,
-    DeveloperMessageItem,
-    ImageURLPart,
-    ReasoningEncryptedItem,
-    ReasoningTextItem,
-    ToolCallItem,
-    ToolResultItem,
-    UserMessageItem,
-)
+from klaude_code.protocol import model
 
 
 class GroupKind(Enum):
@@ -41,16 +31,16 @@ class UserGroup:
     """Aggregated user message group (UserMessageItem + DeveloperMessageItem)."""
 
     text_parts: list[str] = field(default_factory=lambda: [])
-    images: list[ImageURLPart] = field(default_factory=lambda: [])
+    images: list[model.ImageURLPart] = field(default_factory=lambda: [])
 
 
 @dataclass
 class ToolGroup:
     """Aggregated tool result group (ToolResultItem + trailing DeveloperMessageItems)."""
 
-    tool_result: ToolResultItem
+    tool_result: model.ToolResultItem
     reminder_texts: list[str] = field(default_factory=lambda: [])
-    reminder_images: list[ImageURLPart] = field(default_factory=lambda: [])
+    reminder_images: list[model.ImageURLPart] = field(default_factory=lambda: [])
 
 
 @dataclass
@@ -58,35 +48,35 @@ class AssistantGroup:
     """Aggregated assistant message group."""
 
     text_content: str | None = None
-    tool_calls: list[ToolCallItem] = field(default_factory=lambda: [])
-    reasoning_text: list[ReasoningTextItem] = field(default_factory=lambda: [])
-    reasoning_encrypted: list[ReasoningEncryptedItem] = field(default_factory=lambda: [])
+    tool_calls: list[model.ToolCallItem] = field(default_factory=lambda: [])
+    reasoning_text: list[model.ReasoningTextItem] = field(default_factory=lambda: [])
+    reasoning_encrypted: list[model.ReasoningEncryptedItem] = field(default_factory=lambda: [])
     # Preserve original ordering of reasoning items for providers that
     # need to emit them as an ordered stream (e.g. OpenRouter).
-    reasoning_items: list[ReasoningTextItem | ReasoningEncryptedItem] = field(default_factory=lambda: [])
+    reasoning_items: list[model.ReasoningTextItem | model.ReasoningEncryptedItem] = field(default_factory=lambda: [])
 
 
 MessageGroup = UserGroup | ToolGroup | AssistantGroup
 
 
-def _kind_of(item: ConversationItem) -> GroupKind:
+def _kind_of(item: model.ConversationItem) -> GroupKind:
     if isinstance(
         item,
-        (ReasoningTextItem, ReasoningEncryptedItem, AssistantMessageItem, ToolCallItem),
+        (model.ReasoningTextItem, model.ReasoningEncryptedItem, model.AssistantMessageItem, model.ToolCallItem),
     ):
         return GroupKind.ASSISTANT
-    if isinstance(item, UserMessageItem):
+    if isinstance(item, model.UserMessageItem):
         return GroupKind.USER
-    if isinstance(item, ToolResultItem):
+    if isinstance(item, model.ToolResultItem):
         return GroupKind.TOOL
-    if isinstance(item, DeveloperMessageItem):
+    if isinstance(item, model.DeveloperMessageItem):
         return GroupKind.DEVELOPER
     return GroupKind.OTHER
 
 
 def group_response_items_gen(
-    items: Iterable[ConversationItem],
-) -> Iterator[tuple[GroupKind, list[ConversationItem]]]:
+    items: Iterable[model.ConversationItem],
+) -> Iterator[tuple[GroupKind, list[model.ConversationItem]]]:
     """Group response items into sublists with predictable attachment rules.
 
     - Consecutive assistant-side items (ReasoningTextItem | ReasoningEncryptedItem |
@@ -96,10 +86,10 @@ def group_response_items_gen(
       DeveloperMessage to attach to it.
     - DeveloperMessage only attaches to the previous UserMessage/ToolMessage group.
     """
-    buffer: list[ConversationItem] = []
+    buffer: list[model.ConversationItem] = []
     buffer_kind: GroupKind | None = None
 
-    def flush() -> Iterator[tuple[GroupKind, list[ConversationItem]]]:
+    def flush() -> Iterator[tuple[GroupKind, list[model.ConversationItem]]]:
         """Yield current group and reset buffer state."""
 
         nonlocal buffer, buffer_kind
@@ -146,7 +136,7 @@ def group_response_items_gen(
         yield (buffer_kind, buffer)
 
 
-def parse_message_groups(history: list[ConversationItem]) -> list[MessageGroup]:
+def parse_message_groups(history: list[model.ConversationItem]) -> list[MessageGroup]:
     """Parse conversation history into aggregated message groups.
 
     This is the shared grouping logic for Anthropic, OpenAI-compatible, and OpenRouter.
@@ -161,7 +151,7 @@ def parse_message_groups(history: list[ConversationItem]) -> list[MessageGroup]:
             case GroupKind.USER:
                 group = UserGroup()
                 for item in items:
-                    if isinstance(item, (UserMessageItem, DeveloperMessageItem)):
+                    if isinstance(item, (model.UserMessageItem, model.DeveloperMessageItem)):
                         if item.content:
                             group.text_parts.append(item.content)
                         if item.images:
@@ -169,12 +159,12 @@ def parse_message_groups(history: list[ConversationItem]) -> list[MessageGroup]:
                 groups.append(group)
 
             case GroupKind.TOOL:
-                if not items or not isinstance(items[0], ToolResultItem):
+                if not items or not isinstance(items[0], model.ToolResultItem):
                     continue
                 tool_result = items[0]
                 group = ToolGroup(tool_result=tool_result)
                 for item in items[1:]:
-                    if isinstance(item, DeveloperMessageItem):
+                    if isinstance(item, model.DeveloperMessageItem):
                         if item.content:
                             group.reminder_texts.append(item.content)
                         if item.images:
@@ -185,18 +175,18 @@ def parse_message_groups(history: list[ConversationItem]) -> list[MessageGroup]:
                 group = AssistantGroup()
                 for item in items:
                     match item:
-                        case AssistantMessageItem():
+                        case model.AssistantMessageItem():
                             if item.content:
                                 if group.text_content is None:
                                     group.text_content = item.content
                                 else:
                                     group.text_content += item.content
-                        case ToolCallItem():
+                        case model.ToolCallItem():
                             group.tool_calls.append(item)
-                        case ReasoningTextItem():
+                        case model.ReasoningTextItem():
                             group.reasoning_text.append(item)
                             group.reasoning_items.append(item)
-                        case ReasoningEncryptedItem():
+                        case model.ReasoningEncryptedItem():
                             group.reasoning_encrypted.append(item)
                             group.reasoning_items.append(item)
                         case _:

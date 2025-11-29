@@ -5,21 +5,11 @@ from typing import Any
 
 from openai.types import responses
 
-from klaude_code.protocol.llm_parameter import ToolSchema
-from klaude_code.protocol.model import (
-    AssistantMessageItem,
-    ConversationItem,
-    DeveloperMessageItem,
-    ReasoningEncryptedItem,
-    ReasoningTextItem,
-    ToolCallItem,
-    ToolResultItem,
-    UserMessageItem,
-)
+from klaude_code.protocol import llm_parameter, model
 
 
 def _build_user_content_parts(
-    user: UserMessageItem,
+    user: model.UserMessageItem,
 ) -> list[responses.ResponseInputContentParam]:
     parts: list[responses.ResponseInputContentParam] = []
     if user.content is not None:
@@ -31,7 +21,7 @@ def _build_user_content_parts(
     return parts
 
 
-def _build_tool_result_item(tool: ToolResultItem) -> responses.ResponseInputItemParam:
+def _build_tool_result_item(tool: model.ToolResultItem) -> responses.ResponseInputItemParam:
     content_parts: list[responses.ResponseInputContentParam] = []
     text_output = tool.output or ""
     if text_output:
@@ -48,7 +38,7 @@ def _build_tool_result_item(tool: ToolResultItem) -> responses.ResponseInputItem
 
 
 def convert_history_to_input(
-    history: list[ConversationItem],
+    history: list[model.ConversationItem],
     model_name: str | None = None,
 ) -> responses.ResponseInputParam:
     """
@@ -64,7 +54,7 @@ def convert_history_to_input(
 
     for item in history:
         match item:
-            case ReasoningTextItem() as item:
+            case model.ReasoningTextItem() as item:
                 # For now, we only store the text. We wait for the encrypted item to output both.
                 # If no encrypted item follows (e.g. incomplete stream?), this text might be lost
                 # or we can choose to output it if the next item is NOT reasoning?
@@ -73,13 +63,13 @@ def convert_history_to_input(
                     continue
                 pending_reasoning_text = item.content
 
-            case ReasoningEncryptedItem() as item:
+            case model.ReasoningEncryptedItem() as item:
                 if item.encrypted_content and len(item.encrypted_content) > 0 and model_name == item.model:
                     items.append(convert_reasoning_inputs(pending_reasoning_text, item))
                 # Reset pending text after consumption
                 pending_reasoning_text = None
 
-            case ToolCallItem() as t:
+            case model.ToolCallItem() as t:
                 items.append(
                     {
                         "type": "function_call",
@@ -89,9 +79,9 @@ def convert_history_to_input(
                         "id": t.id,
                     }
                 )
-            case ToolResultItem() as t:
+            case model.ToolResultItem() as t:
                 items.append(_build_tool_result_item(t))
-            case AssistantMessageItem() as a:
+            case model.AssistantMessageItem() as a:
                 items.append(
                     {
                         "type": "message",
@@ -105,7 +95,7 @@ def convert_history_to_input(
                         ],
                     }
                 )
-            case UserMessageItem() as u:
+            case model.UserMessageItem() as u:
                 items.append(
                     {
                         "type": "message",
@@ -114,7 +104,7 @@ def convert_history_to_input(
                         "content": _build_user_content_parts(u),
                     }
                 )
-            case DeveloperMessageItem() as d:
+            case model.DeveloperMessageItem() as d:
                 dev_parts: list[responses.ResponseInputContentParam] = []
                 if d.content is not None:
                     dev_parts.append({"type": "input_text", "text": d.content})
@@ -144,7 +134,7 @@ def convert_history_to_input(
 
 
 def convert_reasoning_inputs(
-    text_content: str | None, encrypted_item: ReasoningEncryptedItem
+    text_content: str | None, encrypted_item: model.ReasoningEncryptedItem
 ) -> responses.ResponseInputItemParam:
     result = {"type": "reasoning", "content": None}
 
@@ -162,7 +152,7 @@ def convert_reasoning_inputs(
 
 
 def convert_tool_schema(
-    tools: list[ToolSchema] | None,
+    tools: list[llm_parameter.ToolSchema] | None,
 ) -> list[responses.ToolParam]:
     if tools is None:
         return []

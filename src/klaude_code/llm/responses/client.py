@@ -11,25 +11,13 @@ from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
-from klaude_code.protocol.llm_parameter import LLMCallParameter, LLMClientProtocol, LLMConfigParameter
-from klaude_code.protocol.model import (
-    AssistantMessageDelta,
-    AssistantMessageItem,
-    ConversationItem,
-    ReasoningEncryptedItem,
-    ReasoningTextItem,
-    ResponseMetadataItem,
-    StartItem,
-    StreamErrorItem,
-    ToolCallItem,
-    Usage,
-)
+from klaude_code.protocol import llm_parameter, model
 from klaude_code.trace import DebugType, log_debug
 
 
-@register(LLMClientProtocol.RESPONSES)
+@register(llm_parameter.LLMClientProtocol.RESPONSES)
 class ResponsesClient(LLMClientABC):
-    def __init__(self, config: LLMConfigParameter):
+    def __init__(self, config: llm_parameter.LLMConfigParameter):
         super().__init__(config)
         if config.is_azure:
             if not config.base_url:
@@ -50,11 +38,11 @@ class ResponsesClient(LLMClientABC):
 
     @classmethod
     @override
-    def create(cls, config: LLMConfigParameter) -> "LLMClientABC":
+    def create(cls, config: llm_parameter.LLMConfigParameter) -> "LLMClientABC":
         return cls(config)
 
     @override
-    async def call(self, param: LLMCallParameter) -> AsyncGenerator[ConversationItem, None]:
+    async def call(self, param: llm_parameter.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         param = apply_config_defaults(param, self.get_llm_config())
 
         request_start_time = time.time()
@@ -106,10 +94,10 @@ class ResponsesClient(LLMClientABC):
                 match event:
                     case responses.ResponseCreatedEvent() as event:
                         response_id = event.response.id
-                        yield StartItem(response_id=response_id)
+                        yield model.StartItem(response_id=response_id)
                     case responses.ResponseReasoningSummaryTextDoneEvent() as event:
                         if event.text:
-                            yield ReasoningTextItem(
+                            yield model.ReasoningTextItem(
                                 content=event.text,
                                 response_id=response_id,
                                 model=str(param.model),
@@ -118,19 +106,19 @@ class ResponsesClient(LLMClientABC):
                         if first_token_time is None:
                             first_token_time = time.time()
                         last_token_time = time.time()
-                        yield AssistantMessageDelta(content=event.delta, response_id=response_id)
+                        yield model.AssistantMessageDelta(content=event.delta, response_id=response_id)
                     case responses.ResponseOutputItemDoneEvent() as event:
                         match event.item:
                             case responses.ResponseReasoningItem() as item:
                                 if item.encrypted_content:
-                                    yield ReasoningEncryptedItem(
+                                    yield model.ReasoningEncryptedItem(
                                         id=item.id,
                                         encrypted_content=item.encrypted_content,
                                         response_id=response_id,
                                         model=str(param.model),
                                     )
                             case responses.ResponseOutputMessage() as item:
-                                yield AssistantMessageItem(
+                                yield model.AssistantMessageItem(
                                     content="\n".join(
                                         [
                                             part.text
@@ -145,7 +133,7 @@ class ResponsesClient(LLMClientABC):
                                 if first_token_time is None:
                                     first_token_time = time.time()
                                 last_token_time = time.time()
-                                yield ToolCallItem(
+                                yield model.ToolCallItem(
                                     name=item.name,
                                     arguments=item.arguments.strip(),
                                     call_id=item.call_id,
@@ -155,7 +143,7 @@ class ResponsesClient(LLMClientABC):
                             case _:
                                 pass
                     case responses.ResponseCompletedEvent() as event:
-                        usage: Usage | None = None
+                        usage: model.Usage | None = None
                         error_reason: str | None = None
                         if event.response.incomplete_details is not None:
                             error_reason = event.response.incomplete_details.reason
@@ -180,7 +168,7 @@ class ResponsesClient(LLMClientABC):
                                 if time_duration >= 0.15:
                                     throughput_tps = event.response.usage.output_tokens / time_duration
 
-                            usage = Usage(
+                            usage = model.Usage(
                                 input_tokens=event.response.usage.input_tokens,
                                 cached_tokens=event.response.usage.input_tokens_details.cached_tokens,
                                 reasoning_tokens=event.response.usage.output_tokens_details.reasoning_tokens,
@@ -190,7 +178,7 @@ class ResponsesClient(LLMClientABC):
                                 throughput_tps=throughput_tps,
                                 first_token_latency_ms=first_token_latency_ms,
                             )
-                        yield ResponseMetadataItem(
+                        yield model.ResponseMetadataItem(
                             usage=usage,
                             response_id=response_id,
                             model_name=str(param.model),
@@ -207,7 +195,7 @@ class ResponsesClient(LLMClientABC):
                                 style="red",
                                 debug_type=DebugType.LLM_STREAM,
                             )
-                            yield StreamErrorItem(error=error_message)
+                            yield model.StreamErrorItem(error=error_message)
                     case _:
                         log_debug(
                             "[Unhandled stream event]",
@@ -216,4 +204,4 @@ class ResponsesClient(LLMClientABC):
                             debug_type=DebugType.LLM_STREAM,
                         )
         except RateLimitError as e:
-            yield StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
+            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")

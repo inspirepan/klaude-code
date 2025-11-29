@@ -3,26 +3,25 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from typing import Callable, ParamSpec, TypeVar, cast
 
-from klaude_code.protocol.llm_parameter import LLMCallParameter, LLMConfigParameter
-from klaude_code.protocol.model import ConversationItem
+from klaude_code.protocol import llm_parameter, model
 from klaude_code.trace import DebugType, log_debug
 
 
 class LLMClientABC(ABC):
-    def __init__(self, config: LLMConfigParameter) -> None:
+    def __init__(self, config: llm_parameter.LLMConfigParameter) -> None:
         self._config = config
 
     @classmethod
     @abstractmethod
-    def create(cls, config: LLMConfigParameter) -> "LLMClientABC":
+    def create(cls, config: llm_parameter.LLMConfigParameter) -> "LLMClientABC":
         pass
 
     @abstractmethod
-    async def call(self, param: LLMCallParameter) -> AsyncGenerator[ConversationItem, None]:
+    async def call(self, param: llm_parameter.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         raise NotImplementedError
-        yield cast(ConversationItem, None)  # pyright: ignore[reportUnreachable]
+        yield cast(model.ConversationItem, None)  # pyright: ignore[reportUnreachable]
 
-    def get_llm_config(self) -> LLMConfigParameter:
+    def get_llm_config(self) -> llm_parameter.LLMConfigParameter:
         return self._config
 
     @property

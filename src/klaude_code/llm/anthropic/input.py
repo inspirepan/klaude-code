@@ -18,9 +18,7 @@ from anthropic.types.beta.beta_tool_param import BetaToolParam
 from anthropic.types.beta.beta_url_image_source_param import BetaURLImageSourceParam
 
 from klaude_code.llm.input_common import AssistantGroup, ToolGroup, UserGroup, merge_reminder_text, parse_message_groups
-from klaude_code.protocol import llm_parameter
-from klaude_code.protocol import model
-from klaude_code.protocol import model as protocol_model
+from klaude_code.protocol import llm_parameter, model
 
 AllowedMediaType = Literal["image/png", "image/jpeg", "image/gif", "image/webp"]
 _INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (
@@ -103,7 +101,7 @@ def _assistant_group_to_message(group: AssistantGroup, model_name: str | None) -
     # Process reasoning items in original order so that text and
     # encrypted parts are paired correctly for the given model.
     for item in group.reasoning_items:
-        if isinstance(item, protocol_model.ReasoningTextItem):
+        if isinstance(item, model.ReasoningTextItem):
             if model_name != item.model:
                 continue
             current_reasoning_content = item.content
