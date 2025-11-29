@@ -46,47 +46,31 @@ def get_registry() -> dict[str, type[ToolABC]]:
     return _REGISTRY
 
 
-def get_vanilla_tools() -> list[llm_parameter.ToolSchema]:
-    base_tool_names = [
-        tools.BASH,
-        tools.EDIT,
-        tools.WRITE,
-        tools.READ,
-    ]
-    return get_tool_schemas(base_tool_names)
+def load_agent_tools(
+    model_name: str, sub_agent_type: tools.SubAgentType | None = None, *, vanilla: bool = False
+) -> list[llm_parameter.ToolSchema]:
+    """Get tools for an agent based on model and agent type.
 
+    Args:
+        model_name: The model name.
+        sub_agent_type: If None, returns main agent tools. Otherwise returns sub-agent tools.
+        vanilla: If True, returns minimal vanilla tools (ignores sub_agent_type).
+    """
+    if vanilla:
+        return get_tool_schemas([tools.BASH, tools.EDIT, tools.WRITE, tools.READ])
 
-def get_main_agent_tools(model_name: str) -> list[llm_parameter.ToolSchema]:
-    def _base_main_tools(name: str) -> list[str]:
-        if "gpt-5" in name:
-            return [
-                tools.BASH,
-                tools.READ,
-                tools.APPLY_PATCH,
-                tools.UPDATE_PLAN,
-            ]
-        return [
-            tools.BASH,
-            tools.READ,
-            tools.EDIT,
-            tools.WRITE,
-            tools.TODO_WRITE,
-        ]
+    if sub_agent_type is not None:
+        profile = get_sub_agent_profile(sub_agent_type)
+        if not profile.enabled_for_model(model_name):
+            return []
+        return get_tool_schemas(list(profile.tool_set))
 
-    tool_names = _base_main_tools(model_name)
+    # Main agent tools
+    if "gpt-5" in model_name:
+        tool_names = [tools.BASH, tools.READ, tools.APPLY_PATCH, tools.UPDATE_PLAN]
+    else:
+        tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.TODO_WRITE]
+
     tool_names.extend(sub_agent_tool_names(enabled_only=True, model_name=model_name))
-    tool_names.extend(
-        [
-            tools.SKILL,
-            tools.MERMAID,
-            tools.MEMORY,
-        ]
-    )
+    tool_names.extend([tools.SKILL, tools.MERMAID, tools.MEMORY])
     return get_tool_schemas(tool_names)
-
-
-def get_sub_agent_tools(model_name: str, sub_agent_type: tools.SubAgentType) -> list[llm_parameter.ToolSchema]:
-    profile = get_sub_agent_profile(sub_agent_type)
-    if not profile.enabled_for_model(model_name):
-        return []
-    return get_tool_schemas(list(profile.tool_set))

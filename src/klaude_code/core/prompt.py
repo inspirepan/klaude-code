@@ -13,20 +13,20 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
 
 # Mapping from logical prompt keys to resource file paths under the core/prompt directory.
 PROMPT_FILES: dict[str, str] = {
-    "main_codex": "prompt/prompt-codex.md",
-    "main_claude": "prompt/prompt-claude-code.md",
-    "main_gemini": "prompt/prompt-gemini.md",  # https://ai.google.dev/gemini-api/docs/prompting-strategies?hl=zh-cn#agentic-si-template
+    "main_codex": "prompts/prompt-codex.md",
+    "main_claude": "prompts/prompt-claude-code.md",
+    "main_gemini": "prompts/prompt-gemini.md",  # https://ai.google.dev/gemini-api/docs/prompting-strategies?hl=zh-cn#agentic-si-template
     # Sub-agent prompts keyed by their name
-    "Task": "prompt/prompt-subagent.md",
-    "Oracle": "prompt/prompt-subagent-oracle.md",
-    "Explore": "prompt/prompt-subagent-explore.md",
-    "WebFetchAgent": "prompt/prompt-subagent-webfetch.md",
+    "Task": "prompts/prompt-subagent.md",
+    "Oracle": "prompts/prompt-subagent-oracle.md",
+    "Explore": "prompts/prompt-subagent-explore.md",
+    "WebFetchAgent": "prompts/prompt-subagent-webfetch.md",
 }
 
 
 @lru_cache(maxsize=None)
-def get_system_prompt(model_name: str, key: str = "main") -> str:
-    """Get system prompt content for the given model and prompt key."""
+def get_system_prompt(model_name: str, sub_agent_type: str | None = None) -> str:
+    """Get system prompt content for the given model and sub-agent type."""
 
     cwd = Path.cwd()
     today = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -37,7 +37,7 @@ def get_system_prompt(model_name: str, key: str = "main") -> str:
         if shutil.which(command) is not None:
             available_tools.append(f"{command}: {desc}")
 
-    if key == "main":
+    if sub_agent_type is None:
         match model_name:
             case name if "gpt-5" in name:
                 file_key = "main_codex"
@@ -46,12 +46,12 @@ def get_system_prompt(model_name: str, key: str = "main") -> str:
             case _:
                 file_key = "main_claude"
     else:
-        file_key = key
+        file_key = sub_agent_type
 
     try:
         prompt_path = PROMPT_FILES[file_key]
     except KeyError as exc:
-        raise ValueError(f"Unknown prompt key: {key}") from exc
+        raise ValueError(f"Unknown prompt key: {file_key}") from exc
 
     base_prompt = (
         files(__package__)

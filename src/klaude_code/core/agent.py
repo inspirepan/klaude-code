@@ -5,21 +5,9 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from klaude_code.core.prompt import get_system_prompt as load_system_prompt
-from klaude_code.core.reminders import (
-    Reminder,
-    get_main_agent_reminders,
-    get_sub_agent_reminders,
-    get_vanilla_reminders,
-)
-from klaude_code.core.sub_agent import get_sub_agent_profile
+from klaude_code.core.reminders import Reminder, load_agent_reminders
 from klaude_code.core.task import TaskExecutionContext, TaskExecutor
-from klaude_code.core.tool import (
-    TodoContext,
-    get_main_agent_tools,
-    get_registry,
-    get_sub_agent_tools,
-    get_vanilla_tools,
-)
+from klaude_code.core.tool import TodoContext, load_agent_tools, get_registry
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import events, llm_parameter, model, tools
 from klaude_code.session import Session
@@ -28,7 +16,7 @@ from klaude_code.trace import DebugType, log_debug
 
 @dataclass(frozen=True)
 class AgentProfile:
-    """Encapsulates the active LLM client plus prompt/tools/reminders."""
+    """Encapsulates the active LLM client plus prompts/tools/reminders."""
 
     llm_client: LLMClientABC
     system_prompt: str | None
@@ -47,7 +35,7 @@ class ModelProfileProvider(Protocol):
 
 
 class DefaultModelProfileProvider(ModelProfileProvider):
-    """Default provider backed by global prompt/tool/reminder registries."""
+    """Default provider backed by global prompts/tool/reminder registries."""
 
     def build_profile(
         self,
@@ -55,23 +43,11 @@ class DefaultModelProfileProvider(ModelProfileProvider):
         sub_agent_type: tools.SubAgentType | None = None,
     ) -> AgentProfile:
         model_name = llm_client.model_name
-
-        if sub_agent_type is None:
-            prompt_key = "main"
-            tool_list = get_main_agent_tools(model_name)
-            reminders = get_main_agent_reminders(model_name)
-        else:
-            prompt_key = get_sub_agent_profile(sub_agent_type).name
-            tool_list = get_sub_agent_tools(model_name, sub_agent_type)
-            reminders = get_sub_agent_reminders(model_name)
-
-        system_prompt = load_system_prompt(model_name, prompt_key)
-
         return AgentProfile(
             llm_client=llm_client,
-            system_prompt=system_prompt,
-            tools=tool_list,
-            reminders=reminders,
+            system_prompt=load_system_prompt(model_name, sub_agent_type),
+            tools=load_agent_tools(model_name, sub_agent_type),
+            reminders=load_agent_reminders(model_name, sub_agent_type),
         )
 
 
@@ -83,11 +59,12 @@ class VanillaModelProfileProvider(ModelProfileProvider):
         llm_client: LLMClientABC,
         sub_agent_type: tools.SubAgentType | None = None,
     ) -> AgentProfile:
+        model_name = llm_client.model_name
         return AgentProfile(
             llm_client=llm_client,
             system_prompt=None,
-            tools=get_vanilla_tools(),
-            reminders=get_vanilla_reminders(),
+            tools=load_agent_tools(model_name, vanilla=True),
+            reminders=load_agent_reminders(model_name, vanilla=True),
         )
 
 

@@ -34,18 +34,18 @@ register_sub_agent(
 ```python
 PROMPT_FILES: dict[str, str] = {
     # ... existing entries ...
-    "MyAgent": "prompt/prompt-subagent-myagent.md",
+    "MyAgent": "prompts/prompt-subagent-myagent.md",
 }
 ```
 
 3) Create the prompt file
 
-Create `src/klaude_code/core/prompt/prompt-subagent-myagent.md` with the system prompt content.
+Create `src/klaude_code/core/prompts/prompt-subagent-myagent.md` with the system prompt content.
 
 4) Add prompt file to build config (`pyproject.toml`)
 
 ```toml
-"src/klaude_code/core/prompt/prompt-subagent-myagent.md" = "klaude_code/core/prompt/prompt-subagent-myagent.md"
+"src/klaude_code/core/prompts/prompt-subagent-myagent.md" = "klaude_code/core/prompts/prompt-subagent-myagent.md"
 ```
 
 Notes:

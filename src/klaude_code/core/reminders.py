@@ -451,33 +451,26 @@ ALL_REMINDERS = [
 ]
 
 
-def get_vanilla_reminders() -> list[Reminder]:
-    return [at_file_reader_reminder, clipboard_image_reminder]
+def load_agent_reminders(
+    model_name: str, sub_agent_type: str | None = None, *, vanilla: bool = False
+) -> list[Reminder]:
+    """Get reminders for an agent based on model and agent type.
 
+    Args:
+        model_name: The model name.
+        sub_agent_type: If None, returns main agent reminders. Otherwise returns sub-agent reminders.
+        vanilla: If True, returns minimal vanilla reminders (ignores sub_agent_type).
+    """
+    if vanilla:
+        return [at_file_reader_reminder, clipboard_image_reminder]
 
-def get_main_agent_reminders(model_name: str) -> list[Reminder]:
     reminders: list[Reminder] = []
 
-    # For GPT-5, we do not show empty todo and todo not used recently reminders
-    if "gpt-5" not in model_name:
+    # Only main agent (not sub-agent) gets todo reminders, and not for GPT-5
+    if sub_agent_type is None and "gpt-5" not in model_name:
         reminders.append(empty_todo_reminder)
         reminders.append(todo_not_used_recently_reminder)
 
-    reminders.extend(
-        [
-            memory_reminder,
-            last_path_memory_reminder,
-            at_file_reader_reminder,
-            clipboard_image_reminder,
-            file_changed_externally_reminder,
-        ]
-    )
-
-    return reminders
-
-
-def get_sub_agent_reminders(model_name: str) -> list[Reminder]:
-    reminders: list[Reminder] = []
     reminders.extend(
         [
             memory_reminder,

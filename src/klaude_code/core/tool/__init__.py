@@ -21,7 +21,7 @@ from .tool_context import (
     set_tool_context_from_session,
     tool_context,
 )
-from .tool_registry import get_main_agent_tools, get_registry, get_sub_agent_tools, get_tool_schemas, get_vanilla_tools
+from .tool_registry import load_agent_tools, get_registry, get_tool_schemas
 from .tool_runner import run_tool
 from .truncation import SimpleTruncationStrategy, TruncationStrategy, get_truncation_strategy, set_truncation_strategy
 from .web.mermaid_tool import MermaidTool
@@ -52,11 +52,9 @@ __all__ = [
     "set_tool_context_from_session",
     "tool_context",
     # Tool registry
-    "get_main_agent_tools",
+    "load_agent_tools",
     "get_registry",
-    "get_sub_agent_tools",
     "get_tool_schemas",
-    "get_vanilla_tools",
     "run_tool",
     # Truncation
     "SimpleTruncationStrategy",
