@@ -8,10 +8,10 @@ from openai import APIError, RateLimitError
 
 from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
 from klaude_code.llm.input_common import apply_config_defaults
-from klaude_code.llm.usage import MetadataTracker, convert_usage
 from klaude_code.llm.openai_compatible.input import convert_history_to_input, convert_tool_schema
 from klaude_code.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
 from klaude_code.llm.registry import register
+from klaude_code.llm.usage import MetadataTracker, convert_usage
 from klaude_code.protocol import llm_param, model
 from klaude_code.trace import DebugType, log_debug
 

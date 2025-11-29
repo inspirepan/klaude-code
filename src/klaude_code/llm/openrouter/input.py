@@ -13,11 +13,15 @@ from klaude_code.llm.input_common import AssistantGroup, ToolGroup, UserGroup, m
 from klaude_code.protocol import model
 
 
-def is_claude_model(model_name: str | None):
+def is_claude_model(model_name: str | None) -> bool:
+    """Return True if the model name represents an Anthropic Claude model."""
+
     return model_name is not None and model_name.startswith("anthropic/claude")
 
 
-def is_gemini_model(model_name: str | None):
+def is_gemini_model(model_name: str | None) -> bool:
+    """Return True if the model name represents a Google Gemini model."""
+
     return model_name is not None and model_name.startswith("google/gemini")
 
 

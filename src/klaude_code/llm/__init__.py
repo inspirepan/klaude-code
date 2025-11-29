@@ -1,7 +1,7 @@
 """LLM package init.
 
-Ensures built-in clients are imported so their `@register` decorators run
-and they become available via the registry.
+Imports built-in LLM clients so their ``@register`` decorators run and they
+become available via the global ``LLMClients`` registry.
 """
 
 from .anthropic import AnthropicClient
