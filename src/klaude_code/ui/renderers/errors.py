@@ -1,7 +1,7 @@
 from rich.console import RenderableType
 from rich.text import Text
 
-from klaude_code.ui.base.theme import ThemeKey
+from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.renderers.common import create_grid
 
 

@@ -13,8 +13,8 @@ from rich.table import Table
 from rich.text import Text
 
 from klaude_code import const
-from klaude_code.ui.base.terminal_color import get_last_terminal_background_rgb
-from klaude_code.ui.base.theme import ThemeKey
+from klaude_code.ui.rich.theme import ThemeKey
+from klaude_code.ui.terminal.color import get_last_terminal_background_rgb
 
 BREATHING_SPINNER_NAME = "dot"
 

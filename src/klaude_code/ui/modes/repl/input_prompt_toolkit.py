@@ -30,8 +30,8 @@ from klaude_code.core.clipboard_manifest import (
     next_session_token,
     persist_clipboard_manifest,
 )
-from klaude_code.ui.base.input_abc import InputProviderABC
-from klaude_code.ui.base.utils import get_current_git_branch, show_path_with_tilde
+from klaude_code.ui.core.input import InputProviderABC
+from klaude_code.ui.utils.common import get_current_git_branch, show_path_with_tilde
 
 
 class REPLStatusSnapshot(NamedTuple):

@@ -5,8 +5,8 @@ from rich.text import Text
 
 from klaude_code import const
 from klaude_code.protocol import model
-from klaude_code.ui.base.theme import ThemeKey
-from klaude_code.ui.rich_ext.markdown import NoInsetMarkdown
+from klaude_code.ui.rich.theme import ThemeKey
+from klaude_code.ui.rich.markdown import NoInsetMarkdown
 
 
 def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) -> RenderableType:

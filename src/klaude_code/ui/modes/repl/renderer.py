@@ -15,7 +15,7 @@ from rich.text import Text
 
 from klaude_code.core.sub_agent import get_sub_agent_profile_by_tool
 from klaude_code.protocol import events, model, tools
-from klaude_code.ui.base.theme import ThemeKey, get_theme
+from klaude_code.ui.rich.theme import ThemeKey, get_theme
 from klaude_code.ui.renderers import developer as r_developer
 from klaude_code.ui.renderers import diffs as r_diffs
 from klaude_code.ui.renderers import errors as r_errors
@@ -25,8 +25,8 @@ from klaude_code.ui.renderers import sub_agent as r_sub_agent
 from klaude_code.ui.renderers import tools as r_tools
 from klaude_code.ui.renderers import user_input as r_user_input
 from klaude_code.ui.renderers.common import create_grid, truncate_display
-from klaude_code.ui.rich_ext.markdown import NoInsetMarkdown
-from klaude_code.ui.rich_ext.quote import Quote
+from klaude_code.ui.rich.markdown import NoInsetMarkdown
+from klaude_code.ui.rich.quote import Quote
 
 
 @dataclass

@@ -1,8 +1,8 @@
 from typing import override
 
 from klaude_code.protocol import events
-from klaude_code.ui.base.display_abc import DisplayABC
-from klaude_code.ui.base.progress_bar import OSC94States, emit_osc94
+from klaude_code.ui.core.display import DisplayABC
+from klaude_code.ui.terminal.progress_bar import OSC94States, emit_osc94
 
 
 class ExecDisplay(DisplayABC):

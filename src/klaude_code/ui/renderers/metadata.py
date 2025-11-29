@@ -8,8 +8,8 @@ from rich.panel import Panel
 from rich.text import Text
 
 from klaude_code.protocol import events
-from klaude_code.ui.base.theme import ThemeKey
-from klaude_code.ui.base.utils import format_number
+from klaude_code.ui.rich.theme import ThemeKey
+from klaude_code.ui.utils.common import format_number
 
 
 def _get_version() -> str:

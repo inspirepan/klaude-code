@@ -5,7 +5,7 @@ from rich.text import Text
 
 from klaude_code.config import Config
 from klaude_code.core.sub_agent import iter_sub_agent_profiles
-from klaude_code.ui.base.theme import ThemeKey, get_theme
+from klaude_code.ui.rich.theme import ThemeKey, get_theme
 
 
 def mask_api_key(api_key: str | None) -> str:

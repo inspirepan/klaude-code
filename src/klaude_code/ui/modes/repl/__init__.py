@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from klaude_code.protocol import model
-from klaude_code.ui.repl.input import REPLStatusSnapshot
+from klaude_code.ui.modes.repl.input_prompt_toolkit import REPLStatusSnapshot
 
 if TYPE_CHECKING:
     from klaude_code.core.agent import Agent

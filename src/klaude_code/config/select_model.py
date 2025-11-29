@@ -1,6 +1,6 @@
 from klaude_code.config.config import load_config
 from klaude_code.trace import log
-from klaude_code.ui.rich_ext.searchable_text import SearchableFormattedList
+from klaude_code.ui.rich.searchable_text import SearchableFormattedList
 
 
 def select_model_from_config(preferred: str | None = None) -> str | None:

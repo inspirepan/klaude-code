@@ -3,7 +3,7 @@ from typing import override
 from klaude_code import const
 from klaude_code.protocol import events
 from klaude_code.trace import DebugType, log_debug
-from klaude_code.ui.base.display_abc import DisplayABC
+from klaude_code.ui.core.display import DisplayABC
 
 
 class DebugEventDisplay(DisplayABC):

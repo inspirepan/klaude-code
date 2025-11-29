@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import override
 
 from klaude_code.protocol import events
-from klaude_code.ui.base.display_abc import DisplayABC
-from klaude_code.ui.base.terminal_notifier import TerminalNotifier
-from klaude_code.ui.repl.event_handler import DisplayEventHandler
-from klaude_code.ui.repl.renderer import REPLRenderer
+from klaude_code.ui.core.display import DisplayABC
+from klaude_code.ui.terminal.notifier import TerminalNotifier
+from klaude_code.ui.modes.repl.event_handler import DisplayEventHandler
+from klaude_code.ui.modes.repl.renderer import REPLRenderer
 
 
 class REPLDisplay(DisplayABC):

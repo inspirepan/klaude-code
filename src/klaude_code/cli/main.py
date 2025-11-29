@@ -12,7 +12,7 @@ from klaude_code.cli.session_cmd import register_session_commands
 from klaude_code.config import config_path, display_models_and_providers, load_config, select_model_from_config
 from klaude_code.session import Session, resume_select_session
 from klaude_code.trace import log
-from klaude_code.ui.base.terminal_color import is_light_terminal_background
+from klaude_code.ui.terminal.color import is_light_terminal_background
 
 
 def set_terminal_title(title: str) -> None:
