@@ -1,13 +1,13 @@
 import json
 import time
 from collections.abc import AsyncGenerator
-from typing import Callable, Literal, ParamSpec, TypeVar, override
+from typing import Literal, override
 
 import httpx
 import openai
 from openai import APIError, RateLimitError
 
-from klaude_code.llm.client import LLMClientABC
+from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
 from klaude_code.llm.openai_compatible.input import convert_history_to_input, convert_tool_schema
 from klaude_code.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
 from klaude_code.llm.registry import register
@@ -20,25 +20,6 @@ from klaude_code.protocol.llm_parameter import (
 )
 from klaude_code.protocol.model import StreamErrorItem
 from klaude_code.trace import DebugType, log_debug
-
-P = ParamSpec("P")
-R = TypeVar("R")
-
-
-def call_with_logged_payload(func: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> R:
-    """Call an SDK function while logging the JSON payload.
-
-    The function reuses the original callable's type signature via ParamSpec
-    so static type checkers can validate arguments at the call site.
-    """
-
-    payload = {k: v for k, v in kwargs.items() if v is not None}
-    log_debug(
-        json.dumps(payload, ensure_ascii=False, default=str),
-        style="yellow",
-        debug_type=DebugType.LLM_PAYLOAD,
-    )
-    return func(*args, **kwargs)
 
 
 @register(LLMClientProtocol.OPENAI)
@@ -140,7 +121,11 @@ class OpenAICompatibleClient(LLMClientABC):
 
         try:
             async for event in await stream:
-                log_debug(event.model_dump_json(exclude_none=True), style="blue", debug_type=DebugType.LLM_STREAM)
+                log_debug(
+                    event.model_dump_json(exclude_none=True),
+                    style="blue",
+                    debug_type=DebugType.LLM_STREAM,
+                )
                 if not response_id and event.id:
                     response_id = event.id
                     accumulated_tool_calls.response_id = response_id

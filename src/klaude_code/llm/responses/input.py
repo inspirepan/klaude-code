@@ -18,7 +18,9 @@ from klaude_code.protocol.model import (
 )
 
 
-def _build_user_content_parts(user: UserMessageItem) -> list[responses.ResponseInputContentParam]:
+def _build_user_content_parts(
+    user: UserMessageItem,
+) -> list[responses.ResponseInputContentParam]:
     parts: list[responses.ResponseInputContentParam] = []
     if user.content is not None:
         parts.append({"type": "input_text", "text": user.content})
@@ -117,7 +119,13 @@ def convert_history_to_input(
                 if d.content is not None:
                     dev_parts.append({"type": "input_text", "text": d.content})
                 for image in d.images or []:
-                    dev_parts.append({"type": "input_image", "detail": "auto", "image_url": image.image_url.url})
+                    dev_parts.append(
+                        {
+                            "type": "input_image",
+                            "detail": "auto",
+                            "image_url": image.image_url.url,
+                        }
+                    )
                 if not dev_parts:
                     dev_parts.append({"type": "input_text", "text": ""})
                 items.append(

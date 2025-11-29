@@ -1,13 +1,13 @@
 import json
 import time
 from collections.abc import AsyncGenerator
-from typing import Callable, ParamSpec, TypeVar, override
+from typing import override
 
 import httpx
 from openai import AsyncAzureOpenAI, AsyncOpenAI, RateLimitError
 from openai.types import responses
 
-from klaude_code.llm.client import LLMClientABC
+from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
 from klaude_code.llm.registry import register
 from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
 from klaude_code.protocol.llm_parameter import (
@@ -29,25 +29,6 @@ from klaude_code.protocol.model import (
     Usage,
 )
 from klaude_code.trace import DebugType, log_debug
-
-P = ParamSpec("P")
-R = TypeVar("R")
-
-
-def call_with_logged_payload(func: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> R:
-    """Call an SDK function while logging the JSON payload.
-
-    The function reuses the original callable's type signature via ParamSpec
-    so static type checkers can validate arguments at the call site.
-    """
-
-    payload = {k: v for k, v in kwargs.items() if v is not None}
-    log_debug(
-        json.dumps(payload, ensure_ascii=False, default=str),
-        style="yellow",
-        debug_type=DebugType.LLM_PAYLOAD,
-    )
-    return func(*args, **kwargs)
 
 
 @register(LLMClientProtocol.RESPONSES)
@@ -232,6 +213,11 @@ class ResponsesClient(LLMClientABC):
                             )
                             yield StreamErrorItem(error=error_message)
                     case _:
-                        log_debug("[Unhandled stream event]", str(event), style="red", debug_type=DebugType.LLM_STREAM)
+                        log_debug(
+                            "[Unhandled stream event]",
+                            str(event),
+                            style="red",
+                            debug_type=DebugType.LLM_STREAM,
+                        )
         except RateLimitError as e:
             yield StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")

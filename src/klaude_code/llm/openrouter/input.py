@@ -9,15 +9,8 @@
 from openai.types import chat
 from openai.types.chat import ChatCompletionContentPartParam
 
-from klaude_code.llm.input_common import (
-    AssistantGroup,
-    ToolGroup,
-    UserGroup,
-    merge_reminder_text,
-    parse_message_groups,
-)
+from klaude_code.llm.input_common import AssistantGroup, ToolGroup, UserGroup, merge_reminder_text, parse_message_groups
 from klaude_code.protocol import model as protocol_model
-from klaude_code.protocol.llm_parameter import ToolSchema
 from klaude_code.protocol.model import ConversationItem
 
 
@@ -161,21 +154,3 @@ def convert_history_to_input(
 
     _add_cache_control(messages, use_cache_control)
     return messages
-
-
-def convert_tool_schema(
-    tools: list[ToolSchema] | None,
-) -> list[chat.ChatCompletionToolParam]:
-    if tools is None:
-        return []
-    return [
-        {
-            "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": tool.parameters,
-            },
-        }
-        for tool in tools
-    ]

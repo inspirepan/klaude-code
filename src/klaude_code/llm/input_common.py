@@ -65,7 +65,10 @@ MessageGroup = UserGroup | ToolGroup | AssistantGroup
 
 
 def _kind_of(item: ConversationItem) -> GroupKind:
-    if isinstance(item, (ReasoningTextItem, ReasoningEncryptedItem, AssistantMessageItem, ToolCallItem)):
+    if isinstance(
+        item,
+        (ReasoningTextItem, ReasoningEncryptedItem, AssistantMessageItem, ToolCallItem),
+    ):
         return GroupKind.ASSISTANT
     if isinstance(item, UserMessageItem):
         return GroupKind.USER

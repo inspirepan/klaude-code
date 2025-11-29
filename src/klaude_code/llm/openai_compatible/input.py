@@ -6,13 +6,7 @@
 from openai.types import chat
 from openai.types.chat import ChatCompletionContentPartParam
 
-from klaude_code.llm.input_common import (
-    AssistantGroup,
-    ToolGroup,
-    UserGroup,
-    merge_reminder_text,
-    parse_message_groups,
-)
+from klaude_code.llm.input_common import AssistantGroup, ToolGroup, UserGroup, merge_reminder_text, parse_message_groups
 from klaude_code.protocol.llm_parameter import ToolSchema
 from klaude_code.protocol.model import ConversationItem, ImageURLPart
 
@@ -39,7 +33,9 @@ def _tool_group_to_message(group: ToolGroup) -> chat.ChatCompletionMessageParam:
     }
 
 
-def _assistant_group_to_message(group: AssistantGroup) -> chat.ChatCompletionMessageParam:
+def _assistant_group_to_message(
+    group: AssistantGroup,
+) -> chat.ChatCompletionMessageParam:
     assistant_message: dict[str, object] = {"role": "assistant"}
 
     if group.text_content:
@@ -61,7 +57,9 @@ def _assistant_group_to_message(group: AssistantGroup) -> chat.ChatCompletionMes
     return assistant_message
 
 
-def build_user_content_parts(images: list[ImageURLPart]) -> list[ChatCompletionContentPartParam]:
+def build_user_content_parts(
+    images: list[ImageURLPart],
+) -> list[ChatCompletionContentPartParam]:
     """Build content parts for images only. Used by OpenRouter."""
     return [{"type": "image_url", "image_url": {"url": image.image_url.url}} for image in images]
 
@@ -79,9 +77,7 @@ def convert_history_to_input(
         system: System message.
         model_name: Model name. Not used in OpenAI-compatible, kept for API consistency.
     """
-    messages: list[chat.ChatCompletionMessageParam] = (
-        [{"role": "system", "content": system}] if system else []
-    )
+    messages: list[chat.ChatCompletionMessageParam] = [{"role": "system", "content": system}] if system else []
 
     for group in parse_message_groups(history):
         match group:

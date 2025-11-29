@@ -17,15 +17,10 @@ from anthropic.types.beta.beta_text_block_param import BetaTextBlockParam
 from anthropic.types.beta.beta_tool_param import BetaToolParam
 from anthropic.types.beta.beta_url_image_source_param import BetaURLImageSourceParam
 
-from klaude_code.llm.input_common import (
-    AssistantGroup,
-    ToolGroup,
-    UserGroup,
-    merge_reminder_text,
-    parse_message_groups,
-)
+from klaude_code.llm.input_common import AssistantGroup, ToolGroup, UserGroup, merge_reminder_text, parse_message_groups
+from klaude_code.protocol import llm_parameter
+from klaude_code.protocol import model
 from klaude_code.protocol import model as protocol_model
-from klaude_code.protocol import llm_parameter, model
 
 AllowedMediaType = Literal["image/png", "image/jpeg", "image/gif", "image/webp"]
 _INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (
