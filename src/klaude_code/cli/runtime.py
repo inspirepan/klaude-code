@@ -216,15 +216,13 @@ async def run_exec(init_config: AppInitConfig, input_content: str) -> None:
         session_id = uuid.uuid4().hex
 
         # Init Agent
-        init_id = await components.executor.submit(op.InitAgentOperation(session_id=session_id))
-        await components.executor.wait_for_completion(init_id)
+        await components.executor.submit_and_wait(op.InitAgentOperation(session_id=session_id))
         await components.event_queue.join()
 
         # Submit the input content directly
-        submission_id = await components.executor.submit(
+        await components.executor.submit_and_wait(
             op.UserInputOperation(input=UserInputPayload(text=input_content), session_id=session_id)
         )
-        await components.executor.wait_for_completion(submission_id)
 
     except KeyboardInterrupt:
         await _handle_keyboard_interrupt(components.executor)
@@ -286,8 +284,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     try:
         # Init Agent
-        init_id = await components.executor.submit(op.InitAgentOperation(session_id=session_id))
-        await components.executor.wait_for_completion(init_id)
+        await components.executor.submit_and_wait(op.InitAgentOperation(session_id=session_id))
         await components.event_queue.join()
         # Input
         await input_provider.start()
@@ -304,7 +301,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             # If it's an interactive command (e.g., /model), avoid starting the ESC monitor
             # to prevent TTY conflicts with interactive prompts (questionary/prompt_toolkit).
             if is_interactive_command(user_input.text):
-                await components.executor.wait_for_completion(submission_id)
+                await components.executor.wait_for(submission_id)
             else:
                 # Esc monitor for long-running, interruptible operations
                 async def _on_esc_interrupt() -> None:
@@ -313,7 +310,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 stop_event, esc_task = start_esc_interrupt_monitor(_on_esc_interrupt)
                 # Wait for this specific task to complete before accepting next input
                 try:
-                    await components.executor.wait_for_completion(submission_id)
+                    await components.executor.wait_for(submission_id)
                 finally:
                     # Stop ESC monitor and wait for it to finish cleaning up TTY
                     stop_event.set()
