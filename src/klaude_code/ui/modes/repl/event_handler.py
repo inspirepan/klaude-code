@@ -286,12 +286,14 @@ class DisplayEventHandler:
         self.renderer.display_task_finish(event)
         if not self.renderer.is_sub_agent_session(event.session_id):
             emit_osc94(OSC94States.HIDDEN)
+            self.spinner_status.reset()
         self.renderer.spinner_stop()
         await self.stage_manager.transition_to(Stage.WAITING)
         self._maybe_notify_task_finish(event)
 
     async def _on_interrupt(self, event: events.InterruptEvent) -> None:
         self.renderer.spinner_stop()
+        self.spinner_status.reset()
         await self.stage_manager.transition_to(Stage.WAITING)
         emit_osc94(OSC94States.HIDDEN)
         self.renderer.display_interrupt()
@@ -302,11 +304,13 @@ class DisplayEventHandler:
         self.renderer.display_error(event)
         if not event.can_retry:
             self.renderer.spinner_stop()
+            self.spinner_status.reset()
 
     async def _on_end(self, event: events.EndEvent) -> None:
         emit_osc94(OSC94States.HIDDEN)
         await self.stage_manager.transition_to(Stage.WAITING)
         self.renderer.spinner_stop()
+        self.spinner_status.reset()
 
     # ─────────────────────────────────────────────────────────────────────────────
     # Private helper methods
