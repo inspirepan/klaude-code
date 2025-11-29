@@ -43,3 +43,17 @@ markers = [
 
 [tool.ruff]
 line-length = 120
+
+[tool.pyright]
+typeCheckingMode = "strict"
+pythonVersion = "3.13"
+venvPath = "."
+venv = ".venv"
+extraPaths = ["src"]
+reportMissingImports = "warning"
+reportMissingModuleSource = "warning"
+exclude = [".venv/"]
+
+[[tool.pyright.executionEnvironments]]
+root = "."
+extraPaths = ["src"]
