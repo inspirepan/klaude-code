@@ -7,7 +7,7 @@ from typing import Protocol
 from klaude_code.core.prompt import get_system_prompt as load_system_prompt
 from klaude_code.core.reminders import Reminder, load_agent_reminders
 from klaude_code.core.task import TaskExecutionContext, TaskExecutor
-from klaude_code.core.tool import TodoContext, load_agent_tools, get_registry
+from klaude_code.core.tool import TodoContext, get_registry, load_agent_tools
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import events, llm_parameter, model, tools
 from klaude_code.session import Session

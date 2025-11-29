@@ -144,15 +144,12 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
         elif detected is False:
             theme = "dark"
 
-    # Set up UI components
+    # Set up UI components using factory functions
     display: ui.DisplayABC
     if init_config.is_exec_mode:
-        # Use ExecDisplay for exec mode - only shows task results
-        display = ui.ExecDisplay()
+        display = ui.create_exec_display(debug=init_config.debug)
     else:
-        # Use REPLDisplay for interactive mode
-        repl_display = ui.REPLDisplay(theme=theme)
-        display = repl_display if not init_config.debug else ui.DebugEventDisplay(repl_display)
+        display = ui.create_default_display(debug=init_config.debug, theme=theme)
 
     # Start UI display task
     display_task = asyncio.create_task(display.consume_event_loop(event_queue))

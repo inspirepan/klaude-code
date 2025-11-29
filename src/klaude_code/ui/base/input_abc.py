@@ -5,16 +5,64 @@ from collections.abc import AsyncIterator
 
 
 class InputProviderABC(ABC):
+    """
+    Abstract base class for user input providers.
+
+    An InputProvider is responsible for collecting user input and yielding it
+    to the application. Implementations handle the specifics of input collection,
+    such as terminal readline, prompt-toolkit sessions, or other input sources.
+
+    Lifecycle:
+        1. start() is called once before any inputs are requested.
+        2. iter_inputs() yields user input strings until the user exits.
+        3. stop() is called once when input collection is complete.
+
+    Typical Usage:
+        input_provider = PromptToolkitInput(status_provider=my_status_fn)
+        await input_provider.start()
+        try:
+            async for user_input in input_provider.iter_inputs():
+                if user_input.strip().lower() in {"exit", "quit"}:
+                    break
+                # Process user_input...
+        finally:
+            await input_provider.stop()
+
+    Thread Safety:
+        Input providers should be used from a single async task.
+    """
+
     @abstractmethod
     async def start(self) -> None:
-        """Optional setup before reading inputs."""
+        """
+        Initialize the input provider before reading inputs.
+
+        Called once before iter_inputs(). Use this for any setup that needs
+        to happen before input collection begins (e.g., configuring terminal
+        settings, loading history).
+        """
 
     @abstractmethod
     async def stop(self) -> None:
-        """Optional teardown when stopping."""
+        """
+        Clean up the input provider after input collection is complete.
+
+        Called once after iter_inputs() finishes. Use this for cleanup such
+        as saving history, restoring terminal state, or releasing resources.
+        """
 
     @abstractmethod
     async def iter_inputs(self) -> AsyncIterator[str]:
-        """Return an async iterator of user inputs."""
+        """
+        Yield user input strings asynchronously.
+
+        This is the main method for collecting user input. Each yield returns
+        one complete user input (e.g., after the user presses Enter). The
+        iterator completes when the user signals end of input (e.g., Ctrl+D)
+        or when the application requests shutdown.
+
+        Yields:
+            User input strings. Empty strings may be yielded for blank input.
+        """
         raise NotImplementedError
         yield ""  # pyright: ignore[reportUnreachable]

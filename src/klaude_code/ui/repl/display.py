@@ -10,7 +10,31 @@ from klaude_code.ui.repl.renderer import REPLRenderer
 
 
 class REPLDisplay(DisplayABC):
-    """Coordinate renderer and event handler for the REPL UI."""
+    """
+    Interactive terminal display using Rich for rendering.
+
+    REPLDisplay provides a full-featured terminal UI with:
+    - Rich markdown rendering for assistant messages
+    - Syntax-highlighted code blocks and diffs
+    - Animated spinners for in-progress operations
+    - Tool call and result visualization
+    - OSC94 progress bar integration (for supported terminals)
+    - Desktop notifications on task completion
+
+    This is the primary display mode for interactive klaude-code sessions.
+    For non-interactive use, see ExecDisplay. For debugging, wrap with
+    DebugEventDisplay.
+
+    Lifecycle:
+        1. start(): No-op (initialization happens in __init__)
+        2. consume_event(): Delegates to DisplayEventHandler for event processing
+        3. stop(): Stops the event handler and ensures spinner is cleaned up
+
+    Attributes:
+        renderer: The REPLRenderer instance for terminal output
+        notifier: TerminalNotifier for desktop notifications
+        event_handler: DisplayEventHandler that processes events
+    """
 
     def __init__(self, theme: str | None = None, notifier: TerminalNotifier | None = None):
         self.renderer = REPLRenderer(theme)
