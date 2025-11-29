@@ -1,8 +1,7 @@
-from klaude_code.command.command_abc import CommandABC, CommandResult
+from klaude_code.command.command_abc import CommandABC, CommandResult, InputAction
 from klaude_code.command.registry import register_command
 from klaude_code.core.agent import Agent
-from klaude_code.protocol import commands, events, model
-from klaude_code.session.session import Session
+from klaude_code.protocol import commands
 
 
 @register_command
@@ -18,24 +17,4 @@ class ClearCommand(CommandABC):
         return "Clear conversation history and free up context"
 
     async def run(self, raw: str, agent: Agent) -> CommandResult:
-        # Create a new session instance to replace the current one
-        new_session = Session(work_dir=agent.session.work_dir)
-        new_session.model_name = agent.session.model_name
-
-        # Replace the agent's session with the new one
-        agent.session = new_session
-
-        # Save the new session
-        agent.session.save()
-
-        return CommandResult(
-            events=[
-                events.DeveloperMessageEvent(
-                    session_id=agent.session.id,
-                    item=model.DeveloperMessageItem(
-                        content="started new conversation",
-                        command_output=model.CommandOutput(command_name=self.name),
-                    ),
-                ),
-            ]
-        )
+        return CommandResult(actions=[InputAction.clear()])

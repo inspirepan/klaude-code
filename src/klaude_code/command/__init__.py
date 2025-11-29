@@ -1,5 +1,5 @@
 from .clear_cmd import ClearCommand
-from .command_abc import CommandABC, CommandResult
+from .command_abc import CommandABC, CommandResult, InputAction, InputActionType
 from .diff_cmd import DiffCommand
 from .export_cmd import ExportCommand
 from .help_cmd import HelpCommand
@@ -32,6 +32,8 @@ __all__ = [
     "register_command",
     "CommandABC",
     "CommandResult",
+    "InputAction",
+    "InputActionType",
     "dispatch_command",
     "get_commands",
     "get_command_names",

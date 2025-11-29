@@ -1,7 +1,7 @@
 from importlib.resources import files
 from typing import TYPE_CHECKING, TypeVar
 
-from klaude_code.command.command_abc import CommandResult
+from klaude_code.command.command_abc import CommandResult, InputAction
 from klaude_code.command.prompt_command import PromptCommand
 from klaude_code.core.agent import Agent
 from klaude_code.protocol import commands, events, model
@@ -48,7 +48,7 @@ def get_command_names() -> list[str]:
 async def dispatch_command(raw: str, agent: Agent) -> CommandResult:
     # Detect command name
     if not raw.startswith("/"):
-        return CommandResult(agent_input=raw)
+        return CommandResult(actions=[InputAction.run_agent(raw)])
 
     splits = raw.split(" ", maxsplit=1)
     command_name_raw = splits[0][1:]
@@ -70,7 +70,7 @@ async def dispatch_command(raw: str, agent: Agent) -> CommandResult:
             pass
 
     if command_key is None:
-        return CommandResult(agent_input=raw)
+        return CommandResult(actions=[InputAction.run_agent(raw)])
 
     command = _COMMANDS[command_key]
     command_identifier: commands.CommandName | str = command.name

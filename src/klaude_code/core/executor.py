@@ -8,12 +8,13 @@ handling operations submitted from the CLI and coordinating with agents.
 import asyncio
 from dataclasses import dataclass
 
-from klaude_code.command import dispatch_command
+from klaude_code.command import InputAction, InputActionType, dispatch_command
+from klaude_code.config import load_config
 from klaude_code.core.agent import Agent, DefaultModelProfileProvider, ModelProfileProvider
 from klaude_code.core.sub_agent import SubAgentResult
 from klaude_code.core.tool import current_run_subtask_callback
-from klaude_code.llm import LLMClients
-from klaude_code.protocol import events, model, op
+from klaude_code.llm import LLMClients, create_llm_client
+from klaude_code.protocol import commands, events, model, op
 from klaude_code.session.session import Session
 from klaude_code.trace import DebugType, log_debug
 
@@ -65,7 +66,6 @@ class ExecutorContext:
         agent = Agent(
             session=session,
             profile=profile,
-            model_profile_provider=self.model_profile_provider,
         )
 
         async for evt in agent.replay_history():
@@ -109,8 +109,12 @@ class ExecutorContext:
         )
 
         result = await dispatch_command(user_input.text, agent)
-        if not result.agent_input:
-            # If this command do not need run agent, we should append user message to session history here
+
+        actions: list[InputAction] = list(result.actions or [])
+
+        has_run_agent_action = any(action.type is InputActionType.RUN_AGENT for action in actions)
+        if not has_run_agent_action:
+            # No async agent task will run, append user message directly
             agent.session.append_history([model.UserMessageItem(content=user_input.text, images=user_input.images)])
 
         if result.events:
@@ -120,15 +124,80 @@ class ExecutorContext:
             for evt in result.events:
                 await self.emit_event(evt)
 
-        if result.agent_input:
-            # Construct new UserInputPayload with command-processed text, preserving original images
-            task_input = model.UserInputPayload(text=result.agent_input, images=user_input.images)
-            # Start task to process user input (do NOT await here so the executor loop stays responsive)
+        for action in actions:
+            await self._run_input_action(action, operation, agent)
+
+    async def _run_input_action(self, action: InputAction, operation: op.UserInputOperation, agent: Agent) -> None:
+        if operation.session_id is None:
+            raise ValueError("session_id cannot be None for input actions")
+
+        session_id = operation.session_id
+
+        if action.type == InputActionType.RUN_AGENT:
+            task_input = model.UserInputPayload(text=action.text, images=operation.input.images)
+
+            existing_active = self.active_tasks.get(operation.id)
+            if existing_active is not None and not existing_active.task.done():
+                raise RuntimeError(f"Active task already registered for operation {operation.id}")
+
             task: asyncio.Task[None] = asyncio.create_task(
                 self._run_agent_task(agent, task_input, operation.id, session_id)
             )
             self.active_tasks[operation.id] = ActiveTask(task=task, session_id=session_id)
-            # Do not await task here; completion will be tracked by the executor
+            return
+
+        if action.type == InputActionType.CHANGE_MODEL:
+            if not action.model_name:
+                raise ValueError("ChangeModel action requires model_name")
+
+            await self._apply_model_change(agent, action.model_name)
+            return
+
+        if action.type == InputActionType.CLEAR:
+            await self._apply_clear(agent)
+            return
+
+        raise ValueError(f"Unsupported input action type: {action.type}")
+
+    async def _apply_model_change(self, agent: Agent, model_name: str) -> None:
+        config = load_config()
+        if config is None:
+            raise ValueError("Configuration must be initialized before changing model")
+
+        llm_config = config.get_model_config(model_name)
+        llm_client = create_llm_client(llm_config)
+        agent.set_model_profile(self.model_profile_provider.build_profile(llm_client))
+
+        developer_item = model.DeveloperMessageItem(
+            content=f"switched to model: {model_name}",
+            command_output=model.CommandOutput(command_name=commands.CommandName.MODEL),
+        )
+        agent.session.append_history([developer_item])
+
+        await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
+        await self.emit_event(events.WelcomeEvent(llm_config=llm_config, work_dir=str(agent.session.work_dir)))
+
+    async def _apply_clear(self, agent: Agent) -> None:
+        old_session_id = agent.session.id
+
+        # Create a new session instance to replace the current one
+        new_session = Session(work_dir=agent.session.work_dir)
+        new_session.model_name = agent.session.model_name
+
+        # Replace the agent's session with the new one
+        agent.session = new_session
+        agent.session.save()
+
+        # Update the active_agents mapping
+        self.active_agents.pop(old_session_id, None)
+        self.active_agents[new_session.id] = agent
+
+        developer_item = model.DeveloperMessageItem(
+            content="started new conversation",
+            command_output=model.CommandOutput(command_name=commands.CommandName.CLEAR),
+        )
+
+        await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
 
     async def handle_interrupt(self, operation: op.InterruptOperation) -> None:
         """Handle an interrupt by invoking agent.cancel() and cancelling tasks."""
@@ -256,7 +325,6 @@ class ExecutorContext:
         child_agent = Agent(
             session=child_session,
             profile=child_profile,
-            model_profile_provider=self.model_profile_provider,
         )
 
         log_debug(

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from enum import Enum
 
 from pydantic import BaseModel
 
@@ -7,14 +8,48 @@ from klaude_code.protocol import commands
 from klaude_code.protocol import events as protocol_events
 
 
+class InputActionType(str, Enum):
+    """Supported input action kinds."""
+
+    RUN_AGENT = "run_agent"
+    CHANGE_MODEL = "change_model"
+    CLEAR = "clear"
+
+
+class InputAction(BaseModel):
+    """Structured executor action derived from a user input."""
+
+    type: InputActionType
+    text: str = ""
+    model_name: str | None = None
+
+    @classmethod
+    def run_agent(cls, text: str) -> "InputAction":
+        """Create a RunAgent action preserving the provided text."""
+
+        return cls(type=InputActionType.RUN_AGENT, text=text)
+
+    @classmethod
+    def change_model(cls, model_name: str) -> "InputAction":
+        """Create a ChangeModel action for the provided model name."""
+
+        return cls(type=InputActionType.CHANGE_MODEL, model_name=model_name)
+
+    @classmethod
+    def clear(cls) -> "InputAction":
+        """Create a Clear action to reset the session."""
+
+        return cls(type=InputActionType.CLEAR)
+
+
 class CommandResult(BaseModel):
     """Result of a command execution."""
 
-    agent_input: str | None = None  # Input to be submitted to agent, or None if no input needed
     events: (
         list[protocol_events.DeveloperMessageEvent | protocol_events.WelcomeEvent | protocol_events.ReplayHistoryEvent]
         | None
     ) = None  # List of UI events to display immediately
+    actions: list[InputAction] | None = None
 
 
 class CommandABC(ABC):

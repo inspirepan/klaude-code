@@ -37,29 +37,23 @@ class ExportCommand(CommandABC):
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(html_doc, encoding="utf-8")
             self._open_file(output_path)
-            return CommandResult(
-                events=[
-                    events.DeveloperMessageEvent(
-                        session_id=agent.session.id,
-                        item=model.DeveloperMessageItem(
-                            content=f"Session exported and opened: {output_path}",
-                            command_output=model.CommandOutput(command_name=self.name),
-                        ),
-                    )
-                ]
+            event = events.DeveloperMessageEvent(
+                session_id=agent.session.id,
+                item=model.DeveloperMessageItem(
+                    content=f"Session exported and opened: {output_path}",
+                    command_output=model.CommandOutput(command_name=self.name),
+                ),
             )
+            return CommandResult(events=[event])
         except Exception as exc:  # pragma: no cover - safeguard for unexpected errors
-            return CommandResult(
-                events=[
-                    events.DeveloperMessageEvent(
-                        session_id=agent.session.id,
-                        item=model.DeveloperMessageItem(
-                            content=f"Failed to export session: {exc}",
-                            command_output=model.CommandOutput(command_name=self.name, is_error=True),
-                        ),
-                    )
-                ]
+            event = events.DeveloperMessageEvent(
+                session_id=agent.session.id,
+                item=model.DeveloperMessageItem(
+                    content=f"Failed to export session: {exc}",
+                    command_output=model.CommandOutput(command_name=self.name, is_error=True),
+                ),
             )
+            return CommandResult(events=[event])
 
     def _resolve_output_path(self, raw: str, agent: Agent) -> Path:
         trimmed = raw.strip()

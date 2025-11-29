@@ -107,7 +107,7 @@ class SpinnerStatusState:
         if self._base_status:
             result = Text(self._base_status)
             if activity_text:
-                result.append(" ")
+                result.append(" | ")
                 result.append_text(activity_text)
             return result
         if activity_text:

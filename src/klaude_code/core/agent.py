@@ -74,11 +74,8 @@ class Agent:
         self,
         session: Session,
         profile: AgentProfile,
-        *,
-        model_profile_provider: ModelProfileProvider | None = None,
     ):
         self.session: Session = session
-        self.model_profile_provider: ModelProfileProvider = model_profile_provider or DefaultModelProfileProvider()
         self.profile: AgentProfile | None = None
         # Active task executor, if any
         self._current_task: TaskExecutor | None = None
@@ -157,13 +154,6 @@ class Agent:
 
         self.profile = profile
         self.session.model_name = profile.llm_client.model_name
-
-    def build_model_profile(
-        self,
-        llm_client: LLMClientABC,
-        sub_agent_type: tools.SubAgentType | None = None,
-    ) -> AgentProfile:
-        return self.model_profile_provider.build_profile(llm_client, sub_agent_type)
 
     def get_llm_client(self) -> LLMClientABC:
         return self._require_profile().llm_client

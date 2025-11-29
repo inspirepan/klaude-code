@@ -2,7 +2,7 @@ from importlib.resources import files
 
 import yaml
 
-from klaude_code.command.command_abc import CommandABC, CommandResult
+from klaude_code.command.command_abc import CommandABC, CommandResult, InputAction
 from klaude_code.core.agent import Agent
 from klaude_code.protocol import commands
 
@@ -66,4 +66,4 @@ class PromptCommand(CommandABC):
             if user_input:
                 final_prompt += f"\n\nAdditional Instructions:\n{user_input}"
 
-        return CommandResult(agent_input=final_prompt)
+        return CommandResult(actions=[InputAction.run_agent(final_prompt)])
