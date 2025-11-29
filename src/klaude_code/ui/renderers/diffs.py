@@ -61,7 +61,10 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
                 in_untracked_section = False
             elif line.strip():  # Non-empty line in untracked section
                 file_text = Text(line.strip(), style=ThemeKey.TOOL_PARAM_BOLD)
-                grid.add_row(Text(f"{'+':>{DIFF_PREFIX_WIDTH}}", style=ThemeKey.TOOL_PARAM_BOLD), file_text)
+                grid.add_row(
+                    Text(f"{'+':>{DIFF_PREFIX_WIDTH}}", style=ThemeKey.TOOL_PARAM_BOLD),
+                    file_text,
+                )
                 continue
 
         # Parse file name from diff headers
@@ -115,7 +118,10 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
             else:
                 file_mark = "±"
 
-            grid.add_row(Text(f"{file_mark:>{DIFF_PREFIX_WIDTH}}  ", style=ThemeKey.DIFF_FILE_NAME), file_line)
+            grid.add_row(
+                Text(f"{file_mark:>{DIFF_PREFIX_WIDTH}}  ", style=ThemeKey.DIFF_FILE_NAME),
+                file_line,
+            )
             has_rendered_file_header = True
             has_rendered_diff_content = False
             continue
@@ -178,7 +184,10 @@ def render_diff_panel(
         truncated_notice = Text(f"... truncated {truncated_lines} lines", style=ThemeKey.TOOL_MARK)
 
     diff_body = render_diff(diff_text, show_file_name=show_file_name)
-    renderables: list[RenderableType] = [Text(f" {heading} ", style="bold reverse"), diff_body]
+    renderables: list[RenderableType] = [
+        Text(f" {heading} ", style="bold reverse"),
+        diff_body,
+    ]
     if truncated_notice is not None:
         renderables.extend([Text(""), truncated_notice])
 

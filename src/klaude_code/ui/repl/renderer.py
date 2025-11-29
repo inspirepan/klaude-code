@@ -198,7 +198,10 @@ class REPLRenderer:
             case tools.MERMAID:
                 self.print(r_tools.render_mermaid_tool_result(e))
             case _:
-                if e.tool_name in (tools.BASH, tools.APPLY_PATCH) and e.result.startswith("diff --git"):
+                if e.tool_name in (
+                    tools.BASH,
+                    tools.APPLY_PATCH,
+                ) and e.result.startswith("diff --git"):
                     self.print(r_diffs.render_diff_panel(e.result, show_file_name=True))
                     return
                 if e.tool_name == tools.APPLY_PATCH and diff_text:

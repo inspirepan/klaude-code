@@ -11,7 +11,9 @@ def create_grid() -> Table:
 
 
 def truncate_display(
-    text: str, max_lines: int = TRUNCATE_DISPLAY_MAX_LINES, max_line_length: int = TRUNCATE_DISPLAY_MAX_LINE_LENGTH
+    text: str,
+    max_lines: int = TRUNCATE_DISPLAY_MAX_LINES,
+    max_line_length: int = TRUNCATE_DISPLAY_MAX_LINE_LENGTH,
 ) -> str:
     lines = text.split("\n")
     if len(lines) > max_lines:

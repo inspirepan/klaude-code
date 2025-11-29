@@ -109,7 +109,10 @@ def get_example_config() -> Config:
                     max_tokens=32000,
                     verbosity="medium",
                     thinking=Thinking(
-                        reasoning_effort="medium", reasoning_summary="auto", type="enabled", budget_tokens=None
+                        reasoning_effort="medium",
+                        reasoning_summary="auto",
+                        type="enabled",
+                        budget_tokens=None,
                     ),
                     context_limit=368000,
                 ),
@@ -122,7 +125,10 @@ def get_example_config() -> Config:
                     max_tokens=32000,
                     verbosity="medium",
                     thinking=Thinking(
-                        reasoning_effort="high", reasoning_summary="auto", type="enabled", budget_tokens=None
+                        reasoning_effort="high",
+                        reasoning_summary="auto",
+                        type="enabled",
+                        budget_tokens=None,
                     ),
                     context_limit=368000,
                 ),

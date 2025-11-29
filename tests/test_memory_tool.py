@@ -141,7 +141,9 @@ class TestCreateCommand:
 
     def test_create_with_nested_directory(self, temp_git_root: Path, memories_dir: Path) -> None:
         args = MemoryTool.MemoryArguments(
-            command="create", path="/memories/a/b/c/file.txt", file_text="nested content"
+            command="create",
+            path="/memories/a/b/c/file.txt",
+            file_text="nested content",
         ).model_dump_json()
         result = asyncio.run(MemoryTool.call(args))
 
@@ -173,7 +175,10 @@ class TestStrReplaceCommand:
         (memories_dir / "test.txt").write_text("hello world")
 
         args = MemoryTool.MemoryArguments(
-            command="str_replace", path="/memories/test.txt", old_str="world", new_str="universe"
+            command="str_replace",
+            path="/memories/test.txt",
+            old_str="world",
+            new_str="universe",
         ).model_dump_json()
         result = asyncio.run(MemoryTool.call(args))
 
@@ -182,7 +187,10 @@ class TestStrReplaceCommand:
 
     def test_str_replace_file_not_found(self, temp_git_root: Path) -> None:
         args = MemoryTool.MemoryArguments(
-            command="str_replace", path="/memories/nonexistent.txt", old_str="old", new_str="new"
+            command="str_replace",
+            path="/memories/nonexistent.txt",
+            old_str="old",
+            new_str="new",
         ).model_dump_json()
         result = asyncio.run(MemoryTool.call(args))
 
@@ -194,7 +202,10 @@ class TestStrReplaceCommand:
         (memories_dir / "test.txt").write_text("hello world")
 
         args = MemoryTool.MemoryArguments(
-            command="str_replace", path="/memories/test.txt", old_str="foo", new_str="bar"
+            command="str_replace",
+            path="/memories/test.txt",
+            old_str="foo",
+            new_str="bar",
         ).model_dump_json()
         result = asyncio.run(MemoryTool.call(args))
 
@@ -208,7 +219,10 @@ class TestInsertCommand:
         (memories_dir / "test.txt").write_text("line1\nline2\nline3\n")
 
         args = MemoryTool.MemoryArguments(
-            command="insert", path="/memories/test.txt", insert_line=2, insert_text="inserted"
+            command="insert",
+            path="/memories/test.txt",
+            insert_line=2,
+            insert_text="inserted",
         ).model_dump_json()
         result = asyncio.run(MemoryTool.call(args))
 
@@ -221,7 +235,10 @@ class TestInsertCommand:
         (memories_dir / "test.txt").write_text("line1\nline2\n")
 
         args = MemoryTool.MemoryArguments(
-            command="insert", path="/memories/test.txt", insert_line=100, insert_text="at_end"
+            command="insert",
+            path="/memories/test.txt",
+            insert_line=100,
+            insert_text="at_end",
         ).model_dump_json()
         result = asyncio.run(MemoryTool.call(args))
 
@@ -233,7 +250,10 @@ class TestInsertCommand:
         (memories_dir / "empty.txt").write_text("")
 
         args = MemoryTool.MemoryArguments(
-            command="insert", path="/memories/empty.txt", insert_line=1, insert_text="first line"
+            command="insert",
+            path="/memories/empty.txt",
+            insert_line=1,
+            insert_text="first line",
         ).model_dump_json()
         result = asyncio.run(MemoryTool.call(args))
 
@@ -313,7 +333,9 @@ class TestRenameCommand:
         (memories_dir / "subdir").mkdir()
 
         args = MemoryTool.MemoryArguments(
-            command="rename", old_path="/memories/file.txt", new_path="/memories/subdir/file.txt"
+            command="rename",
+            old_path="/memories/file.txt",
+            new_path="/memories/subdir/file.txt",
         ).model_dump_json()
         result = asyncio.run(MemoryTool.call(args))
 
@@ -336,7 +358,9 @@ class TestRenameCommand:
 
     def test_rename_source_not_found(self, temp_git_root: Path) -> None:
         args = MemoryTool.MemoryArguments(
-            command="rename", old_path="/memories/nonexistent.txt", new_path="/memories/new.txt"
+            command="rename",
+            old_path="/memories/nonexistent.txt",
+            new_path="/memories/new.txt",
         ).model_dump_json()
         result = asyncio.run(MemoryTool.call(args))
 

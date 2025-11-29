@@ -172,7 +172,12 @@ class TurnExecutor:
                 case model.StreamErrorItem() as item:
                     response_failed = True
                     error_message = item.error
-                    log_debug("[StreamError]", item.error, style="red", debug_type=DebugType.RESPONSE)
+                    log_debug(
+                        "[StreamError]",
+                        item.error,
+                        style="red",
+                        debug_type=DebugType.RESPONSE,
+                    )
                 case model.ToolCallItem() as item:
                     turn_tool_calls.append(item)
                 case _:

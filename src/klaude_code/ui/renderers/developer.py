@@ -56,7 +56,10 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
 
     if e.item.todo_use:
         grid = create_grid()
-        grid.add_row(Text("  +", style=ThemeKey.REMINDER), Text("Todo hasn't been updated recently", ThemeKey.REMINDER))
+        grid.add_row(
+            Text("  +", style=ThemeKey.REMINDER),
+            Text("Todo hasn't been updated recently", ThemeKey.REMINDER),
+        )
         parts.append(grid)
 
     if e.item.at_files:
@@ -65,7 +68,8 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
             grid.add_row(
                 Text("  +", style=ThemeKey.REMINDER),
                 Text.assemble(
-                    (f"{at_file.operation} ", ThemeKey.REMINDER), render_path(at_file.path, ThemeKey.REMINDER_BOLD)
+                    (f"{at_file.operation} ", ThemeKey.REMINDER),
+                    render_path(at_file.path, ThemeKey.REMINDER_BOLD),
                 ),
             )
         parts.append(grid)

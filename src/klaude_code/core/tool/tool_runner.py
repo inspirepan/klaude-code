@@ -192,14 +192,10 @@ class ToolExecutor:
             )
 
             if call_id not in self._call_event_emitted:
-                events_to_yield.append(
-                    ToolExecutionCallStarted(tool_call=tool_call)
-                )
+                events_to_yield.append(ToolExecutionCallStarted(tool_call=tool_call))
                 self._call_event_emitted.add(call_id)
 
-            events_to_yield.append(
-                ToolExecutionResult(tool_call=tool_call, tool_result=cancel_result)
-            )
+            events_to_yield.append(ToolExecutionResult(tool_call=tool_call, tool_result=cancel_result))
 
             self._append_history([cancel_result])
             self._unfinished_calls.pop(call_id, None)

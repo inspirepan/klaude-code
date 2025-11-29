@@ -69,7 +69,10 @@ class TodoWriteTool(ToolABC):
                             "type": "object",
                             "properties": {
                                 "content": {"type": "string", "minLength": 1},
-                                "status": {"type": "string", "enum": ["pending", "in_progress", "completed"]},
+                                "status": {
+                                    "type": "string",
+                                    "enum": ["pending", "in_progress", "completed"],
+                                },
                                 "activeForm": {"type": "string", "minLength": 1},
                             },
                             "required": ["content", "status", "activeForm"],

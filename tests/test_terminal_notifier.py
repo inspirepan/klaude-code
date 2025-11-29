@@ -16,7 +16,11 @@ class FakeTTY(io.StringIO):
 
 
 def _notification() -> Notification:
-    return Notification(type=NotificationType.AGENT_TASK_COMPLETE, title="Task done", body="summary text")
+    return Notification(
+        type=NotificationType.AGENT_TASK_COMPLETE,
+        title="Task done",
+        body="summary text",
+    )
 
 
 def test_notifier_disabled_skips(monkeypatch: pytest.MonkeyPatch) -> None:

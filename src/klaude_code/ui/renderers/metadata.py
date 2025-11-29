@@ -53,7 +53,10 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
                 Text.assemble(
                     ("cached", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
-                    (format_number(metadata.usage.cached_tokens), ThemeKey.METADATA_DIM),
+                    (
+                        format_number(metadata.usage.cached_tokens),
+                        ThemeKey.METADATA_DIM,
+                    ),
                 )
             )
 
@@ -71,7 +74,10 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
                 Text.assemble(
                     ("thinking", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
-                    (format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA_DIM),
+                    (
+                        format_number(metadata.usage.reasoning_tokens),
+                        ThemeKey.METADATA_DIM,
+                    ),
                 )
             )
 
@@ -81,7 +87,10 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
                 Text.assemble(
                     ("context", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
-                    (f"{metadata.usage.context_usage_percent:.1f}%", ThemeKey.METADATA_DIM),
+                    (
+                        f"{metadata.usage.context_usage_percent:.1f}%",
+                        ThemeKey.METADATA_DIM,
+                    ),
                 )
             )
 

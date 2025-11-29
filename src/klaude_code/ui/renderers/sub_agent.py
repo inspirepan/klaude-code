@@ -29,9 +29,15 @@ def render_sub_agent_result(result: str, *, code_theme: str, style: Style | None
         truncated_text = "\n".join(lines[-SUB_AGENT_RESULT_MAX_LINES:])
         return Panel.fit(
             Group(
-                Text(f"... more {hidden_count} lines — use /export to view full output", style=ThemeKey.TOOL_RESULT),
+                Text(
+                    f"... more {hidden_count} lines — use /export to view full output",
+                    style=ThemeKey.TOOL_RESULT,
+                ),
                 NoInsetMarkdown(truncated_text, code_theme=code_theme, style=style or ""),
             ),
             border_style=ThemeKey.LINES,
         )
-    return Panel.fit(NoInsetMarkdown(stripped_result, code_theme=code_theme), border_style=ThemeKey.LINES)
+    return Panel.fit(
+        NoInsetMarkdown(stripped_result, code_theme=code_theme),
+        border_style=ThemeKey.LINES,
+    )

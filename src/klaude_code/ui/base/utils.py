@@ -36,14 +36,24 @@ def get_current_git_branch(path: Path | None = None) -> str | None:
 
     try:
         # Check if in git repository
-        git_dir = subprocess.run(["git", "rev-parse", "--git-dir"], cwd=path, capture_output=True, text=True, timeout=2)
+        git_dir = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
 
         if git_dir.returncode != 0:
             return None
 
         # Get current branch name
         result = subprocess.run(
-            ["git", "branch", "--show-current"], cwd=path, capture_output=True, text=True, timeout=2
+            ["git", "branch", "--show-current"],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            timeout=2,
         )
 
         if result.returncode == 0:
@@ -52,7 +62,11 @@ def get_current_git_branch(path: Path | None = None) -> str | None:
 
         # Fallback: get HEAD reference
         head_file = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=path, capture_output=True, text=True, timeout=2
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            timeout=2,
         )
 
         if head_file.returncode == 0:

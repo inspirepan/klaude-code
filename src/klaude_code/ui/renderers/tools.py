@@ -43,9 +43,15 @@ def render_generic_tool_call(tool_name: str, arguments: str, markup: str = "•"
         elif len(json_dict) == 1:
             arguments_column = Text(str(next(iter(json_dict.values()))), ThemeKey.TOOL_PARAM)
         else:
-            arguments_column = Text(", ".join([f"{k}: {v}" for k, v in json_dict.items()]), ThemeKey.TOOL_PARAM)
+            arguments_column = Text(
+                ", ".join([f"{k}: {v}" for k, v in json_dict.items()]),
+                ThemeKey.TOOL_PARAM,
+            )
     except json.JSONDecodeError:
-        arguments_column = Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS)
+        arguments_column = Text(
+            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+            style=ThemeKey.INVALID_TOOL_CALL_ARGS,
+        )
     grid.add_row(tool_name_column, arguments_column)
     return grid
 
@@ -60,7 +66,8 @@ def render_update_plan_tool_call(arguments: str) -> RenderableType:
             payload = json.loads(arguments)
         except json.JSONDecodeError:
             explanation_column = Text(
-                arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS
+                arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+                style=ThemeKey.INVALID_TOOL_CALL_ARGS,
             )
         else:
             explanation = payload.get("explanation")
@@ -103,7 +110,10 @@ def render_read_tool_call(arguments: str) -> RenderableType:
             )
     except json.JSONDecodeError:
         render_result = render_result.append_text(
-            Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS)
+            Text(
+                arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+                style=ThemeKey.INVALID_TOOL_CALL_ARGS,
+            )
         )
     grid.add_row(Text("←", ThemeKey.TOOL_MARK), render_result)
     return grid
@@ -123,7 +133,12 @@ def render_edit_tool_call(arguments: str) -> Text:
         render_result = (
             render_result.append_text(Text("Edit", ThemeKey.TOOL_NAME))
             .append_text(Text(" "))
-            .append_text(Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS))
+            .append_text(
+                Text(
+                    arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+                    style=ThemeKey.INVALID_TOOL_CALL_ARGS,
+                )
+            )
         )
     return render_result
 
@@ -149,7 +164,12 @@ def render_write_tool_call(arguments: str) -> Text:
         render_result = (
             render_result.append_text(Text("Write", ThemeKey.TOOL_NAME))
             .append_text(Text(" "))
-            .append_text(Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS))
+            .append_text(
+                Text(
+                    arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+                    style=ThemeKey.INVALID_TOOL_CALL_ARGS,
+                )
+            )
         )
     return render_result
 
@@ -168,7 +188,10 @@ def render_multi_edit_tool_call(arguments: str) -> Text:
         )
     except json.JSONDecodeError:
         render_result = render_result.append_text(
-            Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS)
+            Text(
+                arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+                style=ThemeKey.INVALID_TOOL_CALL_ARGS,
+            )
         )
     return render_result
 
@@ -181,7 +204,10 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
             ("→ ", ThemeKey.TOOL_MARK),
             ("Apply Patch", ThemeKey.TOOL_NAME),
             " ",
-            Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS),
+            Text(
+                arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+                style=ThemeKey.INVALID_TOOL_CALL_ARGS,
+            ),
         )
 
     patch_content = payload.get("patch", "")
@@ -195,7 +221,10 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
         if lines:
             summary = Text(lines[0][:INVALID_TOOL_CALL_MAX_LENGTH], ThemeKey.TOOL_PARAM)
     else:
-        summary = Text(str(patch_content)[:INVALID_TOOL_CALL_MAX_LENGTH], ThemeKey.INVALID_TOOL_CALL_ARGS)
+        summary = Text(
+            str(patch_content)[:INVALID_TOOL_CALL_MAX_LENGTH],
+            ThemeKey.INVALID_TOOL_CALL_ARGS,
+        )
 
     if summary.plain:
         grid.add_row(header, summary)
@@ -207,9 +236,17 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
 
 def render_todo(tr: events.ToolResultEvent) -> RenderableType:
     if tr.ui_extra is None:
-        return Text.assemble(("  ✘", ThemeKey.ERROR_BOLD), " ", Text("(no content)", style=ThemeKey.ERROR))
+        return Text.assemble(
+            ("  ✘", ThemeKey.ERROR_BOLD),
+            " ",
+            Text("(no content)", style=ThemeKey.ERROR),
+        )
     if tr.ui_extra.type != model.ToolResultUIExtraType.TODO_LIST or tr.ui_extra.todo_list is None:
-        return Text.assemble(("  ✘", ThemeKey.ERROR_BOLD), " ", Text("(invalid ui_extra)", style=ThemeKey.ERROR))
+        return Text.assemble(
+            ("  ✘", ThemeKey.ERROR_BOLD),
+            " ",
+            Text("(invalid ui_extra)", style=ThemeKey.ERROR),
+        )
 
     ui_extra = tr.ui_extra.todo_list
     todo_grid = create_grid()
@@ -241,7 +278,9 @@ def render_generic_tool_result(result: str, *, is_error: bool = False) -> Render
     return Padding.indent(Text(truncate_display(result), style=style), level=2)
 
 
-def _extract_mermaid_link(ui_extra: model.ToolResultUIExtra | None) -> model.MermaidLinkUIExtra | None:
+def _extract_mermaid_link(
+    ui_extra: model.ToolResultUIExtra | None,
+) -> model.MermaidLinkUIExtra | None:
     if ui_extra is None:
         return None
     if ui_extra.type != model.ToolResultUIExtraType.MERMAID_LINK:
@@ -264,7 +303,10 @@ def render_memory_tool_call(arguments: str) -> RenderableType:
         payload: dict[str, str] = json.loads(arguments)
     except json.JSONDecodeError:
         tool_name_column = Text.assemble(("★", ThemeKey.TOOL_MARK), " ", ("Memory", ThemeKey.TOOL_NAME))
-        summary = Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS)
+        summary = Text(
+            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+            style=ThemeKey.INVALID_TOOL_CALL_ARGS,
+        )
         grid.add_row(tool_name_column, summary)
         return grid
 
@@ -308,7 +350,10 @@ def render_mermaid_tool_call(arguments: str) -> RenderableType:
     try:
         payload: dict[str, str] = json.loads(arguments)
     except json.JSONDecodeError:
-        summary = Text(arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH], style=ThemeKey.INVALID_TOOL_CALL_ARGS)
+        summary = Text(
+            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+            style=ThemeKey.INVALID_TOOL_CALL_ARGS,
+        )
     else:
         code = payload.get("code", "")
         if code:
@@ -330,7 +375,9 @@ def render_mermaid_tool_result(tr: events.ToolResultEvent) -> RenderableType:
     return Padding.indent(link_text, level=2)
 
 
-def _extract_truncation(ui_extra: model.ToolResultUIExtra | None) -> model.TruncationUIExtra | None:
+def _extract_truncation(
+    ui_extra: model.ToolResultUIExtra | None,
+) -> model.TruncationUIExtra | None:
     if ui_extra is None:
         return None
     if ui_extra.type != model.ToolResultUIExtraType.TRUNCATION:

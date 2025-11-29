@@ -11,9 +11,9 @@ from uuid import uuid4
 
 from klaude_code.command import dispatch_command
 from klaude_code.core.agent import Agent, DefaultModelProfileProvider, ModelProfileProvider
-from klaude_code.llm import LLMClients
 from klaude_code.core.sub_agent import SubAgentResult
 from klaude_code.core.tool.tool_context import current_run_subtask_callback
+from klaude_code.llm import LLMClients
 from klaude_code.protocol import events, model
 from klaude_code.protocol.op import (
     EndOperation,
@@ -225,7 +225,11 @@ class ExecutorContext:
         finally:
             # Clean up the task from active tasks
             self.active_tasks.pop(task_id, None)
-            log_debug(f"Cleaned up agent task {task_id}", style="cyan", debug_type=DebugType.EXECUTION)
+            log_debug(
+                f"Cleaned up agent task {task_id}",
+                style="cyan",
+                debug_type=DebugType.EXECUTION,
+            )
 
     async def _run_subagent_task(self, parent_agent: Agent, state: model.SubAgentState) -> SubAgentResult:
         """Run a nested sub-agent task and return the final task_result text.
@@ -279,7 +283,9 @@ class ExecutorContext:
                 debug_type=DebugType.EXECUTION,
             )
             return SubAgentResult(
-                task_result=f"Subagent task failed: [{e.__class__.__name__}] {str(e)}", session_id="", error=True
+                task_result=f"Subagent task failed: [{e.__class__.__name__}] {str(e)}",
+                session_id="",
+                error=True,
             )
 
 
@@ -369,7 +375,11 @@ class Executor:
 
             except Exception as e:
                 # Handle unexpected errors
-                log_debug(f"Executor error: {str(e)}", style="red", debug_type=DebugType.EXECUTION)
+                log_debug(
+                    f"Executor error: {str(e)}",
+                    style="red",
+                    debug_type=DebugType.EXECUTION,
+                )
                 await self.context.emit_event(
                     events.ErrorEvent(error_message=f"Executor error: {str(e)}", can_retry=False)
                 )
@@ -399,7 +409,11 @@ class Executor:
             submission = Submission(id=end_operation.id, operation=end_operation)
             await self.submission_queue.put(submission)
         except Exception as e:
-            log_debug(f"Failed to send EndOperation: {str(e)}", style="red", debug_type=DebugType.EXECUTION)
+            log_debug(
+                f"Failed to send EndOperation: {str(e)}",
+                style="red",
+                debug_type=DebugType.EXECUTION,
+            )
 
         log_debug("Executor stopped", style="yellow", debug_type=DebugType.EXECUTION)
 

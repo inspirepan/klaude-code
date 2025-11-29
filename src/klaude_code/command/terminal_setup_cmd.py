@@ -197,7 +197,10 @@ class TerminalSetupCommand(CommandABC):
             return True, "appended mapping"
 
         # Not an array – avoid modifying to prevent corrupting user config
-        return False, "unsupported keybindings.json format (not an array); please add mapping manually"
+        return (
+            False,
+            "unsupported keybindings.json format (not an array); please add mapping manually",
+        )
 
     def _setup_generic(self, term_program: str) -> str:
         """Provide generic manual configuration guide for unknown or unsupported terminals"""

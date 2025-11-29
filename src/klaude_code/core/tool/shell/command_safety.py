@@ -323,7 +323,18 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
         return SafetyCheckResult(True)
 
     # Build tools and linters - allow all subcommands
-    if cmd0 in {"cargo", "uv", "go", "ruff", "pyright", "make", "isort", "npm", "pnpm", "bun"}:
+    if cmd0 in {
+        "cargo",
+        "uv",
+        "go",
+        "ruff",
+        "pyright",
+        "make",
+        "isort",
+        "npm",
+        "pnpm",
+        "bun",
+    }:
         return SafetyCheckResult(True)
 
     if cmd0 == "sed":

@@ -124,7 +124,11 @@ class Agent:
 
         # Record an interrupt marker in the session history
         self.session.append_history([model.InterruptItem()])
-        log_debug(f"Session {self.session.id} interrupted", style="yellow", debug_type=DebugType.EXECUTION)
+        log_debug(
+            f"Session {self.session.id} interrupted",
+            style="yellow",
+            debug_type=DebugType.EXECUTION,
+        )
 
     async def run_task(self, user_input: str) -> AsyncGenerator[events.Event, None]:
         context = TaskExecutionContext(
@@ -158,7 +162,9 @@ class Agent:
             return
 
         yield events.ReplayHistoryEvent(
-            events=list(self.session.get_history_item()), updated_at=self.session.updated_at, session_id=self.session.id
+            events=list(self.session.get_history_item()),
+            updated_at=self.session.updated_at,
+            session_id=self.session.id,
         )
 
     async def _process_reminder(self, reminder: Reminder) -> AsyncGenerator[events.DeveloperMessageEvent, None]:

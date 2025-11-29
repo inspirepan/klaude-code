@@ -22,10 +22,7 @@ from klaude_code.protocol.events import EndEvent, Event
 from klaude_code.trace import DebugType, log, set_debug_logging
 from klaude_code.ui.base.progress_bar import OSC94States, emit_osc94
 from klaude_code.ui.base.terminal_color import is_light_terminal_background
-from klaude_code.ui.base.terminal_control import (
-    install_sigint_double_press_exit,
-    start_esc_interrupt_monitor,
-)
+from klaude_code.ui.base.terminal_control import install_sigint_double_press_exit, start_esc_interrupt_monitor
 from klaude_code.ui.repl import build_repl_status_snapshot
 from klaude_code.ui.repl.input import REPLStatusSnapshot
 from klaude_code.version import get_update_message
@@ -52,7 +49,12 @@ def _parse_debug_filters(raw: str | None) -> set[DebugType] | None:
             filters.add(DebugType(normalized))
         except ValueError:  # pragma: no cover - user input validation
             valid_options = ", ".join(dt.value for dt in DebugType)
-            log((f"Invalid debug filter '{normalized}'. Valid options: {valid_options}", "red"))
+            log(
+                (
+                    f"Invalid debug filter '{normalized}'. Valid options: {valid_options}",
+                    "red",
+                )
+            )
             raise typer.Exit(2) from None
     return filters or None
 
@@ -110,7 +112,12 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
         )
     except ValueError as exc:
         if init_config.model:
-            log((f"Error: model '{init_config.model}' is not defined in the config", "red"))
+            log(
+                (
+                    f"Error: model '{init_config.model}' is not defined in the config",
+                    "red",
+                )
+            )
             log(("Hint: run `klaude list` to view available models", "yellow"))
         else:
             log((f"Error: failed to load the default model configuration: {exc}", "red"))

@@ -180,7 +180,12 @@ class ReadTool(ToolABC):
     @classmethod
     def _effective_limits(cls) -> tuple[int | None, int | None, int | None, int | None]:
         """Return effective limits based on current policy: char_per_line, global_line_cap, max_chars, max_kb"""
-        return READ_CHAR_LIMIT_PER_LINE, READ_GLOBAL_LINE_CAP, READ_MAX_CHARS, READ_MAX_KB
+        return (
+            READ_CHAR_LIMIT_PER_LINE,
+            READ_GLOBAL_LINE_CAP,
+            READ_MAX_CHARS,
+            READ_MAX_KB,
+        )
 
     @classmethod
     async def call_with_args(cls, args: ReadTool.ReadArguments) -> ToolResultItem:
@@ -193,10 +198,14 @@ class ReadTool(ToolABC):
         # Common file errors
         if _is_directory(file_path):
             return ToolResultItem(
-                status="error", output="<tool_use_error>Illegal operation on a directory. read</tool_use_error>"
+                status="error",
+                output="<tool_use_error>Illegal operation on a directory. read</tool_use_error>",
             )
         if not _file_exists(file_path):
-            return ToolResultItem(status="error", output="<tool_use_error>File does not exist.</tool_use_error>")
+            return ToolResultItem(
+                status="error",
+                output="<tool_use_error>File does not exist.</tool_use_error>",
+            )
 
         # Check for PDF files
         if Path(file_path).suffix.lower() == ".pdf":
@@ -285,10 +294,14 @@ class ReadTool(ToolABC):
             )
 
         except FileNotFoundError:
-            return ToolResultItem(status="error", output="<tool_use_error>File does not exist.</tool_use_error>")
+            return ToolResultItem(
+                status="error",
+                output="<tool_use_error>File does not exist.</tool_use_error>",
+            )
         except IsADirectoryError:
             return ToolResultItem(
-                status="error", output="<tool_use_error>Illegal operation on a directory. read</tool_use_error>"
+                status="error",
+                output="<tool_use_error>Illegal operation on a directory. read</tool_use_error>",
             )
 
         # If offset beyond total lines, emit system reminder warning

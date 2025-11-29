@@ -38,7 +38,8 @@ class ModelCommand(CommandABC):
                     DeveloperMessageEvent(
                         session_id=agent.session.id,
                         item=DeveloperMessageItem(
-                            content="(no change)", command_output=CommandOutput(command_name=self.name)
+                            content="(no change)",
+                            command_output=CommandOutput(command_name=self.name),
                         ),
                     )
                 ]

@@ -30,7 +30,9 @@ def get_last_new_user_input(session: Session) -> str | None:
     return "\n\n".join(result)
 
 
-async def at_file_reader_reminder(session: Session) -> model.DeveloperMessageItem | None:
+async def at_file_reader_reminder(
+    session: Session,
+) -> model.DeveloperMessageItem | None:
     """Parse @foo/bar to read"""
     last_user_input = get_last_new_user_input(session)
     if not last_user_input or "@" not in last_user_input.strip():
@@ -124,7 +126,9 @@ async def empty_todo_reminder(session: Session) -> model.DeveloperMessageItem | 
     return None
 
 
-async def todo_not_used_recently_reminder(session: Session) -> model.DeveloperMessageItem | None:
+async def todo_not_used_recently_reminder(
+    session: Session,
+) -> model.DeveloperMessageItem | None:
     """Remind agent to use TodoWrite tool if it hasn't been used recently (>=10 other tool calls), with cooldown.
 
     Cooldown behavior:
@@ -173,7 +177,9 @@ Here are the existing contents of your todo list:
     return None
 
 
-async def file_changed_externally_reminder(session: Session) -> model.DeveloperMessageItem | None:
+async def file_changed_externally_reminder(
+    session: Session,
+) -> model.DeveloperMessageItem | None:
     """Remind agent about user/linter' changes to the files in FileTracker, provding the newest content of the file."""
     changed_files: list[tuple[str, str, list[model.ImageURLPart] | None]] = []
     collected_images: list[model.ImageURLPart] = []
@@ -192,7 +198,13 @@ async def file_changed_externally_reminder(session: Session) -> model.DeveloperM
                                 collected_images.extend(tool_result.images)
                     finally:
                         reset_tool_context(context_token)
-            except (FileNotFoundError, IsADirectoryError, OSError, PermissionError, UnicodeDecodeError):
+            except (
+                FileNotFoundError,
+                IsADirectoryError,
+                OSError,
+                PermissionError,
+                UnicodeDecodeError,
+            ):
                 continue
     if len(changed_files) > 0:
         changed_files_str = "\n\n".join(
@@ -213,8 +225,14 @@ async def file_changed_externally_reminder(session: Session) -> model.DeveloperM
 
 def get_memory_paths() -> list[tuple[Path, str]]:
     return [
-        (Path.home() / ".claude" / "CLAUDE.md", "user's private global instructions for all projects"),
-        (Path.home() / ".codex" / "AGENTS.md", "user's private global instructions for all projects"),
+        (
+            Path.home() / ".claude" / "CLAUDE.md",
+            "user's private global instructions for all projects",
+        ),
+        (
+            Path.home() / ".codex" / "AGENTS.md",
+            "user's private global instructions for all projects",
+        ),
         (Path.cwd() / "AGENTS.md", "project instructions, checked into the codebase"),
         (Path.cwd() / "AGENT.md", "project instructions, checked into the codebase"),
         (Path.cwd() / "CLAUDE.md", "project instructions, checked into the codebase"),
@@ -268,7 +286,14 @@ def get_last_turn_tool_call(session: Session) -> list[model.ToolCallItem]:
     for item in reversed(session.conversation_history):
         if isinstance(item, model.ToolCallItem):
             tool_calls.append(item)
-        if isinstance(item, (model.ReasoningEncryptedItem, model.ReasoningTextItem, model.AssistantMessageItem)):
+        if isinstance(
+            item,
+            (
+                model.ReasoningEncryptedItem,
+                model.ReasoningTextItem,
+                model.AssistantMessageItem,
+            ),
+        ):
             break
     return tool_calls
 
@@ -276,7 +301,9 @@ def get_last_turn_tool_call(session: Session) -> list[model.ToolCallItem]:
 MEMORY_FILE_NAMES = ["CLAUDE.md", "AGENTS.md", "AGENT.md"]
 
 
-async def last_path_memory_reminder(session: Session) -> model.DeveloperMessageItem | None:
+async def last_path_memory_reminder(
+    session: Session,
+) -> model.DeveloperMessageItem | None:
     """When last turn tool call entered a directory (or parent directory) with CLAUDE.md AGENTS.md"""
     tool_calls = get_last_turn_tool_call(session)
     if len(tool_calls) == 0:
@@ -356,7 +383,9 @@ async def last_path_memory_reminder(session: Session) -> model.DeveloperMessageI
         )
 
 
-async def clipboard_image_reminder(session: Session) -> model.DeveloperMessageItem | None:
+async def clipboard_image_reminder(
+    session: Session,
+) -> model.DeveloperMessageItem | None:
     """Parse [Image #N] and attach images from clipboard history."""
     last_user_input = get_last_new_user_input(session)
     if not last_user_input or "[Image #" not in last_user_input:

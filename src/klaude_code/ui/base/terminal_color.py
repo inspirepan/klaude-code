@@ -99,7 +99,10 @@ def _query_color_slot(slot: int, timeout: float) -> tuple[int, int, int] | None:
                         )
 
     except OSError as exc:
-        log_debug(f"Failed to open /dev/tty for OSC color query: {exc}", debug_type=DebugType.TERMINAL)
+        log_debug(
+            f"Failed to open /dev/tty for OSC color query: {exc}",
+            debug_type=DebugType.TERMINAL,
+        )
         return None
 
     if raw is None or not raw:

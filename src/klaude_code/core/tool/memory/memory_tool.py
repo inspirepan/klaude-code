@@ -146,7 +146,14 @@ class MemoryTool(ToolABC):
                 "properties": {
                     "command": {
                         "type": "string",
-                        "enum": ["view", "create", "str_replace", "insert", "delete", "rename"],
+                        "enum": [
+                            "view",
+                            "create",
+                            "str_replace",
+                            "insert",
+                            "delete",
+                            "rename",
+                        ],
                         "description": "The memory operation to perform",
                     },
                     "path": {
@@ -234,7 +241,10 @@ class MemoryTool(ToolABC):
         if actual_path.is_dir():
             # List directory contents
             try:
-                entries = sorted(actual_path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+                entries = sorted(
+                    actual_path.iterdir(),
+                    key=lambda p: (not p.is_dir(), p.name.lower()),
+                )
                 lines = [f"Directory: {args.path}"]
                 for entry in entries:
                     prefix = "/" if entry.is_dir() else ""
@@ -287,7 +297,10 @@ class MemoryTool(ToolABC):
 
         # Cannot create the root directory itself
         if args.path == MEMORY_VIRTUAL_ROOT or args.path == MEMORY_VIRTUAL_ROOT + "/":
-            return ToolResultItem(status="error", output="Cannot create the memories root directory as a file")
+            return ToolResultItem(
+                status="error",
+                output="Cannot create the memories root directory as a file",
+            )
 
         try:
             # Read existing content for diff (if file exists)
@@ -332,7 +345,11 @@ class MemoryTool(ToolABC):
             await asyncio.to_thread(actual_path.write_text, after, encoding="utf-8")
 
             ui_extra = _make_diff_ui_extra(before, after, args.path)
-            return ToolResultItem(status="success", output=f"Replaced text in {args.path}", ui_extra=ui_extra)
+            return ToolResultItem(
+                status="success",
+                output=f"Replaced text in {args.path}",
+                ui_extra=ui_extra,
+            )
         except Exception as e:
             return ToolResultItem(status="error", output=f"Failed to replace text: {e}")
 
@@ -378,7 +395,9 @@ class MemoryTool(ToolABC):
 
             ui_extra = _make_diff_ui_extra(before, after, args.path)
             return ToolResultItem(
-                status="success", output=f"Inserted text at line {args.insert_line} in {args.path}", ui_extra=ui_extra
+                status="success",
+                output=f"Inserted text at line {args.insert_line} in {args.path}",
+                ui_extra=ui_extra,
             )
         except Exception as e:
             return ToolResultItem(status="error", output=f"Failed to insert text: {e}")

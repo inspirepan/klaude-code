@@ -43,7 +43,10 @@ Available slash commands:"""
 
         event = DeveloperMessageEvent(
             session_id=agent.session.id,
-            item=DeveloperMessageItem(content="\n".join(lines), command_output=CommandOutput(command_name=self.name)),
+            item=DeveloperMessageItem(
+                content="\n".join(lines),
+                command_output=CommandOutput(command_name=self.name),
+            ),
         )
 
         return CommandResult(events=[event])

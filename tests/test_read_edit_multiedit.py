@@ -18,11 +18,8 @@ from klaude_code.core.reminders import at_file_reader_reminder  # noqa: E402
 from klaude_code.core.tool.file.edit_tool import EditTool  # noqa: E402
 from klaude_code.core.tool.file.multi_edit_tool import MultiEditTool  # noqa: E402
 from klaude_code.core.tool.file.read_tool import ReadTool  # noqa: E402
-from klaude_code.core.tool.tool_context import (  # noqa: E402
-    ToolContextToken,
-    reset_tool_context,
-    set_tool_context_from_session,
-)
+from klaude_code.core.tool.tool_context import ToolContextToken  # noqa: E402
+from klaude_code.core.tool.tool_context import reset_tool_context, set_tool_context_from_session
 from klaude_code.protocol import model  # noqa: E402
 from klaude_code.session.session import Session  # noqa: E402
 
@@ -65,7 +62,10 @@ class TestReadTool(BaseTempDirTest):
         dir_path = os.path.abspath(".")
         res = arun(ReadTool.call(json.dumps({"file_path": dir_path})))
         self.assertEqual(res.status, "error")
-        self.assertEqual(res.output, "<tool_use_error>Illegal operation on a directory. read</tool_use_error>")
+        self.assertEqual(
+            res.output,
+            "<tool_use_error>Illegal operation on a directory. read</tool_use_error>",
+        )
 
     def test_read_file_not_exist(self):
         missing = os.path.abspath("missing.txt")
@@ -313,7 +313,10 @@ class TestEditTool(BaseTempDirTest):
             )
         )
         self.assertEqual(res.status, "error")
-        self.assertEqual(res.output, "<tool_use_error>Illegal operation on a directory. edit</tool_use_error>")
+        self.assertEqual(
+            res.output,
+            "<tool_use_error>Illegal operation on a directory. edit</tool_use_error>",
+        )
 
     def test_edit_mtime_mismatch(self):
         p = os.path.abspath("mtime.txt")
@@ -392,7 +395,10 @@ class TestMultiEditTool(BaseTempDirTest):
             "file_path": p,
             "edits": [
                 {"old_string": "abc", "new_string": "def"},
-                {"old_string": "abc", "new_string": "xyz"},  # not found after first edit
+                {
+                    "old_string": "abc",
+                    "new_string": "xyz",
+                },  # not found after first edit
             ],
         }
         res = arun(MultiEditTool.call(json.dumps(args)))
@@ -415,7 +421,10 @@ class TestMultiEditTool(BaseTempDirTest):
             )
         )
         self.assertEqual(res.status, "error")
-        self.assertEqual(res.output, "<tool_use_error>Illegal operation on a directory. multi_edit</tool_use_error>")
+        self.assertEqual(
+            res.output,
+            "<tool_use_error>Illegal operation on a directory. multi_edit</tool_use_error>",
+        )
 
     def test_multiedit_creation_then_edit(self):
         p = os.path.abspath("create_seq.txt")
@@ -441,7 +450,10 @@ class TestMultiEditTool(BaseTempDirTest):
         with open(p, "a", encoding="utf-8") as f:
             f.write("world\n")
         time.sleep(0.01)
-        args = {"file_path": p, "edits": [{"old_string": "hello\nworld\n", "new_string": "X\nY\n"}]}
+        args = {
+            "file_path": p,
+            "edits": [{"old_string": "hello\nworld\n", "new_string": "X\nY\n"}],
+        }
         res = arun(MultiEditTool.call(json.dumps(args)))
         self.assertEqual(res.status, "error")
         self.assertEqual(

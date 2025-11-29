@@ -5,4 +5,11 @@ from .base.input_abc import InputProviderABC
 from .repl.display import REPLDisplay
 from .repl.input import PromptToolkitInput
 
-__all__ = ["DisplayABC", "InputProviderABC", "REPLDisplay", "PromptToolkitInput", "DebugEventDisplay", "ExecDisplay"]
+__all__ = [
+    "DisplayABC",
+    "InputProviderABC",
+    "REPLDisplay",
+    "PromptToolkitInput",
+    "DebugEventDisplay",
+    "ExecDisplay",
+]

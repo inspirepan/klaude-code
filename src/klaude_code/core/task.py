@@ -79,9 +79,7 @@ class MetadataAccumulator:
         accumulated = self._accumulated
         if accumulated.usage is not None:
             if self._throughput_tracked_tokens > 0:
-                accumulated.usage.throughput_tps = (
-                    self._throughput_weighted_sum / self._throughput_tracked_tokens
-                )
+                accumulated.usage.throughput_tps = self._throughput_weighted_sum / self._throughput_tracked_tokens
             else:
                 accumulated.usage.throughput_tps = None
 

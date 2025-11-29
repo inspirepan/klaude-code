@@ -23,7 +23,9 @@ class SearchableFormattedText:
         self._plain = plain
 
     # Recognized by prompt_toolkit's to_formatted_text(value)
-    def __pt_formatted_text__(self) -> Iterable[Tuple[str, str]]:  # pragma: no cover - passthrough
+    def __pt_formatted_text__(
+        self,
+    ) -> Iterable[Tuple[str, str]]:  # pragma: no cover - passthrough
         return self._fragments
 
     # Provide a human-readable representation.

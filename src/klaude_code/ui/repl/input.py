@@ -173,9 +173,17 @@ def _copy_to_clipboard(text: str) -> None:
         else:
             # Linux: try xclip first, then xsel
             if shutil.which("xclip"):
-                subprocess.run(["xclip", "-selection", "clipboard"], input=text.encode("utf-8"), check=True)
+                subprocess.run(
+                    ["xclip", "-selection", "clipboard"],
+                    input=text.encode("utf-8"),
+                    check=True,
+                )
             elif shutil.which("xsel"):
-                subprocess.run(["xsel", "--clipboard", "--input"], input=text.encode("utf-8"), check=True)
+                subprocess.run(
+                    ["xsel", "--clipboard", "--input"],
+                    input=text.encode("utf-8"),
+                    check=True,
+                )
     except Exception:
         pass
 
@@ -267,7 +275,11 @@ def _(event):  # type: ignore
 
 
 class PromptToolkitInput(InputProviderABC):
-    def __init__(self, prompt: str = "❯ ", status_provider: Callable[[], REPLStatusSnapshot] | None = None):  # ▌
+    def __init__(
+        self,
+        prompt: str = "❯ ",
+        status_provider: Callable[[], REPLStatusSnapshot] | None = None,
+    ):  # ▌
         self._status_provider = status_provider
 
         # Mouse is disabled by default; only enabled when input becomes multi-line.
@@ -428,7 +440,11 @@ class _SlashCommandCompleter(Completer):
 
     _SLASH_TOKEN_RE = re.compile(r"^/(?P<frag>\S*)$")
 
-    def get_completions(self, document: Document, complete_event) -> Iterable[Completion]:  # type: ignore[override]
+    def get_completions(
+        self,
+        document: Document,
+        complete_event,  # type: ignore[override]
+    ) -> Iterable[Completion]:
         # Only complete on first line
         if document.cursor_position_row != 0:
             return iter([])
@@ -470,7 +486,11 @@ class _SlashCommandCompleter(Completer):
                 f"<b>{cmd_name}</b>{hint}{padding}<style color='ansibrightblack'>— {cmd_obj.summary}</style>"  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
             )
             completion_text = f"/{cmd_name} "
-            yield Completion(text=completion_text, start_position=start_position, display=display_text)
+            yield Completion(
+                text=completion_text,
+                start_position=start_position,
+                display=display_text,
+            )
 
     def is_slash_command_context(self, document: Document) -> bool:
         """Check if current context is a slash command."""
@@ -487,7 +507,11 @@ class _ComboCompleter(Completer):
         self._at_completer = _AtFilesCompleter()
         self._slash_completer = _SlashCommandCompleter()
 
-    def get_completions(self, document: Document, complete_event) -> Iterable[Completion]:  # type: ignore[override]
+    def get_completions(
+        self,
+        document: Document,
+        complete_event,  # type: ignore[override]
+    ) -> Iterable[Completion]:
         # Try slash command completion first (only on first line)
         if document.cursor_position_row == 0:
             if self._slash_completer.is_slash_command_context(document):
@@ -511,7 +535,12 @@ class _AtFilesCompleter(Completer):
 
     _AT_TOKEN_RE = re.compile(r"(^|\s)@(?P<frag>[^\s]*)$")
 
-    def __init__(self, debounce_sec: float = 0.25, cache_ttl_sec: float = 10.0, max_results: int = 20):
+    def __init__(
+        self,
+        debounce_sec: float = 0.25,
+        cache_ttl_sec: float = 10.0,
+        max_results: int = 20,
+    ):
         self._debounce_sec = debounce_sec
         self._cache_ttl = cache_ttl_sec
         self._max_results = max_results
@@ -623,7 +652,11 @@ class _AtFilesCompleter(Completer):
         return self._filter_and_format(results, cwd, key_norm, ignored_paths)
 
     def _filter_and_format(
-        self, paths_from_root: list[str], cwd: Path, keyword_norm: str, ignored_paths: set[str] | None = None
+        self,
+        paths_from_root: list[str],
+        cwd: Path,
+        keyword_norm: str,
+        ignored_paths: set[str] | None = None,
     ) -> list[str]:
         # Filter to keyword (case-insensitive) and rank by:
         # 1. Non-gitignored files first (is_ignored: 0 or 1)
@@ -644,7 +677,13 @@ class _AtFilesCompleter(Completer):
             path_pos = pl.find(kn)
             # Check if this path is in the ignored set (gitignored files)
             is_ignored = 1 if rel_to_cwd in ignored_paths else 0
-            score = (is_ignored, 0 if base_pos != -1 else 1, base_pos if base_pos != -1 else 10_000, path_pos, len(p))
+            score = (
+                is_ignored,
+                0 if base_pos != -1 else 1,
+                base_pos if base_pos != -1 else 10_000,
+                path_pos,
+                len(p),
+            )
 
             # Append trailing slash for directories
             full_path = cwd / rel_to_cwd

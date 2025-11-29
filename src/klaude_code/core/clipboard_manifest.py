@@ -73,7 +73,11 @@ def load_latest_clipboard_manifest(*, storage_dir: Path | None = None) -> Clipbo
 def _load_latest_manifest_file(manifest_dir: Path) -> ClipboardManifest | None:
     if not manifest_dir.exists():
         return None
-    manifest_files = sorted(manifest_dir.glob("manifest-*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    manifest_files = sorted(
+        manifest_dir.glob("manifest-*.json"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
     for path in manifest_files:
         try:
             payload = json.loads(path.read_text())

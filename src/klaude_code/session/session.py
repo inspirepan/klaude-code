@@ -88,7 +88,11 @@ class Session(BaseModel):
     def load(cls, id: str) -> "Session":
         # Load session metadata
         sessions_dir = cls._sessions_dir()
-        session_candidates = sorted(sessions_dir.glob(f"*-{id}.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        session_candidates = sorted(
+            sessions_dir.glob(f"*-{id}.json"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
         if not session_candidates:
             # No existing session; create a new one
             return Session(id=id, work_dir=Path.cwd())
@@ -125,7 +129,11 @@ class Session(BaseModel):
         # Load conversation history from messages JSONL
         messages_dir = cls._messages_dir()
         # Expect a single messages file per session (prefixed filenames only)
-        msg_candidates = sorted(messages_dir.glob(f"*-{id}.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+        msg_candidates = sorted(
+            messages_dir.glob(f"*-{id}.jsonl"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
         if msg_candidates:
             messages_path = msg_candidates[0]
             history: list[ConversationItem] = []
@@ -236,7 +244,10 @@ class Session(BaseModel):
             return False
         if prev_item is None:
             return True
-        if isinstance(prev_item, model.UserMessageItem | model.ToolResultItem | model.DeveloperMessageItem):
+        if isinstance(
+            prev_item,
+            model.UserMessageItem | model.ToolResultItem | model.DeveloperMessageItem,
+        ):
             return True
         return False
 
@@ -337,7 +348,9 @@ class Session(BaseModel):
             if not msg_file.exists():
                 # Try to find by pattern if exact file doesn't exist
                 msg_candidates = sorted(
-                    messages_dir.glob(f"*-{session_id}.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True
+                    messages_dir.glob(f"*-{session_id}.jsonl"),
+                    key=lambda p: p.stat().st_mtime,
+                    reverse=True,
                 )
                 if not msg_candidates:
                     return None
@@ -358,7 +371,9 @@ class Session(BaseModel):
                             # Handle structured content - extract text
                             text_parts: list[str] = []
                             for part in content:  # pyright: ignore[reportUnknownVariableType]
-                                if isinstance(part, dict) and part.get("type") == "text":  # pyright: ignore[reportUnknownMemberType]
+                                if (
+                                    isinstance(part, dict) and part.get("type") == "text"  # pyright: ignore[reportUnknownMemberType]
+                                ):
                                     text = part.get("text", "")  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
                                     if isinstance(text, str):
                                         text_parts.append(text)

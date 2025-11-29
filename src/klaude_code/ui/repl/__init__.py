@@ -49,4 +49,3 @@ def build_repl_status_snapshot(agent: "Agent | None", update_message: str | None
         tool_calls=tool_calls,
         update_message=update_message,
     )
-

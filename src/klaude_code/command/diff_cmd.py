@@ -45,7 +45,11 @@ class DiffCommand(CommandABC):
 
             # Run git diff in current directory
             result = subprocess.run(
-                ["git", "diff", "HEAD"], cwd=Path.cwd(), capture_output=True, text=True, timeout=10.0
+                ["git", "diff", "HEAD"],
+                cwd=Path.cwd(),
+                capture_output=True,
+                text=True,
+                timeout=10.0,
             )
 
             if result.returncode != 0:
@@ -99,7 +103,8 @@ class DiffCommand(CommandABC):
             event = DeveloperMessageEvent(
                 session_id=agent.session.id,
                 item=DeveloperMessageItem(
-                    content=combined_output, command_output=CommandOutput(command_name=self.name)
+                    content=combined_output,
+                    command_output=CommandOutput(command_name=self.name),
                 ),
             )
             return CommandResult(events=[event])
@@ -126,7 +131,8 @@ class DiffCommand(CommandABC):
             event = DeveloperMessageEvent(
                 session_id=agent.session.id,
                 item=DeveloperMessageItem(
-                    content=f"Error：{e}", command_output=CommandOutput(command_name=self.name, is_error=True)
+                    content=f"Error：{e}",
+                    command_output=CommandOutput(command_name=self.name, is_error=True),
                 ),
             )
             return CommandResult(events=[event])

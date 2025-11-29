@@ -23,7 +23,9 @@ def _decode_payload(link: str) -> dict[str, object]:
     return json.loads(decoded)
 
 
-def test_mermaid_tool_generates_shareable_link(capsys: pytest.CaptureFixture[str]) -> None:
+def test_mermaid_tool_generates_shareable_link(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     code = "graph TD\n    A-->B\n    B-->C"
     args = MermaidTool.MermaidArguments(code=code).model_dump_json()
 

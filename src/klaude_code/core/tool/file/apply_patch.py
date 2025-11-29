@@ -417,7 +417,11 @@ def load_files(paths: list[str], open_fn: Callable[[str], str]) -> dict[str, str
     return orig
 
 
-def apply_commit(commit: Commit, write_fn: Callable[[str, str], None], remove_fn: Callable[[str], None]) -> None:
+def apply_commit(
+    commit: Commit,
+    write_fn: Callable[[str, str], None],
+    remove_fn: Callable[[str], None],
+) -> None:
     for path, change in commit.changes.items():
         if change.type == ActionType.DELETE:
             remove_fn(path)

@@ -37,6 +37,7 @@ def start_esc_interrupt_monitor(
 
     # Fallback for non-interactive or non-POSIX environments.
     if not sys.stdin.isatty() or os.name != "posix":
+
         async def _noop() -> None:  # type: ignore[return-type]
             return None
 

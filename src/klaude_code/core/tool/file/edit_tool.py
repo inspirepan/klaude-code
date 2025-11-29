@@ -173,13 +173,19 @@ class EditTool(ToolABC):
             )
 
         err = cls.valid(
-            content=before, old_string=args.old_string, new_string=args.new_string, replace_all=args.replace_all
+            content=before,
+            old_string=args.old_string,
+            new_string=args.new_string,
+            replace_all=args.replace_all,
         )
         if err is not None:
             return ToolResultItem(status="error", output=err)
 
         after = cls.execute(
-            content=before, old_string=args.old_string, new_string=args.new_string, replace_all=args.replace_all
+            content=before,
+            old_string=args.old_string,
+            new_string=args.new_string,
+            replace_all=args.replace_all,
         )
 
         # If nothing changed due to replacement semantics (should not happen after valid), guard anyway

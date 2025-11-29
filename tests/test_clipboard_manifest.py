@@ -23,4 +23,3 @@ def test_persist_and_load_manifest(tmp_path: Path) -> None:
     assert loaded is not None
     assert loaded.tag_map() == manifest.tag_map()
     assert loaded.source_id == "pid-test"
-

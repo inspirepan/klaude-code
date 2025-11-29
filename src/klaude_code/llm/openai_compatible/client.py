@@ -130,7 +130,9 @@ class OpenAICompatibleClient(LLMClientABC):
                     response_id = event.id
                     accumulated_tool_calls.response_id = response_id
                     yield model.StartItem(response_id=response_id)
-                if event.usage is not None and event.usage.completion_tokens is not None:  # pyright: ignore[reportUnnecessaryComparison] gcp gemini will return None usage field
+                if (
+                    event.usage is not None and event.usage.completion_tokens is not None  # pyright: ignore[reportUnnecessaryComparison] gcp gemini will return None usage field
+                ):
                     metadata_item.usage = convert_usage(event.usage, param.context_limit)
                 if event.model:
                     metadata_item.model_name = event.model

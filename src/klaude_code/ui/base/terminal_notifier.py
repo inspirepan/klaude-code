@@ -52,7 +52,10 @@ class TerminalNotifier:
 
     def notify(self, notification: Notification) -> bool:
         if not self.config.enabled:
-            log_debug("Terminal notifier skipped: disabled via config", debug_type=DebugType.TERMINAL)
+            log_debug(
+                "Terminal notifier skipped: disabled via config",
+                debug_type=DebugType.TERMINAL,
+            )
             return False
 
         output = resolve_stream(self.config.stream)

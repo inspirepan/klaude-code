@@ -44,7 +44,9 @@ def get_commits_since_tag(tag: str | None) -> list[tuple[str, str]]:
     return commits
 
 
-def categorize_commits(commits: list[tuple[str, str]]) -> dict[str, list[tuple[str, str]]]:
+def categorize_commits(
+    commits: list[tuple[str, str]],
+) -> dict[str, list[tuple[str, str]]]:
     """Categorize commits by conventional commit type."""
     categories: dict[str, list[tuple[str, str]]] = {
         "Added": [],

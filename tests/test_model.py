@@ -42,7 +42,10 @@ def test_group_response_items_gen():
 
     # Test case 4: Mixed types with group switching
     input_4 = [user_item, user_item, assistant_item, reasoning_item]
-    expected_4 = [(GroupKind.USER, [user_item, user_item]), (GroupKind.ASSISTANT, [assistant_item, reasoning_item])]
+    expected_4 = [
+        (GroupKind.USER, [user_item, user_item]),
+        (GroupKind.ASSISTANT, [assistant_item, reasoning_item]),
+    ]
     result_4 = list(group_response_items_gen(input_4))
     assert result_4 == expected_4
 
@@ -54,7 +57,11 @@ def test_group_response_items_gen():
 
     # Test case 6: Tool result interrupts and creates single group
     input_6 = [user_item, tool_result_item, assistant_item]
-    expected_6 = [(GroupKind.USER, [user_item]), (GroupKind.TOOL, [tool_result_item]), (GroupKind.ASSISTANT, [assistant_item])]
+    expected_6 = [
+        (GroupKind.USER, [user_item]),
+        (GroupKind.TOOL, [tool_result_item]),
+        (GroupKind.ASSISTANT, [assistant_item]),
+    ]
     result_6 = list(group_response_items_gen(input_6))
     assert result_6 == expected_6
 
@@ -80,7 +87,10 @@ def test_group_response_items_gen():
 
     # Test case 8: "other" items are filtered out
     input_8 = [start_item, user_item, metadata_item, assistant_item]
-    expected_8 = [(GroupKind.USER, [user_item]), (GroupKind.ASSISTANT, [assistant_item])]
+    expected_8 = [
+        (GroupKind.USER, [user_item]),
+        (GroupKind.ASSISTANT, [assistant_item]),
+    ]
     result_8 = list(group_response_items_gen(input_8))
     assert result_8 == expected_8
 
@@ -122,13 +132,19 @@ def test_group_response_items_gen():
 
     # Test case 15: Consecutive ToolResults produce separate tool groups
     input_15 = [tool_result_item, tool_result_item]
-    expected_15 = [(GroupKind.TOOL, [tool_result_item]), (GroupKind.TOOL, [tool_result_item])]
+    expected_15 = [
+        (GroupKind.TOOL, [tool_result_item]),
+        (GroupKind.TOOL, [tool_result_item]),
+    ]
     result_15 = list(group_response_items_gen(input_15))
     assert result_15 == expected_15
 
     # Test case 16: ToolResult then Developer then User -> developer attaches to tool, then user as new group
     input_16 = [tool_result_item, developer_item, user_item]
-    expected_16 = [(GroupKind.TOOL, [tool_result_item, developer_item]), (GroupKind.USER, [user_item])]
+    expected_16 = [
+        (GroupKind.TOOL, [tool_result_item, developer_item]),
+        (GroupKind.USER, [user_item]),
+    ]
     result_16 = list(group_response_items_gen(input_16))
     assert result_16 == expected_16
 
@@ -140,7 +156,10 @@ def test_group_response_items_gen():
 
     # Test case 18: ToolResult then Developer then ToolResult -> first tool group carries developer, second is standalone
     input_18 = [tool_result_item, developer_item, tool_result_item]
-    expected_18 = [(GroupKind.TOOL, [tool_result_item, developer_item]), (GroupKind.TOOL, [tool_result_item])]
+    expected_18 = [
+        (GroupKind.TOOL, [tool_result_item, developer_item]),
+        (GroupKind.TOOL, [tool_result_item]),
+    ]
     result_18 = list(group_response_items_gen(input_18))
     assert result_18 == expected_18
 
