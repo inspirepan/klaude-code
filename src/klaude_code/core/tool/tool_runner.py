@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator, Callable, Iterable, Sequence
 from dataclasses import dataclass
 
-from klaude_code.const import CANCEL_OUTPUT
+from klaude_code import const
 from klaude_code.core.sub_agent import is_sub_agent_tool
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.truncation import truncate_tool_output
@@ -177,7 +177,7 @@ class ToolExecutor:
         for call_id, tool_call in list(self._unfinished_calls.items()):
             cancel_result = model.ToolResultItem(
                 call_id=tool_call.call_id,
-                output=CANCEL_OUTPUT,
+                output=const.CANCEL_OUTPUT,
                 status="error",
                 tool_name=tool_call.name,
                 ui_extra=None,

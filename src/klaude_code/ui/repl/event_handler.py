@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable
 
-from klaude_code.const import UI_REFRESH_RATE_FPS
+from klaude_code import const
 from klaude_code.protocol import events
 from klaude_code.ui.base.debouncer import Debouncer
 from klaude_code.ui.base.progress_bar import OSC94States, emit_osc94
@@ -44,7 +44,7 @@ class DisplayEventHandler:
         self.renderer = renderer
         self.notifier = notifier
         self.assistant_stream = StreamState(
-            interval=1 / UI_REFRESH_RATE_FPS, flush_handler=self._flush_assistant_buffer
+            interval=1 / const.UI_REFRESH_RATE_FPS, flush_handler=self._flush_assistant_buffer
         )
 
         self.stage_manager = StageManager(

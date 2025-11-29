@@ -5,7 +5,7 @@ from typing import Awaitable, Callable
 
 from pydantic import BaseModel
 
-from klaude_code.const import TODO_REMINDER_TOOL_CALL_THRESHOLD
+from klaude_code import const
 from klaude_code.core.clipboard_manifest import load_latest_clipboard_manifest, next_session_token
 from klaude_code.core.tool.file.read_tool import ReadTool
 from klaude_code.core.tool.shell.bash_tool import BashTool
@@ -151,10 +151,10 @@ async def todo_not_used_recently_reminder(
             if item.name in (tools.TODO_WRITE, tools.UPDATE_PLAN):
                 break
             other_tool_call_count_befor_last_todo += 1
-            if other_tool_call_count_befor_last_todo >= TODO_REMINDER_TOOL_CALL_THRESHOLD:
+            if other_tool_call_count_befor_last_todo >= const.TODO_REMINDER_TOOL_CALL_THRESHOLD:
                 break
 
-    not_used_recently = other_tool_call_count_befor_last_todo >= TODO_REMINDER_TOOL_CALL_THRESHOLD
+    not_used_recently = other_tool_call_count_befor_last_todo >= const.TODO_REMINDER_TOOL_CALL_THRESHOLD
 
     if not not_used_recently:
         return None

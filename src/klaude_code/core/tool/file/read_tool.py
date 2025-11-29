@@ -8,13 +8,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from klaude_code.const import (
-    READ_CHAR_LIMIT_PER_LINE,
-    READ_GLOBAL_LINE_CAP,
-    READ_MAX_CHARS,
-    READ_MAX_IMAGE_BYTES,
-    READ_MAX_KB,
-)
+from klaude_code import const
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
@@ -59,8 +53,8 @@ class ReadOptions:
     file_path: str
     offset: int
     limit: int | None
-    char_limit_per_line: int | None = READ_CHAR_LIMIT_PER_LINE
-    global_line_cap: int | None = READ_GLOBAL_LINE_CAP
+    char_limit_per_line: int | None = const.READ_CHAR_LIMIT_PER_LINE
+    global_line_cap: int | None = const.READ_GLOBAL_LINE_CAP
 
 
 @dataclass
@@ -179,10 +173,10 @@ class ReadTool(ToolABC):
     def _effective_limits(cls) -> tuple[int | None, int | None, int | None, int | None]:
         """Return effective limits based on current policy: char_per_line, global_line_cap, max_chars, max_kb"""
         return (
-            READ_CHAR_LIMIT_PER_LINE,
-            READ_GLOBAL_LINE_CAP,
-            READ_MAX_CHARS,
-            READ_MAX_KB,
+            const.READ_CHAR_LIMIT_PER_LINE,
+            const.READ_GLOBAL_LINE_CAP,
+            const.READ_MAX_CHARS,
+            const.READ_MAX_KB,
         )
 
     @classmethod
@@ -233,7 +227,7 @@ class ReadTool(ToolABC):
 
         is_image_file = _is_supported_image_file(file_path)
         if is_image_file:
-            if size_bytes > READ_MAX_IMAGE_BYTES:
+            if size_bytes > const.READ_MAX_IMAGE_BYTES:
                 size_mb = size_bytes / (1024 * 1024)
                 return model.ToolResultItem(
                     status="error",

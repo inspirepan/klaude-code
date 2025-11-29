@@ -7,7 +7,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.text import Text
 
-from klaude_code.const import DEFAULT_DEBUG_LOG_FILE, LOG_BACKUP_COUNT, LOG_MAX_BYTES
+from klaude_code import const
 
 # Module-level logger
 logger = logging.getLogger("klaude_code")
@@ -87,13 +87,13 @@ def set_debug_logging(
 
     # Determine output mode
     use_file = write_to_file if write_to_file is not None else True
-    file_path = log_file if log_file is not None else DEFAULT_DEBUG_LOG_FILE
+    file_path = log_file if log_file is not None else const.DEFAULT_DEBUG_LOG_FILE
 
     if use_file:
         _file_handler = RotatingFileHandler(
             file_path,
-            maxBytes=LOG_MAX_BYTES,
-            backupCount=LOG_BACKUP_COUNT,
+            maxBytes=const.LOG_MAX_BYTES,
+            backupCount=const.LOG_BACKUP_COUNT,
             encoding="utf-8",
         )
         _file_handler.setLevel(logging.DEBUG)

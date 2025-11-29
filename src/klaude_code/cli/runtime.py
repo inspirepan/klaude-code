@@ -8,9 +8,8 @@ import typer
 from rich.text import Text
 
 from klaude_code import ui
-from klaude_code.command.registry import is_interactive_command
-from klaude_code.config import load_config
-from klaude_code.config.config import Config
+from klaude_code.command import is_interactive_command
+from klaude_code.config import Config, load_config
 from klaude_code.core.agent import DefaultModelProfileProvider, VanillaModelProfileProvider
 from klaude_code.core.executor import Executor
 from klaude_code.core.sub_agent import iter_sub_agent_profiles

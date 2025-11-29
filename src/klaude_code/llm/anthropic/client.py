@@ -17,10 +17,11 @@ from anthropic.types.beta.beta_text_delta import BetaTextDelta
 from anthropic.types.beta.beta_thinking_delta import BetaThinkingDelta
 from anthropic.types.beta.beta_tool_use_block import BetaToolUseBlock
 
+from klaude_code import const
 from klaude_code.llm.anthropic.input import convert_history_to_input, convert_system_to_input, convert_tool_schema
 from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
 from klaude_code.llm.registry import register
-from klaude_code.protocol import llm_parameter, model
+from klaude_code.protocol import model
 from klaude_code.protocol.llm_parameter import (
     LLMCallParameter,
     LLMClientProtocol,
@@ -67,15 +68,15 @@ class AnthropicClient(LLMClientABC):
                 "disable_parallel_tool_use": False,
             },
             stream=True,
-            max_tokens=param.max_tokens or llm_parameter.DEFAULT_MAX_TOKENS,
-            temperature=param.temperature or llm_parameter.DEFAULT_TEMPERATURE,
+            max_tokens=param.max_tokens or const.DEFAULT_MAX_TOKENS,
+            temperature=param.temperature or const.DEFAULT_TEMPERATURE,
             messages=messages,
             system=system,
             tools=tools,
             betas=["interleaved-thinking-2025-05-14", "context-1m-2025-08-07"],
             thinking=anthropic.types.ThinkingConfigEnabledParam(
                 type=param.thinking.type,
-                budget_tokens=param.thinking.budget_tokens or llm_parameter.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
+                budget_tokens=param.thinking.budget_tokens or const.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
             )
             if param.thinking and param.thinking.type == "enabled"
             else anthropic.types.ThinkingConfigDisabledParam(

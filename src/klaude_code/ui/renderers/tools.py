@@ -5,7 +5,7 @@ from rich.console import RenderableType
 from rich.padding import Padding
 from rich.text import Text
 
-from klaude_code.const import INVALID_TOOL_CALL_MAX_LENGTH
+from klaude_code import const
 from klaude_code.core.sub_agent import is_sub_agent_tool as _is_sub_agent_tool
 from klaude_code.protocol import events, model
 from klaude_code.ui.base.theme import ThemeKey
@@ -49,7 +49,7 @@ def render_generic_tool_call(tool_name: str, arguments: str, markup: str = "•"
             )
     except json.JSONDecodeError:
         arguments_column = Text(
-            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+            arguments.strip()[:const.INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
     grid.add_row(tool_name_column, arguments_column)
@@ -66,7 +66,7 @@ def render_update_plan_tool_call(arguments: str) -> RenderableType:
             payload = json.loads(arguments)
         except json.JSONDecodeError:
             explanation_column = Text(
-                arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+                arguments.strip()[:const.INVALID_TOOL_CALL_MAX_LENGTH],
                 style=ThemeKey.INVALID_TOOL_CALL_ARGS,
             )
         else:
@@ -111,7 +111,7 @@ def render_read_tool_call(arguments: str) -> RenderableType:
     except json.JSONDecodeError:
         render_result = render_result.append_text(
             Text(
-                arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+                arguments.strip()[:const.INVALID_TOOL_CALL_MAX_LENGTH],
                 style=ThemeKey.INVALID_TOOL_CALL_ARGS,
             )
         )
@@ -135,7 +135,7 @@ def render_edit_tool_call(arguments: str) -> Text:
             .append_text(Text(" "))
             .append_text(
                 Text(
-                    arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+                    arguments.strip()[:const.INVALID_TOOL_CALL_MAX_LENGTH],
                     style=ThemeKey.INVALID_TOOL_CALL_ARGS,
                 )
             )
@@ -166,7 +166,7 @@ def render_write_tool_call(arguments: str) -> Text:
             .append_text(Text(" "))
             .append_text(
                 Text(
-                    arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+                    arguments.strip()[:const.INVALID_TOOL_CALL_MAX_LENGTH],
                     style=ThemeKey.INVALID_TOOL_CALL_ARGS,
                 )
             )
@@ -189,7 +189,7 @@ def render_multi_edit_tool_call(arguments: str) -> Text:
     except json.JSONDecodeError:
         render_result = render_result.append_text(
             Text(
-                arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+                arguments.strip()[:const.INVALID_TOOL_CALL_MAX_LENGTH],
                 style=ThemeKey.INVALID_TOOL_CALL_ARGS,
             )
         )
@@ -205,7 +205,7 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
             ("Apply Patch", ThemeKey.TOOL_NAME),
             " ",
             Text(
-                arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+                arguments.strip()[:const.INVALID_TOOL_CALL_MAX_LENGTH],
                 style=ThemeKey.INVALID_TOOL_CALL_ARGS,
             ),
         )
@@ -219,10 +219,10 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
     if isinstance(patch_content, str):
         lines = [line for line in patch_content.splitlines() if line and not line.startswith("*** Begin Patch")]
         if lines:
-            summary = Text(lines[0][:INVALID_TOOL_CALL_MAX_LENGTH], ThemeKey.TOOL_PARAM)
+            summary = Text(lines[0][:const.INVALID_TOOL_CALL_MAX_LENGTH], ThemeKey.TOOL_PARAM)
     else:
         summary = Text(
-            str(patch_content)[:INVALID_TOOL_CALL_MAX_LENGTH],
+            str(patch_content)[:const.INVALID_TOOL_CALL_MAX_LENGTH],
             ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
 
@@ -304,7 +304,7 @@ def render_memory_tool_call(arguments: str) -> RenderableType:
     except json.JSONDecodeError:
         tool_name_column = Text.assemble(("★", ThemeKey.TOOL_MARK), " ", ("Memory", ThemeKey.TOOL_NAME))
         summary = Text(
-            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+            arguments.strip()[:const.INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
         grid.add_row(tool_name_column, summary)
@@ -351,7 +351,7 @@ def render_mermaid_tool_call(arguments: str) -> RenderableType:
         payload: dict[str, str] = json.loads(arguments)
     except json.JSONDecodeError:
         summary = Text(
-            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
+            arguments.strip()[:const.INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
     else:

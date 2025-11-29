@@ -1,6 +1,6 @@
 from rich.table import Table
 
-from klaude_code.const import TRUNCATE_DISPLAY_MAX_LINE_LENGTH, TRUNCATE_DISPLAY_MAX_LINES
+from klaude_code import const
 
 
 def create_grid() -> Table:
@@ -12,8 +12,8 @@ def create_grid() -> Table:
 
 def truncate_display(
     text: str,
-    max_lines: int = TRUNCATE_DISPLAY_MAX_LINES,
-    max_line_length: int = TRUNCATE_DISPLAY_MAX_LINE_LENGTH,
+    max_lines: int = const.TRUNCATE_DISPLAY_MAX_LINES,
+    max_line_length: int = const.TRUNCATE_DISPLAY_MAX_LINE_LENGTH,
 ) -> str:
     lines = text.split("\n")
     if len(lines) > max_lines:

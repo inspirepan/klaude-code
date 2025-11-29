@@ -3,7 +3,7 @@ from rich.panel import Panel
 from rich.style import Style
 from rich.text import Text
 
-from klaude_code.const import SUB_AGENT_RESULT_MAX_LINES
+from klaude_code import const
 from klaude_code.protocol import model
 from klaude_code.ui.base.theme import ThemeKey
 from klaude_code.ui.rich_ext.markdown import NoInsetMarkdown
@@ -24,9 +24,9 @@ def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) ->
 def render_sub_agent_result(result: str, *, code_theme: str, style: Style | None = None) -> RenderableType:
     stripped_result = result.strip()
     lines = stripped_result.splitlines()
-    if len(lines) > SUB_AGENT_RESULT_MAX_LINES:
-        hidden_count = len(lines) - SUB_AGENT_RESULT_MAX_LINES
-        truncated_text = "\n".join(lines[-SUB_AGENT_RESULT_MAX_LINES:])
+    if len(lines) > const.SUB_AGENT_RESULT_MAX_LINES:
+        hidden_count = len(lines) - const.SUB_AGENT_RESULT_MAX_LINES
+        truncated_text = "\n".join(lines[-const.SUB_AGENT_RESULT_MAX_LINES:])
         return Panel.fit(
             Group(
                 Text(

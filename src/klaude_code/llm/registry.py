@@ -9,7 +9,7 @@ from klaude_code.protocol.tools import SubAgentType
 from klaude_code.trace import DebugType, log_debug
 
 if TYPE_CHECKING:
-    from klaude_code.config.config import Config
+    from klaude_code.config import Config
 
 _REGISTRY: dict[LLMClientProtocol, type[LLMClientABC]] = {}
 
