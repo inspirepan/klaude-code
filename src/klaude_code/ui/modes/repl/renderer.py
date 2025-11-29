@@ -41,7 +41,7 @@ class REPLRenderer:
         self.console: Console = Console(theme=self.themes.app_theme)
         self.console.push_theme(self.themes.markdown_theme)
         self._spinner: Status = self.console.status(
-            ShimmerStatusText("Thinking ...", ThemeKey.SPINNER_STATUS_TEXT),
+            ShimmerStatusText("Thinking …", ThemeKey.SPINNER_STATUS_TEXT),
             spinner=r_status.spinner_name(),
             spinner_style=ThemeKey.SPINNER_STATUS,
         )

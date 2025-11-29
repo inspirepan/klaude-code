@@ -180,7 +180,7 @@ class DisplayEventHandler:
         if len(active_form_status_text) > 0:
             self.renderer.spinner_update(active_form_status_text)
         else:
-            self.renderer.spinner_update("Thinking ...")
+            self.renderer.spinner_update("Thinking …")
 
     async def _on_task_finish(self, event: events.TaskFinishEvent) -> None:
         self.renderer.display_task_finish(event)
