@@ -8,13 +8,13 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI, RateLimitError
 from openai.types import responses
 
 from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
+from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
 from klaude_code.protocol.llm_parameter import (
     LLMCallParameter,
     LLMClientProtocol,
     LLMConfigParameter,
-    apply_config_defaults,
 )
 from klaude_code.protocol.model import (
     AssistantMessageDelta,

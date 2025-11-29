@@ -4,7 +4,6 @@ from typing import Any, Literal
 from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaValue
 
-from klaude_code import const
 from klaude_code.protocol.model import ConversationItem
 
 
@@ -134,34 +133,3 @@ class LLMCallParameter(LLMConfigModelParameter):
     previous_response_id: str | None = None
 
     session_id: str | None = None
-
-
-def apply_config_defaults(param: LLMCallParameter, config: LLMConfigParameter) -> LLMCallParameter:
-    if param.model is None:
-        param.model = config.model
-    if param.temperature is None:
-        param.temperature = config.temperature
-    if param.max_tokens is None:
-        param.max_tokens = config.max_tokens
-    if param.context_limit is None:
-        param.context_limit = config.context_limit
-    if param.verbosity is None:
-        param.verbosity = config.verbosity
-    if param.thinking is None:
-        param.thinking = config.thinking
-    if param.provider_routing is None:
-        param.provider_routing = config.provider_routing
-
-    if param.model is None:
-        raise ValueError("Model is required")
-    if param.max_tokens is None:
-        param.max_tokens = const.DEFAULT_MAX_TOKENS
-    if param.temperature is None:
-        param.temperature = const.DEFAULT_TEMPERATURE
-    if param.thinking is not None and param.thinking.type == "enabled" and param.thinking.budget_tokens is None:
-        param.thinking.budget_tokens = const.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS
-
-    if param.model and "gpt-5" in param.model:
-        param.temperature = 1.0  # Required for GPT-5
-
-    return param

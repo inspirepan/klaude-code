@@ -8,6 +8,7 @@ import openai
 from pydantic import BaseModel
 
 from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
+from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_compatible.input import convert_tool_schema
 from klaude_code.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
 from klaude_code.llm.openrouter.input import convert_history_to_input, is_claude_model
@@ -17,7 +18,6 @@ from klaude_code.protocol.llm_parameter import (
     LLMCallParameter,
     LLMClientProtocol,
     LLMConfigParameter,
-    apply_config_defaults,
 )
 from klaude_code.protocol.model import StreamErrorItem
 from klaude_code.trace import DebugType, log, log_debug
