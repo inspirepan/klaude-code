@@ -13,6 +13,7 @@ from rich.style import Style, StyleType
 from klaude_code.protocol import events, model
 from klaude_code.ui.renderers import assistant as r_assistant
 from klaude_code.ui.renderers import developer as r_developer
+from klaude_code.ui.renderers import errors as r_errors
 from klaude_code.ui.renderers import metadata as r_metadata
 from klaude_code.ui.renderers import status as r_status
 from klaude_code.ui.renderers import sub_agent as r_sub_agent
@@ -21,6 +22,7 @@ from klaude_code.ui.renderers import tools as r_tools
 from klaude_code.ui.renderers import user_input as r_user_input
 from klaude_code.ui.rich.quote import Quote
 from klaude_code.ui.rich.theme import ThemeKey, get_theme
+from klaude_code.ui.utils.common import truncate_display
 
 
 @dataclass
@@ -198,3 +200,59 @@ class REPLRenderer:
         with self.session_print_context(e.session_id):
             self.print(r_developer.render_command_output(e))
             self.print()
+
+    def display_welcome(self, event: events.WelcomeEvent) -> None:
+        self.print(r_metadata.render_welcome(event, box_style=self.box_style()))
+
+    def display_user_message(self, event: events.UserMessageEvent) -> None:
+        self.print(r_user_input.render_user_input(event.content))
+
+    def display_task_start(self, event: events.TaskStartEvent) -> None:
+        self.register_session(event.session_id, event.sub_agent_state)
+        if event.sub_agent_state is not None:
+            with self.session_print_context(event.session_id):
+                self.print(
+                    r_sub_agent.render_sub_agent_call(
+                        event.sub_agent_state,
+                        self.get_session_sub_agent_color(event.session_id),
+                    )
+                )
+
+    def display_turn_start(self, event: events.TurnStartEvent) -> None:
+        if not self.is_sub_agent_session(event.session_id):
+            self.print()
+
+    def display_assistant_message(self, content: str) -> None:
+        renderable = r_assistant.render_assistant_message(content, code_theme=self.themes.code_theme)
+        if renderable is not None:
+            self.print(renderable)
+            self.print()
+
+    def display_response_metadata(self, event: events.ResponseMetadataEvent) -> None:
+        with self.session_print_context(event.session_id):
+            self.print(r_metadata.render_response_metadata(event))
+            self.print()
+
+    def display_task_finish(self, event: events.TaskFinishEvent) -> None:
+        if self.is_sub_agent_session(event.session_id):
+            with self.session_print_context(event.session_id):
+                self.print(
+                    r_sub_agent.render_sub_agent_result(
+                        event.task_result,
+                        code_theme=self.themes.code_theme,
+                    )
+                )
+
+    def display_interrupt(self) -> None:
+        self.print(r_user_input.render_interrupt())
+
+    def display_error(self, event: events.ErrorEvent) -> None:
+        self.print(
+            r_errors.render_error(
+                self.console.render_str(truncate_display(event.error_message)),
+                indent=0,
+            )
+        )
+
+    def display_thinking_prefix(self) -> None:
+        self.print(r_thinking.thinking_prefix())

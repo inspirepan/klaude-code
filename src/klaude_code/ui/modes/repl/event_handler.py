@@ -6,17 +6,11 @@ from klaude_code import const
 from klaude_code.protocol import events
 from klaude_code.ui.core.stage_manager import Stage, StageManager
 from klaude_code.ui.modes.repl.renderer import REPLRenderer
-from klaude_code.ui.renderers import errors as r_errors
-from klaude_code.ui.renderers import metadata as r_metadata
 from klaude_code.ui.renderers import status as r_status
-from klaude_code.ui.renderers import sub_agent as r_sub_agent
-from klaude_code.ui.renderers import thinking as r_thinking
-from klaude_code.ui.renderers import user_input as r_user_input
-from klaude_code.ui.rich.markdown import MarkdownStream, NoInsetMarkdown
+from klaude_code.ui.rich.markdown import MarkdownStream
 from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.terminal.notifier import Notification, NotificationType, TerminalNotifier
 from klaude_code.ui.terminal.progress_bar import OSC94States, emit_osc94
-from klaude_code.ui.utils.common import truncate_display
 from klaude_code.ui.utils.debouncer import Debouncer
 
 
@@ -48,156 +42,181 @@ class DisplayEventHandler:
         )
 
         self.stage_manager = StageManager(
-            finish_assistant=self.finish_assistant_stream,
+            finish_assistant=self._finish_assistant_stream,
             on_enter_thinking=self._print_thinking_prefix,
         )
 
     async def consume_event(self, event: events.Event) -> None:
         match event:
-            case events.ReplayHistoryEvent() as replay_event:
-                await self.renderer.replay_history(replay_event)
-                self.renderer.spinner.stop()
-            case events.WelcomeEvent() as welcome_event:
-                self.renderer.print(r_metadata.render_welcome(welcome_event, box_style=self.renderer.box_style()))
-            case events.UserMessageEvent() as user_event:
-                self.renderer.print(r_user_input.render_user_input(user_event.content))
-            case events.TaskStartEvent() as task_event:
-                self.renderer.spinner.start()
-                self.renderer.register_session(task_event.session_id, task_event.sub_agent_state)
-                if task_event.sub_agent_state is not None:
-                    # Print sub-agent task call
-                    with self.renderer.session_print_context(task_event.session_id):
-                        self.renderer.print(
-                            r_sub_agent.render_sub_agent_call(
-                                task_event.sub_agent_state,
-                                self.renderer.get_session_sub_agent_color(task_event.session_id),
-                            )
-                        )
-                emit_osc94(OSC94States.INDETERMINATE)
-            case events.DeveloperMessageEvent() as developer_event:
-                self.renderer.display_developer_message(developer_event)
-                self.renderer.display_command_output(developer_event)
-            case events.TurnStartEvent() as turn_start_event:
-                emit_osc94(OSC94States.INDETERMINATE)
-                if not self.renderer.is_sub_agent_session(turn_start_event.session_id):
-                    self.renderer.print()
-            case events.ThinkingEvent() as thinking_event:
-                if self.renderer.is_sub_agent_session(thinking_event.session_id):
-                    return
-                await self.stage_manager.enter_thinking_stage()
-                self.renderer.display_thinking(thinking_event.content)
-            case events.AssistantMessageDeltaEvent() as assistant_delta:
-                if self.renderer.is_sub_agent_session(assistant_delta.session_id):
-                    return
-                if len(assistant_delta.content.strip()) == 0 and self.stage_manager.current_stage != Stage.ASSISTANT:
-                    return
-                first_delta = self.assistant_stream.mdstream is None
-                if first_delta:
-                    self.assistant_stream.mdstream = MarkdownStream(
-                        mdargs={"code_theme": self.renderer.themes.code_theme},
-                        theme=self.renderer.themes.markdown_theme,
-                        console=self.renderer.console,
-                        spinner=self.renderer.spinner.renderable,
-                        mark="➤",
-                        indent=2,
-                    )
-                self.assistant_stream.append(assistant_delta.content)
-                if first_delta and self.assistant_stream.mdstream is not None:
-                    # Stop spinner and immediately start MarkdownStream's Live
-                    # to avoid flicker. The update() call starts the Live with
-                    # the spinner embedded, providing seamless transition.
-                    self.renderer.spinner.stop()
-                    self.assistant_stream.mdstream.update(self.assistant_stream.buffer)
-                await self.stage_manager.transition_to(Stage.ASSISTANT)
-                self.assistant_stream.debouncer.schedule()
-            case events.AssistantMessageEvent() as assistant_event:
-                if self.renderer.is_sub_agent_session(assistant_event.session_id):
-                    return
-                await self.stage_manager.transition_to(Stage.ASSISTANT)
-                if self.assistant_stream.mdstream is not None:
-                    self.assistant_stream.debouncer.cancel()
-                    self.assistant_stream.mdstream.update(assistant_event.content.strip(), final=True)
-                else:
-                    content = assistant_event.content.strip()
-                    if content:
-                        self.renderer.print(
-                            NoInsetMarkdown(
-                                content,
-                                code_theme=self.renderer.themes.code_theme,
-                            )
-                        )
-                        self.renderer.print()
-                self.assistant_stream.clear()
-                self.assistant_stream.mdstream = None
-                await self.stage_manager.transition_to(Stage.WAITING)
-                self.renderer.spinner.start()
+            case events.ReplayHistoryEvent() as e:
+                await self._on_replay_history(e)
+            case events.WelcomeEvent() as e:
+                self._on_welcome(e)
+            case events.UserMessageEvent() as e:
+                self._on_user_message(e)
+            case events.TaskStartEvent() as e:
+                self._on_task_start(e)
+            case events.DeveloperMessageEvent() as e:
+                self._on_developer_message(e)
+            case events.TurnStartEvent() as e:
+                self._on_turn_start(e)
+            case events.ThinkingEvent() as e:
+                await self._on_thinking(e)
+            case events.AssistantMessageDeltaEvent() as e:
+                await self._on_assistant_delta(e)
+            case events.AssistantMessageEvent() as e:
+                await self._on_assistant_message(e)
             case events.TurnToolCallStartEvent():
                 pass
-            case events.ToolCallEvent() as tool_call_event:
-                await self.stage_manager.transition_to(Stage.TOOL_CALL)
-                with self.renderer.session_print_context(tool_call_event.session_id):
-                    self.renderer.display_tool_call(tool_call_event)
-            case events.ToolResultEvent() as tool_result_event:
-                if self.renderer.is_sub_agent_session(tool_result_event.session_id):
-                    return
-                await self.stage_manager.transition_to(Stage.TOOL_RESULT)
-                self.renderer.display_tool_call_result(tool_result_event)
-            case events.ResponseMetadataEvent() as metadata_event:
-                with self.renderer.session_print_context(metadata_event.session_id):
-                    self.renderer.print(r_metadata.render_response_metadata(metadata_event))
-                    self.renderer.print()
-            case events.TodoChangeEvent() as todo_event:
-                active_form_status_text = self._extract_active_form_text(todo_event)
-                if len(active_form_status_text) > 0:
-                    self.renderer.spinner.update(
-                        r_status.render_status_text(active_form_status_text, ThemeKey.SPINNER_STATUS_TEXT)
-                    )
-                else:
-                    self.renderer.spinner.update(
-                        r_status.render_status_text("Thinking …", ThemeKey.SPINNER_STATUS_TEXT)
-                    )
+            case events.ToolCallEvent() as e:
+                await self._on_tool_call(e)
+            case events.ToolResultEvent() as e:
+                await self._on_tool_result(e)
+            case events.ResponseMetadataEvent() as e:
+                self._on_response_metadata(e)
+            case events.TodoChangeEvent() as e:
+                self._on_todo_change(e)
             case events.TurnEndEvent():
                 pass
-            case events.TaskFinishEvent() as task_finish_event:
-                if self.renderer.is_sub_agent_session(task_finish_event.session_id):
-                    with self.renderer.session_print_context(task_finish_event.session_id):
-                        self.renderer.print(
-                            r_sub_agent.render_sub_agent_result(
-                                task_finish_event.task_result,
-                                code_theme=self.renderer.themes.code_theme,
-                            )
-                        )
-                else:
-                    emit_osc94(OSC94States.HIDDEN)
-                self.renderer.spinner.stop()
-                await self.stage_manager.transition_to(Stage.WAITING)
-                self._maybe_notify_task_finish(task_finish_event)
-            case events.InterruptEvent():
-                self.renderer.spinner.stop()
-                await self.stage_manager.transition_to(Stage.WAITING)
-                emit_osc94(OSC94States.HIDDEN)
-                self.renderer.print(r_user_input.render_interrupt())
-            case events.ErrorEvent() as error_event:
-                emit_osc94(OSC94States.ERROR)
-                await self.stage_manager.transition_to(Stage.WAITING)
-                self.renderer.print(
-                    r_errors.render_error(
-                        self.renderer.console.render_str(truncate_display(error_event.error_message)),
-                        indent=0,
-                    )
-                )
-                if not error_event.can_retry:
-                    self.renderer.spinner.stop()
-            case events.EndEvent():
-                emit_osc94(OSC94States.HIDDEN)
-                await self.stage_manager.transition_to(Stage.WAITING)
-                self.renderer.spinner.stop()
+            case events.TaskFinishEvent() as e:
+                await self._on_task_finish(e)
+            case events.InterruptEvent() as e:
+                await self._on_interrupt(e)
+            case events.ErrorEvent() as e:
+                await self._on_error(e)
+            case events.EndEvent() as e:
+                await self._on_end(e)
 
     async def stop(self) -> None:
         await self.assistant_stream.debouncer.flush()
         self.assistant_stream.debouncer.cancel()
 
-    async def finish_assistant_stream(self) -> None:
+    # ─────────────────────────────────────────────────────────────────────────────
+    # Private event handlers
+    # ─────────────────────────────────────────────────────────────────────────────
+
+    async def _on_replay_history(self, event: events.ReplayHistoryEvent) -> None:
+        await self.renderer.replay_history(event)
+        self.renderer.spinner.stop()
+
+    def _on_welcome(self, event: events.WelcomeEvent) -> None:
+        self.renderer.display_welcome(event)
+
+    def _on_user_message(self, event: events.UserMessageEvent) -> None:
+        self.renderer.display_user_message(event)
+
+    def _on_task_start(self, event: events.TaskStartEvent) -> None:
+        self.renderer.spinner.start()
+        self.renderer.display_task_start(event)
+        emit_osc94(OSC94States.INDETERMINATE)
+
+    def _on_developer_message(self, event: events.DeveloperMessageEvent) -> None:
+        self.renderer.display_developer_message(event)
+        self.renderer.display_command_output(event)
+
+    def _on_turn_start(self, event: events.TurnStartEvent) -> None:
+        emit_osc94(OSC94States.INDETERMINATE)
+        self.renderer.display_turn_start(event)
+
+    async def _on_thinking(self, event: events.ThinkingEvent) -> None:
+        if self.renderer.is_sub_agent_session(event.session_id):
+            return
+        await self.stage_manager.enter_thinking_stage()
+        self.renderer.display_thinking(event.content)
+
+    async def _on_assistant_delta(self, event: events.AssistantMessageDeltaEvent) -> None:
+        if self.renderer.is_sub_agent_session(event.session_id):
+            return
+        if len(event.content.strip()) == 0 and self.stage_manager.current_stage != Stage.ASSISTANT:
+            return
+        first_delta = self.assistant_stream.mdstream is None
+        if first_delta:
+            self.assistant_stream.mdstream = MarkdownStream(
+                mdargs={"code_theme": self.renderer.themes.code_theme},
+                theme=self.renderer.themes.markdown_theme,
+                console=self.renderer.console,
+                spinner=self.renderer.spinner.renderable,
+                mark="➤",
+                indent=2,
+            )
+        self.assistant_stream.append(event.content)
+        if first_delta and self.assistant_stream.mdstream is not None:
+            # Stop spinner and immediately start MarkdownStream's Live
+            # to avoid flicker. The update() call starts the Live with
+            # the spinner embedded, providing seamless transition.
+            self.renderer.spinner.stop()
+            self.assistant_stream.mdstream.update(self.assistant_stream.buffer)
+        await self.stage_manager.transition_to(Stage.ASSISTANT)
+        self.assistant_stream.debouncer.schedule()
+
+    async def _on_assistant_message(self, event: events.AssistantMessageEvent) -> None:
+        if self.renderer.is_sub_agent_session(event.session_id):
+            return
+        await self.stage_manager.transition_to(Stage.ASSISTANT)
+        if self.assistant_stream.mdstream is not None:
+            self.assistant_stream.debouncer.cancel()
+            self.assistant_stream.mdstream.update(event.content.strip(), final=True)
+        else:
+            self.renderer.display_assistant_message(event.content)
+        self.assistant_stream.clear()
+        self.assistant_stream.mdstream = None
+        await self.stage_manager.transition_to(Stage.WAITING)
+        self.renderer.spinner.start()
+
+    async def _on_tool_call(self, event: events.ToolCallEvent) -> None:
+        await self.stage_manager.transition_to(Stage.TOOL_CALL)
+        with self.renderer.session_print_context(event.session_id):
+            self.renderer.display_tool_call(event)
+
+    async def _on_tool_result(self, event: events.ToolResultEvent) -> None:
+        if self.renderer.is_sub_agent_session(event.session_id):
+            return
+        await self.stage_manager.transition_to(Stage.TOOL_RESULT)
+        self.renderer.display_tool_call_result(event)
+
+    def _on_response_metadata(self, event: events.ResponseMetadataEvent) -> None:
+        self.renderer.display_response_metadata(event)
+
+    def _on_todo_change(self, event: events.TodoChangeEvent) -> None:
+        active_form_status_text = self._extract_active_form_text(event)
+        if len(active_form_status_text) > 0:
+            self.renderer.spinner.update(
+                r_status.render_status_text(active_form_status_text, ThemeKey.SPINNER_STATUS_TEXT)
+            )
+        else:
+            self.renderer.spinner.update(r_status.render_status_text("Thinking …", ThemeKey.SPINNER_STATUS_TEXT))
+
+    async def _on_task_finish(self, event: events.TaskFinishEvent) -> None:
+        self.renderer.display_task_finish(event)
+        if not self.renderer.is_sub_agent_session(event.session_id):
+            emit_osc94(OSC94States.HIDDEN)
+        self.renderer.spinner.stop()
+        await self.stage_manager.transition_to(Stage.WAITING)
+        self._maybe_notify_task_finish(event)
+
+    async def _on_interrupt(self, event: events.InterruptEvent) -> None:
+        self.renderer.spinner.stop()
+        await self.stage_manager.transition_to(Stage.WAITING)
+        emit_osc94(OSC94States.HIDDEN)
+        self.renderer.display_interrupt()
+
+    async def _on_error(self, event: events.ErrorEvent) -> None:
+        emit_osc94(OSC94States.ERROR)
+        await self.stage_manager.transition_to(Stage.WAITING)
+        self.renderer.display_error(event)
+        if not event.can_retry:
+            self.renderer.spinner.stop()
+
+    async def _on_end(self, event: events.EndEvent) -> None:
+        emit_osc94(OSC94States.HIDDEN)
+        await self.stage_manager.transition_to(Stage.WAITING)
+        self.renderer.spinner.stop()
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # Private helper methods
+    # ─────────────────────────────────────────────────────────────────────────────
+
+    async def _finish_assistant_stream(self) -> None:
         if self.assistant_stream.mdstream is not None:
             self.assistant_stream.debouncer.cancel()
             self.assistant_stream.mdstream.update(self.assistant_stream.buffer, final=True)
@@ -205,7 +224,7 @@ class DisplayEventHandler:
             self.assistant_stream.clear()
 
     def _print_thinking_prefix(self) -> None:
-        self.renderer.print(r_thinking.thinking_prefix())
+        self.renderer.display_thinking_prefix()
 
     async def _flush_assistant_buffer(self, state: StreamState) -> None:
         if state.mdstream is not None:
