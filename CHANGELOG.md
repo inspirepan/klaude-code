@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.2] - 2025-11-29
+
+### Added
+
+- show tool call names in spinner during streaming (`04f1c9f`)
+- add style for welcome in debug mode (`57c7c38`)
+- replace clipboard manifest with UserInputPayload for multimodal input (`4a0c233`)
+
+### Changed
+
+- simplify submission API and agent initialization (`0cc1271`)
+- cover cancellation propagation for Explore (`a44faa5`)
+- split PromptToolkitInput into modular components (`e1b3e37`)
+- extract ReasoningStreamHandler and MetadataTracker (`e5fa591`)
+- move status.py to ui/rich and encapsulate spinner in REPLRenderer (`c4d0268`)
+- extract event handlers and move display logic to renderer (`4e09677`)
+- simplify REPLRenderer with unified renderer entry points (`eaffb74`)
+- rename llm_parameter module to llm_param for brevity (`642b538`)
+- standardize protocol module imports across LLM clients (`a842ff9`)
+- reorganize UI module structure for clearer separation of concerns (`b57186c`)
+- add ui display factory (`8f7c4fa`)
+- update import paths for Agent to use module-level imports (`f78646a`)
+- reorganize prompts and update agent architecture (`56e60e3`)
+- use module-level imports for protocol submodules (core.tool) (`c3ab1f0`)
+- move apply_config_defaults from protocol to llm/input_common (`2c18ddb`)
+- use module-level imports for protocol submodules (config/command/const) (`9817611`)
+- use module-level imports for protocol submodules (`32e0ac8`)
+- extract common call_with_logged_payload (`ce09314`)
+
+### Fixed
+
+- update spinner text to use ellipsis character (`4e313b6`)
+- propagate CancelledError in tool execution loop (`3bcebed`)
+- show original file path instead of /dev/null for deleted files in diff view (`8c4193e`)
+
+### Other
+
+- Merge branch 'fix/subagent-cancel' of github.com:inspirepan/klaude-code (`d8e6af7`)
+- sort & format (`e04e77e`)
+- migrate pyright config from pyrightconfig.json to pyproject.toml (`5e1ec5b`)
+- format (`fb10ad0`)
 ## [1.2.1] - 2025-11-29
 
 ### Added
@@ -183,7 +224,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.2...HEAD
+[1.2.2]: https://github.com/inspirepan/klaude-code/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/inspirepan/klaude-code/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/inspirepan/klaude-code/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/inspirepan/klaude-code/compare/v1.0.6...v1.1.0
