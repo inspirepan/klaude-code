@@ -11,11 +11,11 @@ SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from klaude_code.core.tool import is_safe_command  # noqa: E402
 from klaude_code.core.tool.shell.command_safety import (  # noqa: E402
     _find_unquoted_token,
     _split_bash_lc_relaxed,
     _split_script_tail,
-    is_safe_command,
     strip_bash_lc,
     strip_bash_lc_argv,
 )

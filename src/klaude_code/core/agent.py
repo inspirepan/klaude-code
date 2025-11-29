@@ -13,8 +13,8 @@ from klaude_code.core.reminders import (
 )
 from klaude_code.core.sub_agent import get_sub_agent_profile
 from klaude_code.core.task import TaskExecutionContext, TaskExecutor
-from klaude_code.core.tool.tool_context import TodoContext
-from klaude_code.core.tool.tool_registry import (
+from klaude_code.core.tool import (
+    TodoContext,
     get_main_agent_tools,
     get_registry,
     get_sub_agent_tools,

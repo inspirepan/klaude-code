@@ -13,8 +13,7 @@ from klaude_code.config import Config, load_config
 from klaude_code.core.agent import DefaultModelProfileProvider, VanillaModelProfileProvider
 from klaude_code.core.executor import Executor
 from klaude_code.core.sub_agent import iter_sub_agent_profiles
-from klaude_code.core.tool.memory.skill_loader import SkillLoader
-from klaude_code.core.tool.memory.skill_tool import SkillTool
+from klaude_code.core.tool import SkillLoader, SkillTool
 from klaude_code.llm import LLMClients
 from klaude_code.protocol import events, op
 from klaude_code.trace import DebugType, log, set_debug_logging

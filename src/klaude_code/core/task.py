@@ -8,8 +8,7 @@ from typing import TYPE_CHECKING
 
 from klaude_code import const
 from klaude_code.core.reminders import Reminder
-from klaude_code.core.tool.tool_abc import ToolABC
-from klaude_code.core.tool.tool_context import TodoContext
+from klaude_code.core.tool import TodoContext, ToolABC
 from klaude_code.core.turn import TurnError, TurnExecutionContext, TurnExecutor
 from klaude_code.protocol import events, model
 from klaude_code.trace import DebugType, log_debug

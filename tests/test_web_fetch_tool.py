@@ -5,11 +5,11 @@ import json
 
 import pytest
 
+from klaude_code.core.tool import WebFetchTool
 from klaude_code.core.tool.web.web_fetch_tool import _convert_html_to_markdown  # pyright: ignore[reportPrivateUsage]
 from klaude_code.core.tool.web.web_fetch_tool import _extract_content_type  # pyright: ignore[reportPrivateUsage]
 from klaude_code.core.tool.web.web_fetch_tool import _format_json  # pyright: ignore[reportPrivateUsage]
 from klaude_code.core.tool.web.web_fetch_tool import _process_content  # pyright: ignore[reportPrivateUsage]
-from klaude_code.core.tool.web.web_fetch_tool import WebFetchTool
 
 
 class TestHelperFunctions:

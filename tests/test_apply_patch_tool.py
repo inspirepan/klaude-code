@@ -12,7 +12,7 @@ SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from klaude_code.core.tool.file.apply_patch_tool import ApplyPatchTool  # noqa: E402
+from klaude_code.core.tool import ApplyPatchTool  # noqa: E402
 from klaude_code.protocol.model import ToolResultUIExtraType  # noqa: E402
 
 

@@ -26,7 +26,7 @@ def render_sub_agent_result(result: str, *, code_theme: str, style: Style | None
     lines = stripped_result.splitlines()
     if len(lines) > const.SUB_AGENT_RESULT_MAX_LINES:
         hidden_count = len(lines) - const.SUB_AGENT_RESULT_MAX_LINES
-        truncated_text = "\n".join(lines[-const.SUB_AGENT_RESULT_MAX_LINES:])
+        truncated_text = "\n".join(lines[-const.SUB_AGENT_RESULT_MAX_LINES :])
         return Panel.fit(
             Group(
                 Text(

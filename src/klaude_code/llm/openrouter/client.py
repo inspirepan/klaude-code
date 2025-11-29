@@ -14,11 +14,7 @@ from klaude_code.llm.openai_compatible.tool_call_accumulator import BasicToolCal
 from klaude_code.llm.openrouter.input import convert_history_to_input, is_claude_model
 from klaude_code.llm.registry import register
 from klaude_code.protocol import model
-from klaude_code.protocol.llm_parameter import (
-    LLMCallParameter,
-    LLMClientProtocol,
-    LLMConfigParameter,
-)
+from klaude_code.protocol.llm_parameter import LLMCallParameter, LLMClientProtocol, LLMConfigParameter
 from klaude_code.protocol.model import StreamErrorItem
 from klaude_code.trace import DebugType, log, log_debug
 

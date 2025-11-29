@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
+from klaude_code.core.tool import MEMORY_DIR_NAME, MemoryTool
 from klaude_code.core.tool.memory.memory_tool import _validate_path  # pyright: ignore[reportPrivateUsage]
-from klaude_code.core.tool.memory.memory_tool import MEMORY_DIR_NAME, MemoryTool
 
 
 @pytest.fixture
