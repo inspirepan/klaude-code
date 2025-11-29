@@ -44,6 +44,8 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
     has_rendered_file_header = False
     # Track whether we have rendered actual diff content for the current file
     has_rendered_diff_content = False
+    # Track the "from" file name from --- line (used for deleted files)
+    from_file_name: str | None = None
 
     for i, line in enumerate(lines):
         # Check for untracked files section header
@@ -67,12 +69,23 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
                 )
                 continue
 
+        # Capture "from" file name from --- line (needed for deleted files)
+        if line.startswith("--- "):
+            raw = line[4:].strip()
+            if raw != "/dev/null":
+                if raw.startswith(("a/", "b/")):
+                    from_file_name = raw[2:]
+                else:
+                    from_file_name = raw
+            continue
+
         # Parse file name from diff headers
         if show_file_name and line.startswith("+++ "):
             # Extract file name from +++ header with proper handling of /dev/null
             raw = line[4:].strip()
             if raw == "/dev/null":
-                file_name = raw
+                # File was deleted, use the "from" file name
+                file_name = from_file_name or raw
             elif raw.startswith(("a/", "b/")):
                 file_name = raw[2:]
             else:
@@ -143,8 +156,8 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
                 grid.add_row(Text(f"{'⋮':>{DIFF_PREFIX_WIDTH}}", style=ThemeKey.TOOL_RESULT), "")
             continue
 
-        # Skip file header lines entirely
-        if line.startswith("--- ") or line.startswith("+++ "):
+        # Skip +++ lines (already handled above)
+        if line.startswith("+++ "):
             continue
 
         # Only handle unified diff hunk lines; ignore other metadata like
