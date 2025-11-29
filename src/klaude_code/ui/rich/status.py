@@ -52,10 +52,21 @@ def _shimmer_profile(main_text: str) -> list[tuple[str, float]]:
         return []
 
     padding = const.STATUS_SHIMMER_PADDING
-    period = len(chars) + padding * 2
+    char_count = len(chars)
+    period = char_count + padding * 2
+
+    # Keep a roughly constant shimmer speed (characters per second)
+    # regardless of text length by deriving a character velocity from a
+    # baseline text length and the configured sweep duration.
+    # The baseline is chosen to be close to the default
+    # "Thinking … (esc to interrupt)" status line.
+    baseline_chars = 30
+    base_period = baseline_chars + padding * 2
     sweep_seconds = const.STATUS_SHIMMER_SWEEP_SECONDS
+    char_speed = base_period / sweep_seconds if sweep_seconds > 0 else base_period
+
     elapsed = _elapsed_since_start()
-    pos_f = (elapsed % sweep_seconds) / sweep_seconds * float(period)
+    pos_f = (elapsed * char_speed) % float(period)
     pos = int(pos_f)
     band_half_width = const.STATUS_SHIMMER_BAND_HALF_WIDTH
 

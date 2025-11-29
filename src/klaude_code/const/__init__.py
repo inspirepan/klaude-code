@@ -109,7 +109,7 @@ STATUS_SHIMMER_PADDING = 10
 # Duration in seconds for one full shimmer sweep across the text
 STATUS_SHIMMER_SWEEP_SECONDS = 2
 # Half-width of the shimmer band in characters
-STATUS_SHIMMER_BAND_HALF_WIDTH = 3.0
+STATUS_SHIMMER_BAND_HALF_WIDTH = 5.0
 # Scale factor applied to shimmer intensity when blending colors
 STATUS_SHIMMER_ALPHA_SCALE = 0.7
 
