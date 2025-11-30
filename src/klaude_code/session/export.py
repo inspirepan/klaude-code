@@ -159,62 +159,60 @@ def _format_cost(cost: float) -> str:
 
 
 def _render_metadata_item(item: model.ResponseMetadataItem) -> str:
-    # Line 1: Model Name [@ Provider]
+    # Model Name [@ Provider]
+    parts: list[str] = []
+
     model_parts = [f'<span class="metadata-model">{_escape_html(item.model_name)}</span>']
     if item.provider:
         provider = _escape_html(item.provider.lower().replace(" ", "-"))
         model_parts.append(f'<span class="metadata-provider">@{provider}</span>')
 
-    line1 = "".join(model_parts)
+    parts.append("".join(model_parts))
 
-    # Line 2: Stats
-    stats_parts: list[str] = []
+    # Stats
     if item.usage:
         u = item.usage
         # Input with cost
         input_stat = f"input: {_format_token_count(u.input_tokens)}"
         if u.input_cost is not None:
             input_stat += f"({_format_cost(u.input_cost)})"
-        stats_parts.append(f'<span class="metadata-stat">{input_stat}</span>')
+        parts.append(f'<span class="metadata-stat">{input_stat}</span>')
 
         # Cached with cost
         if u.cached_tokens > 0:
             cached_stat = f"cached: {_format_token_count(u.cached_tokens)}"
             if u.cache_read_cost is not None:
                 cached_stat += f"({_format_cost(u.cache_read_cost)})"
-            stats_parts.append(f'<span class="metadata-stat">{cached_stat}</span>')
+            parts.append(f'<span class="metadata-stat">{cached_stat}</span>')
 
         # Output with cost
         output_stat = f"output: {_format_token_count(u.output_tokens)}"
         if u.output_cost is not None:
             output_stat += f"({_format_cost(u.output_cost)})"
-        stats_parts.append(f'<span class="metadata-stat">{output_stat}</span>')
+        parts.append(f'<span class="metadata-stat">{output_stat}</span>')
 
         if u.reasoning_tokens > 0:
-            stats_parts.append(
+            parts.append(
                 f'<span class="metadata-stat">thinking: {_format_token_count(u.reasoning_tokens)}</span>'
             )
         if u.context_usage_percent is not None:
-            stats_parts.append(f'<span class="metadata-stat">context: {u.context_usage_percent:.1f}%</span>')
+            parts.append(f'<span class="metadata-stat">context: {u.context_usage_percent:.1f}%</span>')
         if u.throughput_tps is not None:
-            stats_parts.append(f'<span class="metadata-stat">tps: {u.throughput_tps:.1f}</span>')
+            parts.append(f'<span class="metadata-stat">tps: {u.throughput_tps:.1f}</span>')
 
     if item.task_duration_s is not None:
-        stats_parts.append(f'<span class="metadata-stat">time: {item.task_duration_s:.1f}s</span>')
+        parts.append(f'<span class="metadata-stat">time: {item.task_duration_s:.1f}s</span>')
 
     # Total cost
     if item.usage is not None and item.usage.total_cost is not None:
-        stats_parts.append(f'<span class="metadata-stat">cost: {_format_cost(item.usage.total_cost)}</span>')
+        parts.append(f'<span class="metadata-stat">cost: {_format_cost(item.usage.total_cost)}</span>')
 
-    stats_html = ""
-    if stats_parts:
-        divider = '<span class="metadata-divider">/</span>'
-        stats_html = divider.join(stats_parts)
+    divider = '<span class="metadata-divider">/</span>'
+    joined_html = divider.join(parts)
 
     return (
         f'<div class="response-metadata">'
-        f'<div class="metadata-line">{line1}</div>'
-        f'<div class="metadata-line">{stats_html}</div>'
+        f'<div class="metadata-line">{joined_html}</div>'
         f"</div>"
     )
 

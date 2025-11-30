@@ -20,6 +20,10 @@
       href="https://cdn.jsdelivr.net/npm/@fontsource/iosevka/800.css"
       rel="stylesheet"
     />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
         --bg-body: #ededed;
@@ -34,9 +38,10 @@
         --error: #dc2626;
         --bg-error: #ffebee;
         --bg-code: #f3f3f3;
-        --font-sans: "Iosevka", "SF Mono", Menlo, monospace;
+        --fg-inline-code: #4f4fc7;
         --font-mono: "Iosevka", "SF Mono", Menlo, monospace;
-        --font-markdown: "Iosevka", "SF Mono", Menlo, monospace;
+        --font-markdown-mono: "IBM Plex Mono", Menlo, monospace;
+        --font-markdown: "IBM Plex Mono", Menlo, monospace;
         --font-weight-bold: 800;
         --font-size-xs: 13px;
         --font-size-sm: 14px;
@@ -60,7 +65,7 @@
       body {
         background-color: var(--bg-body);
         color: var(--text);
-        font-family: var(--font-sans);
+        font-family: var(--font-mono);
         line-height: 1.6;
         font-size: var(--font-size-lg);
         -webkit-font-smoothing: antialiased;
@@ -276,7 +281,7 @@
         background: var(--bg-card);
         border: 1px solid var(--border);
         border-radius: var(--radius-md);
-        padding: 12px;
+        padding: 20px;
         box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
         font-size: var(--font-size-base);
       }
@@ -361,7 +366,7 @@
         background: var(--bg-body);
         border: 1px dashed var(--border);
         border-radius: var(--radius-sm);
-        padding: 12px;
+        padding: 20px;
       }
       .assistant-message.show-raw .assistant-rendered {
         display: none;
@@ -583,7 +588,7 @@
         background: var(--bg-body);
         border: 1px dashed var(--border);
         border-radius: var(--radius-sm);
-        padding: 12px;
+        padding: 20px;
       }
 
       .subagent-content.show-raw .subagent-rendered {
@@ -596,6 +601,7 @@
       /* Markdown Elements */
       .markdown-body {
         font-family: var(--font-markdown);
+        line-height: 1.5;
       }
       .markdown-body hr {
         height: 0;
@@ -612,9 +618,8 @@
         border: 1px solid var(--border);
       }
       .markdown-body code {
-        font-family: var(--font-markdown);
-        font-size: 0.9em;
-        background: var(--bg-code);
+        font-family: var(--font-markdown-mono);
+        color: var(--fg-inline-code);
         padding: 2px 4px;
         border-radius: var(--radius-sm);
       }
