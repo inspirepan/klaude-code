@@ -6,7 +6,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from klaude_code import const
-from klaude_code.core.tool.shell.command_safety import is_safe_command, strip_bash_lc
+from klaude_code.core.tool.shell.command_safety import is_safe_command
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, model, tools
@@ -57,10 +57,8 @@ class BashTool(ToolABC):
 
     @classmethod
     async def call_with_args(cls, args: BashArguments) -> model.ToolResultItem:
-        command_str = strip_bash_lc(args.command)
-
         # Safety check: only execute commands proven as "known safe"
-        result = is_safe_command(command_str)
+        result = is_safe_command(args.command)
         if not result.is_safe:
             return model.ToolResultItem(
                 status="error",
@@ -69,7 +67,7 @@ class BashTool(ToolABC):
 
         # Run the command using bash -lc so shell semantics work (pipes, &&, etc.)
         # Capture stdout/stderr, respect timeout, and return a ToolMessage.
-        cmd = ["bash", "-lc", command_str]
+        cmd = ["bash", "-lc", args.command]
         timeout_sec = max(0.0, args.timeout_ms / 1000.0)
 
         try:
@@ -111,7 +109,7 @@ class BashTool(ToolABC):
         except subprocess.TimeoutExpired:
             return model.ToolResultItem(
                 status="error",
-                output=f"Timeout after {args.timeout_ms} ms running: {command_str}",
+                output=f"Timeout after {args.timeout_ms} ms running: {args.command}",
             )
         except FileNotFoundError:
             return model.ToolResultItem(
