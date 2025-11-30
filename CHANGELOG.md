@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.3] - 2025-11-30
+
+### Added
+
+- add image reminder for user-attached images (`069c4a1`)
+- add cost display and improve tool args collapse in HTML export (`d87227c`)
+- add cost calculation and display for LLM API calls (`fa9cd2f`)
+- add --stream-json option to stream all events as JSON (`7f28d05`)
+- display timestamps for messages and tool calls in HTML export (`2581bfb`)
+- add created_at timestamp field to all message items (`9bd3d37`)
+- add inline Mermaid diagram rendering in exported HTML (`9758655`)
+
+### Changed
+
+- align sub-agent ops with protocol layer and add lint-imports check (`c68687b`)
+- rename and consolidate slash command utilities (`f9793c4`)
+- update HTML template font and sizing (`15c98ea`)
+- update prompt commands and rename dev-docs files (`d239e43`)
+- normalize shimmer animation speed across text lengths (`2f565bf`)
+- extract convert_usage to usage.py and rename metadata_tracker (`580faaa`)
+- introduce InputAction to decouple command results from executor logic (`2182ce5`)
+
+### Fixed
+
+- escape bash ansi output (`9867416`)
+- update system prompt rendering and adjust user input styles (`2bc18dd`)
+- improve slash command rendering and update theme style (`9687883`)
+- preserve existing session model_name when applying profile (`74df8bd`)
+- use JSON mode for datetime serialization (`c98ddf4`)
+- reset spinner status on task completion and interruption (`8dbd621`)
+
+### Other
+
+- format (`bab3cae`)
+- format & ruff check (`04227b7`)
 ## [1.2.2] - 2025-11-29
 
 ### Added
@@ -224,7 +259,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.2...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.3...HEAD
+[1.2.3]: https://github.com/inspirepan/klaude-code/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/inspirepan/klaude-code/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/inspirepan/klaude-code/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/inspirepan/klaude-code/compare/v1.1.0...v1.2.0
