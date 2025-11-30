@@ -22,9 +22,10 @@ def _user_group_to_message(group: UserGroup) -> chat.ChatCompletionMessageParam:
 
 
 def _tool_group_to_message(group: ToolGroup) -> chat.ChatCompletionMessageParam:
-    merged_text = merge_reminder_text(group.tool_result.output, group.reminder_texts)
-    if not merged_text:
-        merged_text = "<system-reminder>Tool ran without output or errors</system-reminder>"
+    merged_text = merge_reminder_text(
+        group.tool_result.output or "<system-reminder>Tool ran without output or errors</system-reminder>",
+        group.reminder_texts,
+    )
     return {
         "role": "tool",
         "content": [{"type": "text", "text": merged_text}],

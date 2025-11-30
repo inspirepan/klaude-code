@@ -75,7 +75,10 @@ def _user_group_to_message(group: UserGroup) -> BetaMessageParam:
 
 def _tool_group_to_message(group: ToolGroup) -> BetaMessageParam:
     tool_content: list[BetaTextBlockParam | BetaImageBlockParam] = []
-    merged_text = merge_reminder_text(group.tool_result.output, group.reminder_texts)
+    merged_text = merge_reminder_text(
+        group.tool_result.output or "<system-reminder>Tool ran without output or errors</system-reminder>",
+        group.reminder_texts,
+    )
     tool_content.append({"type": "text", "text": merged_text})
     for image in group.tool_result.images or []:
         tool_content.append(_image_part_to_block(image))

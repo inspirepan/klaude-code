@@ -23,7 +23,7 @@ def _build_user_content_parts(
 
 def _build_tool_result_item(tool: model.ToolResultItem) -> responses.ResponseInputItemParam:
     content_parts: list[responses.ResponseInputContentParam] = []
-    text_output = tool.output or ""
+    text_output = tool.output or "<system-reminder>Tool ran without output or errors</system-reminder>"
     if text_output:
         content_parts.append({"type": "input_text", "text": text_output})
     for image in tool.images or []:
