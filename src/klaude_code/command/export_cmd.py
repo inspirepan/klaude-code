@@ -46,10 +46,12 @@ class ExportCommand(CommandABC):
             )
             return CommandResult(events=[event])
         except Exception as exc:  # pragma: no cover - safeguard for unexpected errors
+            import traceback
+
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
                 item=model.DeveloperMessageItem(
-                    content=f"Failed to export session: {exc}",
+                    content=f"Failed to export session: {exc}\n{traceback.format_exc()}",
                     command_output=model.CommandOutput(command_name=self.name, is_error=True),
                 ),
             )
