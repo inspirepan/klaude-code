@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.4] - 2025-11-30
+
+### Added
+
+- add TOC sidebar navigation to HTML export (`38b2927`)
+- add /status command to display session usage statistics (`93fd5cc`)
 ## [1.2.3] - 2025-11-30
 
 ### Added
@@ -259,7 +265,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.3...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.4...HEAD
+[1.2.4]: https://github.com/inspirepan/klaude-code/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/inspirepan/klaude-code/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/inspirepan/klaude-code/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/inspirepan/klaude-code/compare/v1.2.0...v1.2.1
