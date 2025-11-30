@@ -16,7 +16,7 @@ def need_render_developer_message(e: events.DeveloperMessageEvent) -> bool:
         or e.item.external_file_changes
         or e.item.todo_use
         or e.item.at_files
-        or e.item.clipboard_images
+        or e.item.user_image_count
     )
 
 
@@ -74,16 +74,12 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
             )
         parts.append(grid)
 
-    if ci := e.item.clipboard_images:
+    if uic := e.item.user_image_count:
         grid = create_grid()
-        for img_tag in ci:
-            grid.add_row(
-                Text("  +", style=ThemeKey.REMINDER),
-                Text.assemble(
-                    ("Read ", ThemeKey.REMINDER),
-                    Text(f"{img_tag} Image", style=ThemeKey.REMINDER_BOLD),
-                ),
-            )
+        grid.add_row(
+            Text("  +", style=ThemeKey.REMINDER),
+            Text(f"Attached {uic} image{'s' if uic > 1 else ''}", style=ThemeKey.REMINDER),
+        )
         parts.append(grid)
 
     return Group(*parts) if parts else Text("")

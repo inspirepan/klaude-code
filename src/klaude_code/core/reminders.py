@@ -241,6 +241,28 @@ class Memory(BaseModel):
     content: str
 
 
+def get_last_user_message_image_count(session: Session) -> int:
+    """Get image count from the last user message in conversation history."""
+    for item in reversed(session.conversation_history):
+        if isinstance(item, model.ToolResultItem):
+            return 0
+        if isinstance(item, model.UserMessageItem):
+            return len(item.images) if item.images else 0
+    return 0
+
+
+async def image_reminder(session: Session) -> model.DeveloperMessageItem | None:
+    """Remind agent about images attached by user in the last message."""
+    image_count = get_last_user_message_image_count(session)
+    if image_count == 0:
+        return None
+
+    return model.DeveloperMessageItem(
+        content=f"<system-reminder>User attached {image_count} image{'s' if image_count > 1 else ''} in their message. Make sure to analyze and reference these images as needed.</system-reminder>",
+        user_image_count=image_count,
+    )
+
+
 async def memory_reminder(session: Session) -> model.DeveloperMessageItem | None:
     """CLAUDE.md AGENTS.md"""
     memory_paths = get_memory_paths()
@@ -386,6 +408,7 @@ ALL_REMINDERS = [
     memory_reminder,
     last_path_memory_reminder,
     at_file_reader_reminder,
+    image_reminder,
 ]
 
 
@@ -415,6 +438,7 @@ def load_agent_reminders(
             last_path_memory_reminder,
             at_file_reader_reminder,
             file_changed_externally_reminder,
+            image_reminder,
         ]
     )
 
