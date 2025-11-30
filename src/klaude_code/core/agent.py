@@ -153,7 +153,8 @@ class Agent:
         """Apply a fully constructed profile to the agent."""
 
         self.profile = profile
-        self.session.model_name = profile.llm_client.model_name
+        if not self.session.model_name:
+            self.session.model_name = profile.llm_client.model_name
 
     def get_llm_client(self) -> LLMClientABC:
         return self._require_profile().llm_client
