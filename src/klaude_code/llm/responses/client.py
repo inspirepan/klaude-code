@@ -11,6 +11,7 @@ from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
+from klaude_code.llm.usage import calculate_cost
 from klaude_code.protocol import llm_param, model
 from klaude_code.trace import DebugType, log_debug
 
@@ -185,6 +186,7 @@ class ResponsesClient(LLMClientABC):
                                 throughput_tps=throughput_tps,
                                 first_token_latency_ms=first_token_latency_ms,
                             )
+                            calculate_cost(usage, self._config.cost)
                         yield model.ResponseMetadataItem(
                             usage=usage,
                             response_id=response_id,

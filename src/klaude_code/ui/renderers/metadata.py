@@ -41,33 +41,32 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
 
     if metadata.usage is not None:
         # Input
-        parts.append(
-            Text.assemble(
-                ("input:", ThemeKey.METADATA_DIM),
-                (format_number(metadata.usage.input_tokens), ThemeKey.METADATA_DIM),
-            )
-        )
+        input_parts: list[tuple[str, str]] = [
+            ("input:", ThemeKey.METADATA_DIM),
+            (format_number(metadata.usage.input_tokens), ThemeKey.METADATA_DIM),
+        ]
+        if metadata.usage.input_cost is not None:
+            input_parts.append((f"(${metadata.usage.input_cost:.4f})", ThemeKey.METADATA_DIM))
+        parts.append(Text.assemble(*input_parts))
 
         # Cached
         if metadata.usage.cached_tokens > 0:
-            parts.append(
-                Text.assemble(
-                    ("cached", ThemeKey.METADATA_DIM),
-                    (":", ThemeKey.METADATA_DIM),
-                    (
-                        format_number(metadata.usage.cached_tokens),
-                        ThemeKey.METADATA_DIM,
-                    ),
-                )
-            )
+            cached_parts: list[tuple[str, str]] = [
+                ("cached:", ThemeKey.METADATA_DIM),
+                (format_number(metadata.usage.cached_tokens), ThemeKey.METADATA_DIM),
+            ]
+            if metadata.usage.cache_read_cost is not None:
+                cached_parts.append((f"(${metadata.usage.cache_read_cost:.4f})", ThemeKey.METADATA_DIM))
+            parts.append(Text.assemble(*cached_parts))
 
         # Output
-        parts.append(
-            Text.assemble(
-                ("output:", ThemeKey.METADATA_DIM),
-                (format_number(metadata.usage.output_tokens), ThemeKey.METADATA_DIM),
-            )
-        )
+        output_parts: list[tuple[str, str]] = [
+            ("output:", ThemeKey.METADATA_DIM),
+            (format_number(metadata.usage.output_tokens), ThemeKey.METADATA_DIM),
+        ]
+        if metadata.usage.output_cost is not None:
+            output_parts.append((f"(${metadata.usage.output_cost:.4f})", ThemeKey.METADATA_DIM))
+        parts.append(Text.assemble(*output_parts))
 
         # Reasoning
         if metadata.usage.reasoning_tokens > 0:
@@ -105,13 +104,23 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
                 )
             )
 
-    # Cost
+    # Duration
     if metadata.task_duration_s is not None:
+        parts.append(
+            Text.assemble(
+                ("time", ThemeKey.METADATA_DIM),
+                (":", ThemeKey.METADATA_DIM),
+                (f"{metadata.task_duration_s:.1f}s", ThemeKey.METADATA_DIM),
+            )
+        )
+
+    # Cost (USD)
+    if metadata.usage is not None and metadata.usage.total_cost is not None:
         parts.append(
             Text.assemble(
                 ("cost", ThemeKey.METADATA_DIM),
                 (":", ThemeKey.METADATA_DIM),
-                (f"{metadata.task_duration_s:.1f}s", ThemeKey.METADATA_DIM),
+                (f"${metadata.usage.total_cost:.4f}", ThemeKey.METADATA_DIM),
             )
         )
 

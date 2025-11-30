@@ -62,6 +62,16 @@ class MetadataAccumulator:
                     self._throughput_weighted_sum += usage.throughput_tps * current_output
                     self._throughput_tracked_tokens += current_output
 
+            # Accumulate costs
+            if usage.input_cost is not None:
+                acc_usage.input_cost = (acc_usage.input_cost or 0.0) + usage.input_cost
+            if usage.output_cost is not None:
+                acc_usage.output_cost = (acc_usage.output_cost or 0.0) + usage.output_cost
+            if usage.cache_read_cost is not None:
+                acc_usage.cache_read_cost = (acc_usage.cache_read_cost or 0.0) + usage.cache_read_cost
+            if usage.total_cost is not None:
+                acc_usage.total_cost = (acc_usage.total_cost or 0.0) + usage.total_cost
+
         if turn_metadata.provider is not None:
             accumulated.provider = turn_metadata.provider
         if turn_metadata.model_name:

@@ -38,7 +38,7 @@ class OpenRouterClient(LLMClientABC):
         messages = convert_history_to_input(param.input, param.system, param.model)
         tools = convert_tool_schema(param.tools)
 
-        metadata_tracker = MetadataTracker()
+        metadata_tracker = MetadataTracker(cost_config=self._config.cost)
 
         extra_body: dict[str, object] = {
             "usage": {"include": True}  # To get the cache tokens at the end of the response

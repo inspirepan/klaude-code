@@ -2,17 +2,41 @@ import time
 
 import openai.types
 
-from klaude_code.protocol import model
+from klaude_code.protocol import llm_param, model
+
+
+def calculate_cost(usage: model.Usage, cost_config: llm_param.Cost | None) -> None:
+    """Calculate and set cost fields on usage based on cost configuration.
+
+    Note: input_tokens includes cached_tokens, so we need to subtract cached_tokens
+    to get the actual non-cached input tokens for cost calculation.
+    """
+    if cost_config is None:
+        return
+
+    # Non-cached input tokens cost
+    non_cached_input = usage.input_tokens - usage.cached_tokens
+    usage.input_cost = (non_cached_input / 1_000_000) * cost_config.input
+
+    # Output tokens cost (includes reasoning tokens)
+    usage.output_cost = (usage.output_tokens / 1_000_000) * cost_config.output
+
+    # Cache read cost
+    usage.cache_read_cost = (usage.cached_tokens / 1_000_000) * cost_config.cache_read
+
+    # Total cost
+    usage.total_cost = usage.input_cost + usage.output_cost + usage.cache_read_cost
 
 
 class MetadataTracker:
     """Tracks timing and metadata for LLM responses."""
 
-    def __init__(self) -> None:
+    def __init__(self, cost_config: llm_param.Cost | None = None) -> None:
         self._request_start_time: float = time.time()
         self._first_token_time: float | None = None
         self._last_token_time: float | None = None
         self._metadata_item = model.ResponseMetadataItem()
+        self._cost_config = cost_config
 
     @property
     def metadata_item(self) -> model.ResponseMetadataItem:
@@ -60,6 +84,10 @@ class MetadataTracker:
                 time_duration = self._last_token_time - self._first_token_time
                 if time_duration >= 0.15:
                     self._metadata_item.usage.throughput_tps = self._metadata_item.usage.output_tokens / time_duration
+
+        # Calculate cost if config is available
+        if self._metadata_item.usage:
+            calculate_cost(self._metadata_item.usage, self._cost_config)
 
         return self._metadata_item
 

@@ -35,6 +35,15 @@ class Thinking(BaseModel):
     budget_tokens: int | None = None
 
 
+class Cost(BaseModel):
+    """Cost configuration per million tokens (USD)."""
+
+    input: float  # Input token price per million tokens
+    output: float  # Output token price per million tokens
+    cache_read: float = 0.0  # Cache read price per million tokens
+    cache_write: float = 0.0  # Cache write price per million tokens (ignored in calculation for now)
+
+
 class OpenRouterProviderRouting(BaseModel):
     """
     https://openrouter.ai/docs/features/provider-routing#json-schema-for-provider-preferences
@@ -98,6 +107,9 @@ class LLMConfigModelParameter(BaseModel):
 
     # OpenRouter Provider Routing Preferences
     provider_routing: OpenRouterProviderRouting | None = None
+
+    # Cost configuration (USD per million tokens)
+    cost: Cost | None = None
 
 
 class LLMConfigParameter(LLMConfigProviderParameter, LLMConfigModelParameter):
