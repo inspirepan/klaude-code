@@ -45,6 +45,10 @@ def _format_timestamp(value: float | None) -> str:
     return datetime.fromtimestamp(value).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _format_msg_timestamp(dt: datetime) -> str:
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
 def get_first_user_message(history: list[model.ConversationItem]) -> str:
     """Extract the first user message content from conversation history."""
     for item in history:
@@ -192,13 +196,15 @@ def _render_metadata_item(item: model.ResponseMetadataItem) -> str:
     )
 
 
-def _render_assistant_message(index: int, content: str) -> str:
+def _render_assistant_message(index: int, content: str, timestamp: datetime) -> str:
     encoded = _escape_html(content)
+    ts_str = _format_msg_timestamp(timestamp)
     return (
         f'<div class="message-group assistant-message-group">'
         f'<div class="message-header">'
         f'<div class="role-label assistant">Assistant</div>'
         f'<div class="assistant-toolbar">'
+        f'<span class="timestamp">{ts_str}</span>'
         f'<button type="button" class="raw-toggle" aria-pressed="false" title="Toggle raw text view">Raw</button>'
         f'<button type="button" class="copy-raw-btn" title="Copy raw content">Copy</button>'
         f"</div>"
@@ -390,6 +396,8 @@ def _get_mermaid_link_html(
 def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultItem | None) -> str:
     args_html = None
     is_todo_list = False
+    ts_str = _format_msg_timestamp(tool_call.created_at)
+
     if tool_call.name == "TodoWrite":
         args_html = _try_render_todo_args(tool_call.arguments)
         if args_html:
@@ -423,7 +431,10 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
         '<div class="tool-call">',
         '<div class="tool-header">',
         f'<span class="tool-name">{_escape_html(tool_call.name)}</span>',
+        '<div class="tool-header-right">',
         f'<span class="tool-id">{_escape_html(tool_call.call_id)}</span>',
+        f'<span class="timestamp">{ts_str}</span>',
+        "</div>",
         "</div>",
         args_section,
     ]
@@ -487,22 +498,27 @@ def _build_messages_html(
     for i, item in enumerate(renderable_items):
         if isinstance(item, model.UserMessageItem):
             text = _escape_html(item.content or "")
+            ts_str = _format_msg_timestamp(item.created_at)
             blocks.append(
                 f'<div class="message-group">'
-                f'<div class="role-label user">User</div>'
+                f'<div class="role-label user">'
+                f"User"
+                f'<span class="timestamp">{ts_str}</span>'
+                f"</div>"
                 f'<div class="message-content user" style="white-space: pre-wrap;">{text}</div>'
                 f"</div>"
             )
         elif isinstance(item, model.ReasoningTextItem):
             text = _escape_html(item.content.strip())
-            blocks.append(f'<div class="thinking-block">{text.replace(chr(10), "<br>")}</div>')
+            blocks.append(f'<div class="thinking-block markdown-body markdown-content" data-raw="{text}"></div>')
         elif isinstance(item, model.AssistantMessageItem):
             assistant_counter += 1
-            blocks.append(_render_assistant_message(assistant_counter, item.content or ""))
+            blocks.append(_render_assistant_message(assistant_counter, item.content or "", item.created_at))
         elif isinstance(item, model.ResponseMetadataItem):
             blocks.append(_render_metadata_item(item))
         elif isinstance(item, model.DeveloperMessageItem):
             content = _escape_html(item.content or "")
+            ts_str = _format_msg_timestamp(item.created_at)
 
             next_item = renderable_items[i + 1] if i + 1 < len(renderable_items) else None
             extra_class = ""
@@ -511,10 +527,14 @@ def _build_messages_html(
 
             blocks.append(
                 f'<details class="developer-message{extra_class}">'
-                f"<summary>Developer</summary>"
+                f"<summary>"
+                f"Developer"
+                f'<span class="timestamp">{ts_str}</span>'
+                f"</summary>"
                 f'<div class="details-content" style="white-space: pre-wrap;">{content}</div>'
                 f"</details>"
             )
+
         elif isinstance(item, model.ToolCallItem):
             result = tool_results.get(item.call_id)
             blocks.append(_format_tool_call(item, result))
