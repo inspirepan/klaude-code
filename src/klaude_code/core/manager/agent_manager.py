@@ -30,9 +30,7 @@ class AgentManager:
     ) -> None:
         self._event_queue: asyncio.Queue[events.Event] = event_queue
         self._llm_clients: LLMClients = llm_clients
-        self._model_profile_provider: ModelProfileProvider = (
-            model_profile_provider or DefaultModelProfileProvider()
-        )
+        self._model_profile_provider: ModelProfileProvider = model_profile_provider or DefaultModelProfileProvider()
         self._active_agents: dict[str, Agent] = {}
 
     async def emit_event(self, event: events.Event) -> None:
