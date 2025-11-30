@@ -45,6 +45,7 @@ class ToolResultUIExtraType(str, Enum):
     SESSION_ID = "session_id"
     MERMAID_LINK = "mermaid_link"
     TRUNCATION = "truncation"
+    SESSION_STATUS = "session_status"
 
 
 class ToolSideEffect(str, Enum):
@@ -62,6 +63,11 @@ class TruncationUIExtra(BaseModel):
     truncated_length: int
 
 
+class SessionStatusUIExtra(BaseModel):
+    usage: "Usage"
+    task_count: int
+
+
 class ToolResultUIExtra(BaseModel):
     type: ToolResultUIExtraType
     diff_text: str | None = None
@@ -69,6 +75,7 @@ class ToolResultUIExtra(BaseModel):
     session_id: str | None = None
     mermaid_link: MermaidLinkUIExtra | None = None
     truncation: TruncationUIExtra | None = None
+    session_status: SessionStatusUIExtra | None = None
 
 
 class AtPatternParseResult(BaseModel):

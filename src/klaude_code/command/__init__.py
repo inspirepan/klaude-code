@@ -16,6 +16,7 @@ from .registry import (
     load_prompt_commands,
     register_command,
 )
+from .status_cmd import StatusCommand
 from .terminal_setup_cmd import TerminalSetupCommand
 
 # Dynamically load prompt commands
@@ -28,6 +29,7 @@ __all__ = [
     "ModelCommand",
     "ExportCommand",
     "RefreshTerminalCommand",
+    "StatusCommand",
     "TerminalSetupCommand",
     "register_command",
     "CommandABC",
