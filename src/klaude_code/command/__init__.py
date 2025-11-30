@@ -11,8 +11,8 @@ from .refresh_cmd import RefreshTerminalCommand
 from .registry import (
     dispatch_command,
     get_commands,
-    is_slash_command_name,
     has_interactive_command,
+    is_slash_command_name,
     load_prompt_commands,
     register_command,
 )

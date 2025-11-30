@@ -1,9 +1,9 @@
 from typing import Callable, TypeVar
 
-from klaude_code.protocol.sub_agent import get_sub_agent_profile, iter_sub_agent_profiles, sub_agent_tool_names
 from klaude_code.core.tool.sub_agent_tool import SubAgentTool
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.protocol import llm_param, tools
+from klaude_code.protocol.sub_agent import get_sub_agent_profile, iter_sub_agent_profiles, sub_agent_tool_names
 
 _REGISTRY: dict[str, type[ToolABC]] = {}
 

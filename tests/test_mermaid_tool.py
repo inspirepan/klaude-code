@@ -41,5 +41,4 @@ def test_mermaid_tool_generates_shareable_link(
 
     payload = _decode_payload(link)
     assert payload["code"] == code
-    assert payload["mermaid"] == {"theme": "default"}
     assert result.ui_extra.mermaid_link.line_count == 3

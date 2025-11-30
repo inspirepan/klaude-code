@@ -8,7 +8,8 @@ handling operations submitted from the CLI and coordinating with agents.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field as dataclass_field
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 
 from klaude_code.command import InputAction, InputActionType, dispatch_command
 from klaude_code.config import Config, load_config

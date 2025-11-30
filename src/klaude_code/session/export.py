@@ -11,8 +11,8 @@ from pathlib import Path
 from string import Template
 from typing import TYPE_CHECKING, Any, Final, cast
 
-from klaude_code.protocol.sub_agent import is_sub_agent_tool
 from klaude_code.protocol import llm_param, model
+from klaude_code.protocol.sub_agent import is_sub_agent_tool
 
 if TYPE_CHECKING:
     from klaude_code.session.session import Session

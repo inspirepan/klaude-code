@@ -5,10 +5,10 @@ import asyncio
 import pytest
 
 import klaude_code.core.tool as core_tool  # noqa: F401
-from klaude_code.protocol.sub_agent import is_sub_agent_tool, sub_agent_tool_names
 from klaude_code.core.tool import ToolABC, load_agent_tools
 from klaude_code.core.tool.tool_runner import ToolExecutor
 from klaude_code.protocol import llm_param, model
+from klaude_code.protocol.sub_agent import is_sub_agent_tool, sub_agent_tool_names
 
 
 def test_sub_agent_tool_visibility_respects_filters() -> None:
