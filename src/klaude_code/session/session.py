@@ -204,7 +204,7 @@ class Session(BaseModel):
             for it in items:
                 # Serialize with explicit type tag for reliable load
                 t = it.__class__.__name__
-                data = it.model_dump()
+                data = it.model_dump(mode="json")
                 f.write(json.dumps({"type": t, "data": data}, ensure_ascii=False))
                 f.write("\n")
         # Refresh metadata timestamp after history change
