@@ -33,27 +33,31 @@ def render_user_input(content: str) -> RenderableType:
     """
     lines = content.strip().split("\n")
     renderables: list[RenderableType] = []
+    has_command = False
     for i, line in enumerate(lines):
         line_text = render_at_pattern(line)
 
         if i == 0 and line.startswith("/"):
             splits = line.split(" ", maxsplit=1)
             if is_slash_command_name(splits[0][1:]):
-                if len(splits) <= 1:
-                    renderables.append(Text(f"{line}", style=ThemeKey.USER_INPUT_SLASH_COMMAND))
-                    continue
-                else:
-                    line_text = Text.assemble(
-                        (f"{splits[0]}", ThemeKey.USER_INPUT_SLASH_COMMAND),
-                        " ",
-                        render_at_pattern(splits[1]),
-                    )
-                    renderables.append(line_text)
-                    continue
+                has_command = True
+                line_text = Text.assemble(
+                    (f"{splits[0]}", ThemeKey.USER_INPUT_SLASH_COMMAND),
+                    " ",
+                    render_at_pattern(splits[1]) if len(splits) > 1 else Text(""),
+                )
+                renderables.append(line_text)
+                continue
 
         renderables.append(line_text)
     grid = create_grid()
-    grid.add_row(Text("❯", style=ThemeKey.USER_INPUT_PROMPT), Group(*renderables))
+    grid.padding = (0, 0)
+    mark = (
+        Text("❯ ", style=ThemeKey.USER_INPUT_PROMPT)
+        if not has_command
+        else Text("  ", style=ThemeKey.USER_INPUT_PROMPT)
+    )
+    grid.add_row(mark, Group(*renderables))
     return grid
 
 
