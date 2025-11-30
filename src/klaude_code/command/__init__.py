@@ -10,9 +10,9 @@ from .model_cmd import ModelCommand
 from .refresh_cmd import RefreshTerminalCommand
 from .registry import (
     dispatch_command,
-    get_command_names,
     get_commands,
-    is_interactive_command,
+    is_slash_command_name,
+    has_interactive_command,
     load_prompt_commands,
     register_command,
 )
@@ -36,6 +36,6 @@ __all__ = [
     "InputActionType",
     "dispatch_command",
     "get_commands",
-    "get_command_names",
-    "is_interactive_command",
+    "is_slash_command_name",
+    "has_interactive_command",
 ]

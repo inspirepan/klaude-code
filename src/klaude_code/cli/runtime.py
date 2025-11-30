@@ -8,7 +8,7 @@ import typer
 from rich.text import Text
 
 from klaude_code import ui
-from klaude_code.command import is_interactive_command
+from klaude_code.command import has_interactive_command
 from klaude_code.config import Config, load_config
 from klaude_code.core.agent import DefaultModelProfileProvider, VanillaModelProfileProvider
 from klaude_code.core.executor import Executor
@@ -300,7 +300,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             )
             # If it's an interactive command (e.g., /model), avoid starting the ESC monitor
             # to prevent TTY conflicts with interactive prompts (questionary/prompt_toolkit).
-            if is_interactive_command(user_input.text):
+            if has_interactive_command(user_input.text):
                 await components.executor.wait_for(submission_id)
             else:
                 # Esc monitor for long-running, interruptible operations

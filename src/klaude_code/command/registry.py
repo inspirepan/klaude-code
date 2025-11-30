@@ -40,9 +40,8 @@ def get_commands() -> dict[commands.CommandName | str, "CommandABC"]:
     return _COMMANDS.copy()
 
 
-def get_command_names() -> list[str]:
-    """Get all registered command names for completion."""
-    return [str(k) for k in _COMMANDS.keys()]
+def is_slash_command_name(name: str) -> bool:
+    return name in _COMMANDS
 
 
 async def dispatch_command(raw: str, agent: Agent) -> CommandResult:
@@ -96,7 +95,7 @@ async def dispatch_command(raw: str, agent: Agent) -> CommandResult:
         )
 
 
-def is_interactive_command(raw: str) -> bool:
+def has_interactive_command(raw: str) -> bool:
     if not raw.startswith("/"):
         return False
     splits = raw.split(" ", maxsplit=1)
