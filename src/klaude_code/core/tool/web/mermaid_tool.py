@@ -60,7 +60,7 @@ class MermaidTool(ToolABC):
     def _build_link(code: str) -> str:
         state = {
             "code": code,
-            "mermaid": {"theme": "default"},
+            "mermaid": {"theme": "neutral"},
             "autoSync": True,
             "updateDiagram": True,
         }

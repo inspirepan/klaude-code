@@ -276,9 +276,9 @@ def _render_text_block(text: str) -> str:
     return (
         f'<div class="expandable-output expandable">'
         f'<div class="preview-text" style="white-space: pre-wrap; font-family: var(--font-mono);">{preview}</div>'
-        f'<div class="expand-hint expand-text">Click to expand full output ({len(lines)} lines)</div>'
+        f'<div class="expand-hint expand-text">click to expand full output ({len(lines)} lines)</div>'
         f'<div class="full-text" style="white-space: pre-wrap; font-family: var(--font-mono);">{full}</div>'
-        f'<div class="collapse-hint">Click to collapse</div>'
+        f'<div class="collapse-hint">click to collapse</div>'
         f"</div>"
     )
 
@@ -324,35 +324,67 @@ def _get_diff_text(ui_extra: model.ToolResultUIExtra | None) -> str | None:
 def _get_mermaid_link_html(
     ui_extra: model.ToolResultUIExtra | None, tool_call: model.ToolCallItem | None = None
 ) -> str | None:
-    if ui_extra is None:
-        return None
-    if ui_extra.type != model.ToolResultUIExtraType.MERMAID_LINK:
-        return None
-    if ui_extra.mermaid_link is None or not ui_extra.mermaid_link.link:
-        return None
-    link = _escape_html(ui_extra.mermaid_link.link)
-    lines = ui_extra.mermaid_link.line_count
-
-    copy_btn = ""
     if tool_call and tool_call.name == "Mermaid":
         try:
             args = json.loads(tool_call.arguments)
-            code = args.get("code")
-            if code:
-                escaped_code = _escape_html(code)
-                copy_btn = f'<button type="button" class="copy-mermaid-btn" data-code="{escaped_code}" title="Copy Mermaid Code">Copy Code</button>'
+            code = args.get("code", "")
         except Exception:
-            pass
+            code = ""
+    else:
+        code = ""
 
-    return (
-        '<div style="display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono);">'
-        f"<span>Lines: {lines}</span>"
-        f"<div>"
-        f"{copy_btn}"
-        f'<a href="{link}" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: underline; margin-left: 8px;">View Diagram</a>'
-        f"</div>"
+    if not code and (
+        ui_extra is None or ui_extra.type != model.ToolResultUIExtraType.MERMAID_LINK or not ui_extra.mermaid_link
+    ):
+        return None
+
+    # Prepare code for rendering and copy
+    escaped_code = _escape_html(code) if code else ""
+    line_count = code.count("\n") + 1 if code else 0
+
+    # Build Toolbar
+    toolbar_items: list[str] = []
+
+    if line_count > 0:
+        toolbar_items.append(f"<span>Lines: {line_count}</span>")
+
+    buttons_html: list[str] = []
+    if code:
+        buttons_html.append(
+            f'<button type="button" class="copy-mermaid-btn" data-code="{escaped_code}" title="Copy Mermaid Code">Copy Code</button>'
+        )
+
+    link = (
+        ui_extra.mermaid_link.link
+        if (ui_extra and ui_extra.type == model.ToolResultUIExtraType.MERMAID_LINK and ui_extra.mermaid_link)
+        else None
+    )
+
+    if link:
+        link_url = _escape_html(link)
+        buttons_html.append(
+            f'<a href="{link_url}" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: underline; margin-left: 8px;">View Online</a>'
+        )
+
+    toolbar_items.append(f"<div>{''.join(buttons_html)}</div>")
+
+    toolbar_html = (
+        '<div style="display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border);">'
+        f"{''.join(toolbar_items)}"
         "</div>"
     )
+
+    # If we have code, render the diagram
+    if code:
+        return (
+            f'<div style="background: white; padding: 16px; border-radius: 4px; margin-top: 8px; border: 1px solid var(--border);">'
+            f'<div class="mermaid">{escaped_code}</div>'
+            f"{toolbar_html}"
+            f"</div>"
+        )
+
+    # Fallback to just link/toolbar if no code available (legacy support behavior)
+    return toolbar_html
 
 
 def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultItem | None) -> str:
