@@ -1,9 +1,10 @@
 ---
 description: Create a comprehensive strategic plan with structured task breakdown
-argument-hint: Describe what you need planned (e.g., "refactor authentication system", "implement microservices")
+from: https://github.com/diet103/claude-code-infrastructure-showcase/blob/main/.claude/commands/dev-docs.md
 ---
 
-You are an elite strategic planning specialist. Create a comprehensive, actionable plan for: $ARGUMENTS
+Create a comprehensive, actionable plan for: 
+$ARGUMENTS
 
 ## Instructions
 

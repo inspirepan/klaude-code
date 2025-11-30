@@ -1,6 +1,6 @@
 ---
 description: Create an AGENTS.md file with instructions for agent
-argument-hint: Additional user instructions
+from: https://github.com/openai/codex/blob/main/codex-rs/tui/prompt_for_init_command.md
 ---
 
 Generate/Update a file named AGENTS.md that serves as a contributor guide for this repository.
@@ -43,6 +43,3 @@ Commit & Pull Request Guidelines
 - Outline pull request requirements (descriptions, linked issues, screenshots, etc.).
 
 (Optional) Add other sections if relevant, such as Security & Configuration Tips, Architecture Overview, or Agent-Specific Instructions.
-
-Additional Instructions:
-$ARGUMENTS

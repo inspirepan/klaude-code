@@ -57,7 +57,7 @@ class PromptCommand(CommandABC):
     async def run(self, raw: str, agent: Agent) -> CommandResult:
         self._ensure_loaded()
         template_content = self._content or ""
-        user_input = raw.strip()
+        user_input = raw.strip() or "<none>"
 
         if "$ARGUMENTS" in template_content:
             final_prompt = template_content.replace("$ARGUMENTS", user_input)

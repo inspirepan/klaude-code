@@ -1,6 +1,6 @@
 ---
 description: Update dev documentation before context compaction
-argument-hint: Optional - specific context or tasks to focus on (leave empty for comprehensive update)
+from: https://github.com/diet103/claude-code-infrastructure-showcase/blob/main/.claude/commands/dev-docs-update.md
 ---
 
 We're approaching context limits. Please update the development documentation to ensure seamless continuation after context reset.
@@ -50,6 +50,7 @@ If switching to a new conversation:
 - Any uncommitted changes that need attention
 - Test commands to verify work
 
-## Additional Context: $ARGUMENTS
+## Additional Context:
+$ARGUMENTS
 
 **Priority**: Focus on capturing information that would be hard to rediscover or reconstruct from code alone.
