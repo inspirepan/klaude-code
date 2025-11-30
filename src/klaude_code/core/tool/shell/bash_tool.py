@@ -1,4 +1,5 @@
 import asyncio
+import re
 import subprocess
 from pathlib import Path
 
@@ -9,6 +10,9 @@ from klaude_code.core.tool.shell.command_safety import is_safe_command, strip_ba
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, model, tools
+
+# Regex to strip ANSI escape sequences from command output
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 @register(tools.BASH)
@@ -78,8 +82,8 @@ class BashTool(ToolABC):
                 check=False,
             )
 
-            stdout = completed.stdout or ""
-            stderr = completed.stderr or ""
+            stdout = _ANSI_ESCAPE_RE.sub("", completed.stdout or "")
+            stderr = _ANSI_ESCAPE_RE.sub("", completed.stderr or "")
             rc = completed.returncode
 
             if rc == 0:
