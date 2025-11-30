@@ -1,7 +1,8 @@
+from datetime import datetime
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from klaude_code.protocol.commands import CommandName
 from klaude_code.protocol.tools import SubAgentType
@@ -113,16 +114,18 @@ When adding a new item, please also modify the following:
 
 class StartItem(BaseModel):
     response_id: str
+    created_at: datetime = Field(default_factory=datetime.now)
 
 
 class InterruptItem(BaseModel):
-    pass
+    created_at: datetime = Field(default_factory=datetime.now)
 
 
 class SystemMessageItem(BaseModel):
     id: str | None = None
     role: RoleType = "system"
     content: str | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
 
 
 class DeveloperMessageItem(BaseModel):
@@ -130,6 +133,7 @@ class DeveloperMessageItem(BaseModel):
     role: RoleType = "developer"
     content: str | None = None  # For LLM input
     images: list["ImageURLPart"] | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
 
     # Special fields for reminders UI
     memory_paths: list[str] | None = None
@@ -164,6 +168,7 @@ class UserMessageItem(BaseModel):
     role: RoleType = "user"
     content: str | None = None
     images: list[ImageURLPart] | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
 
 
 class AssistantMessageItem(BaseModel):
@@ -171,6 +176,7 @@ class AssistantMessageItem(BaseModel):
     role: RoleType = "assistant"
     content: str | None = None
     response_id: str | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
 
 
 class ReasoningTextItem(BaseModel):
@@ -178,6 +184,7 @@ class ReasoningTextItem(BaseModel):
     response_id: str | None = None
     content: str
     model: str | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
 
 
 class ReasoningEncryptedItem(BaseModel):
@@ -186,6 +193,7 @@ class ReasoningEncryptedItem(BaseModel):
     encrypted_content: str  # OpenAI encrypted content or Anthropic thinking signature
     format: str | None = None
     model: str | None
+    created_at: datetime = Field(default_factory=datetime.now)
 
 
 class ToolCallStartItem(BaseModel):
@@ -198,6 +206,7 @@ class ToolCallStartItem(BaseModel):
     response_id: str | None = None
     call_id: str
     name: str
+    created_at: datetime = Field(default_factory=datetime.now)
 
 
 class ToolCallItem(BaseModel):
@@ -206,6 +215,7 @@ class ToolCallItem(BaseModel):
     call_id: str
     name: str
     arguments: str
+    created_at: datetime = Field(default_factory=datetime.now)
 
 
 class ToolResultItem(BaseModel):
@@ -216,15 +226,18 @@ class ToolResultItem(BaseModel):
     ui_extra: ToolResultUIExtra | None = None  # Extra data for UI display, e.g. diff render
     images: list[ImageURLPart] | None = None
     side_effects: list[ToolSideEffect] | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
 
 
 class AssistantMessageDelta(BaseModel):
     response_id: str | None = None
     content: str
+    created_at: datetime = Field(default_factory=datetime.now)
 
 
 class StreamErrorItem(BaseModel):
     error: str
+    created_at: datetime = Field(default_factory=datetime.now)
 
 
 class ResponseMetadataItem(BaseModel):
@@ -235,6 +248,7 @@ class ResponseMetadataItem(BaseModel):
     task_duration_s: float | None = None
     status: str | None = None
     error_reason: str | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
 
 
 MessageItem = (
