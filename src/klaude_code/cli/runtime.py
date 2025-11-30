@@ -10,8 +10,9 @@ from rich.text import Text
 from klaude_code import ui
 from klaude_code.command import has_interactive_command
 from klaude_code.config import Config, load_config
-from klaude_code.core.agent import DefaultModelProfileProvider, VanillaModelProfileProvider
-from klaude_code.core.executor import Executor, LLMClients
+from klaude_code.core.agent import Agent, DefaultModelProfileProvider, VanillaModelProfileProvider
+from klaude_code.core.executor import Executor
+from klaude_code.core.manager import build_llm_clients
 from klaude_code.core.tool import SkillLoader, SkillTool
 from klaude_code.protocol import events, op
 from klaude_code.protocol.model import UserInputPayload
@@ -103,7 +104,7 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     # Initialize LLM clients
     try:
         enabled_sub_agents = [p.name for p in iter_sub_agent_profiles()]
-        llm_clients = LLMClients.from_config(
+        llm_clients = build_llm_clients(
             config,
             model_override=init_config.model,
             enabled_sub_agents=enabled_sub_agents,
@@ -239,7 +240,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     # Create status provider for bottom toolbar
     def _status_provider() -> REPLStatusSnapshot:
-        agent = None
+        agent: Agent | None = None
         if session_id and session_id in components.executor.context.active_agents:
             agent = components.executor.context.active_agents[session_id]
 

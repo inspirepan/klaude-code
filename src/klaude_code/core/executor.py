@@ -9,80 +9,15 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from dataclasses import field as dataclass_field
 
 from klaude_code.command import InputAction, InputActionType, dispatch_command
-from klaude_code.config import Config, load_config
 from klaude_code.core.agent import Agent, DefaultModelProfileProvider, ModelProfileProvider
+from klaude_code.core.manager import AgentManager, LLMClients, SubAgentManager
 from klaude_code.core.tool import current_run_subtask_callback
-from klaude_code.llm.client import LLMClientABC
-from klaude_code.llm.registry import create_llm_client
-from klaude_code.protocol import commands, events, model, op
+from klaude_code.protocol import events, model, op
 from klaude_code.protocol.op_handler import OperationHandler
-from klaude_code.protocol.sub_agent import SubAgentResult, get_sub_agent_profile
-from klaude_code.protocol.tools import SubAgentType
-from klaude_code.session.session import Session
+from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.trace import DebugType, log_debug
-
-
-@dataclass
-class LLMClients:
-    """Container for LLM clients used by main agent and sub-agents."""
-
-    main: LLMClientABC
-    sub_clients: dict[SubAgentType, LLMClientABC] = dataclass_field(default_factory=lambda: {})
-
-    def get_client(self, sub_agent_type: SubAgentType | None = None) -> LLMClientABC:
-        """Get client for given sub-agent type, or main client if None."""
-        if sub_agent_type is None:
-            return self.main
-        return self.sub_clients.get(sub_agent_type) or self.main
-
-    @classmethod
-    def from_config(
-        cls,
-        config: Config,
-        model_override: str | None = None,
-        enabled_sub_agents: list[SubAgentType] | None = None,
-    ) -> LLMClients:
-        """Create LLMClients from application config.
-
-        Args:
-            config: Application configuration
-            model_override: Optional model name to override the main model
-            enabled_sub_agents: List of sub-agent types to initialize clients for
-
-        Returns:
-            LLMClients instance
-        """
-        # Resolve main agent LLM config
-        if model_override:
-            llm_config = config.get_model_config(model_override)
-        else:
-            llm_config = config.get_main_model_config()
-
-        log_debug(
-            "Main LLM config",
-            llm_config.model_dump_json(exclude_none=True),
-            style="yellow",
-            debug_type=DebugType.LLM_CONFIG,
-        )
-
-        main_client = create_llm_client(llm_config)
-        sub_clients: dict[SubAgentType, LLMClientABC] = {}
-
-        # Initialize sub-agent clients
-        for sub_agent_type in enabled_sub_agents or []:
-            model_name = config.subagent_models.get(sub_agent_type)
-            if not model_name:
-                continue
-            profile = get_sub_agent_profile(sub_agent_type)
-            if not profile.enabled_for_model(main_client.model_name):
-                continue
-            sub_llm_config = config.get_model_config(model_name)
-            sub_clients[sub_agent_type] = create_llm_client(sub_llm_config)
-
-        return cls(main=main_client, sub_clients=sub_clients)
 
 
 @dataclass
@@ -91,6 +26,50 @@ class ActiveTask:
 
     task: asyncio.Task[None]
     session_id: str
+
+
+class TaskManager:
+    """Manager that tracks active tasks keyed by submission id."""
+
+    def __init__(self) -> None:
+        self._tasks: dict[str, ActiveTask] = {}
+
+    def register(self, submission_id: str, task: asyncio.Task[None], session_id: str) -> None:
+        """Register a new active task for a submission id."""
+
+        self._tasks[submission_id] = ActiveTask(task=task, session_id=session_id)
+
+    def get(self, submission_id: str) -> ActiveTask | None:
+        """Return the active task for a submission id if present."""
+
+        return self._tasks.get(submission_id)
+
+    def remove(self, submission_id: str) -> None:
+        """Remove the active task associated with a submission id if present."""
+
+        self._tasks.pop(submission_id, None)
+
+    def values(self) -> list[ActiveTask]:
+        """Return a snapshot list of all active tasks."""
+
+        return list(self._tasks.values())
+
+    def cancel_tasks_for_sessions(self, session_ids: set[str] | None = None) -> list[tuple[str, asyncio.Task[None]]]:
+        """Collect tasks that should be cancelled for given sessions."""
+
+        tasks_to_cancel: list[tuple[str, asyncio.Task[None]]] = []
+        for task_id, active in list(self._tasks.items()):
+            task = active.task
+            if task.done():
+                continue
+            if session_ids is None or active.session_id in session_ids:
+                tasks_to_cancel.append((task_id, task))
+        return tasks_to_cancel
+
+    def clear(self) -> None:
+        """Remove all tracked tasks from the manager."""
+
+        self._tasks.clear()
 
 
 class ExecutorContext:
@@ -110,56 +89,35 @@ class ExecutorContext:
         model_profile_provider: ModelProfileProvider | None = None,
     ):
         self.event_queue: asyncio.Queue[events.Event] = event_queue
-        self.llm_clients: LLMClients = llm_clients
-        self.model_profile_provider: ModelProfileProvider = model_profile_provider or DefaultModelProfileProvider()
 
-        # Track active agents by session ID
-        self.active_agents: dict[str, Agent] = {}
-        # Track active tasks by submission ID, retaining owning session for filtering/cancellation
-        self.active_tasks: dict[str, ActiveTask] = {}
+        resolved_profile_provider = model_profile_provider or DefaultModelProfileProvider()
+        self.model_profile_provider: ModelProfileProvider = resolved_profile_provider
+
+        # Delegate responsibilities to helper components
+        self.agent_manager = AgentManager(event_queue, llm_clients, resolved_profile_provider)
+        self.task_manager = TaskManager()
+        self.subagent_manager = SubAgentManager(event_queue, llm_clients, resolved_profile_provider)
 
     async def emit_event(self, event: events.Event) -> None:
         """Emit an event to the UI display system."""
         await self.event_queue.put(event)
 
-    async def _ensure_agent(self, session_id: str) -> Agent:
-        """Return an existing agent for the session or create a new one."""
+    @property
+    def active_agents(self) -> dict[str, Agent]:
+        """Expose currently active agents keyed by session id.
 
-        agent = self.active_agents.get(session_id)
-        if agent is not None:
-            return agent
+        This property preserves the previous public attribute used by the
+        CLI status provider while delegating storage to :class:`AgentManager`.
+        """
 
-        session = Session.load(session_id)
-        profile = self.model_profile_provider.build_profile(self.llm_clients.main)
-        agent = Agent(
-            session=session,
-            profile=profile,
-        )
-
-        async for evt in agent.replay_history():
-            await self.emit_event(evt)
-
-        await self.emit_event(
-            events.WelcomeEvent(
-                work_dir=str(session.work_dir),
-                llm_config=self.llm_clients.main.get_llm_config(),
-            )
-        )
-
-        self.active_agents[session_id] = agent
-        log_debug(
-            f"Initialized agent for session: {session_id}",
-            style="cyan",
-            debug_type=DebugType.EXECUTION,
-        )
-        return agent
+        return self.agent_manager.all_active_agents()
 
     async def handle_init_agent(self, operation: op.InitAgentOperation) -> None:
         """Initialize an agent for a session and replay history to UI."""
         if operation.session_id is None:
             raise ValueError("session_id cannot be None")
 
-        await self._ensure_agent(operation.session_id)
+        await self.agent_manager.ensure_agent(operation.session_id)
 
     async def handle_user_input(self, operation: op.UserInputOperation) -> None:
         """Handle a user input operation by running it through an agent."""
@@ -168,7 +126,7 @@ class ExecutorContext:
             raise ValueError("session_id cannot be None")
 
         session_id = operation.session_id
-        agent = await self._ensure_agent(session_id)
+        agent = await self.agent_manager.ensure_agent(session_id)
         user_input = operation.input
 
         # emit user input event
@@ -204,68 +162,28 @@ class ExecutorContext:
         if action.type == InputActionType.RUN_AGENT:
             task_input = model.UserInputPayload(text=action.text, images=operation.input.images)
 
-            existing_active = self.active_tasks.get(operation.id)
+            existing_active = self.task_manager.get(operation.id)
             if existing_active is not None and not existing_active.task.done():
                 raise RuntimeError(f"Active task already registered for operation {operation.id}")
 
             task: asyncio.Task[None] = asyncio.create_task(
                 self._run_agent_task(agent, task_input, operation.id, session_id)
             )
-            self.active_tasks[operation.id] = ActiveTask(task=task, session_id=session_id)
+            self.task_manager.register(operation.id, task, session_id)
             return
 
         if action.type == InputActionType.CHANGE_MODEL:
             if not action.model_name:
                 raise ValueError("ChangeModel action requires model_name")
 
-            await self._apply_model_change(agent, action.model_name)
+            await self.agent_manager.apply_model_change(agent, action.model_name)
             return
 
         if action.type == InputActionType.CLEAR:
-            await self._apply_clear(agent)
+            await self.agent_manager.apply_clear(agent)
             return
 
         raise ValueError(f"Unsupported input action type: {action.type}")
-
-    async def _apply_model_change(self, agent: Agent, model_name: str) -> None:
-        config = load_config()
-        if config is None:
-            raise ValueError("Configuration must be initialized before changing model")
-
-        llm_config = config.get_model_config(model_name)
-        llm_client = create_llm_client(llm_config)
-        agent.set_model_profile(self.model_profile_provider.build_profile(llm_client))
-
-        developer_item = model.DeveloperMessageItem(
-            content=f"switched to model: {model_name}",
-            command_output=model.CommandOutput(command_name=commands.CommandName.MODEL),
-        )
-        agent.session.append_history([developer_item])
-
-        await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
-        await self.emit_event(events.WelcomeEvent(llm_config=llm_config, work_dir=str(agent.session.work_dir)))
-
-    async def _apply_clear(self, agent: Agent) -> None:
-        old_session_id = agent.session.id
-
-        # Create a new session instance to replace the current one
-        new_session = Session(work_dir=agent.session.work_dir)
-        new_session.model_name = agent.session.model_name
-
-        # Replace the agent's session with the new one
-        agent.session = new_session
-        agent.session.save()
-
-        # Update the active_agents mapping
-        self.active_agents.pop(old_session_id, None)
-        self.active_agents[new_session.id] = agent
-
-        developer_item = model.DeveloperMessageItem(
-            content="started new conversation",
-            command_output=model.CommandOutput(command_name=commands.CommandName.CLEAR),
-        )
-
-        await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
 
     async def handle_interrupt(self, operation: op.InterruptOperation) -> None:
         """Handle an interrupt by invoking agent.cancel() and cancelling tasks."""
@@ -274,11 +192,11 @@ class ExecutorContext:
         if operation.target_session_id is not None:
             session_ids: list[str] = [operation.target_session_id]
         else:
-            session_ids = list(self.active_agents.keys())
+            session_ids = self.agent_manager.active_session_ids()
 
         # Call cancel() on each affected agent to persist an interrupt marker
         for sid in session_ids:
-            agent = self.active_agents.get(sid)
+            agent = self.agent_manager.get_active_agent(sid)
             if agent is not None:
                 for evt in agent.cancel():
                     await self.emit_event(evt)
@@ -287,16 +205,12 @@ class ExecutorContext:
         await self.emit_event(events.InterruptEvent(session_id=operation.target_session_id or "all"))
 
         # Find tasks to cancel (filter by target sessions if provided)
-        tasks_to_cancel: list[tuple[str, asyncio.Task[None]]] = []
-        for task_id, active in list(self.active_tasks.items()):
-            task = active.task
-            if task.done():
-                continue
-            if operation.target_session_id is None:
-                tasks_to_cancel.append((task_id, task))
-            else:
-                if active.session_id == operation.target_session_id:
-                    tasks_to_cancel.append((task_id, task))
+        if operation.target_session_id is None:
+            session_filter: set[str] | None = None
+        else:
+            session_filter = {operation.target_session_id}
+
+        tasks_to_cancel = self.task_manager.cancel_tasks_for_sessions(session_filter)
 
         scope = operation.target_session_id or "all"
         log_debug(
@@ -309,7 +223,7 @@ class ExecutorContext:
         for task_id, task in tasks_to_cancel:
             task.cancel()
             # Remove from active tasks immediately
-            self.active_tasks.pop(task_id, None)
+            self.task_manager.remove(task_id)
 
     async def _run_agent_task(
         self, agent: Agent, user_input: model.UserInputPayload, task_id: str, session_id: str
@@ -329,7 +243,7 @@ class ExecutorContext:
 
             # Inject subtask runner into tool context for nested Task tool usage
             async def _runner(state: model.SubAgentState) -> SubAgentResult:
-                return await self._run_subagent_task(agent, state)
+                return await self.subagent_manager.run_subagent(agent, state)
 
             token = current_run_subtask_callback.set(_runner)
             try:
@@ -367,69 +281,25 @@ class ExecutorContext:
 
         finally:
             # Clean up the task from active tasks
-            self.active_tasks.pop(task_id, None)
+            self.task_manager.remove(task_id)
             log_debug(
                 f"Cleaned up agent task {task_id}",
                 style="cyan",
                 debug_type=DebugType.EXECUTION,
             )
 
-    async def _run_subagent_task(self, parent_agent: Agent, state: model.SubAgentState) -> SubAgentResult:
-        """Run a nested sub-agent task and return the final task_result text.
+    def get_active_task(self, submission_id: str) -> asyncio.Task[None] | None:
+        """Return the asyncio.Task for a submission id if one is registered."""
 
-        - Creates a child session linked to the parent session
-        - Streams the child agent's events to the same event queue
-        - Returns the last assistant message content as the result
-        """
-        # Create a child session under the same workdir
-        parent_session = parent_agent.session
-        child_session = Session(work_dir=parent_session.work_dir)
-        child_session.sub_agent_state = state
+        active = self.task_manager.get(submission_id)
+        if active is None:
+            return None
+        return active.task
 
-        child_profile = self.model_profile_provider.build_profile(
-            self.llm_clients.get_client(state.sub_agent_type),
-            state.sub_agent_type,
-        )
-        child_agent = Agent(
-            session=child_session,
-            profile=child_profile,
-        )
+    def has_active_task(self, submission_id: str) -> bool:
+        """Return True if a task is registered for the submission id."""
 
-        log_debug(
-            f"Running sub-agent {state.sub_agent_type} in session {child_session.id}",
-            style="cyan",
-            debug_type=DebugType.EXECUTION,
-        )
-
-        try:
-            # Not emit the subtask's user input since task tool call is already rendered
-            result: str = ""
-            sub_agent_input = model.UserInputPayload(text=state.sub_agent_prompt, images=None)
-            async for event in child_agent.run_task(sub_agent_input):
-                # Capture TaskFinishEvent content for return
-                if isinstance(event, events.TaskFinishEvent):
-                    result = event.task_result
-                await self.emit_event(event)
-            return SubAgentResult(task_result=result, session_id=child_session.id)
-        except asyncio.CancelledError:
-            # Propagate cancellation so tooling can treat it as user interrupt
-            log_debug(
-                f"Subagent task for {state.sub_agent_type} was cancelled",
-                style="yellow",
-                debug_type=DebugType.EXECUTION,
-            )
-            raise
-        except Exception as e:
-            log_debug(
-                f"Subagent task failed: [{e.__class__.__name__}] {str(e)}",
-                style="red",
-                debug_type=DebugType.EXECUTION,
-            )
-            return SubAgentResult(
-                task_result=f"Subagent task failed: [{e.__class__.__name__}] {str(e)}",
-                session_id="",
-                error=True,
-            )
+        return self.task_manager.get(submission_id) is not None
 
 
 class Executor:
@@ -533,7 +403,7 @@ class Executor:
         """Stop the executor and clean up resources."""
         # Cancel all active tasks and collect them for awaiting
         tasks_to_await: list[asyncio.Task[None]] = []
-        for active in self.context.active_tasks.values():
+        for active in self.context.task_manager.values():
             task = active.task
             if not task.done():
                 task.cancel()
@@ -543,8 +413,8 @@ class Executor:
         if tasks_to_await:
             await asyncio.gather(*tasks_to_await, return_exceptions=True)
 
-        # Clear the active_tasks dictionary
-        self.context.active_tasks.clear()
+        # Clear the active task manager
+        self.context.task_manager.clear()
 
         # Send EndOperation to wake up the start() loop
         try:
@@ -577,25 +447,23 @@ class Executor:
             # Execute to spawn the agent task in context
             await submission.operation.execute(handler=self.context)
 
-            async def _await_agent_and_complete() -> None:
-                # Wait for the agent task tied to this submission id
-                active = self.context.active_tasks.get(submission.id)
-                if active is not None:
-                    try:
-                        await active.task
-                    finally:
-                        event = self._completion_events.get(submission.id)
-                        if event is not None:
-                            event.set()
+            task = self.context.get_active_task(submission.id)
 
-            # Run in background so the submission loop can continue (e.g., to handle interrupts)
-            asyncio.create_task(_await_agent_and_complete())
+            async def _await_agent_and_complete(captured_task: asyncio.Task[None]) -> None:
+                try:
+                    await captured_task
+                finally:
+                    event = self._completion_events.get(submission.id)
+                    if event is not None:
+                        event.set()
 
-            # For operations without ActiveTask (e.g., InitAgentOperation), signal completion immediately
-            if submission.id not in self.context.active_tasks:
+            if task is None:
                 event = self._completion_events.get(submission.id)
                 if event is not None:
                     event.set()
+            else:
+                # Run in background so the submission loop can continue (e.g., to handle interrupts)
+                asyncio.create_task(_await_agent_and_complete(task))
 
         except Exception as e:
             log_debug(
