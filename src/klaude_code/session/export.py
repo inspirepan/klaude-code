@@ -154,6 +154,10 @@ def _format_token_count(count: int) -> str:
     return f"{m}M" if rem == 0 else f"{m}M{rem}k"
 
 
+def _format_cost(cost: float) -> str:
+    return f"${cost:.4f}"
+
+
 def _render_metadata_item(item: model.ResponseMetadataItem) -> str:
     # Line 1: Model Name [@ Provider]
     model_parts = [f'<span class="metadata-model">{_escape_html(item.model_name)}</span>']
@@ -167,10 +171,25 @@ def _render_metadata_item(item: model.ResponseMetadataItem) -> str:
     stats_parts: list[str] = []
     if item.usage:
         u = item.usage
-        stats_parts.append(f'<span class="metadata-stat">input: {_format_token_count(u.input_tokens)}</span>')
+        # Input with cost
+        input_stat = f"input: {_format_token_count(u.input_tokens)}"
+        if u.input_cost is not None:
+            input_stat += f"({_format_cost(u.input_cost)})"
+        stats_parts.append(f'<span class="metadata-stat">{input_stat}</span>')
+
+        # Cached with cost
         if u.cached_tokens > 0:
-            stats_parts.append(f'<span class="metadata-stat">cached: {_format_token_count(u.cached_tokens)}</span>')
-        stats_parts.append(f'<span class="metadata-stat">output: {_format_token_count(u.output_tokens)}</span>')
+            cached_stat = f"cached: {_format_token_count(u.cached_tokens)}"
+            if u.cache_read_cost is not None:
+                cached_stat += f"({_format_cost(u.cache_read_cost)})"
+            stats_parts.append(f'<span class="metadata-stat">{cached_stat}</span>')
+
+        # Output with cost
+        output_stat = f"output: {_format_token_count(u.output_tokens)}"
+        if u.output_cost is not None:
+            output_stat += f"({_format_cost(u.output_cost)})"
+        stats_parts.append(f'<span class="metadata-stat">{output_stat}</span>')
+
         if u.reasoning_tokens > 0:
             stats_parts.append(
                 f'<span class="metadata-stat">thinking: {_format_token_count(u.reasoning_tokens)}</span>'
@@ -181,7 +200,11 @@ def _render_metadata_item(item: model.ResponseMetadataItem) -> str:
             stats_parts.append(f'<span class="metadata-stat">tps: {u.throughput_tps:.1f}</span>')
 
     if item.task_duration_s is not None:
-        stats_parts.append(f'<span class="metadata-stat">cost: {item.task_duration_s:.1f}s</span>')
+        stats_parts.append(f'<span class="metadata-stat">time: {item.task_duration_s:.1f}s</span>')
+
+    # Total cost
+    if item.usage is not None and item.usage.total_cost is not None:
+        stats_parts.append(f'<span class="metadata-stat">cost: {_format_cost(item.usage.total_cost)}</span>')
 
     stats_html = ""
     if stats_parts:
@@ -419,7 +442,21 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
     if is_todo_list:
         args_section = f'<div class="tool-args">{args_html}</div>'
     else:
-        open_attr = "" if _should_collapse(args_html) else " open"
+        # Always collapse Mermaid, Edit, Write tools by default
+        always_collapse_tools = {"Mermaid", "Edit", "Write"}
+        force_collapse = tool_call.name in always_collapse_tools
+
+        # Collapse Memory tool for write operations
+        if tool_call.name == "Memory":
+            try:
+                parsed_args = json.loads(tool_call.arguments)
+                if parsed_args.get("command") in {"create", "str_replace", "insert"}:
+                    force_collapse = True
+            except Exception:
+                pass
+
+        should_collapse = force_collapse or _should_collapse(args_html)
+        open_attr = "" if should_collapse else " open"
         args_section = (
             f'<details class="tool-args-collapsible"{open_attr}>'
             "<summary>Arguments</summary>"
