@@ -55,7 +55,7 @@ def render_user_input(content: str) -> RenderableType:
     mark = (
         Text("❯ ", style=ThemeKey.USER_INPUT_PROMPT)
         if not has_command
-        else Text("  ", style=ThemeKey.USER_INPUT_PROMPT)
+        else Text("  ", style=ThemeKey.USER_INPUT_SLASH_COMMAND)
     )
     grid.add_row(mark, Group(*renderables))
     return grid
