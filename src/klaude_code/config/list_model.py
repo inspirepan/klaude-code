@@ -4,7 +4,7 @@ from rich.table import Table
 from rich.text import Text
 
 from klaude_code.config import Config
-from klaude_code.core.sub_agent import iter_sub_agent_profiles
+from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 from klaude_code.ui.rich.theme import ThemeKey, get_theme
 
 

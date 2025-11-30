@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
 
-from klaude_code.core.sub_agent import SubAgentResult
+from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.protocol import model
 from klaude_code.session.session import Session
 

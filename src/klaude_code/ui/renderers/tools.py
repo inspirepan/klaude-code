@@ -6,7 +6,7 @@ from rich.padding import Padding
 from rich.text import Text
 
 from klaude_code import const
-from klaude_code.core.sub_agent import is_sub_agent_tool as _is_sub_agent_tool
+from klaude_code.protocol.sub_agent import is_sub_agent_tool as _is_sub_agent_tool
 from klaude_code.protocol import events, model
 from klaude_code.ui.renderers import diffs as r_diffs
 from klaude_code.ui.renderers.common import create_grid
@@ -449,7 +449,7 @@ def get_tool_active_form(tool_name: str) -> str:
         return _TOOL_ACTIVE_FORM[tool_name]
 
     # Check sub agent profiles
-    from klaude_code.core.sub_agent import get_sub_agent_profile_by_tool
+    from klaude_code.protocol.sub_agent import get_sub_agent_profile_by_tool
 
     profile = get_sub_agent_profile_by_tool(tool_name)
     if profile and profile.active_form:

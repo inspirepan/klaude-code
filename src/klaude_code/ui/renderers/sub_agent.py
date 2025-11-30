@@ -6,7 +6,7 @@ from rich.style import Style
 from rich.text import Text
 
 from klaude_code import const
-from klaude_code.core.sub_agent import get_sub_agent_profile_by_tool
+from klaude_code.protocol.sub_agent import get_sub_agent_profile_by_tool
 from klaude_code.protocol import events, model
 from klaude_code.ui.rich.markdown import NoInsetMarkdown
 from klaude_code.ui.rich.theme import ThemeKey

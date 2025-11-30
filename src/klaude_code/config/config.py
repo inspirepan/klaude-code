@@ -6,7 +6,7 @@ from typing import Any, cast
 import yaml
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
-from klaude_code.core.sub_agent import iter_sub_agent_profiles
+from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 from klaude_code.protocol import llm_param
 from klaude_code.trace import log
 

@@ -29,6 +29,7 @@ module-name = "klaude_code"
 
 [dependency-groups]
 dev = [
+    "import-linter>=2.6",
     "isort>=6.0.1",
     "pyright>=1.1.407",
     "pytest>=8.4.1",
@@ -57,3 +58,20 @@ exclude = [".venv/"]
 [[tool.pyright.executionEnvironments]]
 root = "."
 extraPaths = ["src"]
+
+[tool.importlinter]
+root_packages = ["klaude_code"]
+include_external_packages = false
+
+[[tool.importlinter.contracts]]
+name = "Layered architecture"
+type = "layers"
+layers = [
+    "klaude_code.cli",
+    "klaude_code.core",
+    "klaude_code.session",
+    "klaude_code.config",
+    "klaude_code.llm",
+    "klaude_code.protocol",
+    "klaude_code.const",
+]

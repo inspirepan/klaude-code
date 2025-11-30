@@ -5,7 +5,8 @@ This module defines the operation types and submission structure
 that the executor uses to handle different types of requests.
 """
 
-from abc import ABC, abstractmethod
+from __future__ import annotations
+
 from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -15,7 +16,7 @@ from pydantic import BaseModel, Field
 from klaude_code.protocol.model import UserInputPayload
 
 if TYPE_CHECKING:
-    from klaude_code.core.executor import ExecutorContext
+    from klaude_code.protocol.op_handler import OperationHandler
 
 
 class OperationType(Enum):
@@ -27,16 +28,15 @@ class OperationType(Enum):
     END = "end"
 
 
-class Operation(BaseModel, ABC):
+class Operation(BaseModel):
     """Base class for all operations that can be submitted to the executor."""
 
     type: OperationType
     id: str = Field(default_factory=lambda: uuid4().hex)
 
-    @abstractmethod
-    async def execute(self, context: "ExecutorContext") -> None:
-        """Execute this operation within the given executor context."""
-        pass
+    async def execute(self, handler: OperationHandler) -> None:
+        """Execute this operation using the given handler."""
+        raise NotImplementedError("Subclasses must implement execute()")
 
 
 class UserInputOperation(Operation):
@@ -46,9 +46,9 @@ class UserInputOperation(Operation):
     input: UserInputPayload
     session_id: str | None = None
 
-    async def execute(self, context: "ExecutorContext") -> None:
+    async def execute(self, handler: OperationHandler) -> None:
         """Execute user input by running it through an agent."""
-        await context.handle_user_input(self)
+        await handler.handle_user_input(self)
 
 
 class InterruptOperation(Operation):
@@ -57,9 +57,9 @@ class InterruptOperation(Operation):
     type: OperationType = OperationType.INTERRUPT
     target_session_id: str | None = None  # If None, interrupt all sessions
 
-    async def execute(self, context: "ExecutorContext") -> None:
+    async def execute(self, handler: OperationHandler) -> None:
         """Execute interrupt by cancelling active tasks."""
-        await context.handle_interrupt(self)
+        await handler.handle_interrupt(self)
 
 
 class InitAgentOperation(Operation):
@@ -68,8 +68,8 @@ class InitAgentOperation(Operation):
     type: OperationType = OperationType.INIT_AGENT
     session_id: str | None = None
 
-    async def execute(self, context: "ExecutorContext") -> None:
-        await context.handle_init_agent(self)
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_init_agent(self)
 
 
 class EndOperation(Operation):
@@ -77,7 +77,7 @@ class EndOperation(Operation):
 
     type: OperationType = OperationType.END
 
-    async def execute(self, context: "ExecutorContext") -> None:
+    async def execute(self, handler: OperationHandler) -> None:
         """Execute end operation - this is a no-op, just signals the executor to stop."""
         pass
 

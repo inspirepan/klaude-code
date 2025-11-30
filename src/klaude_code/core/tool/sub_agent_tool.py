@@ -15,7 +15,7 @@ from klaude_code.core.tool.tool_context import current_run_subtask_callback
 from klaude_code.protocol import llm_param, model
 
 if TYPE_CHECKING:
-    from klaude_code.core.sub_agent import SubAgentProfile
+    from klaude_code.protocol.sub_agent import SubAgentProfile
 
 
 class SubAgentTool(ToolABC):

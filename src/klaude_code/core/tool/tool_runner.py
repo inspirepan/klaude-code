@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator, Callable, Iterable, Sequence
 from dataclasses import dataclass
 
 from klaude_code import const
-from klaude_code.core.sub_agent import is_sub_agent_tool
+from klaude_code.protocol.sub_agent import is_sub_agent_tool
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.truncation import truncate_tool_output
 from klaude_code.protocol import model
