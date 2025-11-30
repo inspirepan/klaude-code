@@ -71,6 +71,7 @@ class AppInitConfig:
     vanilla: bool
     is_exec_mode: bool = False
     debug_filters: set[DebugType] | None = None
+    stream_json: bool = False
 
 
 @dataclass
@@ -147,7 +148,7 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     # Set up UI components using factory functions
     display: ui.DisplayABC
     if init_config.is_exec_mode:
-        display = ui.create_exec_display(debug=init_config.debug)
+        display = ui.create_exec_display(debug=init_config.debug, stream_json=init_config.stream_json)
     else:
         display = ui.create_default_display(debug=init_config.debug, theme=theme)
 

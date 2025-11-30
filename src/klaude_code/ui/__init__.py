@@ -21,7 +21,7 @@ Factory Functions:
 from .core.display import DisplayABC
 from .core.input import InputProviderABC
 from .modes.debug.display import DebugEventDisplay
-from .modes.exec.display import ExecDisplay
+from .modes.exec.display import ExecDisplay, StreamJsonDisplay
 
 # --- Display Mode Implementations ---
 from .modes.repl.display import REPLDisplay
@@ -53,16 +53,19 @@ def create_default_display(
     return repl_display
 
 
-def create_exec_display(debug: bool = False) -> DisplayABC:
+def create_exec_display(debug: bool = False, stream_json: bool = False) -> DisplayABC:
     """
     Create a display for exec (non-interactive) mode.
 
     Args:
         debug: If True, wrap the display with DebugEventDisplay to log all events.
+        stream_json: If True, stream all events as JSON lines instead of normal output.
 
     Returns:
         A DisplayABC implementation that only outputs task results.
     """
+    if stream_json:
+        return StreamJsonDisplay()
     exec_display = ExecDisplay()
     if debug:
         return DebugEventDisplay(exec_display)
@@ -76,6 +79,7 @@ __all__ = [
     # Display mode implementations
     "REPLDisplay",
     "ExecDisplay",
+    "StreamJsonDisplay",
     "DebugEventDisplay",
     # Input implementations
     "PromptToolkitInput",

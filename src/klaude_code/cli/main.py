@@ -62,6 +62,7 @@ def list_models() -> None:
 
 
 @app.command("config")
+@app.command("conf", hidden=True)
 def edit_config() -> None:
     """Open the configuration file in $EDITOR or default system editor"""
     editor = os.environ.get("EDITOR")
@@ -148,6 +149,11 @@ def exec_command(
         "--vanilla",
         help="Vanilla mode exposes the model's raw API behavior: it provides only minimal tools (Bash, Read & Edit) and omits system prompts and reminders.",
     ),
+    stream_json: bool = typer.Option(
+        False,
+        "--stream-json",
+        help="Stream all events as JSON lines to stdout.",
+    ),
 ) -> None:
     """Execute non-interactively with provided input."""
 
@@ -193,6 +199,7 @@ def exec_command(
         vanilla=vanilla,
         is_exec_mode=True,
         debug_filters=debug_filters,
+        stream_json=stream_json,
     )
 
     asyncio.run(
