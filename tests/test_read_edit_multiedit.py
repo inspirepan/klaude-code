@@ -162,9 +162,7 @@ class TestReminders(BaseTempDirTest):
             f.write("hello world\n")
 
         # Use quoted @-pattern so that spaces are preserved
-        self.session.conversation_history.append(
-            model.UserMessageItem(content=f'Please review @"{file_path}"')
-        )
+        self.session.conversation_history.append(model.UserMessageItem(content=f'Please review @"{file_path}"'))
 
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNotNone(reminder)
@@ -183,9 +181,7 @@ class TestReminders(BaseTempDirTest):
             f.write("READ ME\n")
 
         # Reference the file using @ with the same casing
-        self.session.conversation_history.append(
-            model.UserMessageItem(content=f"Please review @{file_path}")
-        )
+        self.session.conversation_history.append(model.UserMessageItem(content=f"Please review @{file_path}"))
 
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNotNone(reminder)

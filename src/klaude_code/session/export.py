@@ -192,9 +192,7 @@ def _render_metadata_item(item: model.ResponseMetadataItem) -> str:
         parts.append(f'<span class="metadata-stat">{output_stat}</span>')
 
         if u.reasoning_tokens > 0:
-            parts.append(
-                f'<span class="metadata-stat">thinking: {_format_token_count(u.reasoning_tokens)}</span>'
-            )
+            parts.append(f'<span class="metadata-stat">thinking: {_format_token_count(u.reasoning_tokens)}</span>')
         if u.context_usage_percent is not None:
             parts.append(f'<span class="metadata-stat">context: {u.context_usage_percent:.1f}%</span>')
         if u.throughput_tps is not None:
@@ -210,11 +208,7 @@ def _render_metadata_item(item: model.ResponseMetadataItem) -> str:
     divider = '<span class="metadata-divider">/</span>'
     joined_html = divider.join(parts)
 
-    return (
-        f'<div class="response-metadata">'
-        f'<div class="metadata-line">{joined_html}</div>'
-        f"</div>"
-    )
+    return f'<div class="response-metadata"><div class="metadata-line">{joined_html}</div></div>'
 
 
 def _render_assistant_message(index: int, content: str, timestamp: datetime) -> str:

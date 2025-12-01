@@ -187,12 +187,12 @@ class _AtFilesCompleter(Completer):
 
         frag = m.group("frag")  # raw text after '@' and before cursor (may be quoted)
         # Normalize fragment for search: support optional quoting syntax @"...".
-        is_quoted = frag.startswith("\"")
+        is_quoted = frag.startswith('"')
         search_frag = frag
         if is_quoted:
             # Drop leading quote; if user already closed the quote, drop trailing quote as well.
             search_frag = search_frag[1:]
-            if search_frag.endswith("\""):
+            if search_frag.endswith('"'):
                 search_frag = search_frag[:-1]
 
         token_start_in_input = len(text_before) - len(f"@{frag}")

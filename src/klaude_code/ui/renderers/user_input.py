@@ -7,7 +7,6 @@ from klaude_code.command import is_slash_command_name
 from klaude_code.ui.renderers.common import create_grid
 from klaude_code.ui.rich.theme import ThemeKey
 
-
 # Match @-file patterns only when they appear at the beginning of the line
 # or immediately after whitespace, to avoid treating mid-word email-like
 # patterns such as foo@bar.com as file references.
