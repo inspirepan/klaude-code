@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.6] - 2025-12-01
+
+### Changed
+
+- adjust base and large font sizes for improved readability (`02ad9fe`)
+
+### Fixed
+
+- update font family for improved typography and readability (`ce53f31`)
 ## [1.2.5] - 2025-11-30
 
 ### Added
@@ -285,7 +294,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.5...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.6...HEAD
+[1.2.6]: https://github.com/inspirepan/klaude-code/compare/v1.2.5...v1.2.6
 [1.2.5]: https://github.com/inspirepan/klaude-code/compare/v1.2.4...v1.2.5
 [1.2.4]: https://github.com/inspirepan/klaude-code/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/inspirepan/klaude-code/compare/v1.2.2...v1.2.3
