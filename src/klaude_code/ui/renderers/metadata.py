@@ -24,6 +24,10 @@ def _get_version() -> str:
 def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
     metadata = e.metadata
 
+    # Get currency symbol
+    currency = metadata.usage.currency if metadata.usage else "USD"
+    currency_symbol = "¥" if currency == "CNY" else "$"
+
     # Line 1: Model and Provider
     model_text = Text()
     model_text.append_text(Text("- ", style=ThemeKey.METADATA_BOLD)).append_text(
@@ -46,7 +50,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
             (format_number(metadata.usage.input_tokens), ThemeKey.METADATA_DIM),
         ]
         if metadata.usage.input_cost is not None:
-            input_parts.append((f"(${metadata.usage.input_cost:.4f})", ThemeKey.METADATA_DIM))
+            input_parts.append((f"({currency_symbol}{metadata.usage.input_cost:.4f})", ThemeKey.METADATA_DIM))
         parts.append(Text.assemble(*input_parts))
 
         # Cached
@@ -56,7 +60,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
                 (format_number(metadata.usage.cached_tokens), ThemeKey.METADATA_DIM),
             ]
             if metadata.usage.cache_read_cost is not None:
-                cached_parts.append((f"(${metadata.usage.cache_read_cost:.4f})", ThemeKey.METADATA_DIM))
+                cached_parts.append((f"({currency_symbol}{metadata.usage.cache_read_cost:.4f})", ThemeKey.METADATA_DIM))
             parts.append(Text.assemble(*cached_parts))
 
         # Output
@@ -65,7 +69,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
             (format_number(metadata.usage.output_tokens), ThemeKey.METADATA_DIM),
         ]
         if metadata.usage.output_cost is not None:
-            output_parts.append((f"(${metadata.usage.output_cost:.4f})", ThemeKey.METADATA_DIM))
+            output_parts.append((f"({currency_symbol}{metadata.usage.output_cost:.4f})", ThemeKey.METADATA_DIM))
         parts.append(Text.assemble(*output_parts))
 
         # Reasoning
@@ -114,13 +118,13 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
             )
         )
 
-    # Cost (USD)
+    # Cost
     if metadata.usage is not None and metadata.usage.total_cost is not None:
         parts.append(
             Text.assemble(
                 ("cost", ThemeKey.METADATA_DIM),
                 (":", ThemeKey.METADATA_DIM),
-                (f"${metadata.usage.total_cost:.4f}", ThemeKey.METADATA_DIM),
+                (f"{currency_symbol}{metadata.usage.total_cost:.4f}", ThemeKey.METADATA_DIM),
             )
         )
 

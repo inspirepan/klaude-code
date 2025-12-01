@@ -115,13 +115,14 @@ def _format_tokens(tokens: int) -> str:
     return str(tokens)
 
 
-def _format_cost(cost: float | None) -> str:
-    """Format cost in USD."""
+def _format_cost(cost: float | None, currency: str = "USD") -> str:
+    """Format cost with currency symbol."""
     if cost is None:
         return "-"
+    symbol = "¥" if currency == "CNY" else "$"
     if cost < 0.01:
-        return f"${cost:.4f}"
-    return f"${cost:.2f}"
+        return f"{symbol}{cost:.4f}"
+    return f"{symbol}{cost:.2f}"
 
 
 def _render_status_output(command_output: model.CommandOutput) -> RenderableType:
@@ -149,10 +150,10 @@ def _render_status_output(command_output: model.CommandOutput) -> RenderableType
     if usage.total_cost is not None:
         table.add_row("", "")  # Empty line
         table.add_row(Text("Cost", style="bold"), "")
-        table.add_row("Input Cost", _format_cost(usage.input_cost))
+        table.add_row("Input Cost", _format_cost(usage.input_cost, usage.currency))
         if usage.cache_read_cost is not None and usage.cache_read_cost > 0:
-            table.add_row("Cache Read Cost", _format_cost(usage.cache_read_cost))
-        table.add_row("Output Cost", _format_cost(usage.output_cost))
-        table.add_row("Total Cost", _format_cost(usage.total_cost))
+            table.add_row("Cache Read Cost", _format_cost(usage.cache_read_cost, usage.currency))
+        table.add_row("Output Cost", _format_cost(usage.output_cost, usage.currency))
+        table.add_row("Total Cost", _format_cost(usage.total_cost, usage.currency))
 
     return Padding.indent(table, level=2)

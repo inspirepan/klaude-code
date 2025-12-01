@@ -37,12 +37,13 @@ class Thinking(BaseModel):
 
 
 class Cost(BaseModel):
-    """Cost configuration per million tokens (USD)."""
+    """Cost configuration per million tokens."""
 
     input: float  # Input token price per million tokens
     output: float  # Output token price per million tokens
     cache_read: float = 0.0  # Cache read price per million tokens
     cache_write: float = 0.0  # Cache write price per million tokens (ignored in calculation for now)
+    currency: Literal["USD", "CNY"] = "USD"  # Currency for cost display
 
 
 class OpenRouterProviderRouting(BaseModel):

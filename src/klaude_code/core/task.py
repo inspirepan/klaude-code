@@ -43,6 +43,7 @@ class MetadataAccumulator:
             acc_usage.reasoning_tokens += usage.reasoning_tokens
             acc_usage.output_tokens += usage.output_tokens
             acc_usage.total_tokens += usage.total_tokens
+            acc_usage.currency = usage.currency
 
             if usage.context_usage_percent is not None:
                 acc_usage.context_usage_percent = usage.context_usage_percent

@@ -154,8 +154,9 @@ def _format_token_count(count: int) -> str:
     return f"{m}M" if rem == 0 else f"{m}M{rem}k"
 
 
-def _format_cost(cost: float) -> str:
-    return f"${cost:.4f}"
+def _format_cost(cost: float, currency: str = "USD") -> str:
+    symbol = "¥" if currency == "CNY" else "$"
+    return f"{symbol}{cost:.4f}"
 
 
 def _render_metadata_item(item: model.ResponseMetadataItem) -> str:
@@ -175,20 +176,20 @@ def _render_metadata_item(item: model.ResponseMetadataItem) -> str:
         # Input with cost
         input_stat = f"input: {_format_token_count(u.input_tokens)}"
         if u.input_cost is not None:
-            input_stat += f"({_format_cost(u.input_cost)})"
+            input_stat += f"({_format_cost(u.input_cost, u.currency)})"
         parts.append(f'<span class="metadata-stat">{input_stat}</span>')
 
         # Cached with cost
         if u.cached_tokens > 0:
             cached_stat = f"cached: {_format_token_count(u.cached_tokens)}"
             if u.cache_read_cost is not None:
-                cached_stat += f"({_format_cost(u.cache_read_cost)})"
+                cached_stat += f"({_format_cost(u.cache_read_cost, u.currency)})"
             parts.append(f'<span class="metadata-stat">{cached_stat}</span>')
 
         # Output with cost
         output_stat = f"output: {_format_token_count(u.output_tokens)}"
         if u.output_cost is not None:
-            output_stat += f"({_format_cost(u.output_cost)})"
+            output_stat += f"({_format_cost(u.output_cost, u.currency)})"
         parts.append(f'<span class="metadata-stat">{output_stat}</span>')
 
         if u.reasoning_tokens > 0:
@@ -203,7 +204,7 @@ def _render_metadata_item(item: model.ResponseMetadataItem) -> str:
 
     # Total cost
     if item.usage is not None and item.usage.total_cost is not None:
-        parts.append(f'<span class="metadata-stat">cost: {_format_cost(item.usage.total_cost)}</span>')
+        parts.append(f'<span class="metadata-stat">cost: {_format_cost(item.usage.total_cost, item.usage.currency)}</span>')
 
     divider = '<span class="metadata-divider">/</span>'
     joined_html = divider.join(parts)

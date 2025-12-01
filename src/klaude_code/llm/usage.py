@@ -14,6 +14,9 @@ def calculate_cost(usage: model.Usage, cost_config: llm_param.Cost | None) -> No
     if cost_config is None:
         return
 
+    # Set currency
+    usage.currency = cost_config.currency
+
     # Non-cached input tokens cost
     non_cached_input = usage.input_tokens - usage.cached_tokens
     usage.input_cost = (non_cached_input / 1_000_000) * cost_config.input

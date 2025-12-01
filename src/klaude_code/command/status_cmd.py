@@ -13,11 +13,18 @@ def accumulate_session_usage(session: Session) -> tuple[model.Usage, int]:
     """
     total = model.Usage()
     task_count = 0
+    first_currency_set = False
 
     for item in session.conversation_history:
         if isinstance(item, model.ResponseMetadataItem) and item.usage:
             task_count += 1
             usage = item.usage
+            
+            # Set currency from first usage item
+            if not first_currency_set and usage.currency:
+                total.currency = usage.currency
+                first_currency_set = True
+            
             total.input_tokens += usage.input_tokens
             total.cached_tokens += usage.cached_tokens
             total.reasoning_tokens += usage.reasoning_tokens
@@ -50,13 +57,14 @@ def _format_tokens(tokens: int) -> str:
     return str(tokens)
 
 
-def _format_cost(cost: float | None) -> str:
-    """Format cost in USD."""
+def _format_cost(cost: float | None, currency: str = "USD") -> str:
+    """Format cost with currency symbol."""
     if cost is None:
         return "-"
+    symbol = "¥" if currency == "CNY" else "$"
     if cost < 0.01:
-        return f"${cost:.4f}"
-    return f"${cost:.2f}"
+        return f"{symbol}{cost:.4f}"
+    return f"{symbol}{cost:.2f}"
 
 
 def format_status_content(usage: model.Usage) -> str:
@@ -70,7 +78,7 @@ def format_status_content(usage: model.Usage) -> str:
     parts.append(f"Total: {_format_tokens(usage.total_tokens)}")
 
     if usage.total_cost is not None:
-        parts.append(f"Cost: {_format_cost(usage.total_cost)}")
+        parts.append(f"Cost: {_format_cost(usage.total_cost, usage.currency)}")
 
     return ", ".join(parts)
 

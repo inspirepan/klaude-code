@@ -284,7 +284,7 @@ class DisplayEventHandler:
         if not self.renderer.is_sub_agent_session(event.session_id):
             emit_osc94(OSC94States.HIDDEN)
             self.spinner_status.reset()
-        self.renderer.spinner_stop()
+            self.renderer.spinner_stop()
         await self.stage_manager.transition_to(Stage.WAITING)
         self._maybe_notify_task_finish(event)
 

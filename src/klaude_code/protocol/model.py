@@ -21,11 +21,12 @@ class Usage(BaseModel):
     throughput_tps: float | None = None
     first_token_latency_ms: float | None = None
 
-    # Cost in USD (calculated from token counts and cost config)
+    # Cost (calculated from token counts and cost config)
     input_cost: float | None = None  # Cost for non-cached input tokens
     output_cost: float | None = None  # Cost for output tokens (including reasoning)
     cache_read_cost: float | None = None  # Cost for cached tokens
     total_cost: float | None = None  # Total cost (input + output + cache_read)
+    currency: str = "USD"  # Currency for cost display (USD or CNY)
 
 
 class TodoItem(BaseModel):
