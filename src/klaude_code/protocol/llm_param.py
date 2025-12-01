@@ -12,6 +12,7 @@ class LLMClientProtocol(Enum):
     RESPONSES = "responses"
     OPENROUTER = "openrouter"
     ANTHROPIC = "anthropic"
+    CODEX = "codex"
 
 
 class ToolSchema(BaseModel):

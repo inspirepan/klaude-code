@@ -1,3 +1,5 @@
+import datetime
+
 from rich.console import Console, Group
 from rich.panel import Panel
 from rich.table import Table
@@ -6,6 +8,51 @@ from rich.text import Text
 from klaude_code.config import Config
 from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 from klaude_code.ui.rich.theme import ThemeKey, get_theme
+
+
+def _display_codex_status(console: Console) -> None:
+    """Display Codex OAuth login status."""
+    from klaude_code.auth.codex.token_manager import CodexTokenManager
+
+    token_manager = CodexTokenManager()
+    state = token_manager.get_state()
+
+    if state is None:
+        console.print(
+            Text.assemble(
+                ("Codex Status: ", "bold"),
+                ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
+                (" (run 'klaude login codex' to authenticate)", "dim"),
+            )
+        )
+    elif state.is_expired():
+        console.print(
+            Text.assemble(
+                ("Codex Status: ", "bold"),
+                ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
+                (" (run 'klaude login codex' to re-authenticate)", "dim"),
+            )
+        )
+    else:
+        expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.timezone.utc)
+        console.print(
+            Text.assemble(
+                ("Codex Status: ", "bold"),
+                ("Logged in", ThemeKey.CONFIG_STATUS_OK),
+                (f" (account: {state.account_id[:8]}..., expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})", "dim"),
+            )
+        )
+
+    console.print(
+        Text.assemble(
+            ("Visit ", "dim"),
+            (
+                "https://chatgpt.com/codex/settings/usage",
+                "blue underline link https://chatgpt.com/codex/settings/usage",
+            ),
+            (" for up-to-date information on rate limits and credits", "dim"),
+        )
+    )
 
 
 def mask_api_key(api_key: str | None) -> str:
@@ -160,3 +207,9 @@ def display_models_and_providers(config: Config):
                 (sub_model_name, ThemeKey.CONFIG_STATUS_PRIMARY),
             )
         )
+
+    # Display Codex login status if any codex provider is configured
+    has_codex_provider = any(p.protocol.value == "codex" for p in config.provider_list)
+    if has_codex_provider:
+        console.print()
+        _display_codex_status(console)

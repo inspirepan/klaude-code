@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import os
 import subprocess
 import sys
@@ -41,6 +42,68 @@ app = typer.Typer(
 session_app = typer.Typer(help="Manage sessions for the current project")
 register_session_commands(session_app)
 app.add_typer(session_app, name="session")
+
+
+@app.command("login")
+def login_command(
+    provider: str = typer.Argument("codex", help="Provider to login (codex)"),
+) -> None:
+    """Login to a provider using OAuth."""
+    if provider.lower() != "codex":
+        log((f"Error: Unknown provider '{provider}'. Currently only 'codex' is supported.", "red"))
+        raise typer.Exit(1)
+
+    from klaude_code.auth.codex.oauth import CodexOAuth
+    from klaude_code.auth.codex.token_manager import CodexTokenManager
+
+    token_manager = CodexTokenManager()
+
+    # Check if already logged in
+    if token_manager.is_logged_in():
+        state = token_manager.get_state()
+        if state and not state.is_expired():
+            log(("You are already logged in to Codex.", "green"))
+            log(f"  Account ID: {state.account_id[:8]}...")
+            expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.timezone.utc)
+            log(f"  Expires: {expires_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+            if not typer.confirm("Do you want to re-login?"):
+                return
+
+    log("Starting Codex OAuth login flow...")
+    log("A browser window will open for authentication.")
+
+    try:
+        oauth = CodexOAuth(token_manager)
+        state = oauth.login()
+        log(("Login successful!", "green"))
+        log(f"  Account ID: {state.account_id[:8]}...")
+        expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.timezone.utc)
+        log(f"  Expires: {expires_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    except Exception as e:
+        log((f"Login failed: {e}", "red"))
+        raise typer.Exit(1)
+
+
+@app.command("logout")
+def logout_command(
+    provider: str = typer.Argument("codex", help="Provider to logout (codex)"),
+) -> None:
+    """Logout from a provider."""
+    if provider.lower() != "codex":
+        log((f"Error: Unknown provider '{provider}'. Currently only 'codex' is supported.", "red"))
+        raise typer.Exit(1)
+
+    from klaude_code.auth.codex.token_manager import CodexTokenManager
+
+    token_manager = CodexTokenManager()
+
+    if not token_manager.is_logged_in():
+        log("You are not logged in to Codex.")
+        return
+
+    if typer.confirm("Are you sure you want to logout from Codex?"):
+        token_manager.delete()
+        log(("Logged out from Codex.", "green"))
 
 
 @app.command("list")

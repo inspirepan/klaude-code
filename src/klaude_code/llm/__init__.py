@@ -6,6 +6,7 @@ become available via the registry.
 
 from .anthropic import AnthropicClient
 from .client import LLMClientABC
+from .codex import CodexClient
 from .openai_compatible import OpenAICompatibleClient
 from .openrouter import OpenRouterClient
 from .registry import create_llm_client
@@ -17,5 +18,6 @@ __all__ = [
     "OpenAICompatibleClient",
     "OpenRouterClient",
     "AnthropicClient",
+    "CodexClient",
     "create_llm_client",
 ]

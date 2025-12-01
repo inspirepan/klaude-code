@@ -134,6 +134,7 @@ class ThemeKey(str, Enum):
     CONFIG_TABLE_HEADER = "config.table.header"
     CONFIG_STATUS_OK = "config.status.ok"
     CONFIG_STATUS_PRIMARY = "config.status.primary"
+    CONFIG_STATUS_ERROR = "config.status.error"
     CONFIG_ITEM_NAME = "config.item.name"
     CONFIG_PARAM_LABEL = "config.param.label"
     CONFIG_PANEL_BORDER = "config.panel.border"
@@ -225,6 +226,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.CONFIG_TABLE_HEADER.value: palette.green,
                 ThemeKey.CONFIG_STATUS_OK.value: palette.green,
                 ThemeKey.CONFIG_STATUS_PRIMARY.value: palette.yellow,
+                ThemeKey.CONFIG_STATUS_ERROR.value: palette.red,
                 ThemeKey.CONFIG_ITEM_NAME.value: palette.cyan,
                 ThemeKey.CONFIG_PARAM_LABEL.value: palette.grey1,
                 ThemeKey.CONFIG_PANEL_BORDER.value: palette.grey3,
