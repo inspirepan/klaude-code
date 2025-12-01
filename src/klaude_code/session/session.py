@@ -309,6 +309,11 @@ class Session(BaseModel):
                         session_id=self.id,
                         item=dm,
                     )
+                case model.StreamErrorItem() as se:
+                    yield events.ErrorEvent(
+                        error_message=se.error,
+                        can_retry=False,
+                    )
                 case _:
                     continue
             prev_item = it

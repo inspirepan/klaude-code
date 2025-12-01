@@ -116,6 +116,7 @@ class TurnExecutor:
         turn_reasoning_items: list[model.ReasoningTextItem | model.ReasoningEncryptedItem] = []
         turn_assistant_message: model.AssistantMessageItem | None = None
         turn_tool_calls: list[model.ToolCallItem] = []
+        turn_stream_error: model.StreamErrorItem | None = None
         response_failed = False
         error_message: str | None = None
 
@@ -170,6 +171,7 @@ class TurnExecutor:
                         error_message = f"Response status: {status}"
                 case model.StreamErrorItem() as item:
                     response_failed = True
+                    turn_stream_error = item
                     error_message = item.error
                     log_debug(
                         "[StreamError]",
@@ -191,6 +193,9 @@ class TurnExecutor:
                     pass
 
         if response_failed:
+            # Persist stream error to history for replay
+            if turn_stream_error is not None:
+                ctx.append_history([turn_stream_error])
             yield events.TurnEndEvent(session_id=ctx.session_id)
             raise TurnError(error_message or "Turn failed")
 

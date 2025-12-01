@@ -130,6 +130,7 @@ HistoryItemEvent = (
     | ResponseMetadataEvent
     | InterruptEvent
     | DeveloperMessageEvent
+    | ErrorEvent
 )
 
 
