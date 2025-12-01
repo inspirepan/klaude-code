@@ -4,7 +4,7 @@ from typing import Literal, override
 
 import httpx
 import openai
-from openai import APIError, RateLimitError
+
 
 from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
 from klaude_code.llm.input_common import apply_config_defaults
@@ -193,7 +193,7 @@ class OpenAICompatibleClient(LLMClientABC):
                                 name=tc.function.name,
                             )
                     accumulated_tool_calls.add(delta.tool_calls)
-        except (RateLimitError, APIError) as e:
+        except (openai.OpenAIError, httpx.HTTPError) as e:
             yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
 
         # Finalize

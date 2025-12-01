@@ -5,7 +5,7 @@ from typing import override
 
 import anthropic
 import httpx
-from anthropic import RateLimitError
+from anthropic import APIError
 from anthropic.types.beta.beta_input_json_delta import BetaInputJSONDelta
 from anthropic.types.beta.beta_raw_content_block_delta_event import BetaRawContentBlockDeltaEvent
 from anthropic.types.beta.beta_raw_content_block_start_event import BetaRawContentBlockStartEvent
@@ -217,5 +217,5 @@ class AnthropicClient(LLMClientABC):
                         )
                     case _:
                         pass
-        except RateLimitError as e:
+        except (APIError, httpx.HTTPError) as e:
             yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")

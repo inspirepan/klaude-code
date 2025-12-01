@@ -4,7 +4,8 @@ from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, override
 
 import httpx
-from openai import AsyncAzureOpenAI, AsyncOpenAI, RateLimitError
+import openai
+from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types import responses
 
 from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
@@ -159,7 +160,7 @@ async def parse_responses_stream(
                         style="red",
                         debug_type=DebugType.LLM_STREAM,
                     )
-    except RateLimitError as e:
+    except (openai.OpenAIError, httpx.HTTPError) as e:
         yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
 
 
