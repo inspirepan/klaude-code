@@ -139,8 +139,6 @@ async def parse_responses_stream(
                         usage=usage,
                         response_id=response_id,
                         model_name=str(param.model),
-                        status=event.response.status,
-                        error_reason=error_reason,
                     )
                     if event.response.status != "completed":
                         error_message = f"LLM response finished with status '{event.response.status}'"

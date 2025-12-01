@@ -190,6 +190,8 @@ class REPLRenderer:
                 case events.InterruptEvent():
                     self.print()
                     self.print(r_user_input.render_interrupt())
+                case events.ErrorEvent() as e:
+                    self.display_error(e)
 
     def display_developer_message(self, e: events.DeveloperMessageEvent) -> None:
         if not r_developer.need_render_developer_message(e):

@@ -260,8 +260,6 @@ class ResponseMetadataItem(BaseModel):
     model_name: str = ""
     provider: str | None = None  # OpenRouter's provider name
     task_duration_s: float | None = None
-    status: str | None = None
-    error_reason: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
 
 

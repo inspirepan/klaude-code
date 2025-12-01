@@ -79,10 +79,6 @@ class MetadataAccumulator:
             accumulated.model_name = turn_metadata.model_name
         if turn_metadata.response_id:
             accumulated.response_id = turn_metadata.response_id
-        if turn_metadata.status is not None:
-            accumulated.status = turn_metadata.status
-        if turn_metadata.error_reason is not None:
-            accumulated.error_reason = turn_metadata.error_reason
 
     def finalize(self, task_duration_s: float) -> model.ResponseMetadataItem:
         """Return the final accumulated metadata with computed throughput and duration."""

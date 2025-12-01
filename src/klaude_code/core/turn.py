@@ -38,6 +38,16 @@ class TurnExecutionContext:
     todo_context: TodoContext
 
 
+@dataclass
+class TurnResult:
+    """Aggregated state produced while executing a turn."""
+
+    reasoning_items: list[model.ReasoningTextItem | model.ReasoningEncryptedItem]
+    assistant_message: model.AssistantMessageItem | None
+    tool_calls: list[model.ToolCallItem]
+    stream_error: model.StreamErrorItem | None
+
+
 def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEvent) -> list[events.Event]:
     """Translate internal tool executor events into public protocol events."""
 
@@ -113,13 +123,34 @@ class TurnExecutor:
 
         yield events.TurnStartEvent(session_id=ctx.session_id)
 
-        turn_reasoning_items: list[model.ReasoningTextItem | model.ReasoningEncryptedItem] = []
-        turn_assistant_message: model.AssistantMessageItem | None = None
-        turn_tool_calls: list[model.ToolCallItem] = []
-        turn_stream_error: model.StreamErrorItem | None = None
-        response_failed = False
-        error_message: str | None = None
+        turn_result = TurnResult(
+            reasoning_items=[],
+            assistant_message=None,
+            tool_calls=[],
+            stream_error=None,
+        )
 
+        async for event in self._consume_llm_stream(turn_result):
+            yield event
+
+        if turn_result.stream_error is not None:
+            ctx.append_history([turn_result.stream_error])
+            yield events.TurnEndEvent(session_id=ctx.session_id)
+            raise TurnError(turn_result.stream_error.error)
+
+        self._append_success_history(turn_result)
+        self._has_tool_call = bool(turn_result.tool_calls)
+
+        if turn_result.tool_calls:
+            async for ui_event in self._run_tool_executor(turn_result.tool_calls):
+                yield ui_event
+
+        yield events.TurnEndEvent(session_id=ctx.session_id)
+
+    async def _consume_llm_stream(self, turn_result: TurnResult) -> AsyncGenerator[events.Event, None]:
+        """Stream events from LLM and update turn_result in place."""
+
+        ctx = self._context
         async for response_item in ctx.llm_client.call(
             llm_param.LLMCallParameter(
                 input=ctx.get_conversation_history(),
@@ -137,16 +168,16 @@ class TurnExecutor:
             )
             match response_item:
                 case model.StartItem():
-                    pass
+                    continue
                 case model.ReasoningTextItem() as item:
-                    turn_reasoning_items.append(item)
+                    turn_result.reasoning_items.append(item)
                     yield events.ThinkingEvent(
                         content=item.content,
                         response_id=item.response_id,
                         session_id=ctx.session_id,
                     )
                 case model.ReasoningEncryptedItem() as item:
-                    turn_reasoning_items.append(item)
+                    turn_result.reasoning_items.append(item)
                 case model.AssistantMessageDelta() as item:
                     yield events.AssistantMessageDeltaEvent(
                         content=item.content,
@@ -154,7 +185,7 @@ class TurnExecutor:
                         session_id=ctx.session_id,
                     )
                 case model.AssistantMessageItem() as item:
-                    turn_assistant_message = item
+                    turn_result.assistant_message = item
                     yield events.AssistantMessageEvent(
                         content=item.content or "",
                         response_id=item.response_id,
@@ -165,14 +196,8 @@ class TurnExecutor:
                         session_id=ctx.session_id,
                         metadata=item,
                     )
-                    status = item.status
-                    if status is not None and status != "completed":
-                        response_failed = True
-                        error_message = f"Response status: {status}"
                 case model.StreamErrorItem() as item:
-                    response_failed = True
-                    turn_stream_error = item
-                    error_message = item.error
+                    turn_result.stream_error = item
                     log_debug(
                         "[StreamError]",
                         item.error,
@@ -188,38 +213,33 @@ class TurnExecutor:
                         arguments="",
                     )
                 case model.ToolCallItem() as item:
-                    turn_tool_calls.append(item)
+                    turn_result.tool_calls.append(item)
                 case _:
-                    pass
+                    continue
 
-        if response_failed:
-            # Persist stream error to history for replay
-            if turn_stream_error is not None:
-                ctx.append_history([turn_stream_error])
-            yield events.TurnEndEvent(session_id=ctx.session_id)
-            raise TurnError(error_message or "Turn failed")
+    def _append_success_history(self, turn_result: TurnResult) -> None:
+        """Persist successful turn artifacts to conversation history."""
+        ctx = self._context
+        if turn_result.reasoning_items:
+            ctx.append_history(turn_result.reasoning_items)
+        if turn_result.assistant_message:
+            ctx.append_history([turn_result.assistant_message])
+        if turn_result.tool_calls:
+            ctx.append_history(turn_result.tool_calls)
 
-        # Append to history only on success
-        if turn_reasoning_items:
-            ctx.append_history(turn_reasoning_items)
-        if turn_assistant_message:
-            ctx.append_history([turn_assistant_message])
-        if turn_tool_calls:
-            ctx.append_history(turn_tool_calls)
-            self._has_tool_call = True
+    async def _run_tool_executor(self, tool_calls: list[model.ToolCallItem]) -> AsyncGenerator[events.Event, None]:
+        """Run tools for the turn and translate executor events to UI events."""
 
-        # Execute tools
-        if turn_tool_calls:
-            with tool_context(ctx.file_tracker, ctx.todo_context):
-                executor = ToolExecutor(
-                    registry=ctx.tool_registry,
-                    append_history=ctx.append_history,
-                )
-                self._tool_executor = executor
-
-                async for exec_event in executor.run_tools(turn_tool_calls):
+        ctx = self._context
+        with tool_context(ctx.file_tracker, ctx.todo_context):
+            executor = ToolExecutor(
+                registry=ctx.tool_registry,
+                append_history=ctx.append_history,
+            )
+            self._tool_executor = executor
+            try:
+                async for exec_event in executor.run_tools(tool_calls):
                     for ui_event in build_events_from_tool_executor_event(ctx.session_id, exec_event):
                         yield ui_event
+            finally:
                 self._tool_executor = None
-
-        yield events.TurnEndEvent(session_id=ctx.session_id)
