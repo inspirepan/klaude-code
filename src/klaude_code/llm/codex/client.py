@@ -5,6 +5,7 @@ from collections.abc import AsyncGenerator
 from typing import override
 
 import httpx
+import openai
 from openai import AsyncOpenAI
 
 from klaude_code.auth.codex.exceptions import CodexNotLoggedInError
@@ -94,31 +95,35 @@ class CodexClient(LLMClientABC):
             extra_headers["conversation_id"] = session_id
             extra_headers["session_id"] = session_id
 
-        stream = await call_with_logged_payload(
-            self.client.responses.create,
-            model=str(param.model),
-            tool_choice="auto",
-            parallel_tool_calls=True,
-            include=[
-                "reasoning.encrypted_content",
-            ],
-            store=False,  # Always False for Codex
-            stream=True,
-            input=inputs,
-            instructions=param.system,
-            tools=tools,
-            text={
-                "verbosity": param.verbosity,
-            },
-            prompt_cache_key=session_id,
-            reasoning={
-                "effort": param.thinking.reasoning_effort,
-                "summary": param.thinking.reasoning_summary,
-            }
-            if param.thinking and param.thinking.reasoning_effort
-            else None,
-            extra_headers=extra_headers,
-        )
+        try:
+            stream = await call_with_logged_payload(
+                self.client.responses.create,
+                model=str(param.model),
+                tool_choice="auto",
+                parallel_tool_calls=True,
+                include=[
+                    "reasoning.encrypted_content",
+                ],
+                store=False,  # Always False for Codex
+                stream=True,
+                input=inputs,
+                instructions=param.system,
+                tools=tools,
+                text={
+                    "verbosity": param.verbosity,
+                },
+                prompt_cache_key=session_id,
+                reasoning={
+                    "effort": param.thinking.reasoning_effort,
+                    "summary": param.thinking.reasoning_summary,
+                }
+                if param.thinking and param.thinking.reasoning_effort
+                else None,
+                extra_headers=extra_headers,
+            )
+        except (openai.OpenAIError, httpx.HTTPError) as e:
+            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
+            return
 
         async for item in parse_responses_stream(stream, param, self._config.cost, request_start_time):
             yield item

@@ -199,34 +199,38 @@ class ResponsesClient(LLMClientABC):
         inputs = convert_history_to_input(param.input, param.model)
         tools = convert_tool_schema(param.tools)
 
-        stream = await call_with_logged_payload(
-            self.client.responses.create,
-            model=str(param.model),
-            tool_choice="auto",
-            parallel_tool_calls=True,
-            include=[
-                "reasoning.encrypted_content",
-            ],
-            store=param.store,
-            previous_response_id=param.previous_response_id,
-            stream=True,
-            temperature=param.temperature,
-            max_output_tokens=param.max_tokens,
-            input=inputs,
-            instructions=param.system,
-            tools=tools,
-            text={
-                "verbosity": param.verbosity,
-            },
-            prompt_cache_key=param.session_id or "",
-            reasoning={
-                "effort": param.thinking.reasoning_effort,
-                "summary": param.thinking.reasoning_summary,
-            }
-            if param.thinking and param.thinking.reasoning_effort
-            else None,
-            extra_headers={"extra": json.dumps({"session_id": param.session_id})},
-        )
+        try:
+            stream = await call_with_logged_payload(
+                self.client.responses.create,
+                model=str(param.model),
+                tool_choice="auto",
+                parallel_tool_calls=True,
+                include=[
+                    "reasoning.encrypted_content",
+                ],
+                store=param.store,
+                previous_response_id=param.previous_response_id,
+                stream=True,
+                temperature=param.temperature,
+                max_output_tokens=param.max_tokens,
+                input=inputs,
+                instructions=param.system,
+                tools=tools,
+                text={
+                    "verbosity": param.verbosity,
+                },
+                prompt_cache_key=param.session_id or "",
+                reasoning={
+                    "effort": param.thinking.reasoning_effort,
+                    "summary": param.thinking.reasoning_summary,
+                }
+                if param.thinking and param.thinking.reasoning_effort
+                else None,
+                extra_headers={"extra": json.dumps({"session_id": param.session_id})},
+            )
+        except (openai.OpenAIError, httpx.HTTPError) as e:
+            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
+            return
 
         async for item in parse_responses_stream(stream, param, self._config.cost, request_start_time):
             yield item
