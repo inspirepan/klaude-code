@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.8] - 2025-12-01
+
+### Changed
+
+- extract TurnResult dataclass and simplify error handling (`aa568e7`)
+
+### Fixed
+
+- persist StreamErrorItem to history for replay (`3dfc33c`)
+- catch API errors during stream creation for proper retry (`8c3bde8`)
+- send conversation headers for better caching (`a5a95b2`)
+- expand error handling to catch all API errors for retry (`8f0c48b`)
 ## [1.2.7] - 2025-12-01
 
 ### Added
@@ -318,7 +330,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.7...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.8...HEAD
+[1.2.8]: https://github.com/inspirepan/klaude-code/compare/v1.2.7...v1.2.8
 [1.2.7]: https://github.com/inspirepan/klaude-code/compare/v1.2.6...v1.2.7
 [1.2.6]: https://github.com/inspirepan/klaude-code/compare/v1.2.5...v1.2.6
 [1.2.5]: https://github.com/inspirepan/klaude-code/compare/v1.2.4...v1.2.5
