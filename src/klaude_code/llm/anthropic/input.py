@@ -73,7 +73,8 @@ def _user_group_to_message(group: UserGroup) -> BetaMessageParam:
     return {"role": "user", "content": blocks}
 
 
-def _tool_group_to_message(group: ToolGroup) -> BetaMessageParam:
+def _tool_group_to_block(group: ToolGroup) -> dict[str, object]:
+    """Convert a single ToolGroup to a tool_result block."""
     tool_content: list[BetaTextBlockParam | BetaImageBlockParam] = []
     merged_text = merge_reminder_text(
         group.tool_result.output or "<system-reminder>Tool ran without output or errors</system-reminder>",
@@ -85,15 +86,18 @@ def _tool_group_to_message(group: ToolGroup) -> BetaMessageParam:
     for image in group.reminder_images:
         tool_content.append(_image_part_to_block(image))
     return {
+        "type": "tool_result",
+        "tool_use_id": group.tool_result.call_id,
+        "is_error": group.tool_result.status == "error",
+        "content": tool_content,
+    }
+
+
+def _tool_groups_to_message(groups: list[ToolGroup]) -> BetaMessageParam:
+    """Convert one or more ToolGroups to a single user message with multiple tool_result blocks."""
+    return {
         "role": "user",
-        "content": [
-            {
-                "type": "tool_result",
-                "tool_use_id": group.tool_result.call_id,
-                "is_error": group.tool_result.status == "error",
-                "content": tool_content,
-            }
-        ],
+        "content": [_tool_group_to_block(group) for group in groups],
     }
 
 
@@ -165,15 +169,26 @@ def convert_history_to_input(
         model_name: Model name. Used to verify that signatures are valid for the same model
     """
     messages: list[BetaMessageParam] = []
+    pending_tool_groups: list[ToolGroup] = []
+
+    def flush_tool_groups() -> None:
+        nonlocal pending_tool_groups
+        if pending_tool_groups:
+            messages.append(_tool_groups_to_message(pending_tool_groups))
+            pending_tool_groups = []
+
     for group in parse_message_groups(history):
         match group:
             case UserGroup():
+                flush_tool_groups()
                 messages.append(_user_group_to_message(group))
             case ToolGroup():
-                messages.append(_tool_group_to_message(group))
+                pending_tool_groups.append(group)
             case AssistantGroup():
+                flush_tool_groups()
                 messages.append(_assistant_group_to_message(group, model_name))
 
+    flush_tool_groups()
     _add_cache_control(messages)
     return messages
 
