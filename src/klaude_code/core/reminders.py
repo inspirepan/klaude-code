@@ -1,4 +1,6 @@
 import json
+import re
+import shlex
 from pathlib import Path
 from typing import Awaitable, Callable
 
@@ -10,6 +12,9 @@ from klaude_code.protocol import model, tools
 from klaude_code.session import Session
 
 type Reminder = Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]
+
+
+AT_FILE_PATTERN = re.compile(r'(?<!\S)@("(?P<quoted>[^\"]+)"|(?P<plain>\S+))')
 
 
 def get_last_new_user_input(session: Session) -> str | None:
@@ -31,14 +36,17 @@ async def at_file_reader_reminder(
 ) -> model.DeveloperMessageItem | None:
     """Parse @foo/bar to read"""
     last_user_input = get_last_new_user_input(session)
-    if not last_user_input or "@" not in last_user_input.strip():
+    if not last_user_input or "@" not in last_user_input:
         return None
 
     at_patterns: list[str] = []
 
-    for item in last_user_input.strip().split():
-        if item.startswith("@") and len(item) > 1:
-            at_patterns.append(item.lower().strip("@"))
+    for match in AT_FILE_PATTERN.finditer(last_user_input):
+        quoted = match.group("quoted")
+        plain = match.group("plain")
+        path_str = quoted if quoted is not None else plain
+        if path_str:
+            at_patterns.append(path_str)
 
     if len(at_patterns) == 0:
         return None
@@ -65,7 +73,8 @@ async def at_file_reader_reminder(
                 if tool_result.images:
                     collected_images.extend(tool_result.images)
             elif path.exists() and path.is_dir():
-                args = BashTool.BashArguments(command=f"ls {path}")
+                quoted_path = shlex.quote(str(path))
+                args = BashTool.BashArguments(command=f"ls {quoted_path}")
                 tool_result = await BashTool.call_with_args(args)
                 at_files[str(path)] = model.AtPatternParseResult(
                     path=str(path) + "/",

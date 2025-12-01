@@ -153,6 +153,63 @@ class TestReminders(BaseTempDirTest):
         assert reminder.at_files[0].images is not None
         self.assertTrue(reminder.at_files[0].images[0].image_url.url.startswith("data:image/png;base64,"))
 
+    def test_at_file_reader_reminder_supports_paths_with_spaces(self):
+        # Create a file whose directory and filename both contain spaces
+        dir_path = Path("dir with spaces")
+        dir_path.mkdir(parents=True, exist_ok=True)
+        file_path = (dir_path / "my file.txt").resolve()
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write("hello world\n")
+
+        # Use quoted @-pattern so that spaces are preserved
+        self.session.conversation_history.append(
+            model.UserMessageItem(content=f'Please review @"{file_path}"')
+        )
+
+        reminder = arun(at_file_reader_reminder(self.session))
+        self.assertIsNotNone(reminder)
+        assert reminder is not None
+        self.assertIsNotNone(reminder.at_files)
+        assert reminder.at_files is not None
+        self.assertEqual(len(reminder.at_files), 1)
+        at_file = reminder.at_files[0]
+        self.assertEqual(at_file.path, str(file_path))
+        self.assertIn("hello world", at_file.result)
+
+    def test_at_file_reader_reminder_preserves_filename_case(self):
+        # Create a file with uppercase letters in the name
+        file_path = os.path.abspath("README.md")
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write("READ ME\n")
+
+        # Reference the file using @ with the same casing
+        self.session.conversation_history.append(
+            model.UserMessageItem(content=f"Please review @{file_path}")
+        )
+
+        reminder = arun(at_file_reader_reminder(self.session))
+        self.assertIsNotNone(reminder)
+        assert reminder is not None
+        self.assertIsNotNone(reminder.at_files)
+        assert reminder.at_files is not None
+        self.assertEqual(len(reminder.at_files), 1)
+        at_file = reminder.at_files[0]
+        # Path string should preserve the filename casing (e.g. README.md, not readme.md)
+        self.assertTrue(at_file.path.endswith("README.md"))
+        self.assertIn("READ ME", at_file.result)
+
+    def test_at_file_reader_reminder_ignores_mid_word_at_symbols(self):
+        file_path = os.path.abspath("bar.com")
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write("should not be read\n")
+
+        self.session.conversation_history.append(
+            model.UserMessageItem(content="Contact me via foo@bar.com for details.")
+        )
+
+        reminder = arun(at_file_reader_reminder(self.session))
+        self.assertIsNone(reminder)
+
 
 class TestEditTool(BaseTempDirTest):
     def test_edit_requires_read_first(self):

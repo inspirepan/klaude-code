@@ -27,8 +27,11 @@ from prompt_toolkit.formatted_text import HTML
 
 from klaude_code.command import get_commands
 
-# Pattern to match @token for completion refresh (used by key bindings)
-AT_TOKEN_PATTERN = re.compile(r"(^|\s)@(?P<frag>[^\s]*)$")
+# Pattern to match @token for completion refresh (used by key bindings).
+# Supports both plain tokens like `@src/file.py` and quoted tokens like
+# `@"path with spaces/file.py"` so that filenames with spaces remain a
+# single logical token.
+AT_TOKEN_PATTERN = re.compile(r'(^|\s)@(?P<frag>"[^"]*"|[^\s]*)$')
 
 
 def create_repl_completer() -> Completer:
@@ -182,31 +185,48 @@ class _AtFilesCompleter(Completer):
         if not m:
             return []  # type: ignore[reportUnknownVariableType]
 
-        frag = m.group("frag")  # text after '@' and before cursor (no spaces)
+        frag = m.group("frag")  # raw text after '@' and before cursor (may be quoted)
+        # Normalize fragment for search: support optional quoting syntax @"...".
+        is_quoted = frag.startswith("\"")
+        search_frag = frag
+        if is_quoted:
+            # Drop leading quote; if user already closed the quote, drop trailing quote as well.
+            search_frag = search_frag[1:]
+            if search_frag.endswith("\""):
+                search_frag = search_frag[:-1]
+
         token_start_in_input = len(text_before) - len(f"@{frag}")
 
         cwd = Path.cwd()
 
         # If no fragment yet, show lightweight suggestions from current directory
-        if frag.strip() == "":
+        if search_frag.strip() == "":
             suggestions = self._suggest_for_empty_fragment(cwd)
             if not suggestions:
                 return []  # type: ignore[reportUnknownVariableType]
             start_position = token_start_in_input - len(text_before)
             for s in suggestions[: self._max_results]:
-                yield Completion(text=f"@{s} ", start_position=start_position, display=s)
+                yield Completion(
+                    text=self._format_completion_text(s, is_quoted=is_quoted),
+                    start_position=start_position,
+                    display=s,
+                )
             return []  # type: ignore[reportUnknownVariableType]
 
         # Gather suggestions with debounce/caching based on search keyword
-        suggestions = self._complete_paths(cwd, frag)
+        suggestions = self._complete_paths(cwd, search_frag)
         if not suggestions:
             return []  # type: ignore[reportUnknownVariableType]
 
         # Prepare Completion objects. Replace from the '@' character.
         start_position = token_start_in_input - len(text_before)  # negative
         for s in suggestions[: self._max_results]:
-            # Insert '@<path> ' so that subsequent typing does not keep triggering
-            yield Completion(text=f"@{s} ", start_position=start_position, display=s)
+            # Insert formatted text (with quoting when needed) so that subsequent typing does not keep triggering
+            yield Completion(
+                text=self._format_completion_text(s, is_quoted=is_quoted),
+                start_position=start_position,
+                display=s,
+            )
 
     # ---- Core logic ----
     def _complete_paths(self, cwd: Path, keyword: str) -> list[str]:
@@ -317,6 +337,19 @@ class _AtFilesCompleter(Completer):
                 seen.add(s)
                 uniq.append(s)
         return uniq
+
+    def _format_completion_text(self, suggestion: str, *, is_quoted: bool) -> str:
+        """Format completion insertion text for a given suggestion.
+
+        Paths that contain whitespace are always wrapped in quotes so that they
+        can be parsed correctly by the @-file reader. If the user explicitly
+        started a quoted token (e.g. @"foo), we preserve quoting even when the
+        suggested path itself does not contain spaces.
+        """
+        needs_quotes = any(ch.isspace() for ch in suggestion)
+        if needs_quotes or is_quoted:
+            return f'@"{suggestion}" '
+        return f"@{suggestion} "
 
     def _same_scope(self, prev_key: str, cur_key: str) -> bool:
         # Consider same scope if they share the same base directory and one prefix startswith the other
