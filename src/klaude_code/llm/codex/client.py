@@ -20,9 +20,9 @@ from klaude_code.protocol import llm_param, model
 # Codex API configuration
 CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"
 CODEX_HEADERS = {
-    "OpenAI-Beta": "responses=experimental",
     "originator": "codex_cli_rs",
-    "User-Agent": "GitHubCopilotChat/0.32.4",
+    # Mocked Codex-style user agent string
+    "User-Agent": "codex_cli_rs/0.0.0-klaude",
 }
 
 
@@ -87,6 +87,13 @@ class CodexClient(LLMClientABC):
         inputs = convert_history_to_input(param.input, param.model)
         tools = convert_tool_schema(param.tools)
 
+        session_id = param.session_id or ""
+        # Must send conversation_id/session_id headers to improve ChatGPT backend prompt cache hit rate.
+        extra_headers: dict[str, str] = {}
+        if session_id:
+            extra_headers["conversation_id"] = session_id
+            extra_headers["session_id"] = session_id
+
         stream = await call_with_logged_payload(
             self.client.responses.create,
             model=str(param.model),
@@ -103,13 +110,14 @@ class CodexClient(LLMClientABC):
             text={
                 "verbosity": param.verbosity,
             },
-            prompt_cache_key=param.session_id or "",
+            prompt_cache_key=session_id,
             reasoning={
                 "effort": param.thinking.reasoning_effort,
                 "summary": param.thinking.reasoning_summary,
             }
             if param.thinking and param.thinking.reasoning_effort
             else None,
+            extra_headers=extra_headers,
         )
 
         async for item in parse_responses_stream(stream, param, self._config.cost, request_start_time):
