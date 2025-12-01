@@ -202,7 +202,6 @@ class DisplayEventHandler:
     async def _on_thinking(self, event: events.ThinkingEvent) -> None:
         if self.renderer.is_sub_agent_session(event.session_id):
             return
-        self._clear_and_update_spinner()
         await self.stage_manager.enter_thinking_stage()
         self.renderer.display_thinking(event.content)
 
@@ -216,7 +215,8 @@ class DisplayEventHandler:
         first_delta = self.assistant_stream.mdstream is None
         if first_delta:
             self.spinner_status.set_composing(True)
-            self._clear_and_update_spinner()
+            self.spinner_status.clear_tool_calls()
+            self._update_spinner()
             self.assistant_stream.mdstream = MarkdownStream(
                 mdargs={"code_theme": self.renderer.themes.code_theme},
                 theme=self.renderer.themes.markdown_theme,
@@ -247,6 +247,7 @@ class DisplayEventHandler:
         self.assistant_stream.clear()
         self.assistant_stream.mdstream = None
         self.spinner_status.set_composing(False)
+        self._update_spinner()
         await self.stage_manager.transition_to(Stage.WAITING)
         self.renderer.spinner_start()
 
@@ -275,7 +276,8 @@ class DisplayEventHandler:
         active_form_status_text = self._extract_active_form_text(event)
         self.spinner_status.set_base_status(active_form_status_text if active_form_status_text else None)
         # Clear tool calls when todo changes, as the tool execution has advanced
-        self._clear_and_update_spinner()
+        self.spinner_status.clear_for_new_turn()
+        self._update_spinner()
 
     async def _on_task_finish(self, event: events.TaskFinishEvent) -> None:
         self.renderer.display_task_finish(event)
@@ -324,11 +326,6 @@ class DisplayEventHandler:
     def _update_spinner(self) -> None:
         """Update spinner text from current status state."""
         self.renderer.spinner_update(self.spinner_status.get_status())
-
-    def _clear_and_update_spinner(self) -> None:
-        """Clear tool calls and update spinner."""
-        self.spinner_status.clear_tool_calls()
-        self._update_spinner()
 
     async def _flush_assistant_buffer(self, state: StreamState) -> None:
         if state.mdstream is not None:

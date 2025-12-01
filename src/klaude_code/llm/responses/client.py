@@ -60,7 +60,7 @@ class ResponsesClient(LLMClientABC):
             self.client.responses.create,
             model=str(param.model),
             tool_choice="auto",
-            parallel_tool_calls=parallel_tool_calls,  # OpenAI's Codex is always False, we try to enable it here. It seems gpt-5-codex has bugs when parallel_tool_calls is True.
+            parallel_tool_calls=parallel_tool_calls,
             include=[
                 "reasoning.encrypted_content",
             ],
