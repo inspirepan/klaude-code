@@ -110,6 +110,10 @@ class SmartTruncationStrategy(TruncationStrategy):
             return None
 
     def truncate(self, output: str, tool_call: model.ToolCallItem | None = None) -> TruncationResult:
+        if tool_call and tool_call.name == tools.READ:
+            # Do not truncate Read tool outputs
+            return TruncationResult(output=output, was_truncated=False, original_length=len(output))
+
         original_length = len(output)
 
         if original_length <= self.max_length:
