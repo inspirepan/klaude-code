@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.7] - 2025-12-01
+
+### Added
+
+- add currency support for cost display and calculation (`974bdd8`)
+- adapt for deepseek api by merging multiple toolresult blocks into single user message (`ce08afe`)
+- add Codex integration with OAuth authentication (`095bf96`)
+- improve explore agent prompt and encourage parallel execution (`0171a46`)
+- improve explore agent prompt and encourage parallel execution (`6f90a4e`)
+
+### Changed
+
+- improve spinner status update granularity (`a236c0d`)
+- simplify status state management for turn transitions (`1a14a5f`)
+
+### Fixed
+
+- prevent truncation of Read tool outputs in SmartTruncationStrategy (`726d9ca`)
+- support filenames with spaces in @-file references (`13ca4f1`)
+- trim whitespace from pre-wrap content to avoid formatting artifacts (`aa40aa0`)
+
+### Other
+
+- format (`f04c929`)
 ## [1.2.6] - 2025-12-01
 
 ### Changed
@@ -294,7 +318,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.6...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.7...HEAD
+[1.2.7]: https://github.com/inspirepan/klaude-code/compare/v1.2.6...v1.2.7
 [1.2.6]: https://github.com/inspirepan/klaude-code/compare/v1.2.5...v1.2.6
 [1.2.5]: https://github.com/inspirepan/klaude-code/compare/v1.2.4...v1.2.5
 [1.2.4]: https://github.com/inspirepan/klaude-code/compare/v1.2.3...v1.2.4
