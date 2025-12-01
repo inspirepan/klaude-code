@@ -1077,6 +1077,11 @@
       });
     </script>
     <script>
+      // Trim whitespace from pre-wrap content to avoid formatting artifacts
+      document.querySelectorAll(".system-prompt-content").forEach((el) => {
+        el.textContent = el.textContent.trim();
+      });
+
       // Markdown rendering and Syntax Highlighting
       document.querySelectorAll(".markdown-content").forEach((el) => {
         const raw = el.dataset.raw;
