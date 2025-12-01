@@ -37,7 +37,7 @@ class SpinnerStatusState:
     Layers (from low to high priority):
     - base_status: Set by TodoChange, persistent within a turn
     - composing: True when assistant is streaming text
-    - tool_calls: Accumulated from ToolCallStart
+    - tool_calls: Accumulated from ToolCallStart, cleared at turn start
 
     Display logic:
     - If tool_calls: show base + tool_calls (composing is hidden)
@@ -52,14 +52,12 @@ class SpinnerStatusState:
         self._base_status: str | None = None
         self._composing: bool = False
         self._tool_calls: dict[str, int] = {}
-        self._pending_clear: bool = False
 
     def reset(self) -> None:
         """Reset all layers."""
         self._base_status = None
         self._composing = False
         self._tool_calls = {}
-        self._pending_clear = False
 
     def set_base_status(self, status: str | None) -> None:
         """Set base status from TodoChange."""
@@ -71,21 +69,16 @@ class SpinnerStatusState:
 
     def add_tool_call(self, tool_name: str) -> None:
         """Add a tool call to the accumulator."""
-        if self._pending_clear:
-            self._tool_calls = {}
-            self._composing = False
-            self._pending_clear = False
         self._tool_calls[tool_name] = self._tool_calls.get(tool_name, 0) + 1
 
     def clear_tool_calls(self) -> None:
-        """Clear tool calls and composing state immediately."""
+        """Clear tool calls and composing state."""
+        self._tool_calls = {}
+
+    def clear_for_new_turn(self) -> None:
+        """Clear tool calls and composing state for a new turn."""
         self._tool_calls = {}
         self._composing = False
-        self._pending_clear = False
-
-    def mark_pending_clear(self) -> None:
-        """Mark tool calls to be cleared on next add_tool_call or set_composing."""
-        self._pending_clear = True
 
     def get_status(self) -> Text:
         """Get current spinner status as rich Text."""
@@ -203,7 +196,8 @@ class DisplayEventHandler:
     def _on_turn_start(self, event: events.TurnStartEvent) -> None:
         emit_osc94(OSC94States.INDETERMINATE)
         self.renderer.display_turn_start(event)
-        self.spinner_status.mark_pending_clear()
+        self.spinner_status.clear_for_new_turn()
+        self._update_spinner()
 
     async def _on_thinking(self, event: events.ThinkingEvent) -> None:
         if self.renderer.is_sub_agent_session(event.session_id):
@@ -214,14 +208,15 @@ class DisplayEventHandler:
 
     async def _on_assistant_delta(self, event: events.AssistantMessageDeltaEvent) -> None:
         if self.renderer.is_sub_agent_session(event.session_id):
+            self.spinner_status.set_composing(True)
+            self._update_spinner()
             return
         if len(event.content.strip()) == 0 and self.stage_manager.current_stage != Stage.ASSISTANT:
             return
         first_delta = self.assistant_stream.mdstream is None
         if first_delta:
-            self.spinner_status.clear_tool_calls()
             self.spinner_status.set_composing(True)
-            self._update_spinner()
+            self._clear_and_update_spinner()
             self.assistant_stream.mdstream = MarkdownStream(
                 mdargs={"code_theme": self.renderer.themes.code_theme},
                 theme=self.renderer.themes.markdown_theme,
