@@ -129,34 +129,38 @@ def _format_cost(cost: float | None, currency: str = "USD") -> str:
 
 
 def _render_status_output(command_output: model.CommandOutput) -> RenderableType:
-    """Render session status as a two-column table with sections."""
+    """Render session status with total cost and per-model breakdown."""
     if not command_output.ui_extra or not command_output.ui_extra.session_status:
-        return Text("(no status data)", style=ThemeKey.TOOL_RESULT)
+        return Text("(no status data)", style=ThemeKey.METADATA)
 
     status = command_output.ui_extra.session_status
     usage = status.usage
 
     table = Table.grid(padding=(0, 2))
-    table.add_column(style=ThemeKey.TOOL_RESULT, no_wrap=True)
-    table.add_column(style=ThemeKey.TOOL_RESULT, no_wrap=True)
-    # Token Usage section
-    table.add_row(Text("Token Usage", style="bold"), "")
-    table.add_row("Input Tokens", _format_tokens(usage.input_tokens))
-    if usage.cached_tokens > 0:
-        table.add_row("Cached Tokens", _format_tokens(usage.cached_tokens))
-    if usage.reasoning_tokens > 0:
-        table.add_row("Reasoning Tokens", _format_tokens(usage.reasoning_tokens))
-    table.add_row("Output Tokens", _format_tokens(usage.output_tokens))
-    table.add_row("Total Tokens", _format_tokens(usage.total_tokens))
+    table.add_column(style=ThemeKey.METADATA, overflow="fold")
+    table.add_column(style=ThemeKey.METADATA, overflow="fold")
 
-    # Cost section
-    if usage.total_cost is not None:
-        table.add_row("", "")  # Empty line
-        table.add_row(Text("Cost", style="bold"), "")
-        table.add_row("Input Cost", _format_cost(usage.input_cost, usage.currency))
-        if usage.cache_read_cost is not None and usage.cache_read_cost > 0:
-            table.add_row("Cache Read Cost", _format_cost(usage.cache_read_cost, usage.currency))
-        table.add_row("Output Cost", _format_cost(usage.output_cost, usage.currency))
-        table.add_row("Total Cost", _format_cost(usage.total_cost, usage.currency))
+    # Total cost line
+    table.add_row(
+        Text("Total cost:", style=ThemeKey.METADATA_BOLD),
+        Text(_format_cost(usage.total_cost, usage.currency), style=ThemeKey.METADATA_BOLD),
+    )
+
+    # Per-model breakdown
+    if status.by_model:
+        table.add_row(Text("Usage by model:", style=ThemeKey.METADATA_BOLD), "")
+        for stats in status.by_model:
+            model_label = stats.model_name
+            if stats.provider:
+                model_label = f"{stats.model_name} ({stats.provider.lower().replace(' ', '-')})"
+
+            usage_detail = (
+                f"{_format_tokens(stats.input_tokens)} input, "
+                f"{_format_tokens(stats.output_tokens)} output, "
+                f"{_format_tokens(stats.cached_tokens)} cache read, "
+                f"{_format_tokens(stats.reasoning_tokens)} thinking, "
+                f"({_format_cost(stats.total_cost, stats.currency)})"
+            )
+            table.add_row(f"{model_label}:", usage_detail)
 
     return Padding.indent(table, level=2)

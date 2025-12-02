@@ -12,12 +12,14 @@ TodoStatusType = Literal["pending", "in_progress", "completed"]
 
 
 class Usage(BaseModel):
+    # Token Usage
     input_tokens: int = 0
     cached_tokens: int = 0
     reasoning_tokens: int = 0
     output_tokens: int = 0
     total_tokens: int = 0
-    context_usage_percent: float | None = None
+
+    context_usage_percent: float | None = None  # Context window
     throughput_tps: float | None = None
     first_token_latency_ms: float | None = None
 
@@ -64,9 +66,23 @@ class TruncationUIExtra(BaseModel):
     truncated_length: int
 
 
+class ModelUsageStats(BaseModel):
+    """Usage statistics for a specific model+provider combination."""
+
+    model_name: str
+    provider: str | None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cached_tokens: int = 0
+    reasoning_tokens: int = 0
+    total_cost: float | None = None
+    currency: str = "USD"
+
+
 class SessionStatusUIExtra(BaseModel):
     usage: "Usage"
     task_count: int
+    by_model: list[ModelUsageStats] = []
 
 
 class ToolResultUIExtra(BaseModel):
@@ -240,6 +256,7 @@ class ToolResultItem(BaseModel):
     ui_extra: ToolResultUIExtra | None = None  # Extra data for UI display, e.g. diff render
     images: list[ImageURLPart] | None = None
     side_effects: list[ToolSideEffect] | None = None
+    task_metadata: "TaskMetadata | None" = None  # Sub-agent task metadata for propagation to main agent
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -255,11 +272,30 @@ class StreamErrorItem(BaseModel):
 
 
 class ResponseMetadataItem(BaseModel):
+    """Metadata for a single LLM response (turn-level)."""
+
     response_id: str | None = None
     usage: Usage | None = None
     model_name: str = ""
     provider: str | None = None  # OpenRouter's provider name
     task_duration_s: float | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class TaskMetadata(BaseModel):
+    """Base metadata for a task execution (used by both main and sub-agents)."""
+
+    usage: Usage | None = None
+    model_name: str = ""
+    provider: str | None = None
+    task_duration_s: float | None = None
+
+
+class TaskMetadataItem(BaseModel):
+    """Aggregated metadata for a complete task, stored in conversation history."""
+
+    main: TaskMetadata = Field(default_factory=TaskMetadata)
+    sub_agent_task_metadata: list[TaskMetadata] = Field(default_factory=lambda: list[TaskMetadata]())
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -278,7 +314,14 @@ MessageItem = (
 StreamItem = AssistantMessageDelta
 
 ConversationItem = (
-    StartItem | InterruptItem | StreamErrorItem | StreamItem | MessageItem | ResponseMetadataItem | ToolCallStartItem
+    StartItem
+    | InterruptItem
+    | StreamErrorItem
+    | StreamItem
+    | MessageItem
+    | ResponseMetadataItem
+    | TaskMetadataItem
+    | ToolCallStartItem
 )
 
 

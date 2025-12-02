@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from klaude_code.protocol import tools
+
+if TYPE_CHECKING:
+    from klaude_code.protocol import model
 
 AvailabilityPredicate = Callable[[str], bool]
 PromptBuilder = Callable[[dict[str, Any]], str]
@@ -14,6 +17,7 @@ class SubAgentResult:
     task_result: str
     session_id: str
     error: bool = False
+    task_metadata: model.TaskMetadata | None = None
 
 
 def _default_prompt_builder(args: dict[str, Any]) -> str:

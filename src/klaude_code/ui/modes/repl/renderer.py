@@ -184,8 +184,8 @@ class REPLRenderer:
                         self.display_tool_call(tool_call_event)
                     tool_call_dict.pop(tool_result_event.tool_call_id, None)
                     self.display_tool_call_result(tool_result_event)
-                case events.ResponseMetadataEvent() as metadata_event:
-                    self.print(r_metadata.render_response_metadata(metadata_event))
+                case events.TaskMetadataEvent() as metadata_event:
+                    self.print(r_metadata.render_task_metadata(metadata_event))
                     self.print()
                 case events.InterruptEvent():
                     self.print()
@@ -233,9 +233,9 @@ class REPLRenderer:
             self.print(renderable)
             self.print()
 
-    def display_response_metadata(self, event: events.ResponseMetadataEvent) -> None:
+    def display_task_metadata(self, event: events.TaskMetadataEvent) -> None:
         with self.session_print_context(event.session_id):
-            self.print(r_metadata.render_response_metadata(event))
+            self.print(r_metadata.render_task_metadata(event))
             self.print()
 
     def display_task_finish(self, event: events.TaskFinishEvent) -> None:

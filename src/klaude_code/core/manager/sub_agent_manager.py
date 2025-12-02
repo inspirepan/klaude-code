@@ -58,13 +58,17 @@ class SubAgentManager:
         try:
             # Not emit the subtask's user input since task tool call is already rendered
             result: str = ""
+            task_metadata: model.TaskMetadata | None = None
             sub_agent_input = model.UserInputPayload(text=state.sub_agent_prompt, images=None)
             async for event in child_agent.run_task(sub_agent_input):
                 # Capture TaskFinishEvent content for return
                 if isinstance(event, events.TaskFinishEvent):
                     result = event.task_result
+                # Capture TaskMetadataEvent for metadata propagation
+                elif isinstance(event, events.TaskMetadataEvent):
+                    task_metadata = event.metadata.main
                 await self.emit_event(event)
-            return SubAgentResult(task_result=result, session_id=child_session.id)
+            return SubAgentResult(task_result=result, session_id=child_session.id, task_metadata=task_metadata)
         except asyncio.CancelledError:
             # Propagate cancellation so tooling can treat it as user interrupt
             log_debug(

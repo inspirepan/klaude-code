@@ -159,20 +159,35 @@ def _format_cost(cost: float, currency: str = "USD") -> str:
     return f"{symbol}{cost:.4f}"
 
 
-def _render_metadata_item(item: model.ResponseMetadataItem) -> str:
-    # Model Name [@ Provider]
+def _render_single_metadata(
+    metadata: model.TaskMetadata,
+    *,
+    indent: int = 0,
+    show_context: bool = True,
+) -> str:
+    """Render a single TaskMetadata block as HTML.
+
+    Args:
+        metadata: The TaskMetadata to render.
+        indent: Number of spaces to indent (0 for main, 2 for sub-agents).
+        show_context: Whether to show context usage percent.
+
+    Returns:
+        HTML string for this metadata block.
+    """
     parts: list[str] = []
 
-    model_parts = [f'<span class="metadata-model">{_escape_html(item.model_name)}</span>']
-    if item.provider:
-        provider = _escape_html(item.provider.lower().replace(" ", "-"))
+    # Model Name [@ Provider]
+    model_parts = [f'<span class="metadata-model">{_escape_html(metadata.model_name)}</span>']
+    if metadata.provider:
+        provider = _escape_html(metadata.provider.lower().replace(" ", "-"))
         model_parts.append(f'<span class="metadata-provider">@{provider}</span>')
 
     parts.append("".join(model_parts))
 
     # Stats
-    if item.usage:
-        u = item.usage
+    if metadata.usage:
+        u = metadata.usage
         # Input with cost
         input_stat = f"input: {_format_token_count(u.input_tokens)}"
         if u.input_cost is not None:
@@ -194,24 +209,39 @@ def _render_metadata_item(item: model.ResponseMetadataItem) -> str:
 
         if u.reasoning_tokens > 0:
             parts.append(f'<span class="metadata-stat">thinking: {_format_token_count(u.reasoning_tokens)}</span>')
-        if u.context_usage_percent is not None:
+        if show_context and u.context_usage_percent is not None:
             parts.append(f'<span class="metadata-stat">context: {u.context_usage_percent:.1f}%</span>')
         if u.throughput_tps is not None:
             parts.append(f'<span class="metadata-stat">tps: {u.throughput_tps:.1f}</span>')
 
-    if item.task_duration_s is not None:
-        parts.append(f'<span class="metadata-stat">time: {item.task_duration_s:.1f}s</span>')
+    if metadata.task_duration_s is not None:
+        parts.append(f'<span class="metadata-stat">time: {metadata.task_duration_s:.1f}s</span>')
 
     # Total cost
-    if item.usage is not None and item.usage.total_cost is not None:
+    if metadata.usage is not None and metadata.usage.total_cost is not None:
         parts.append(
-            f'<span class="metadata-stat">cost: {_format_cost(item.usage.total_cost, item.usage.currency)}</span>'
+            f'<span class="metadata-stat">cost: {_format_cost(metadata.usage.total_cost, metadata.usage.currency)}</span>'
         )
 
     divider = '<span class="metadata-divider">/</span>'
     joined_html = divider.join(parts)
 
-    return f'<div class="response-metadata"><div class="metadata-line">{joined_html}</div></div>'
+    indent_style = f' style="padding-left: {indent}em;"' if indent > 0 else ""
+    return f'<div class="metadata-line"{indent_style}>{joined_html}</div>'
+
+
+def _render_metadata_item(item: model.TaskMetadataItem) -> str:
+    """Render TaskMetadataItem including main agent and sub-agents."""
+    lines: list[str] = []
+
+    # Main agent metadata
+    lines.append(_render_single_metadata(item.main, indent=0, show_context=True))
+
+    # Sub-agent metadata with indent
+    for sub in item.sub_agent_task_metadata:
+        lines.append(_render_single_metadata(sub, indent=1, show_context=False))
+
+    return f'<div class="response-metadata">{"".join(lines)}</div>'
 
 
 def _render_assistant_message(index: int, content: str, timestamp: datetime) -> str:
@@ -546,7 +576,7 @@ def _build_messages_html(
         elif isinstance(item, model.AssistantMessageItem):
             assistant_counter += 1
             blocks.append(_render_assistant_message(assistant_counter, item.content or "", item.created_at))
-        elif isinstance(item, model.ResponseMetadataItem):
+        elif isinstance(item, model.TaskMetadataItem):
             blocks.append(_render_metadata_item(item))
         elif isinstance(item, model.DeveloperMessageItem):
             content = _escape_html(item.content or "")

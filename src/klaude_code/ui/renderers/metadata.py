@@ -7,7 +7,7 @@ from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
 
-from klaude_code.protocol import events
+from klaude_code.protocol import events, model
 from klaude_code.trace import is_debug_enabled
 from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.utils.common import format_number
@@ -21,18 +21,34 @@ def _get_version() -> str:
         return "unknown"
 
 
-def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
-    metadata = e.metadata
+def _render_task_metadata_block(
+    metadata: model.TaskMetadata,
+    *,
+    indent: int = 0,
+    show_context: bool = True,
+) -> list[RenderableType]:
+    """Render a single TaskMetadata block.
 
+    Args:
+        metadata: The TaskMetadata to render.
+        indent: Number of spaces to indent (0 for main, 2 for sub-agents).
+        show_context: Whether to show context usage percent.
+
+    Returns:
+        List of renderables for this metadata block.
+    """
     # Get currency symbol
     currency = metadata.usage.currency if metadata.usage else "USD"
     currency_symbol = "¥" if currency == "CNY" else "$"
 
     # Line 1: Model and Provider
-    model_text = Text()
-    model_text.append_text(Text("- ", style=ThemeKey.METADATA_BOLD)).append_text(
-        Text(metadata.model_name, style=ThemeKey.METADATA_BOLD)
+    prefix = (
+        Text(" " * indent + "• ", style=ThemeKey.METADATA_BOLD)
+        if indent == 0
+        else Text(" " * indent + "└ ", style=ThemeKey.METADATA_DIM)
     )
+    model_text = Text()
+    model_text.append_text(prefix).append_text(Text(metadata.model_name, style=ThemeKey.METADATA_BOLD))
     if metadata.provider is not None:
         model_text.append_text(Text("@", style=ThemeKey.METADATA)).append_text(
             Text(metadata.provider.lower().replace(" ", "-"), style=ThemeKey.METADATA)
@@ -41,7 +57,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
     renderables: list[RenderableType] = [model_text]
 
     # Line 2: Token consumption, Context, TPS, Cost
-    parts: list[Text] = []
+    parts2: list[Text] = []
 
     if metadata.usage is not None:
         # Input
@@ -51,7 +67,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
         ]
         if metadata.usage.input_cost is not None:
             input_parts.append((f"({currency_symbol}{metadata.usage.input_cost:.4f})", ThemeKey.METADATA_DIM))
-        parts.append(Text.assemble(*input_parts))
+        parts2.append(Text.assemble(*input_parts))
 
         # Cached
         if metadata.usage.cached_tokens > 0:
@@ -61,7 +77,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
             ]
             if metadata.usage.cache_read_cost is not None:
                 cached_parts.append((f"({currency_symbol}{metadata.usage.cache_read_cost:.4f})", ThemeKey.METADATA_DIM))
-            parts.append(Text.assemble(*cached_parts))
+            parts2.append(Text.assemble(*cached_parts))
 
         # Output
         output_parts: list[tuple[str, str]] = [
@@ -70,11 +86,11 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
         ]
         if metadata.usage.output_cost is not None:
             output_parts.append((f"({currency_symbol}{metadata.usage.output_cost:.4f})", ThemeKey.METADATA_DIM))
-        parts.append(Text.assemble(*output_parts))
+        parts2.append(Text.assemble(*output_parts))
 
         # Reasoning
         if metadata.usage.reasoning_tokens > 0:
-            parts.append(
+            parts2.append(
                 Text.assemble(
                     ("thinking", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
@@ -85,9 +101,15 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
                 )
             )
 
-        # Context
-        if metadata.usage.context_usage_percent is not None:
-            parts.append(
+    if parts2:
+        line2 = Text(" / ", style=ThemeKey.METADATA_DIM).join(parts2)
+        renderables.append(Padding(line2, (0, 0, 0, indent + 2)))
+
+    parts3: list[Text] = []
+    if metadata.usage is not None:
+        # Context (only for main agent)
+        if show_context and metadata.usage.context_usage_percent is not None:
+            parts3.append(
                 Text.assemble(
                     ("context", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
@@ -100,7 +122,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
 
         # TPS
         if metadata.usage.throughput_tps is not None:
-            parts.append(
+            parts3.append(
                 Text.assemble(
                     ("tps", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
@@ -110,7 +132,7 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
 
     # Duration
     if metadata.task_duration_s is not None:
-        parts.append(
+        parts3.append(
             Text.assemble(
                 ("time", ThemeKey.METADATA_DIM),
                 (":", ThemeKey.METADATA_DIM),
@@ -120,17 +142,30 @@ def render_response_metadata(e: events.ResponseMetadataEvent) -> RenderableType:
 
     # Cost
     if metadata.usage is not None and metadata.usage.total_cost is not None:
-        parts.append(
+        parts3.append(
             Text.assemble(
                 ("cost", ThemeKey.METADATA_DIM),
                 (":", ThemeKey.METADATA_DIM),
                 (f"{currency_symbol}{metadata.usage.total_cost:.4f}", ThemeKey.METADATA_DIM),
             )
         )
+    if parts3:
+        line2 = Text(" / ", style=ThemeKey.METADATA_DIM).join(parts3)
+        renderables.append(Padding(line2, (0, 0, 0, indent + 2)))
 
-    if parts:
-        line2 = Text("/", style=ThemeKey.METADATA_DIM).join(parts)
-        renderables.append(Padding(line2, (0, 0, 0, 2)))
+    return renderables
+
+
+def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
+    """Render task metadata including main agent and sub-agents."""
+    renderables: list[RenderableType] = []
+
+    # Render main agent metadata
+    renderables.extend(_render_task_metadata_block(e.metadata.main, indent=0, show_context=True))
+
+    # Render sub-agent metadata with 2-space indent
+    for sub_metadata in e.metadata.sub_agent_task_metadata:
+        renderables.extend(_render_task_metadata_block(sub_metadata, indent=2, show_context=False))
 
     return Group(*renderables)
 

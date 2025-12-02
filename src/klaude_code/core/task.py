@@ -25,19 +25,20 @@ class MetadataAccumulator:
     """
 
     def __init__(self, model_name: str) -> None:
-        self._accumulated = model.ResponseMetadataItem(model_name=model_name)
+        self._main = model.TaskMetadata(model_name=model_name)
+        self._sub_agent_metadata: list[model.TaskMetadata] = []
         self._throughput_weighted_sum: float = 0.0
         self._throughput_tracked_tokens: int = 0
 
     def add(self, turn_metadata: model.ResponseMetadataItem) -> None:
         """Merge a turn's metadata into the accumulated state."""
-        accumulated = self._accumulated
+        main = self._main
         usage = turn_metadata.usage
 
         if usage is not None:
-            if accumulated.usage is None:
-                accumulated.usage = model.Usage()
-            acc_usage = accumulated.usage
+            if main.usage is None:
+                main.usage = model.Usage()
+            acc_usage = main.usage
             acc_usage.input_tokens += usage.input_tokens
             acc_usage.cached_tokens += usage.cached_tokens
             acc_usage.reasoning_tokens += usage.reasoning_tokens
@@ -74,23 +75,25 @@ class MetadataAccumulator:
                 acc_usage.total_cost = (acc_usage.total_cost or 0.0) + usage.total_cost
 
         if turn_metadata.provider is not None:
-            accumulated.provider = turn_metadata.provider
+            main.provider = turn_metadata.provider
         if turn_metadata.model_name:
-            accumulated.model_name = turn_metadata.model_name
-        if turn_metadata.response_id:
-            accumulated.response_id = turn_metadata.response_id
+            main.model_name = turn_metadata.model_name
 
-    def finalize(self, task_duration_s: float) -> model.ResponseMetadataItem:
+    def add_sub_agent_metadata(self, sub_agent_metadata: model.TaskMetadata) -> None:
+        """Add sub-agent task metadata to the accumulated state."""
+        self._sub_agent_metadata.append(sub_agent_metadata)
+
+    def finalize(self, task_duration_s: float) -> model.TaskMetadataItem:
         """Return the final accumulated metadata with computed throughput and duration."""
-        accumulated = self._accumulated
-        if accumulated.usage is not None:
+        main = self._main
+        if main.usage is not None:
             if self._throughput_tracked_tokens > 0:
-                accumulated.usage.throughput_tps = self._throughput_weighted_sum / self._throughput_tracked_tokens
+                main.usage.throughput_tps = self._throughput_weighted_sum / self._throughput_tracked_tokens
             else:
-                accumulated.usage.throughput_tps = None
+                main.usage.throughput_tps = None
 
-        accumulated.task_duration_s = task_duration_s
-        return accumulated
+        main.task_duration_s = task_duration_s
+        return model.TaskMetadataItem(main=main, sub_agent_task_metadata=self._sub_agent_metadata)
 
 
 @dataclass
@@ -183,6 +186,11 @@ class TaskExecutor:
                                 yield am
                             case events.ResponseMetadataEvent() as e:
                                 metadata_accumulator.add(e.metadata)
+                            case events.ToolResultEvent() as e:
+                                # Collect sub-agent task metadata from tool results
+                                if e.task_metadata is not None:
+                                    metadata_accumulator.add_sub_agent_metadata(e.task_metadata)
+                                yield turn_event
                             case _:
                                 yield turn_event
 
@@ -219,7 +227,7 @@ class TaskExecutor:
         task_duration_s = time.perf_counter() - self._started_at
         accumulated = metadata_accumulator.finalize(task_duration_s)
 
-        yield events.ResponseMetadataEvent(metadata=accumulated, session_id=ctx.session_id)
+        yield events.TaskMetadataEvent(metadata=accumulated, session_id=ctx.session_id)
         ctx.append_history([accumulated])
         yield events.TaskFinishEvent(
             session_id=ctx.session_id,

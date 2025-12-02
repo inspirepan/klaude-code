@@ -151,12 +151,14 @@ class DisplayEventHandler:
                 await self._on_tool_call(e)
             case events.ToolResultEvent() as e:
                 await self._on_tool_result(e)
-            case events.ResponseMetadataEvent() as e:
-                self._on_response_metadata(e)
+            case events.TaskMetadataEvent() as e:
+                self._on_task_metadata(e)
             case events.TodoChangeEvent() as e:
                 self._on_todo_change(e)
             case events.TurnEndEvent():
                 pass
+            case events.ResponseMetadataEvent():
+                pass  # Internal event, not displayed
             case events.TaskFinishEvent() as e:
                 await self._on_task_finish(e)
             case events.InterruptEvent() as e:
@@ -269,8 +271,8 @@ class DisplayEventHandler:
         await self.stage_manager.transition_to(Stage.TOOL_RESULT)
         self.renderer.display_tool_call_result(event)
 
-    def _on_response_metadata(self, event: events.ResponseMetadataEvent) -> None:
-        self.renderer.display_response_metadata(event)
+    def _on_task_metadata(self, event: events.TaskMetadataEvent) -> None:
+        self.renderer.display_task_metadata(event)
 
     def _on_todo_change(self, event: events.TodoChangeEvent) -> None:
         active_form_status_text = self._extract_active_form_text(event)

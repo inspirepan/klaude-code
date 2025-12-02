@@ -91,13 +91,21 @@ class ToolResultEvent(BaseModel):
     ui_extra: model.ToolResultUIExtra | None = None
     status: Literal["success", "error"]
     is_replay: bool = False
+    task_metadata: model.TaskMetadata | None = None  # Sub-agent task metadata
 
 
 class ResponseMetadataEvent(BaseModel):
-    """Showing model name, usage tokens, task duration, and turn count."""
+    """Internal event for turn-level metadata. Not exposed to UI directly."""
 
     session_id: str
     metadata: model.ResponseMetadataItem
+
+
+class TaskMetadataEvent(BaseModel):
+    """Task-level aggregated metadata for UI display."""
+
+    session_id: str
+    metadata: model.TaskMetadataItem
 
 
 class UserMessageEvent(BaseModel):
@@ -127,7 +135,7 @@ HistoryItemEvent = (
     | ToolCallEvent
     | ToolResultEvent
     | UserMessageEvent
-    | ResponseMetadataEvent
+    | TaskMetadataEvent
     | InterruptEvent
     | DeveloperMessageEvent
     | ErrorEvent
@@ -150,6 +158,7 @@ Event = (
     | ToolCallEvent
     | ToolResultEvent
     | ResponseMetadataEvent
+    | TaskMetadataEvent
     | ReplayHistoryEvent
     | ErrorEvent
     | EndEvent

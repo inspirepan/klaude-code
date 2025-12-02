@@ -74,6 +74,7 @@ def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEv
                     result=tool_result.output or "",
                     ui_extra=tool_result.ui_extra,
                     status=tool_result.status,
+                    task_metadata=tool_result.task_metadata,
                 )
             )
         case ToolExecutionTodoChange(todos=todos):

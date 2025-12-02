@@ -50,7 +50,7 @@ class Session(BaseModel):
         "AssistantMessageDelta": model.AssistantMessageDelta,
         "StartItem": model.StartItem,
         "StreamErrorItem": model.StreamErrorItem,
-        "ResponseMetadataItem": model.ResponseMetadataItem,
+        "TaskMetadataItem": model.TaskMetadataItem,
         "InterruptItem": model.InterruptItem,
     }
 
@@ -295,8 +295,8 @@ class Session(BaseModel):
                         content=ri.content,
                         session_id=self.id,
                     )
-                case model.ResponseMetadataItem() as mt:
-                    yield events.ResponseMetadataEvent(
+                case model.TaskMetadataItem() as mt:
+                    yield events.TaskMetadataEvent(
                         session_id=self.id,
                         metadata=mt,
                     )
