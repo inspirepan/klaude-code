@@ -8,7 +8,7 @@ import zlib
 import pytest
 
 from klaude_code.core.tool import MermaidTool
-from klaude_code.protocol.model import ToolResultUIExtraType
+from klaude_code.protocol.model import MermaidLinkUIExtra
 
 
 def _decode_payload(link: str) -> dict[str, object]:
@@ -32,13 +32,11 @@ def test_mermaid_tool_generates_shareable_link(
     result = asyncio.run(MermaidTool.call(args))
 
     assert result.status == "success"
-    assert result.ui_extra is not None
-    assert result.ui_extra.type == ToolResultUIExtraType.MERMAID_LINK
-    assert result.ui_extra.mermaid_link is not None
+    assert isinstance(result.ui_extra, MermaidLinkUIExtra)
 
-    link = result.ui_extra.mermaid_link.link
+    link = result.ui_extra.link
     print(f"Mermaid link: {link}")
 
     payload = _decode_payload(link)
     assert payload["code"] == code
-    assert result.ui_extra.mermaid_link.line_count == 3
+    assert result.ui_extra.line_count == 3

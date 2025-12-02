@@ -368,11 +368,9 @@ def _render_diff_block(diff: str) -> str:
 
 
 def _get_diff_text(ui_extra: model.ToolResultUIExtra | None) -> str | None:
-    if ui_extra is None:
-        return None
-    if ui_extra.type != model.ToolResultUIExtraType.DIFF_TEXT:
-        return None
-    return ui_extra.diff_text
+    if isinstance(ui_extra, model.DiffTextUIExtra):
+        return ui_extra.diff_text
+    return None
 
 
 def _get_mermaid_link_html(
@@ -387,9 +385,7 @@ def _get_mermaid_link_html(
     else:
         code = ""
 
-    if not code and (
-        ui_extra is None or ui_extra.type != model.ToolResultUIExtraType.MERMAID_LINK or not ui_extra.mermaid_link
-    ):
+    if not code and not isinstance(ui_extra, model.MermaidLinkUIExtra):
         return None
 
     # Prepare code for rendering and copy
@@ -408,11 +404,7 @@ def _get_mermaid_link_html(
             f'<button type="button" class="copy-mermaid-btn" data-code="{escaped_code}" title="Copy Mermaid Code">Copy Code</button>'
         )
 
-    link = (
-        ui_extra.mermaid_link.link
-        if (ui_extra and ui_extra.type == model.ToolResultUIExtraType.MERMAID_LINK and ui_extra.mermaid_link)
-        else None
-    )
+    link = ui_extra.link if isinstance(ui_extra, model.MermaidLinkUIExtra) else None
 
     if link:
         link_url = _escape_html(link)

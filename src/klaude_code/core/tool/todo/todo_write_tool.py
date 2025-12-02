@@ -116,6 +116,6 @@ Your todo list has changed. DO NOT mention this explicitly to the user. Here are
         return model.ToolResultItem(
             status="success",
             output=response,
-            ui_extra=model.ToolResultUIExtra(type=model.ToolResultUIExtraType.TODO_LIST, todo_list=ui_extra),
+            ui_extra=model.TodoListUIExtra(todo_list=ui_extra),
             side_effects=[model.ToolSideEffect.TODO_CHANGE],
         )

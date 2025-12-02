@@ -49,10 +49,7 @@ class MermaidTool(ToolABC):
 
         link = cls._build_link(args.code)
         line_count = cls._count_lines(args.code)
-        ui_extra = model.ToolResultUIExtra(
-            type=model.ToolResultUIExtraType.MERMAID_LINK,
-            mermaid_link=model.MermaidLinkUIExtra(link=link, line_count=line_count),
-        )
+        ui_extra = model.MermaidLinkUIExtra(link=link, line_count=line_count)
         output = f"Mermaid diagram rendered successfully ({line_count} lines)."
         return model.ToolResultItem(status="success", output=output, ui_extra=ui_extra)
 

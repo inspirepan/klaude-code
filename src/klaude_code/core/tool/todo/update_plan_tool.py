@@ -99,6 +99,6 @@ class UpdatePlanTool(ToolABC):
         return model.ToolResultItem(
             status="success",
             output="Plan updated",
-            ui_extra=model.ToolResultUIExtra(type=model.ToolResultUIExtraType.TODO_LIST, todo_list=ui_extra),
+            ui_extra=model.TodoListUIExtra(todo_list=ui_extra),
             side_effects=[model.ToolSideEffect.TODO_CHANGE],
         )

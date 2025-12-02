@@ -212,7 +212,7 @@ class EditTool(ToolABC):
             )
         )
         diff_text = "\n".join(diff_lines)
-        ui_extra = model.ToolResultUIExtra(type=model.ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text)
+        ui_extra = model.DiffTextUIExtra(diff_text=diff_text)
 
         # Update tracker with new mtime
         if file_tracker is not None:

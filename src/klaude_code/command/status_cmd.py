@@ -145,13 +145,10 @@ class StatusCommand(CommandABC):
                 content=format_status_content(aggregated),
                 command_output=model.CommandOutput(
                     command_name=self.name,
-                    ui_extra=model.ToolResultUIExtra(
-                        type=model.ToolResultUIExtraType.SESSION_STATUS,
-                        session_status=model.SessionStatusUIExtra(
-                            usage=aggregated.total,
-                            task_count=aggregated.task_count,
-                            by_model=aggregated.by_model,
-                        ),
+                    ui_extra=model.SessionStatusUIExtra(
+                        usage=aggregated.total,
+                        task_count=aggregated.task_count,
+                        by_model=aggregated.by_model,
                     ),
                 ),
             ),

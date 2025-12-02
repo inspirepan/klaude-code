@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
@@ -69,44 +69,55 @@ class TodoUIExtra(BaseModel):
     new_completed: list[str]
 
 
-class ToolResultUIExtraType(str, Enum):
-    DIFF_TEXT = "diff_text"
-    TODO_LIST = "todo_list"
-    SESSION_ID = "session_id"
-    MERMAID_LINK = "mermaid_link"
-    TRUNCATION = "truncation"
-    SESSION_STATUS = "session_status"
-
-
 class ToolSideEffect(str, Enum):
     TODO_CHANGE = "todo_change"
 
 
+# Discriminated union types for ToolResultUIExtra
+class DiffTextUIExtra(BaseModel):
+    type: Literal["diff_text"] = "diff_text"
+    diff_text: str
+
+
+class TodoListUIExtra(BaseModel):
+    type: Literal["todo_list"] = "todo_list"
+    todo_list: TodoUIExtra
+
+
+class SessionIdUIExtra(BaseModel):
+    type: Literal["session_id"] = "session_id"
+    session_id: str
+
+
 class MermaidLinkUIExtra(BaseModel):
+    type: Literal["mermaid_link"] = "mermaid_link"
     link: str
     line_count: int
 
 
 class TruncationUIExtra(BaseModel):
+    type: Literal["truncation"] = "truncation"
     saved_file_path: str
     original_length: int
     truncated_length: int
 
 
 class SessionStatusUIExtra(BaseModel):
+    type: Literal["session_status"] = "session_status"
     usage: "Usage"
     task_count: int
     by_model: list["TaskMetadata"] = []
 
 
-class ToolResultUIExtra(BaseModel):
-    type: ToolResultUIExtraType
-    diff_text: str | None = None
-    todo_list: TodoUIExtra | None = None
-    session_id: str | None = None
-    mermaid_link: MermaidLinkUIExtra | None = None
-    truncation: TruncationUIExtra | None = None
-    session_status: SessionStatusUIExtra | None = None
+ToolResultUIExtra = Annotated[
+    DiffTextUIExtra
+    | TodoListUIExtra
+    | SessionIdUIExtra
+    | MermaidLinkUIExtra
+    | TruncationUIExtra
+    | SessionStatusUIExtra,
+    Field(discriminator="type"),
+]
 
 
 class AtPatternParseResult(BaseModel):

@@ -26,7 +26,7 @@ class ApplyPatchHandler:
         return model.ToolResultItem(
             status="success",
             output=output,
-            ui_extra=model.ToolResultUIExtra(type=model.ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text),
+            ui_extra=model.DiffTextUIExtra(diff_text=diff_text),
         )
 
     @staticmethod

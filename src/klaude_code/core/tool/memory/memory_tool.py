@@ -100,7 +100,7 @@ def _format_numbered_line(line_no: int, content: str) -> str:
     return f"{line_no:>6}|{content}"
 
 
-def _make_diff_ui_extra(before: str, after: str, path: str) -> model.ToolResultUIExtra:
+def _make_diff_ui_extra(before: str, after: str, path: str) -> model.DiffTextUIExtra:
     diff_lines = list(
         difflib.unified_diff(
             before.splitlines(),
@@ -111,7 +111,7 @@ def _make_diff_ui_extra(before: str, after: str, path: str) -> model.ToolResultU
         )
     )
     diff_text = "\n".join(diff_lines)
-    return model.ToolResultUIExtra(type=model.ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text)
+    return model.DiffTextUIExtra(diff_text=diff_text)
 
 
 @register(tools.MEMORY)

@@ -79,6 +79,6 @@ class SubAgentTool(ToolABC):
         return model.ToolResultItem(
             status="success" if not result.error else "error",
             output=result.task_result or "",
-            ui_extra=model.ToolResultUIExtra(type=model.ToolResultUIExtraType.SESSION_ID, session_id=result.session_id),
+            ui_extra=model.SessionIdUIExtra(session_id=result.session_id),
             task_metadata=result.task_metadata,
         )

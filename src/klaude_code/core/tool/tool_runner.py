@@ -34,13 +34,10 @@ async def run_tool(tool_call: model.ToolCallItem, registry: dict[str, type[ToolA
             truncation_result = truncate_tool_output(tool_result.output, tool_call)
             tool_result.output = truncation_result.output
             if truncation_result.was_truncated and truncation_result.saved_file_path:
-                tool_result.ui_extra = model.ToolResultUIExtra(
-                    type=model.ToolResultUIExtraType.TRUNCATION,
-                    truncation=model.TruncationUIExtra(
-                        saved_file_path=truncation_result.saved_file_path,
-                        original_length=truncation_result.original_length,
-                        truncated_length=truncation_result.truncated_length,
-                    ),
+                tool_result.ui_extra = model.TruncationUIExtra(
+                    saved_file_path=truncation_result.saved_file_path,
+                    original_length=truncation_result.original_length,
+                    truncated_length=truncation_result.truncated_length,
                 )
         return tool_result
     except asyncio.CancelledError:
@@ -244,7 +241,7 @@ class ToolExecutor:
         for side_effect in side_effects:
             if side_effect == model.ToolSideEffect.TODO_CHANGE:
                 todos: list[model.TodoItem] | None = None
-                if tool_result.ui_extra is not None and tool_result.ui_extra.todo_list is not None:
+                if isinstance(tool_result.ui_extra, model.TodoListUIExtra):
                     todos = tool_result.ui_extra.todo_list.todos
                 if todos is not None:
                     side_effect_events.append(ToolExecutionTodoChange(todos=todos))

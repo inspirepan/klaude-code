@@ -215,17 +215,11 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
 
 
 def render_todo(tr: events.ToolResultEvent) -> RenderableType:
-    if tr.ui_extra is None:
+    if not isinstance(tr.ui_extra, model.TodoListUIExtra):
         return Text.assemble(
             ("  ✘", ThemeKey.ERROR_BOLD),
             " ",
-            Text("(no content)", style=ThemeKey.ERROR),
-        )
-    if tr.ui_extra.type != model.ToolResultUIExtraType.TODO_LIST or tr.ui_extra.todo_list is None:
-        return Text.assemble(
-            ("  ✘", ThemeKey.ERROR_BOLD),
-            " ",
-            Text("(invalid ui_extra)", style=ThemeKey.ERROR),
+            Text("(no content)" if tr.ui_extra is None else "(invalid ui_extra)", style=ThemeKey.ERROR),
         )
 
     ui_extra = tr.ui_extra.todo_list
@@ -261,11 +255,9 @@ def render_generic_tool_result(result: str, *, is_error: bool = False) -> Render
 def _extract_mermaid_link(
     ui_extra: model.ToolResultUIExtra | None,
 ) -> model.MermaidLinkUIExtra | None:
-    if ui_extra is None:
-        return None
-    if ui_extra.type != model.ToolResultUIExtraType.MERMAID_LINK:
-        return None
-    return ui_extra.mermaid_link
+    if isinstance(ui_extra, model.MermaidLinkUIExtra):
+        return ui_extra
+    return None
 
 
 def render_memory_tool_call(arguments: str) -> RenderableType:
@@ -358,11 +350,9 @@ def render_mermaid_tool_result(tr: events.ToolResultEvent) -> RenderableType:
 def _extract_truncation(
     ui_extra: model.ToolResultUIExtra | None,
 ) -> model.TruncationUIExtra | None:
-    if ui_extra is None:
-        return None
-    if ui_extra.type != model.ToolResultUIExtraType.TRUNCATION:
-        return None
-    return ui_extra.truncation
+    if isinstance(ui_extra, model.TruncationUIExtra):
+        return ui_extra
+    return None
 
 
 def render_truncation_info(ui_extra: model.TruncationUIExtra) -> RenderableType:
@@ -474,9 +464,7 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
 
 
 def _extract_diff_text(ui_extra: model.ToolResultUIExtra | None) -> str | None:
-    if ui_extra is None:
-        return None
-    if ui_extra.type == model.ToolResultUIExtraType.DIFF_TEXT:
+    if isinstance(ui_extra, model.DiffTextUIExtra):
         return ui_extra.diff_text
     return None
 

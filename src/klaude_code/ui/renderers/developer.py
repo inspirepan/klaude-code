@@ -130,10 +130,10 @@ def _format_cost(cost: float | None, currency: str = "USD") -> str:
 
 def _render_status_output(command_output: model.CommandOutput) -> RenderableType:
     """Render session status with total cost and per-model breakdown."""
-    if not command_output.ui_extra or not command_output.ui_extra.session_status:
+    if not isinstance(command_output.ui_extra, model.SessionStatusUIExtra):
         return Text("(no status data)", style=ThemeKey.METADATA)
 
-    status = command_output.ui_extra.session_status
+    status = command_output.ui_extra
     usage = status.usage
 
     table = Table.grid(padding=(0, 2))

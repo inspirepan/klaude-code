@@ -140,7 +140,7 @@ class WriteTool(ToolABC):
             )
         )
         diff_text = "\n".join(diff_lines)
-        ui_extra = model.ToolResultUIExtra(type=model.ToolResultUIExtraType.DIFF_TEXT, diff_text=diff_text)
+        ui_extra = model.DiffTextUIExtra(diff_text=diff_text)
 
         message = f"File {'overwritten' if exists else 'created'} successfully at: {file_path}"
         return model.ToolResultItem(status="success", output=message, ui_extra=ui_extra)
