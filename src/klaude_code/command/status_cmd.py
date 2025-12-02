@@ -41,22 +41,27 @@ def accumulate_session_usage(session: Session) -> AggregatedUsage:
         if total.currency == "USD" and usage.currency:
             total.currency = usage.currency
 
+        # Accumulate primary token fields (total_tokens is computed)
         total.input_tokens += usage.input_tokens
         total.cached_tokens += usage.cached_tokens
         total.reasoning_tokens += usage.reasoning_tokens
         total.output_tokens += usage.output_tokens
-        total.total_tokens += usage.total_tokens
 
+        # Accumulate cost components (total_cost is computed)
         if usage.input_cost is not None:
             total.input_cost = (total.input_cost or 0.0) + usage.input_cost
         if usage.output_cost is not None:
             total.output_cost = (total.output_cost or 0.0) + usage.output_cost
         if usage.cache_read_cost is not None:
             total.cache_read_cost = (total.cache_read_cost or 0.0) + usage.cache_read_cost
-        if usage.total_cost is not None:
-            total.total_cost = (total.total_cost or 0.0) + usage.total_cost
-        if usage.context_usage_percent is not None:
-            total.context_usage_percent = usage.context_usage_percent
+
+        # Track peak context window size (max across all tasks)
+        if usage.context_window_size is not None:
+            total.context_window_size = usage.context_window_size
+
+        # Keep the latest context_limit for computed context_usage_percent
+        if usage.context_limit is not None:
+            total.context_limit = usage.context_limit
 
     return AggregatedUsage(total=total, by_model=by_model, task_count=task_count)
 

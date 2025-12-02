@@ -72,7 +72,7 @@ class SpinnerStatusState:
         self._tool_calls[tool_name] = self._tool_calls.get(tool_name, 0) + 1
 
     def clear_tool_calls(self) -> None:
-        """Clear tool calls and composing state."""
+        """Clear tool calls."""
         self._tool_calls = {}
 
     def clear_for_new_turn(self) -> None:

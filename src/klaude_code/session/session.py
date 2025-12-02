@@ -5,7 +5,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import ClassVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 from klaude_code.protocol import events, model
 
@@ -19,8 +19,6 @@ class Session(BaseModel):
     file_tracker: dict[str, float] = Field(default_factory=dict)
     # Todo list for the session
     todos: list[model.TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    # Messages count, redundant state for performance optimization to avoid reading entire jsonl file
-    messages_count: int = Field(default=0)
     # Model name used for this session
     # Used in list method SessionMetaBrief
     model_name: str | None = None
@@ -32,6 +30,27 @@ class Session(BaseModel):
     loaded_memory: list[str] = Field(default_factory=list)
     need_todo_empty_cooldown_counter: int = Field(exclude=True, default=0)
     need_todo_not_used_cooldown_counter: int = Field(exclude=True, default=0)
+
+    # Cached messages count (computed property)
+    _messages_count_cache: int | None = PrivateAttr(default=None)
+
+    @property
+    def messages_count(self) -> int:
+        """Count of user and assistant messages in conversation history.
+
+        This is a cached property that is invalidated when append_history is called.
+        """
+        if self._messages_count_cache is None:
+            self._messages_count_cache = sum(
+                1
+                for it in self.conversation_history
+                if isinstance(it, (model.UserMessageItem, model.AssistantMessageItem))
+            )
+        return self._messages_count_cache
+
+    def _invalidate_messages_count_cache(self) -> None:
+        """Invalidate the cached messages count."""
+        self._messages_count_cache = None
 
     # Internal: mapping for (de)serialization of conversation items
     _TypeMap: ClassVar[dict[str, type[BaseModel]]] = {
@@ -109,7 +128,6 @@ class Session(BaseModel):
         loaded_memory = list(raw.get("loaded_memory", []))
         created_at = float(raw.get("created_at", time.time()))
         updated_at = float(raw.get("updated_at", created_at))
-        messages_count = int(raw.get("messages_count", 0))
         model_name = raw.get("model_name")
 
         sess = Session(
@@ -121,7 +139,6 @@ class Session(BaseModel):
             loaded_memory=loaded_memory,
             created_at=created_at,
             updated_at=updated_at,
-            messages_count=messages_count,
             model_name=model_name,
         )
 
@@ -154,10 +171,7 @@ class Session(BaseModel):
                     # Best-effort load; skip malformed lines
                     continue
             sess.conversation_history = history
-            # Update messages count based on loaded history (only UserMessageItem and AssistantMessageItem)
-            sess.messages_count = sum(
-                1 for it in history if isinstance(it, (model.UserMessageItem, model.AssistantMessageItem))
-            )
+            # messages_count is now a computed property, no need to set it
 
         return sess
 
@@ -190,10 +204,8 @@ class Session(BaseModel):
     def append_history(self, items: Sequence[model.ConversationItem]):
         # Append to in-memory history
         self.conversation_history.extend(items)
-        # Update messages count (only UserMessageItem and AssistantMessageItem)
-        self.messages_count += sum(
-            1 for it in items if isinstance(it, (model.UserMessageItem, model.AssistantMessageItem))
-        )
+        # Invalidate messages count cache
+        self._invalidate_messages_count_cache()
 
         # Incrementally persist to JSONL under messages directory
         messages_dir = self._messages_dir()

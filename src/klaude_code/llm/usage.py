@@ -27,9 +27,6 @@ def calculate_cost(usage: model.Usage, cost_config: llm_param.Cost | None) -> No
     # Cache read cost
     usage.cache_read_cost = (usage.cached_tokens / 1_000_000) * cost_config.cache_read
 
-    # Total cost
-    usage.total_cost = usage.input_cost + usage.output_cost + usage.cache_read_cost
-
 
 class MetadataTracker:
     """Tracks timing and metadata for LLM responses."""
@@ -96,19 +93,19 @@ class MetadataTracker:
 
 
 def convert_usage(usage: openai.types.CompletionUsage, context_limit: int | None = None) -> model.Usage:
-    """Convert OpenAI CompletionUsage to internal Usage model."""
-    total_tokens = usage.total_tokens
-    context_usage_percent = (total_tokens / context_limit) * 100 if context_limit else None
+    """Convert OpenAI CompletionUsage to internal Usage model.
+
+    context_window_size is set to total_tokens from the API response,
+    representing the actual context window usage for this turn.
+    """
     return model.Usage(
         input_tokens=usage.prompt_tokens,
         cached_tokens=(usage.prompt_tokens_details.cached_tokens if usage.prompt_tokens_details else 0) or 0,
         reasoning_tokens=(usage.completion_tokens_details.reasoning_tokens if usage.completion_tokens_details else 0)
         or 0,
         output_tokens=usage.completion_tokens,
-        total_tokens=total_tokens,
-        context_usage_percent=context_usage_percent,
-        throughput_tps=None,
-        first_token_latency_ms=None,
+        context_window_size=usage.total_tokens,
+        context_limit=context_limit,
     )
 
 
@@ -118,17 +115,18 @@ def convert_anthropic_usage(
     cached_tokens: int,
     context_limit: int | None = None,
 ) -> model.Usage:
-    """Convert Anthropic usage data to internal Usage model."""
-    total_tokens = input_tokens + cached_tokens + output_tokens
-    context_usage_percent = (total_tokens / context_limit) * 100 if context_limit else None
+    """Convert Anthropic usage data to internal Usage model.
+
+    context_window_size is computed from input + cached + output tokens,
+    representing the actual context window usage for this turn.
+    """
+    context_window_size = input_tokens + cached_tokens + output_tokens
     return model.Usage(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         cached_tokens=cached_tokens,
-        total_tokens=total_tokens,
-        context_usage_percent=context_usage_percent,
-        throughput_tps=None,
-        first_token_latency_ms=None,
+        context_window_size=context_window_size,
+        context_limit=context_limit,
     )
 
 
@@ -140,15 +138,16 @@ def convert_responses_usage(
     total_tokens: int,
     context_limit: int | None = None,
 ) -> model.Usage:
-    """Convert OpenAI Responses API usage data to internal Usage model."""
-    context_usage_percent = (total_tokens / context_limit) * 100 if context_limit else None
+    """Convert OpenAI Responses API usage data to internal Usage model.
+
+    context_window_size is set to total_tokens from the API response,
+    representing the actual context window usage for this turn.
+    """
     return model.Usage(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         cached_tokens=cached_tokens,
         reasoning_tokens=reasoning_tokens,
-        total_tokens=total_tokens,
-        context_usage_percent=context_usage_percent,
-        throughput_tps=None,
-        first_token_latency_ms=None,
+        context_window_size=total_tokens,
+        context_limit=context_limit,
     )

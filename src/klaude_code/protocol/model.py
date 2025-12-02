@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 from klaude_code.protocol.commands import CommandName
 from klaude_code.protocol.tools import SubAgentType
@@ -12,14 +12,16 @@ TodoStatusType = Literal["pending", "in_progress", "completed"]
 
 
 class Usage(BaseModel):
-    # Token Usage
+    # Token Usage (primary state)
     input_tokens: int = 0
     cached_tokens: int = 0
     reasoning_tokens: int = 0
     output_tokens: int = 0
-    total_tokens: int = 0
 
-    context_usage_percent: float | None = None  # Context window
+    # Context window tracking
+    context_window_size: int | None = None  # Peak total_tokens seen (for context usage display)
+    context_limit: int | None = None  # Model's context limit
+
     throughput_tps: float | None = None
     first_token_latency_ms: float | None = None
 
@@ -27,8 +29,31 @@ class Usage(BaseModel):
     input_cost: float | None = None  # Cost for non-cached input tokens
     output_cost: float | None = None  # Cost for output tokens (including reasoning)
     cache_read_cost: float | None = None  # Cost for cached tokens
-    total_cost: float | None = None  # Total cost (input + output + cache_read)
     currency: str = "USD"  # Currency for cost display (USD or CNY)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def total_tokens(self) -> int:
+        """Total tokens computed from input + output tokens."""
+        return self.input_tokens + self.output_tokens
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def total_cost(self) -> float | None:
+        """Total cost computed from input + output + cache_read costs."""
+        costs = [self.input_cost, self.output_cost, self.cache_read_cost]
+        non_none = [c for c in costs if c is not None]
+        return sum(non_none) if non_none else None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def context_usage_percent(self) -> float | None:
+        """Context usage percentage computed from context_window_size / context_limit."""
+        if self.context_limit is None or self.context_limit <= 0:
+            return None
+        if self.context_window_size is None:
+            return None
+        return (self.context_window_size / self.context_limit) * 100
 
 
 class TodoItem(BaseModel):
@@ -282,6 +307,9 @@ class TaskMetadata(BaseModel):
         """Aggregate multiple TaskMetadata by (model_name, provider).
 
         Returns a list sorted by total_cost descending.
+
+        Note: total_tokens and total_cost are now computed fields,
+        so we only accumulate the primary state fields here.
         """
         aggregated: dict[tuple[str, str | None], TaskMetadata] = {}
 
@@ -303,22 +331,19 @@ class TaskMetadata(BaseModel):
             if agg.usage is None:
                 continue
 
-            # Accumulate tokens
+            # Accumulate primary token fields (total_tokens is computed)
             agg.usage.input_tokens += usage.input_tokens
             agg.usage.cached_tokens += usage.cached_tokens
             agg.usage.reasoning_tokens += usage.reasoning_tokens
             agg.usage.output_tokens += usage.output_tokens
-            agg.usage.total_tokens += usage.total_tokens
 
-            # Accumulate costs
+            # Accumulate cost components (total_cost is computed)
             if usage.input_cost is not None:
                 agg.usage.input_cost = (agg.usage.input_cost or 0.0) + usage.input_cost
             if usage.output_cost is not None:
                 agg.usage.output_cost = (agg.usage.output_cost or 0.0) + usage.output_cost
             if usage.cache_read_cost is not None:
                 agg.usage.cache_read_cost = (agg.usage.cache_read_cost or 0.0) + usage.cache_read_cost
-            if usage.total_cost is not None:
-                agg.usage.total_cost = (agg.usage.total_cost or 0.0) + usage.total_cost
 
         # Sort by total_cost descending
         return sorted(
