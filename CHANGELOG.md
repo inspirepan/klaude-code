@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.9] - 2025-12-02
+
+### Added
+
+- add italic variants for IBM Plex fonts (`12f9b8c`)
+- add aggregated usage statistics with per-model breakdown (`369673e`)
+- add experimental responses header to Codex API configuration (`b874fbe`)
+- add release notes viewer (`2ad2e43`)
+
+### Changed
+
+- use discriminated union for ToolResultUIExtra (`e144a0d`)
+- improve state management with encapsulated state classes (`b0aecb5`)
+- extract SessionContext for shared session state (`13ac7ca`)
+- convert derived state to computed fields (`0548428`)
+- replace ModelUsageStats with TaskMetadata aggregation (`1f50839`)
+
+### Fixed
+
+- truncate spinner status text to 30 chars preserving words (`7c31d8c`)
+- guard against redundant derived task metadata state (`6ec2213`)
+- sort keys in JSON output for consistent formatting (`157506f`)
 ## [1.2.8] - 2025-12-01
 
 ### Changed
@@ -330,7 +352,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.8...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.9...HEAD
+[1.2.9]: https://github.com/inspirepan/klaude-code/compare/v1.2.8...v1.2.9
 [1.2.8]: https://github.com/inspirepan/klaude-code/compare/v1.2.7...v1.2.8
 [1.2.7]: https://github.com/inspirepan/klaude-code/compare/v1.2.6...v1.2.7
 [1.2.6]: https://github.com/inspirepan/klaude-code/compare/v1.2.5...v1.2.6
