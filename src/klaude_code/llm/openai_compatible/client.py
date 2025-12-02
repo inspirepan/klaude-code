@@ -5,7 +5,6 @@ from typing import Literal, override
 import httpx
 import openai
 
-
 from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_compatible.input import convert_history_to_input, convert_tool_schema

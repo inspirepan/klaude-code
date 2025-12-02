@@ -204,7 +204,9 @@ def _render_metadata_item(item: model.ResponseMetadataItem) -> str:
 
     # Total cost
     if item.usage is not None and item.usage.total_cost is not None:
-        parts.append(f'<span class="metadata-stat">cost: {_format_cost(item.usage.total_cost, item.usage.currency)}</span>')
+        parts.append(
+            f'<span class="metadata-stat">cost: {_format_cost(item.usage.total_cost, item.usage.currency)}</span>'
+        )
 
     divider = '<span class="metadata-divider">/</span>'
     joined_html = divider.join(parts)

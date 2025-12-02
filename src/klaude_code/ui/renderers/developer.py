@@ -7,6 +7,7 @@ from klaude_code.protocol import commands, events, model
 from klaude_code.ui.renderers import diffs as r_diffs
 from klaude_code.ui.renderers.common import create_grid
 from klaude_code.ui.renderers.tools import render_path
+from klaude_code.ui.rich.markdown import NoInsetMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.utils.common import truncate_display
 
@@ -100,6 +101,8 @@ def render_command_output(e: events.DeveloperMessageEvent) -> RenderableType:
             return Padding.indent(Text.from_markup(e.item.content or ""), level=2)
         case commands.CommandName.STATUS:
             return _render_status_output(e.item.command_output)
+        case commands.CommandName.RELEASE_NOTES:
+            return Padding.indent(NoInsetMarkdown(e.item.content or ""), level=2)
         case _:
             content = e.item.content or "(no content)"
             style = ThemeKey.TOOL_RESULT if not e.item.command_output.is_error else ThemeKey.ERROR

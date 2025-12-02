@@ -19,12 +19,12 @@ def accumulate_session_usage(session: Session) -> tuple[model.Usage, int]:
         if isinstance(item, model.ResponseMetadataItem) and item.usage:
             task_count += 1
             usage = item.usage
-            
+
             # Set currency from first usage item
             if not first_currency_set and usage.currency:
                 total.currency = usage.currency
                 first_currency_set = True
-            
+
             total.input_tokens += usage.input_tokens
             total.cached_tokens += usage.cached_tokens
             total.reasoning_tokens += usage.reasoning_tokens

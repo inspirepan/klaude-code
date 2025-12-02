@@ -16,6 +16,7 @@ from .registry import (
     load_prompt_commands,
     register_command,
 )
+from .release_notes_cmd import ReleaseNotesCommand
 from .status_cmd import StatusCommand
 from .terminal_setup_cmd import TerminalSetupCommand
 
@@ -29,6 +30,7 @@ __all__ = [
     "ModelCommand",
     "ExportCommand",
     "RefreshTerminalCommand",
+    "ReleaseNotesCommand",
     "StatusCommand",
     "TerminalSetupCommand",
     "register_command",
