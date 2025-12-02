@@ -66,23 +66,10 @@ class TruncationUIExtra(BaseModel):
     truncated_length: int
 
 
-class ModelUsageStats(BaseModel):
-    """Usage statistics for a specific model+provider combination."""
-
-    model_name: str
-    provider: str | None
-    input_tokens: int = 0
-    output_tokens: int = 0
-    cached_tokens: int = 0
-    reasoning_tokens: int = 0
-    total_cost: float | None = None
-    currency: str = "USD"
-
-
 class SessionStatusUIExtra(BaseModel):
     usage: "Usage"
     task_count: int
-    by_model: list[ModelUsageStats] = []
+    by_model: list["TaskMetadata"] = []
 
 
 class ToolResultUIExtra(BaseModel):
@@ -289,6 +276,56 @@ class TaskMetadata(BaseModel):
     model_name: str = ""
     provider: str | None = None
     task_duration_s: float | None = None
+
+    @staticmethod
+    def aggregate_by_model(metadata_list: list["TaskMetadata"]) -> list["TaskMetadata"]:
+        """Aggregate multiple TaskMetadata by (model_name, provider).
+
+        Returns a list sorted by total_cost descending.
+        """
+        aggregated: dict[tuple[str, str | None], TaskMetadata] = {}
+
+        for meta in metadata_list:
+            if not meta.usage:
+                continue
+
+            key = (meta.model_name, meta.provider)
+            usage = meta.usage
+
+            if key not in aggregated:
+                aggregated[key] = TaskMetadata(
+                    model_name=meta.model_name,
+                    provider=meta.provider,
+                    usage=Usage(currency=usage.currency),
+                )
+
+            agg = aggregated[key]
+            if agg.usage is None:
+                continue
+
+            # Accumulate tokens
+            agg.usage.input_tokens += usage.input_tokens
+            agg.usage.cached_tokens += usage.cached_tokens
+            agg.usage.reasoning_tokens += usage.reasoning_tokens
+            agg.usage.output_tokens += usage.output_tokens
+            agg.usage.total_tokens += usage.total_tokens
+
+            # Accumulate costs
+            if usage.input_cost is not None:
+                agg.usage.input_cost = (agg.usage.input_cost or 0.0) + usage.input_cost
+            if usage.output_cost is not None:
+                agg.usage.output_cost = (agg.usage.output_cost or 0.0) + usage.output_cost
+            if usage.cache_read_cost is not None:
+                agg.usage.cache_read_cost = (agg.usage.cache_read_cost or 0.0) + usage.cache_read_cost
+            if usage.total_cost is not None:
+                agg.usage.total_cost = (agg.usage.total_cost or 0.0) + usage.total_cost
+
+        # Sort by total_cost descending
+        return sorted(
+            aggregated.values(),
+            key=lambda m: m.usage.total_cost if m.usage and m.usage.total_cost else 0.0,
+            reverse=True,
+        )
 
 
 class TaskMetadataItem(BaseModel):

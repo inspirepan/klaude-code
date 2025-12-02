@@ -149,18 +149,21 @@ def _render_status_output(command_output: model.CommandOutput) -> RenderableType
     # Per-model breakdown
     if status.by_model:
         table.add_row(Text("Usage by model:", style=ThemeKey.METADATA_BOLD), "")
-        for stats in status.by_model:
-            model_label = stats.model_name
-            if stats.provider:
-                model_label = f"{stats.model_name} ({stats.provider.lower().replace(' ', '-')})"
+        for meta in status.by_model:
+            model_label = meta.model_name
+            if meta.provider:
+                model_label = f"{meta.model_name} ({meta.provider.lower().replace(' ', '-')})"
 
-            usage_detail = (
-                f"{_format_tokens(stats.input_tokens)} input, "
-                f"{_format_tokens(stats.output_tokens)} output, "
-                f"{_format_tokens(stats.cached_tokens)} cache read, "
-                f"{_format_tokens(stats.reasoning_tokens)} thinking, "
-                f"({_format_cost(stats.total_cost, stats.currency)})"
-            )
+            if meta.usage:
+                usage_detail = (
+                    f"{_format_tokens(meta.usage.input_tokens)} input, "
+                    f"{_format_tokens(meta.usage.output_tokens)} output, "
+                    f"{_format_tokens(meta.usage.cached_tokens)} cache read, "
+                    f"{_format_tokens(meta.usage.reasoning_tokens)} thinking, "
+                    f"({_format_cost(meta.usage.total_cost, meta.usage.currency)})"
+                )
+            else:
+                usage_detail = "(no usage data)"
             table.add_row(f"{model_label}:", usage_detail)
 
     return Padding.indent(table, level=2)

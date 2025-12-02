@@ -25,14 +25,14 @@ def _render_task_metadata_block(
     metadata: model.TaskMetadata,
     *,
     indent: int = 0,
-    show_context: bool = True,
+    show_context_and_time: bool = True,
 ) -> list[RenderableType]:
     """Render a single TaskMetadata block.
 
     Args:
         metadata: The TaskMetadata to render.
         indent: Number of spaces to indent (0 for main, 2 for sub-agents).
-        show_context: Whether to show context usage percent.
+        show_context_and_time: Whether to show context usage percent and time.
 
     Returns:
         List of renderables for this metadata block.
@@ -108,7 +108,7 @@ def _render_task_metadata_block(
     parts3: list[Text] = []
     if metadata.usage is not None:
         # Context (only for main agent)
-        if show_context and metadata.usage.context_usage_percent is not None:
+        if show_context_and_time and metadata.usage.context_usage_percent is not None:
             parts3.append(
                 Text.assemble(
                     ("context", ThemeKey.METADATA_DIM),
@@ -131,7 +131,7 @@ def _render_task_metadata_block(
             )
 
     # Duration
-    if metadata.task_duration_s is not None:
+    if show_context_and_time and metadata.task_duration_s is not None:
         parts3.append(
             Text.assemble(
                 ("time", ThemeKey.METADATA_DIM),
@@ -157,15 +157,17 @@ def _render_task_metadata_block(
 
 
 def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
-    """Render task metadata including main agent and sub-agents."""
+    """Render task metadata including main agent and sub-agents, aggregated by model+provider."""
     renderables: list[RenderableType] = []
 
-    # Render main agent metadata
-    renderables.extend(_render_task_metadata_block(e.metadata.main, indent=0, show_context=True))
+    renderables.extend(_render_task_metadata_block(e.metadata.main, indent=0, show_context_and_time=True))
 
-    # Render sub-agent metadata with 2-space indent
-    for sub_metadata in e.metadata.sub_agent_task_metadata:
-        renderables.extend(_render_task_metadata_block(sub_metadata, indent=2, show_context=False))
+    # Aggregate by (model_name, provider), sorted by total_cost descending
+    sorted_items = model.TaskMetadata.aggregate_by_model(e.metadata.sub_agent_task_metadata)
+
+    # Render each aggregated model block
+    for meta in sorted_items:
+        renderables.extend(_render_task_metadata_block(meta, indent=2, show_context_and_time=False))
 
     return Group(*renderables)
 
