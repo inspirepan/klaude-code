@@ -95,16 +95,26 @@ class MetadataAccumulator:
 
 
 @dataclass
+class SessionContext:
+    """Shared session-level context for task and turn execution.
+
+    Contains common fields that both TaskExecutionContext and TurnExecutionContext need.
+    """
+
+    session_id: str
+    get_conversation_history: Callable[[], list[model.ConversationItem]]
+    append_history: Callable[[Sequence[model.ConversationItem]], None]
+    file_tracker: MutableMapping[str, float]
+    todo_context: TodoContext
+
+
+@dataclass
 class TaskExecutionContext:
     """Execution context required to run a task."""
 
-    session_id: str
+    session_ctx: SessionContext
     profile: AgentProfile
-    get_conversation_history: Callable[[], list[model.ConversationItem]]
-    append_history: Callable[[Sequence[model.ConversationItem]], None]
     tool_registry: dict[str, type[ToolABC]]
-    file_tracker: MutableMapping[str, float]
-    todo_context: TodoContext
     # For reminder processing - needs access to session
     process_reminder: Callable[[Reminder], AsyncGenerator[events.DeveloperMessageEvent, None]]
     sub_agent_state: model.SubAgentState | None
@@ -136,14 +146,15 @@ class TaskExecutor:
     async def run(self, user_input: model.UserInputPayload) -> AsyncGenerator[events.Event, None]:
         """Execute the task, yielding events as they occur."""
         ctx = self._context
+        session_ctx = ctx.session_ctx
         self._started_at = time.perf_counter()
 
         yield events.TaskStartEvent(
-            session_id=ctx.session_id,
+            session_id=session_ctx.session_id,
             sub_agent_state=ctx.sub_agent_state,
         )
 
-        ctx.append_history([model.UserMessageItem(content=user_input.text, images=user_input.images)])
+        session_ctx.append_history([model.UserMessageItem(content=user_input.text, images=user_input.images)])
 
         profile = ctx.profile
         metadata_accumulator = MetadataAccumulator(model_name=profile.llm_client.model_name)
@@ -155,15 +166,11 @@ class TaskExecutor:
                     yield event
 
             turn_context = TurnExecutionContext(
-                session_id=ctx.session_id,
-                get_conversation_history=ctx.get_conversation_history,
-                append_history=ctx.append_history,
+                session_ctx=session_ctx,
                 llm_client=profile.llm_client,
                 system_prompt=profile.system_prompt,
                 tools=profile.tools,
                 tool_registry=ctx.tool_registry,
-                file_tracker=ctx.file_tracker,
-                todo_context=ctx.todo_context,
             )
 
             turn: TurnExecutor | None = None
@@ -222,11 +229,11 @@ class TaskExecutor:
         task_duration_s = time.perf_counter() - self._started_at
         accumulated = metadata_accumulator.finalize(task_duration_s)
 
-        yield events.TaskMetadataEvent(metadata=accumulated, session_id=ctx.session_id)
-        ctx.append_history([accumulated])
+        yield events.TaskMetadataEvent(metadata=accumulated, session_id=session_ctx.session_id)
+        session_ctx.append_history([accumulated])
         yield events.TaskFinishEvent(
-            session_id=ctx.session_id,
-            task_result=_get_last_assistant_message(ctx.get_conversation_history()) or "",
+            session_id=session_ctx.session_id,
+            task_result=_get_last_assistant_message(session_ctx.get_conversation_history()) or "",
         )
 
 

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, Callable, MutableMapping, Sequence
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from klaude_code.core.tool import TodoContext, ToolABC, tool_context
+from klaude_code.core.tool import ToolABC, tool_context
+
+if TYPE_CHECKING:
+    from klaude_code.core.task import SessionContext
+
 from klaude_code.core.tool.tool_runner import (
     ToolExecutionCallStarted,
     ToolExecutionResult,
@@ -26,16 +31,11 @@ class TurnError(Exception):
 class TurnExecutionContext:
     """Execution context required to run a single turn."""
 
-    session_id: str
-    get_conversation_history: Callable[[], list[model.ConversationItem]]
-    append_history: Callable[[Sequence[model.ConversationItem]], None]
+    session_ctx: SessionContext
     llm_client: LLMClientABC
     system_prompt: str | None
     tools: list[llm_param.ToolSchema]
     tool_registry: dict[str, type[ToolABC]]
-    # For tool context
-    file_tracker: MutableMapping[str, float]
-    todo_context: TodoContext
 
 
 @dataclass
@@ -109,7 +109,7 @@ class TurnExecutor:
         ui_events: list[events.Event] = []
         if self._tool_executor is not None:
             for exec_event in self._tool_executor.cancel():
-                for ui_event in build_events_from_tool_executor_event(self._context.session_id, exec_event):
+                for ui_event in build_events_from_tool_executor_event(self._context.session_ctx.session_id, exec_event):
                     ui_events.append(ui_event)
             self._tool_executor = None
         return ui_events
@@ -121,8 +121,9 @@ class TurnExecutor:
             TurnError: If the turn fails (stream error or non-completed status).
         """
         ctx = self._context
+        session_ctx = ctx.session_ctx
 
-        yield events.TurnStartEvent(session_id=ctx.session_id)
+        yield events.TurnStartEvent(session_id=session_ctx.session_id)
 
         self._turn_result = TurnResult(
             reasoning_items=[],
@@ -135,8 +136,8 @@ class TurnExecutor:
             yield event
 
         if self._turn_result.stream_error is not None:
-            ctx.append_history([self._turn_result.stream_error])
-            yield events.TurnEndEvent(session_id=ctx.session_id)
+            session_ctx.append_history([self._turn_result.stream_error])
+            yield events.TurnEndEvent(session_id=session_ctx.session_id)
             raise TurnError(self._turn_result.stream_error.error)
 
         self._append_success_history(self._turn_result)
@@ -145,19 +146,20 @@ class TurnExecutor:
             async for ui_event in self._run_tool_executor(self._turn_result.tool_calls):
                 yield ui_event
 
-        yield events.TurnEndEvent(session_id=ctx.session_id)
+        yield events.TurnEndEvent(session_id=session_ctx.session_id)
 
     async def _consume_llm_stream(self, turn_result: TurnResult) -> AsyncGenerator[events.Event, None]:
         """Stream events from LLM and update turn_result in place."""
 
         ctx = self._context
+        session_ctx = ctx.session_ctx
         async for response_item in ctx.llm_client.call(
             llm_param.LLMCallParameter(
-                input=ctx.get_conversation_history(),
+                input=session_ctx.get_conversation_history(),
                 system=ctx.system_prompt,
                 tools=ctx.tools,
                 store=False,
-                session_id=ctx.session_id,
+                session_id=session_ctx.session_id,
             )
         ):
             log_debug(
@@ -174,7 +176,7 @@ class TurnExecutor:
                     yield events.ThinkingEvent(
                         content=item.content,
                         response_id=item.response_id,
-                        session_id=ctx.session_id,
+                        session_id=session_ctx.session_id,
                     )
                 case model.ReasoningEncryptedItem() as item:
                     turn_result.reasoning_items.append(item)
@@ -182,18 +184,18 @@ class TurnExecutor:
                     yield events.AssistantMessageDeltaEvent(
                         content=item.content,
                         response_id=item.response_id,
-                        session_id=ctx.session_id,
+                        session_id=session_ctx.session_id,
                     )
                 case model.AssistantMessageItem() as item:
                     turn_result.assistant_message = item
                     yield events.AssistantMessageEvent(
                         content=item.content or "",
                         response_id=item.response_id,
-                        session_id=ctx.session_id,
+                        session_id=session_ctx.session_id,
                     )
                 case model.ResponseMetadataItem() as item:
                     yield events.ResponseMetadataEvent(
-                        session_id=ctx.session_id,
+                        session_id=session_ctx.session_id,
                         metadata=item,
                     )
                 case model.StreamErrorItem() as item:
@@ -206,7 +208,7 @@ class TurnExecutor:
                     )
                 case model.ToolCallStartItem() as item:
                     yield events.TurnToolCallStartEvent(
-                        session_id=ctx.session_id,
+                        session_id=session_ctx.session_id,
                         response_id=item.response_id,
                         tool_call_id=item.call_id,
                         tool_name=item.name,
@@ -219,27 +221,28 @@ class TurnExecutor:
 
     def _append_success_history(self, turn_result: TurnResult) -> None:
         """Persist successful turn artifacts to conversation history."""
-        ctx = self._context
+        session_ctx = self._context.session_ctx
         if turn_result.reasoning_items:
-            ctx.append_history(turn_result.reasoning_items)
+            session_ctx.append_history(turn_result.reasoning_items)
         if turn_result.assistant_message:
-            ctx.append_history([turn_result.assistant_message])
+            session_ctx.append_history([turn_result.assistant_message])
         if turn_result.tool_calls:
-            ctx.append_history(turn_result.tool_calls)
+            session_ctx.append_history(turn_result.tool_calls)
 
     async def _run_tool_executor(self, tool_calls: list[model.ToolCallItem]) -> AsyncGenerator[events.Event, None]:
         """Run tools for the turn and translate executor events to UI events."""
 
         ctx = self._context
-        with tool_context(ctx.file_tracker, ctx.todo_context):
+        session_ctx = ctx.session_ctx
+        with tool_context(session_ctx.file_tracker, session_ctx.todo_context):
             executor = ToolExecutor(
                 registry=ctx.tool_registry,
-                append_history=ctx.append_history,
+                append_history=session_ctx.append_history,
             )
             self._tool_executor = executor
             try:
                 async for exec_event in executor.run_tools(tool_calls):
-                    for ui_event in build_events_from_tool_executor_event(ctx.session_id, exec_event):
+                    for ui_event in build_events_from_tool_executor_event(session_ctx.session_id, exec_event):
                         yield ui_event
             finally:
                 self._tool_executor = None

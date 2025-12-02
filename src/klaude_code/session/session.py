@@ -199,7 +199,7 @@ class Session(BaseModel):
             "messages_count": self.messages_count,
             "model_name": self.model_name,
         }
-        self._session_file().write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+        self._session_file().write_text(json.dumps(payload, ensure_ascii=False, indent=2))
 
     def append_history(self, items: Sequence[model.ConversationItem]):
         # Append to in-memory history
@@ -217,7 +217,7 @@ class Session(BaseModel):
                 # Serialize with explicit type tag for reliable load
                 t = it.__class__.__name__
                 data = it.model_dump(mode="json")
-                f.write(json.dumps({"type": t, "data": data}, ensure_ascii=False, sort_keys=True))
+                f.write(json.dumps({"type": t, "data": data}, ensure_ascii=False))
                 f.write("\n")
         # Refresh metadata timestamp after history change
         self.save()

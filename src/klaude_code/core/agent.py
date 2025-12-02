@@ -6,7 +6,7 @@ from typing import Protocol
 
 from klaude_code.core.prompt import get_system_prompt as load_system_prompt
 from klaude_code.core.reminders import Reminder, load_agent_reminders
-from klaude_code.core.task import TaskExecutionContext, TaskExecutor
+from klaude_code.core.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.core.tool import build_todo_context, get_registry, load_agent_tools
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import events, llm_param, model, tools
@@ -105,14 +105,17 @@ class Agent:
         )
 
     async def run_task(self, user_input: UserInputPayload) -> AsyncGenerator[events.Event, None]:
-        context = TaskExecutionContext(
+        session_ctx = SessionContext(
             session_id=self.session.id,
-            profile=self.profile,
             get_conversation_history=lambda: self.session.conversation_history,
             append_history=self.session.append_history,
-            tool_registry=get_registry(),
             file_tracker=self.session.file_tracker,
             todo_context=build_todo_context(self.session),
+        )
+        context = TaskExecutionContext(
+            session_ctx=session_ctx,
+            profile=self.profile,
+            tool_registry=get_registry(),
             process_reminder=self._process_reminder,
             sub_agent_state=self.session.sub_agent_state,
         )
