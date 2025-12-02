@@ -50,7 +50,7 @@ class OpenAICompatibleClient(LLMClientABC):
         metadata_tracker = MetadataTracker(cost_config=self._config.cost)
 
         extra_body = {}
-        extra_headers = {"extra": json.dumps({"session_id": param.session_id})}
+        extra_headers = {"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)}
 
         if param.thinking:
             extra_body["thinking"] = {

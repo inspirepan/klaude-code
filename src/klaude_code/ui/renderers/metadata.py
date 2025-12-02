@@ -101,6 +101,15 @@ def _render_task_metadata_block(
                 )
             )
 
+    # Cost
+    if metadata.usage is not None and metadata.usage.total_cost is not None:
+        parts2.append(
+            Text.assemble(
+                ("cost", ThemeKey.METADATA_DIM),
+                (":", ThemeKey.METADATA_DIM),
+                (f"{currency_symbol}{metadata.usage.total_cost:.4f}", ThemeKey.METADATA_DIM),
+            )
+        )
     if parts2:
         line2 = Text(" / ", style=ThemeKey.METADATA_DIM).join(parts2)
         renderables.append(Padding(line2, (0, 0, 0, indent + 2)))
@@ -140,15 +149,6 @@ def _render_task_metadata_block(
             )
         )
 
-    # Cost
-    if metadata.usage is not None and metadata.usage.total_cost is not None:
-        parts3.append(
-            Text.assemble(
-                ("cost", ThemeKey.METADATA_DIM),
-                (":", ThemeKey.METADATA_DIM),
-                (f"{currency_symbol}{metadata.usage.total_cost:.4f}", ThemeKey.METADATA_DIM),
-            )
-        )
     if parts3:
         line2 = Text(" / ", style=ThemeKey.METADATA_DIM).join(parts3)
         renderables.append(Padding(line2, (0, 0, 0, indent + 2)))

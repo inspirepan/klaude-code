@@ -42,7 +42,7 @@ def call_with_logged_payload(func: Callable[P, R], *args: P.args, **kwargs: P.kw
 
     payload = {k: v for k, v in kwargs.items() if v is not None}
     log_debug(
-        json.dumps(payload, ensure_ascii=False, default=str),
+        json.dumps(payload, ensure_ascii=False, default=str, sort_keys=True),
         style="yellow",
         debug_type=DebugType.LLM_PAYLOAD,
     )

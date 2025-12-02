@@ -224,7 +224,7 @@ class ResponsesClient(LLMClientABC):
                 }
                 if param.thinking and param.thinking.reasoning_effort
                 else None,
-                extra_headers={"extra": json.dumps({"session_id": param.session_id})},
+                extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
             yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")

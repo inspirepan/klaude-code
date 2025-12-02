@@ -77,7 +77,7 @@ class AnthropicClient(LLMClientABC):
             else anthropic.types.ThinkingConfigDisabledParam(
                 type="disabled",
             ),
-            extra_headers={"extra": json.dumps({"session_id": param.session_id})},
+            extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
         )
 
         accumulated_thinking: list[str] = []
