@@ -7,9 +7,9 @@
 # pyright: reportGeneralTypeIssues=false
 
 from openai.types import chat
-from openai.types.chat import ChatCompletionContentPartParam
 
-from klaude_code.llm.input_common import AssistantGroup, ToolGroup, UserGroup, merge_reminder_text, parse_message_groups
+from klaude_code.llm.input_common import AssistantGroup, ToolGroup, UserGroup, parse_message_groups
+from klaude_code.llm.openai_compatible.input import tool_group_to_openai_message, user_group_to_openai_message
 from klaude_code.protocol import model
 
 
@@ -23,29 +23,6 @@ def is_gemini_model(model_name: str | None) -> bool:
     """Return True if the model name represents a Google Gemini model."""
 
     return model_name is not None and model_name.startswith("google/gemini")
-
-
-def _user_group_to_message(group: UserGroup) -> chat.ChatCompletionMessageParam:
-    parts: list[ChatCompletionContentPartParam] = []
-    for text in group.text_parts:
-        parts.append({"type": "text", "text": text + "\n"})
-    for image in group.images:
-        parts.append({"type": "image_url", "image_url": {"url": image.image_url.url}})
-    if not parts:
-        parts.append({"type": "text", "text": ""})
-    return {"role": "user", "content": parts}
-
-
-def _tool_group_to_message(group: ToolGroup) -> chat.ChatCompletionMessageParam:
-    merged_text = merge_reminder_text(
-        group.tool_result.output or "<system-reminder>Tool ran without output or errors</system-reminder>",
-        group.reminder_texts,
-    )
-    return {
-        "role": "tool",
-        "content": [{"type": "text", "text": merged_text}],
-        "tool_call_id": group.tool_result.call_id,
-    }
 
 
 def _assistant_group_to_message(group: AssistantGroup, model_name: str | None) -> chat.ChatCompletionMessageParam:
@@ -150,9 +127,9 @@ def convert_history_to_input(
     for group in parse_message_groups(history):
         match group:
             case UserGroup():
-                messages.append(_user_group_to_message(group))
+                messages.append(user_group_to_openai_message(group))
             case ToolGroup():
-                messages.append(_tool_group_to_message(group))
+                messages.append(tool_group_to_openai_message(group))
             case AssistantGroup():
                 messages.append(_assistant_group_to_message(group, model_name))
 

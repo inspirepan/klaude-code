@@ -7,7 +7,7 @@ from typing import Protocol
 from klaude_code.core.prompt import get_system_prompt as load_system_prompt
 from klaude_code.core.reminders import Reminder, load_agent_reminders
 from klaude_code.core.task import TaskExecutionContext, TaskExecutor
-from klaude_code.core.tool import TodoContext, get_registry, load_agent_tools
+from klaude_code.core.tool import build_todo_context, get_registry, load_agent_tools
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import events, llm_param, model, tools
 from klaude_code.protocol.model import UserInputPayload
@@ -76,11 +76,10 @@ class Agent:
         profile: AgentProfile,
     ):
         self.session: Session = session
-        self.profile: AgentProfile | None = None
-        # Active task executor, if any
+        self.profile: AgentProfile = profile
         self._current_task: TaskExecutor | None = None
-        # Ensure runtime configuration matches the active model on initialization
-        self.set_model_profile(profile)
+        if not self.session.model_name:
+            self.session.model_name = profile.llm_client.model_name
 
     def cancel(self) -> Iterable[events.Event]:
         """Handle agent cancellation and persist an interrupt marker and tool cancellations.
@@ -108,15 +107,12 @@ class Agent:
     async def run_task(self, user_input: UserInputPayload) -> AsyncGenerator[events.Event, None]:
         context = TaskExecutionContext(
             session_id=self.session.id,
-            profile=self._require_profile(),
+            profile=self.profile,
             get_conversation_history=lambda: self.session.conversation_history,
             append_history=self.session.append_history,
             tool_registry=get_registry(),
             file_tracker=self.session.file_tracker,
-            todo_context=TodoContext(
-                get_todos=lambda: self.session.todos,
-                set_todos=lambda todos: setattr(self.session, "todos", todos),
-            ),
+            todo_context=build_todo_context(self.session),
             process_reminder=self._process_reminder,
             sub_agent_state=self.session.sub_agent_state,
         )
@@ -157,9 +153,4 @@ class Agent:
             self.session.model_name = profile.llm_client.model_name
 
     def get_llm_client(self) -> LLMClientABC:
-        return self._require_profile().llm_client
-
-    def _require_profile(self) -> AgentProfile:
-        if self.profile is None:
-            raise RuntimeError("Agent profile is not initialized")
-        return self.profile
+        return self.profile.llm_client

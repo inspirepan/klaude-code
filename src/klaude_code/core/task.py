@@ -149,7 +149,6 @@ class TaskExecutor:
 
         profile = ctx.profile
         metadata_accumulator = MetadataAccumulator(model_name=profile.llm_client.model_name)
-        last_assistant_message: events.AssistantMessageEvent | None = None
 
         while True:
             # Process reminders at the start of each turn
@@ -181,8 +180,6 @@ class TaskExecutor:
                     async for turn_event in turn.run():
                         match turn_event:
                             case events.AssistantMessageEvent() as am:
-                                if am.content.strip() != "":
-                                    last_assistant_message = am
                                 yield am
                             case events.ResponseMetadataEvent() as e:
                                 metadata_accumulator.add(e.metadata)
@@ -231,8 +228,17 @@ class TaskExecutor:
         ctx.append_history([accumulated])
         yield events.TaskFinishEvent(
             session_id=ctx.session_id,
-            task_result=last_assistant_message.content if last_assistant_message else "",
+            task_result=_get_last_assistant_message(ctx.get_conversation_history()) or "",
         )
+
+
+def _get_last_assistant_message(history: list[model.ConversationItem]) -> str | None:
+    """Return the content of the most recent assistant message in history."""
+
+    for item in reversed(history):
+        if isinstance(item, model.AssistantMessageItem):
+            return item.content or ""
+    return None
 
 
 def _retry_delay_seconds(attempt: int) -> float:

@@ -1,5 +1,5 @@
 from collections.abc import AsyncGenerator
-from typing import Literal, override
+from typing import override
 
 import httpx
 import openai
@@ -7,7 +7,7 @@ import openai
 from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_compatible.input import convert_tool_schema
-from klaude_code.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
+from klaude_code.llm.openai_compatible.stream_processor import StreamStateManager
 from klaude_code.llm.openrouter.input import convert_history_to_input, is_claude_model
 from klaude_code.llm.openrouter.reasoning_handler import ReasoningDetail, ReasoningStreamHandler
 from klaude_code.llm.registry import register
@@ -77,36 +77,14 @@ class OpenRouterClient(LLMClientABC):
             extra_headers=extra_headers,  # pyright: ignore[reportUnknownArgumentType]
         )
 
-        stage: Literal["waiting", "reasoning", "assistant", "tool", "done"] = "waiting"
-        response_id: str | None = None
-        accumulated_content: list[str] = []
-        accumulated_tool_calls: ToolCallAccumulatorABC = BasicToolCallAccumulator()
-        emitted_tool_start_indices: set[int] = set()
         reasoning_handler = ReasoningStreamHandler(
             param_model=str(param.model),
-            response_id=response_id,
+            response_id=None,
         )
-
-        def flush_reasoning_items() -> list[model.ConversationItem]:
-            return reasoning_handler.flush()
-
-        def flush_assistant_items() -> list[model.ConversationItem]:
-            nonlocal accumulated_content
-            if len(accumulated_content) == 0:
-                return []
-            item = model.AssistantMessageItem(
-                content="".join(accumulated_content),
-                response_id=response_id,
-            )
-            accumulated_content = []
-            return [item]
-
-        def flush_tool_call_items() -> list[model.ToolCallItem]:
-            nonlocal accumulated_tool_calls
-            items: list[model.ToolCallItem] = accumulated_tool_calls.get()
-            if items:
-                accumulated_tool_calls.chunks_by_step = []  # pyright: ignore[reportAttributeAccessIssue]
-            return items
+        state = StreamStateManager(
+            param_model=str(param.model),
+            reasoning_flusher=reasoning_handler.flush,
+        )
 
         try:
             async for event in await stream:
@@ -115,11 +93,10 @@ class OpenRouterClient(LLMClientABC):
                     style="blue",
                     debug_type=DebugType.LLM_STREAM,
                 )
-                if not response_id and event.id:
-                    response_id = event.id
-                    reasoning_handler.set_response_id(response_id)
-                    accumulated_tool_calls.response_id = response_id
-                    yield model.StartItem(response_id=response_id)
+                if not state.response_id and event.id:
+                    state.set_response_id(event.id)
+                    reasoning_handler.set_response_id(event.id)
+                    yield model.StartItem(response_id=event.id)
                 if (
                     event.usage is not None and event.usage.completion_tokens is not None  # pyright: ignore[reportUnnecessaryComparison]
                 ):  # gcp gemini will return None usage field
@@ -140,7 +117,7 @@ class OpenRouterClient(LLMClientABC):
                         try:
                             reasoning_detail = ReasoningDetail.model_validate(item)
                             metadata_tracker.record_token()
-                            stage = "reasoning"
+                            state.stage = "reasoning"
                             for conversation_item in reasoning_handler.on_detail(reasoning_detail):
                                 yield conversation_item
                         except Exception as e:
@@ -148,53 +125,46 @@ class OpenRouterClient(LLMClientABC):
 
                 # Assistant
                 if delta.content and (
-                    stage == "assistant" or delta.content.strip()
+                    state.stage == "assistant" or delta.content.strip()
                 ):  # Process all content in assistant stage, filter empty content in reasoning stage
                     metadata_tracker.record_token()
-                    if stage == "reasoning":
-                        for item in flush_reasoning_items():
+                    if state.stage == "reasoning":
+                        for item in state.flush_reasoning():
                             yield item
-                    stage = "assistant"
-                    accumulated_content.append(delta.content)
+                    state.stage = "assistant"
+                    state.accumulated_content.append(delta.content)
                     yield model.AssistantMessageDelta(
                         content=delta.content,
-                        response_id=response_id,
+                        response_id=state.response_id,
                     )
 
                 # Tool
                 if delta.tool_calls and len(delta.tool_calls) > 0:
                     metadata_tracker.record_token()
-                    if stage == "reasoning":
-                        for item in flush_reasoning_items():
+                    if state.stage == "reasoning":
+                        for item in state.flush_reasoning():
                             yield item
-                    elif stage == "assistant":
-                        for item in flush_assistant_items():
+                    elif state.stage == "assistant":
+                        for item in state.flush_assistant():
                             yield item
-                    stage = "tool"
+                    state.stage = "tool"
                     # Emit ToolCallStartItem for new tool calls
                     for tc in delta.tool_calls:
-                        if tc.index not in emitted_tool_start_indices and tc.function and tc.function.name:
-                            emitted_tool_start_indices.add(tc.index)
+                        if tc.index not in state.emitted_tool_start_indices and tc.function and tc.function.name:
+                            state.emitted_tool_start_indices.add(tc.index)
                             yield model.ToolCallStartItem(
-                                response_id=response_id,
+                                response_id=state.response_id,
                                 call_id=tc.id or "",
                                 name=tc.function.name,
                             )
-                    accumulated_tool_calls.add(delta.tool_calls)
+                    state.accumulated_tool_calls.add(delta.tool_calls)
 
         except (openai.OpenAIError, httpx.HTTPError) as e:
             yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
 
         # Finalize
-        for item in flush_reasoning_items():
+        for item in state.flush_all():
             yield item
 
-        for item in flush_assistant_items():
-            yield item
-
-        if stage == "tool":
-            for tool_call_item in flush_tool_call_items():
-                yield tool_call_item
-
-        metadata_tracker.set_response_id(response_id)
+        metadata_tracker.set_response_id(state.response_id)
         yield metadata_tracker.finalize()

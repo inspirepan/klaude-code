@@ -23,6 +23,19 @@ class TodoContext:
 
 
 @dataclass
+class SessionTodoStore:
+    """Adapter exposing session todos through an explicit interface."""
+
+    session: Session
+
+    def get(self) -> list[model.TodoItem]:
+        return self.session.todos
+
+    def set(self, todos: list[model.TodoItem]) -> None:
+        self.session.todos = todos
+
+
+@dataclass
 class ToolContextToken:
     """Tokens used to restore tool execution context.
 
@@ -55,10 +68,7 @@ def set_tool_context_from_session(session: Session) -> ToolContextToken:
     """
 
     file_tracker_token = current_file_tracker_var.set(session.file_tracker)
-    todo_ctx = TodoContext(
-        get_todos=lambda: session.todos,
-        set_todos=lambda todos: setattr(session, "todos", todos),
-    )
+    todo_ctx = build_todo_context(session)
     todo_token = current_todo_context_var.set(todo_ctx)
     return ToolContextToken(file_tracker_token=file_tracker_token, todo_token=todo_token)
 
@@ -85,6 +95,13 @@ def tool_context(
         yield token
     finally:
         reset_tool_context(token)
+
+
+def build_todo_context(session: Session) -> TodoContext:
+    """Create a TodoContext backed by the given session."""
+
+    store = SessionTodoStore(session)
+    return TodoContext(get_todos=store.get, set_todos=store.set)
 
 
 def get_current_file_tracker() -> MutableMapping[str, float] | None:

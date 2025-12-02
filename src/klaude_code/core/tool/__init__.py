@@ -16,6 +16,7 @@ from .tool_abc import ToolABC
 from .tool_context import (
     TodoContext,
     ToolContextToken,
+    build_todo_context,
     current_run_subtask_callback,
     reset_tool_context,
     set_tool_context_from_session,
@@ -46,6 +47,7 @@ __all__ = [
     "ToolABC",
     # Tool context
     "TodoContext",
+    "build_todo_context",
     "ToolContextToken",
     "current_run_subtask_callback",
     "reset_tool_context",

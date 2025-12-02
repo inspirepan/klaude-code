@@ -110,3 +110,45 @@ def convert_usage(usage: openai.types.CompletionUsage, context_limit: int | None
         throughput_tps=None,
         first_token_latency_ms=None,
     )
+
+
+def convert_anthropic_usage(
+    input_tokens: int,
+    output_tokens: int,
+    cached_tokens: int,
+    context_limit: int | None = None,
+) -> model.Usage:
+    """Convert Anthropic usage data to internal Usage model."""
+    total_tokens = input_tokens + cached_tokens + output_tokens
+    context_usage_percent = (total_tokens / context_limit) * 100 if context_limit else None
+    return model.Usage(
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cached_tokens=cached_tokens,
+        total_tokens=total_tokens,
+        context_usage_percent=context_usage_percent,
+        throughput_tps=None,
+        first_token_latency_ms=None,
+    )
+
+
+def convert_responses_usage(
+    input_tokens: int,
+    output_tokens: int,
+    cached_tokens: int,
+    reasoning_tokens: int,
+    total_tokens: int,
+    context_limit: int | None = None,
+) -> model.Usage:
+    """Convert OpenAI Responses API usage data to internal Usage model."""
+    context_usage_percent = (total_tokens / context_limit) * 100 if context_limit else None
+    return model.Usage(
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cached_tokens=cached_tokens,
+        reasoning_tokens=reasoning_tokens,
+        total_tokens=total_tokens,
+        context_usage_percent=context_usage_percent,
+        throughput_tps=None,
+        first_token_latency_ms=None,
+    )

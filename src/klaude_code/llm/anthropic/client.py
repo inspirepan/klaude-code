@@ -1,5 +1,4 @@
 import json
-import time
 from collections.abc import AsyncGenerator
 from typing import override
 
@@ -22,7 +21,7 @@ from klaude_code.llm.anthropic.input import convert_history_to_input, convert_sy
 from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
-from klaude_code.llm.usage import calculate_cost
+from klaude_code.llm.usage import MetadataTracker, convert_anthropic_usage
 from klaude_code.protocol import llm_param, model
 from klaude_code.trace import DebugType, log_debug
 
@@ -47,9 +46,7 @@ class AnthropicClient(LLMClientABC):
     async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         param = apply_config_defaults(param, self.get_llm_config())
 
-        request_start_time = time.time()
-        first_token_time: float | None = None
-        last_token_time: float | None = None
+        metadata_tracker = MetadataTracker(cost_config=self._config.cost)
 
         messages = convert_history_to_input(param.input, param.model)
         tools = convert_tool_schema(param.tools)
@@ -112,32 +109,24 @@ class AnthropicClient(LLMClientABC):
                     case BetaRawContentBlockDeltaEvent() as event:
                         match event.delta:
                             case BetaThinkingDelta() as delta:
-                                if first_token_time is None:
-                                    first_token_time = time.time()
-                                last_token_time = time.time()
+                                metadata_tracker.record_token()
                                 accumulated_thinking.append(delta.thinking)
                             case BetaSignatureDelta() as delta:
-                                if first_token_time is None:
-                                    first_token_time = time.time()
-                                last_token_time = time.time()
+                                metadata_tracker.record_token()
                                 yield model.ReasoningEncryptedItem(
                                     encrypted_content=delta.signature,
                                     response_id=response_id,
                                     model=str(param.model),
                                 )
                             case BetaTextDelta() as delta:
-                                if first_token_time is None:
-                                    first_token_time = time.time()
-                                last_token_time = time.time()
+                                metadata_tracker.record_token()
                                 accumulated_content.append(delta.text)
                                 yield model.AssistantMessageDelta(
                                     content=delta.text,
                                     response_id=response_id,
                                 )
                             case BetaInputJSONDelta() as delta:
-                                if first_token_time is None:
-                                    first_token_time = time.time()
-                                last_token_time = time.time()
+                                metadata_tracker.record_token()
                                 if current_tool_inputs is not None:
                                     current_tool_inputs.append(delta.partial_json)
                             case _:
@@ -184,37 +173,17 @@ class AnthropicClient(LLMClientABC):
                         input_tokens += (event.usage.input_tokens or 0) + (event.usage.cache_creation_input_tokens or 0)
                         output_tokens += event.usage.output_tokens or 0
                         cached_tokens += event.usage.cache_read_input_tokens or 0
-                        total_tokens = input_tokens + cached_tokens + output_tokens
-                        context_usage_percent = (
-                            (total_tokens / param.context_limit) * 100 if param.context_limit else None
-                        )
 
-                        throughput_tps: float | None = None
-                        first_token_latency_ms: float | None = None
-
-                        if first_token_time is not None:
-                            first_token_latency_ms = (first_token_time - request_start_time) * 1000
-
-                        if first_token_time is not None and last_token_time is not None and output_tokens > 0:
-                            time_duration = last_token_time - first_token_time
-                            if time_duration >= 0.15:
-                                throughput_tps = output_tokens / time_duration
-
-                        usage = model.Usage(
+                        usage = convert_anthropic_usage(
                             input_tokens=input_tokens,
                             output_tokens=output_tokens,
                             cached_tokens=cached_tokens,
-                            total_tokens=total_tokens,
-                            context_usage_percent=context_usage_percent,
-                            throughput_tps=throughput_tps,
-                            first_token_latency_ms=first_token_latency_ms,
+                            context_limit=param.context_limit,
                         )
-                        calculate_cost(usage, self._config.cost)
-                        yield model.ResponseMetadataItem(
-                            usage=usage,
-                            response_id=response_id,
-                            model_name=str(param.model),
-                        )
+                        metadata_tracker.set_usage(usage)
+                        metadata_tracker.set_model_name(str(param.model))
+                        metadata_tracker.set_response_id(response_id)
+                        yield metadata_tracker.finalize()
                     case _:
                         pass
         except (APIError, httpx.HTTPError) as e:

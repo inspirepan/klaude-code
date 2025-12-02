@@ -10,7 +10,8 @@ from klaude_code.llm.input_common import AssistantGroup, ToolGroup, UserGroup, m
 from klaude_code.protocol import llm_param, model
 
 
-def _user_group_to_message(group: UserGroup) -> chat.ChatCompletionMessageParam:
+def user_group_to_openai_message(group: UserGroup) -> chat.ChatCompletionMessageParam:
+    """Convert a UserGroup to an OpenAI-compatible chat message."""
     parts: list[ChatCompletionContentPartParam] = []
     for text in group.text_parts:
         parts.append({"type": "text", "text": text + "\n"})
@@ -21,7 +22,8 @@ def _user_group_to_message(group: UserGroup) -> chat.ChatCompletionMessageParam:
     return {"role": "user", "content": parts}
 
 
-def _tool_group_to_message(group: ToolGroup) -> chat.ChatCompletionMessageParam:
+def tool_group_to_openai_message(group: ToolGroup) -> chat.ChatCompletionMessageParam:
+    """Convert a ToolGroup to an OpenAI-compatible chat message."""
     merged_text = merge_reminder_text(
         group.tool_result.output or "<system-reminder>Tool ran without output or errors</system-reminder>",
         group.reminder_texts,
@@ -82,9 +84,9 @@ def convert_history_to_input(
     for group in parse_message_groups(history):
         match group:
             case UserGroup():
-                messages.append(_user_group_to_message(group))
+                messages.append(user_group_to_openai_message(group))
             case ToolGroup():
-                messages.append(_tool_group_to_message(group))
+                messages.append(tool_group_to_openai_message(group))
             case AssistantGroup():
                 messages.append(_assistant_group_to_message(group))
 

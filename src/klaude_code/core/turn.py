@@ -98,11 +98,11 @@ class TurnExecutor:
     def __init__(self, context: TurnExecutionContext) -> None:
         self._context = context
         self._tool_executor: ToolExecutor | None = None
-        self._has_tool_call: bool = False
+        self._turn_result: TurnResult | None = None
 
     @property
     def has_tool_call(self) -> bool:
-        return self._has_tool_call
+        return bool(self._turn_result and self._turn_result.tool_calls)
 
     def cancel(self) -> list[events.Event]:
         """Cancel running tools and return any resulting events."""
@@ -124,26 +124,25 @@ class TurnExecutor:
 
         yield events.TurnStartEvent(session_id=ctx.session_id)
 
-        turn_result = TurnResult(
+        self._turn_result = TurnResult(
             reasoning_items=[],
             assistant_message=None,
             tool_calls=[],
             stream_error=None,
         )
 
-        async for event in self._consume_llm_stream(turn_result):
+        async for event in self._consume_llm_stream(self._turn_result):
             yield event
 
-        if turn_result.stream_error is not None:
-            ctx.append_history([turn_result.stream_error])
+        if self._turn_result.stream_error is not None:
+            ctx.append_history([self._turn_result.stream_error])
             yield events.TurnEndEvent(session_id=ctx.session_id)
-            raise TurnError(turn_result.stream_error.error)
+            raise TurnError(self._turn_result.stream_error.error)
 
-        self._append_success_history(turn_result)
-        self._has_tool_call = bool(turn_result.tool_calls)
+        self._append_success_history(self._turn_result)
 
-        if turn_result.tool_calls:
-            async for ui_event in self._run_tool_executor(turn_result.tool_calls):
+        if self._turn_result.tool_calls:
+            async for ui_event in self._run_tool_executor(self._turn_result.tool_calls):
                 yield ui_event
 
         yield events.TurnEndEvent(session_id=ctx.session_id)

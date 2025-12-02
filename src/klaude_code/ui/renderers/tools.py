@@ -121,32 +121,24 @@ def render_read_tool_call(arguments: str) -> RenderableType:
     return grid
 
 
-def render_edit_tool_call(arguments: str) -> Text:
-    render_result: Text = Text.assemble(("→ ", ThemeKey.TOOL_MARK))
+def render_edit_tool_call(arguments: str) -> RenderableType:
+    grid = create_grid()
+    tool_name_column = Text.assemble(("→", ThemeKey.TOOL_MARK), " ", ("Edit", ThemeKey.TOOL_NAME))
     try:
         json_dict = json.loads(arguments)
         file_path = json_dict.get("file_path")
-        render_result = (
-            render_result.append_text(Text("Edit", ThemeKey.TOOL_NAME))
-            .append_text(Text(" "))
-            .append_text(render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH))
-        )
+        arguments_column = render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
     except json.JSONDecodeError:
-        render_result = (
-            render_result.append_text(Text("Edit", ThemeKey.TOOL_NAME))
-            .append_text(Text(" "))
-            .append_text(
-                Text(
-                    arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
-                    style=ThemeKey.INVALID_TOOL_CALL_ARGS,
-                )
-            )
+        arguments_column = Text(
+            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
-    return render_result
+    grid.add_row(tool_name_column, arguments_column)
+    return grid
 
 
-def render_write_tool_call(arguments: str) -> Text:
-    render_result: Text = Text.assemble(("→ ", ThemeKey.TOOL_MARK))
+def render_write_tool_call(arguments: str) -> RenderableType:
+    grid = create_grid()
     try:
         json_dict = json.loads(arguments)
         file_path = json_dict.get("file_path")
@@ -157,82 +149,68 @@ def render_write_tool_call(arguments: str) -> Text:
                 abs_path = (Path().cwd() / abs_path).resolve()
             if abs_path.exists():
                 op_label = "Overwrite"
-        render_result = (
-            render_result.append_text(Text(op_label, ThemeKey.TOOL_NAME))
-            .append_text(Text(" "))
-            .append_text(render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH))
-        )
+        tool_name_column = Text.assemble(("→", ThemeKey.TOOL_MARK), " ", (op_label, ThemeKey.TOOL_NAME))
+        arguments_column = render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
     except json.JSONDecodeError:
-        render_result = (
-            render_result.append_text(Text("Write", ThemeKey.TOOL_NAME))
-            .append_text(Text(" "))
-            .append_text(
-                Text(
-                    arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
-                    style=ThemeKey.INVALID_TOOL_CALL_ARGS,
-                )
-            )
+        tool_name_column = Text.assemble(("→", ThemeKey.TOOL_MARK), " ", ("Write", ThemeKey.TOOL_NAME))
+        arguments_column = Text(
+            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
-    return render_result
+    grid.add_row(tool_name_column, arguments_column)
+    return grid
 
 
-def render_multi_edit_tool_call(arguments: str) -> Text:
-    render_result: Text = Text.assemble(("→ ", ThemeKey.TOOL_MARK), ("MultiEdit", ThemeKey.TOOL_NAME), " ")
+def render_multi_edit_tool_call(arguments: str) -> RenderableType:
+    grid = create_grid()
+    tool_name_column = Text.assemble(("→", ThemeKey.TOOL_MARK), " ", ("MultiEdit", ThemeKey.TOOL_NAME))
     try:
         json_dict = json.loads(arguments)
         file_path = json_dict.get("file_path")
         edits = json_dict.get("edits", [])
-        render_result = (
-            render_result.append_text(render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH))
-            .append_text(Text(" - "))
-            .append_text(Text(f"{len(edits)}", ThemeKey.TOOL_PARAM_BOLD))
-            .append_text(Text(" updates", ThemeKey.TOOL_PARAM_FILE_PATH))
+        arguments_column = Text.assemble(
+            render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH),
+            Text(" - "),
+            Text(f"{len(edits)}", ThemeKey.TOOL_PARAM_BOLD),
+            Text(" updates", ThemeKey.TOOL_PARAM_FILE_PATH),
         )
     except json.JSONDecodeError:
-        render_result = render_result.append_text(
-            Text(
-                arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
-                style=ThemeKey.INVALID_TOOL_CALL_ARGS,
-            )
+        arguments_column = Text(
+            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
-    return render_result
+    grid.add_row(tool_name_column, arguments_column)
+    return grid
 
 
 def render_apply_patch_tool_call(arguments: str) -> RenderableType:
+    grid = create_grid()
+    tool_name_column = Text.assemble(("→", ThemeKey.TOOL_MARK), " ", ("Apply Patch", ThemeKey.TOOL_NAME))
+
     try:
         payload = json.loads(arguments)
     except json.JSONDecodeError:
-        return Text.assemble(
-            ("→ ", ThemeKey.TOOL_MARK),
-            ("Apply Patch", ThemeKey.TOOL_NAME),
-            " ",
-            Text(
-                arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
-                style=ThemeKey.INVALID_TOOL_CALL_ARGS,
-            ),
+        arguments_column = Text(
+            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
+        grid.add_row(tool_name_column, arguments_column)
+        return grid
 
     patch_content = payload.get("patch", "")
-
-    grid = create_grid()
-    header = Text.assemble(("→ ", ThemeKey.TOOL_MARK), ("Apply Patch", ThemeKey.TOOL_NAME))
-    summary = Text("", ThemeKey.TOOL_PARAM)
+    arguments_column = Text("", ThemeKey.TOOL_PARAM)
 
     if isinstance(patch_content, str):
         lines = [line for line in patch_content.splitlines() if line and not line.startswith("*** Begin Patch")]
         if lines:
-            summary = Text(lines[0][: const.INVALID_TOOL_CALL_MAX_LENGTH], ThemeKey.TOOL_PARAM)
+            arguments_column = Text(lines[0][: const.INVALID_TOOL_CALL_MAX_LENGTH], ThemeKey.TOOL_PARAM)
     else:
-        summary = Text(
+        arguments_column = Text(
             str(patch_content)[: const.INVALID_TOOL_CALL_MAX_LENGTH],
             ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
 
-    if summary.plain:
-        grid.add_row(header, summary)
-    else:
-        grid.add_row(header, Text("", ThemeKey.TOOL_PARAM))
-
+    grid.add_row(tool_name_column, arguments_column)
     return grid
 
 

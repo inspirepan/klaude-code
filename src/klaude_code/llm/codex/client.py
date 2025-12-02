@@ -1,6 +1,5 @@
 """Codex LLM client using ChatGPT subscription via OAuth."""
 
-import time
 from collections.abc import AsyncGenerator
 from typing import override
 
@@ -16,6 +15,7 @@ from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.responses.client import parse_responses_stream
 from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
+from klaude_code.llm.usage import MetadataTracker
 from klaude_code.protocol import llm_param, model
 
 # Codex API configuration
@@ -84,7 +84,7 @@ class CodexClient(LLMClientABC):
         # Codex API requires store=False
         param.store = False
 
-        request_start_time = time.time()
+        metadata_tracker = MetadataTracker(cost_config=self._config.cost)
 
         inputs = convert_history_to_input(param.input, param.model)
         tools = convert_tool_schema(param.tools)
@@ -126,5 +126,5 @@ class CodexClient(LLMClientABC):
             yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
             return
 
-        async for item in parse_responses_stream(stream, param, self._config.cost, request_start_time):
+        async for item in parse_responses_stream(stream, param, metadata_tracker):
             yield item

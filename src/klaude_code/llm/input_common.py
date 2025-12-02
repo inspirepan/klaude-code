@@ -49,10 +49,6 @@ class AssistantGroup:
 
     text_content: str | None = None
     tool_calls: list[model.ToolCallItem] = field(default_factory=lambda: [])
-    reasoning_text: list[model.ReasoningTextItem] = field(default_factory=lambda: [])
-    reasoning_encrypted: list[model.ReasoningEncryptedItem] = field(default_factory=lambda: [])
-    # Preserve original ordering of reasoning items for providers that
-    # need to emit them as an ordered stream (e.g. OpenRouter).
     reasoning_items: list[model.ReasoningTextItem | model.ReasoningEncryptedItem] = field(default_factory=lambda: [])
 
 
@@ -184,10 +180,8 @@ def parse_message_groups(history: list[model.ConversationItem]) -> list[MessageG
                         case model.ToolCallItem():
                             group.tool_calls.append(item)
                         case model.ReasoningTextItem():
-                            group.reasoning_text.append(item)
                             group.reasoning_items.append(item)
                         case model.ReasoningEncryptedItem():
-                            group.reasoning_encrypted.append(item)
                             group.reasoning_items.append(item)
                         case _:
                             pass

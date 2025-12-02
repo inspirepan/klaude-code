@@ -150,16 +150,16 @@ async def todo_not_used_recently_reminder(
         return None
 
     # Count non-todo tool calls since the last TodoWrite
-    other_tool_call_count_befor_last_todo = 0
+    other_tool_call_count_before_last_todo = 0
     for item in reversed(session.conversation_history):
         if isinstance(item, model.ToolCallItem):
             if item.name in (tools.TODO_WRITE, tools.UPDATE_PLAN):
                 break
-            other_tool_call_count_befor_last_todo += 1
-            if other_tool_call_count_befor_last_todo >= const.TODO_REMINDER_TOOL_CALL_THRESHOLD:
+            other_tool_call_count_before_last_todo += 1
+            if other_tool_call_count_before_last_todo >= const.TODO_REMINDER_TOOL_CALL_THRESHOLD:
                 break
 
-    not_used_recently = other_tool_call_count_befor_last_todo >= const.TODO_REMINDER_TOOL_CALL_THRESHOLD
+    not_used_recently = other_tool_call_count_before_last_todo >= const.TODO_REMINDER_TOOL_CALL_THRESHOLD
 
     if not not_used_recently:
         return None

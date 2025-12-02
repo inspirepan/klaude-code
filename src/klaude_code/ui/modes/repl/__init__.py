@@ -22,11 +22,7 @@ def build_repl_status_snapshot(agent: "Agent | None", update_message: str | None
     tool_calls = 0
 
     if agent is not None:
-        profile = agent.profile
-        if profile is not None:
-            model_name = profile.llm_client.model_name or ""
-        else:
-            model_name = "N/A"
+        model_name = agent.profile.llm_client.model_name or ""
 
         history = agent.session.conversation_history
         for item in history:
