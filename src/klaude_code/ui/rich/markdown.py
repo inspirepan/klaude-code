@@ -102,7 +102,6 @@ class MarkdownStream:
 
         # Defer Live creation until the first update.
         self.live: Live | None = None
-        self._live_started: bool = False
 
         # Streaming control
         self.when: float = 0.0  # Timestamp of last update
@@ -119,9 +118,10 @@ class MarkdownStream:
         self.mark: str | None = mark
         self.indent: int = max(indent, 0)
 
-        # Defer Live creation until the first update
-        self.live: Live | None = None
-        self._live_started: bool = False
+    @property
+    def _live_started(self) -> bool:
+        """Check if Live display has been started (derived from self.live)."""
+        return self.live is not None
 
     def _render_markdown_to_lines(self, text: str) -> list[str]:
         """Render markdown text to a list of lines.
@@ -214,7 +214,7 @@ class MarkdownStream:
                 console=self.console,
             )
             self.live.start()
-            self._live_started = True
+            # Note: self._live_started is now a property derived from self.live
 
         # If live rendering isn't available (e.g., after a final update), stop.
         if self.live is None:

@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from klaude_code.protocol.commands import CommandName
 from klaude_code.protocol.tools import SubAgentType
@@ -57,9 +57,11 @@ class Usage(BaseModel):
 
 
 class TodoItem(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     content: str
     status: TodoStatusType
-    activeForm: str = ""
+    active_form: str = Field(default="", alias="activeForm")
 
 
 class TodoUIExtra(BaseModel):

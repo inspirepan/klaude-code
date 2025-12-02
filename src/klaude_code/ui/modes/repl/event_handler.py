@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Awaitable, Callable
 
 from rich.text import Text
@@ -14,76 +15,105 @@ from klaude_code.ui.terminal.progress_bar import OSC94States, emit_osc94
 from klaude_code.ui.utils.debouncer import Debouncer
 
 
+@dataclass
+class ActiveStream:
+    """Active streaming state containing buffer and markdown renderer.
+
+    This represents an active streaming session where content is being
+    accumulated in a buffer and rendered via MarkdownStream.
+    When streaming ends, this object is replaced with None.
+    """
+
+    buffer: str
+    mdstream: MarkdownStream
+
+    def append(self, content: str) -> None:
+        self.buffer += content
+
+
 class StreamState:
+    """Manages assistant message streaming state.
+
+    The streaming state is either:
+    - None: No active stream
+    - ActiveStream: Active streaming with buffer and markdown renderer
+
+    This design ensures buffer and mdstream are always in sync.
+    """
+
     def __init__(self, interval: float, flush_handler: Callable[["StreamState"], Awaitable[None]]):
-        self.buffer: str = ""
-        self.mdstream: MarkdownStream | None = None
+        self._active: ActiveStream | None = None
         self._flush_handler = flush_handler
         self.debouncer = Debouncer(interval=interval, callback=self._debounced_flush)
 
     async def _debounced_flush(self) -> None:
         await self._flush_handler(self)
 
+    @property
+    def is_active(self) -> bool:
+        return self._active is not None
+
+    @property
+    def buffer(self) -> str:
+        return self._active.buffer if self._active else ""
+
+    @property
+    def mdstream(self) -> MarkdownStream | None:
+        return self._active.mdstream if self._active else None
+
+    def start(self, mdstream: MarkdownStream) -> None:
+        """Start a new streaming session."""
+        self._active = ActiveStream(buffer="", mdstream=mdstream)
+
     def append(self, content: str) -> None:
-        self.buffer += content
+        """Append content to the buffer."""
+        if self._active:
+            self._active.append(content)
 
-    def clear(self) -> None:
-        self.buffer = ""
+    def finish(self) -> None:
+        """End the current streaming session."""
+        self._active = None
 
 
-class SpinnerStatusState:
-    """Multi-layer spinner status state management.
+class ActivityState:
+    """Represents the current activity state for spinner display.
 
-    Layers (from low to high priority):
-    - base_status: Set by TodoChange, persistent within a turn
-    - composing: True when assistant is streaming text
-    - tool_calls: Accumulated from ToolCallStart, cleared at turn start
+    This is a discriminated union where the state is either:
+    - None (thinking/idle)
+    - Composing (assistant is streaming text)
+    - ToolCalls (one or more tool calls in progress)
 
-    Display logic:
-    - If tool_calls: show base + tool_calls (composing is hidden)
-    - Elif composing: show base + "Composing"
-    - Elif base_status: show base_status
-    - Else: show "Thinking …"
+    Composing and ToolCalls are mutually exclusive - when tool calls start,
+    composing state is automatically cleared.
     """
 
-    DEFAULT_STATUS = "Thinking …"
-
     def __init__(self) -> None:
-        self._base_status: str | None = None
         self._composing: bool = False
         self._tool_calls: dict[str, int] = {}
 
-    def reset(self) -> None:
-        """Reset all layers."""
-        self._base_status = None
-        self._composing = False
-        self._tool_calls = {}
+    @property
+    def is_composing(self) -> bool:
+        return self._composing and not self._tool_calls
 
-    def set_base_status(self, status: str | None) -> None:
-        """Set base status from TodoChange."""
-        self._base_status = status
+    @property
+    def has_tool_calls(self) -> bool:
+        return bool(self._tool_calls)
 
     def set_composing(self, composing: bool) -> None:
-        """Set composing state when assistant is streaming."""
         self._composing = composing
 
     def add_tool_call(self, tool_name: str) -> None:
-        """Add a tool call to the accumulator."""
         self._tool_calls[tool_name] = self._tool_calls.get(tool_name, 0) + 1
 
     def clear_tool_calls(self) -> None:
-        """Clear tool calls."""
         self._tool_calls = {}
 
-    def clear_for_new_turn(self) -> None:
-        """Clear tool calls and composing state for a new turn."""
-        self._tool_calls = {}
+    def reset(self) -> None:
         self._composing = False
+        self._tool_calls = {}
 
-    def get_status(self) -> Text:
-        """Get current spinner status as rich Text."""
-        # Build activity text (tool_calls or composing)
-        activity_text: Text | None = None
+    def get_activity_text(self) -> Text | None:
+        """Get activity text for display. Returns None if idle/thinking."""
         if self._tool_calls:
             activity_text = Text()
             first = True
@@ -92,10 +122,61 @@ class SpinnerStatusState:
                     activity_text.append(", ")
                 activity_text.append(name, style="bold")
                 if count > 1:
-                    activity_text.append(f" × {count}")
+                    activity_text.append(f" x {count}")
                 first = False
-        elif self._composing:
-            activity_text = Text("Composing")
+            return activity_text
+        if self._composing:
+            return Text("Composing")
+        return None
+
+
+class SpinnerStatusState:
+    """Multi-layer spinner status state management.
+
+    Composed of two independent layers:
+    - base_status: Set by TodoChange, persistent within a turn
+    - activity: Current activity (composing or tool_calls), mutually exclusive
+
+    Display logic:
+    - If activity: show base + activity (if base exists) or activity + "..."
+    - Elif base_status: show base_status
+    - Else: show "Thinking …"
+    """
+
+    DEFAULT_STATUS = "Thinking …"
+
+    def __init__(self) -> None:
+        self._base_status: str | None = None
+        self._activity = ActivityState()
+
+    def reset(self) -> None:
+        """Reset all layers."""
+        self._base_status = None
+        self._activity.reset()
+
+    def set_base_status(self, status: str | None) -> None:
+        """Set base status from TodoChange."""
+        self._base_status = status
+
+    def set_composing(self, composing: bool) -> None:
+        """Set composing state when assistant is streaming."""
+        self._activity.set_composing(composing)
+
+    def add_tool_call(self, tool_name: str) -> None:
+        """Add a tool call to the accumulator."""
+        self._activity.add_tool_call(tool_name)
+
+    def clear_tool_calls(self) -> None:
+        """Clear tool calls."""
+        self._activity.clear_tool_calls()
+
+    def clear_for_new_turn(self) -> None:
+        """Clear activity state for a new turn."""
+        self._activity.reset()
+
+    def get_status(self) -> Text:
+        """Get current spinner status as rich Text."""
+        activity_text = self._activity.get_activity_text()
 
         if self._base_status:
             result = Text(self._base_status)
@@ -214,12 +295,12 @@ class DisplayEventHandler:
             return
         if len(event.content.strip()) == 0 and self.stage_manager.current_stage != Stage.ASSISTANT:
             return
-        first_delta = self.assistant_stream.mdstream is None
+        first_delta = not self.assistant_stream.is_active
         if first_delta:
             self.spinner_status.set_composing(True)
             self.spinner_status.clear_tool_calls()
             self._update_spinner()
-            self.assistant_stream.mdstream = MarkdownStream(
+            mdstream = MarkdownStream(
                 mdargs={"code_theme": self.renderer.themes.code_theme},
                 theme=self.renderer.themes.markdown_theme,
                 console=self.renderer.console,
@@ -227,6 +308,7 @@ class DisplayEventHandler:
                 mark="➤",
                 indent=2,
             )
+            self.assistant_stream.start(mdstream)
         self.assistant_stream.append(event.content)
         if first_delta and self.assistant_stream.mdstream is not None:
             # Stop spinner and immediately start MarkdownStream's Live
@@ -241,13 +323,14 @@ class DisplayEventHandler:
         if self.renderer.is_sub_agent_session(event.session_id):
             return
         await self.stage_manager.transition_to(Stage.ASSISTANT)
-        if self.assistant_stream.mdstream is not None:
+        if self.assistant_stream.is_active:
             self.assistant_stream.debouncer.cancel()
-            self.assistant_stream.mdstream.update(event.content.strip(), final=True)
+            mdstream = self.assistant_stream.mdstream
+            assert mdstream is not None
+            mdstream.update(event.content.strip(), final=True)
         else:
             self.renderer.display_assistant_message(event.content)
-        self.assistant_stream.clear()
-        self.assistant_stream.mdstream = None
+        self.assistant_stream.finish()
         self.spinner_status.set_composing(False)
         self._update_spinner()
         await self.stage_manager.transition_to(Stage.WAITING)
@@ -316,11 +399,12 @@ class DisplayEventHandler:
     # ─────────────────────────────────────────────────────────────────────────────
 
     async def _finish_assistant_stream(self) -> None:
-        if self.assistant_stream.mdstream is not None:
+        if self.assistant_stream.is_active:
             self.assistant_stream.debouncer.cancel()
-            self.assistant_stream.mdstream.update(self.assistant_stream.buffer, final=True)
-            self.assistant_stream.mdstream = None
-            self.assistant_stream.clear()
+            mdstream = self.assistant_stream.mdstream
+            assert mdstream is not None
+            mdstream.update(self.assistant_stream.buffer, final=True)
+            self.assistant_stream.finish()
 
     def _print_thinking_prefix(self) -> None:
         self.renderer.display_thinking_prefix()
@@ -330,8 +414,10 @@ class DisplayEventHandler:
         self.renderer.spinner_update(self.spinner_status.get_status())
 
     async def _flush_assistant_buffer(self, state: StreamState) -> None:
-        if state.mdstream is not None:
-            state.mdstream.update(state.buffer)
+        if state.is_active:
+            mdstream = state.mdstream
+            assert mdstream is not None
+            mdstream.update(state.buffer)
 
     def _maybe_notify_task_finish(self, event: events.TaskFinishEvent) -> None:
         if self.notifier is None:
@@ -362,8 +448,8 @@ class DisplayEventHandler:
         status_text = ""
         for todo in todo_event.todos:
             if todo.status == "in_progress":
-                if len(todo.activeForm) > 0:
-                    status_text = todo.activeForm
+                if len(todo.active_form) > 0:
+                    status_text = todo.active_form
                 if len(todo.content) > 0:
                     status_text = todo.content
         return status_text.replace("\n", "")
