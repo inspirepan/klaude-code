@@ -24,6 +24,7 @@ CODEX_HEADERS = {
     "originator": "codex_cli_rs",
     # Mocked Codex-style user agent string
     "User-Agent": "codex_cli_rs/0.0.0-klaude",
+    "OpenAI-Beta": "responses=experimental",
 }
 
 
