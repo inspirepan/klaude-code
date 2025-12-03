@@ -102,6 +102,7 @@ async def parse_responses_stream(
                             reasoning_tokens=event.response.usage.output_tokens_details.reasoning_tokens,
                             total_tokens=event.response.usage.total_tokens,
                             context_limit=param.context_limit,
+                            max_tokens=param.max_tokens,
                         )
                         metadata_tracker.set_usage(usage)
                     metadata_tracker.set_model_name(str(param.model))

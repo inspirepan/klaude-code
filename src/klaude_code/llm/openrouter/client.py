@@ -100,7 +100,7 @@ class OpenRouterClient(LLMClientABC):
                 if (
                     event.usage is not None and event.usage.completion_tokens is not None  # pyright: ignore[reportUnnecessaryComparison]
                 ):  # gcp gemini will return None usage field
-                    metadata_tracker.set_usage(convert_usage(event.usage, param.context_limit))
+                    metadata_tracker.set_usage(convert_usage(event.usage, param.context_limit, param.max_tokens))
                 if event.model:
                     metadata_tracker.set_model_name(event.model)
                 if provider := getattr(event, "provider", None):

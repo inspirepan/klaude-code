@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from klaude_code import const
 from klaude_code.protocol.commands import CommandName
 from klaude_code.protocol.tools import SubAgentType
 
@@ -21,6 +22,7 @@ class Usage(BaseModel):
     # Context window tracking
     context_token: int | None = None  # Peak total_tokens seen (for context usage display)
     context_limit: int | None = None  # Model's context limit
+    max_tokens: int | None = None  # Max output tokens for this request
 
     throughput_tps: float | None = None
     first_token_latency_ms: float | None = None
@@ -48,12 +50,15 @@ class Usage(BaseModel):
     @computed_field
     @property
     def context_usage_percent(self) -> float | None:
-        """Context usage percentage computed from context_token / context_limit."""
+        """Context usage percentage computed from context_token / (context_limit - max_tokens)."""
         if self.context_limit is None or self.context_limit <= 0:
             return None
         if self.context_token is None:
             return None
-        return (self.context_token / self.context_limit) * 100
+        effective_limit = self.context_limit - (self.max_tokens or const.DEFAULT_MAX_TOKENS)
+        if effective_limit <= 0:
+            return None
+        return (self.context_token / effective_limit) * 100
 
 
 class TodoItem(BaseModel):

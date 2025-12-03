@@ -179,6 +179,7 @@ class AnthropicClient(LLMClientABC):
                             output_tokens=output_tokens,
                             cached_tokens=cached_tokens,
                             context_limit=param.context_limit,
+                            max_tokens=param.max_tokens,
                         )
                         metadata_tracker.set_usage(usage)
                         metadata_tracker.set_model_name(str(param.model))

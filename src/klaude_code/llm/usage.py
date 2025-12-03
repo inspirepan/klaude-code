@@ -92,7 +92,11 @@ class MetadataTracker:
         return self._metadata_item
 
 
-def convert_usage(usage: openai.types.CompletionUsage, context_limit: int | None = None) -> model.Usage:
+def convert_usage(
+    usage: openai.types.CompletionUsage,
+    context_limit: int | None = None,
+    max_tokens: int | None = None,
+) -> model.Usage:
     """Convert OpenAI CompletionUsage to internal Usage model.
 
     context_token is set to total_tokens from the API response,
@@ -106,6 +110,7 @@ def convert_usage(usage: openai.types.CompletionUsage, context_limit: int | None
         output_tokens=usage.completion_tokens,
         context_token=usage.total_tokens,
         context_limit=context_limit,
+        max_tokens=max_tokens,
     )
 
 
@@ -114,6 +119,7 @@ def convert_anthropic_usage(
     output_tokens: int,
     cached_tokens: int,
     context_limit: int | None = None,
+    max_tokens: int | None = None,
 ) -> model.Usage:
     """Convert Anthropic usage data to internal Usage model.
 
@@ -127,6 +133,7 @@ def convert_anthropic_usage(
         cached_tokens=cached_tokens,
         context_token=context_token,
         context_limit=context_limit,
+        max_tokens=max_tokens,
     )
 
 
@@ -137,6 +144,7 @@ def convert_responses_usage(
     reasoning_tokens: int,
     total_tokens: int,
     context_limit: int | None = None,
+    max_tokens: int | None = None,
 ) -> model.Usage:
     """Convert OpenAI Responses API usage data to internal Usage model.
 
@@ -150,4 +158,5 @@ def convert_responses_usage(
         reasoning_tokens=reasoning_tokens,
         context_token=total_tokens,
         context_limit=context_limit,
+        max_tokens=max_tokens,
     )
