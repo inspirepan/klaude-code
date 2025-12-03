@@ -33,6 +33,10 @@ Tests are located in the `tests/` directory. Configuration files include `pyproj
 - Type checking: Strict mode with Pyright
 - Use `isort` for import sorting and `ruff` for formatting
 - Naming conventions: Follow PEP 8 for Python code
+- Follow existing patterns exactly
+- Public APIs must have docstrings
+- Functions must be focused and small
+
 
 ## Testing Guidelines
 
