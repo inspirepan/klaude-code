@@ -67,7 +67,7 @@ def load_agent_tools(
 
     # Main agent tools
     if "gpt-5" in model_name:
-        tool_names = [tools.BASH, tools.READ, tools.APPLY_PATCH, tools.UPDATE_PLAN]
+        tool_names = [tools.BASH, tools.APPLY_PATCH, tools.UPDATE_PLAN]
     elif "gemini-3" in model_name:
         tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE]
     else:
