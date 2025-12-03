@@ -91,7 +91,7 @@ INVALID_TOOL_CALL_MAX_LENGTH = 500
 TRUNCATE_DISPLAY_MAX_LINE_LENGTH = 1000
 
 # Maximum lines for truncated display output
-TRUNCATE_DISPLAY_MAX_LINES = 10
+TRUNCATE_DISPLAY_MAX_LINES = 20
 
 # Maximum lines for sub-agent result display
 SUB_AGENT_RESULT_MAX_LINES = 12
