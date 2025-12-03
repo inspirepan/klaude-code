@@ -5,6 +5,7 @@ import yaml
 from klaude_code.command.command_abc import CommandABC, CommandResult, InputAction
 from klaude_code.core.agent import Agent
 from klaude_code.protocol import commands
+from klaude_code.trace import log_debug
 
 
 class PromptCommand(CommandABC):
@@ -41,7 +42,8 @@ class PromptCommand(CommandABC):
 
             self._metadata = {}
             self._content = raw_text
-        except Exception:
+        except (OSError, yaml.YAMLError) as e:
+            log_debug(f"Failed to load prompt template {self.template_name}: {e}")
             self._metadata = {"description": "Error loading template"}
             self._content = f"Error loading template: {self.template_name}"
 

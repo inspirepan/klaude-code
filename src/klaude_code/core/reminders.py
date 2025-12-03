@@ -344,9 +344,6 @@ async def last_path_memory_reminder(
                     paths.append(path)
             except json.JSONDecodeError:
                 continue
-        elif tool_call.name == tools.BASH:
-            # TODO: haiku check file path
-            pass
     paths = list(set(paths))
     memories: list[Memory] = []
     if len(paths) == 0:

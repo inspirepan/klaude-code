@@ -294,7 +294,7 @@ def _try_render_todo_args(arguments: str) -> str | None:
             return None
 
         return f'<div class="todo-list">{"".join(items_html)}</div>'
-    except Exception:
+    except (json.JSONDecodeError, KeyError, TypeError):
         return None
 
 
@@ -380,7 +380,7 @@ def _get_mermaid_link_html(
         try:
             args = json.loads(tool_call.arguments)
             code = args.get("code", "")
-        except Exception:
+        except (json.JSONDecodeError, TypeError):
             code = ""
     else:
         code = ""
@@ -447,7 +447,7 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
         try:
             parsed = json.loads(tool_call.arguments)
             args_text = json.dumps(parsed, ensure_ascii=False, indent=2)
-        except Exception:
+        except (json.JSONDecodeError, TypeError):
             args_text = tool_call.arguments
 
         args_html = _escape_html(args_text or "")
@@ -469,7 +469,7 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
                 parsed_args = json.loads(tool_call.arguments)
                 if parsed_args.get("command") in {"create", "str_replace", "insert"}:
                     force_collapse = True
-            except Exception:
+            except (json.JSONDecodeError, TypeError):
                 pass
 
         should_collapse = force_collapse or _should_collapse(args_html)
@@ -506,7 +506,7 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
                 new_string = args_data.get("new_string", "")
                 if old_string == "" and new_string:
                     diff_text = "\n".join(f"+{line}" for line in new_string.splitlines())
-            except Exception:
+            except (json.JSONDecodeError, TypeError):
                 pass
 
         items_to_render: list[str] = []

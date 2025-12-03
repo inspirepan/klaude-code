@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 import uuid
-from importlib.metadata import version as pkg_version
+from importlib.metadata import PackageNotFoundError, version as pkg_version
 
 import typer
 
@@ -27,6 +27,9 @@ def _version_callback(value: bool) -> None:
     if value:
         try:
             ver = pkg_version("klaude-code")
+        except PackageNotFoundError:
+            # Package is not installed or has no metadata; show a generic version string.
+            ver = "unknown"
         except Exception:
             ver = "unknown"
         print(f"klaude-code {ver}")
@@ -232,8 +235,12 @@ def exec_command(
             stdin = sys.stdin.read().rstrip("\n")
             if stdin:
                 parts.append(stdin)
-        except Exception as e:
+        except (OSError, ValueError) as e:
+            # Expected I/O-related errors when reading from stdin (e.g. broken pipe, closed stream).
             log((f"Error reading from stdin: {e}", "red"))
+        except Exception as e:
+            # Unexpected errors are still reported but kept from crashing the CLI.
+            log((f"Unexpected error reading from stdin: {e}", "red"))
 
     if input_content:
         parts.append(input_content)

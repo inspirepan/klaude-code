@@ -7,37 +7,12 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from klaude_code.core.tool.file._utils import file_exists, is_directory, read_text, write_text
 from klaude_code.core.tool.file.edit_tool import EditTool
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, model, tools
-
-
-def _is_directory(path: str) -> bool:
-    try:
-        return Path(path).is_dir()
-    except Exception:
-        return False
-
-
-def _file_exists(path: str) -> bool:
-    try:
-        return Path(path).exists()
-    except Exception:
-        return False
-
-
-def _read_text(path: str) -> str:
-    with open(path, "r", encoding="utf-8", errors="replace") as f:
-        return f.read()
-
-
-def _write_text(path: str, content: str) -> None:
-    parent = Path(path).parent
-    parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(content)
 
 
 @register(tools.MULTI_EDIT)
@@ -105,7 +80,7 @@ class MultiEditTool(ToolABC):
         file_path = os.path.abspath(args.file_path)
 
         # Directory error first
-        if _is_directory(file_path):
+        if is_directory(file_path):
             return model.ToolResultItem(
                 status="error",
                 output="<tool_use_error>Illegal operation on a directory. multi_edit</tool_use_error>",
@@ -114,7 +89,7 @@ class MultiEditTool(ToolABC):
         file_tracker = get_current_file_tracker()
 
         # FileTracker check:
-        if _file_exists(file_path):
+        if file_exists(file_path):
             if file_tracker is not None:
                 tracked = file_tracker.get(file_path)
                 if tracked is None:
@@ -142,8 +117,8 @@ class MultiEditTool(ToolABC):
                 )
 
         # Load initial content (empty for new file case)
-        if _file_exists(file_path):
-            before = await asyncio.to_thread(_read_text, file_path)
+        if file_exists(file_path):
+            before = await asyncio.to_thread(read_text, file_path)
         else:
             before = ""
 
@@ -168,7 +143,7 @@ class MultiEditTool(ToolABC):
 
         # All edits valid; write to disk
         try:
-            await asyncio.to_thread(_write_text, file_path, staged)
+            await asyncio.to_thread(write_text, file_path, staged)
         except Exception as e:  # pragma: no cover
             return model.ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
 

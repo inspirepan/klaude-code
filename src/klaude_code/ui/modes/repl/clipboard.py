@@ -40,19 +40,19 @@ class ClipboardCaptureState:
         """Capture image from clipboard, save to disk, and return a tag like [Image #N]."""
         try:
             clipboard_data = ImageGrab.grabclipboard()
-        except Exception:
+        except OSError:
             return None
         if not isinstance(clipboard_data, Image.Image):
             return None
         try:
             self._images_dir.mkdir(parents=True, exist_ok=True)
-        except Exception:
+        except OSError:
             return None
         filename = f"clipboard_{uuid.uuid4().hex[:8]}.png"
         path = self._images_dir / filename
         try:
             clipboard_data.save(path, "PNG")
-        except Exception:
+        except OSError:
             return None
         tag = f"[Image #{self._counter}]"
         self._counter += 1
@@ -123,7 +123,7 @@ def _encode_image_file(file_path: str) -> ImageURLPart | None:
         # Clipboard images are always saved as PNG
         data_url = f"data:image/png;base64,{encoded}"
         return ImageURLPart(image_url=ImageURLPart.ImageURL(url=data_url, id=None))
-    except Exception:
+    except OSError:
         return None
 
 
@@ -148,5 +148,5 @@ def copy_to_clipboard(text: str) -> None:
                     input=text.encode("utf-8"),
                     check=True,
                 )
-    except Exception:
+    except (OSError, subprocess.SubprocessError):
         pass

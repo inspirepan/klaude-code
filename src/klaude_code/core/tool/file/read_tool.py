@@ -9,6 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from klaude_code import const
+from klaude_code.core.tool.file._utils import file_exists, is_directory
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
@@ -32,20 +33,6 @@ _IMAGE_MIME_TYPES: dict[str, str] = {
 def _format_numbered_line(line_no: int, content: str) -> str:
     # 6-width right-aligned line number followed by a right arrow
     return f"{line_no:>6}→{content}"
-
-
-def _is_directory(path: str) -> bool:
-    try:
-        return Path(path).is_dir()
-    except Exception:
-        return False
-
-
-def _file_exists(path: str) -> bool:
-    try:
-        return Path(path).exists()
-    except Exception:
-        return False
 
 
 @dataclass
@@ -101,7 +88,7 @@ def _read_segment(options: ReadOptions) -> ReadSegmentResult:
 
 def _track_file_access(file_path: str) -> None:
     file_tracker = get_current_file_tracker()
-    if file_tracker is None or not _file_exists(file_path) or _is_directory(file_path):
+    if file_tracker is None or not file_exists(file_path) or is_directory(file_path):
         return
     try:
         file_tracker[file_path] = Path(file_path).stat().st_mtime
@@ -188,12 +175,12 @@ class ReadTool(ToolABC):
         char_per_line, line_cap, max_chars, max_kb = cls._effective_limits()
 
         # Common file errors
-        if _is_directory(file_path):
+        if is_directory(file_path):
             return model.ToolResultItem(
                 status="error",
                 output="<tool_use_error>Illegal operation on a directory. read</tool_use_error>",
             )
-        if not _file_exists(file_path):
+        if not file_exists(file_path):
             return model.ToolResultItem(
                 status="error",
                 output="<tool_use_error>File does not exist.</tool_use_error>",
@@ -222,7 +209,8 @@ class ReadTool(ToolABC):
         # If file is too large and no pagination provided (only check if limits are enabled)
         try:
             size_bytes = Path(file_path).stat().st_size
-        except Exception:
+        except OSError:
+            # Best-effort size detection; on stat errors fall back to treating size as unknown.
             size_bytes = 0
 
         is_image_file = _is_supported_image_file(file_path)

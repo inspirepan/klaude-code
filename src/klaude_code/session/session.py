@@ -167,7 +167,7 @@ class Session(BaseModel):
                     item = cls_type(**data)
                     # pyright: ignore[reportAssignmentType]
                     history.append(item)  # type: ignore[arg-type]
-                except Exception:
+                except (json.JSONDecodeError, KeyError, TypeError):
                     # Best-effort load; skip malformed lines
                     continue
             sess.conversation_history = history
@@ -242,7 +242,7 @@ class Session(BaseModel):
                 if ts > latest_ts:
                     latest_ts = ts
                     latest_id = sid
-            except Exception:
+            except (json.JSONDecodeError, KeyError, TypeError, OSError):
                 continue
         return latest_id
 
@@ -395,7 +395,7 @@ class Session(BaseModel):
                                         text_parts.append(text)
                             return " ".join(text_parts) if text_parts else None
                         return None
-            except Exception:
+            except (json.JSONDecodeError, KeyError, TypeError, OSError):
                 return None
             return None
 
@@ -403,7 +403,7 @@ class Session(BaseModel):
         for p in sessions_dir.glob("*.json"):
             try:
                 data = json.loads(p.read_text())
-            except Exception:
+            except (json.JSONDecodeError, OSError):
                 # Skip unreadable files
                 continue
             # Filter out sub-agent sessions

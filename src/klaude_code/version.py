@@ -57,7 +57,7 @@ def _get_installed_version() -> str | None:
                         ver = ver[1:]
                     return ver
         return None
-    except Exception:
+    except (OSError, subprocess.SubprocessError):
         return None
 
 
@@ -67,7 +67,7 @@ def _get_latest_version() -> str | None:
         with urllib.request.urlopen(PYPI_URL, timeout=5) as response:
             data = json.loads(response.read().decode())
             return data.get("info", {}).get("version")
-    except Exception:
+    except (OSError, json.JSONDecodeError, ValueError):
         return None
 
 
@@ -93,7 +93,7 @@ def _compare_versions(installed: str, latest: str) -> bool:
         installed_tuple = _parse_version(installed)
         latest_tuple = _parse_version(latest)
         return latest_tuple > installed_tuple
-    except Exception:
+    except ValueError:
         return False
 
 

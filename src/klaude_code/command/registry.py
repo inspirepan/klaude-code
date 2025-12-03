@@ -5,6 +5,7 @@ from klaude_code.command.command_abc import CommandResult, InputAction
 from klaude_code.command.prompt_command import PromptCommand
 from klaude_code.core.agent import Agent
 from klaude_code.protocol import commands, events, model
+from klaude_code.trace import log_debug
 
 if TYPE_CHECKING:
     from .command_abc import CommandABC
@@ -30,9 +31,8 @@ def load_prompt_commands():
             if (name.startswith("prompt_") or name.startswith("prompt-")) and name.endswith(".md"):
                 cmd = PromptCommand(name)
                 _COMMANDS[cmd.name] = cmd
-    except Exception:
-        # If resource loading fails, just ignore
-        pass
+    except OSError as e:
+        log_debug(f"Failed to load prompt commands: {e}")
 
 
 def get_commands() -> dict[commands.CommandName | str, "CommandABC"]:

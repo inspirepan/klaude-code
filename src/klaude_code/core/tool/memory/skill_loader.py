@@ -115,7 +115,8 @@ class SkillLoader:
 
             return skill
 
-        except Exception:
+        except (OSError, yaml.YAMLError) as e:
+            log_debug(f"Failed to load skill from {skill_path}: {e}")
             return None
 
     def discover_skills(self) -> list[Skill]:

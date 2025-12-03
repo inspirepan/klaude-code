@@ -7,36 +7,11 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from klaude_code.core.tool.file._utils import file_exists, is_directory, read_text, write_text
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, model, tools
-
-
-def _is_directory(path: str) -> bool:
-    try:
-        return Path(path).is_dir()
-    except Exception:
-        return False
-
-
-def _file_exists(path: str) -> bool:
-    try:
-        return Path(path).exists()
-    except Exception:
-        return False
-
-
-def _read_text(path: str) -> str:
-    with open(path, "r", encoding="utf-8", errors="replace") as f:
-        return f.read()
-
-
-def _write_text(path: str, content: str) -> None:
-    parent = Path(path).parent
-    parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(content)
 
 
 @register(tools.EDIT)
@@ -119,7 +94,7 @@ class EditTool(ToolABC):
         file_path = os.path.abspath(args.file_path)
 
         # Common file errors
-        if _is_directory(file_path):
+        if is_directory(file_path):
             return model.ToolResultItem(
                 status="error",
                 output="<tool_use_error>Illegal operation on a directory. edit</tool_use_error>",
@@ -136,7 +111,7 @@ class EditTool(ToolABC):
 
         # FileTracker checks (only for editing existing files)
         file_tracker = get_current_file_tracker()
-        if not _file_exists(file_path):
+        if not file_exists(file_path):
             # We require reading before editing
             return model.ToolResultItem(
                 status="error",
@@ -163,7 +138,7 @@ class EditTool(ToolABC):
 
         # Edit existing file: validate and apply
         try:
-            before = await asyncio.to_thread(_read_text, file_path)
+            before = await asyncio.to_thread(read_text, file_path)
         except FileNotFoundError:
             return model.ToolResultItem(
                 status="error",
@@ -197,7 +172,7 @@ class EditTool(ToolABC):
 
         # Write back
         try:
-            await asyncio.to_thread(_write_text, file_path, after)
+            await asyncio.to_thread(write_text, file_path, after)
         except Exception as e:  # pragma: no cover
             return model.ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
 
