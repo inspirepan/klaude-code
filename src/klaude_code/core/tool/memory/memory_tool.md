@@ -14,3 +14,7 @@ Usage tips:
 - Check your memory directory before starting tasks to recall previous context
 - Record important decisions, progress, and learnings as you work
 - Keep memory files organized and up-to-date; delete obsolete files
+
+Note: when editing your memory folder, always try to keep its content up-to-date, coherent and organized. You can rename or delete files that are no longer relevant. Do not create new files unless necessary.
+
+Only write down information relevant to current project in your memory system.

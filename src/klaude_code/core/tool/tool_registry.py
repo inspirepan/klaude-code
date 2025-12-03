@@ -74,5 +74,6 @@ def load_agent_tools(
         tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.TODO_WRITE]
 
     tool_names.extend(sub_agent_tool_names(enabled_only=True, model_name=model_name))
-    tool_names.extend([tools.SKILL, tools.MERMAID, tools.MEMORY])
+    tool_names.extend([tools.SKILL, tools.MERMAID])
+    # tool_names.extend([tools.MEMORY])
     return get_tool_schemas(tool_names)
