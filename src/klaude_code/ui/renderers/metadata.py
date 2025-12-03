@@ -118,7 +118,7 @@ def _render_task_metadata_block(
     if metadata.usage is not None:
         # Context (only for main agent)
         if show_context_and_time and metadata.usage.context_usage_percent is not None:
-            context_size = format_number(metadata.usage.context_window_size or 0)
+            context_size = format_number(metadata.usage.context_token or 0)
             parts3.append(
                 Text.assemble(
                     ("context", ThemeKey.METADATA_DIM),

@@ -95,7 +95,7 @@ class MetadataTracker:
 def convert_usage(usage: openai.types.CompletionUsage, context_limit: int | None = None) -> model.Usage:
     """Convert OpenAI CompletionUsage to internal Usage model.
 
-    context_window_size is set to total_tokens from the API response,
+    context_token is set to total_tokens from the API response,
     representing the actual context window usage for this turn.
     """
     return model.Usage(
@@ -104,7 +104,7 @@ def convert_usage(usage: openai.types.CompletionUsage, context_limit: int | None
         reasoning_tokens=(usage.completion_tokens_details.reasoning_tokens if usage.completion_tokens_details else 0)
         or 0,
         output_tokens=usage.completion_tokens,
-        context_window_size=usage.total_tokens,
+        context_token=usage.total_tokens,
         context_limit=context_limit,
     )
 
@@ -117,15 +117,15 @@ def convert_anthropic_usage(
 ) -> model.Usage:
     """Convert Anthropic usage data to internal Usage model.
 
-    context_window_size is computed from input + cached + output tokens,
+    context_token is computed from input + cached + output tokens,
     representing the actual context window usage for this turn.
     """
-    context_window_size = input_tokens + cached_tokens + output_tokens
+    context_token = input_tokens + cached_tokens + output_tokens
     return model.Usage(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         cached_tokens=cached_tokens,
-        context_window_size=context_window_size,
+        context_token=context_token,
         context_limit=context_limit,
     )
 
@@ -140,7 +140,7 @@ def convert_responses_usage(
 ) -> model.Usage:
     """Convert OpenAI Responses API usage data to internal Usage model.
 
-    context_window_size is set to total_tokens from the API response,
+    context_token is set to total_tokens from the API response,
     representing the actual context window usage for this turn.
     """
     return model.Usage(
@@ -148,6 +148,6 @@ def convert_responses_usage(
         output_tokens=output_tokens,
         cached_tokens=cached_tokens,
         reasoning_tokens=reasoning_tokens,
-        context_window_size=total_tokens,
+        context_token=total_tokens,
         context_limit=context_limit,
     )

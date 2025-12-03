@@ -19,7 +19,7 @@ class Usage(BaseModel):
     output_tokens: int = 0
 
     # Context window tracking
-    context_window_size: int | None = None  # Peak total_tokens seen (for context usage display)
+    context_token: int | None = None  # Peak total_tokens seen (for context usage display)
     context_limit: int | None = None  # Model's context limit
 
     throughput_tps: float | None = None
@@ -48,12 +48,12 @@ class Usage(BaseModel):
     @computed_field
     @property
     def context_usage_percent(self) -> float | None:
-        """Context usage percentage computed from context_window_size / context_limit."""
+        """Context usage percentage computed from context_token / context_limit."""
         if self.context_limit is None or self.context_limit <= 0:
             return None
-        if self.context_window_size is None:
+        if self.context_token is None:
             return None
-        return (self.context_window_size / self.context_limit) * 100
+        return (self.context_token / self.context_limit) * 100
 
 
 class TodoItem(BaseModel):
