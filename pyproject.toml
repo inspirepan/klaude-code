@@ -33,6 +33,7 @@ dev = [
     "isort>=6.0.1",
     "pyright>=1.1.407",
     "pytest>=8.4.1",
+    "pytest-cov>=7.0.0",
 ]
 
 
