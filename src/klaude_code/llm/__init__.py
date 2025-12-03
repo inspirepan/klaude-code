@@ -1,23 +1,13 @@
 """LLM package init.
 
-Imports built-in LLM clients so their ``@register`` decorators run and they
-become available via the registry.
+LLM clients are lazily loaded to avoid heavy imports at module load time.
+Only LLMClientABC and create_llm_client are exposed.
 """
 
-from .anthropic import AnthropicClient
 from .client import LLMClientABC
-from .codex import CodexClient
-from .openai_compatible import OpenAICompatibleClient
-from .openrouter import OpenRouterClient
 from .registry import create_llm_client
-from .responses import ResponsesClient
 
 __all__ = [
     "LLMClientABC",
-    "ResponsesClient",
-    "OpenAICompatibleClient",
-    "OpenRouterClient",
-    "AnthropicClient",
-    "CodexClient",
     "create_llm_client",
 ]

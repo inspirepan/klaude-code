@@ -4,7 +4,8 @@ import os
 import subprocess
 import sys
 import uuid
-from importlib.metadata import PackageNotFoundError, version as pkg_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as pkg_version
 
 import typer
 

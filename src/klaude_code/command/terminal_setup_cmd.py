@@ -1,11 +1,14 @@
 import os
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from klaude_code.command.command_abc import CommandABC, CommandResult
 from klaude_code.command.registry import register_command
-from klaude_code.core.agent import Agent
 from klaude_code.protocol import commands, events, model
+
+if TYPE_CHECKING:
+    from klaude_code.core.agent import Agent
 
 
 @register_command
@@ -24,7 +27,7 @@ class TerminalSetupCommand(CommandABC):
     def is_interactive(self) -> bool:
         return False
 
-    async def run(self, raw: str, agent: Agent) -> CommandResult:
+    async def run(self, raw: str, agent: "Agent") -> CommandResult:
         term_program = os.environ.get("TERM_PROGRAM", "").lower()
 
         try:
@@ -223,7 +226,7 @@ class TerminalSetupCommand(CommandABC):
 
         return message
 
-    def _create_success_result(self, agent: Agent, message: str) -> CommandResult:
+    def _create_success_result(self, agent: "Agent", message: str) -> CommandResult:
         """Create success result"""
         return CommandResult(
             events=[
@@ -237,7 +240,7 @@ class TerminalSetupCommand(CommandABC):
             ]
         )
 
-    def _create_error_result(self, agent: Agent, message: str) -> CommandResult:
+    def _create_error_result(self, agent: "Agent", message: str) -> CommandResult:
         """Create error result"""
         return CommandResult(
             events=[

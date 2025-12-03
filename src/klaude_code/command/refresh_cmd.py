@@ -1,7 +1,11 @@
+from typing import TYPE_CHECKING
+
 from klaude_code.command.command_abc import CommandABC, CommandResult
 from klaude_code.command.registry import register_command
-from klaude_code.core.agent import Agent
 from klaude_code.protocol import commands, events
+
+if TYPE_CHECKING:
+    from klaude_code.core.agent import Agent
 
 
 @register_command
@@ -20,7 +24,7 @@ class RefreshTerminalCommand(CommandABC):
     def is_interactive(self) -> bool:
         return True
 
-    async def run(self, raw: str, agent: Agent) -> CommandResult:
+    async def run(self, raw: str, agent: "Agent") -> CommandResult:
         import os
 
         os.system("cls" if os.name == "nt" else "clear")

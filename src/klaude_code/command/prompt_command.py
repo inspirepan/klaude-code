@@ -1,11 +1,14 @@
 from importlib.resources import files
+from typing import TYPE_CHECKING
 
 import yaml
 
 from klaude_code.command.command_abc import CommandABC, CommandResult, InputAction
-from klaude_code.core.agent import Agent
 from klaude_code.protocol import commands
 from klaude_code.trace import log_debug
+
+if TYPE_CHECKING:
+    from klaude_code.core.agent import Agent
 
 
 class PromptCommand(CommandABC):
@@ -56,7 +59,7 @@ class PromptCommand(CommandABC):
     def support_addition_params(self) -> bool:
         return True
 
-    async def run(self, raw: str, agent: Agent) -> CommandResult:
+    async def run(self, raw: str, agent: "Agent") -> CommandResult:
         self._ensure_loaded()
         template_content = self._content or ""
         user_input = raw.strip() or "<none>"

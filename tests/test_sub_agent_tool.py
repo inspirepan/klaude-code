@@ -207,6 +207,7 @@ class TestPromptBuilder:
 
     def test_custom_prompt_builder(self):
         """Test custom prompt builder in profile."""
+
         def custom_builder(args: dict[str, Any]) -> str:
             task = args.get("task", "")
             context = args.get("context", "")

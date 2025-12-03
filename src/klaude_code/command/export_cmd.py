@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from klaude_code.command.command_abc import CommandABC, CommandResult
 from klaude_code.command.registry import register_command
-from klaude_code.core.agent import Agent
 from klaude_code.protocol import commands, events, model
 from klaude_code.session.export import build_export_html, get_default_export_path
+
+if TYPE_CHECKING:
+    from klaude_code.core.agent import Agent
 
 
 @register_command
@@ -30,7 +33,7 @@ class ExportCommand(CommandABC):
     def is_interactive(self) -> bool:
         return False
 
-    async def run(self, raw: str, agent: Agent) -> CommandResult:
+    async def run(self, raw: str, agent: "Agent") -> CommandResult:
         try:
             output_path = self._resolve_output_path(raw, agent)
             html_doc = self._build_html(agent)
@@ -57,7 +60,7 @@ class ExportCommand(CommandABC):
             )
             return CommandResult(events=[event])
 
-    def _resolve_output_path(self, raw: str, agent: Agent) -> Path:
+    def _resolve_output_path(self, raw: str, agent: "Agent") -> Path:
         trimmed = raw.strip()
         if trimmed:
             candidate = Path(trimmed).expanduser()
@@ -78,7 +81,7 @@ class ExportCommand(CommandABC):
             msg = f"Failed to open HTML with `open`: {exc}"
             raise RuntimeError(msg) from exc
 
-    def _build_html(self, agent: Agent) -> str:
+    def _build_html(self, agent: "Agent") -> str:
         profile = agent.profile
         system_prompt = (profile.system_prompt if profile else "") or ""
         tools = profile.tools if profile else []

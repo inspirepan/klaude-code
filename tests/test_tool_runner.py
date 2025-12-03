@@ -74,9 +74,7 @@ class MockTodoChangeTool(ToolABC):
     @classmethod
     async def call(cls, arguments: str) -> model.ToolResultItem:
         todos = [model.TodoItem(content="Test todo", status="pending")]
-        ui_extra = model.TodoListUIExtra(
-            todo_list=model.TodoUIExtra(todos=todos, new_completed=[])
-        )
+        ui_extra = model.TodoListUIExtra(todo_list=model.TodoUIExtra(todos=todos, new_completed=[]))
         return model.ToolResultItem(
             status="success",
             output="Todo updated",
@@ -152,9 +150,7 @@ class TestToolExecutor:
         return []
 
     @pytest.fixture
-    def executor(
-        self, registry: dict[str, type[ToolABC]], history: list[model.ConversationItem]
-    ) -> ToolExecutor:
+    def executor(self, registry: dict[str, type[ToolABC]], history: list[model.ConversationItem]) -> ToolExecutor:
         def append_history(items: Sequence[model.ConversationItem]) -> None:
             history.extend(items)
 
@@ -356,9 +352,7 @@ class TestBuildToolSideEffectEvents:
     def test_todo_change_side_effect(self, executor: ToolExecutor):
         """Test todo change side effect generates event."""
         todos = [model.TodoItem(content="Task", status="pending")]
-        ui_extra = model.TodoListUIExtra(
-            todo_list=model.TodoUIExtra(todos=todos, new_completed=[])
-        )
+        ui_extra = model.TodoListUIExtra(todo_list=model.TodoUIExtra(todos=todos, new_completed=[]))
         result = model.ToolResultItem(
             status="success",
             output="Done",

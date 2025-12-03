@@ -1,11 +1,14 @@
 from abc import ABC, abstractmethod
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
-from klaude_code.core.agent import Agent
 from klaude_code.protocol import commands
 from klaude_code.protocol import events as protocol_events
+
+if TYPE_CHECKING:
+    from klaude_code.core.agent import Agent
 
 
 class InputActionType(str, Enum):
@@ -78,7 +81,7 @@ class CommandABC(ABC):
         return False
 
     @abstractmethod
-    async def run(self, raw: str, agent: Agent) -> CommandResult:
+    async def run(self, raw: str, agent: "Agent") -> CommandResult:
         """
         Execute the command.
 

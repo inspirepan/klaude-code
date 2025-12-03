@@ -3,11 +3,12 @@ from typing import TYPE_CHECKING, TypeVar
 
 from klaude_code.command.command_abc import CommandResult, InputAction
 from klaude_code.command.prompt_command import PromptCommand
-from klaude_code.core.agent import Agent
 from klaude_code.protocol import commands, events, model
 from klaude_code.trace import log_debug
 
 if TYPE_CHECKING:
+    from klaude_code.core.agent import Agent
+
     from .command_abc import CommandABC
 
 _COMMANDS: dict[commands.CommandName | str, "CommandABC"] = {}
@@ -35,16 +36,26 @@ def load_prompt_commands():
         log_debug(f"Failed to load prompt commands: {e}")
 
 
+def _ensure_commands_loaded() -> None:
+    """Ensure all commands are loaded (lazy initialization)."""
+    from klaude_code.command import ensure_commands_loaded
+
+    ensure_commands_loaded()
+
+
 def get_commands() -> dict[commands.CommandName | str, "CommandABC"]:
     """Get all registered commands."""
+    _ensure_commands_loaded()
     return _COMMANDS.copy()
 
 
 def is_slash_command_name(name: str) -> bool:
+    _ensure_commands_loaded()
     return name in _COMMANDS
 
 
-async def dispatch_command(raw: str, agent: Agent) -> CommandResult:
+async def dispatch_command(raw: str, agent: "Agent") -> CommandResult:
+    _ensure_commands_loaded()
     # Detect command name
     if not raw.startswith("/"):
         return CommandResult(actions=[InputAction.run_agent(raw)])
@@ -96,6 +107,7 @@ async def dispatch_command(raw: str, agent: Agent) -> CommandResult:
 
 
 def has_interactive_command(raw: str) -> bool:
+    _ensure_commands_loaded()
     if not raw.startswith("/"):
         return False
     splits = raw.split(" ", maxsplit=1)

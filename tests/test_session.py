@@ -13,7 +13,6 @@ from klaude_code.protocol.llm_param import ToolSchema
 from klaude_code.session import export
 from klaude_code.session.session import Session
 
-
 # =====================
 # Tests for export.py
 # =====================
@@ -281,12 +280,14 @@ class TestTryRenderTodoArgs:
     """Tests for _try_render_todo_args function."""
 
     def test_valid_todos(self):
-        args = json.dumps({
-            "todos": [
-                {"content": "Task 1", "status": "pending"},
-                {"content": "Task 2", "status": "completed"},
-            ]
-        })
+        args = json.dumps(
+            {
+                "todos": [
+                    {"content": "Task 1", "status": "pending"},
+                    {"content": "Task 2", "status": "completed"},
+                ]
+            }
+        )
         result = export._try_render_todo_args(args)
         assert result is not None
         assert "Task 1" in result
@@ -617,13 +618,15 @@ class TestSessionListAndClean:
 
         # Create a larger session (5+ messages)
         large_session = Session(work_dir=project_dir)
-        large_session.append_history([
-            model.UserMessageItem(content="1"),
-            model.AssistantMessageItem(content="2"),
-            model.UserMessageItem(content="3"),
-            model.AssistantMessageItem(content="4"),
-            model.UserMessageItem(content="5"),
-        ])
+        large_session.append_history(
+            [
+                model.UserMessageItem(content="1"),
+                model.AssistantMessageItem(content="2"),
+                model.UserMessageItem(content="3"),
+                model.AssistantMessageItem(content="4"),
+                model.UserMessageItem(content="5"),
+            ]
+        )
 
         # Should have 2 sessions
         assert len(Session.list_sessions()) == 2
