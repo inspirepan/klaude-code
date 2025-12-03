@@ -14,7 +14,6 @@ from klaude_code.core.executor import Executor
 from klaude_code.core.manager import build_llm_clients
 from klaude_code.protocol import events, op
 from klaude_code.protocol.model import UserInputPayload
-from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 from klaude_code.trace import DebugType, log, set_debug_logging
 from klaude_code.ui.modes.repl import build_repl_status_snapshot
 from klaude_code.ui.modes.repl.input_prompt_toolkit import REPLStatusSnapshot
@@ -96,11 +95,9 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
 
     # Initialize LLM clients
     try:
-        enabled_sub_agents = [p.name for p in iter_sub_agent_profiles()]
         llm_clients = build_llm_clients(
             config,
             model_override=init_config.model,
-            enabled_sub_agents=enabled_sub_agents,
         )
     except ValueError as exc:
         if init_config.model:

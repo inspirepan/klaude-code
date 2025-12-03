@@ -61,8 +61,6 @@ def load_agent_tools(
 
     if sub_agent_type is not None:
         profile = get_sub_agent_profile(sub_agent_type)
-        if not profile.enabled_for_model(model_name):
-            return []
         return get_tool_schemas(list(profile.tool_set))
 
     # Main agent tools
