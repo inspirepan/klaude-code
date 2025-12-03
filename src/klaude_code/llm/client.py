@@ -19,7 +19,7 @@ class LLMClientABC(ABC):
     @abstractmethod
     async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         raise NotImplementedError
-        yield cast(model.ConversationItem, None)  # pyright: ignore[reportUnreachable]
+        yield cast(model.ConversationItem, None)
 
     def get_llm_config(self) -> llm_param.LLMConfigParameter:
         return self._config

@@ -31,13 +31,13 @@ class Usage(BaseModel):
     cache_read_cost: float | None = None  # Cost for cached tokens
     currency: str = "USD"  # Currency for cost display (USD or CNY)
 
-    @computed_field  # type: ignore[prop-decorator]
+    @computed_field
     @property
     def total_tokens(self) -> int:
         """Total tokens computed from input + output tokens."""
         return self.input_tokens + self.output_tokens
 
-    @computed_field  # type: ignore[prop-decorator]
+    @computed_field
     @property
     def total_cost(self) -> float | None:
         """Total cost computed from input + output + cache_read costs."""
@@ -45,7 +45,7 @@ class Usage(BaseModel):
         non_none = [c for c in costs if c is not None]
         return sum(non_none) if non_none else None
 
-    @computed_field  # type: ignore[prop-decorator]
+    @computed_field
     @property
     def context_usage_percent(self) -> float | None:
         """Context usage percentage computed from context_window_size / context_limit."""

@@ -73,7 +73,7 @@ class OpenRouterClient(LLMClientABC):
             max_tokens=param.max_tokens,
             tools=tools,
             verbosity=param.verbosity,
-            extra_body=extra_body,  # pyright: ignore[reportUnknownArgumentType]
+            extra_body=extra_body,
             extra_headers=extra_headers,  # pyright: ignore[reportUnknownArgumentType]
         )
 

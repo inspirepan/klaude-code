@@ -34,7 +34,7 @@ def _build_tool_result_item(tool: model.ToolResultItem) -> responses.ResponseInp
         "call_id": tool.call_id,
         "output": content_parts,
     }
-    return item  # type: ignore[return-value]
+    return item
 
 
 def convert_history_to_input(

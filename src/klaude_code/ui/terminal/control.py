@@ -38,7 +38,7 @@ def start_esc_interrupt_monitor(
     # Fallback for non-interactive or non-POSIX environments.
     if not sys.stdin.isatty() or os.name != "posix":
 
-        async def _noop() -> None:  # type: ignore[return-type]
+        async def _noop() -> None:
             return None
 
         return stop_event, asyncio.create_task(_noop())
@@ -85,7 +85,7 @@ def start_esc_interrupt_monitor(
             log((f"esc monitor error: {exc}", "r red"))
         finally:
             try:
-                termios.tcsetattr(fd, termios.TCSADRAIN, old)  # type: ignore[name-defined]
+                termios.tcsetattr(fd, termios.TCSADRAIN, old)
             except Exception:
                 pass
 

@@ -482,4 +482,4 @@ class Executor:
 
 # Static type check: ExecutorContext must satisfy OperationHandler protocol.
 # If this line causes a type error, ExecutorContext is missing required methods.
-_: type[OperationHandler] = ExecutorContext  # pyright: ignore[reportUnusedVariable]
+_: type[OperationHandler] = ExecutorContext

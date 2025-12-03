@@ -68,4 +68,4 @@ class InputProviderABC(ABC):
             UserInputPayload with text and optional images.
         """
         raise NotImplementedError
-        yield UserInputPayload(text="")  # pyright: ignore[reportUnreachable]
+        yield UserInputPayload(text="")
