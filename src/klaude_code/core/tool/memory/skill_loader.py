@@ -39,7 +39,7 @@ class SkillLoader:
     USER_SKILLS_DIRS = [
         Path("~/.claude/skills"),
         Path("~/.klaude/skills"),
-        Path("~/.claude/plugins/marketplaces"),
+        # Path("~/.claude/plugins/marketplaces"),
     ]
     # Project-level skills directory
     PROJECT_SKILLS_DIR = Path("./.claude/skills")
