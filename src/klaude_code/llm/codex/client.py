@@ -84,7 +84,7 @@ class CodexClient(LLMClientABC):
         # Codex API requires store=False
         param.store = False
 
-        metadata_tracker = MetadataTracker(cost_config=self._config.cost)
+        metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
         inputs = convert_history_to_input(param.input, param.model)
         tools = convert_tool_schema(param.tools)

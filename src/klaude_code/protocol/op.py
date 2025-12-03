@@ -67,6 +67,7 @@ class InitAgentOperation(Operation):
 
     type: OperationType = OperationType.INIT_AGENT
     session_id: str | None = None
+    is_new_session: bool = False
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_init_agent(self)

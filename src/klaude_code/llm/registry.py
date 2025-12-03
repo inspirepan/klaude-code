@@ -1,9 +1,11 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, TypeVar
 
 from klaude_code.protocol import llm_param
 
 if TYPE_CHECKING:
     from klaude_code.llm.client import LLMClientABC
+
+_T = TypeVar("_T", bound=type["LLMClientABC"])
 
 # Track which protocols have been loaded
 _loaded_protocols: set[llm_param.LLMClientProtocol] = set()
@@ -29,14 +31,14 @@ def _load_protocol(protocol: llm_param.LLMClientProtocol) -> None:
         from . import responses as _  # noqa: F401
 
 
-def register(name: llm_param.LLMClientProtocol) -> type["LLMClientABC"]:
+def register(name: llm_param.LLMClientProtocol) -> Callable[[_T], _T]:
     """Decorator to register an LLM client class for a protocol."""
 
-    def _decorator(cls: type["LLMClientABC"]) -> type["LLMClientABC"]:
+    def _decorator(cls: _T) -> _T:
         _REGISTRY[name] = cls
         return cls
 
-    return _decorator  # type: ignore[return-value]
+    return _decorator
 
 
 def create_llm_client(config: llm_param.LLMConfigParameter) -> "LLMClientABC":

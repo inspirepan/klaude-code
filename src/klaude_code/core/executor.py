@@ -117,7 +117,7 @@ class ExecutorContext:
         if operation.session_id is None:
             raise ValueError("session_id cannot be None")
 
-        await self.agent_manager.ensure_agent(operation.session_id)
+        await self.agent_manager.ensure_agent(operation.session_id, is_new_session=operation.is_new_session)
 
     async def handle_user_input(self, operation: op.UserInputOperation) -> None:
         """Handle a user input operation by running it through an agent."""

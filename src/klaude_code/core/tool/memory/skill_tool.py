@@ -13,15 +13,26 @@ class SkillTool(ToolABC):
     """Tool to execute/load a skill within the main conversation"""
 
     _skill_loader: SkillLoader | None = None
+    _discovery_done: bool = False
 
     @classmethod
     def set_skill_loader(cls, loader: SkillLoader) -> None:
         """Set the skill loader instance"""
         cls._skill_loader = loader
+        cls._discovery_done = False
+
+    @classmethod
+    def _ensure_skills_discovered(cls) -> None:
+        if cls._discovery_done:
+            return
+        if cls._skill_loader is not None:
+            cls._skill_loader.discover_skills()
+        cls._discovery_done = True
 
     @classmethod
     def schema(cls) -> llm_param.ToolSchema:
         """Generate schema with embedded available skills metadata"""
+        cls._ensure_skills_discovered()
         skills_xml = cls._generate_skills_xml()
 
         return llm_param.ToolSchema(
@@ -68,6 +79,8 @@ class SkillTool(ToolABC):
                 status="error",
                 output=f"Invalid arguments: {e}",
             )
+
+        cls._ensure_skills_discovered()
 
         if not cls._skill_loader:
             return model.ToolResultItem(

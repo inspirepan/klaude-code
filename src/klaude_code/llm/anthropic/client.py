@@ -46,7 +46,7 @@ class AnthropicClient(LLMClientABC):
     async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         param = apply_config_defaults(param, self.get_llm_config())
 
-        metadata_tracker = MetadataTracker(cost_config=self._config.cost)
+        metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
         messages = convert_history_to_input(param.input, param.model)
         tools = convert_tool_schema(param.tools)

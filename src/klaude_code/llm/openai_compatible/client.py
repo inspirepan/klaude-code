@@ -47,7 +47,7 @@ class OpenAICompatibleClient(LLMClientABC):
         messages = convert_history_to_input(param.input, param.system, param.model)
         tools = convert_tool_schema(param.tools)
 
-        metadata_tracker = MetadataTracker(cost_config=self._config.cost)
+        metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
         extra_body = {}
         extra_headers = {"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)}

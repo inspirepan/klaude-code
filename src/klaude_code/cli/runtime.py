@@ -13,7 +13,6 @@ from klaude_code.config import Config, load_config
 from klaude_code.core.agent import Agent, DefaultModelProfileProvider, VanillaModelProfileProvider
 from klaude_code.core.executor import Executor
 from klaude_code.core.manager import build_llm_clients
-from klaude_code.core.tool import SkillLoader, SkillTool
 from klaude_code.protocol import events, op
 from klaude_code.protocol.model import UserInputPayload
 from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
@@ -95,11 +94,6 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     config = load_config()
     if config is None:
         raise typer.Exit(1)
-
-    # Initialize skills
-    skill_loader = SkillLoader()
-    skill_loader.discover_skills()
-    SkillTool.set_skill_loader(skill_loader)
 
     # Initialize LLM clients
     try:
@@ -216,8 +210,7 @@ async def run_exec(init_config: AppInitConfig, input_content: str) -> None:
         # Generate a new session ID for exec mode
         session_id = uuid.uuid4().hex
 
-        # Init Agent
-        await components.executor.submit_and_wait(op.InitAgentOperation(session_id=session_id))
+        await components.executor.submit_and_wait(op.InitAgentOperation(session_id=session_id, is_new_session=True))
         await components.event_queue.join()
 
         # Submit the input content directly
@@ -231,7 +224,9 @@ async def run_exec(init_config: AppInitConfig, input_content: str) -> None:
         await cleanup_app_components(components)
 
 
-async def run_interactive(init_config: AppInitConfig, session_id: str | None = None) -> None:
+async def run_interactive(
+    init_config: AppInitConfig, session_id: str | None = None, *, is_new_session: bool = False
+) -> None:
     """Run the interactive REPL using the provided configuration."""
 
     components = await initialize_app_components(init_config)
@@ -284,8 +279,9 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     restore_sigint = install_sigint_double_press_exit(_show_toast_once, _hide_progress)
 
     try:
-        # Init Agent
-        await components.executor.submit_and_wait(op.InitAgentOperation(session_id=session_id))
+        await components.executor.submit_and_wait(
+            op.InitAgentOperation(session_id=session_id, is_new_session=is_new_session)
+        )
         await components.event_queue.join()
         # Input
         await input_provider.start()

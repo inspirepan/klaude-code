@@ -32,18 +32,30 @@ def build_llm_clients(
         debug_type=DebugType.LLM_CONFIG,
     )
 
-    main_client = create_llm_client(llm_config)
-    sub_clients: dict[SubAgentType, LLMClientABC] = {}
+    main_model_name = str(llm_config.model)
 
-    # Initialize sub-agent clients
+    def _main_factory() -> LLMClientABC:
+        return create_llm_client(llm_config)
+
+    clients = LLMClients(
+        main_factory=_main_factory,
+        main_model_name=main_model_name,
+        main_llm_config=llm_config,
+    )
+
     for sub_agent_type in enabled_sub_agents or []:
         model_name = config.subagent_models.get(sub_agent_type)
         if not model_name:
             continue
-        profile = get_sub_agent_profile(sub_agent_type)
-        if not profile.enabled_for_model(main_client.model_name):
-            continue
-        sub_llm_config = config.get_model_config(model_name)
-        sub_clients[sub_agent_type] = create_llm_client(sub_llm_config)
 
-    return LLMClients(main=main_client, sub_clients=sub_clients)
+        profile = get_sub_agent_profile(sub_agent_type)
+        if not profile.enabled_for_model(main_model_name):
+            continue
+
+        def _factory(model_name_for_factory: str = model_name) -> LLMClientABC:
+            sub_llm_config = config.get_model_config(model_name_for_factory)
+            return create_llm_client(sub_llm_config)
+
+        clients.register_sub_client_factory(sub_agent_type, _factory)
+
+    return clients

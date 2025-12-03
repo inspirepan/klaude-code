@@ -1,10 +1,10 @@
-
 """
 Performance test for REPL startup time.
 
 Measures the time from script start to REPL ready for user input.
 Run with: uv run scripts/perf_repl_startup.py
 """
+
 import asyncio
 import sys
 import time
@@ -99,7 +99,7 @@ async def run_startup_test() -> StartupTimer:
     timer.mark("Script start")
 
     # Phase 1: Imports
-    from klaude_code.cli.main import app  # noqa: F401
+    from klaude_code.cli.main import app  # type: ignore
 
     timer.mark("Import cli.main")
 
@@ -107,7 +107,6 @@ async def run_startup_test() -> StartupTimer:
     from klaude_code.core.agent import DefaultModelProfileProvider
     from klaude_code.core.executor import Executor
     from klaude_code.core.manager import build_llm_clients
-    from klaude_code.core.tool import SkillLoader, SkillTool
     from klaude_code.protocol import events, op
     from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
     from klaude_code.ui.terminal.color import is_light_terminal_background
@@ -120,17 +119,13 @@ async def run_startup_test() -> StartupTimer:
 
     # Phase 2: Configuration
     config = load_config()
+    if config is None:
+        raise RuntimeError("Failed to load config")
     timer.mark("load_config()")
 
     detected = is_light_terminal_background()
     theme = "light" if detected is True else "dark" if detected is False else None
     timer.mark("is_light_terminal_background()")
-
-    # Phase 3: Skill discovery
-    skill_loader = SkillLoader()
-    skill_loader.discover_skills()
-    SkillTool.set_skill_loader(skill_loader)
-    timer.mark("SkillLoader.discover_skills()")
 
     # Phase 4: LLM clients
     enabled_sub_agents = [p.name for p in iter_sub_agent_profiles()]
@@ -156,7 +151,7 @@ async def run_startup_test() -> StartupTimer:
     timer.mark("display.consume_event_loop() task")
 
     session_id = uuid.uuid4().hex
-    await executor.submit_and_wait(op.InitAgentOperation(session_id=session_id))
+    await executor.submit_and_wait(op.InitAgentOperation(session_id=session_id, is_new_session=True))
     timer.mark("InitAgentOperation completed")
 
     await event_queue.join()

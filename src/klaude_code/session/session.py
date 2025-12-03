@@ -103,7 +103,17 @@ class Session(BaseModel):
         return self._messages_dir() / f"{prefix}-{self.id}.jsonl"
 
     @classmethod
-    def load(cls, id: str) -> "Session":
+    def create(cls, id: str | None = None) -> "Session":
+        """Create a new session without checking for existing files."""
+        return Session(id=id or uuid.uuid4().hex, work_dir=Path.cwd())
+
+    @classmethod
+    def load(cls, id: str, *, skip_if_missing: bool = False) -> "Session":
+        """Load an existing session or create a new one if not found."""
+
+        if skip_if_missing:
+            return Session(id=id, work_dir=Path.cwd())
+
         # Load session metadata
         sessions_dir = cls._sessions_dir()
         session_candidates = sorted(

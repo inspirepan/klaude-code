@@ -43,7 +43,7 @@ class SubAgentManager:
         child_session = Session(work_dir=parent_session.work_dir)
         child_session.sub_agent_state = state
 
-        child_profile = self._model_profile_provider.build_profile(
+        child_profile = self._model_profile_provider.build_profile_eager(
             self._llm_clients.get_client(state.sub_agent_type),
             state.sub_agent_type,
         )
