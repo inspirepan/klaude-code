@@ -114,10 +114,7 @@ class ExecutorContext:
 
     async def handle_init_agent(self, operation: op.InitAgentOperation) -> None:
         """Initialize an agent for a session and replay history to UI."""
-        if operation.session_id is None:
-            raise ValueError("session_id cannot be None")
-
-        await self.agent_manager.ensure_agent(operation.session_id, is_new_session=operation.is_new_session)
+        await self.agent_manager.ensure_agent(operation.session_id)
 
     async def handle_user_input(self, operation: op.UserInputOperation) -> None:
         """Handle a user input operation by running it through an agent."""

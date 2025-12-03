@@ -8,7 +8,6 @@ Run with: uv run scripts/perf_repl_startup.py
 import asyncio
 import sys
 import time
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -150,8 +149,7 @@ async def run_startup_test() -> StartupTimer:
     display_task = asyncio.create_task(display.consume_event_loop(event_queue))
     timer.mark("display.consume_event_loop() task")
 
-    session_id = uuid.uuid4().hex
-    await executor.submit_and_wait(op.InitAgentOperation(session_id=session_id, is_new_session=True))
+    await executor.submit_and_wait(op.InitAgentOperation())
     timer.mark("InitAgentOperation completed")
 
     await event_queue.join()

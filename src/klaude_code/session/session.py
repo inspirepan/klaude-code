@@ -108,12 +108,8 @@ class Session(BaseModel):
         return Session(id=id or uuid.uuid4().hex, work_dir=Path.cwd())
 
     @classmethod
-    def load(cls, id: str, *, skip_if_missing: bool = False) -> "Session":
+    def load(cls, id: str) -> "Session":
         """Load an existing session or create a new one if not found."""
-
-        if skip_if_missing:
-            return Session(id=id, work_dir=Path.cwd())
-
         # Load session metadata
         sessions_dir = cls._sessions_dir()
         session_candidates = sorted(

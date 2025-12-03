@@ -3,7 +3,6 @@ import datetime
 import os
 import subprocess
 import sys
-import uuid
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as pkg_version
 
@@ -340,8 +339,8 @@ def main_callback(
                 return
 
         # Resolve session id before entering asyncio loop
+        # session_id=None means create a new session
         session_id: str | None = None
-        is_new_session = False
         if resume:
             session_id = resume_select_session()
             if session_id is None:
@@ -349,10 +348,7 @@ def main_callback(
         # If user didn't pick, allow fallback to --continue
         if session_id is None and continue_:
             session_id = Session.most_recent_session_id()
-        # If still no session_id, generate a new one for a new session
-        if session_id is None:
-            session_id = uuid.uuid4().hex
-            is_new_session = True
+        # If still no session_id, leave as None to create a new session
 
         debug_enabled, debug_filters = resolve_debug_settings(debug, debug_filter)
 
@@ -367,6 +363,5 @@ def main_callback(
             run_interactive(
                 init_config=init_config,
                 session_id=session_id,
-                is_new_session=is_new_session,
             )
         )

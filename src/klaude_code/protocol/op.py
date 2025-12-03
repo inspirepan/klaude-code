@@ -63,11 +63,14 @@ class InterruptOperation(Operation):
 
 
 class InitAgentOperation(Operation):
-    """Operation for initializing an agent and replaying history if any."""
+    """Operation for initializing an agent and replaying history if any.
+
+    If session_id is None, a new session is created with an auto-generated ID.
+    If session_id is provided, attempts to load existing session or creates new one.
+    """
 
     type: OperationType = OperationType.INIT_AGENT
     session_id: str | None = None
-    is_new_session: bool = False
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_init_agent(self)

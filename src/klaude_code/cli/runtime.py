@@ -1,6 +1,5 @@
 import asyncio
 import sys
-import uuid
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -207,11 +206,13 @@ async def run_exec(init_config: AppInitConfig, input_content: str) -> None:
     components = await initialize_app_components(init_config)
 
     try:
-        # Generate a new session ID for exec mode
-        session_id = uuid.uuid4().hex
-
-        await components.executor.submit_and_wait(op.InitAgentOperation(session_id=session_id, is_new_session=True))
+        # Initialize a new session (session_id=None means create new)
+        await components.executor.submit_and_wait(op.InitAgentOperation())
         await components.event_queue.join()
+
+        # Get the session_id from the newly created agent
+        session_ids = components.executor.context.agent_manager.active_session_ids()
+        session_id = session_ids[0] if session_ids else None
 
         # Submit the input content directly
         await components.executor.submit_and_wait(
@@ -224,11 +225,12 @@ async def run_exec(init_config: AppInitConfig, input_content: str) -> None:
         await cleanup_app_components(components)
 
 
-async def run_interactive(
-    init_config: AppInitConfig, session_id: str | None = None, *, is_new_session: bool = False
-) -> None:
-    """Run the interactive REPL using the provided configuration."""
+async def run_interactive(init_config: AppInitConfig, session_id: str | None = None) -> None:
+    """Run the interactive REPL using the provided configuration.
 
+    If session_id is None, a new session is created with an auto-generated ID.
+    If session_id is provided, attempts to resume that session.
+    """
     components = await initialize_app_components(init_config)
 
     # No theme persistence from CLI anymore; config.theme controls theme when set.
@@ -236,8 +238,10 @@ async def run_interactive(
     # Create status provider for bottom toolbar
     def _status_provider() -> REPLStatusSnapshot:
         agent: Agent | None = None
-        if session_id and session_id in components.executor.context.active_agents:
-            agent = components.executor.context.active_agents[session_id]
+        # Get the first active agent (there should only be one in interactive mode)
+        active_agents = components.executor.context.active_agents
+        if active_agents:
+            agent = next(iter(active_agents.values()), None)
 
         # Check for updates (returns None if uv not available)
         update_message = get_update_message()
@@ -279,10 +283,13 @@ async def run_interactive(
     restore_sigint = install_sigint_double_press_exit(_show_toast_once, _hide_progress)
 
     try:
-        await components.executor.submit_and_wait(
-            op.InitAgentOperation(session_id=session_id, is_new_session=is_new_session)
-        )
+        await components.executor.submit_and_wait(op.InitAgentOperation(session_id=session_id))
         await components.event_queue.join()
+
+        # Get the actual session_id (may have been auto-generated if None was passed)
+        active_session_ids = components.executor.context.agent_manager.active_session_ids()
+        active_session_id = active_session_ids[0] if active_session_ids else session_id
+
         # Input
         await input_provider.start()
         async for user_input in input_provider.iter_inputs():
@@ -293,7 +300,7 @@ async def run_interactive(
                 continue
             # Submit user input operation - directly use the payload from iter_inputs
             submission_id = await components.executor.submit(
-                op.UserInputOperation(input=user_input, session_id=session_id)
+                op.UserInputOperation(input=user_input, session_id=active_session_id)
             )
             # If it's an interactive command (e.g., /model), avoid starting the ESC monitor
             # to prevent TTY conflicts with interactive prompts (questionary/prompt_toolkit).
@@ -302,7 +309,7 @@ async def run_interactive(
             else:
                 # Esc monitor for long-running, interruptible operations
                 async def _on_esc_interrupt() -> None:
-                    await components.executor.submit(op.InterruptOperation(target_session_id=session_id))
+                    await components.executor.submit(op.InterruptOperation(target_session_id=active_session_id))
 
                 stop_event, esc_task = start_esc_interrupt_monitor(_on_esc_interrupt)
                 # Wait for this specific task to complete before accepting next input

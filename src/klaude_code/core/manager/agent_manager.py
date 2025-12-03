@@ -38,13 +38,19 @@ class AgentManager:
 
         await self._event_queue.put(event)
 
-    async def ensure_agent(self, session_id: str, *, is_new_session: bool = False) -> Agent:
-        """Return an existing agent for the session or create a new one."""
-        agent = self._active_agents.get(session_id)
-        if agent is not None:
-            return agent
+    async def ensure_agent(self, session_id: str | None = None) -> Agent:
+        """Return an existing agent for the session or create a new one.
 
-        session = Session.load(session_id, skip_if_missing=is_new_session)
+        If session_id is None, a new session is created with an auto-generated ID.
+        If session_id is provided, attempts to load existing session or creates new one.
+        """
+        if session_id is None:
+            session = Session.create()
+        else:
+            agent = self._active_agents.get(session_id)
+            if agent is not None:
+                return agent
+            session = Session.load(session_id)
         profile = self._model_profile_provider.build_profile(self._llm_clients)
         agent = Agent(session=session, profile=profile, model_name=self._llm_clients.main_model_name)
 
@@ -58,9 +64,9 @@ class AgentManager:
             )
         )
 
-        self._active_agents[session_id] = agent
+        self._active_agents[session.id] = agent
         log_debug(
-            f"Initialized agent for session: {session_id}",
+            f"Initialized agent for session: {session.id}",
             style="cyan",
             debug_type=DebugType.EXECUTION,
         )
