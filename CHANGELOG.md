@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.10] - 2025-12-03
+
+### Changed
+
+- optimize startup time with lazy loading (`2c2c343`)
+- optimize LLM client loading and increase display lines (`c3e38b9`)
+- lazy import (`a15a989`)
+- rename context_window_size to context_token for clarity in usage tracking (`ec43ea9`)
+- add test coverage for tool, session, and config modules (`5a34919`)
+- improve exception handling specificity and extract shared file utils (`ac6e777`)
+
+### Fixed
+
+- correct context usage percentage calculation (`f61dfb0`)
+
+### Other
+
+- remove some pyright ignore (`9a95847`)
 ## [1.2.9] - 2025-12-02
 
 ### Added
@@ -352,7 +370,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.9...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.10...HEAD
+[1.2.10]: https://github.com/inspirepan/klaude-code/compare/v1.2.9...v1.2.10
 [1.2.9]: https://github.com/inspirepan/klaude-code/compare/v1.2.8...v1.2.9
 [1.2.8]: https://github.com/inspirepan/klaude-code/compare/v1.2.7...v1.2.8
 [1.2.7]: https://github.com/inspirepan/klaude-code/compare/v1.2.6...v1.2.7
