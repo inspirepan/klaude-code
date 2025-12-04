@@ -403,6 +403,9 @@ def _get_mermaid_link_html(
         buttons_html.append(
             f'<button type="button" class="copy-mermaid-btn" data-code="{escaped_code}" title="Copy Mermaid Code">Copy Code</button>'
         )
+        buttons_html.append(
+            '<button type="button" class="fullscreen-mermaid-btn" title="View Fullscreen">Fullscreen</button>'
+        )
 
     link = ui_extra.link if isinstance(ui_extra, model.MermaidLinkUIExtra) else None
 
