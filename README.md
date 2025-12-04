@@ -142,9 +142,6 @@ Inside the interactive session (`klaude`), use these commands to streamline your
 | `Backspace`          | Delete character or selected text           |
 | `c` (with selection) | Copy selected text to clipboard             |
 
-Mouse support is automatically enabled when input spans multiple lines.
-
-
 ### Non-Interactive Headless Mode (exec)
 
 Execute a single command without starting the interactive REPL:

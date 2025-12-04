@@ -453,14 +453,10 @@ class DisplayEventHandler:
                 if len(todo.content) > 0:
                     status_text = todo.content
         status_text = status_text.replace("\n", "")
-        return self._truncate_status_text(status_text, max_length=30)
+        return self._truncate_status_text(status_text, max_length=100)
 
     def _truncate_status_text(self, text: str, max_length: int) -> str:
-        """Truncate text to max_length while preserving complete words."""
         if len(text) <= max_length:
             return text
         truncated = text[:max_length]
-        last_space = truncated.rfind(" ")
-        if last_space > 0:
-            return truncated[:last_space] + "..."
         return truncated + "..."
