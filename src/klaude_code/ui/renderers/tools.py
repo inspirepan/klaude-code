@@ -339,12 +339,23 @@ def render_mermaid_tool_call(arguments: str) -> RenderableType:
 
 
 def render_mermaid_tool_result(tr: events.ToolResultEvent) -> RenderableType:
+    from klaude_code.ui.terminal import supports_osc8_hyperlinks
+
     link_info = _extract_mermaid_link(tr.ui_extra)
     if link_info is None:
         return render_generic_tool_result(tr.result, is_error=tr.status == "error")
 
-    link_text = Text.from_markup(f"[blue u][link={link_info.link}]Command+click to view[/link][/blue u]")
-    return Padding.indent(link_text, level=2)
+    if supports_osc8_hyperlinks():
+        link_text = Text.from_markup(f"[blue u][link={link_info.link}]Command+click to view[/link][/blue u]")
+        return Padding.indent(link_text, level=2)
+
+    # For terminals that don't support OSC 8, show a hint to use /export
+    hint_text = Text.assemble(
+        ("Use ", ThemeKey.TOOL_RESULT),
+        ("/export", ThemeKey.TOOL_RESULT_BOLD),
+        (" to view the diagram.", ThemeKey.TOOL_RESULT),
+    )
+    return Padding.indent(hint_text, level=2)
 
 
 def _extract_truncation(
