@@ -15,8 +15,7 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
 PROMPT_FILES: dict[str, str] = {
     "main_gpt_5_1": "prompts/prompt-codex-gpt-5-1.md",
     "main_gpt_5_1_codex_max": "prompts/prompt-codex-gpt-5-1-codex-max.md",
-    # "main": "prompts/prompt-claude-code.md",
-    "main": "prompts/prompt-minimal.md",
+    "main": "prompts/prompt-claude-code.md",
     "main_gemini": "prompts/prompt-gemini.md",  # https://ai.google.dev/gemini-api/docs/prompting-strategies?hl=zh-cn#agentic-si-template
     # Sub-agent prompts keyed by their name
     "Task": "prompts/prompt-subagent.md",
