@@ -150,6 +150,16 @@ def _render_task_metadata_block(
             )
         )
 
+    # Turn count
+    if show_context_and_time and metadata.turn_count > 0:
+        parts3.append(
+            Text.assemble(
+                ("turns", ThemeKey.METADATA_DIM),
+                (":", ThemeKey.METADATA_DIM),
+                (str(metadata.turn_count), ThemeKey.METADATA_DIM),
+            )
+        )
+
     if parts3:
         line2 = Text(" / ", style=ThemeKey.METADATA_DIM).join(parts3)
         renderables.append(Padding(line2, (0, 0, 0, indent + 2)))

@@ -319,6 +319,7 @@ class TaskMetadata(BaseModel):
     model_name: str = ""
     provider: str | None = None
     task_duration_s: float | None = None
+    turn_count: int = 0
 
     @staticmethod
     def aggregate_by_model(metadata_list: list["TaskMetadata"]) -> list["TaskMetadata"]:

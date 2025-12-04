@@ -29,9 +29,11 @@ class MetadataAccumulator:
         self._sub_agent_metadata: list[model.TaskMetadata] = []
         self._throughput_weighted_sum: float = 0.0
         self._throughput_tracked_tokens: int = 0
+        self._turn_count: int = 0
 
     def add(self, turn_metadata: model.ResponseMetadataItem) -> None:
         """Merge a turn's metadata into the accumulated state."""
+        self._turn_count += 1
         main = self._main
         usage = turn_metadata.usage
 
@@ -91,6 +93,7 @@ class MetadataAccumulator:
                 main.usage.throughput_tps = None
 
         main.task_duration_s = task_duration_s
+        main.turn_count = self._turn_count
         return model.TaskMetadataItem(main=main, sub_agent_task_metadata=self._sub_agent_metadata)
 
 
