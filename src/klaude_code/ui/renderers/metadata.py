@@ -77,11 +77,12 @@ def _render_task_metadata_block(
             ]
             if metadata.usage.cache_read_cost is not None:
                 cached_parts.append((f"({currency_symbol}{metadata.usage.cache_read_cost:.4f})", ThemeKey.METADATA_DIM))
-            # Cache ratio: (context_size + cached) / input
-            # This shows how much of the input was already in context/cache
+            # Cache ratio: (input - context_delta) / input
+            # Shows how much of the input was cached (not new context growth)
             if show_context_and_time and metadata.usage.input_tokens > 0:
-                context_size = metadata.usage.context_token or 0
-                cache_ratio = (context_size + metadata.usage.cached_tokens) / metadata.usage.input_tokens * 100
+                context_delta = metadata.usage.context_delta or 0
+                cacheable = metadata.usage.input_tokens - context_delta
+                cache_ratio = max(0, cacheable) / metadata.usage.input_tokens * 100
                 cached_parts.append((f"[{cache_ratio:.0f}%]", ThemeKey.METADATA_DIM))
             parts2.append(Text.assemble(*cached_parts))
 

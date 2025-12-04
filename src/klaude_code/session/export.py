@@ -199,10 +199,12 @@ def _render_single_metadata(
             cached_stat = f"cached: {_format_token_count(u.cached_tokens)}"
             if u.cache_read_cost is not None:
                 cached_stat += f"({_format_cost(u.cache_read_cost, u.currency)})"
-            # Cache ratio: (context_size + cached) / input
+            # Cache ratio: (input - context_delta) / input
+            # Shows how much of the input was cached (not new context growth)
             if u.input_tokens > 0:
-                context_size = u.context_token or 0
-                cache_ratio = (context_size + u.cached_tokens) / u.input_tokens * 100
+                context_delta = u.context_delta or 0
+                cacheable = u.input_tokens - context_delta
+                cache_ratio = max(0, cacheable) / u.input_tokens * 100
                 cached_stat += f"[{cache_ratio:.0f}%]"
             parts.append(f'<span class="metadata-stat">{cached_stat}</span>')
 
