@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.11] - 2025-12-04
+
+### Added
+
+- remove mouse support in prompt_toolkit input (`9c187ea`)
+- add cache ratio display (`3ddbf5f`)
+- support fullscreen mermaid (`07dd1f7`)
+- add OSC 8 hyperlink detection for Mermaid tool (`0d56261`)
+- add turn_count to TaskMetadata (`c1abd7f`)
+- use claude code prompt (`4f90dcf`)
+- simplify prompts and adjust tool configurations (`8b5b355`)
+- disable claude code marketplace skills (`60e7d2b`)
+- disable memory tool (`76c8280`)
+
+### Changed
+
+- centralize session ID generation in Session.create() (`4d166e9`)
+
+### Fixed
+
+- unify cache ratio calculation across export and UI (`97f61b8`)
+- stabilize spinner position by adjusting padding logic (`e181770`)
+- use context_delta for accurate cache ratio calculation (`4ca0d85`)
+- issue of haiku explore missing tools  - enabled_for_model should only be applied for main_model_name (`4cfad31`)
+
+### Other
+
+- update agents.md (`53935e5`)
 ## [1.2.10] - 2025-12-03
 
 ### Changed
@@ -370,7 +398,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.10...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.11...HEAD
+[1.2.11]: https://github.com/inspirepan/klaude-code/compare/v1.2.10...v1.2.11
 [1.2.10]: https://github.com/inspirepan/klaude-code/compare/v1.2.9...v1.2.10
 [1.2.9]: https://github.com/inspirepan/klaude-code/compare/v1.2.8...v1.2.9
 [1.2.8]: https://github.com/inspirepan/klaude-code/compare/v1.2.7...v1.2.8
