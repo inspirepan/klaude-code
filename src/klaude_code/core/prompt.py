@@ -6,8 +6,8 @@ from pathlib import Path
 
 COMMAND_DESCRIPTIONS: dict[str, str] = {
     "rg": "ripgrep - fast text search",
-    "fd": "fd - simple and fast alternative to find",
-    "tree": "tree - directory listing as a tree",
+    "fd": "simple and fast alternative to find",
+    "tree": "directory listing as a tree",
     "sg": "ast-grep - AST-aware code search",
 }
 

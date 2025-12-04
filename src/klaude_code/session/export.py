@@ -194,11 +194,16 @@ def _render_single_metadata(
             input_stat += f"({_format_cost(u.input_cost, u.currency)})"
         parts.append(f'<span class="metadata-stat">{input_stat}</span>')
 
-        # Cached with cost
+        # Cached with cost and cache ratio
         if u.cached_tokens > 0:
             cached_stat = f"cached: {_format_token_count(u.cached_tokens)}"
             if u.cache_read_cost is not None:
                 cached_stat += f"({_format_cost(u.cache_read_cost, u.currency)})"
+            # Cache ratio: (context_size + cached) / input
+            if u.input_tokens > 0:
+                context_size = u.context_token or 0
+                cache_ratio = (context_size + u.cached_tokens) / u.input_tokens * 100
+                cached_stat += f"[{cache_ratio:.0f}%]"
             parts.append(f'<span class="metadata-stat">{cached_stat}</span>')
 
         # Output with cost
