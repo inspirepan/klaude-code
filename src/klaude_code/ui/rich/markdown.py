@@ -284,7 +284,10 @@ class MarkdownStream:
 
             target_height = min(self._live_window_seen_height, self.live_window)
             if target_height > 0 and current_height < target_height:
-                pad_count = target_height - current_height + 1
+                # Pad only up to the maximum height we've seen so far.
+                # This keeps the Live region height stable without overshooting,
+                # which can cause the spinner to jump by a line.
+                pad_count = target_height - current_height
                 # Pad after the existing lines so spinner visually stays at the bottom.
                 rest_lines = rest_lines + ["\n"] * pad_count
 
