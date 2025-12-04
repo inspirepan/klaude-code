@@ -77,12 +77,16 @@ def _render_task_metadata_block(
             ]
             if metadata.usage.cache_read_cost is not None:
                 cached_parts.append((f"({currency_symbol}{metadata.usage.cache_read_cost:.4f})", ThemeKey.METADATA_DIM))
-            # Cache ratio: (input - context_delta) / input
+            # Cache ratio: (content + cached - last turn output) / input tokens, this might caclulate over 100% if system prompt is cached in first turn
             # Shows how much of the input was cached (not new context growth)
             if show_context_and_time and metadata.usage.input_tokens > 0:
                 context_delta = metadata.usage.context_delta or 0
-                cacheable = metadata.usage.input_tokens - context_delta
-                cache_ratio = max(0, cacheable) / metadata.usage.input_tokens * 100
+                last_turn_output_token = metadata.usage.last_turn_output_token or 0
+                cache_ratio = (
+                    (metadata.usage.cached_tokens + context_delta - last_turn_output_token)
+                    / metadata.usage.input_tokens
+                    * 100
+                )
                 cached_parts.append((f"[{cache_ratio:.0f}%]", ThemeKey.METADATA_DIM))
             parts2.append(Text.assemble(*cached_parts))
 
