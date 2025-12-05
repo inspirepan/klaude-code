@@ -58,7 +58,7 @@ def _read_segment(options: ReadOptions) -> ReadSegmentResult:
     remaining_selected_beyond_cap = 0
     selected_lines: list[tuple[int, str]] = []
     selected_chars = 0
-    with open(options.file_path, "r", encoding="utf-8", errors="replace") as f:
+    with open(options.file_path, encoding="utf-8", errors="replace") as f:
         for line_no, raw_line in enumerate(f, start=1):
             total_lines = line_no
             within = line_no >= options.offset and (options.limit is None or selected_lines_count < options.limit)

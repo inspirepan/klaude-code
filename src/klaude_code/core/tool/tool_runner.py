@@ -100,7 +100,7 @@ class ToolExecutor:
         self._call_event_emitted: set[str] = set()
         self._sub_agent_tasks: set[asyncio.Task[list[ToolExecutorEvent]]] = set()
 
-    async def run_tools(self, tool_calls: list[model.ToolCallItem]) -> AsyncGenerator[ToolExecutorEvent, None]:
+    async def run_tools(self, tool_calls: list[model.ToolCallItem]) -> AsyncGenerator[ToolExecutorEvent]:
         """Run the given tool calls and yield execution events.
 
         Tool calls are partitioned into regular tools and sub-agent tools. Regular tools

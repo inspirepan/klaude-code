@@ -74,7 +74,7 @@ class AnthropicClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem]:
         param = apply_config_defaults(param, self.get_llm_config())
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
@@ -201,4 +201,4 @@ class AnthropicClient(LLMClientABC):
                     case _:
                         pass
         except (APIError, httpx.HTTPError) as e:
-            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
+            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")

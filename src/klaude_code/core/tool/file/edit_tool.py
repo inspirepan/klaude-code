@@ -221,10 +221,7 @@ class EditTool(ToolABC):
                 except Exception:
                     after_line_no = 0
                 continue
-            if line.startswith(" "):
-                after_line_no += 1
-                include_after_line_nos.append(after_line_no)
-            elif line.startswith("+") and not line.startswith("+++ "):
+            if line.startswith(" ") or (line.startswith("+") and not line.startswith("+++ ")):
                 after_line_no += 1
                 include_after_line_nos.append(after_line_no)
             elif line.startswith("-") and not line.startswith("--- "):

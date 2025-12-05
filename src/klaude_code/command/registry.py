@@ -94,7 +94,7 @@ async def dispatch_command(raw: str, agent: "Agent") -> CommandResult:
                 events.DeveloperMessageEvent(
                     session_id=agent.session.id,
                     item=model.DeveloperMessageItem(
-                        content=f"Command {command_identifier} error: [{e.__class__.__name__}] {str(e)}",
+                        content=f"Command {command_identifier} error: [{e.__class__.__name__}] {e!s}",
                         command_output=command_output,
                     ),
                 )

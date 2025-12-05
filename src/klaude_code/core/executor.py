@@ -264,14 +264,14 @@ class ExecutorContext:
             import traceback
 
             log_debug(
-                f"Agent task {task_id} failed: {str(e)}",
+                f"Agent task {task_id} failed: {e!s}",
                 style="red",
                 debug_type=DebugType.EXECUTION,
             )
             log_debug(traceback.format_exc(), style="red", debug_type=DebugType.EXECUTION)
             await self.emit_event(
                 events.ErrorEvent(
-                    error_message=f"Agent task failed: [{e.__class__.__name__}] {str(e)}",
+                    error_message=f"Agent task failed: [{e.__class__.__name__}] {e!s}",
                     can_retry=False,
                 )
             )
@@ -388,12 +388,12 @@ class Executor:
             except Exception as e:
                 # Handle unexpected errors
                 log_debug(
-                    f"Executor error: {str(e)}",
+                    f"Executor error: {e!s}",
                     style="red",
                     debug_type=DebugType.EXECUTION,
                 )
                 await self.context.emit_event(
-                    events.ErrorEvent(error_message=f"Executor error: {str(e)}", can_retry=False)
+                    events.ErrorEvent(error_message=f"Executor error: {e!s}", can_retry=False)
                 )
 
     async def stop(self) -> None:
@@ -420,7 +420,7 @@ class Executor:
             await self.submission_queue.put(submission)
         except Exception as e:
             log_debug(
-                f"Failed to send EndOperation: {str(e)}",
+                f"Failed to send EndOperation: {e!s}",
                 style="red",
                 debug_type=DebugType.EXECUTION,
             )
@@ -464,12 +464,12 @@ class Executor:
 
         except Exception as e:
             log_debug(
-                f"Failed to handle submission {submission.id}: {str(e)}",
+                f"Failed to handle submission {submission.id}: {e!s}",
                 style="red",
                 debug_type=DebugType.EXECUTION,
             )
             await self.context.emit_event(
-                events.ErrorEvent(error_message=f"Operation failed: {str(e)}", can_retry=False)
+                events.ErrorEvent(error_message=f"Operation failed: {e!s}", can_retry=False)
             )
             # Set completion event even on error to prevent wait_for_completion from hanging
             event = self._completion_events.get(submission.id)

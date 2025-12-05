@@ -5,7 +5,8 @@ logic for accumulating and flushing reasoning, assistant content, and tool calls
 across different LLM providers (OpenAI-compatible, OpenRouter).
 """
 
-from typing import Callable, Literal
+from collections.abc import Callable
+from typing import Literal
 
 from klaude_code.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
 from klaude_code.protocol import model

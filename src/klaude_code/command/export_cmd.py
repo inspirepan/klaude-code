@@ -31,7 +31,7 @@ class ExportCommand(CommandABC):
     def is_interactive(self) -> bool:
         return False
 
-    async def run(self, raw: str, agent: "Agent") -> CommandResult:
+    async def run(self, raw: str, agent: Agent) -> CommandResult:
         try:
             output_path = self._resolve_output_path(raw, agent)
             html_doc = self._build_html(agent)
@@ -58,7 +58,7 @@ class ExportCommand(CommandABC):
             )
             return CommandResult(events=[event])
 
-    def _resolve_output_path(self, raw: str, agent: "Agent") -> Path:
+    def _resolve_output_path(self, raw: str, agent: Agent) -> Path:
         trimmed = raw.strip()
         if trimmed:
             candidate = Path(trimmed).expanduser()
@@ -79,7 +79,7 @@ class ExportCommand(CommandABC):
             msg = f"Failed to open HTML with `open`: {exc}"
             raise RuntimeError(msg) from exc
 
-    def _build_html(self, agent: "Agent") -> str:
+    def _build_html(self, agent: Agent) -> str:
         profile = agent.profile
         system_prompt = (profile.system_prompt if profile else "") or ""
         tools = profile.tools if profile else []

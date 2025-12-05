@@ -104,7 +104,7 @@ class Agent:
             debug_type=DebugType.EXECUTION,
         )
 
-    async def run_task(self, user_input: UserInputPayload) -> AsyncGenerator[events.Event, None]:
+    async def run_task(self, user_input: UserInputPayload) -> AsyncGenerator[events.Event]:
         session_ctx = SessionContext(
             session_id=self.session.id,
             get_conversation_history=lambda: self.session.conversation_history,
@@ -129,7 +129,7 @@ class Agent:
         finally:
             self._current_task = None
 
-    async def replay_history(self) -> AsyncGenerator[events.Event, None]:
+    async def replay_history(self) -> AsyncGenerator[events.Event]:
         """Yield UI events reconstructed from saved conversation history."""
 
         if len(self.session.conversation_history) == 0:
@@ -141,7 +141,7 @@ class Agent:
             session_id=self.session.id,
         )
 
-    async def _process_reminder(self, reminder: Reminder) -> AsyncGenerator[events.DeveloperMessageEvent, None]:
+    async def _process_reminder(self, reminder: Reminder) -> AsyncGenerator[events.DeveloperMessageEvent]:
         """Process a single reminder and yield events if it produces output."""
         item = await reminder(self.session)
         if item is not None:

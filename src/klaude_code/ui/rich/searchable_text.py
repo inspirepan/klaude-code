@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable, List, Sequence, Tuple
+from collections.abc import Iterable, Sequence
 
 
 class SearchableFormattedText:
@@ -16,8 +16,8 @@ class SearchableFormattedText:
       concatenating the text parts of the fragments.
     """
 
-    def __init__(self, fragments: Sequence[Tuple[str, str]], plain: str | None = None):
-        self._fragments: List[Tuple[str, str]] = list(fragments)
+    def __init__(self, fragments: Sequence[tuple[str, str]], plain: str | None = None):
+        self._fragments: list[tuple[str, str]] = list(fragments)
         if plain is None:
             plain = "".join(text for _, text in self._fragments)
         self._plain = plain
@@ -25,7 +25,7 @@ class SearchableFormattedText:
     # Recognized by prompt_toolkit's to_formatted_text(value)
     def __pt_formatted_text__(
         self,
-    ) -> Iterable[Tuple[str, str]]:  # pragma: no cover - passthrough
+    ) -> Iterable[tuple[str, str]]:  # pragma: no cover - passthrough
         return self._fragments
 
     # Provide a human-readable representation.
@@ -45,7 +45,7 @@ class SearchableFormattedText:
         return self._plain
 
 
-class SearchableFormattedList(list[Tuple[str, str]]):
+class SearchableFormattedList(list[tuple[str, str]]):
     """
     List variant compatible with questionary's expected ``Choice.title`` type.
 
@@ -54,7 +54,7 @@ class SearchableFormattedList(list[Tuple[str, str]]):
     - Provides ``.lower()``/``.upper()`` returning the plain text for search filtering.
     """
 
-    def __init__(self, fragments: Sequence[Tuple[str, str]], plain: str | None = None):
+    def __init__(self, fragments: Sequence[tuple[str, str]], plain: str | None = None):
         super().__init__(fragments)
         if plain is None:
             plain = "".join(text for _, text in fragments)

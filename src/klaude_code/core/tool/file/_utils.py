@@ -18,7 +18,7 @@ def file_exists(path: str) -> bool:
 
 def read_text(path: str) -> str:
     """Read text from file with UTF-8 encoding."""
-    with open(path, "r", encoding="utf-8", errors="replace") as f:
+    with open(path, encoding="utf-8", errors="replace") as f:
         return f.read()
 
 

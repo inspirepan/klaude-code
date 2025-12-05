@@ -1,5 +1,5 @@
 import asyncio
-from typing import Awaitable, Callable, Optional
+from collections.abc import Awaitable, Callable
 
 
 class Debouncer:
@@ -15,7 +15,7 @@ class Debouncer:
         """
         self.interval = interval
         self.callback = callback
-        self._task: Optional[asyncio.Task[None]] = None
+        self._task: asyncio.Task[None] | None = None
 
     def cancel(self) -> None:
         """Cancel current debounce task"""

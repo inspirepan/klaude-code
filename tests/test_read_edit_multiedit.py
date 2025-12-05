@@ -15,9 +15,9 @@ if SRC_DIR.is_dir() and str(SRC_DIR) not in os.sys.path:  # type: ignore
     os.sys.path.insert(0, str(SRC_DIR))  # type: ignore
 
 from klaude_code.core.reminders import at_file_reader_reminder  # noqa: E402
-from klaude_code.core.tool import MultiEditTool  # noqa: E402
 from klaude_code.core.tool import (
     EditTool,
+    MultiEditTool,
     ReadTool,
     ToolContextToken,
     reset_tool_context,
@@ -493,7 +493,7 @@ class TestMultiEditTool(BaseTempDirTest):
         }
         res = arun(MultiEditTool.call(json.dumps(args)))
         self.assertEqual(res.status, "success")
-        with open(p, "r", encoding="utf-8") as f:
+        with open(p, encoding="utf-8") as f:
             content = f.read()
         self.assertIn("Line1 changed", content)
 

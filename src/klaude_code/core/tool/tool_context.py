@@ -85,7 +85,7 @@ def reset_tool_context(token: ToolContextToken) -> None:
 @contextmanager
 def tool_context(
     file_tracker: MutableMapping[str, float], todo_ctx: TodoContext
-) -> Generator[ToolContextToken, None, None]:
+) -> Generator[ToolContextToken]:
     """Context manager for setting and resetting tool execution context."""
 
     file_tracker_token = current_file_tracker_var.set(file_tracker)

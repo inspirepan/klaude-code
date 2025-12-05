@@ -114,7 +114,7 @@ class TurnExecutor:
             self._tool_executor = None
         return ui_events
 
-    async def run(self) -> AsyncGenerator[events.Event, None]:
+    async def run(self) -> AsyncGenerator[events.Event]:
         """Execute the turn, yielding events as they occur.
 
         Raises:
@@ -148,7 +148,7 @@ class TurnExecutor:
 
         yield events.TurnEndEvent(session_id=session_ctx.session_id)
 
-    async def _consume_llm_stream(self, turn_result: TurnResult) -> AsyncGenerator[events.Event, None]:
+    async def _consume_llm_stream(self, turn_result: TurnResult) -> AsyncGenerator[events.Event]:
         """Stream events from LLM and update turn_result in place."""
 
         ctx = self._context
@@ -234,7 +234,7 @@ class TurnExecutor:
         if turn_result.tool_calls:
             session_ctx.append_history(turn_result.tool_calls)
 
-    async def _run_tool_executor(self, tool_calls: list[model.ToolCallItem]) -> AsyncGenerator[events.Event, None]:
+    async def _run_tool_executor(self, tool_calls: list[model.ToolCallItem]) -> AsyncGenerator[events.Event]:
         """Run tools for the turn and translate executor events to UI events."""
 
         ctx = self._context

@@ -28,15 +28,15 @@ def ensure_commands_loaded() -> None:
 
     # Import and register commands in display order
     from .clear_cmd import ClearCommand
-    from .model_cmd import ModelCommand
-    from .status_cmd import StatusCommand
     from .diff_cmd import DiffCommand
     from .export_cmd import ExportCommand
-    from .thinking_cmd import ThinkingCommand
     from .help_cmd import HelpCommand
+    from .model_cmd import ModelCommand
     from .refresh_cmd import RefreshTerminalCommand
-    from .terminal_setup_cmd import TerminalSetupCommand
     from .release_notes_cmd import ReleaseNotesCommand
+    from .status_cmd import StatusCommand
+    from .terminal_setup_cmd import TerminalSetupCommand
+    from .thinking_cmd import ThinkingCommand
 
     # Register in desired display order
     register(ExportCommand())

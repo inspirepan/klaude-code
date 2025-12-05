@@ -4,8 +4,8 @@ from .select_model import select_model_from_config
 
 __all__ = [
     "Config",
-    "load_config",
     "config_path",
     "display_models_and_providers",
+    "load_config",
     "select_model_from_config",
 ]

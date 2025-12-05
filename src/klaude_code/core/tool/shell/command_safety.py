@@ -293,7 +293,6 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
         "ruff",
         "pyright",
         "make",
-        "isort",
         "npm",
         "pnpm",
         "bun",

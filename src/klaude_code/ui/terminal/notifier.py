@@ -39,7 +39,7 @@ class TerminalNotifierConfig:
     stream: TextIO | None = None
 
     @classmethod
-    def from_env(cls) -> "TerminalNotifierConfig":
+    def from_env(cls) -> TerminalNotifierConfig:
         env = os.getenv("KLAUDE_NOTIFY", "").strip().lower()
         if env in {"0", "off", "false", "disable", "disabled"}:
             return cls(enabled=False)

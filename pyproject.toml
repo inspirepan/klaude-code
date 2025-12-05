@@ -30,7 +30,6 @@ module-name = "klaude_code"
 [dependency-groups]
 dev = [
     "import-linter>=2.6",
-    "isort>=6.0.1",
     "pyright>=1.1.407",
     "pytest>=8.4.1",
     "pytest-cov>=7.0.0",
@@ -45,6 +44,14 @@ markers = [
 
 [tool.ruff]
 line-length = 120
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I", "UP", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["klaude_code"]
 
 [tool.pyright]
 typeCheckingMode = "strict"

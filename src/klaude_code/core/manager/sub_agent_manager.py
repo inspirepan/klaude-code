@@ -79,12 +79,12 @@ class SubAgentManager:
             raise
         except Exception as exc:  # pragma: no cover - defensive logging
             log_debug(
-                f"Subagent task failed: [{exc.__class__.__name__}] {str(exc)}",
+                f"Subagent task failed: [{exc.__class__.__name__}] {exc!s}",
                 style="red",
                 debug_type=DebugType.EXECUTION,
             )
             return SubAgentResult(
-                task_result=f"Subagent task failed: [{exc.__class__.__name__}] {str(exc)}",
+                task_result=f"Subagent task failed: [{exc.__class__.__name__}] {exc!s}",
                 session_id="",
                 error=True,
             )

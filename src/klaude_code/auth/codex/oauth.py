@@ -78,13 +78,13 @@ class OAuthCallbackHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
         if OAuthCallbackHandler.error:
-            html = """
+            html = f"""
             <html><body style="font-family: sans-serif; text-align: center; padding: 50px;">
             <h1>Authentication Failed</h1>
-            <p>Error: {}</p>
+            <p>Error: {OAuthCallbackHandler.error}</p>
             <p>Please close this window and try again.</p>
             </body></html>
-            """.format(OAuthCallbackHandler.error)
+            """
         else:
             html = """
             <html><body style="font-family: sans-serif; text-align: center; padding: 50px;">

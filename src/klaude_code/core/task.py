@@ -119,7 +119,7 @@ class TaskExecutionContext:
     profile: AgentProfile
     tool_registry: dict[str, type[ToolABC]]
     # For reminder processing - needs access to session
-    process_reminder: Callable[[Reminder], AsyncGenerator[events.DeveloperMessageEvent, None]]
+    process_reminder: Callable[[Reminder], AsyncGenerator[events.DeveloperMessageEvent]]
     sub_agent_state: model.SubAgentState | None
 
 
@@ -146,7 +146,7 @@ class TaskExecutor:
             self._current_turn = None
         return ui_events
 
-    async def run(self, user_input: model.UserInputPayload) -> AsyncGenerator[events.Event, None]:
+    async def run(self, user_input: model.UserInputPayload) -> AsyncGenerator[events.Event]:
         """Execute the task, yielding events as they occur."""
         ctx = self._context
         session_ctx = ctx.session_ctx

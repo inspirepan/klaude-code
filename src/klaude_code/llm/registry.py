@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Callable, TypeVar
+from collections.abc import Callable
+from typing import TYPE_CHECKING, TypeVar
 
 from klaude_code.protocol import llm_param
 
@@ -20,13 +21,13 @@ def _load_protocol(protocol: llm_param.LLMClientProtocol) -> None:
 
     # Import only the needed module to trigger @register decorator
     if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
-        from . import anthropic as _  # noqa: F401
+        from . import anthropic as _
     elif protocol == llm_param.LLMClientProtocol.CODEX:
-        from . import codex as _  # noqa: F401
+        from . import codex as _
     elif protocol == llm_param.LLMClientProtocol.OPENAI:
-        from . import openai_compatible as _  # noqa: F401
+        from . import openai_compatible as _
     elif protocol == llm_param.LLMClientProtocol.OPENROUTER:
-        from . import openrouter as _  # noqa: F401
+        from . import openrouter as _
     elif protocol == llm_param.LLMClientProtocol.RESPONSES:
         from . import responses as _  # noqa: F401
 

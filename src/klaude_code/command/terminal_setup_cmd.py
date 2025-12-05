@@ -43,7 +43,7 @@ class TerminalSetupCommand(CommandABC):
             return self._create_success_result(agent, message)
 
         except Exception as e:
-            return self._create_error_result(agent, f"Error configuring terminal: {str(e)}")
+            return self._create_error_result(agent, f"Error configuring terminal: {e!s}")
 
     def _setup_ghostty(self) -> str:
         """Configure shift+enter newline for Ghostty terminal"""
@@ -113,7 +113,7 @@ class TerminalSetupCommand(CommandABC):
                 )
 
         except Exception as e:
-            raise Exception(f"Error configuring iTerm: {str(e)}")
+            raise Exception(f"Error configuring iTerm: {e!s}")
 
     def _setup_vscode_family(self) -> str:
         """Configure shift+enter newline for VS Code family terminals (VS Code, Windsurf, Cursor).

@@ -98,7 +98,6 @@ async def run_startup_test() -> StartupTimer:
     timer.mark("Script start")
 
     # Phase 1: Imports
-    from klaude_code.cli.main import app  # type: ignore
 
     timer.mark("Import cli.main")
 

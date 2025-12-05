@@ -114,7 +114,7 @@ class CodexClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem]:
         # Ensure token is valid before API call
         self._ensure_valid_token()
 
@@ -142,7 +142,7 @@ class CodexClient(LLMClientABC):
                 extra_headers=extra_headers,
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
-            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
+            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
             return
 
         async for item in parse_responses_stream(stream, param, metadata_tracker):

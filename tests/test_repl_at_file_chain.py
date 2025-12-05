@@ -59,7 +59,7 @@ def test_at_files_completer_quotes_paths_with_spaces(tmp_path: Path, monkeypatch
     # At least one completion should be quoted and contain the spaced path
     assert any('"' in t for t in insert_texts), insert_texts
     assert any("dir with spaces" in t for t in insert_texts), insert_texts
-    assert any(t.startswith('@"') and t.endswith(' "') or t.endswith('" ') for t in insert_texts), insert_texts
+    assert any((t.startswith('@"') and t.endswith(' "')) or t.endswith('" ') for t in insert_texts), insert_texts
 
 
 def test_at_file_reader_reminder_and_developer_render_chain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

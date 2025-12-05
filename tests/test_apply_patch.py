@@ -2,7 +2,6 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Dict, Set
 
 # Ensure imports from src/
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,8 +19,8 @@ class BaseTempDirTest(unittest.TestCase):
         os.chdir(self._tmp.name)
 
         # Track file operations for verification
-        self.written_files: Dict[str, str] = {}
-        self.removed_files: Set[str] = set()
+        self.written_files: dict[str, str] = {}
+        self.removed_files: set[str] = set()
 
     def tearDown(self) -> None:
         os.chdir(self._orig_cwd)
@@ -30,7 +29,7 @@ class BaseTempDirTest(unittest.TestCase):
     def open_fn(self, path: str) -> str:
         """Mock open function that reads from actual files"""
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return f.read()
         except FileNotFoundError:
             raise DiffError(f"Missing File: {path}")

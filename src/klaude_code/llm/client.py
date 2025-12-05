@@ -15,7 +15,7 @@ class LLMClientABC(ABC):
         pass
 
     @abstractmethod
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem]:
         raise NotImplementedError
         yield cast(model.ConversationItem, None)
 

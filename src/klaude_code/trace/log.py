@@ -1,7 +1,7 @@
 import logging
+from collections.abc import Iterable
 from enum import Enum
 from logging.handlers import RotatingFileHandler
-from typing import Iterable
 
 from rich.console import Console
 from rich.logging import RichHandler

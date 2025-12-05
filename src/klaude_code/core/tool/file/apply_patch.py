@@ -3,8 +3,8 @@ https://github.com/openai/openai-cookbook/blob/main/examples/gpt-5/apply_patch.p
 """
 
 import os
+from collections.abc import Callable
 from enum import Enum
-from typing import Callable, Optional
 
 from pydantic import BaseModel, Field
 
@@ -17,16 +17,16 @@ class ActionType(str, Enum):
 
 class FileChange(BaseModel):
     type: ActionType
-    old_content: Optional[str] = None
-    new_content: Optional[str] = None
-    move_path: Optional[str] = None
+    old_content: str | None = None
+    new_content: str | None = None
+    move_path: str | None = None
 
 
 class Commit(BaseModel):
     changes: dict[str, FileChange] = Field(default_factory=dict)
 
 
-def assemble_changes(orig: dict[str, Optional[str]], dest: dict[str, Optional[str]]) -> Commit:
+def assemble_changes(orig: dict[str, str | None], dest: dict[str, str | None]) -> Commit:
     commit = Commit()
     for path in sorted(set(orig.keys()).union(dest.keys())):
         old_content = orig.get(path)
@@ -71,9 +71,9 @@ def _new_chunk_list() -> list["Chunk"]:
 
 class PatchAction(BaseModel):
     type: ActionType
-    new_file: Optional[str] = None
+    new_file: str | None = None
     chunks: list[Chunk] = Field(default_factory=_new_chunk_list)
-    move_path: Optional[str] = None
+    move_path: str | None = None
 
 
 class Patch(BaseModel):
@@ -87,7 +87,7 @@ class Parser(BaseModel):
     patch: Patch = Field(default_factory=Patch)
     fuzz: int = 0
 
-    def is_done(self, prefixes: Optional[tuple[str, ...]] = None) -> bool:
+    def is_done(self, prefixes: tuple[str, ...] | None = None) -> bool:
         if self.index >= len(self.lines):
             return True
         if prefixes and self.lines[self.index].startswith(prefixes):
@@ -457,7 +457,7 @@ def process_patch(
 
 
 def open_file(path: str) -> str:
-    with open(path, "rt") as f:
+    with open(path) as f:
         return f.read()
 
 
@@ -465,7 +465,7 @@ def write_file(path: str, content: str) -> None:
     if "/" in path:
         parent = "/".join(path.split("/")[:-1])
         os.makedirs(parent, exist_ok=True)
-    with open(path, "wt") as f:
+    with open(path, "w") as f:
         f.write(content)
 
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Awaitable, Callable
 
 from rich.text import Text
 
@@ -42,7 +42,7 @@ class StreamState:
     This design ensures buffer and mdstream are always in sync.
     """
 
-    def __init__(self, interval: float, flush_handler: Callable[["StreamState"], Awaitable[None]]):
+    def __init__(self, interval: float, flush_handler: Callable[[StreamState], Awaitable[None]]):
         self._active: ActiveStream | None = None
         self._flush_handler = flush_handler
         self.debouncer = Debouncer(interval=interval, callback=self._debounced_flush)

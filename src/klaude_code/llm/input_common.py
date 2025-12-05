@@ -5,10 +5,10 @@ This module provides shared abstractions for providers that require message grou
 since it uses a flat item list matching our internal protocol.
 """
 
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING
 
 from klaude_code import const
 

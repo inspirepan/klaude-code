@@ -1,8 +1,8 @@
 import json
 import re
 import shlex
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Awaitable, Callable
 
 from pydantic import BaseModel
 

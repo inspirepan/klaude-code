@@ -82,7 +82,7 @@ class OpenRouterClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem]:
         param = apply_config_defaults(param, self.get_llm_config())
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
@@ -134,8 +134,7 @@ class OpenRouterClient(LLMClientABC):
                 delta = event.choices[0].delta
 
                 # Reasoning
-                if hasattr(delta, "reasoning_details") and getattr(delta, "reasoning_details"):
-                    reasoning_details = getattr(delta, "reasoning_details")
+                if reasoning_details := getattr(delta, "reasoning_details", None):
                     for item in reasoning_details:
                         try:
                             reasoning_detail = ReasoningDetail.model_validate(item)
@@ -195,7 +194,7 @@ class OpenRouterClient(LLMClientABC):
                     state.accumulated_tool_calls.add(delta.tool_calls)
 
         except (openai.OpenAIError, httpx.HTTPError) as e:
-            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
+            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
 
         # Finalize
         for item in state.flush_all():

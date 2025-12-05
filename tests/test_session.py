@@ -357,7 +357,7 @@ class TestRenderTextBlock:
 
     def test_long_text_expandable(self):
         # More than _TOOL_OUTPUT_PREVIEW_LINES lines
-        lines = ["line {}".format(i) for i in range(20)]
+        lines = [f"line {i}" for i in range(20)]
         text = "\n".join(lines)
         result = export._render_text_block(text)
         assert "expandable" in result

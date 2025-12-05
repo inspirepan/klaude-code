@@ -21,7 +21,7 @@ Tests are located in the `tests/` directory. Configuration files include `pyproj
 
 ## Build, Test, and Development Commands
 
-- `uv run isort . && uv run ruff format`: Format and sort imports
+- `uv run ruff check --fix . && uv run ruff format`: Lint and format
 - `uv run pytest`: Run tests
 - `uv run pyright`: Type checking in strict mode
 - `uv run klaude ...`: Execute CLI with the project's virtual environment
@@ -31,7 +31,7 @@ Tests are located in the `tests/` directory. Configuration files include `pyproj
 - Python 3.13+ required
 - Line length: 120 characters (enforced by ruff)
 - Type checking: Strict mode with Pyright
-- Use `isort` for import sorting and `ruff` for formatting
+- Use `ruff check --fix .` and `ruff format`
 - Naming conventions: Follow PEP 8 for Python code
 - Follow existing patterns exactly
 - Public APIs must have docstrings

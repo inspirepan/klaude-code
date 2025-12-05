@@ -34,7 +34,7 @@ def _display_codex_status(console: Console) -> None:
             )
         )
     else:
-        expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.timezone.utc)
+        expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
         console.print(
             Text.assemble(
                 ("Codex Status: ", "bold"),

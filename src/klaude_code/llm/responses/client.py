@@ -59,7 +59,7 @@ async def parse_responses_stream(
     stream: "AsyncStream[ResponseStreamEvent]",
     param: llm_param.LLMCallParameter,
     metadata_tracker: MetadataTracker,
-) -> AsyncGenerator[model.ConversationItem, None]:
+) -> AsyncGenerator[model.ConversationItem]:
     """Parse OpenAI Responses API stream events into ConversationItems."""
     response_id: str | None = None
 
@@ -169,7 +169,7 @@ async def parse_responses_stream(
                         debug_type=DebugType.LLM_STREAM,
                     )
     except (openai.OpenAIError, httpx.HTTPError) as e:
-        yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
+        yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
 
 
 @register(llm_param.LLMClientProtocol.RESPONSES)
@@ -199,7 +199,7 @@ class ResponsesClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem]:
         param = apply_config_defaults(param, self.get_llm_config())
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
@@ -217,7 +217,7 @@ class ResponsesClient(LLMClientABC):
                 extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
-            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
+            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
             return
 
         async for item in parse_responses_stream(stream, param, metadata_tracker):

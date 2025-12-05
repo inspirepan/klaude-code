@@ -1,4 +1,5 @@
-from typing import Callable, TypeVar
+from collections.abc import Callable
+from typing import TypeVar
 
 from klaude_code.core.tool.sub_agent_tool import SubAgentTool
 from klaude_code.core.tool.tool_abc import ToolABC

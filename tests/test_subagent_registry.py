@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-import klaude_code.core.tool as core_tool  # noqa: F401
+import klaude_code.core.tool as core_tool
 from klaude_code.core.tool import ToolABC, load_agent_tools
 from klaude_code.core.tool.tool_runner import ToolExecutor
 from klaude_code.protocol import llm_param, model

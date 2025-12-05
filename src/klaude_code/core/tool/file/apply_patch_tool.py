@@ -58,7 +58,7 @@ class ApplyPatchHandler:
             if os.path.isdir(resolved):
                 raise ap.DiffError(f"Cannot apply patch to directory: {path}")
             try:
-                with open(resolved, "r", encoding="utf-8") as handle:
+                with open(resolved, encoding="utf-8") as handle:
                     orig[path] = handle.read()
             except OSError as error:
                 raise ap.DiffError(f"Failed to read {path}: {error}") from error

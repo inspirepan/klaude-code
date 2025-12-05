@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from klaude_code.core.agent import Agent
 
 
-def build_repl_status_snapshot(agent: "Agent | None", update_message: str | None) -> REPLStatusSnapshot:
+def build_repl_status_snapshot(agent: Agent | None, update_message: str | None) -> REPLStatusSnapshot:
     """Build a status snapshot for the REPL bottom toolbar.
 
     Aggregates model name, context usage, and basic call counts from the

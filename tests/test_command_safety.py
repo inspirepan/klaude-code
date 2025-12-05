@@ -40,14 +40,14 @@ class TestCommandSafety(unittest.TestCase):
         self._tmp.cleanup()
 
     # Helpers
-    def assert_safe(self, command: str):  # noqa: N802
+    def assert_safe(self, command: str):
         result = is_safe_command(command)
         self.assertTrue(
             result.is_safe,
             msg=f"Expected SAFE, got UNSAFE for: {command} (Error: {result.error_msg})",
         )
 
-    def assert_unsafe(self, command: str, expected_error: str | None = None):  # noqa: N802
+    def assert_unsafe(self, command: str, expected_error: str | None = None):
         result = is_safe_command(command)
         self.assertFalse(result.is_safe, msg=f"Expected UNSAFE, got SAFE for: {command}")
         if expected_error:

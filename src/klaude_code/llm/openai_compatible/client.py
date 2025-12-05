@@ -72,7 +72,7 @@ class OpenAICompatibleClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem]:
         param = apply_config_defaults(param, self.get_llm_config())
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
@@ -115,10 +115,10 @@ class OpenAICompatibleClient(LLMClientABC):
                     continue
 
                 # Support Moonshot Kimi K2's usage field in choice
-                if hasattr(event.choices[0], "usage") and getattr(event.choices[0], "usage"):
+                if usage := getattr(event.choices[0], "usage", None):
                     metadata_tracker.set_usage(
                         convert_usage(
-                            openai.types.CompletionUsage.model_validate(getattr(event.choices[0], "usage")),
+                            openai.types.CompletionUsage.model_validate(usage),
                             param.context_limit,
                             param.max_tokens,
                         )
@@ -127,8 +127,11 @@ class OpenAICompatibleClient(LLMClientABC):
                 delta = event.choices[0].delta
 
                 # Reasoning
-                reasoning_content = getattr(delta, "reasoning_content", None) or getattr(delta, "reasoning", None) or ""
-                if reasoning_content:
+                if (
+                    reasoning_content := getattr(delta, "reasoning_content", None)
+                    or getattr(delta, "reasoning", None)
+                    or ""
+                ):
                     metadata_tracker.record_token()
                     state.stage = "reasoning"
                     state.accumulated_reasoning.append(reasoning_content)
@@ -176,7 +179,7 @@ class OpenAICompatibleClient(LLMClientABC):
                             )
                     state.accumulated_tool_calls.add(delta.tool_calls)
         except (openai.OpenAIError, httpx.HTTPError) as e:
-            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {str(e)}")
+            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
 
         # Finalize
         for item in state.flush_all():

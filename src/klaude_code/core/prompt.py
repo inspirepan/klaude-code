@@ -1,6 +1,6 @@
 import datetime
 import shutil
-from functools import lru_cache
+from functools import cache
 from importlib.resources import files
 from pathlib import Path
 
@@ -25,7 +25,7 @@ PROMPT_FILES: dict[str, str] = {
 }
 
 
-@lru_cache(maxsize=None)
+@cache
 def _load_base_prompt(file_key: str) -> str:
     """Load and cache the base prompt content from file."""
     try:

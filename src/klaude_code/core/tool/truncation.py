@@ -106,7 +106,7 @@ class SmartTruncationStrategy(TruncationStrategy):
             file_path = self.truncation_dir / filename
             file_path.write_text(output, encoding="utf-8")
             return str(file_path)
-        except (OSError, IOError):
+        except OSError:
             return None
 
     def truncate(self, output: str, tool_call: model.ToolCallItem | None = None) -> TruncationResult:
