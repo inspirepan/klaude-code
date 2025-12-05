@@ -99,7 +99,7 @@ def truncate_display(
 ) -> str:
     lines = text.split("\n")
     if len(lines) > max_lines:
-        lines = lines[:max_lines] + ["… (more " + str(len(lines) - max_lines) + " lines)"]
+        lines = [*lines[:max_lines], "… (more " + str(len(lines) - max_lines) + " lines)"]
     for i, line in enumerate(lines):
         if len(line) > max_line_length:
             lines[i] = (

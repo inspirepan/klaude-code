@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import contextlib
 import json
 import os
 import tempfile
@@ -15,7 +16,7 @@ if SRC_DIR.is_dir() and str(SRC_DIR) not in os.sys.path:  # type: ignore
     os.sys.path.insert(0, str(SRC_DIR))  # type: ignore
 
 from klaude_code.core.reminders import at_file_reader_reminder  # noqa: E402
-from klaude_code.core.tool import (
+from klaude_code.core.tool import (  # noqa: E402
     EditTool,
     MultiEditTool,
     ReadTool,
@@ -42,10 +43,8 @@ class BaseTempDirTest(unittest.TestCase):
         self._token: ToolContextToken = set_tool_context_from_session(self.session)
 
     def tearDown(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             reset_tool_context(self._token)
-        except Exception:
-            pass
         os.chdir(self._orig_cwd)
         self._tmp.cleanup()
 

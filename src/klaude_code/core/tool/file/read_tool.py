@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 from base64 import b64encode
 from dataclasses import dataclass
@@ -90,10 +91,8 @@ def _track_file_access(file_path: str) -> None:
     file_tracker = get_current_file_tracker()
     if file_tracker is None or not file_exists(file_path) or is_directory(file_path):
         return
-    try:
+    with contextlib.suppress(Exception):
         file_tracker[file_path] = Path(file_path).stat().st_mtime
-    except Exception:
-        pass
 
 
 def _is_supported_image_file(file_path: str) -> bool:

@@ -86,8 +86,8 @@ __all__ = [
     "InputAction",
     "InputActionType",
     "dispatch_command",
-    "get_commands",
-    "is_slash_command_name",
-    "has_interactive_command",
     "ensure_commands_loaded",
+    "get_commands",
+    "has_interactive_command",
+    "is_slash_command_name",
 ]

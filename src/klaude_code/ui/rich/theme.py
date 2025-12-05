@@ -153,10 +153,7 @@ class Themes:
 
 
 def get_theme(theme: str | None = None) -> Themes:
-    if theme == "light":
-        palette = LIGHT_PALETTE
-    else:
-        palette = DARK_PALETTE
+    palette = LIGHT_PALETTE if theme == "light" else DARK_PALETTE
     return Themes(
         app_theme=Theme(
             styles={

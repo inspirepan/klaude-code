@@ -317,6 +317,7 @@ class Executor:
         self.submission_queue: asyncio.Queue[op.Submission] = asyncio.Queue()
         # Track completion events for all submissions (not just those with ActiveTask)
         self._completion_events: dict[str, asyncio.Event] = {}
+        self._background_tasks: set[asyncio.Task[None]] = set()
 
     async def submit(self, operation: op.Operation) -> str:
         """
@@ -460,7 +461,9 @@ class Executor:
                     event.set()
             else:
                 # Run in background so the submission loop can continue (e.g., to handle interrupts)
-                asyncio.create_task(_await_agent_and_complete(task))
+                background_task = asyncio.create_task(_await_agent_and_complete(task))
+                self._background_tasks.add(background_task)
+                background_task.add_done_callback(self._background_tasks.discard)
 
         except Exception as e:
             log_debug(
@@ -468,9 +471,7 @@ class Executor:
                 style="red",
                 debug_type=DebugType.EXECUTION,
             )
-            await self.context.emit_event(
-                events.ErrorEvent(error_message=f"Operation failed: {e!s}", can_retry=False)
-            )
+            await self.context.emit_event(events.ErrorEvent(error_message=f"Operation failed: {e!s}", can_retry=False))
             # Set completion event even on error to prevent wait_for_completion from hanging
             event = self._completion_events.get(submission.id)
             if event is not None:

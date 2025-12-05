@@ -1,6 +1,7 @@
 # copy from https://github.com/Aider-AI/aider/blob/main/aider/mdstream.py
 from __future__ import annotations
 
+import contextlib
 import io
 import time
 from typing import Any, ClassVar
@@ -183,10 +184,9 @@ class MarkdownStream:
     def __del__(self) -> None:
         """Destructor to ensure Live display is properly cleaned up."""
         if self.live:
-            try:
+            # Ignore any errors during cleanup
+            with contextlib.suppress(Exception):
                 self.live.stop()
-            except Exception:
-                pass  # Ignore any errors during cleanup
 
     def update(self, text: str, final: bool = False) -> None:
         """Update the displayed markdown content.

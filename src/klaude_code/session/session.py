@@ -261,12 +261,10 @@ class Session(BaseModel):
             return False
         if prev_item is None:
             return True
-        if isinstance(
+        return isinstance(
             prev_item,
             model.UserMessageItem | model.ToolResultItem | model.DeveloperMessageItem,
-        ):
-            return True
-        return False
+        )
 
     def get_history_item(self) -> Iterable[events.HistoryItemEvent]:
         prev_item: model.ConversationItem | None = None

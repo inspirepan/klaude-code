@@ -1,6 +1,7 @@
 """ApplyPatch tool providing direct patch application capability."""
 
 import asyncio
+import contextlib
 import difflib
 import os
 from pathlib import Path
@@ -78,10 +79,8 @@ class ApplyPatchHandler:
                 handle.write(content)
 
             if file_tracker is not None:
-                try:
+                with contextlib.suppress(Exception):  # pragma: no cover - file tracker best-effort
                     file_tracker[resolved] = Path(resolved).stat().st_mtime
-                except Exception:  # pragma: no cover - file tracker best-effort
-                    pass
 
         def remove_fn(path: str) -> None:
             resolved = resolve_path(path)
@@ -92,10 +91,8 @@ class ApplyPatchHandler:
             os.remove(resolved)
 
             if file_tracker is not None:
-                try:
+                with contextlib.suppress(Exception):  # pragma: no cover - file tracker best-effort
                     file_tracker.pop(resolved, None)
-                except Exception:  # pragma: no cover - file tracker best-effort
-                    pass
 
         ap.apply_commit(commit, write_fn, remove_fn)
         return "Done!", diff_text

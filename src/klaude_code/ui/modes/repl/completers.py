@@ -133,10 +133,9 @@ class _ComboCompleter(Completer):
         complete_event,  # type: ignore[override]
     ) -> Iterable[Completion]:
         # Try slash command completion first (only on first line)
-        if document.cursor_position_row == 0:
-            if self._slash_completer.is_slash_command_context(document):
-                yield from self._slash_completer.get_completions(document, complete_event)
-                return
+        if document.cursor_position_row == 0 and self._slash_completer.is_slash_command_context(document):
+            yield from self._slash_completer.get_completions(document, complete_event)
+            return
 
         # Fall back to @ file completion
         yield from self._at_completer.get_completions(document, complete_event)

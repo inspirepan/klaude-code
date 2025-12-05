@@ -6,6 +6,7 @@ Run with: uv run scripts/perf_repl_startup.py
 """
 
 import asyncio
+import contextlib
 import sys
 import time
 from dataclasses import dataclass
@@ -167,10 +168,8 @@ async def run_startup_test() -> StartupTimer:
     await executor.stop()
     executor_task.cancel()
     await event_queue.put(events.EndEvent())
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await display_task
-    except asyncio.CancelledError:
-        pass
 
     return timer
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import difflib
 import os
 from pathlib import Path
@@ -191,10 +192,8 @@ class EditTool(ToolABC):
 
         # Update tracker with new mtime
         if file_tracker is not None:
-            try:
+            with contextlib.suppress(Exception):
                 file_tracker[file_path] = Path(file_path).stat().st_mtime
-            except Exception:
-                pass
 
         # Build output message
         if args.replace_all:
@@ -213,10 +212,7 @@ class EditTool(ToolABC):
                     header = line
                     plus = header.split("+", 1)[1]
                     plus_range = plus.split(" ")[0]
-                    if "," in plus_range:
-                        start = int(plus_range.split(",")[0])
-                    else:
-                        start = int(plus_range)
+                    start = int(plus_range.split(",")[0]) if "," in plus_range else int(plus_range)
                     after_line_no = start - 1
                 except Exception:
                     after_line_no = 0

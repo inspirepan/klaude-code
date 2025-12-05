@@ -27,10 +27,7 @@ def _extract_url_filename(url: str) -> str:
     # Combine host and path for a meaningful filename
     host = parsed.netloc.replace(".", "_").replace(":", "_")
     path = parsed.path.strip("/").replace("/", "_")
-    if path:
-        name = f"{host}_{path}"
-    else:
-        name = host
+    name = f"{host}_{path}" if path else host
     # Sanitize: keep only alphanumeric, underscore, hyphen
     name = re.sub(r"[^a-zA-Z0-9_\-]", "_", name)
     # Limit length

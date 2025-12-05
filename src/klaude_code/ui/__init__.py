@@ -73,19 +73,14 @@ def create_exec_display(debug: bool = False, stream_json: bool = False) -> Displ
 
 
 __all__ = [
-    # Abstract interfaces
-    "DisplayABC",
-    "InputProviderABC",
-    # Display mode implementations
-    "REPLDisplay",
-    "ExecDisplay",
-    "StreamJsonDisplay",
     "DebugEventDisplay",
-    # Input implementations
+    "DisplayABC",
+    "ExecDisplay",
+    "InputProviderABC",
     "PromptToolkitInput",
-    # Factory functions
+    "REPLDisplay",
+    "StreamJsonDisplay",
+    "TerminalNotifier",
     "create_default_display",
     "create_exec_display",
-    # Supporting types
-    "TerminalNotifier",
 ]

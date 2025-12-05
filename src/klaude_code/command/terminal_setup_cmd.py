@@ -113,7 +113,7 @@ class TerminalSetupCommand(CommandABC):
                 )
 
         except Exception as e:
-            raise Exception(f"Error configuring iTerm: {e!s}")
+            raise Exception(f"Error configuring iTerm: {e!s}") from e
 
     def _setup_vscode_family(self) -> str:
         """Configure shift+enter newline for VS Code family terminals (VS Code, Windsurf, Cursor).

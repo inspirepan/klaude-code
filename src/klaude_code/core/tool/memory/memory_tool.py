@@ -68,16 +68,10 @@ def _validate_path(virtual_path: str) -> tuple[Path | None, str | None]:
         return None, f"Path must start with {MEMORY_VIRTUAL_ROOT}"
 
     # Get relative path from /memories
-    if virtual_path == MEMORY_VIRTUAL_ROOT:
-        relative = ""
-    else:
-        relative = virtual_path[len(MEMORY_VIRTUAL_ROOT) :].lstrip("/")
+    relative = "" if virtual_path == MEMORY_VIRTUAL_ROOT else virtual_path[len(MEMORY_VIRTUAL_ROOT) :].lstrip("/")
 
     memories_root = _get_memories_root()
-    if relative:
-        actual_path = memories_root / relative
-    else:
-        actual_path = memories_root
+    actual_path = memories_root / relative if relative else memories_root
 
     # Resolve to canonical path and verify it's still within memories
     try:

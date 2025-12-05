@@ -92,8 +92,7 @@ class Agent:
         """
         # First, cancel any running task so it stops emitting events.
         if self._current_task is not None:
-            for ui_event in self._current_task.cancel():
-                yield ui_event
+            yield from self._current_task.cancel()
             self._current_task = None
 
         # Record an interrupt marker in the session history

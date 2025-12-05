@@ -1,6 +1,7 @@
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import ClassVar
 
 import yaml
 
@@ -36,13 +37,13 @@ class SkillLoader:
     """Load and manage Claude Skills from SKILL.md files"""
 
     # User-level skills directories (checked in order, later ones override earlier ones with same name)
-    USER_SKILLS_DIRS = [
+    USER_SKILLS_DIRS: ClassVar[list[Path]] = [
         Path("~/.claude/skills"),
         Path("~/.klaude/skills"),
         # Path("~/.claude/plugins/marketplaces"),
     ]
     # Project-level skills directory
-    PROJECT_SKILLS_DIR = Path("./.claude/skills")
+    PROJECT_SKILLS_DIR: ClassVar[Path] = Path("./.claude/skills")
 
     def __init__(self) -> None:
         """Initialize the skill loader"""

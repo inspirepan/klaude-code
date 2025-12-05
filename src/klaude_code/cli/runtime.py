@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import sys
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -169,32 +170,26 @@ async def cleanup_app_components(components: AppComponents) -> None:
         await components.display_task
     finally:
         # Always attempt to clear Ghostty progress bar and restore cursor visibility
-        try:
+        # Best-effort only; never fail cleanup due to OSC errors
+        with contextlib.suppress(Exception):
             emit_osc94(OSC94States.HIDDEN)
-        except Exception:
-            # Best-effort only; never fail cleanup due to OSC errors
-            pass
 
-        try:
-            # Ensure the terminal cursor is visible even if Rich's Status spinner
-            # did not get a chance to stop cleanly (e.g. on KeyboardInterrupt).
+        # Ensure the terminal cursor is visible even if Rich's Status spinner
+        # did not get a chance to stop cleanly (e.g. on KeyboardInterrupt).
+        # If this fails the shell can still recover via `reset`/`stty sane`.
+        with contextlib.suppress(Exception):
             stream = getattr(sys, "__stdout__", None) or sys.stdout
             stream.write("\033[?25h")
             stream.flush()
-        except Exception:
-            # If this fails the shell can still recover via `reset`/`stty sane`.
-            pass
 
 
 async def _handle_keyboard_interrupt(executor: Executor) -> None:
     """Handle Ctrl+C by logging and sending a global interrupt."""
 
     log("Bye!")
-    try:
+    # Executor might already be stopping
+    with contextlib.suppress(Exception):
         await executor.submit(op.InterruptOperation(target_session_id=None))
-    except Exception:
-        # Executor might already be stopping
-        pass
 
 
 async def run_exec(init_config: AppInitConfig, input_content: str) -> None:
@@ -259,9 +254,12 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             if isinstance(components.display, ui.REPLDisplay):
                 printer = components.display.renderer
             # Check if it's a DebugEventDisplay wrapping a REPLDisplay
-            elif isinstance(components.display, ui.DebugEventDisplay) and components.display.wrapped_display:
-                if isinstance(components.display.wrapped_display, ui.REPLDisplay):
-                    printer = components.display.wrapped_display.renderer
+            elif (
+                isinstance(components.display, ui.DebugEventDisplay)
+                and components.display.wrapped_display
+                and isinstance(components.display.wrapped_display, ui.REPLDisplay)
+            ):
+                printer = components.display.wrapped_display.renderer
 
             if printer is not None:
                 printer.print(Text(f" {MSG} ", style="bold yellow reverse"))
@@ -272,10 +270,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             print(MSG, file=sys.stderr)
 
     def _hide_progress() -> None:
-        try:
+        with contextlib.suppress(Exception):
             emit_osc94(OSC94States.HIDDEN)
-        except Exception:
-            pass
 
     restore_sigint = install_sigint_double_press_exit(_show_toast_once, _hide_progress)
 
@@ -315,17 +311,13 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 finally:
                     # Stop ESC monitor and wait for it to finish cleaning up TTY
                     stop_event.set()
-                    try:
+                    with contextlib.suppress(Exception):
                         await esc_task
-                    except Exception:
-                        pass
 
     except KeyboardInterrupt:
         await _handle_keyboard_interrupt(components.executor)
     finally:
-        try:
-            # Restore original SIGINT handler
+        # Restore original SIGINT handler
+        with contextlib.suppress(Exception):
             restore_sigint()
-        except Exception:
-            pass
         await cleanup_app_components(components)

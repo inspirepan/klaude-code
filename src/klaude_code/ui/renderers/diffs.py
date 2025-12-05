@@ -73,10 +73,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
         if line.startswith("--- "):
             raw = line[4:].strip()
             if raw != "/dev/null":
-                if raw.startswith(("a/", "b/")):
-                    from_file_name = raw[2:]
-                else:
-                    from_file_name = raw
+                from_file_name = raw[2:] if raw.startswith(("a/", "b/")) else raw
             continue
 
         # Parse file name from diff headers

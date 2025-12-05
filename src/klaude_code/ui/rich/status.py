@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import math
 import time
 
@@ -233,8 +234,6 @@ class BreathingSpinner(RichSpinner):
 
 # Monkey-patch Rich's Status module to use the breathing spinner implementation
 # for the configured spinner name, while preserving default behavior elsewhere.
-try:
+# Best-effort patch; if it fails we silently fall back to default spinner.
+with contextlib.suppress(Exception):
     rich_status.Spinner = BreathingSpinner  # type: ignore[assignment]
-except Exception:
-    # Best-effort patch; if it fails we silently fall back to default spinner.
-    pass

@@ -32,7 +32,7 @@ class BaseTempDirTest(unittest.TestCase):
             with open(path, encoding="utf-8") as f:
                 return f.read()
         except FileNotFoundError:
-            raise DiffError(f"Missing File: {path}")
+            raise DiffError(f"Missing File: {path}") from None
 
     def write_fn(self, path: str, content: str) -> None:
         """Mock write function that tracks written files"""

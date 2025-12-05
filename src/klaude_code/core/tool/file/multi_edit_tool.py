@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import difflib
 import os
 from pathlib import Path
@@ -162,10 +163,8 @@ class MultiEditTool(ToolABC):
 
         # Update tracker
         if file_tracker is not None:
-            try:
+            with contextlib.suppress(Exception):
                 file_tracker[file_path] = Path(file_path).stat().st_mtime
-            except Exception:
-                pass
 
         # Build output message
         lines = [f"Applied {len(args.edits)} edits to {file_path}:"]

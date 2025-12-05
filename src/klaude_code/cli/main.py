@@ -84,7 +84,7 @@ def login_command(
         log(f"  Expires: {expires_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
     except Exception as e:
         log((f"Login failed: {e}", "red"))
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command("logout")
@@ -173,11 +173,11 @@ def edit_config() -> None:
             subprocess.run([editor, str(config_path)], check=True)
     except subprocess.CalledProcessError as e:
         log((f"Error: Failed to open editor: {e}", "red"))
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except FileNotFoundError:
         log((f"Error: Editor '{editor}' not found", "red"))
         log("Please install a text editor or set your $EDITOR environment variable")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command("exec")

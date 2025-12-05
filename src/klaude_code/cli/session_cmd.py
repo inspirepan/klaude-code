@@ -46,10 +46,9 @@ def session_clean(
         log(f"No sessions with fewer than {min_messages} messages found.")
         return
 
-    if not yes:
-        if not _session_confirm(to_delete, "Delete these sessions?"):
-            log("Aborted.")
-            return
+    if not yes and not _session_confirm(to_delete, "Delete these sessions?"):
+        log("Aborted.")
+        return
 
     deleted = Session.clean_small_sessions(min_messages)
     log(f"Deleted {deleted} session(s).")
@@ -65,10 +64,9 @@ def session_clean_all(
         log("No sessions found.")
         return
 
-    if not yes:
-        if not _session_confirm(sessions, "Delete ALL sessions? This cannot be undone."):
-            log("Aborted.")
-            return
+    if not yes and not _session_confirm(sessions, "Delete ALL sessions? This cannot be undone."):
+        log("Aborted.")
+        return
 
     deleted = Session.clean_all_sessions()
     log(f"Deleted {deleted} session(s).")

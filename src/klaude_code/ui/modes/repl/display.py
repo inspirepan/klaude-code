@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from typing import override
 
 from klaude_code.protocol import events
@@ -53,8 +54,6 @@ class REPLDisplay(DisplayABC):
     async def stop(self) -> None:
         await self.event_handler.stop()
         # Ensure any active spinner is stopped so Rich restores the cursor.
-        try:
+        # Spinner may already be stopped or not started; ignore.
+        with contextlib.suppress(Exception):
             self.renderer.spinner_stop()
-        except Exception:
-            # Spinner may already be stopped or not started; ignore.
-            pass

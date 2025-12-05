@@ -6,6 +6,7 @@ with dependencies injected to avoid circular imports.
 
 from __future__ import annotations
 
+import contextlib
 import re
 from collections.abc import Callable
 from typing import cast
@@ -35,10 +36,8 @@ def create_key_bindings(
         """Paste image from clipboard as [Image #N]."""
         tag = capture_clipboard_tag()
         if tag:
-            try:
+            with contextlib.suppress(Exception):
                 event.current_buffer.insert_text(tag)  # pyright: ignore[reportUnknownMemberType]
-            except Exception:
-                pass
 
     @kb.add("enter")
     def _(event):  # type: ignore

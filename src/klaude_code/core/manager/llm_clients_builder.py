@@ -19,10 +19,7 @@ def build_llm_clients(
     """Create an ``LLMClients`` bundle driven by application config."""
 
     # Resolve main agent LLM config
-    if model_override:
-        llm_config = config.get_model_config(model_override)
-    else:
-        llm_config = config.get_main_model_config()
+    llm_config = config.get_model_config(model_override) if model_override else config.get_main_model_config()
 
     log_debug(
         "Main LLM config",

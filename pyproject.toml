@@ -48,7 +48,7 @@ src = ["src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "B", "I", "UP", "SIM", "RUF"]
-ignore = ["RUF001", "RUF002", "RUF003"]
+ignore = ["RUF001", "RUF002", "RUF003", "E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["klaude_code"]

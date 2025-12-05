@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import difflib
 import os
 from pathlib import Path
@@ -98,10 +99,8 @@ class WriteTool(ToolABC):
             return model.ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
 
         if file_tracker is not None:
-            try:
+            with contextlib.suppress(Exception):
                 file_tracker[file_path] = Path(file_path).stat().st_mtime
-            except Exception:
-                pass
 
         # Build diff between previous and new content
         after = args.content

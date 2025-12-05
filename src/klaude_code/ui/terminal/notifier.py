@@ -95,9 +95,7 @@ class TerminalNotifier:
         if not getattr(stream, "isatty", lambda: False)():
             return False
         term = os.getenv("TERM", "")
-        if term.lower() in {"", "dumb"}:
-            return False
-        return True
+        return term.lower() not in {"", "dumb"}
 
 
 def _compact(text: str, limit: int = 160) -> str:

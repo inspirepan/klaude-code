@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import os
 import select
 import signal
@@ -75,19 +76,15 @@ def start_esc_interrupt_monitor(
                     r2, _, _ = select.select([sys.stdin], [], [], 0.0)
 
                 if seq == "":
-                    try:
+                    # Best-effort only; failures here should not crash the UI.
+                    with contextlib.suppress(Exception):
                         asyncio.run_coroutine_threadsafe(on_interrupt(), loop)
-                    except Exception:
-                        # Best-effort only; failures here should not crash the UI.
-                        pass
                     stop.set()
         except Exception as exc:  # pragma: no cover - environment dependent
             log((f"esc monitor error: {exc}", "r red"))
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 termios.tcsetattr(fd, termios.TCSADRAIN, old)
-            except Exception:
-                pass
 
     esc_task: asyncio.Task[None] = asyncio.create_task(asyncio.to_thread(_esc_monitor, stop_event))
     return stop_event, esc_task
@@ -119,18 +116,14 @@ def install_sigint_double_press_exit(
         now = time.monotonic()
         if now - last_sigint_time <= window_seconds:
             # Second press within window: hide progress UI and exit.
-            try:
+            with contextlib.suppress(Exception):
                 hide_progress()
-            except Exception:
-                pass
             raise KeyboardInterrupt
 
         # First press: remember timestamp and show toast.
         last_sigint_time = now
-        try:
+        with contextlib.suppress(Exception):
             show_toast()
-        except Exception:
-            pass
 
     try:
         signal.signal(signal.SIGINT, _handler)
@@ -139,9 +132,7 @@ def install_sigint_double_press_exit(
         return lambda: None
 
     def restore() -> None:
-        try:
+        with contextlib.suppress(Exception):
             signal.signal(signal.SIGINT, original_handler)
-        except Exception:
-            pass
 
     return restore

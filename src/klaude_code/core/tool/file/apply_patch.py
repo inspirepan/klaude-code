@@ -49,7 +49,7 @@ def assemble_changes(orig: dict[str, str | None], dest: dict[str, str | None]) -
                     old_content=old_content,
                 )
             else:
-                assert False
+                raise AssertionError()
     return commit
 
 
@@ -90,23 +90,16 @@ class Parser(BaseModel):
     def is_done(self, prefixes: tuple[str, ...] | None = None) -> bool:
         if self.index >= len(self.lines):
             return True
-        if prefixes and self.lines[self.index].startswith(prefixes):
-            return True
-        return False
+        return bool(prefixes and self.lines[self.index].startswith(prefixes))
 
     def startswith(self, prefix: str | tuple[str, ...]) -> bool:
         assert self.index < len(self.lines), f"Index: {self.index} >= {len(self.lines)}"
-        if self.lines[self.index].startswith(prefix):
-            return True
-        return False
+        return self.lines[self.index].startswith(prefix)
 
     def read_str(self, prefix: str = "", return_everything: bool = False) -> str:
         assert self.index < len(self.lines), f"Index: {self.index} >= {len(self.lines)}"
         if self.lines[self.index].startswith(prefix):
-            if return_everything:
-                text = self.lines[self.index]
-            else:
-                text = self.lines[self.index][len(prefix) :]
+            text = self.lines[self.index] if return_everything else self.lines[self.index][len(prefix) :]
             self.index += 1
             return text
         return ""
@@ -167,10 +160,9 @@ class Parser(BaseModel):
         ):
             def_str = self.read_str("@@ ")
             section_str = ""
-            if not def_str:
-                if self.lines[self.index] == "@@":
-                    section_str = self.lines[self.index]
-                    self.index += 1
+            if not def_str and self.lines[self.index] == "@@":
+                section_str = self.lines[self.index]
+                self.index += 1
             if not (def_str or section_str or index == 0):
                 raise DiffError(f"Invalid Line:\n{self.lines[self.index]}")
             if def_str.strip():
