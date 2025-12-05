@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.13] - 2025-12-05
+
+### Added
+
+- add streaming reasoning/thinking output support (`2f23159`)
+- support interleaved thinking claude header on openrouter (`0f52bcf`)
+
+### Changed
+
+- remove lazy loading from AgentProfile and LLMClients (`53d29ea`)
+
+### Other
+
+- ruff check (`50f1042`)
+- ruff check --fix (`0314923`)
+- format (`3adc227`)
 ## [1.2.12] - 2025-12-05
 
 ### Added
@@ -411,7 +427,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.12...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.13...HEAD
+[1.2.13]: https://github.com/inspirepan/klaude-code/compare/v1.2.12...v1.2.13
 [1.2.12]: https://github.com/inspirepan/klaude-code/compare/v1.2.11...v1.2.12
 [1.2.11]: https://github.com/inspirepan/klaude-code/compare/v1.2.10...v1.2.11
 [1.2.10]: https://github.com/inspirepan/klaude-code/compare/v1.2.9...v1.2.10
