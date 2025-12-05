@@ -10,6 +10,11 @@ from .session import Session
 
 
 def resume_select_session() -> str | None:
+    # Column widths
+    UPDATED_AT_WIDTH = 16
+    MSG_COUNT_WIDTH = 3
+    MODEL_WIDTH = 25
+    FIRST_MESSAGE_WIDTH = 50
     sessions = Session.list_sessions()
     if not sessions:
         log("No sessions found for this project.")
@@ -31,20 +36,20 @@ def resume_select_session() -> str | None:
             model_display = s.model_name or "N/A"
 
             title = [
-                ("class:d", f"{_fmt(s.updated_at):<16} "),
-                ("class:b", f"{msg_count_display:>3}  "),
+                ("class:d", f"{_fmt(s.updated_at):<{UPDATED_AT_WIDTH}} "),
+                ("class:b", f"{msg_count_display:>{MSG_COUNT_WIDTH}}  "),
                 (
                     "class:t",
-                    f"{model_display[:29] + '…' if len(model_display) > 29 else model_display:<30}  ",
+                    f"{model_display[:MODEL_WIDTH - 1] + '…' if len(model_display) > MODEL_WIDTH else model_display:<{MODEL_WIDTH}}  ",
                 ),
                 (
                     "class:t",
-                    f"{first_user_message.strip().replace('\n', ' ↩ '):<50}",
+                    f"{first_user_message.strip().replace('\n', ' ↩ '):<{FIRST_MESSAGE_WIDTH}}",
                 ),
             ]
             choices.append(questionary.Choice(title=title, value=s.id))
         return questionary.select(
-            message=f"{' Updated at':<17} {'Msg':>3}  {'Model':<30}  {'First message':<50}",
+            message=f"{' Updated at':<{UPDATED_AT_WIDTH + 1}} {'Msg':>{MSG_COUNT_WIDTH}}  {'Model':<{MODEL_WIDTH}}  {'First message':<{FIRST_MESSAGE_WIDTH}}",
             choices=choices,
             pointer="→",
             instruction="↑↓ to move",
@@ -63,8 +68,8 @@ def resume_select_session() -> str | None:
             msg_count_display = "N/A" if s.messages_count == -1 else str(s.messages_count)
             model_display = s.model_name or "N/A"
             print(
-                f"{i}. {_fmt(s.updated_at)}  {msg_count_display:>3} "
-                f"{model_display[:29] + '…' if len(model_display) > 29 else model_display:<30} {s.id}  {s.work_dir}"
+                f"{i}. {_fmt(s.updated_at)}  {msg_count_display:>{MSG_COUNT_WIDTH}} "
+                f"{model_display[:MODEL_WIDTH - 1] + '…' if len(model_display) > MODEL_WIDTH else model_display:<{MODEL_WIDTH}} {s.id}  {s.work_dir}"
             )
         try:
             raw = input("Select a session number: ").strip()
