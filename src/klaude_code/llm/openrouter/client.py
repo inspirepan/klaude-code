@@ -26,7 +26,10 @@ def build_payload(
     tools = convert_tool_schema(param.tools)
 
     extra_body: dict[str, object] = {
-        "usage": {"include": True}  # To get the cache tokens at the end of the response
+        "usage": {"include": True},  # To get the cache tokens at the end of the response
+        "debug": {
+            "echo_upstream_body": True
+        },  # https://openrouter.ai/docs/api/reference/errors-and-debugging#debug-option-shape
     }
     extra_headers: dict[str, str] = {}
 
@@ -45,9 +48,7 @@ def build_payload(
         extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
 
     if is_claude_model(param.model):
-        extra_headers["anthropic-beta"] = (
-            "interleaved-thinking-2025-05-14"  # Not working yet, maybe OpenRouter's issue, or Anthropic: Interleaved thinking is only supported for tools used via the Messages API.
-        )
+        extra_headers["x-anthropic-beta"] = "fine-grained-tool-streaming-2025-05-14,interleaved-thinking-2025-05-14"
 
     payload: CompletionCreateParamsStreaming = {
         "model": str(param.model),
