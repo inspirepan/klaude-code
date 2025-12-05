@@ -40,7 +40,7 @@ def resume_select_session() -> str | None:
                 ("class:b", f"{msg_count_display:>{MSG_COUNT_WIDTH}}  "),
                 (
                     "class:t",
-                    f"{model_display[:MODEL_WIDTH - 1] + '…' if len(model_display) > MODEL_WIDTH else model_display:<{MODEL_WIDTH}}  ",
+                    f"{model_display[: MODEL_WIDTH - 1] + '…' if len(model_display) > MODEL_WIDTH else model_display:<{MODEL_WIDTH}}  ",
                 ),
                 (
                     "class:t",
@@ -69,7 +69,7 @@ def resume_select_session() -> str | None:
             model_display = s.model_name or "N/A"
             print(
                 f"{i}. {_fmt(s.updated_at)}  {msg_count_display:>{MSG_COUNT_WIDTH}} "
-                f"{model_display[:MODEL_WIDTH - 1] + '…' if len(model_display) > MODEL_WIDTH else model_display:<{MODEL_WIDTH}} {s.id}  {s.work_dir}"
+                f"{model_display[: MODEL_WIDTH - 1] + '…' if len(model_display) > MODEL_WIDTH else model_display:<{MODEL_WIDTH}} {s.id}  {s.work_dir}"
             )
         try:
             raw = input("Select a session number: ").strip()

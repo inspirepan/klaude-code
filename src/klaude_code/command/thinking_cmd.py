@@ -95,12 +95,14 @@ def _format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
     return "unknown protocol"
 
 
-SELECT_STYLE = questionary.Style([
-    ("instruction", "ansibrightblack"),
-    ("pointer", "ansicyan"),
-    ("highlighted", "ansicyan"),
-    ("text", "ansibrightblack"),
-])
+SELECT_STYLE = questionary.Style(
+    [
+        ("instruction", "ansibrightblack"),
+        ("pointer", "ansicyan"),
+        ("highlighted", "ansicyan"),
+        ("text", "ansibrightblack"),
+    ]
+)
 
 
 def _select_responses_thinking_sync(model_name: str | None) -> llm_param.Thinking | None:

@@ -127,11 +127,7 @@ class OpenAICompatibleClient(LLMClientABC):
                 delta = event.choices[0].delta
 
                 # Reasoning
-                reasoning_content = (
-                    getattr(delta, "reasoning_content", None)
-                    or getattr(delta, "reasoning", None)
-                    or ""
-                )
+                reasoning_content = getattr(delta, "reasoning_content", None) or getattr(delta, "reasoning", None) or ""
                 if reasoning_content:
                     metadata_tracker.record_token()
                     state.stage = "reasoning"

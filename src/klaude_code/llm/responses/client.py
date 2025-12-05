@@ -16,7 +16,6 @@ from klaude_code.llm.usage import MetadataTracker
 from klaude_code.protocol import llm_param, model
 from klaude_code.trace import DebugType, log_debug
 
-
 if TYPE_CHECKING:
     from openai import AsyncStream
     from openai.types.responses import ResponseStreamEvent
