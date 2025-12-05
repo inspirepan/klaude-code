@@ -43,7 +43,7 @@ LIGHT_PALETTE = Palette(
     diff_add="#2e5a32 on #e8f5e9",
     diff_remove="#5a2e32 on #ffebee",
     code_theme="ansi_light",
-    text_background="#f0f0f0",
+    text_background="#e0e0e0",
 )
 
 DARK_PALETTE = Palette(
