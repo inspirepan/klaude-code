@@ -5,6 +5,7 @@ from typing import override
 import anthropic
 import httpx
 from anthropic import APIError
+from anthropic.types.beta.message_create_params import MessageCreateParamsStreaming
 from anthropic.types.beta.beta_input_json_delta import BetaInputJSONDelta
 from anthropic.types.beta.beta_raw_content_block_delta_event import BetaRawContentBlockDeltaEvent
 from anthropic.types.beta.beta_raw_content_block_start_event import BetaRawContentBlockStartEvent
@@ -18,7 +19,7 @@ from anthropic.types.beta.beta_tool_use_block import BetaToolUseBlock
 
 from klaude_code import const
 from klaude_code.llm.anthropic.input import convert_history_to_input, convert_system_to_input, convert_tool_schema
-from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
+from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, convert_anthropic_usage
@@ -52,28 +53,35 @@ class AnthropicClient(LLMClientABC):
         tools = convert_tool_schema(param.tools)
         system = convert_system_to_input(param.system)
 
-        stream = call_with_logged_payload(
-            self.client.beta.messages.create,
-            model=str(param.model),
-            tool_choice={
+        payload: MessageCreateParamsStreaming = {
+            "model": str(param.model),
+            "tool_choice": {
                 "type": "auto",
                 "disable_parallel_tool_use": False,
             },
-            stream=True,
-            max_tokens=param.max_tokens or const.DEFAULT_MAX_TOKENS,
-            temperature=param.temperature or const.DEFAULT_TEMPERATURE,
-            messages=messages,
-            system=system,
-            tools=tools,
-            betas=["interleaved-thinking-2025-05-14", "context-1m-2025-08-07"],
-            thinking=anthropic.types.ThinkingConfigEnabledParam(
-                type=param.thinking.type,
+            "stream": True,
+            "max_tokens": param.max_tokens or const.DEFAULT_MAX_TOKENS,
+            "temperature": param.temperature or const.DEFAULT_TEMPERATURE,
+            "messages": messages,
+            "system": system,
+            "tools": tools,
+            "betas": ["interleaved-thinking-2025-05-14", "context-1m-2025-08-07"],
+        }
+
+        if param.thinking and param.thinking.type == "enabled":
+            payload["thinking"] = anthropic.types.ThinkingConfigEnabledParam(
+                type="enabled",
                 budget_tokens=param.thinking.budget_tokens or const.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
             )
-            if param.thinking and param.thinking.type == "enabled"
-            else anthropic.types.ThinkingConfigDisabledParam(
-                type="disabled",
-            ),
+
+        log_debug(
+            json.dumps(payload, ensure_ascii=False, default=str),
+            style="yellow",
+            debug_type=DebugType.LLM_PAYLOAD,
+        )
+
+        stream = self.client.beta.messages.create(
+            **payload,
             extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
         )
 

@@ -6,8 +6,9 @@ import httpx
 import openai
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types import responses
+from openai.types.responses.response_create_params import ResponseCreateParamsStreaming
 
-from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
+from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
@@ -165,33 +166,40 @@ class ResponsesClient(LLMClientABC):
         inputs = convert_history_to_input(param.input, param.model)
         tools = convert_tool_schema(param.tools)
 
+        payload: ResponseCreateParamsStreaming = {
+            "model": str(param.model),
+            "tool_choice": "auto",
+            "parallel_tool_calls": True,
+            "include": [
+                "reasoning.encrypted_content",
+            ],
+            "store": False,
+            "stream": True,
+            "temperature": param.temperature,
+            "max_output_tokens": param.max_tokens,
+            "input": inputs,
+            "instructions": param.system,
+            "tools": tools,
+            "prompt_cache_key": param.session_id or "",
+        }
+
+        if param.thinking and param.thinking.reasoning_effort:
+            payload["reasoning"] = {
+                "effort": param.thinking.reasoning_effort,
+                "summary": param.thinking.reasoning_summary,
+            }
+
+        if param.verbosity:
+            payload["text"] = {"verbosity": param.verbosity}
+
+        log_debug(
+            json.dumps(payload, ensure_ascii=False, default=str),
+            style="yellow",
+            debug_type=DebugType.LLM_PAYLOAD,
+        )
         try:
-            stream = await call_with_logged_payload(
-                self.client.responses.create,
-                model=str(param.model),
-                tool_choice="auto",
-                parallel_tool_calls=True,
-                include=[
-                    "reasoning.encrypted_content",
-                ],
-                store=param.store,
-                previous_response_id=param.previous_response_id,
-                stream=True,
-                temperature=param.temperature,
-                max_output_tokens=param.max_tokens,
-                input=inputs,
-                instructions=param.system,
-                tools=tools,
-                text={
-                    "verbosity": param.verbosity,
-                },
-                prompt_cache_key=param.session_id or "",
-                reasoning={
-                    "effort": param.thinking.reasoning_effort,
-                    "summary": param.thinking.reasoning_summary,
-                }
-                if param.thinking and param.thinking.reasoning_effort
-                else None,
+            stream = await self.client.responses.create(
+                **payload,
                 extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:

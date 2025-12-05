@@ -158,7 +158,6 @@ class TurnExecutor:
                 input=session_ctx.get_conversation_history(),
                 system=ctx.system_prompt,
                 tools=ctx.tools,
-                store=False,
                 session_id=session_ctx.session_id,
             )
         ):

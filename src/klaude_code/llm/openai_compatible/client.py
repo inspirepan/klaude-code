@@ -4,8 +4,9 @@ from typing import override
 
 import httpx
 import openai
+from openai.types.chat.completion_create_params import CompletionCreateParamsStreaming
 
-from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
+from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_compatible.input import convert_history_to_input, convert_tool_schema
 from klaude_code.llm.openai_compatible.stream_processor import StreamStateManager
@@ -49,27 +50,37 @@ class OpenAICompatibleClient(LLMClientABC):
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
-        extra_body = {}
-        extra_headers = {"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)}
+        extra_body: dict[str, object] = {}
+        extra_headers: dict[str, str] = {"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)}
 
         if param.thinking:
             extra_body["thinking"] = {
                 "type": param.thinking.type,
                 "budget": param.thinking.budget_tokens,
             }
-        stream = call_with_logged_payload(
-            self.client.chat.completions.create,
-            model=str(param.model),
-            tool_choice="auto",
-            parallel_tool_calls=True,
-            stream=True,
-            messages=messages,
-            temperature=param.temperature,
-            max_tokens=param.max_tokens,
-            tools=tools,
-            reasoning_effort=param.thinking.reasoning_effort if param.thinking else None,
-            verbosity=param.verbosity,
-            extra_body=extra_body,  # pyright: ignore[reportUnknownArgumentType]
+
+        payload: CompletionCreateParamsStreaming = {
+            "model": str(param.model),
+            "tool_choice": "auto",
+            "parallel_tool_calls": True,
+            "stream": True,
+            "messages": messages,
+            "temperature": param.temperature,
+            "max_tokens": param.max_tokens,
+            "tools": tools,
+            "reasoning_effort": param.thinking.reasoning_effort if param.thinking else None,
+            "verbosity": param.verbosity,
+        }
+
+        log_debug(
+            json.dumps({**payload, **extra_body}, ensure_ascii=False, default=str),
+            style="yellow",
+            debug_type=DebugType.LLM_PAYLOAD,
+        )
+
+        stream = self.client.chat.completions.create(
+            **payload,
+            extra_body=extra_body,
             extra_headers=extra_headers,
         )
 

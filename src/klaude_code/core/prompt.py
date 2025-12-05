@@ -84,7 +84,7 @@ def _build_env_info(model_name: str) -> str:
     return "\n".join(env_lines)
 
 
-def get_system_prompt(model_name: str, sub_agent_type: str | None = None) -> str:
+def load_system_prompt(model_name: str, sub_agent_type: str | None = None) -> str:
     """Get system prompt content for the given model and sub-agent type."""
     file_key = _get_file_key(model_name, sub_agent_type)
     base_prompt = _load_base_prompt(file_key)

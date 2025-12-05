@@ -107,7 +107,6 @@ async def run_startup_test() -> StartupTimer:
     from klaude_code.core.executor import Executor
     from klaude_code.core.manager import build_llm_clients
     from klaude_code.protocol import events, op
-    from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
     from klaude_code.ui.terminal.color import is_light_terminal_background
 
     timer.mark("Import runtime modules")
@@ -127,10 +126,7 @@ async def run_startup_test() -> StartupTimer:
     timer.mark("is_light_terminal_background()")
 
     # Phase 4: LLM clients
-    enabled_sub_agents = [p.name for p in iter_sub_agent_profiles()]
-    timer.mark("iter_sub_agent_profiles()")
-
-    llm_clients = build_llm_clients(config, model_override=None, enabled_sub_agents=enabled_sub_agents)
+    llm_clients = build_llm_clients(config, model_override=None)
     timer.mark("build_llm_clients()")
 
     # Phase 5: Create components

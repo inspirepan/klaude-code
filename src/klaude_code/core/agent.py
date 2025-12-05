@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator, Callable, Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
-from klaude_code.core.prompt import get_system_prompt as load_system_prompt
+from klaude_code.core.prompt import load_system_prompt
 from klaude_code.core.reminders import Reminder, load_agent_reminders
 from klaude_code.core.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.core.tool import build_todo_context, get_registry, load_agent_tools

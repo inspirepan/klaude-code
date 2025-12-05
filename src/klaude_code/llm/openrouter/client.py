@@ -1,10 +1,12 @@
+import json
 from collections.abc import AsyncGenerator
 from typing import override
 
 import httpx
 import openai
+from openai.types.chat.completion_create_params import CompletionCreateParamsStreaming
 
-from klaude_code.llm.client import LLMClientABC, call_with_logged_payload
+from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_compatible.input import convert_tool_schema
 from klaude_code.llm.openai_compatible.stream_processor import StreamStateManager
@@ -43,7 +45,7 @@ class OpenRouterClient(LLMClientABC):
         extra_body: dict[str, object] = {
             "usage": {"include": True}  # To get the cache tokens at the end of the response
         }
-        extra_headers = {}
+        extra_headers: dict[str, str] = {}
 
         if param.thinking:
             if param.thinking.budget_tokens is not None:
@@ -55,26 +57,37 @@ class OpenRouterClient(LLMClientABC):
                 extra_body["reasoning"] = {
                     "effort": param.thinking.reasoning_effort,
                 }
+
         if param.provider_routing:
             extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
+
         if is_claude_model(param.model):
             extra_headers["anthropic-beta"] = (
                 "interleaved-thinking-2025-05-14"  # Not working yet, maybe OpenRouter's issue, or Anthropic: Interleaved thinking is only supported for tools used via the Messages API.
             )
 
-        stream = call_with_logged_payload(
-            self.client.chat.completions.create,
-            model=str(param.model),
-            tool_choice="auto",
-            parallel_tool_calls=True,
-            stream=True,
-            messages=messages,
-            temperature=param.temperature,
-            max_tokens=param.max_tokens,
-            tools=tools,
-            verbosity=param.verbosity,
+        payload: CompletionCreateParamsStreaming = {
+            "model": str(param.model),
+            "tool_choice": "auto",
+            "parallel_tool_calls": True,
+            "stream": True,
+            "messages": messages,
+            "temperature": param.temperature,
+            "max_tokens": param.max_tokens,
+            "tools": tools,
+            "verbosity": param.verbosity,
+        }
+
+        log_debug(
+            json.dumps({**payload, **extra_body}, ensure_ascii=False, default=str),
+            style="yellow",
+            debug_type=DebugType.LLM_PAYLOAD,
+        )
+
+        stream = self.client.chat.completions.create(
+            **payload,
             extra_body=extra_body,
-            extra_headers=extra_headers,  # pyright: ignore[reportUnknownArgumentType]
+            extra_headers=extra_headers,
         )
 
         reasoning_handler = ReasoningStreamHandler(

@@ -138,12 +138,4 @@ class LLMCallParameter(LLMConfigModelParameter):
     input: list[ConversationItem]
     system: str | None = None
     tools: list[ToolSchema] | None = None
-
-    stream: Literal[True] = True  # Always True
-
-    # OpenAI Responses
-    include: list[str] | None = None
-    store: bool = True
-    previous_response_id: str | None = None
-
     session_id: str | None = None
