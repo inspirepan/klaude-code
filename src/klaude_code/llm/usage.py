@@ -108,7 +108,7 @@ def convert_usage(
         reasoning_tokens=(usage.completion_tokens_details.reasoning_tokens if usage.completion_tokens_details else 0)
         or 0,
         output_tokens=usage.completion_tokens,
-        context_token=usage.total_tokens,
+        context_size=usage.total_tokens,
         context_limit=context_limit,
         max_tokens=max_tokens,
     )

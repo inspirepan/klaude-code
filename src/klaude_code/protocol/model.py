@@ -20,7 +20,7 @@ class Usage(BaseModel):
     output_tokens: int = 0
 
     # Context window tracking
-    context_token: int | None = None  # Peak total_tokens seen (for context usage display)
+    context_size: int | None = None  # Peak total_tokens seen (for context usage display)
     context_limit: int | None = None  # Model's context limit
     max_tokens: int | None = None  # Max output tokens for this request
 
@@ -53,12 +53,12 @@ class Usage(BaseModel):
         """Context usage percentage computed from context_token / (context_limit - max_tokens)."""
         if self.context_limit is None or self.context_limit <= 0:
             return None
-        if self.context_token is None:
+        if self.context_size is None:
             return None
         effective_limit = self.context_limit - (self.max_tokens or const.DEFAULT_MAX_TOKENS)
         if effective_limit <= 0:
             return None
-        return (self.context_token / effective_limit) * 100
+        return (self.context_size / effective_limit) * 100
 
 
 class TodoItem(BaseModel):

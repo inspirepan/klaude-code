@@ -47,8 +47,8 @@ class MetadataAccumulator:
             acc_usage.output_tokens += usage.output_tokens
             acc_usage.currency = usage.currency
 
-            if usage.context_token is not None:
-                acc_usage.context_token = usage.context_token
+            if usage.context_size is not None:
+                acc_usage.context_size = usage.context_size
             if usage.context_limit is not None:
                 acc_usage.context_limit = usage.context_limit
 

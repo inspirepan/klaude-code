@@ -60,8 +60,8 @@ def accumulate_session_usage(session: Session) -> AggregatedUsage:
             total.cache_read_cost = (total.cache_read_cost or 0.0) + usage.cache_read_cost
 
         # Track peak context window size (max across all tasks)
-        if usage.context_token is not None:
-            total.context_token = usage.context_token
+        if usage.context_size is not None:
+            total.context_size = usage.context_size
 
         # Keep the latest context_limit for computed context_usage_percent
         if usage.context_limit is not None:

@@ -137,7 +137,7 @@ async def parse_responses_stream(
                                 output_tokens=event.response.usage.output_tokens,
                                 cached_tokens=event.response.usage.input_tokens_details.cached_tokens,
                                 reasoning_tokens=event.response.usage.output_tokens_details.reasoning_tokens,
-                                context_token=event.response.usage.total_tokens,
+                                context_size=event.response.usage.total_tokens,
                                 context_limit=param.context_limit,
                                 max_tokens=param.max_tokens,
                             )

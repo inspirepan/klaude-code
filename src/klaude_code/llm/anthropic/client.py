@@ -186,7 +186,7 @@ class AnthropicClient(LLMClientABC):
                                 input_tokens=input_token + cached_token,
                                 output_tokens=event.usage.output_tokens,
                                 cached_tokens=cached_token,
-                                context_token=input_token + cached_token + event.usage.output_tokens,
+                                context_size=input_token + cached_token + event.usage.output_tokens,
                                 context_limit=param.context_limit,
                                 max_tokens=param.max_tokens,
                             )
