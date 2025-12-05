@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.12] - 2025-12-05
+
+### Added
+
+- add /thinking command to toggle reasoning mode (`cd06a2d`)
+- remove cache ratio (`49943e5`)
+
+### Changed
+
+- improve column width handling in session selection (`8283730`)
+- use manual command registration for custom display order (`e18b089`)
+- rename context_token -> context_size (`7087dbc`)
+- use llm sdk's param type hint; remove useless param option (`1f9f207`)
 ## [1.2.11] - 2025-12-04
 
 ### Added
@@ -398,7 +411,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.11...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.12...HEAD
+[1.2.12]: https://github.com/inspirepan/klaude-code/compare/v1.2.11...v1.2.12
 [1.2.11]: https://github.com/inspirepan/klaude-code/compare/v1.2.10...v1.2.11
 [1.2.10]: https://github.com/inspirepan/klaude-code/compare/v1.2.9...v1.2.10
 [1.2.9]: https://github.com/inspirepan/klaude-code/compare/v1.2.8...v1.2.9
