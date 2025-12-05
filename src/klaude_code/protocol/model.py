@@ -21,8 +21,6 @@ class Usage(BaseModel):
 
     # Context window tracking
     context_token: int | None = None  # Peak total_tokens seen (for context usage display)
-    context_delta: int | None = None  # Context growth since last task (for cache ratio calculation)
-    last_turn_output_token: int | None = None  # Context growth since last task (for cache ratio calculation)
     context_limit: int | None = None  # Model's context limit
     max_tokens: int | None = None  # Max output tokens for this request
 

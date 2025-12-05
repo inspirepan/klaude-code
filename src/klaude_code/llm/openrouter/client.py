@@ -18,6 +18,52 @@ from klaude_code.protocol import llm_param, model
 from klaude_code.trace import DebugType, log, log_debug
 
 
+def build_payload(
+    param: llm_param.LLMCallParameter,
+) -> tuple[CompletionCreateParamsStreaming, dict[str, object], dict[str, str]]:
+    """Build OpenRouter API request parameters."""
+    messages = convert_history_to_input(param.input, param.system, param.model)
+    tools = convert_tool_schema(param.tools)
+
+    extra_body: dict[str, object] = {
+        "usage": {"include": True}  # To get the cache tokens at the end of the response
+    }
+    extra_headers: dict[str, str] = {}
+
+    if param.thinking:
+        if param.thinking.budget_tokens is not None:
+            extra_body["reasoning"] = {
+                "max_tokens": param.thinking.budget_tokens,
+                "enable": True,
+            }  # OpenRouter: https://openrouter.ai/docs/use-cases/reasoning-tokens#anthropic-models-with-reasoning-tokens
+        elif param.thinking.reasoning_effort is not None:
+            extra_body["reasoning"] = {
+                "effort": param.thinking.reasoning_effort,
+            }
+
+    if param.provider_routing:
+        extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
+
+    if is_claude_model(param.model):
+        extra_headers["anthropic-beta"] = (
+            "interleaved-thinking-2025-05-14"  # Not working yet, maybe OpenRouter's issue, or Anthropic: Interleaved thinking is only supported for tools used via the Messages API.
+        )
+
+    payload: CompletionCreateParamsStreaming = {
+        "model": str(param.model),
+        "tool_choice": "auto",
+        "parallel_tool_calls": True,
+        "stream": True,
+        "messages": messages,
+        "temperature": param.temperature,
+        "max_tokens": param.max_tokens,
+        "tools": tools,
+        "verbosity": param.verbosity,
+    }
+
+    return payload, extra_body, extra_headers
+
+
 @register(llm_param.LLMClientProtocol.OPENROUTER)
 class OpenRouterClient(LLMClientABC):
     def __init__(self, config: llm_param.LLMConfigParameter):
@@ -37,46 +83,10 @@ class OpenRouterClient(LLMClientABC):
     @override
     async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         param = apply_config_defaults(param, self.get_llm_config())
-        messages = convert_history_to_input(param.input, param.system, param.model)
-        tools = convert_tool_schema(param.tools)
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
-        extra_body: dict[str, object] = {
-            "usage": {"include": True}  # To get the cache tokens at the end of the response
-        }
-        extra_headers: dict[str, str] = {}
-
-        if param.thinking:
-            if param.thinking.budget_tokens is not None:
-                extra_body["reasoning"] = {
-                    "max_tokens": param.thinking.budget_tokens,
-                    "enable": True,
-                }  # OpenRouter: https://openrouter.ai/docs/use-cases/reasoning-tokens#anthropic-models-with-reasoning-tokens
-            elif param.thinking.reasoning_effort is not None:
-                extra_body["reasoning"] = {
-                    "effort": param.thinking.reasoning_effort,
-                }
-
-        if param.provider_routing:
-            extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
-
-        if is_claude_model(param.model):
-            extra_headers["anthropic-beta"] = (
-                "interleaved-thinking-2025-05-14"  # Not working yet, maybe OpenRouter's issue, or Anthropic: Interleaved thinking is only supported for tools used via the Messages API.
-            )
-
-        payload: CompletionCreateParamsStreaming = {
-            "model": str(param.model),
-            "tool_choice": "auto",
-            "parallel_tool_calls": True,
-            "stream": True,
-            "messages": messages,
-            "temperature": param.temperature,
-            "max_tokens": param.max_tokens,
-            "tools": tools,
-            "verbosity": param.verbosity,
-        }
+        payload, extra_body, extra_headers = build_payload(param)
 
         log_debug(
             json.dumps({**payload, **extra_body}, ensure_ascii=False, default=str),
@@ -94,6 +104,7 @@ class OpenRouterClient(LLMClientABC):
             param_model=str(param.model),
             response_id=None,
         )
+
         state = StreamStateManager(
             param_model=str(param.model),
             reasoning_flusher=reasoning_handler.flush,
@@ -106,19 +117,17 @@ class OpenRouterClient(LLMClientABC):
                     style="blue",
                     debug_type=DebugType.LLM_STREAM,
                 )
+
                 if not state.response_id and event.id:
                     state.set_response_id(event.id)
                     reasoning_handler.set_response_id(event.id)
                     yield model.StartItem(response_id=event.id)
-                if (
-                    event.usage is not None and event.usage.completion_tokens is not None  # pyright: ignore[reportUnnecessaryComparison]
-                ):  # gcp gemini will return None usage field
+                if event.usage is not None:
                     metadata_tracker.set_usage(convert_usage(event.usage, param.context_limit, param.max_tokens))
                 if event.model:
                     metadata_tracker.set_model_name(event.model)
                 if provider := getattr(event, "provider", None):
                     metadata_tracker.set_provider(str(provider))
-
                 if len(event.choices) == 0:
                     continue
                 delta = event.choices[0].delta

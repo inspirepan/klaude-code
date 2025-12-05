@@ -16,6 +16,35 @@ from klaude_code.protocol import llm_param, model
 from klaude_code.trace import DebugType, log_debug
 
 
+def build_payload(param: llm_param.LLMCallParameter) -> tuple[CompletionCreateParamsStreaming, dict[str, object]]:
+    """Build OpenAI API request parameters."""
+    messages = convert_history_to_input(param.input, param.system, param.model)
+    tools = convert_tool_schema(param.tools)
+
+    extra_body: dict[str, object] = {}
+
+    if param.thinking:
+        extra_body["thinking"] = {
+            "type": param.thinking.type,
+            "budget": param.thinking.budget_tokens,
+        }
+
+    payload: CompletionCreateParamsStreaming = {
+        "model": str(param.model),
+        "tool_choice": "auto",
+        "parallel_tool_calls": True,
+        "stream": True,
+        "messages": messages,
+        "temperature": param.temperature,
+        "max_tokens": param.max_tokens,
+        "tools": tools,
+        "reasoning_effort": param.thinking.reasoning_effort if param.thinking else None,
+        "verbosity": param.verbosity,
+    }
+
+    return payload, extra_body
+
+
 @register(llm_param.LLMClientProtocol.OPENAI)
 class OpenAICompatibleClient(LLMClientABC):
     def __init__(self, config: llm_param.LLMConfigParameter):
@@ -45,32 +74,11 @@ class OpenAICompatibleClient(LLMClientABC):
     @override
     async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem, None]:
         param = apply_config_defaults(param, self.get_llm_config())
-        messages = convert_history_to_input(param.input, param.system, param.model)
-        tools = convert_tool_schema(param.tools)
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
-        extra_body: dict[str, object] = {}
+        payload, extra_body = build_payload(param)
         extra_headers: dict[str, str] = {"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)}
-
-        if param.thinking:
-            extra_body["thinking"] = {
-                "type": param.thinking.type,
-                "budget": param.thinking.budget_tokens,
-            }
-
-        payload: CompletionCreateParamsStreaming = {
-            "model": str(param.model),
-            "tool_choice": "auto",
-            "parallel_tool_calls": True,
-            "stream": True,
-            "messages": messages,
-            "temperature": param.temperature,
-            "max_tokens": param.max_tokens,
-            "tools": tools,
-            "reasoning_effort": param.thinking.reasoning_effort if param.thinking else None,
-            "verbosity": param.verbosity,
-        }
 
         log_debug(
             json.dumps({**payload, **extra_body}, ensure_ascii=False, default=str),
@@ -96,9 +104,7 @@ class OpenAICompatibleClient(LLMClientABC):
                 if not state.response_id and event.id:
                     state.set_response_id(event.id)
                     yield model.StartItem(response_id=event.id)
-                if (
-                    event.usage is not None and event.usage.completion_tokens is not None  # pyright: ignore[reportUnnecessaryComparison] gcp gemini will return None usage field
-                ):
+                if event.usage is not None:
                     metadata_tracker.set_usage(convert_usage(event.usage, param.context_limit, param.max_tokens))
                 if event.model:
                     metadata_tracker.set_model_name(event.model)
@@ -107,9 +113,8 @@ class OpenAICompatibleClient(LLMClientABC):
 
                 if len(event.choices) == 0:
                     continue
-                delta = event.choices[0].delta
 
-                # Support Kimi K2's usage field in choice
+                # Support Moonshot Kimi K2's usage field in choice
                 if hasattr(event.choices[0], "usage") and getattr(event.choices[0], "usage"):
                     metadata_tracker.set_usage(
                         convert_usage(
@@ -119,12 +124,14 @@ class OpenAICompatibleClient(LLMClientABC):
                         )
                     )
 
+                delta = event.choices[0].delta
+
                 # Reasoning
-                reasoning_content = ""
-                if hasattr(delta, "reasoning") and getattr(delta, "reasoning"):
-                    reasoning_content = getattr(delta, "reasoning")
-                if hasattr(delta, "reasoning_content") and getattr(delta, "reasoning_content"):
-                    reasoning_content = getattr(delta, "reasoning_content")
+                reasoning_content = (
+                    getattr(delta, "reasoning_content", None)
+                    or getattr(delta, "reasoning", None)
+                    or ""
+                )
                 if reasoning_content:
                     metadata_tracker.record_token()
                     state.stage = "reasoning"

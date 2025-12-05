@@ -21,6 +21,42 @@ from klaude_code.llm.usage import MetadataTracker
 from klaude_code.protocol import llm_param, model
 from klaude_code.trace import DebugType, log_debug
 
+
+def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsStreaming:
+    """Build Codex API request parameters."""
+    inputs = convert_history_to_input(param.input, param.model)
+    tools = convert_tool_schema(param.tools)
+
+    session_id = param.session_id or ""
+
+    payload: ResponseCreateParamsStreaming = {
+        "model": str(param.model),
+        "tool_choice": "auto",
+        "parallel_tool_calls": True,
+        "include": [
+            "reasoning.encrypted_content",
+        ],
+        "store": False,
+        "stream": True,
+        "input": inputs,
+        "instructions": param.system,
+        "tools": tools,
+        "prompt_cache_key": session_id,
+        # max_output_token and temperature is not supported in Codex API
+    }
+
+    if param.thinking and param.thinking.reasoning_effort:
+        payload["reasoning"] = {
+            "effort": param.thinking.reasoning_effort,
+            "summary": param.thinking.reasoning_summary,
+        }
+
+    if param.verbosity:
+        payload["text"] = {"verbosity": param.verbosity}
+
+    return payload
+
+
 # Codex API configuration
 CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"
 CODEX_HEADERS = {
@@ -86,8 +122,7 @@ class CodexClient(LLMClientABC):
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
-        inputs = convert_history_to_input(param.input, param.model)
-        tools = convert_tool_schema(param.tools)
+        payload = build_payload(param)
 
         session_id = param.session_id or ""
         extra_headers: dict[str, str] = {}
@@ -95,31 +130,6 @@ class CodexClient(LLMClientABC):
             # Must send conversation_id/session_id headers to improve ChatGPT backend prompt cache hit rate.
             extra_headers["conversation_id"] = session_id
             extra_headers["session_id"] = session_id
-
-        payload: ResponseCreateParamsStreaming = {
-            "model": str(param.model),
-            "tool_choice": "auto",
-            "parallel_tool_calls": True,
-            "include": [
-                "reasoning.encrypted_content",
-            ],
-            "store": False,
-            "stream": True,
-            "input": inputs,
-            "instructions": param.system,
-            "tools": tools,
-            "prompt_cache_key": session_id,
-            # max_output_token and temperature is not supported in Codex API
-        }
-
-        if param.thinking and param.thinking.reasoning_effort:
-            payload["reasoning"] = {
-                "effort": param.thinking.reasoning_effort,
-                "summary": param.thinking.reasoning_summary,
-            }
-
-        if param.verbosity:
-            payload["text"] = {"verbosity": param.verbosity}
 
         log_debug(
             json.dumps(payload, ensure_ascii=False, default=str),

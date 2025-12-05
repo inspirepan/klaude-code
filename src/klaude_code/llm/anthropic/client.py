@@ -5,7 +5,6 @@ from typing import override
 import anthropic
 import httpx
 from anthropic import APIError
-from anthropic.types.beta.message_create_params import MessageCreateParamsStreaming
 from anthropic.types.beta.beta_input_json_delta import BetaInputJSONDelta
 from anthropic.types.beta.beta_raw_content_block_delta_event import BetaRawContentBlockDeltaEvent
 from anthropic.types.beta.beta_raw_content_block_start_event import BetaRawContentBlockStartEvent
@@ -16,15 +15,46 @@ from anthropic.types.beta.beta_signature_delta import BetaSignatureDelta
 from anthropic.types.beta.beta_text_delta import BetaTextDelta
 from anthropic.types.beta.beta_thinking_delta import BetaThinkingDelta
 from anthropic.types.beta.beta_tool_use_block import BetaToolUseBlock
+from anthropic.types.beta.message_create_params import MessageCreateParamsStreaming
 
 from klaude_code import const
 from klaude_code.llm.anthropic.input import convert_history_to_input, convert_system_to_input, convert_tool_schema
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
-from klaude_code.llm.usage import MetadataTracker, convert_anthropic_usage
+from klaude_code.llm.usage import MetadataTracker
 from klaude_code.protocol import llm_param, model
 from klaude_code.trace import DebugType, log_debug
+
+
+def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStreaming:
+    """Build Anthropic API request parameters."""
+    messages = convert_history_to_input(param.input, param.model)
+    tools = convert_tool_schema(param.tools)
+    system = convert_system_to_input(param.system)
+
+    payload: MessageCreateParamsStreaming = {
+        "model": str(param.model),
+        "tool_choice": {
+            "type": "auto",
+            "disable_parallel_tool_use": False,
+        },
+        "stream": True,
+        "max_tokens": param.max_tokens or const.DEFAULT_MAX_TOKENS,
+        "temperature": param.temperature or const.DEFAULT_TEMPERATURE,
+        "messages": messages,
+        "system": system,
+        "tools": tools,
+        "betas": ["interleaved-thinking-2025-05-14", "context-1m-2025-08-07"],
+    }
+
+    if param.thinking and param.thinking.type == "enabled":
+        payload["thinking"] = anthropic.types.ThinkingConfigEnabledParam(
+            type="enabled",
+            budget_tokens=param.thinking.budget_tokens or const.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
+        )
+
+    return payload
 
 
 @register(llm_param.LLMClientProtocol.ANTHROPIC)
@@ -49,30 +79,7 @@ class AnthropicClient(LLMClientABC):
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
-        messages = convert_history_to_input(param.input, param.model)
-        tools = convert_tool_schema(param.tools)
-        system = convert_system_to_input(param.system)
-
-        payload: MessageCreateParamsStreaming = {
-            "model": str(param.model),
-            "tool_choice": {
-                "type": "auto",
-                "disable_parallel_tool_use": False,
-            },
-            "stream": True,
-            "max_tokens": param.max_tokens or const.DEFAULT_MAX_TOKENS,
-            "temperature": param.temperature or const.DEFAULT_TEMPERATURE,
-            "messages": messages,
-            "system": system,
-            "tools": tools,
-            "betas": ["interleaved-thinking-2025-05-14", "context-1m-2025-08-07"],
-        }
-
-        if param.thinking and param.thinking.type == "enabled":
-            payload["thinking"] = anthropic.types.ThinkingConfigEnabledParam(
-                type="enabled",
-                budget_tokens=param.thinking.budget_tokens or const.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
-            )
+        payload = build_payload(param)
 
         log_debug(
             json.dumps(payload, ensure_ascii=False, default=str),
@@ -93,9 +100,8 @@ class AnthropicClient(LLMClientABC):
         current_tool_call_id: str | None = None
         current_tool_inputs: list[str] | None = None
 
-        input_tokens = 0
-        cached_tokens = 0
-        output_tokens = 0
+        input_token = 0
+        cached_token = 0
 
         try:
             async for event in await stream:
@@ -108,11 +114,8 @@ class AnthropicClient(LLMClientABC):
                 match event:
                     case BetaRawMessageStartEvent() as event:
                         response_id = event.message.id
-                        cached_tokens = event.message.usage.cache_read_input_tokens or 0
-                        input_tokens = (event.message.usage.input_tokens or 0) + (
-                            event.message.usage.cache_creation_input_tokens or 0
-                        )
-                        output_tokens = event.message.usage.output_tokens or 0
+                        cached_token = event.message.usage.cache_read_input_tokens or 0
+                        input_token = event.message.usage.input_tokens
                         yield model.StartItem(response_id=response_id)
                     case BetaRawContentBlockDeltaEvent() as event:
                         match event.delta:
@@ -178,18 +181,16 @@ class AnthropicClient(LLMClientABC):
                             current_tool_call_id = None
                             current_tool_inputs = None
                     case BetaRawMessageDeltaEvent() as event:
-                        input_tokens += (event.usage.input_tokens or 0) + (event.usage.cache_creation_input_tokens or 0)
-                        output_tokens += event.usage.output_tokens or 0
-                        cached_tokens += event.usage.cache_read_input_tokens or 0
-
-                        usage = convert_anthropic_usage(
-                            input_tokens=input_tokens,
-                            output_tokens=output_tokens,
-                            cached_tokens=cached_tokens,
-                            context_limit=param.context_limit,
-                            max_tokens=param.max_tokens,
+                        metadata_tracker.set_usage(
+                            model.Usage(
+                                input_tokens=input_token + cached_token,
+                                output_tokens=event.usage.output_tokens,
+                                cached_tokens=cached_token,
+                                context_token=input_token + cached_token + event.usage.output_tokens,
+                                context_limit=param.context_limit,
+                                max_tokens=param.max_tokens,
+                            )
                         )
-                        metadata_tracker.set_usage(usage)
                         metadata_tracker.set_model_name(str(param.model))
                         metadata_tracker.set_response_id(response_id)
                         yield metadata_tracker.finalize()

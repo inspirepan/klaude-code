@@ -45,7 +45,6 @@ class MetadataAccumulator:
             acc_usage.cached_tokens += usage.cached_tokens
             acc_usage.reasoning_tokens += usage.reasoning_tokens
             acc_usage.output_tokens += usage.output_tokens
-            acc_usage.last_turn_output_token = usage.output_tokens
             acc_usage.currency = usage.currency
 
             if usage.context_token is not None:

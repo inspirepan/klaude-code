@@ -12,13 +12,48 @@ from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
-from klaude_code.llm.usage import MetadataTracker, convert_responses_usage
+from klaude_code.llm.usage import MetadataTracker
 from klaude_code.protocol import llm_param, model
 from klaude_code.trace import DebugType, log_debug
+
 
 if TYPE_CHECKING:
     from openai import AsyncStream
     from openai.types.responses import ResponseStreamEvent
+
+
+def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsStreaming:
+    """Build OpenAI Responses API request parameters."""
+    inputs = convert_history_to_input(param.input, param.model)
+    tools = convert_tool_schema(param.tools)
+
+    payload: ResponseCreateParamsStreaming = {
+        "model": str(param.model),
+        "tool_choice": "auto",
+        "parallel_tool_calls": True,
+        "include": [
+            "reasoning.encrypted_content",
+        ],
+        "store": False,
+        "stream": True,
+        "temperature": param.temperature,
+        "max_output_tokens": param.max_tokens,
+        "input": inputs,
+        "instructions": param.system,
+        "tools": tools,
+        "prompt_cache_key": param.session_id or "",
+    }
+
+    if param.thinking and param.thinking.reasoning_effort:
+        payload["reasoning"] = {
+            "effort": param.thinking.reasoning_effort,
+            "summary": param.thinking.reasoning_summary,
+        }
+
+    if param.verbosity:
+        payload["text"] = {"verbosity": param.verbosity}
+
+    return payload
 
 
 async def parse_responses_stream(
@@ -96,16 +131,17 @@ async def parse_responses_stream(
                     if event.response.incomplete_details is not None:
                         error_reason = event.response.incomplete_details.reason
                     if event.response.usage is not None:
-                        usage = convert_responses_usage(
-                            input_tokens=event.response.usage.input_tokens,
-                            output_tokens=event.response.usage.output_tokens,
-                            cached_tokens=event.response.usage.input_tokens_details.cached_tokens,
-                            reasoning_tokens=event.response.usage.output_tokens_details.reasoning_tokens,
-                            total_tokens=event.response.usage.total_tokens,
-                            context_limit=param.context_limit,
-                            max_tokens=param.max_tokens,
+                        metadata_tracker.set_usage(
+                            model.Usage(
+                                input_tokens=event.response.usage.input_tokens,
+                                output_tokens=event.response.usage.output_tokens,
+                                cached_tokens=event.response.usage.input_tokens_details.cached_tokens,
+                                reasoning_tokens=event.response.usage.output_tokens_details.reasoning_tokens,
+                                context_token=event.response.usage.total_tokens,
+                                context_limit=param.context_limit,
+                                max_tokens=param.max_tokens,
+                            )
                         )
-                        metadata_tracker.set_usage(usage)
                     metadata_tracker.set_model_name(str(param.model))
                     metadata_tracker.set_response_id(response_id)
                     yield metadata_tracker.finalize()
@@ -163,34 +199,7 @@ class ResponsesClient(LLMClientABC):
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
-        inputs = convert_history_to_input(param.input, param.model)
-        tools = convert_tool_schema(param.tools)
-
-        payload: ResponseCreateParamsStreaming = {
-            "model": str(param.model),
-            "tool_choice": "auto",
-            "parallel_tool_calls": True,
-            "include": [
-                "reasoning.encrypted_content",
-            ],
-            "store": False,
-            "stream": True,
-            "temperature": param.temperature,
-            "max_output_tokens": param.max_tokens,
-            "input": inputs,
-            "instructions": param.system,
-            "tools": tools,
-            "prompt_cache_key": param.session_id or "",
-        }
-
-        if param.thinking and param.thinking.reasoning_effort:
-            payload["reasoning"] = {
-                "effort": param.thinking.reasoning_effort,
-                "summary": param.thinking.reasoning_summary,
-            }
-
-        if param.verbosity:
-            payload["text"] = {"verbosity": param.verbosity}
+        payload = build_payload(param)
 
         log_debug(
             json.dumps(payload, ensure_ascii=False, default=str),

@@ -122,7 +122,6 @@ class Agent:
         self.session: Session = session
         self.profile: AgentProfile = profile
         self._current_task: TaskExecutor | None = None
-        self._prev_context_token: int = 0  # Track context size from previous task for delta calculation
         if not self.session.model_name and model_name:
             self.session.model_name = model_name
 
@@ -170,12 +169,6 @@ class Agent:
 
         try:
             async for event in task.run(user_input):
-                # Compute context_delta for TaskMetadataEvent
-                if isinstance(event, events.TaskMetadataEvent):
-                    usage = event.metadata.main.usage
-                    if usage is not None and usage.context_token is not None:
-                        usage.context_delta = usage.context_token - self._prev_context_token
-                        self._prev_context_token = usage.context_token
                 yield event
         finally:
             self._current_task = None
