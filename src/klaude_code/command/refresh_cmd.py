@@ -1,14 +1,12 @@
 from typing import TYPE_CHECKING
 
 from klaude_code.command.command_abc import CommandABC, CommandResult
-from klaude_code.command.registry import register_command
 from klaude_code.protocol import commands, events
 
 if TYPE_CHECKING:
     from klaude_code.core.agent import Agent
 
 
-@register_command
 class RefreshTerminalCommand(CommandABC):
     """Refresh terminal display"""
 

@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from klaude_code.command.command_abc import CommandABC, CommandResult
-from klaude_code.command.registry import register_command
 from klaude_code.protocol import commands, events, model
 
 if TYPE_CHECKING:
@@ -62,7 +61,6 @@ def _extract_releases(changelog: str, count: int = 1) -> str:
     return "\n".join("\n".join(release) for release in releases).strip()
 
 
-@register_command
 class ReleaseNotesCommand(CommandABC):
     """Display the latest release notes from CHANGELOG.md."""
 

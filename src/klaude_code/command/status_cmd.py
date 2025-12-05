@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING
 
 from klaude_code.command.command_abc import CommandABC, CommandResult
-from klaude_code.command.registry import register_command
 from klaude_code.protocol import commands, events, model
 from klaude_code.session.session import Session
 
@@ -127,7 +126,6 @@ def format_status_content(aggregated: AggregatedUsage) -> str:
     return "\n".join(lines)
 
 
-@register_command
 class StatusCommand(CommandABC):
     """Display session usage statistics."""
 

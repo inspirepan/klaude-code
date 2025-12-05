@@ -2,7 +2,6 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from klaude_code.command.command_abc import CommandABC, CommandResult, InputAction
-from klaude_code.command.registry import register_command
 from klaude_code.config import select_model_from_config
 from klaude_code.protocol import commands, events, model
 
@@ -10,7 +9,6 @@ if TYPE_CHECKING:
     from klaude_code.core.agent import Agent
 
 
-@register_command
 class ModelCommand(CommandABC):
     """Display or change the model configuration."""
 

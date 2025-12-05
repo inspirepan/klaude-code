@@ -81,9 +81,9 @@ class _SlashCommandCompleter(Completer):
         # Get available commands
         commands = get_commands()
 
-        # Filter commands that match the fragment
+        # Filter commands that match the fragment (preserve registration order)
         matched: list[tuple[str, object, str]] = []
-        for cmd_name, cmd_obj in sorted(commands.items(), key=lambda x: str(x[1].name)):
+        for cmd_name, cmd_obj in commands.items():
             if cmd_name.startswith(frag):
                 hint = " [args]" if cmd_obj.support_addition_params else ""
                 matched.append((cmd_name, cmd_obj, hint))

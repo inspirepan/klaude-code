@@ -1,5 +1,5 @@
 from importlib.resources import files
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 
 from klaude_code.command.command_abc import CommandResult, InputAction
 from klaude_code.command.prompt_command import PromptCommand
@@ -13,14 +13,10 @@ if TYPE_CHECKING:
 
 _COMMANDS: dict[commands.CommandName | str, "CommandABC"] = {}
 
-T = TypeVar("T", bound="CommandABC")
 
-
-def register_command(cls: type[T]) -> type[T]:
-    """Decorator to register a command class in the global registry."""
-    instance = cls()
-    _COMMANDS[instance.name] = instance
-    return cls
+def register(cmd: "CommandABC") -> None:
+    """Register a command instance. Order of registration determines display order."""
+    _COMMANDS[cmd.name] = cmd
 
 
 def load_prompt_commands():

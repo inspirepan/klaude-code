@@ -5,7 +5,7 @@ from .registry import (
     has_interactive_command,
     is_slash_command_name,
     load_prompt_commands,
-    register_command,
+    register,
 )
 
 # Lazy load commands to avoid heavy imports at module load time
@@ -17,40 +17,41 @@ def ensure_commands_loaded() -> None:
 
     This function is called internally by registry functions like get_commands(),
     dispatch_command(), etc. It can also be called explicitly if early loading is desired.
+
+    Commands are registered in display order - the order here determines
+    the order shown in slash command completion.
     """
     global _commands_loaded
     if _commands_loaded:
         return
     _commands_loaded = True
 
-    # Import command modules to trigger @register_command decorators
-    from . import clear_cmd as _clear_cmd  # noqa: F401
-    from . import diff_cmd as _diff_cmd  # noqa: F401
-    from . import export_cmd as _export_cmd  # noqa: F401
-    from . import help_cmd as _help_cmd  # noqa: F401
-    from . import model_cmd as _model_cmd  # noqa: F401
-    from . import refresh_cmd as _refresh_cmd  # noqa: F401
-    from . import release_notes_cmd as _release_notes_cmd  # noqa: F401
-    from . import status_cmd as _status_cmd  # noqa: F401
-    from . import terminal_setup_cmd as _terminal_setup_cmd  # noqa: F401
-    from . import thinking_cmd as _thinking_cmd  # noqa: F401
+    # Import and register commands in display order
+    from .clear_cmd import ClearCommand
+    from .model_cmd import ModelCommand
+    from .status_cmd import StatusCommand
+    from .diff_cmd import DiffCommand
+    from .export_cmd import ExportCommand
+    from .thinking_cmd import ThinkingCommand
+    from .help_cmd import HelpCommand
+    from .refresh_cmd import RefreshTerminalCommand
+    from .terminal_setup_cmd import TerminalSetupCommand
+    from .release_notes_cmd import ReleaseNotesCommand
 
-    # Suppress unused variable warnings
-    _ = (
-        _clear_cmd,
-        _diff_cmd,
-        _export_cmd,
-        _help_cmd,
-        _model_cmd,
-        _refresh_cmd,
-        _release_notes_cmd,
-        _status_cmd,
-        _terminal_setup_cmd,
-        _thinking_cmd,
-    )
-
-    # Load prompt-based commands
+    # Register in desired display order
+    register(ExportCommand())
+    register(RefreshTerminalCommand())
+    register(ThinkingCommand())
+    register(ModelCommand())
     load_prompt_commands()
+    register(ClearCommand())
+    register(StatusCommand())
+    register(DiffCommand())
+    register(HelpCommand())
+    register(ReleaseNotesCommand())
+    register(TerminalSetupCommand())
+
+    # Load prompt-based commands (appended after built-in commands)
 
 
 # Lazy accessors for command classes
@@ -80,7 +81,6 @@ __all__ = [
     # "ClearCommand", "DiffCommand", "HelpCommand", "ModelCommand",
     # "ExportCommand", "RefreshTerminalCommand", "ReleaseNotesCommand",
     # "StatusCommand", "TerminalSetupCommand",
-    "register_command",
     "CommandABC",
     "CommandResult",
     "InputAction",

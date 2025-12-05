@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 import questionary
 
 from klaude_code.command.command_abc import CommandABC, CommandResult
-from klaude_code.command.registry import register_command
 from klaude_code.protocol import commands, events, llm_param, model
 
 if TYPE_CHECKING:
@@ -148,7 +147,6 @@ def _select_anthropic_thinking_sync() -> llm_param.Thinking | None:
         return None
 
 
-@register_command
 class ThinkingCommand(CommandABC):
     """Configure model thinking/reasoning level."""
 
