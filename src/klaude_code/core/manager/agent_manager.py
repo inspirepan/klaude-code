@@ -51,8 +51,8 @@ class AgentManager:
             if agent is not None:
                 return agent
             session = Session.load(session_id)
-        profile = self._model_profile_provider.build_profile(self._llm_clients)
-        agent = Agent(session=session, profile=profile, model_name=self._llm_clients.main_model_name)
+        profile = self._model_profile_provider.build_profile(self._llm_clients.main)
+        agent = Agent(session=session, profile=profile)
 
         async for evt in agent.replay_history():
             await self.emit_event(evt)
@@ -60,7 +60,7 @@ class AgentManager:
         await self.emit_event(
             events.WelcomeEvent(
                 work_dir=str(session.work_dir),
-                llm_config=self._llm_clients.get_llm_config(),
+                llm_config=self._llm_clients.main.get_llm_config(),
             )
         )
 
@@ -81,7 +81,7 @@ class AgentManager:
 
         llm_config = config.get_model_config(model_name)
         llm_client = create_llm_client(llm_config)
-        agent.set_model_profile(self._model_profile_provider.build_profile_eager(llm_client), model_name=model_name)
+        agent.set_model_profile(self._model_profile_provider.build_profile(llm_client))
 
         developer_item = model.DeveloperMessageItem(
             content=f"switched to model: {model_name}",

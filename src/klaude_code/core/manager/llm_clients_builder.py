@@ -7,6 +7,7 @@ from klaude_code.core.manager.llm_clients import LLMClients
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
+from klaude_code.protocol.tools import SubAgentType
 from klaude_code.trace import DebugType, log_debug
 
 
@@ -30,29 +31,18 @@ def build_llm_clients(
         debug_type=DebugType.LLM_CONFIG,
     )
 
-    main_model_name = str(llm_config.model)
-
-    def _main_factory() -> LLMClientABC:
-        return create_llm_client(llm_config)
-
-    clients = LLMClients(
-        main_factory=_main_factory,
-        main_model_name=main_model_name,
-        main_llm_config=llm_config,
-    )
+    main_client = create_llm_client(llm_config)
+    sub_clients: dict[SubAgentType, LLMClientABC] = {}
 
     for profile in iter_sub_agent_profiles():
         model_name = config.subagent_models.get(profile.name)
         if not model_name:
             continue
 
-        if not profile.enabled_for_model(main_model_name):
+        if not profile.enabled_for_model(main_client.model_name):
             continue
 
-        def _factory(model_name_for_factory: str = model_name) -> LLMClientABC:
-            sub_llm_config = config.get_model_config(model_name_for_factory)
-            return create_llm_client(sub_llm_config)
+        sub_llm_config = config.get_model_config(model_name)
+        sub_clients[profile.name] = create_llm_client(sub_llm_config)
 
-        clients.register_sub_client_factory(profile.name, _factory)
-
-    return clients
+    return LLMClients(main=main_client, sub_clients=sub_clients)

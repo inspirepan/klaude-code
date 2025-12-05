@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, Callable, Iterable
+from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol
+from typing import Protocol
 
 from klaude_code.core.prompt import load_system_prompt
 from klaude_code.core.reminders import Reminder, load_agent_reminders
@@ -14,38 +14,21 @@ from klaude_code.protocol.model import UserInputPayload
 from klaude_code.session import Session
 from klaude_code.trace import DebugType, log_debug
 
-if TYPE_CHECKING:
-    from klaude_code.core.manager.llm_clients import LLMClients
-
 
 @dataclass(frozen=True)
 class AgentProfile:
     """Encapsulates the active LLM client plus prompts/tools/reminders."""
 
-    llm_client_factory: Callable[[], LLMClientABC]
+    llm_client: LLMClientABC
     system_prompt: str | None
     tools: list[llm_param.ToolSchema]
     reminders: list[Reminder]
-
-    _llm_client: LLMClientABC | None = None
-
-    @property
-    def llm_client(self) -> LLMClientABC:
-        if self._llm_client is None:
-            object.__setattr__(self, "_llm_client", self.llm_client_factory())
-        return self._llm_client  # type: ignore[return-value]
 
 
 class ModelProfileProvider(Protocol):
     """Strategy interface for constructing agent profiles."""
 
     def build_profile(
-        self,
-        llm_clients: LLMClients,
-        sub_agent_type: tools.SubAgentType | None = None,
-    ) -> AgentProfile: ...
-
-    def build_profile_eager(
         self,
         llm_client: LLMClientABC,
         sub_agent_type: tools.SubAgentType | None = None,
@@ -57,25 +40,12 @@ class DefaultModelProfileProvider(ModelProfileProvider):
 
     def build_profile(
         self,
-        llm_clients: LLMClients,
-        sub_agent_type: tools.SubAgentType | None = None,
-    ) -> AgentProfile:
-        model_name = llm_clients.main_model_name
-        return AgentProfile(
-            llm_client_factory=lambda: llm_clients.main,
-            system_prompt=load_system_prompt(model_name, sub_agent_type),
-            tools=load_agent_tools(model_name, sub_agent_type),
-            reminders=load_agent_reminders(model_name, sub_agent_type),
-        )
-
-    def build_profile_eager(
-        self,
         llm_client: LLMClientABC,
         sub_agent_type: tools.SubAgentType | None = None,
     ) -> AgentProfile:
         model_name = llm_client.model_name
         return AgentProfile(
-            llm_client_factory=lambda: llm_client,
+            llm_client=llm_client,
             system_prompt=load_system_prompt(model_name, sub_agent_type),
             tools=load_agent_tools(model_name, sub_agent_type),
             reminders=load_agent_reminders(model_name, sub_agent_type),
@@ -87,25 +57,12 @@ class VanillaModelProfileProvider(ModelProfileProvider):
 
     def build_profile(
         self,
-        llm_clients: LLMClients,
-        sub_agent_type: tools.SubAgentType | None = None,
-    ) -> AgentProfile:
-        model_name = llm_clients.main_model_name
-        return AgentProfile(
-            llm_client_factory=lambda: llm_clients.main,
-            system_prompt=None,
-            tools=load_agent_tools(model_name, vanilla=True),
-            reminders=load_agent_reminders(model_name, vanilla=True),
-        )
-
-    def build_profile_eager(
-        self,
         llm_client: LLMClientABC,
         sub_agent_type: tools.SubAgentType | None = None,
     ) -> AgentProfile:
         model_name = llm_client.model_name
         return AgentProfile(
-            llm_client_factory=lambda: llm_client,
+            llm_client=llm_client,
             system_prompt=None,
             tools=load_agent_tools(model_name, vanilla=True),
             reminders=load_agent_reminders(model_name, vanilla=True),
@@ -117,13 +74,12 @@ class Agent:
         self,
         session: Session,
         profile: AgentProfile,
-        model_name: str | None = None,
     ):
         self.session: Session = session
         self.profile: AgentProfile = profile
         self._current_task: TaskExecutor | None = None
-        if not self.session.model_name and model_name:
-            self.session.model_name = model_name
+        if not self.session.model_name:
+            self.session.model_name = profile.llm_client.model_name
 
     def cancel(self) -> Iterable[events.Event]:
         """Handle agent cancellation and persist an interrupt marker and tool cancellations.
@@ -192,14 +148,11 @@ class Agent:
             self.session.append_history([item])
             yield events.DeveloperMessageEvent(session_id=self.session.id, item=item)
 
-    def set_model_profile(self, profile: AgentProfile, model_name: str | None = None) -> None:
+    def set_model_profile(self, profile: AgentProfile) -> None:
         """Apply a fully constructed profile to the agent."""
 
         self.profile = profile
-        if model_name:
-            self.session.model_name = model_name
-        elif not self.session.model_name:
-            self.session.model_name = profile.llm_client.model_name
+        self.session.model_name = profile.llm_client.model_name
 
     def get_llm_client(self) -> LLMClientABC:
         return self.profile.llm_client
