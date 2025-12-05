@@ -33,6 +33,7 @@ def ensure_commands_loaded() -> None:
     from . import release_notes_cmd as _release_notes_cmd  # noqa: F401
     from . import status_cmd as _status_cmd  # noqa: F401
     from . import terminal_setup_cmd as _terminal_setup_cmd  # noqa: F401
+    from . import thinking_cmd as _thinking_cmd  # noqa: F401
 
     # Suppress unused variable warnings
     _ = (
@@ -45,6 +46,7 @@ def ensure_commands_loaded() -> None:
         _release_notes_cmd,
         _status_cmd,
         _terminal_setup_cmd,
+        _thinking_cmd,
     )
 
     # Load prompt-based commands
@@ -63,6 +65,7 @@ def __getattr__(name: str) -> object:
         "ReleaseNotesCommand": "release_notes_cmd",
         "StatusCommand": "status_cmd",
         "TerminalSetupCommand": "terminal_setup_cmd",
+        "ThinkingCommand": "thinking_cmd",
     }
     if name in _commands_map:
         import importlib

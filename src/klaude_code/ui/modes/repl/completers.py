@@ -103,7 +103,7 @@ class _SlashCommandCompleter(Completer):
 
             # Using HTML for formatting: bold command name, normal hint, gray summary
             display_text = HTML(
-                f"<b>{cmd_name}</b>{hint}{padding}<style color='ansibrightblack'>— {cmd_obj.summary}</style>"  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+                f"<b>{cmd_name}</b>{hint}{padding}<style color='ansibrightblack'>{cmd_obj.summary}</style>"  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
             )
             completion_text = f"/{cmd_name} "
             yield Completion(

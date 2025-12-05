@@ -28,7 +28,7 @@ class Thinking(BaseModel):
     """
 
     # OpenAI Reasoning Style
-    reasoning_effort: Literal["high", "medium", "low", "minimal", "none"] | None = None
+    reasoning_effort: Literal["high", "medium", "low", "minimal", "none", "xhigh"] | None = None
     reasoning_summary: Literal["auto", "concise", "detailed"] | None = None
 
     # Claude/Gemini Thinking Style

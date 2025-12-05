@@ -1,6 +1,5 @@
 from klaude_code.config.config import load_config
 from klaude_code.trace import log
-from klaude_code.ui.rich.searchable_text import SearchableFormattedList
 
 
 def select_model_from_config(preferred: str | None = None) -> str | None:
@@ -16,9 +15,6 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
         raise ValueError("No models configured. Please update your config.yaml")
 
     names: list[str] = [m.model_name for m in models]
-    default_name: str | None = (
-        preferred if preferred in names else (config.main_model if config.main_model in names else None)
-    )
 
     try:
         import questionary
@@ -28,29 +24,23 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
         max_model_name_length = max(len(m.model_name) for m in models)
         for m in models:
             star = "★ " if m.model_name == config.main_model else "  "
-            fragments = [
-                ("class:t", f"{star}{m.model_name:<{max_model_name_length}}   → "),
-                ("class:b", m.model_params.model or "N/A"),
-                ("class:d", f" {m.provider}"),
-            ]
-            # Provide a formatted title for display and a plain text for search.
-            title = SearchableFormattedList(fragments)
+            title = f"{star}{m.model_name:<{max_model_name_length}}   →  {m.model_params.model or 'N/A'} @ {m.provider}"
             choices.append(questionary.Choice(title=title, value=m.model_name))
 
         try:
             result = questionary.select(
                 message="Select a model:",
                 choices=choices,
-                default=default_name,
                 pointer="→",
                 instruction="↑↓ to move • Enter to select",
                 use_jk_keys=False,
                 use_search_filter=True,
                 style=questionary.Style(
                     [
-                        ("t", ""),
-                        ("b", "bold"),
-                        ("d", "dim"),
+                        ("instruction", "ansibrightblack"),
+                        ("pointer", "ansicyan"),
+                        ("highlighted", "ansicyan"),
+                        ("text", "ansibrightblack"),
                         # search filter colors at the bottom
                         ("search_success", "noinherit fg:ansigreen"),
                         ("search_none", "noinherit fg:ansired"),

@@ -1,0 +1,229 @@
+import asyncio
+from typing import TYPE_CHECKING
+
+import questionary
+
+from klaude_code.command.command_abc import CommandABC, CommandResult
+from klaude_code.command.registry import register_command
+from klaude_code.protocol import commands, events, llm_param, model
+
+if TYPE_CHECKING:
+    from klaude_code.core.agent import Agent
+
+
+# Thinking level options for different protocols
+RESPONSES_LEVELS = ["minimal", "low", "medium", "high"]
+RESPONSES_GPT51_LEVELS = ["none", "minimal", "low", "medium", "high"]
+RESPONSES_CODEX_MAX_LEVELS = ["medium", "high", "xhigh"]
+
+ANTHROPIC_LEVELS: list[tuple[str, int | None]] = [
+    ("off", 0),
+    ("low (2048 tokens)", 2048),
+    ("medium (8192 tokens)", 8192),
+    ("high (31999 tokens)", 31999),
+]
+
+
+def _is_openrouter_model_with_reasoning_effort(model_name: str | None) -> bool:
+    """Check if the model is GPT series, Grok or Gemini 3."""
+    if not model_name:
+        return False
+    model_lower = model_name.lower()
+    return model_lower.startswith(("openai/gpt-", "x-ai/grok-", "google/gemini-3"))
+
+
+def _is_gpt51_model(model_name: str | None) -> bool:
+    """Check if the model is GPT-5.1."""
+    if not model_name:
+        return False
+    return model_name.lower() in ["gpt5.1", "openai/gpt-5.1", "gpt-5.1-codex-2025-11-13"]
+
+
+def _is_codex_max_model(model_name: str | None) -> bool:
+    """Check if the model is GPT-5.1-codex-max."""
+    if not model_name:
+        return False
+    return "codex-max" in model_name.lower()
+
+
+def _get_levels_for_responses(model_name: str | None) -> list[str]:
+    """Get thinking levels for responses protocol."""
+    if _is_codex_max_model(model_name):
+        return RESPONSES_CODEX_MAX_LEVELS
+    if _is_gpt51_model(model_name):
+        return RESPONSES_GPT51_LEVELS
+    return RESPONSES_LEVELS
+
+
+def _format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
+    """Format the current thinking configuration for display."""
+    thinking = config.thinking
+    if not thinking:
+        return "not configured"
+
+    protocol = config.protocol
+
+    if protocol in (llm_param.LLMClientProtocol.RESPONSES, llm_param.LLMClientProtocol.CODEX):
+        if thinking.reasoning_effort:
+            return f"reasoning_effort={thinking.reasoning_effort}"
+        return "not set"
+
+    if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
+        if thinking.type == "disabled":
+            return "off"
+        if thinking.type == "enabled":
+            return f"enabled (budget_tokens={thinking.budget_tokens})"
+        return "not set"
+
+    if protocol == llm_param.LLMClientProtocol.OPENROUTER:
+        if _is_openrouter_model_with_reasoning_effort(config.model):
+            if thinking.reasoning_effort:
+                return f"reasoning_effort={thinking.reasoning_effort}"
+        else:
+            if thinking.type == "disabled":
+                return "off"
+            if thinking.type == "enabled":
+                return f"enabled (budget_tokens={thinking.budget_tokens})"
+        return "not set"
+
+    if protocol == llm_param.LLMClientProtocol.OPENAI:
+        if thinking.type == "disabled":
+            return "off"
+        if thinking.type == "enabled":
+            return f"enabled (budget_tokens={thinking.budget_tokens})"
+        return "not set"
+
+    return "unknown protocol"
+
+
+SELECT_STYLE = questionary.Style([
+    ("instruction", "ansibrightblack"),
+    ("pointer", "ansicyan"),
+    ("highlighted", "ansicyan"),
+    ("text", "ansibrightblack"),
+])
+
+
+def _select_responses_thinking_sync(model_name: str | None) -> llm_param.Thinking | None:
+    """Select thinking level for responses/codex protocol (sync version)."""
+    levels = _get_levels_for_responses(model_name)
+    choices: list[questionary.Choice] = [questionary.Choice(title=level, value=level) for level in levels]
+
+    try:
+        result = questionary.select(
+            message="Select reasoning effort:",
+            choices=choices,
+            pointer="→",
+            instruction="Use arrow keys to move, Enter to select",
+            use_jk_keys=False,
+            style=SELECT_STYLE,
+        ).ask()
+
+        if result is None:
+            return None
+        return llm_param.Thinking(reasoning_effort=result)
+    except KeyboardInterrupt:
+        return None
+
+
+def _select_anthropic_thinking_sync() -> llm_param.Thinking | None:
+    """Select thinking level for anthropic/openai_compatible protocol (sync version)."""
+    choices: list[questionary.Choice] = [
+        questionary.Choice(title=label, value=tokens) for label, tokens in ANTHROPIC_LEVELS
+    ]
+
+    try:
+        result = questionary.select(
+            message="Select thinking level:",
+            choices=choices,
+            pointer="→",
+            instruction="Use arrow keys to move, Enter to select",
+            use_jk_keys=False,
+            style=SELECT_STYLE,
+        ).ask()
+        if result is None:
+            return llm_param.Thinking(type="disabled", budget_tokens=0)
+        return llm_param.Thinking(type="enabled", budget_tokens=result or 0)
+    except KeyboardInterrupt:
+        return None
+
+
+@register_command
+class ThinkingCommand(CommandABC):
+    """Configure model thinking/reasoning level."""
+
+    @property
+    def name(self) -> commands.CommandName:
+        return commands.CommandName.THINKING
+
+    @property
+    def summary(self) -> str:
+        return "Configure model thinking/reasoning level"
+
+    @property
+    def is_interactive(self) -> bool:
+        return True
+
+    async def run(self, raw: str, agent: "Agent") -> CommandResult:
+        if not agent.profile:
+            return self._no_change_result(agent, "No profile configured")
+
+        config = agent.profile.llm_client.get_llm_config()
+        protocol = config.protocol
+        model_name = config.model
+
+        current = _format_current_thinking(config)
+
+        # Select new thinking configuration based on protocol
+        new_thinking: llm_param.Thinking | None = None
+
+        if protocol in (llm_param.LLMClientProtocol.RESPONSES, llm_param.LLMClientProtocol.CODEX):
+            new_thinking = await asyncio.to_thread(_select_responses_thinking_sync, model_name)
+
+        elif protocol == llm_param.LLMClientProtocol.ANTHROPIC:
+            new_thinking = await asyncio.to_thread(_select_anthropic_thinking_sync)
+
+        elif protocol == llm_param.LLMClientProtocol.OPENROUTER:
+            if _is_openrouter_model_with_reasoning_effort(model_name):
+                new_thinking = await asyncio.to_thread(_select_responses_thinking_sync, model_name)
+            else:
+                new_thinking = await asyncio.to_thread(_select_anthropic_thinking_sync)
+
+        elif protocol == llm_param.LLMClientProtocol.OPENAI:
+            # openai_compatible uses anthropic style
+            new_thinking = await asyncio.to_thread(_select_anthropic_thinking_sync)
+
+        else:
+            return self._no_change_result(agent, f"Unsupported protocol: {protocol}")
+
+        if new_thinking is None:
+            return self._no_change_result(agent, "(no change)")
+
+        # Apply the new thinking configuration
+        config.thinking = new_thinking
+        new_status = _format_current_thinking(config)
+
+        return CommandResult(
+            events=[
+                events.DeveloperMessageEvent(
+                    session_id=agent.session.id,
+                    item=model.DeveloperMessageItem(
+                        content=f"Thinking changed: {current} -> {new_status}",
+                        command_output=model.CommandOutput(command_name=self.name),
+                    ),
+                )
+            ]
+        )
+
+    def _no_change_result(self, agent: "Agent", message: str) -> CommandResult:
+        return CommandResult(
+            events=[
+                events.DeveloperMessageEvent(
+                    session_id=agent.session.id,
+                    item=model.DeveloperMessageItem(
+                        content=message,
+                        command_output=model.CommandOutput(command_name=self.name),
+                    ),
+                )
+            ]
+        )
