@@ -76,6 +76,12 @@ async def parse_responses_stream(
                 case responses.ResponseCreatedEvent() as event:
                     response_id = event.response.id
                     yield model.StartItem(response_id=response_id)
+                case responses.ResponseReasoningSummaryTextDeltaEvent() as event:
+                    if event.delta:
+                        yield model.ReasoningTextDelta(
+                            content=event.delta,
+                            response_id=response_id,
+                        )
                 case responses.ResponseReasoningSummaryTextDoneEvent() as event:
                     if event.text:
                         yield model.ReasoningTextItem(

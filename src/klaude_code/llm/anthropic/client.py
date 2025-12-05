@@ -122,6 +122,10 @@ class AnthropicClient(LLMClientABC):
                             case BetaThinkingDelta() as delta:
                                 metadata_tracker.record_token()
                                 accumulated_thinking.append(delta.thinking)
+                                yield model.ReasoningTextDelta(
+                                    content=delta.thinking,
+                                    response_id=response_id,
+                                )
                             case BetaSignatureDelta() as delta:
                                 metadata_tracker.record_token()
                                 yield model.ReasoningEncryptedItem(

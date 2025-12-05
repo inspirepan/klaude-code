@@ -10,6 +10,7 @@ from klaude_code.protocol import events
 from klaude_code.ui.core.stage_manager import Stage, StageManager
 from klaude_code.ui.modes.repl.renderer import REPLRenderer
 from klaude_code.ui.rich.markdown import MarkdownStream
+from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.terminal.notifier import Notification, NotificationType, TerminalNotifier
 from klaude_code.ui.terminal.progress_bar import OSC94States, emit_osc94
 from klaude_code.ui.utils.debouncer import Debouncer
@@ -199,10 +200,14 @@ class DisplayEventHandler:
         self.assistant_stream = StreamState(
             interval=1 / const.UI_REFRESH_RATE_FPS, flush_handler=self._flush_assistant_buffer
         )
+        self.thinking_stream = StreamState(
+            interval=1 / const.UI_REFRESH_RATE_FPS, flush_handler=self._flush_thinking_buffer
+        )
         self.spinner_status = SpinnerStatusState()
 
         self.stage_manager = StageManager(
             finish_assistant=self._finish_assistant_stream,
+            finish_thinking=self._finish_thinking_stream,
             on_enter_thinking=self._print_thinking_prefix,
         )
 
@@ -222,6 +227,8 @@ class DisplayEventHandler:
                 self._on_turn_start(e)
             case events.ThinkingEvent() as e:
                 await self._on_thinking(e)
+            case events.ThinkingDeltaEvent() as e:
+                await self._on_thinking_delta(e)
             case events.AssistantMessageDeltaEvent() as e:
                 await self._on_assistant_delta(e)
             case events.AssistantMessageEvent() as e:
@@ -252,6 +259,8 @@ class DisplayEventHandler:
     async def stop(self) -> None:
         await self.assistant_stream.debouncer.flush()
         self.assistant_stream.debouncer.cancel()
+        await self.thinking_stream.debouncer.flush()
+        self.thinking_stream.debouncer.cancel()
 
     # ─────────────────────────────────────────────────────────────────────────────
     # Private event handlers
@@ -285,8 +294,41 @@ class DisplayEventHandler:
     async def _on_thinking(self, event: events.ThinkingEvent) -> None:
         if self.renderer.is_sub_agent_session(event.session_id):
             return
+        # If streaming was active, finalize it
+        if self.thinking_stream.is_active:
+            await self._finish_thinking_stream()
+        else:
+            # Non-streaming path (history replay or models without delta support)
+            await self.stage_manager.enter_thinking_stage()
+            self.renderer.display_thinking(event.content)
+
+    async def _on_thinking_delta(self, event: events.ThinkingDeltaEvent) -> None:
+        if self.renderer.is_sub_agent_session(event.session_id):
+            return
+
+        first_delta = not self.thinking_stream.is_active
+        if first_delta:
+            self.renderer.console.push_theme(self.renderer.themes.thinking_markdown_theme)
+            mdstream = MarkdownStream(
+                mdargs={
+                    "code_theme": self.renderer.themes.code_theme,
+                    "style": self.renderer.console.get_style(ThemeKey.THINKING),
+                },
+                theme=self.renderer.themes.thinking_markdown_theme,
+                console=self.renderer.console,
+                spinner=self.renderer.spinner_renderable(),
+                indent=2,
+            )
+            self.thinking_stream.start(mdstream)
+            self.renderer.spinner_stop()
+
+        self.thinking_stream.append(event.content)
+
+        if first_delta and self.thinking_stream.mdstream is not None:
+            self.thinking_stream.mdstream.update(self.thinking_stream.buffer)
+
         await self.stage_manager.enter_thinking_stage()
-        self.renderer.display_thinking(event.content)
+        self.thinking_stream.debouncer.schedule()
 
     async def _on_assistant_delta(self, event: events.AssistantMessageDeltaEvent) -> None:
         if self.renderer.is_sub_agent_session(event.session_id):
@@ -419,6 +461,22 @@ class DisplayEventHandler:
             assert mdstream is not None
             mdstream.update(state.buffer)
 
+    async def _flush_thinking_buffer(self, state: StreamState) -> None:
+        if state.is_active:
+            mdstream = state.mdstream
+            assert mdstream is not None
+            mdstream.update(state.buffer)
+
+    async def _finish_thinking_stream(self) -> None:
+        if self.thinking_stream.is_active:
+            self.thinking_stream.debouncer.cancel()
+            mdstream = self.thinking_stream.mdstream
+            assert mdstream is not None
+            mdstream.update(self.thinking_stream.buffer, final=True)
+            self.thinking_stream.finish()
+            self.renderer.console.pop_theme()
+            self.renderer.spinner_start()
+
     def _maybe_notify_task_finish(self, event: events.TaskFinishEvent) -> None:
         if self.notifier is None:
             return
@@ -453,10 +511,10 @@ class DisplayEventHandler:
                 if len(todo.content) > 0:
                     status_text = todo.content
         status_text = status_text.replace("\n", "")
-        return self._truncate_status_text(status_text, max_length=100)
+        return self._truncate_status_text(status_text, max_length=50)
 
     def _truncate_status_text(self, text: str, max_length: int) -> str:
         if len(text) <= max_length:
             return text
         truncated = text[:max_length]
-        return truncated + "..."
+        return truncated + "…"

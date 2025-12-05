@@ -141,6 +141,18 @@ class OpenRouterClient(LLMClientABC):
                             reasoning_detail = ReasoningDetail.model_validate(item)
                             metadata_tracker.record_token()
                             state.stage = "reasoning"
+                            # Yield delta immediately for streaming
+                            if reasoning_detail.text:
+                                yield model.ReasoningTextDelta(
+                                    content=reasoning_detail.text,
+                                    response_id=state.response_id,
+                                )
+                            if reasoning_detail.summary:
+                                yield model.ReasoningTextDelta(
+                                    content=reasoning_detail.summary,
+                                    response_id=state.response_id,
+                                )
+                            # Keep existing handler logic for final items
                             for conversation_item in reasoning_handler.on_detail(reasoning_detail):
                                 yield conversation_item
                         except Exception as e:

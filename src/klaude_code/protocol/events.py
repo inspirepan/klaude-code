@@ -54,6 +54,12 @@ class ThinkingEvent(BaseModel):
     content: str
 
 
+class ThinkingDeltaEvent(BaseModel):
+    session_id: str
+    response_id: str | None = None
+    content: str
+
+
 class AssistantMessageDeltaEvent(BaseModel):
     session_id: str
     response_id: str | None = None
@@ -153,6 +159,7 @@ Event = (
     TaskStartEvent
     | TaskFinishEvent
     | ThinkingEvent
+    | ThinkingDeltaEvent
     | AssistantMessageDeltaEvent
     | AssistantMessageEvent
     | ToolCallEvent

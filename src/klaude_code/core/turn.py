@@ -179,6 +179,12 @@ class TurnExecutor:
                     )
                 case model.ReasoningEncryptedItem() as item:
                     turn_result.reasoning_items.append(item)
+                case model.ReasoningTextDelta() as item:
+                    yield events.ThinkingDeltaEvent(
+                        content=item.content,
+                        response_id=item.response_id,
+                        session_id=session_ctx.session_id,
+                    )
                 case model.AssistantMessageDelta() as item:
                     yield events.AssistantMessageDeltaEvent(
                         content=item.content,

@@ -296,6 +296,12 @@ class AssistantMessageDelta(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class ReasoningTextDelta(BaseModel):
+    response_id: str | None = None
+    content: str
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class StreamErrorItem(BaseModel):
     error: str
     created_at: datetime = Field(default_factory=datetime.now)
@@ -392,7 +398,7 @@ MessageItem = (
 )
 
 
-StreamItem = AssistantMessageDelta
+StreamItem = AssistantMessageDelta | ReasoningTextDelta
 
 ConversationItem = (
     StartItem

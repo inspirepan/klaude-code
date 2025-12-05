@@ -136,6 +136,10 @@ class OpenAICompatibleClient(LLMClientABC):
                     metadata_tracker.record_token()
                     state.stage = "reasoning"
                     state.accumulated_reasoning.append(reasoning_content)
+                    yield model.ReasoningTextDelta(
+                        content=reasoning_content,
+                        response_id=state.response_id,
+                    )
 
                 # Assistant
                 if delta.content and (
