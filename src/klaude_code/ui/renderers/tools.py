@@ -239,6 +239,10 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
                 mark = "✔"
                 mark_style = ThemeKey.TODO_NEW_COMPLETED_MARK if is_new_completed else ThemeKey.TODO_COMPLETED_MARK
                 text_style = ThemeKey.TODO_NEW_COMPLETED if is_new_completed else ThemeKey.TODO_COMPLETED
+            case _:
+                mark = "?"
+                mark_style = ThemeKey.TODO_PENDING_MARK
+                text_style = ThemeKey.TODO_PENDING
         text = Text(todo.content)
         text.stylize(text_style)
         todo_grid.add_row(Text(mark, style=mark_style), text)

@@ -71,7 +71,8 @@ class Config(BaseModel):
 
         def _save_config() -> None:
             config_path.parent.mkdir(parents=True, exist_ok=True)
-            _ = config_path.write_text(yaml.dump(config_dict, default_flow_style=False, sort_keys=False))
+            yaml_content = yaml.dump(config_dict, default_flow_style=False, sort_keys=False)
+            _ = config_path.write_text(str(yaml_content or ""))
 
         await asyncio.to_thread(_save_config)
 
@@ -151,7 +152,7 @@ def load_config() -> Config | None:
         config_dict = example_config.model_dump(mode="json", exclude_none=True)
 
         # Comment out all example config lines
-        yaml_str = yaml.dump(config_dict, default_flow_style=False, sort_keys=False)
+        yaml_str = yaml.dump(config_dict, default_flow_style=False, sort_keys=False) or ""
         commented_yaml = "\n".join(f"# {line}" if line.strip() else "#" for line in yaml_str.splitlines())
         _ = config_path.write_text(commented_yaml)
 

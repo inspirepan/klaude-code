@@ -423,7 +423,7 @@ class TestLoadConfig:
                 }
             ],
         }
-        test_config_path.write_text(yaml.dump(config_dict))
+        test_config_path.write_text(str(yaml.dump(config_dict) or ""))
 
         monkeypatch.setattr(_config_module, "config_path", test_config_path)
         load_config.cache_clear()
@@ -442,7 +442,7 @@ class TestLoadConfig:
 
         # Invalid config missing required fields
         config_dict = {"main_model": "test"}
-        test_config_path.write_text(yaml.dump(config_dict))
+        test_config_path.write_text(str(yaml.dump(config_dict) or ""))
 
         monkeypatch.setattr(_config_module, "config_path", test_config_path)
         load_config.cache_clear()

@@ -99,7 +99,8 @@ class REPLRenderer:
     def print(self, *objects: Any, style: StyleType | None = None, end: str = "\n") -> None:
         if self.current_sub_agent_color:
             if objects:
-                self.console.print(Quote(*objects, style=self.current_sub_agent_color))
+                content = objects[0] if len(objects) == 1 else objects
+                self.console.print(Quote(content, style=self.current_sub_agent_color))
             return
         self.console.print(*objects, style=style, end=end)
 

@@ -67,12 +67,12 @@ class _SlashCommandCompleter(Completer):
     ) -> Iterable[Completion]:
         # Only complete on first line
         if document.cursor_position_row != 0:
-            return iter([])
+            return
 
         text_before = document.current_line_before_cursor
         m = self._SLASH_TOKEN_RE.search(text_before)
         if not m:
-            return iter([])
+            return
 
         frag = m.group("frag")
         token_start = len(text_before) - len(f"/{frag}")
@@ -89,7 +89,7 @@ class _SlashCommandCompleter(Completer):
                 matched.append((cmd_name, cmd_obj, hint))
 
         if not matched:
-            return iter([])
+            return
 
         # Calculate max width for alignment
         # Find the longest command+hint length

@@ -291,7 +291,6 @@ register_sub_agent(
         tool_set=(tools.BASH, tools.READ),
         prompt_builder=_explore_prompt_builder,
         active_form="Exploring",
-        target_model_filter=lambda model: ("haiku" not in model) and ("kimi" not in model) and ("grok" not in model),
     )
 )
 
