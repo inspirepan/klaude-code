@@ -6,13 +6,15 @@ import sys
 
 import typer
 
-from klaude_code.config import config_path, display_models_and_providers, load_config
+from klaude_code.config import config_path, load_config
 from klaude_code.trace import log
-from klaude_code.ui.terminal.color import is_light_terminal_background
 
 
 def list_models() -> None:
     """List all models and providers configuration"""
+    from klaude_code.config.list_model import display_models_and_providers
+    from klaude_code.ui.terminal.color import is_light_terminal_background
+
     config = load_config()
     if config is None:
         raise typer.Exit(1)

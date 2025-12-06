@@ -2,7 +2,7 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from klaude_code.command.command_abc import CommandABC, CommandResult, InputAction
-from klaude_code.config import select_model_from_config
+from klaude_code.config.select_model import select_model_from_config
 from klaude_code.protocol import commands, events, model
 
 if TYPE_CHECKING:

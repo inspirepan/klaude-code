@@ -10,9 +10,8 @@ import typer
 from klaude_code.cli.auth_cmd import register_auth_commands
 from klaude_code.cli.config_cmd import register_config_commands
 from klaude_code.cli.debug import DEBUG_FILTER_HELP, open_log_file_in_editor, resolve_debug_settings
-from klaude_code.cli.runtime import AppInitConfig, run_exec, run_interactive
 from klaude_code.cli.session_cmd import register_session_commands
-from klaude_code.config import load_config, select_model_from_config
+from klaude_code.config import load_config
 from klaude_code.session import Session, resume_select_session
 from klaude_code.trace import prepare_debug_log_file
 
@@ -120,6 +119,9 @@ def exec_command(
         log(("Error: No input content provided", "red"))
         raise typer.Exit(1)
 
+    from klaude_code.cli.runtime import AppInitConfig, run_exec
+    from klaude_code.config.select_model import select_model_from_config
+
     chosen_model = model
     if select_model:
         # Prefer the explicitly provided model as default; otherwise main model
@@ -205,6 +207,9 @@ def main_callback(
 ) -> None:
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
+        from klaude_code.cli.runtime import AppInitConfig, run_interactive
+        from klaude_code.config.select_model import select_model_from_config
+
         # Set terminal title with current folder name
         folder_name = os.path.basename(os.getcwd())
         set_terminal_title(f"{folder_name}: klaude")

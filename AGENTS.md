@@ -21,7 +21,8 @@ Tests are located in the `tests/` directory. Configuration files include `pyproj
 
 ## Build, Test, and Development Commands
 
-- `uv run ruff check --fix . && uv run ruff format`: Lint and format
+- `uv run ruff check --fix .`: Lint
+- `uv run ruff format`: Format
 - `uv run pytest`: Run tests
 - `uv run pyright`: Type checking in strict mode
 - `uv run klaude ...`: Execute CLI with the project's virtual environment
