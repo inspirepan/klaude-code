@@ -105,43 +105,15 @@ class REPLRenderer:
         self.console.print(*objects, style=style, end=end)
 
     def display_tool_call(self, e: events.ToolCallEvent) -> None:
-        # Handle sub-agent tool calls in replay mode
         if r_tools.is_sub_agent_tool(e.tool_name):
-            if e.is_replay:
-                state = r_sub_agent.build_sub_agent_state_from_tool_call(e)
-                if state is not None:
-                    sub_agent_default_style = (
-                        self.themes.sub_agent_colors[0] if self.themes.sub_agent_colors else Style()
-                    )
-                    self.print(
-                        Quote(
-                            r_sub_agent.render_sub_agent_call(state, sub_agent_default_style),
-                            style=sub_agent_default_style,
-                        )
-                    )
             return
-
         renderable = r_tools.render_tool_call(e)
         if renderable is not None:
             self.print(renderable)
 
     def display_tool_call_result(self, e: events.ToolResultEvent) -> None:
-        # Handle sub-agent tool results in replay mode
         if r_tools.is_sub_agent_tool(e.tool_name):
-            if e.is_replay:
-                sub_agent_default_style = self.themes.sub_agent_colors[0] if self.themes.sub_agent_colors else Style()
-                self.print(
-                    Quote(
-                        r_sub_agent.render_sub_agent_result(
-                            e.result,
-                            code_theme=self.themes.code_theme,
-                            style=sub_agent_default_style,
-                        ),
-                        style=sub_agent_default_style,
-                    )
-                )
             return
-
         renderable = r_tools.render_tool_result(e)
         if renderable is not None:
             self.print(renderable)
@@ -161,39 +133,55 @@ class REPLRenderer:
     async def replay_history(self, history_events: events.ReplayHistoryEvent) -> None:
         tool_call_dict: dict[str, events.ToolCallEvent] = {}
         for event in history_events.events:
-            match event:
-                case events.TurnStartEvent():
-                    self.print()
-                case events.AssistantMessageEvent() as assistant_event:
-                    renderable = r_assistant.render_assistant_message(
-                        assistant_event.content, code_theme=self.themes.code_theme
-                    )
-                    if renderable is not None:
-                        self.print(renderable)
+            event_session_id = getattr(event, "session_id", history_events.session_id)
+            is_sub_agent = self.is_sub_agent_session(event_session_id)
+
+            with self.session_print_context(event_session_id):
+                match event:
+                    case events.TaskStartEvent() as e:
+                        self.display_task_start(e)
+                    case events.TurnStartEvent():
                         self.print()
-                case events.ThinkingEvent() as thinking_event:
-                    self.display_thinking(thinking_event.content)
-                case events.DeveloperMessageEvent() as developer_event:
-                    self.display_developer_message(developer_event)
-                    self.display_command_output(developer_event)
-                case events.UserMessageEvent() as user_event:
-                    self.print(r_user_input.render_user_input(user_event.content))
-                case events.ToolCallEvent() as tool_call_event:
-                    tool_call_dict[tool_call_event.tool_call_id] = tool_call_event
-                case events.ToolResultEvent() as tool_result_event:
-                    tool_call_event = tool_call_dict.get(tool_result_event.tool_call_id)
-                    if tool_call_event is not None:
-                        self.display_tool_call(tool_call_event)
-                    tool_call_dict.pop(tool_result_event.tool_call_id, None)
-                    self.display_tool_call_result(tool_result_event)
-                case events.TaskMetadataEvent() as metadata_event:
-                    self.print(r_metadata.render_task_metadata(metadata_event))
-                    self.print()
-                case events.InterruptEvent():
-                    self.print()
-                    self.print(r_user_input.render_interrupt())
-                case events.ErrorEvent() as e:
-                    self.display_error(e)
+                    case events.AssistantMessageEvent() as e:
+                        if is_sub_agent:
+                            continue
+                        renderable = r_assistant.render_assistant_message(
+                            e.content, code_theme=self.themes.code_theme
+                        )
+                        if renderable is not None:
+                            self.print(renderable)
+                            self.print()
+                    case events.ThinkingEvent() as e:
+                        if is_sub_agent:
+                            continue
+                        self.display_thinking(e.content)
+                    case events.DeveloperMessageEvent() as e:
+                        self.display_developer_message(e)
+                        self.display_command_output(e)
+                    case events.UserMessageEvent() as e:
+                        if is_sub_agent:
+                            continue
+                        self.print(r_user_input.render_user_input(e.content))
+                    case events.ToolCallEvent() as e:
+                        tool_call_dict[e.tool_call_id] = e
+                    case events.ToolResultEvent() as e:
+                        tool_call_event = tool_call_dict.get(e.tool_call_id)
+                        if tool_call_event is not None:
+                            self.display_tool_call(tool_call_event)
+                        tool_call_dict.pop(e.tool_call_id, None)
+                        if is_sub_agent:
+                            continue
+                        self.display_tool_call_result(e)
+                    case events.TaskMetadataEvent() as e:
+                        self.print(r_metadata.render_task_metadata(e))
+                        self.print()
+                    case events.InterruptEvent():
+                        self.print()
+                        self.print(r_user_input.render_interrupt())
+                    case events.ErrorEvent() as e:
+                        self.display_error(e)
+                    case events.TaskFinishEvent() as e:
+                        self.display_task_finish(e)
 
     def display_developer_message(self, e: events.DeveloperMessageEvent) -> None:
         if not r_developer.need_render_developer_message(e):

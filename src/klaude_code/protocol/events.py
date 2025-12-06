@@ -85,7 +85,6 @@ class ToolCallEvent(BaseModel):
     tool_call_id: str
     tool_name: str
     arguments: str
-    is_replay: bool = False
 
 
 class ToolResultEvent(BaseModel):
@@ -96,7 +95,6 @@ class ToolResultEvent(BaseModel):
     result: str
     ui_extra: model.ToolResultUIExtra | None = None
     status: Literal["success", "error"]
-    is_replay: bool = False
     task_metadata: model.TaskMetadata | None = None  # Sub-agent task metadata
 
 
@@ -136,6 +134,8 @@ class TodoChangeEvent(BaseModel):
 
 HistoryItemEvent = (
     ThinkingEvent
+    | TaskStartEvent
+    | TaskFinishEvent
     | TurnStartEvent  # This event is used for UI to print new empty line
     | AssistantMessageEvent
     | ToolCallEvent

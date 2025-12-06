@@ -267,7 +267,10 @@ class Session(BaseModel):
         )
 
     def get_history_item(self) -> Iterable[events.HistoryItemEvent]:
+        seen_sub_agent_sessions: set[str] = set()
         prev_item: model.ConversationItem | None = None
+        last_assistant_content: str = ""
+        yield events.TaskStartEvent(session_id=self.id, sub_agent_state=self.sub_agent_state)
         for it in self.conversation_history:
             if self.need_turn_start(prev_item, it):
                 yield events.TurnStartEvent(
@@ -276,6 +279,7 @@ class Session(BaseModel):
             match it:
                 case model.AssistantMessageItem() as am:
                     content = am.content or ""
+                    last_assistant_content = content
                     yield events.AssistantMessageEvent(
                         content=content,
                         response_id=am.response_id,
@@ -288,7 +292,6 @@ class Session(BaseModel):
                         arguments=tc.arguments,
                         response_id=tc.response_id,
                         session_id=self.id,
-                        is_replay=True,
                     )
                 case model.ToolResultItem() as tr:
                     yield events.ToolResultEvent(
@@ -298,9 +301,9 @@ class Session(BaseModel):
                         ui_extra=tr.ui_extra,
                         session_id=self.id,
                         status=tr.status,
-                        is_replay=True,
+                        task_metadata=tr.task_metadata,
                     )
-                    # TODO: Replay Sub-Agent Events
+                    yield from self._iter_sub_agent_history(tr, seen_sub_agent_sessions)
                 case model.UserMessageItem() as um:
                     yield events.UserMessageEvent(
                         content=um.content or "",
@@ -333,6 +336,35 @@ class Session(BaseModel):
                 case _:
                     continue
             prev_item = it
+        yield events.TaskFinishEvent(session_id=self.id, task_result=last_assistant_content)
+
+    def _iter_sub_agent_history(
+        self, tool_result: model.ToolResultItem, seen_sub_agent_sessions: set[str]
+    ) -> Iterable[events.HistoryItemEvent]:
+        """Replay sub-agent session history when a tool result references it.
+
+        Sub-agent tool results embed a SessionIdUIExtra containing the child session ID.
+        When present, we load that session and yield its history events so replay/export
+        can show the full sub-agent transcript instead of only the summarized tool output.
+        """
+        ui_extra = tool_result.ui_extra
+        if not isinstance(ui_extra, model.SessionIdUIExtra):
+            return
+
+        session_id = ui_extra.session_id
+        if not session_id or session_id == self.id:
+            return
+        if session_id in seen_sub_agent_sessions:
+            return
+
+        seen_sub_agent_sessions.add(session_id)
+
+        try:
+            sub_session = Session.load(session_id)
+        except Exception:
+            return
+
+        yield from sub_session.get_history_item()
 
     class SessionMetaBrief(BaseModel):
         id: str

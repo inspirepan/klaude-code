@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from klaude_code.protocol import model
+from klaude_code.protocol import events, model
 from klaude_code.protocol.llm_param import ToolSchema
 from klaude_code.session import export
 from klaude_code.session.session import Session
@@ -543,6 +543,60 @@ class TestSessionPersistence:
         # Load and verify
         loaded = Session.load(session.id)
         assert len(loaded.conversation_history) == 2
+
+    def test_replay_includes_sub_agent_history(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        # Create a sub-agent session with some history
+        sub_session = Session.create(id="sub-session")
+        sub_session.append_history(
+            [
+                model.ToolCallItem(call_id="sub-call", name="Bash", arguments="{}"),
+            ]
+        )
+
+        # Main session references the sub-agent session in a tool result
+        main_session = Session.create(id="main-session")
+        main_session.append_history(
+            [
+                model.ToolCallItem(call_id="parent-call", name="Task", arguments="{}"),
+                model.ToolResultItem(
+                    call_id="parent-call",
+                    output="Delegated to sub-agent",
+                    status="success",
+                    tool_name="Task",
+                    ui_extra=model.SessionIdUIExtra(session_id=sub_session.id),
+                )
+            ]
+        )
+
+        # Reload main session to ensure it pulls from disk and replays sub-agent events
+        reloaded = Session.load(main_session.id)
+        events_list = list(reloaded.get_history_item())
+
+        # Expect order: parent tool call -> parent tool result -> sub-agent tool call
+        parent_call_index = next(
+            i for i, e in enumerate(events_list) if isinstance(e, events.ToolCallEvent) and e.session_id == main_session.id
+        )
+        parent_result_index = next(
+            i for i, e in enumerate(events_list) if isinstance(e, events.ToolResultEvent) and e.session_id == main_session.id
+        )
+
+        sub_events = [e for e in events_list if getattr(e, "session_id", None) == sub_session.id]
+        assert sub_events, "Expected sub-agent events to be replayed"
+
+        # Should include TaskStartEvent for sub-agent session registration
+        sub_task_starts = [e for e in sub_events if isinstance(e, events.TaskStartEvent)]
+        assert sub_task_starts, "Expected TaskStartEvent from sub-agent"
+
+        # Should include ToolCallEvent from sub-agent
+        sub_tool_calls = [e for e in sub_events if isinstance(e, events.ToolCallEvent)]
+        assert sub_tool_calls, "Expected ToolCallEvent from sub-agent"
+
+        first_sub_event_index = min(events_list.index(e) for e in sub_events)
+        assert parent_call_index < parent_result_index < first_sub_event_index
 
 
 class TestSessionListAndClean:
