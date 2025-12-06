@@ -2,7 +2,7 @@ from rich.console import RenderableType
 from rich.padding import Padding
 from rich.text import Text
 
-from klaude_code.ui.rich.markdown import NoInsetMarkdown
+from klaude_code.ui.rich.markdown import ThinkingMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
 
 
@@ -30,7 +30,7 @@ def render_thinking(content: str, *, code_theme: str, style: str) -> RenderableT
         return None
 
     return Padding.indent(
-        NoInsetMarkdown(
+        ThinkingMarkdown(
             _normalize_thinking_content(content),
             code_theme=code_theme,
             style=style,

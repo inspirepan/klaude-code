@@ -6,6 +6,7 @@ import io
 import time
 from typing import Any, ClassVar
 
+from rich import box
 from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.live import Live
 from rich.markdown import CodeBlock, Heading, Markdown
@@ -33,6 +34,15 @@ class NoInsetCodeBlock(CodeBlock):
             padding=(0, 1),
         )
         yield Panel.fit(syntax, padding=0, border_style="markdown.code.panel")
+
+
+class ThinkingCodeBlock(CodeBlock):
+    """A code block for thinking content that uses grey styling instead of syntax highlighting."""
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        code = str(self.text).rstrip()
+        text = Text(code, style="markdown.code")
+        yield Panel.fit(text, padding=(0, 1), style="markdown.code", box=box.SIMPLE)
 
 
 class LeftHeading(Heading):
@@ -64,6 +74,17 @@ class NoInsetMarkdown(Markdown):
         **Markdown.elements,
         "fence": NoInsetCodeBlock,
         "code_block": NoInsetCodeBlock,
+        "heading_open": LeftHeading,
+    }
+
+
+class ThinkingMarkdown(Markdown):
+    """Markdown for thinking content with grey-styled code blocks and left-justified headings."""
+
+    elements: ClassVar[dict[str, type[Any]]] = {
+        **Markdown.elements,
+        "fence": ThinkingCodeBlock,
+        "code_block": ThinkingCodeBlock,
         "heading_open": LeftHeading,
     }
 
