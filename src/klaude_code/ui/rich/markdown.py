@@ -33,7 +33,7 @@ class NoInsetCodeBlock(CodeBlock):
             word_wrap=True,
             padding=(0, 1),
         )
-        yield Panel.fit(syntax, padding=0, border_style="markdown.code.panel")
+        yield Panel.fit(syntax, padding=(0, 0), style="markdown.code.block", box=box.SIMPLE)
 
 
 class ThinkingCodeBlock(CodeBlock):
