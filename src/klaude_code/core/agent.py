@@ -46,7 +46,7 @@ class DefaultModelProfileProvider(ModelProfileProvider):
         model_name = llm_client.model_name
         return AgentProfile(
             llm_client=llm_client,
-            system_prompt=load_system_prompt(model_name, sub_agent_type),
+            system_prompt=load_system_prompt(model_name, llm_client.protocol, sub_agent_type),
             tools=load_agent_tools(model_name, sub_agent_type),
             reminders=load_agent_reminders(model_name, sub_agent_type),
         )

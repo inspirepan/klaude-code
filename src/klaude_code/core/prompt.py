@@ -4,6 +4,8 @@ from functools import cache
 from importlib.resources import files
 from pathlib import Path
 
+from klaude_code.protocol import llm_param
+
 COMMAND_DESCRIPTIONS: dict[str, str] = {
     "rg": "ripgrep - fast text search",
     "fd": "simple and fast alternative to find",
@@ -36,13 +38,13 @@ def _load_base_prompt(file_key: str) -> str:
     return files(__package__).joinpath(prompt_path).read_text(encoding="utf-8").strip()
 
 
-def _get_file_key(model_name: str, sub_agent_type: str | None) -> str:
+def _get_file_key(model_name: str, protocol: llm_param.LLMClientProtocol, sub_agent_type: str | None) -> str:
     """Determine which prompt file to use based on model and agent type."""
     if sub_agent_type is not None:
         return sub_agent_type
 
     match model_name:
-        case "gpt-5.1-codex-max":
+        case name if "gpt-5.1-codex-max" in name:
             return "main_gpt_5_1_codex_max"
         case name if "gpt-5" in name:
             return "main_gpt_5_1"
@@ -84,12 +86,15 @@ def _build_env_info(model_name: str) -> str:
     return "\n".join(env_lines)
 
 
-def load_system_prompt(model_name: str, sub_agent_type: str | None = None) -> str:
+def load_system_prompt(
+    model_name: str, protocol: llm_param.LLMClientProtocol, sub_agent_type: str | None = None
+) -> str:
     """Get system prompt content for the given model and sub-agent type."""
-    file_key = _get_file_key(model_name, sub_agent_type)
+    file_key = _get_file_key(model_name, protocol, sub_agent_type)
     base_prompt = _load_base_prompt(file_key)
 
-    if model_name == "gpt-5.1-codex-max":
+    if protocol == llm_param.LLMClientProtocol.CODEX:
+        # Do not append environment info for Codex protocol
         return base_prompt
 
     return base_prompt + _build_env_info(model_name)

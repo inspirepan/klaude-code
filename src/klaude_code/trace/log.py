@@ -1,7 +1,13 @@
+import gzip
 import logging
+import os
+import shutil
+import subprocess
 from collections.abc import Iterable
+from datetime import datetime, timedelta
 from enum import Enum
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -49,6 +55,26 @@ _file_handler: RotatingFileHandler | None = None
 _console_handler: RichHandler | None = None
 _debug_filter: DebugTypeFilter | None = None
 _debug_enabled = False
+_current_log_file: Path | None = None
+
+LOG_RETENTION_DAYS = 3
+LOG_MAX_TOTAL_BYTES = 200 * 1024 * 1024
+
+
+class GzipRotatingFileHandler(RotatingFileHandler):
+    """Rotating file handler that gzips rolled files."""
+
+    def rotation_filename(self, default_name: str) -> str:
+        """Append .gz to rotation targets."""
+
+        return f"{default_name}.gz"
+
+    def rotate(self, source: str, dest: str) -> None:
+        """Compress the rotated file and remove the original."""
+
+        with open(source, "rb") as source_file, gzip.open(dest, "wb") as dest_file:
+            shutil.copyfileobj(source_file, dest_file)
+        Path(source).unlink(missing_ok=True)
 
 
 def set_debug_logging(
@@ -66,7 +92,7 @@ def set_debug_logging(
         log_file: Path to the log file (default: debug.log)
         filters: Set of DebugType to include; None means all types
     """
-    global _file_handler, _console_handler, _debug_filter, _debug_enabled
+    global _file_handler, _console_handler, _debug_filter, _debug_enabled, _current_log_file
 
     _debug_enabled = enabled
 
@@ -80,6 +106,7 @@ def set_debug_logging(
         _console_handler = None
 
     if not enabled:
+        _current_log_file = None
         return
 
     # Create filter
@@ -87,10 +114,19 @@ def set_debug_logging(
 
     # Determine output mode
     use_file = write_to_file if write_to_file is not None else True
-    file_path = log_file if log_file is not None else const.DEFAULT_DEBUG_LOG_FILE
-
     if use_file:
-        _file_handler = RotatingFileHandler(
+        if _current_log_file is None:
+            _current_log_file = _resolve_log_file(log_file)
+        file_path = _current_log_file
+    else:
+        _current_log_file = None
+        file_path = None
+
+    if use_file and file_path is not None:
+        _prune_old_logs(const.DEFAULT_DEBUG_LOG_DIR, LOG_RETENTION_DAYS, LOG_MAX_TOTAL_BYTES)
+
+    if use_file and file_path is not None:
+        _file_handler = GzipRotatingFileHandler(
             file_path,
             maxBytes=const.LOG_MAX_BYTES,
             backupCount=const.LOG_BACKUP_COUNT,
@@ -166,3 +202,106 @@ def _build_message(objects: Iterable[str | tuple[str, str]]) -> str:
 def is_debug_enabled() -> bool:
     """Check if debug logging is currently enabled."""
     return _debug_enabled
+
+
+def prepare_debug_log_file(log_file: str | os.PathLike[str] | None = None) -> Path:
+    """Prepare and remember the log file path for this session."""
+
+    global _current_log_file
+    _current_log_file = _resolve_log_file(log_file)
+    return _current_log_file
+
+
+def get_current_log_file() -> Path | None:
+    """Return the currently active log file path, if any."""
+
+    return _current_log_file
+
+
+def _resolve_log_file(log_file: str | os.PathLike[str] | None) -> Path:
+    """Resolve the log file path and ensure directories exist."""
+
+    if log_file:
+        path = Path(log_file).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+    else:
+        path = _build_default_log_file_path()
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.touch(exist_ok=True)
+    _refresh_latest_symlink(path)
+    return path
+
+
+def _build_default_log_file_path() -> Path:
+    """Build a per-session log path under the default log directory."""
+
+    now = datetime.now()
+    session_dir = const.DEFAULT_DEBUG_LOG_DIR / now.strftime("%Y-%m-%d")
+    session_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{now.strftime('%H%M%S')}-{os.getpid()}.log"
+    return session_dir / filename
+
+
+def _refresh_latest_symlink(target: Path) -> None:
+    """Point the debug.log symlink at the latest session file."""
+
+    latest = const.DEFAULT_DEBUG_LOG_FILE
+    try:
+        latest.unlink(missing_ok=True)
+        latest.symlink_to(target)
+    except OSError:
+        # Non-blocking best-effort; logging should still proceed
+        return
+
+
+def _prune_old_logs(log_root: Path, keep_days: int, max_total_bytes: int) -> None:
+    """Remove logs older than keep_days or when exceeding max_total_bytes."""
+
+    if not log_root.exists():
+        return
+
+    cutoff = datetime.now() - timedelta(days=keep_days)
+    files: list[Path] = [p for p in log_root.rglob("*") if p.is_file() and not p.is_symlink()]
+
+    # Remove by age
+    for path in files:
+        try:
+            mtime = datetime.fromtimestamp(path.stat().st_mtime)
+        except OSError:
+            continue
+        if mtime < cutoff:
+            _trash_path(path)
+
+    # Recompute remaining files and sizes
+    remaining: list[tuple[Path, float, int]] = []
+    total_size = 0
+    for path in log_root.rglob("*"):
+        if not path.is_file() or path.is_symlink():
+            continue
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        remaining.append((path, stat.st_mtime, stat.st_size))
+        total_size += stat.st_size
+
+    if total_size <= max_total_bytes:
+        return
+
+    remaining.sort(key=lambda item: item[1])
+    for path, _, size in remaining:
+        _trash_path(path)
+        total_size -= size
+        if total_size <= max_total_bytes:
+            break
+
+
+def _trash_path(path: Path) -> None:
+    """Send a path to trash, falling back to unlink if trash is unavailable."""
+
+    try:
+        subprocess.run(["trash", str(path)], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except FileNotFoundError:
+        path.unlink(missing_ok=True)

@@ -15,7 +15,7 @@ from klaude_code.llm.openrouter.reasoning_handler import ReasoningDetail, Reason
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, convert_usage
 from klaude_code.protocol import llm_param, model
-from klaude_code.trace import DebugType, log, log_debug
+from klaude_code.trace import DebugType, is_debug_enabled, log, log_debug
 
 
 def build_payload(
@@ -27,10 +27,11 @@ def build_payload(
 
     extra_body: dict[str, object] = {
         "usage": {"include": True},  # To get the cache tokens at the end of the response
-        "debug": {
-            "echo_upstream_body": True
-        },  # https://openrouter.ai/docs/api/reference/errors-and-debugging#debug-option-shape
     }
+    if is_debug_enabled():
+        extra_body["debug"] = {
+            "echo_upstream_body": True
+        }  # https://openrouter.ai/docs/api/reference/errors-and-debugging#debug-option-shape
     extra_headers: dict[str, str] = {}
 
     if param.thinking:

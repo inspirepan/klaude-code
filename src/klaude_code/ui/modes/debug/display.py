@@ -1,3 +1,4 @@
+import os
 from typing import override
 
 from klaude_code import const
@@ -10,7 +11,7 @@ class DebugEventDisplay(DisplayABC):
     def __init__(
         self,
         wrapped_display: DisplayABC | None = None,
-        log_file: str = const.DEFAULT_DEBUG_LOG_FILE,
+        log_file: str | os.PathLike[str] = const.DEFAULT_DEBUG_LOG_FILE,
     ):
         self.wrapped_display = wrapped_display
         self.log_file = log_file

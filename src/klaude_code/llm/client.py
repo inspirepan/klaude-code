@@ -26,6 +26,10 @@ class LLMClientABC(ABC):
     def model_name(self) -> str:
         return self._config.model or ""
 
+    @property
+    def protocol(self) -> llm_param.LLMClientProtocol:
+        return self._config.protocol
+
 
 P = ParamSpec("P")
 R = TypeVar("R")

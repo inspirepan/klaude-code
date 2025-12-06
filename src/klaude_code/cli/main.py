@@ -5,6 +5,7 @@ import subprocess
 import sys
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as pkg_version
+from pathlib import Path
 
 import typer
 
@@ -12,7 +13,7 @@ from klaude_code.cli.runtime import DEBUG_FILTER_HELP, AppInitConfig, resolve_de
 from klaude_code.cli.session_cmd import register_session_commands
 from klaude_code.config import config_path, display_models_and_providers, load_config, select_model_from_config
 from klaude_code.session import Session, resume_select_session
-from klaude_code.trace import log
+from klaude_code.trace import log, prepare_debug_log_file
 from klaude_code.ui.terminal.color import is_light_terminal_background
 
 
@@ -34,6 +35,36 @@ def _version_callback(value: bool) -> None:
             ver = "unknown"
         print(f"klaude-code {ver}")
         raise typer.Exit(0)
+
+
+def _open_log_file_in_editor(path: Path) -> None:
+    """Open the given log file in a text editor without blocking the CLI."""
+
+    editor = os.environ.get("EDITOR")
+
+    if not editor:
+        for cmd in ["open", "xdg-open", "code", "nvim", "vim", "nano"]:
+            try:
+                subprocess.run(["which", cmd], check=True, capture_output=True)
+                editor = cmd
+                break
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                continue
+
+    if not editor:
+        if sys.platform == "darwin":
+            editor = "open"
+        elif sys.platform == "win32":
+            editor = "notepad"
+        else:
+            editor = "xdg-open"
+
+    try:
+        subprocess.Popen([editor, str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except FileNotFoundError:
+        log((f"Error: Editor '{editor}' not found", "red"))
+    except Exception as exc:  # pragma: no cover - best effort
+        log((f"Warning: failed to open log file in editor: {exc}", "yellow"))
 
 
 app = typer.Typer(
@@ -263,6 +294,10 @@ def exec_command(
 
     debug_enabled, debug_filters = resolve_debug_settings(debug, debug_filter)
 
+    log_path: Path | None = None
+    if debug_enabled:
+        log_path = prepare_debug_log_file()
+
     init_config = AppInitConfig(
         model=chosen_model,
         debug=debug_enabled,
@@ -271,6 +306,9 @@ def exec_command(
         debug_filters=debug_filters,
         stream_json=stream_json,
     )
+
+    if log_path:
+        _open_log_file_in_editor(log_path)
 
     asyncio.run(
         run_exec(
@@ -352,12 +390,19 @@ def main_callback(
 
         debug_enabled, debug_filters = resolve_debug_settings(debug, debug_filter)
 
+        log_path: Path | None = None
+        if debug_enabled:
+            log_path = prepare_debug_log_file()
+
         init_config = AppInitConfig(
             model=chosen_model,
             debug=debug_enabled,
             vanilla=vanilla,
             debug_filters=debug_filters,
         )
+
+        if log_path:
+            _open_log_file_in_editor(log_path)
 
         asyncio.run(
             run_interactive(

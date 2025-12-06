@@ -4,6 +4,8 @@ This module consolidates all magic numbers and configuration values
 that were previously scattered across the codebase.
 """
 
+from pathlib import Path
+
 # =============================================================================
 # Agent Configuration
 # =============================================================================
@@ -123,8 +125,11 @@ SPINNER_BREATH_PERIOD_SECONDS: float = 2.0
 # Debug / Logging
 # =============================================================================
 
-# Default debug log file path
-DEFAULT_DEBUG_LOG_FILE = "debug.log"
+# Default debug log directory (user cache)
+DEFAULT_DEBUG_LOG_DIR = Path.home() / ".klaude" / "logs"
+
+# Default debug log file path (symlink to latest session)
+DEFAULT_DEBUG_LOG_FILE = DEFAULT_DEBUG_LOG_DIR / "debug.log"
 
 # Maximum log file size before rotation (10MB)
 LOG_MAX_BYTES = 10 * 1024 * 1024
