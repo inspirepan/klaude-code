@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.14] - 2025-12-06
+
+### Added
+
+- include sub-agent session history in HTML exports (`f72f75e`)
+- replay sub-agent history events recursively (`8122256`)
+- improve debug logging with per-session files and auto-rotate (`92e3fc4`)
+
+### Changed
+
+- use lazy imports to improve CLI startup time (`dd0d420`)
+- modularize CLI commands into separate modules (`a9e5df3`)
+- update theme (`844b94b`)
+
+### Fixed
+
+- only cache successful config parses (`06ed727`)
+- address pyrefly type checking issues (`13b4c65`)
 ## [1.2.13] - 2025-12-05
 
 ### Added
@@ -427,7 +445,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.13...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.14...HEAD
+[1.2.14]: https://github.com/inspirepan/klaude-code/compare/v1.2.13...v1.2.14
 [1.2.13]: https://github.com/inspirepan/klaude-code/compare/v1.2.12...v1.2.13
 [1.2.12]: https://github.com/inspirepan/klaude-code/compare/v1.2.11...v1.2.12
 [1.2.11]: https://github.com/inspirepan/klaude-code/compare/v1.2.10...v1.2.11
