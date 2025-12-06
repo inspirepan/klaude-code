@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any, cast
 
 from rich.console import RenderableType
 from rich.padding import Padding
@@ -55,6 +56,49 @@ def render_generic_tool_call(tool_name: str, arguments: str, markup: str = "•"
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
     grid.add_row(tool_name_column, arguments_column)
+    return grid
+
+
+def render_bash_tool_call(arguments: str) -> RenderableType:
+    grid = create_grid()
+    tool_name_column = Text.assemble((">", ThemeKey.TOOL_MARK), " ", ("Bash", ThemeKey.TOOL_NAME))
+
+    try:
+        payload_raw: Any = json.loads(arguments) if arguments else {}
+    except json.JSONDecodeError:
+        summary = Text(
+            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            style=ThemeKey.INVALID_TOOL_CALL_ARGS,
+        )
+        grid.add_row(tool_name_column, summary)
+        return grid
+
+    if not isinstance(payload_raw, dict):
+        summary = Text(
+            str(payload_raw)[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            style=ThemeKey.INVALID_TOOL_CALL_ARGS,
+        )
+        grid.add_row(tool_name_column, summary)
+        return grid
+
+    payload: dict[str, object] = cast(dict[str, object], payload_raw)
+
+    summary = Text("", ThemeKey.TOOL_PARAM)
+    command = payload.get("command")
+    timeout_ms = payload.get("timeout_ms")
+
+    if isinstance(command, str) and command.strip():
+        summary.append(command.strip(), style=ThemeKey.TOOL_PARAM)
+
+    if isinstance(timeout_ms, int):
+        if summary:
+            summary.append(" ")
+        if timeout_ms >= 1000 and timeout_ms % 1000 == 0:
+            summary.append(f"{timeout_ms // 1000}s", style=ThemeKey.TOOL_TIMEOUT)
+        else:
+            summary.append(f"{timeout_ms}ms", style=ThemeKey.TOOL_TIMEOUT)
+
+    grid.add_row(tool_name_column, summary)
     return grid
 
 
@@ -461,7 +505,7 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
         case tools.MULTI_EDIT:
             return render_multi_edit_tool_call(e.arguments)
         case tools.BASH:
-            return render_generic_tool_call(e.tool_name, e.arguments, ">")
+            return render_bash_tool_call(e.arguments)
         case tools.APPLY_PATCH:
             return render_apply_patch_tool_call(e.arguments)
         case tools.TODO_WRITE:

@@ -107,6 +107,7 @@ class ThemeKey(str, Enum):
     TOOL_MARK = "tool.mark"
     TOOL_APPROVED = "tool.approved"
     TOOL_REJECTED = "tool.rejected"
+    TOOL_TIMEOUT = "tool.timeout"
     # THINKING
     THINKING = "thinking"
     THINKING_BOLD = "thinking.bold"
@@ -196,6 +197,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_MARK.value: "bold",
                 ThemeKey.TOOL_APPROVED.value: palette.green + " bold reverse",
                 ThemeKey.TOOL_REJECTED.value: palette.red + " bold reverse",
+                ThemeKey.TOOL_TIMEOUT.value: palette.yellow,
                 # THINKING
                 ThemeKey.THINKING.value: "italic " + palette.grey2,
                 ThemeKey.THINKING_BOLD.value: "bold italic " + palette.grey1,
