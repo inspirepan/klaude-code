@@ -9,6 +9,7 @@ from rich.text import Text
 
 from klaude_code.protocol import events, model
 from klaude_code.trace import is_debug_enabled
+from klaude_code.ui.renderers.common import create_grid
 from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.utils.common import format_number
 
@@ -24,90 +25,61 @@ def _get_version() -> str:
 def _render_task_metadata_block(
     metadata: model.TaskMetadata,
     *,
-    indent: int = 0,
+    is_sub_agent: bool = False,
     show_context_and_time: bool = True,
-) -> list[RenderableType]:
+) -> RenderableType:
     """Render a single TaskMetadata block.
 
     Args:
         metadata: The TaskMetadata to render.
-        indent: Number of spaces to indent (0 for main, 2 for sub-agents).
+        is_sub_agent: Whether this is a sub-agent block.
         show_context_and_time: Whether to show context usage percent and time.
 
     Returns:
-        List of renderables for this metadata block.
+        A renderable for this metadata block.
     """
+    grid = create_grid()
+
     # Get currency symbol
     currency = metadata.usage.currency if metadata.usage else "USD"
     currency_symbol = "¥" if currency == "CNY" else "$"
 
-    # Line 1: Model and Provider
-    prefix = (
-        Text(" " * indent + "• ", style=ThemeKey.METADATA_BOLD)
-        if indent == 0
-        else Text(" " * indent + "└ ", style=ThemeKey.METADATA_DIM)
-    )
-    model_text = Text()
-    model_text.append_text(prefix).append_text(Text(metadata.model_name, style=ThemeKey.METADATA_BOLD))
+    # First column: mark only
+    mark = Text("└", style=ThemeKey.METADATA_DIM) if is_sub_agent else Text("•", style=ThemeKey.METADATA_BOLD)
+
+    # Second column: model@provider / tokens / cost / ...
+    content = Text()
+    content.append_text(Text(metadata.model_name, style=ThemeKey.METADATA_BOLD))
     if metadata.provider is not None:
-        model_text.append_text(Text("@", style=ThemeKey.METADATA)).append_text(
+        content.append_text(Text("@", style=ThemeKey.METADATA)).append_text(
             Text(metadata.provider.lower().replace(" ", "-"), style=ThemeKey.METADATA)
         )
 
-    renderables: list[RenderableType] = [model_text]
-
-    # Line 2: Token consumption, context, TPS, cost, time, turns (all in one line)
+    # All info parts (tokens, cost, context, etc.)
     parts: list[Text] = []
 
     if metadata.usage is not None:
-        # Input
-        input_parts: list[tuple[str, str]] = [
-            ("input:", ThemeKey.METADATA_DIM),
-            (format_number(metadata.usage.input_tokens), ThemeKey.METADATA_DIM),
+        # Tokens: ↑37k ©5k ↓907 ®45k
+        token_parts: list[tuple[str, str]] = [
+            ("↑", ThemeKey.METADATA_DIM),
+            (format_number(metadata.usage.input_tokens), ThemeKey.METADATA),
         ]
-        if metadata.usage.input_cost is not None:
-            input_parts.append((f"({currency_symbol}{metadata.usage.input_cost:.4f})", ThemeKey.METADATA_DIM))
-        parts.append(Text.assemble(*input_parts))
-
-        # Cached
         if metadata.usage.cached_tokens > 0:
-            cached_parts: list[tuple[str, str]] = [
-                ("cached:", ThemeKey.METADATA_DIM),
-                (format_number(metadata.usage.cached_tokens), ThemeKey.METADATA_DIM),
-            ]
-            if metadata.usage.cache_read_cost is not None:
-                cached_parts.append((f"({currency_symbol}{metadata.usage.cache_read_cost:.4f})", ThemeKey.METADATA_DIM))
-            parts.append(Text.assemble(*cached_parts))
-
-        # Output
-        output_parts: list[tuple[str, str]] = [
-            ("output:", ThemeKey.METADATA_DIM),
-            (format_number(metadata.usage.output_tokens), ThemeKey.METADATA_DIM),
-        ]
-        if metadata.usage.output_cost is not None:
-            output_parts.append((f"({currency_symbol}{metadata.usage.output_cost:.4f})", ThemeKey.METADATA_DIM))
-        parts.append(Text.assemble(*output_parts))
-
-        # Reasoning
+            token_parts.append((" (c)", ThemeKey.METADATA_DIM))
+            token_parts.append((format_number(metadata.usage.cached_tokens), ThemeKey.METADATA))
+        token_parts.append((" ↓", ThemeKey.METADATA_DIM))
+        token_parts.append((format_number(metadata.usage.output_tokens), ThemeKey.METADATA))
         if metadata.usage.reasoning_tokens > 0:
-            parts.append(
-                Text.assemble(
-                    ("thinking", ThemeKey.METADATA_DIM),
-                    (":", ThemeKey.METADATA_DIM),
-                    (
-                        format_number(metadata.usage.reasoning_tokens),
-                        ThemeKey.METADATA_DIM,
-                    ),
-                )
-            )
+            token_parts.append((" (r)", ThemeKey.METADATA_DIM))
+            token_parts.append((format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA))
+        parts.append(Text.assemble(*token_parts))
 
     # Cost
     if metadata.usage is not None and metadata.usage.total_cost is not None:
         parts.append(
             Text.assemble(
-                ("cost", ThemeKey.METADATA_DIM),
-                (":", ThemeKey.METADATA_DIM),
-                (f"{currency_symbol}{metadata.usage.total_cost:.4f}", ThemeKey.METADATA_DIM),
+                (currency_symbol, ThemeKey.METADATA_DIM),
+                (f"{metadata.usage.total_cost:.4f}", ThemeKey.METADATA),
             )
         )
     if metadata.usage is not None:
@@ -116,12 +88,8 @@ def _render_task_metadata_block(
             context_size = format_number(metadata.usage.context_size or 0)
             parts.append(
                 Text.assemble(
-                    ("context", ThemeKey.METADATA_DIM),
-                    (":", ThemeKey.METADATA_DIM),
-                    (
-                        f"{context_size}({metadata.usage.context_usage_percent:.1f}%)",
-                        ThemeKey.METADATA_DIM,
-                    ),
+                    (context_size, ThemeKey.METADATA),
+                    (f" ({metadata.usage.context_usage_percent:.1f}%)", ThemeKey.METADATA_DIM),
                 )
             )
 
@@ -129,9 +97,8 @@ def _render_task_metadata_block(
         if metadata.usage.throughput_tps is not None:
             parts.append(
                 Text.assemble(
+                    (f"{metadata.usage.throughput_tps:.1f} ", ThemeKey.METADATA),
                     ("tps", ThemeKey.METADATA_DIM),
-                    (":", ThemeKey.METADATA_DIM),
-                    (f"{metadata.usage.throughput_tps:.1f}", ThemeKey.METADATA_DIM),
                 )
             )
 
@@ -139,9 +106,8 @@ def _render_task_metadata_block(
     if show_context_and_time and metadata.task_duration_s is not None:
         parts.append(
             Text.assemble(
-                ("time", ThemeKey.METADATA_DIM),
-                (":", ThemeKey.METADATA_DIM),
-                (f"{metadata.task_duration_s:.1f}s", ThemeKey.METADATA_DIM),
+                (f"{metadata.task_duration_s:.1f}", ThemeKey.METADATA),
+                ("s", ThemeKey.METADATA_DIM),
             )
         )
 
@@ -149,33 +115,33 @@ def _render_task_metadata_block(
     if show_context_and_time and metadata.turn_count > 0:
         parts.append(
             Text.assemble(
-                ("turns", ThemeKey.METADATA_DIM),
-                (":", ThemeKey.METADATA_DIM),
-                (str(metadata.turn_count), ThemeKey.METADATA_DIM),
+                (str(metadata.turn_count), ThemeKey.METADATA),
+                (" turns", ThemeKey.METADATA_DIM),
             )
         )
 
     if parts:
-        line = Text(" / ", style=ThemeKey.METADATA_DIM).join(parts)
-        renderables.append(Padding(line, (0, 0, 0, indent + 2)))
+        content.append_text(Text(" · ", style=ThemeKey.METADATA_DIM))
+        content.append_text(Text(" · ", style=ThemeKey.METADATA_DIM).join(parts))
 
-    return renderables
+    grid.add_row(mark, content)
+    return grid
 
 
 def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     """Render task metadata including main agent and sub-agents, aggregated by model+provider."""
     renderables: list[RenderableType] = []
 
-    renderables.extend(_render_task_metadata_block(e.metadata.main, indent=0, show_context_and_time=True))
+    renderables.append(_render_task_metadata_block(e.metadata.main, is_sub_agent=False, show_context_and_time=True))
 
     # Aggregate by (model_name, provider), sorted by total_cost descending
     sorted_items = model.TaskMetadata.aggregate_by_model(e.metadata.sub_agent_task_metadata)
 
     # Render each aggregated model block
     for meta in sorted_items:
-        renderables.extend(_render_task_metadata_block(meta, indent=2, show_context_and_time=False))
+        renderables.append(_render_task_metadata_block(meta, is_sub_agent=True, show_context_and_time=False))
 
-    return Group(*renderables)
+    return Padding(Group(*renderables), (0, 0, 0, 1))
 
 
 def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> RenderableType:

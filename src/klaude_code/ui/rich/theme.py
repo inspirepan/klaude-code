@@ -14,12 +14,12 @@ class Palette:
     blue: str
     orange: str
     magenta: str
-    grey_blue: str
     grey1: str
     grey2: str
     grey3: str
     grey_green: str
     purple: str
+    lavender: str
     diff_add: str
     diff_remove: str
     code_theme: str
@@ -34,12 +34,12 @@ LIGHT_PALETTE = Palette(
     blue="#3078C5",
     orange="#d77757",
     magenta="magenta",
-    grey_blue="#7A5C98",
     grey1="#667e90",
     grey2="#93a4b1",
     grey3="#c4ced4",
     grey_green="#96a096",
     purple="slate_blue3",
+    lavender="steel_blue",
     diff_add="#2e5a32 on #e8f5e9",
     diff_remove="#5a2e32 on #ffebee",
     code_theme="ansi_light",
@@ -54,12 +54,12 @@ DARK_PALETTE = Palette(
     blue="deep_sky_blue1",
     orange="#e6704e",
     magenta="magenta",
-    grey_blue="steel_blue",
     grey1="#99aabb",
     grey2="#778899",
     grey3="#646464",
     grey_green="#6d8672",
     purple="#afbafe",
+    lavender="#9898b8",
     diff_add="#c8e6c9 on #2e4a32",
     diff_remove="#ffcdd2 on #4a2e32",
     code_theme="ansi_dark",
@@ -175,9 +175,9 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.USER_INPUT_AT_PATTERN.value: palette.purple,
                 ThemeKey.USER_INPUT_SLASH_COMMAND.value: "bold reverse " + palette.blue,
                 # METADATA
-                ThemeKey.METADATA.value: palette.grey_blue,
-                ThemeKey.METADATA_DIM.value: "dim " + palette.grey_blue,
-                ThemeKey.METADATA_BOLD.value: "bold " + palette.grey_blue,
+                ThemeKey.METADATA.value: palette.lavender,
+                ThemeKey.METADATA_DIM.value: "dim " + palette.lavender,
+                ThemeKey.METADATA_BOLD.value: "bold " + palette.lavender,
                 # SPINNER_STATUS
                 ThemeKey.SPINNER_STATUS.value: palette.blue,
                 ThemeKey.SPINNER_STATUS_TEXT.value: palette.blue,
@@ -267,7 +267,6 @@ def get_theme(theme: str | None = None) -> Themes:
             Style(color=palette.blue),
             Style(color=palette.purple),
             Style(color=palette.orange),
-            Style(color=palette.grey_blue),
             Style(color=palette.red),
             Style(color=palette.grey1),
             Style(color=palette.yellow),
