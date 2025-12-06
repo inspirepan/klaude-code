@@ -72,7 +72,9 @@ def session_clean_all(
     log(f"Deleted {deleted} session(s).")
 
 
-def register_session_commands(session_app: typer.Typer) -> None:
+def register_session_commands(app: typer.Typer) -> None:
     """Register session subcommands to the given Typer app."""
+    session_app = typer.Typer(help="Manage sessions for the current project")
     session_app.command("clean")(session_clean)
     session_app.command("clean-all")(session_clean_all)
+    app.add_typer(session_app, name="session")

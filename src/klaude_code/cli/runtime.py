@@ -30,37 +30,6 @@ class PrintCapable(Protocol):
     def print(self, *objects: Any, style: Any | None = None, end: str = "\n") -> None: ...
 
 
-DEBUG_FILTER_HELP = "Comma-separated debug types: " + ", ".join(dt.value for dt in DebugType)
-
-
-def _parse_debug_filters(raw: str | None) -> set[DebugType] | None:
-    if raw is None:
-        return None
-    filters: set[DebugType] = set()
-    for chunk in raw.split(","):
-        normalized = chunk.strip().lower().replace("-", "_")
-        if not normalized:
-            continue
-        try:
-            filters.add(DebugType(normalized))
-        except ValueError:  # pragma: no cover - user input validation
-            valid_options = ", ".join(dt.value for dt in DebugType)
-            log(
-                (
-                    f"Invalid debug filter '{normalized}'. Valid options: {valid_options}",
-                    "red",
-                )
-            )
-            raise typer.Exit(2) from None
-    return filters or None
-
-
-def resolve_debug_settings(flag: bool, raw_filters: str | None) -> tuple[bool, set[DebugType] | None]:
-    filters = _parse_debug_filters(raw_filters)
-    effective_flag = flag or (filters is not None)
-    return effective_flag, filters
-
-
 @dataclass
 class AppInitConfig:
     """Configuration for initializing the application components."""

@@ -1,7 +1,5 @@
 import asyncio
-import datetime
 import os
-import subprocess
 import sys
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as pkg_version
@@ -9,12 +7,14 @@ from pathlib import Path
 
 import typer
 
-from klaude_code.cli.runtime import DEBUG_FILTER_HELP, AppInitConfig, resolve_debug_settings, run_exec, run_interactive
+from klaude_code.cli.auth_cmd import register_auth_commands
+from klaude_code.cli.config_cmd import register_config_commands
+from klaude_code.cli.debug import DEBUG_FILTER_HELP, open_log_file_in_editor, resolve_debug_settings
+from klaude_code.cli.runtime import AppInitConfig, run_exec, run_interactive
 from klaude_code.cli.session_cmd import register_session_commands
-from klaude_code.config import config_path, display_models_and_providers, load_config, select_model_from_config
+from klaude_code.config import load_config, select_model_from_config
 from klaude_code.session import Session, resume_select_session
-from klaude_code.trace import log, prepare_debug_log_file
-from klaude_code.ui.terminal.color import is_light_terminal_background
+from klaude_code.trace import prepare_debug_log_file
 
 
 def set_terminal_title(title: str) -> None:
@@ -37,178 +37,16 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit(0)
 
 
-def _open_log_file_in_editor(path: Path) -> None:
-    """Open the given log file in a text editor without blocking the CLI."""
-
-    editor = os.environ.get("EDITOR")
-
-    if not editor:
-        for cmd in ["open", "xdg-open", "code", "nvim", "vim", "nano"]:
-            try:
-                subprocess.run(["which", cmd], check=True, capture_output=True)
-                editor = cmd
-                break
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                continue
-
-    if not editor:
-        if sys.platform == "darwin":
-            editor = "open"
-        elif sys.platform == "win32":
-            editor = "notepad"
-        else:
-            editor = "xdg-open"
-
-    try:
-        subprocess.Popen([editor, str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except FileNotFoundError:
-        log((f"Error: Editor '{editor}' not found", "red"))
-    except Exception as exc:  # pragma: no cover - best effort
-        log((f"Warning: failed to open log file in editor: {exc}", "yellow"))
-
-
 app = typer.Typer(
     add_completion=False,
     pretty_exceptions_enable=False,
     no_args_is_help=False,
 )
 
-session_app = typer.Typer(help="Manage sessions for the current project")
-register_session_commands(session_app)
-app.add_typer(session_app, name="session")
-
-
-@app.command("login")
-def login_command(
-    provider: str = typer.Argument("codex", help="Provider to login (codex)"),
-) -> None:
-    """Login to a provider using OAuth."""
-    if provider.lower() != "codex":
-        log((f"Error: Unknown provider '{provider}'. Currently only 'codex' is supported.", "red"))
-        raise typer.Exit(1)
-
-    from klaude_code.auth.codex.oauth import CodexOAuth
-    from klaude_code.auth.codex.token_manager import CodexTokenManager
-
-    token_manager = CodexTokenManager()
-
-    # Check if already logged in
-    if token_manager.is_logged_in():
-        state = token_manager.get_state()
-        if state and not state.is_expired():
-            log(("You are already logged in to Codex.", "green"))
-            log(f"  Account ID: {state.account_id[:8]}...")
-            expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
-            log(f"  Expires: {expires_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
-            if not typer.confirm("Do you want to re-login?"):
-                return
-
-    log("Starting Codex OAuth login flow...")
-    log("A browser window will open for authentication.")
-
-    try:
-        oauth = CodexOAuth(token_manager)
-        state = oauth.login()
-        log(("Login successful!", "green"))
-        log(f"  Account ID: {state.account_id[:8]}...")
-        expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
-        log(f"  Expires: {expires_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
-    except Exception as e:
-        log((f"Login failed: {e}", "red"))
-        raise typer.Exit(1) from None
-
-
-@app.command("logout")
-def logout_command(
-    provider: str = typer.Argument("codex", help="Provider to logout (codex)"),
-) -> None:
-    """Logout from a provider."""
-    if provider.lower() != "codex":
-        log((f"Error: Unknown provider '{provider}'. Currently only 'codex' is supported.", "red"))
-        raise typer.Exit(1)
-
-    from klaude_code.auth.codex.token_manager import CodexTokenManager
-
-    token_manager = CodexTokenManager()
-
-    if not token_manager.is_logged_in():
-        log("You are not logged in to Codex.")
-        return
-
-    if typer.confirm("Are you sure you want to logout from Codex?"):
-        token_manager.delete()
-        log(("Logged out from Codex.", "green"))
-
-
-@app.command("list")
-def list_models() -> None:
-    """List all models and providers configuration"""
-    config = load_config()
-    if config is None:
-        raise typer.Exit(1)
-
-    # Auto-detect theme when not explicitly set in config, to match other CLI entrypoints.
-    if config.theme is None:
-        detected = is_light_terminal_background()
-        if detected is True:
-            config.theme = "light"
-        elif detected is False:
-            config.theme = "dark"
-
-    display_models_and_providers(config)
-
-
-@app.command("config")
-@app.command("conf", hidden=True)
-def edit_config() -> None:
-    """Open the configuration file in $EDITOR or default system editor"""
-    editor = os.environ.get("EDITOR")
-
-    # If no EDITOR is set, prioritize TextEdit on macOS
-    if not editor:
-        # Try common editors in order of preference on other platforms
-        for cmd in [
-            "code",
-            "nvim",
-            "vim",
-            "nano",
-        ]:
-            try:
-                subprocess.run(["which", cmd], check=True, capture_output=True)
-                editor = cmd
-                break
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                continue
-
-    # If no editor found, try platform-specific defaults
-    if not editor:
-        if sys.platform == "darwin":  # macOS
-            editor = "open"
-        elif sys.platform == "win32":  # Windows
-            editor = "notepad"
-        else:  # Linux and other Unix systems
-            editor = "xdg-open"
-
-    # Ensure config file exists
-    config = load_config()
-    if config is None:
-        raise typer.Exit(1)
-
-    try:
-        if editor == "open -a TextEdit":
-            subprocess.run(["open", "-a", "TextEdit", str(config_path)], check=True)
-        elif editor in ["open", "xdg-open"]:
-            # For open/xdg-open, we need to pass the file directly
-            subprocess.run([editor, str(config_path)], check=True)
-        else:
-            subprocess.run([editor, str(config_path)], check=True)
-    except subprocess.CalledProcessError as e:
-        log((f"Error: Failed to open editor: {e}", "red"))
-        raise typer.Exit(1) from None
-    except FileNotFoundError:
-        log((f"Error: Editor '{editor}' not found", "red"))
-        log("Please install a text editor or set your $EDITOR environment variable")
-        raise typer.Exit(1) from None
+# Register subcommands from modules
+register_session_commands(app)
+register_auth_commands(app)
+register_config_commands(app)
 
 
 @app.command("exec")
@@ -253,6 +91,7 @@ def exec_command(
     ),
 ) -> None:
     """Execute non-interactively with provided input."""
+    from klaude_code.trace import log
 
     # Set terminal title with current folder name
     folder_name = os.path.basename(os.getcwd())
@@ -308,7 +147,7 @@ def exec_command(
     )
 
     if log_path:
-        _open_log_file_in_editor(log_path)
+        open_log_file_in_editor(log_path)
 
     asyncio.run(
         run_exec(
@@ -402,7 +241,7 @@ def main_callback(
         )
 
         if log_path:
-            _open_log_file_in_editor(log_path)
+            open_log_file_in_editor(log_path)
 
         asyncio.run(
             run_interactive(
