@@ -544,7 +544,13 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
 def _build_messages_html(
     history: list[model.ConversationItem],
     tool_results: dict[str, model.ToolResultItem],
+    *,
+    seen_session_ids: set[str] | None = None,
+    nesting_level: int = 0,
 ) -> str:
+    if seen_session_ids is None:
+        seen_session_ids = set()
+
     blocks: list[str] = []
     assistant_counter = 0
 
@@ -596,7 +602,59 @@ def _build_messages_html(
             result = tool_results.get(item.call_id)
             blocks.append(_format_tool_call(item, result))
 
+            # Recursively render sub-agent session history
+            if result is not None:
+                sub_agent_html = _render_sub_agent_session(result, seen_session_ids, nesting_level)
+                if sub_agent_html:
+                    blocks.append(sub_agent_html)
+
     return "\n".join(blocks)
+
+
+def _render_sub_agent_session(
+    tool_result: model.ToolResultItem,
+    seen_session_ids: set[str],
+    nesting_level: int,
+) -> str | None:
+    """Render sub-agent session history when a tool result references it."""
+    from klaude_code.session.session import Session
+
+    ui_extra = tool_result.ui_extra
+    if not isinstance(ui_extra, model.SessionIdUIExtra):
+        return None
+
+    session_id = ui_extra.session_id
+    if not session_id or session_id in seen_session_ids:
+        return None
+
+    seen_session_ids.add(session_id)
+
+    try:
+        sub_session = Session.load(session_id)
+    except Exception:
+        return None
+
+    sub_history = sub_session.conversation_history
+    sub_tool_results = {item.call_id: item for item in sub_history if isinstance(item, model.ToolResultItem)}
+
+    sub_html = _build_messages_html(
+        sub_history,
+        sub_tool_results,
+        seen_session_ids=seen_session_ids,
+        nesting_level=nesting_level + 1,
+    )
+
+    if not sub_html:
+        return None
+
+    # Wrap in a collapsible sub-agent container using same style as other collapsible sections
+    indent_style = f' style="margin-left: {nesting_level * 16}px;"' if nesting_level > 0 else ""
+    return (
+        f'<details class="sub-agent-session"{indent_style}>'
+        f"<summary>Sub-agent: {_escape_html(session_id)}</summary>"
+        f'<div class="sub-agent-content">{sub_html}</div>'
+        f"</details>"
+    )
 
 
 def build_export_html(

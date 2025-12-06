@@ -886,6 +886,52 @@
         color: var(--text-dim);
       }
 
+      /* Sub-agent Session */
+      details.sub-agent-session {
+        background: transparent;
+        margin: 16px 0;
+        border-left: 3px solid var(--accent);
+        padding-left: 16px;
+      }
+      details.sub-agent-session > summary {
+        padding: 4px 0;
+        font-family: var(--font-mono);
+        font-size: var(--font-size-sm);
+        text-transform: uppercase;
+        font-weight: var(--font-weight-bold);
+        cursor: pointer;
+        user-select: none;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 24px;
+        line-height: 1.2;
+        color: var(--text-dim);
+        transition: color 0.2s;
+      }
+      details.sub-agent-session > summary:hover,
+      details.sub-agent-session[open] > summary {
+        color: var(--text);
+      }
+      details.sub-agent-session > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.sub-agent-session > summary::before {
+        content: "[+]";
+        color: var(--accent);
+        font-family: var(--font-mono);
+        margin-right: 4px;
+        display: inline-block;
+        min-width: 24px;
+      }
+      details.sub-agent-session[open] > summary::before {
+        content: "[-]";
+      }
+      details.sub-agent-session > .sub-agent-content {
+        padding: 8px 0 0 0;
+      }
+
       /* Scroll to Bottom Button */
       .scroll-btn {
         position: fixed;
