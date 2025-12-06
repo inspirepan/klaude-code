@@ -568,7 +568,7 @@ class TestSessionPersistence:
                     status="success",
                     tool_name="Task",
                     ui_extra=model.SessionIdUIExtra(session_id=sub_session.id),
-                )
+                ),
             ]
         )
 
@@ -578,10 +578,14 @@ class TestSessionPersistence:
 
         # Expect order: parent tool call -> parent tool result -> sub-agent tool call
         parent_call_index = next(
-            i for i, e in enumerate(events_list) if isinstance(e, events.ToolCallEvent) and e.session_id == main_session.id
+            i
+            for i, e in enumerate(events_list)
+            if isinstance(e, events.ToolCallEvent) and e.session_id == main_session.id
         )
         parent_result_index = next(
-            i for i, e in enumerate(events_list) if isinstance(e, events.ToolResultEvent) and e.session_id == main_session.id
+            i
+            for i, e in enumerate(events_list)
+            if isinstance(e, events.ToolResultEvent) and e.session_id == main_session.id
         )
 
         sub_events = [e for e in events_list if getattr(e, "session_id", None) == sub_session.id]

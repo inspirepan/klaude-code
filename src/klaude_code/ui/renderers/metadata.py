@@ -56,8 +56,8 @@ def _render_task_metadata_block(
 
     renderables: list[RenderableType] = [model_text]
 
-    # Line 2: Token consumption, Context, TPS, Cost
-    parts2: list[Text] = []
+    # Line 2: Token consumption, context, TPS, cost, time, turns (all in one line)
+    parts: list[Text] = []
 
     if metadata.usage is not None:
         # Input
@@ -67,7 +67,7 @@ def _render_task_metadata_block(
         ]
         if metadata.usage.input_cost is not None:
             input_parts.append((f"({currency_symbol}{metadata.usage.input_cost:.4f})", ThemeKey.METADATA_DIM))
-        parts2.append(Text.assemble(*input_parts))
+        parts.append(Text.assemble(*input_parts))
 
         # Cached
         if metadata.usage.cached_tokens > 0:
@@ -77,7 +77,7 @@ def _render_task_metadata_block(
             ]
             if metadata.usage.cache_read_cost is not None:
                 cached_parts.append((f"({currency_symbol}{metadata.usage.cache_read_cost:.4f})", ThemeKey.METADATA_DIM))
-            parts2.append(Text.assemble(*cached_parts))
+            parts.append(Text.assemble(*cached_parts))
 
         # Output
         output_parts: list[tuple[str, str]] = [
@@ -86,11 +86,11 @@ def _render_task_metadata_block(
         ]
         if metadata.usage.output_cost is not None:
             output_parts.append((f"({currency_symbol}{metadata.usage.output_cost:.4f})", ThemeKey.METADATA_DIM))
-        parts2.append(Text.assemble(*output_parts))
+        parts.append(Text.assemble(*output_parts))
 
         # Reasoning
         if metadata.usage.reasoning_tokens > 0:
-            parts2.append(
+            parts.append(
                 Text.assemble(
                     ("thinking", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
@@ -103,23 +103,18 @@ def _render_task_metadata_block(
 
     # Cost
     if metadata.usage is not None and metadata.usage.total_cost is not None:
-        parts2.append(
+        parts.append(
             Text.assemble(
                 ("cost", ThemeKey.METADATA_DIM),
                 (":", ThemeKey.METADATA_DIM),
                 (f"{currency_symbol}{metadata.usage.total_cost:.4f}", ThemeKey.METADATA_DIM),
             )
         )
-    if parts2:
-        line2 = Text(" / ", style=ThemeKey.METADATA_DIM).join(parts2)
-        renderables.append(Padding(line2, (0, 0, 0, indent + 2)))
-
-    parts3: list[Text] = []
     if metadata.usage is not None:
         # Context (only for main agent)
         if show_context_and_time and metadata.usage.context_usage_percent is not None:
             context_size = format_number(metadata.usage.context_size or 0)
-            parts3.append(
+            parts.append(
                 Text.assemble(
                     ("context", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
@@ -132,7 +127,7 @@ def _render_task_metadata_block(
 
         # TPS
         if metadata.usage.throughput_tps is not None:
-            parts3.append(
+            parts.append(
                 Text.assemble(
                     ("tps", ThemeKey.METADATA_DIM),
                     (":", ThemeKey.METADATA_DIM),
@@ -142,7 +137,7 @@ def _render_task_metadata_block(
 
     # Duration
     if show_context_and_time and metadata.task_duration_s is not None:
-        parts3.append(
+        parts.append(
             Text.assemble(
                 ("time", ThemeKey.METADATA_DIM),
                 (":", ThemeKey.METADATA_DIM),
@@ -152,7 +147,7 @@ def _render_task_metadata_block(
 
     # Turn count
     if show_context_and_time and metadata.turn_count > 0:
-        parts3.append(
+        parts.append(
             Text.assemble(
                 ("turns", ThemeKey.METADATA_DIM),
                 (":", ThemeKey.METADATA_DIM),
@@ -160,9 +155,9 @@ def _render_task_metadata_block(
             )
         )
 
-    if parts3:
-        line2 = Text(" / ", style=ThemeKey.METADATA_DIM).join(parts3)
-        renderables.append(Padding(line2, (0, 0, 0, indent + 2)))
+    if parts:
+        line = Text(" / ", style=ThemeKey.METADATA_DIM).join(parts)
+        renderables.append(Padding(line, (0, 0, 0, indent + 2)))
 
     return renderables
 

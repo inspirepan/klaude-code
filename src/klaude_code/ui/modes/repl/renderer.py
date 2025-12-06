@@ -145,9 +145,7 @@ class REPLRenderer:
                     case events.AssistantMessageEvent() as e:
                         if is_sub_agent:
                             continue
-                        renderable = r_assistant.render_assistant_message(
-                            e.content, code_theme=self.themes.code_theme
-                        )
+                        renderable = r_assistant.render_assistant_message(e.content, code_theme=self.themes.code_theme)
                         if renderable is not None:
                             self.print(renderable)
                             self.print()
