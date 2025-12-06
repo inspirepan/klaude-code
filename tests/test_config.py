@@ -450,6 +450,40 @@ class TestLoadConfig:
         with pytest.raises(ValueError, match="Invalid config file"):
             load_config()
 
+    def test_load_config_does_not_cache_missing_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Ensure a missing config (returning None) does not get cached."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+        load_config.cache_clear()
+
+        # First call should create commented example and return None
+        first = load_config()
+        assert first is None
+
+        # Write a valid config and ensure it loads without needing cache_clear
+        config_dict = {
+            "main_model": "after-create",
+            "provider_list": [
+                {
+                    "provider_name": "p",
+                    "protocol": "openai",
+                    "api_key": "k",
+                }
+            ],
+            "model_list": [
+                {
+                    "model_name": "after-create",
+                    "provider": "p",
+                    "model_params": {"model": "gpt-4"},
+                }
+            ],
+        }
+        test_config_path.write_text(str(yaml.dump(config_dict) or ""))
+
+        second = load_config()
+        assert second is not None
+        assert second.main_model == "after-create"
+
 
 # =============================================================================
 # mask_api_key Tests

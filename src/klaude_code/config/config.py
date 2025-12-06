@@ -143,8 +143,7 @@ def get_example_config() -> Config:
     )
 
 
-@lru_cache(maxsize=1)
-def load_config() -> Config | None:
+def _load_config_uncached() -> Config | None:
     if not config_path.exists():
         log(f"Config file not found: {config_path}")
         example_config = get_example_config()
@@ -176,3 +175,30 @@ def load_config() -> Config | None:
         raise ValueError(f"Invalid config file: {config_path}") from e
 
     return config
+
+
+@lru_cache(maxsize=1)
+def _load_config_cached() -> Config | None:
+    return _load_config_uncached()
+
+
+def load_config() -> Config | None:
+    """Load config from disk, caching only successful parses.
+
+    Returns:
+        Config object on success, or None when the config is missing/empty/commented out.
+    """
+
+    try:
+        config = _load_config_cached()
+    except ValueError:
+        _load_config_cached.cache_clear()
+        raise
+
+    if config is None:
+        _load_config_cached.cache_clear()
+    return config
+
+
+# Expose cache control for tests and callers that need to invalidate the cache.
+load_config.cache_clear = _load_config_cached.cache_clear  # type: ignore[attr-defined]
