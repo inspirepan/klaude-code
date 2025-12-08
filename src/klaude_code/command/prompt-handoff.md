@@ -1,6 +1,6 @@
 ---
 description: Write a HANDOFF.md for another agent to continue the conversation
-from: amp-cli
+from: amp-cli https://ampcode.com/manual#handoff
 ---
 
 Write a HANDOFF.md file in the current working directory for another agent to continue this conversation.
