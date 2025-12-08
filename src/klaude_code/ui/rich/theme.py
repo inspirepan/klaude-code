@@ -29,7 +29,7 @@ class Palette:
 LIGHT_PALETTE = Palette(
     red="red",
     yellow="yellow",
-    green="spring_green4",
+    green="#00875f",
     cyan="cyan",
     blue="#3078C5",
     orange="#d77757",
@@ -38,8 +38,8 @@ LIGHT_PALETTE = Palette(
     grey2="#93a4b1",
     grey3="#c4ced4",
     grey_green="#96a096",
-    purple="slate_blue3",
-    lavender="steel_blue",
+    purple="#5f5fd7",
+    lavender="#5f87af",
     diff_add="#2e5a32 on #e8f5e9",
     diff_remove="#5a2e32 on #ffebee",
     code_theme="ansi_light",
@@ -47,11 +47,11 @@ LIGHT_PALETTE = Palette(
 )
 
 DARK_PALETTE = Palette(
-    red="indian_red",
+    red="#d75f5f",
     yellow="yellow",
-    green="sea_green3",
+    green="#5fd787",
     cyan="cyan",
-    blue="deep_sky_blue1",
+    blue="#00afff",
     orange="#e6704e",
     magenta="magenta",
     grey1="#99aabb",
