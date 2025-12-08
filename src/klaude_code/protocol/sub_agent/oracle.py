@@ -67,9 +67,9 @@ def _oracle_prompt_builder(args: dict[str, Any]) -> str:
     task = args.get("task", "")
     files = args.get("files", [])
 
-    prompt = f"""Context: {context}
-
-Task: {task}
+    prompt = f"""\
+Context: {context}
+Task: {task}\
 """
     if files:
         files_str = "\n".join(f"@{file}" for file in files)

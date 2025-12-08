@@ -24,15 +24,30 @@ BREATHING_SPINNER_NAME = "dots"
 # All glyphs are center-symmetric (point-symmetric)
 _BREATHING_SPINNER_GLYPHS_BASE = [
     # Floral
-    "✿", "❀", "❁", "✾",
+    "✿",
+    "❀",
+    "❁",
+    "✾",
     # Snowflake
-    "❄", "❅", "❆",
+    "❄",
     # Stars
-    "✦", "✧", "✴", "✵", "✶", "✷", "✸",
+    "✦",
+    "✧",
+    "✴",
+    "✶",
+    "✷",
     # Asterisks
-    "✱", "✲", "✳", "✻", "✼", "❃", "❊", "❋",
+    "✱",
+    "✲",
+    "✳",
+    "✻",
+    "✼",
+    "❃",
+    "❊",
+    "❋",
     # Diamonds
-    "◆", "❖",
+    "◆",
+    "❖",
     # Misc
     "⚛",
 ]

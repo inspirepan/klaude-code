@@ -175,6 +175,10 @@ class SpinnerStatusState:
         """Clear activity state for a new turn."""
         self._activity.reset()
 
+    def get_activity_text(self) -> Text | None:
+        """Get current activity text. Returns None if idle."""
+        return self._activity.get_activity_text()
+
     def get_status(self) -> Text:
         """Get current spinner status as rich Text."""
         activity_text = self._activity.get_activity_text()
@@ -522,13 +526,21 @@ class DisplayEventHandler:
 
         Reserve space for:
         - Spinner glyph + space: 2 chars
-        - " | " separator: 3 chars (if activity text present)
-        - Activity text: ~20 chars estimate
+        - " | " separator: 3 chars (only if activity text present)
+        - Activity text: actual length (only if present)
         - Status hint text (esc to interrupt)
-        - Buffer: 6 chars
         """
         terminal_width = self.renderer.console.size.width
-        reserved_space = 2 + 3 + 20 + len(const.STATUS_HINT_TEXT) + 6
+
+        # Base reserved space: spinner + status hint
+        reserved_space = 2 + len(const.STATUS_HINT_TEXT)
+
+        # Add space for activity text if present
+        activity_text = self.spinner_status.get_activity_text()
+        if activity_text:
+            # " | " separator + actual activity text length
+            reserved_space += 3 + len(activity_text.plain)
+
         max_length = max(20, terminal_width - reserved_space)
         return max_length
 
