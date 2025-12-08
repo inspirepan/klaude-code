@@ -377,6 +377,7 @@ class DisplayEventHandler:
         self.spinner_status.set_composing(False)
         self._update_spinner()
         await self.stage_manager.transition_to(Stage.WAITING)
+        self.renderer.print()
         self.renderer.spinner_start()
 
     def _on_tool_call_start(self, event: events.TurnToolCallStartEvent) -> None:
@@ -476,6 +477,7 @@ class DisplayEventHandler:
             mdstream.update(self.thinking_stream.buffer, final=True)
             self.thinking_stream.finish()
             self.renderer.console.pop_theme()
+            self.renderer.print()
             self.renderer.spinner_start()
 
     def _maybe_notify_task_finish(self, event: events.TaskFinishEvent) -> None:

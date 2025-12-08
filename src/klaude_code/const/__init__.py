@@ -103,7 +103,7 @@ SUB_AGENT_RESULT_MAX_LINES = 12
 UI_REFRESH_RATE_FPS = 20
 
 # Number of lines to keep visible at bottom of markdown streaming window
-MARKDOWN_STREAM_LIVE_WINDOW = 20
+MARKDOWN_STREAM_LIVE_WINDOW = 6
 
 # Status shimmer animation
 # Horizontal padding used when computing shimmer band position

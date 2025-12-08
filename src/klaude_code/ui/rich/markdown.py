@@ -126,10 +126,6 @@ class MarkdownStream:
         self.when: float = 0.0  # Timestamp of last update
         self.min_delay: float = 1.0 / 20  # Minimum time between updates (20fps)
         self.live_window: int = const.MARKDOWN_STREAM_LIVE_WINDOW
-        # Track the maximum height the live window has ever reached
-        # so we only pad when it shrinks from a previous height,
-        # instead of always padding to live_window from the start.
-        self._live_window_seen_height: int = 0
 
         self.theme = theme
         self.console = console
@@ -224,18 +220,16 @@ class MarkdownStream:
         Markdown going to the console works better in terminal scrollback buffers.
         The live window doesn't play nice with terminal scrollback.
         """
-        # On the first call, start the Live renderer
         if not self._live_started:
             initial_content = self._live_renderable(Text(""), final=False)
+            # transient=False keeps final frame on screen after stop()
             self.live = Live(
                 initial_content,
                 refresh_per_second=1.0 / self.min_delay,
                 console=self.console,
             )
             self.live.start()
-            # Note: self._live_started is now a property derived from self.live
 
-        # If live rendering isn't available (e.g., after a final update), stop.
         if self.live is None:
             return
 
@@ -255,60 +249,35 @@ class MarkdownStream:
 
         num_lines = len(lines)
 
-        # How many lines have "left" the live window and are now considered stable?
-        # Or if final, consider all lines to be stable.
-        if not final:
-            num_lines = max(num_lines - self.live_window, 0)
+        # Reserve last live_window lines for Live area to keep height stable
+        num_lines = max(num_lines - self.live_window, 0)
 
-        # If there is new stable content, append only the new part
-        # Update Live window to prevent visual duplication
-        if final or num_lines > 0:
-            # Lines to append to stable area
+        # Print new stable lines above Live window
+        if num_lines > 0:
             num_printed = len(self.printed)
             to_append_count = num_lines - num_printed
 
             if to_append_count > 0:
-                # Print new stable lines above Live window
                 append_chunk = lines[num_printed:num_lines]
                 append_chunk_text = Text.from_ansi("".join(append_chunk))
                 live = self.live
                 assert live is not None
-                live.console.print(append_chunk_text)  # Print above Live area
-
-                # Track printed stable lines
+                live.console.print(append_chunk_text)
                 self.printed = lines[:num_lines]
 
-        # Handle final update cleanup
+        rest_lines = lines[num_lines:]
+
+        # Final: render remaining lines without spinner, then stop Live
         if final:
             live = self.live
             assert live is not None
-            live.update(Text(""))
+            rest = "".join(rest_lines)
+            rest_text = Text.from_ansi(rest)
+            final_renderable = self._live_renderable(rest_text, final=True)
+            live.update(final_renderable)
             live.stop()
             self.live = None
             return
-
-        # Update Live window to prevent timing issues
-        # with console.print above. We pad the live region
-        # so that its height stays stable when it shrinks
-        # from a previously reached height, avoiding spinner jitter.
-        rest_lines = lines[num_lines:]
-
-        if not final:
-            current_height = len(rest_lines)
-
-            # Update the maximum height we've seen so far for this live window.
-            if current_height > self._live_window_seen_height:
-                # Never exceed configured live_window, even if logic changes later.
-                self._live_window_seen_height = min(current_height, self.live_window)
-
-            target_height = min(self._live_window_seen_height, self.live_window)
-            if target_height > 0 and current_height < target_height:
-                # Pad only up to the maximum height we've seen so far.
-                # This keeps the Live region height stable without overshooting,
-                # which can cause the spinner to jump by a line.
-                pad_count = target_height - current_height
-                # Pad after the existing lines so spinner visually stays at the bottom.
-                rest_lines = rest_lines + ["\n"] * pad_count
 
         rest = "".join(rest_lines)
         rest = Text.from_ansi(rest)
