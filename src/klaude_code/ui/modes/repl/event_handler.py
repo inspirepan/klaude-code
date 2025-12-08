@@ -9,7 +9,7 @@ from klaude_code import const
 from klaude_code.protocol import events
 from klaude_code.ui.core.stage_manager import Stage, StageManager
 from klaude_code.ui.modes.repl.renderer import REPLRenderer
-from klaude_code.ui.rich.markdown import MarkdownStream
+from klaude_code.ui.rich.markdown import MarkdownStream, ThinkingMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.terminal.notifier import Notification, NotificationType, TerminalNotifier
 from klaude_code.ui.terminal.progress_bar import OSC94States, emit_osc94
@@ -318,6 +318,7 @@ class DisplayEventHandler:
                 console=self.renderer.console,
                 spinner=self.renderer.spinner_renderable(),
                 indent=2,
+                markdown_class=ThinkingMarkdown,
             )
             self.thinking_stream.start(mdstream)
             self.renderer.spinner_stop()

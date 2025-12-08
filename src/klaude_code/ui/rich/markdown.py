@@ -4,6 +4,7 @@ from __future__ import annotations
 import contextlib
 import io
 import time
+from collections.abc import Callable
 from typing import Any, ClassVar
 
 from rich import box
@@ -105,6 +106,7 @@ class MarkdownStream:
         spinner: Spinner | None = None,
         mark: str | None = None,
         indent: int = 0,
+        markdown_class: Callable[..., Markdown] | None = None,
     ) -> None:
         """Initialize the markdown stream.
 
@@ -114,6 +116,7 @@ class MarkdownStream:
             console (Console, optional): External console to use for rendering
             mark (str | None, optional): Marker shown before the first non-empty line when indent >= 2
             indent (int, optional): Number of spaces to indent all rendered lines on the left
+            markdown_class: Markdown class to use for rendering (defaults to NoInsetMarkdown)
         """
         self.printed: list[str] = []  # Stores lines that have already been printed
 
@@ -139,6 +142,7 @@ class MarkdownStream:
         self.spinner: Spinner | None = spinner
         self.mark: str | None = mark
         self.indent: int = max(indent, 0)
+        self.markdown_class: Callable[..., Markdown] = markdown_class or NoInsetMarkdown
 
     @property
     def _live_started(self) -> bool:
@@ -175,7 +179,7 @@ class MarkdownStream:
             width=effective_width,
         )
 
-        markdown = NoInsetMarkdown(text, **self.mdargs)
+        markdown = self.markdown_class(text, **self.mdargs)
         temp_console.print(markdown)
         output = string_io.getvalue()
 
