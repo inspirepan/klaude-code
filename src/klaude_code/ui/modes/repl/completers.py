@@ -85,7 +85,7 @@ class _SlashCommandCompleter(Completer):
         matched: list[tuple[str, object, str]] = []
         for cmd_name, cmd_obj in commands.items():
             if cmd_name.startswith(frag):
-                hint = " [args]" if cmd_obj.support_addition_params else ""
+                hint = " [instructions]" if cmd_obj.support_addition_params else ""
                 matched.append((cmd_name, cmd_obj, hint))
 
         if not matched:
