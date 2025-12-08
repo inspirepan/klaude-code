@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.15] - 2025-12-08
+
+### Added
+
+- support custom markdown class in MarkdownStream (`5d5ae77`)
+- update style of export and metadata (`220e49f`)
+- update code block style (`605e889`)
+- add dedicated markdown renderer for thinking content (`8f60728`)
+- display bash timeout in seconds for readability (`0af058b`)
+
+### Fixed
+
+- thinking markdown code style (`3498693`)
+- fix thinking command setting anthropic thinking budget 0 (`d1c1828`)
+- add missing markdown.code.block style to thinking theme (`8e95cec`)
+
+### Other
+
+- tweak metadata layout and palette (`06a1b07`)
+- tweak metadata layout and palette (`e06ed9d`)
 ## [1.2.14] - 2025-12-06
 
 ### Added
@@ -445,7 +465,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.14...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.15...HEAD
+[1.2.15]: https://github.com/inspirepan/klaude-code/compare/v1.2.14...v1.2.15
 [1.2.14]: https://github.com/inspirepan/klaude-code/compare/v1.2.13...v1.2.14
 [1.2.13]: https://github.com/inspirepan/klaude-code/compare/v1.2.12...v1.2.13
 [1.2.12]: https://github.com/inspirepan/klaude-code/compare/v1.2.11...v1.2.12
