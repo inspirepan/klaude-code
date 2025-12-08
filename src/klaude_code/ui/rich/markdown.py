@@ -42,8 +42,7 @@ class ThinkingCodeBlock(CodeBlock):
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         code = str(self.text).rstrip()
-        text = Text("```\n" + code + "\n```")
-        text.stylize("markdown.code.thinking")
+        text = Text(code, "markdown.code.block")
         yield text
 
 
