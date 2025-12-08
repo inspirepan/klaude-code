@@ -43,6 +43,7 @@ class ThinkingCodeBlock(CodeBlock):
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         code = str(self.text).rstrip()
         text = Text("```\n" + code + "\n```")
+        text.stylize("markdown.code.thinking")
         yield text
 
 
@@ -52,7 +53,10 @@ class LeftHeading(Heading):
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         text = self.text
         text.justify = "left"  # Override justification
-        if self.tag == "h2":
+        if self.tag == "h1":
+            h1_text = text.assemble(("  ", "markdown.h1"), text, ("  ", "markdown.h1"))
+            yield h1_text
+        elif self.tag == "h2":
             text.stylize(Style(bold=True, underline=False))
             yield Rule(title=text, characters="-", style="markdown.h2.border", align="left")
         else:
