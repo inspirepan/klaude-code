@@ -90,7 +90,7 @@ model_list:
     provider_routing:
       sort: throughput
 main_model: gpt-5.1-codex
-subagent_models:
+sub_agent_models:
   oracle: gpt-5.1-high
   explore: haiku
   task: sonnet

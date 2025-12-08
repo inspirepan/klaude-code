@@ -141,7 +141,7 @@ class TestConfig:
         assert sample_config.main_model == "test-model"
         assert len(sample_config.provider_list) == 1
         assert len(sample_config.model_list) == 1
-        assert sample_config.subagent_models == {}
+        assert sample_config.sub_agent_models == {}
         assert sample_config.theme is None
 
     def test_config_with_theme(
@@ -194,50 +194,50 @@ class TestConfig:
         with pytest.raises(ValueError, match="Unknown provider: nonexistent-provider"):
             config.get_model_config("orphan-model")
 
-    def test_subagent_models_normalization(
+    def test_sub_agent_models_normalization(
         self, sample_provider: llm_param.LLMConfigProviderParameter, sample_model_config: ModelConfig
     ) -> None:
-        """Test that subagent_models keys are normalized to canonical names."""
+        """Test that sub_agent_models keys are normalized to canonical names."""
         # Use lowercase keys that should be normalized
         config = Config(
             provider_list=[sample_provider],
             model_list=[sample_model_config],
             main_model="test-model",
-            subagent_models={"task": "model-a", "oracle": "model-b"},
+            sub_agent_models={"task": "model-a", "oracle": "model-b"},
         )
 
         # Keys should be normalized to canonical form (matching SubAgentProfile names)
         # Based on sub_agent.py, the canonical names are "Task", "Oracle", etc.
-        assert "Task" in config.subagent_models
-        assert "Oracle" in config.subagent_models
-        assert config.subagent_models["Task"] == "model-a"
-        assert config.subagent_models["Oracle"] == "model-b"
+        assert "Task" in config.sub_agent_models
+        assert "Oracle" in config.sub_agent_models
+        assert config.sub_agent_models["Task"] == "model-a"
+        assert config.sub_agent_models["Oracle"] == "model-b"
 
-    def test_subagent_models_empty(
+    def test_sub_agent_models_empty(
         self, sample_provider: llm_param.LLMConfigProviderParameter, sample_model_config: ModelConfig
     ) -> None:
-        """Test that empty subagent_models is handled correctly."""
+        """Test that empty sub_agent_models is handled correctly."""
         config = Config(
             provider_list=[sample_provider],
             model_list=[sample_model_config],
             main_model="test-model",
-            subagent_models={},
+            sub_agent_models={},
         )
-        assert config.subagent_models == {}
+        assert config.sub_agent_models == {}
 
-    def test_subagent_models_none(
+    def test_sub_agent_models_none(
         self, sample_provider: llm_param.LLMConfigProviderParameter, sample_model_config: ModelConfig
     ) -> None:
-        """Test that None subagent_models is handled correctly."""
+        """Test that None sub_agent_models is handled correctly."""
         # Pass data through model_validate to trigger validator
         data: dict[str, Any] = {
             "provider_list": [sample_provider.model_dump()],
             "model_list": [sample_model_config.model_dump()],
             "main_model": "test-model",
-            "subagent_models": None,
+            "sub_agent_models": None,
         }
         config = Config.model_validate(data)
-        assert config.subagent_models == {}
+        assert config.sub_agent_models == {}
 
 
 class TestConfigSave:
@@ -343,12 +343,12 @@ class TestGetExampleConfig:
         model_names = [m.model_name for m in config.model_list]
         assert config.main_model in model_names
 
-    def test_get_example_config_subagent_models(self) -> None:
-        """Test that example config has subagent models configured."""
+    def test_get_example_config_sub_agent_models(self) -> None:
+        """Test that example config has sub-agent models configured."""
         config = get_example_config()
 
-        assert "Explore" in config.subagent_models
-        assert "Oracle" in config.subagent_models
+        assert "Explore" in config.sub_agent_models
+        assert "Oracle" in config.sub_agent_models
 
 
 # =============================================================================

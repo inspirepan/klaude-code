@@ -96,7 +96,7 @@ class ExecutorContext:
         # Delegate responsibilities to helper components
         self.agent_manager = AgentManager(event_queue, llm_clients, resolved_profile_provider)
         self.task_manager = TaskManager()
-        self.subagent_manager = SubAgentManager(event_queue, llm_clients, resolved_profile_provider)
+        self.sub_agent_manager = SubAgentManager(event_queue, llm_clients, resolved_profile_provider)
 
     async def emit_event(self, event: events.Event) -> None:
         """Emit an event to the UI display system."""
@@ -240,7 +240,7 @@ class ExecutorContext:
 
             # Inject subtask runner into tool context for nested Task tool usage
             async def _runner(state: model.SubAgentState) -> SubAgentResult:
-                return await self.subagent_manager.run_subagent(agent, state)
+                return await self.sub_agent_manager.run_sub_agent(agent, state)
 
             token = current_run_subtask_callback.set(_runner)
             try:

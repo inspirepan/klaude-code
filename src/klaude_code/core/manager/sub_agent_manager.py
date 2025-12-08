@@ -35,7 +35,7 @@ class SubAgentManager:
 
         await self._event_queue.put(event)
 
-    async def run_subagent(self, parent_agent: Agent, state: model.SubAgentState) -> SubAgentResult:
+    async def run_sub_agent(self, parent_agent: Agent, state: model.SubAgentState) -> SubAgentResult:
         """Run a nested sub-agent task and return its result."""
 
         # Create a child session under the same workdir
@@ -72,19 +72,19 @@ class SubAgentManager:
         except asyncio.CancelledError:
             # Propagate cancellation so tooling can treat it as user interrupt
             log_debug(
-                f"Subagent task for {state.sub_agent_type} was cancelled",
+                f"Sub-agent task for {state.sub_agent_type} was cancelled",
                 style="yellow",
                 debug_type=DebugType.EXECUTION,
             )
             raise
         except Exception as exc:  # pragma: no cover - defensive logging
             log_debug(
-                f"Subagent task failed: [{exc.__class__.__name__}] {exc!s}",
+                f"Sub-agent task failed: [{exc.__class__.__name__}] {exc!s}",
                 style="red",
                 debug_type=DebugType.EXECUTION,
             )
             return SubAgentResult(
-                task_result=f"Subagent task failed: [{exc.__class__.__name__}] {exc!s}",
+                task_result=f"Sub-agent task failed: [{exc.__class__.__name__}] {exc!s}",
                 session_id="",
                 error=True,
             )

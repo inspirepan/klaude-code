@@ -16,7 +16,7 @@ def _normalize_thinking_content(content: str) -> str:
         content.rstrip()
         .replace("**\n\n", "**  \n")
         .replace("\\n\\n\n\n", "")  # Weird case of Gemini 3
-        .replace("****", "**\n\n**")  # remove extra newlines after bold titles
+        .replace("****", "**\n\n**")  # Remove extra newlines after bold titles
     )
 
 

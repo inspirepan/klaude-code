@@ -23,20 +23,20 @@ class Config(BaseModel):
     provider_list: list[llm_param.LLMConfigProviderParameter]
     model_list: list[ModelConfig]
     main_model: str
-    subagent_models: dict[str, str] = Field(default_factory=dict)
+    sub_agent_models: dict[str, str] = Field(default_factory=dict)
     theme: str | None = None
 
     @model_validator(mode="before")
     @classmethod
-    def _normalize_subagent_models(cls, data: dict[str, Any]) -> dict[str, Any]:
-        raw_val: Any = data.get("subagent_models") or {}
+    def _normalize_sub_agent_models(cls, data: dict[str, Any]) -> dict[str, Any]:
+        raw_val: Any = data.get("sub_agent_models") or {}
         raw_models: dict[str, Any] = cast(dict[str, Any], raw_val) if isinstance(raw_val, dict) else {}
         normalized: dict[str, str] = {}
         key_map = {p.name.lower(): p.name for p in iter_sub_agent_profiles()}
         for key, value in dict(raw_models).items():
             canonical = key_map.get(str(key).lower(), str(key))
             normalized[canonical] = str(value)
-        data["subagent_models"] = normalized
+        data["sub_agent_models"] = normalized
         return data
 
     def get_main_model_config(self) -> llm_param.LLMConfigParameter:
@@ -80,7 +80,7 @@ class Config(BaseModel):
 def get_example_config() -> Config:
     return Config(
         main_model="gpt-5.1",
-        subagent_models={"explore": "haiku", "oracle": "gpt-5.1-high"},
+        sub_agent_models={"explore": "haiku", "oracle": "gpt-5.1-high"},
         provider_list=[
             llm_param.LLMConfigProviderParameter(
                 provider_name="openai",

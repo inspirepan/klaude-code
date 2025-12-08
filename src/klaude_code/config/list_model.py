@@ -198,7 +198,7 @@ def display_models_and_providers(config: Config):
     )
 
     for profile in iter_sub_agent_profiles():
-        sub_model_name = config.subagent_models.get(profile.name)
+        sub_model_name = config.sub_agent_models.get(profile.name)
         if not sub_model_name:
             continue
         console.print(

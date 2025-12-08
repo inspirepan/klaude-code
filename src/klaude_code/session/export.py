@@ -301,16 +301,16 @@ def _try_render_todo_args(arguments: str) -> str | None:
 def _render_sub_agent_result(content: str) -> str:
     encoded = _escape_html(content)
     return (
-        f'<div class="subagent-result-container">'
-        f'<div class="subagent-toolbar">'
+        f'<div class="sub-agent-result-container">'
+        f'<div class="sub-agent-toolbar">'
         f'<button type="button" class="raw-toggle" aria-pressed="false" title="Toggle raw text view">Raw</button>'
         f'<button type="button" class="copy-raw-btn" title="Copy raw content">Copy</button>'
         f"</div>"
-        f'<div class="subagent-content">'
-        f'<div class="subagent-rendered markdown-content markdown-body" data-raw="{encoded}">'
+        f'<div class="sub-agent-content">'
+        f'<div class="sub-agent-rendered markdown-content markdown-body" data-raw="{encoded}">'
         f'<noscript><pre style="white-space: pre-wrap;">{encoded}</pre></noscript>'
         f"</div>"
-        f'<pre class="subagent-raw">{encoded}</pre>'
+        f'<pre class="sub-agent-raw">{encoded}</pre>'
         f"</div>"
         f"</div>"
     )

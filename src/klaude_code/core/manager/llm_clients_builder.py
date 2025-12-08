@@ -32,7 +32,7 @@ def build_llm_clients(
     sub_clients: dict[SubAgentType, LLMClientABC] = {}
 
     for profile in iter_sub_agent_profiles():
-        model_name = config.subagent_models.get(profile.name)
+        model_name = config.sub_agent_models.get(profile.name)
         if not model_name:
             continue
 

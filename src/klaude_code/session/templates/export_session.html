@@ -632,26 +632,26 @@
         color: var(--text-dim);
       }
 
-      /* Sub Agent Result */
-      .subagent-result-container {
+      /* Sub-Agent Result */
+      .sub-agent-result-container {
         display: flex;
         flex-direction: column;
         gap: 8px;
         margin-top: 8px;
       }
 
-      .subagent-toolbar {
+      .sub-agent-toolbar {
         display: flex;
         justify-content: flex-end;
         align-items: center;
         margin-bottom: 4px;
       }
 
-      .subagent-content {
+      .sub-agent-content {
         width: 100%;
       }
 
-      .subagent-raw {
+      .sub-agent-raw {
         display: none;
         font-family: var(--font-mono);
         font-size: var(--font-size-base);
@@ -662,10 +662,10 @@
         padding: 20px;
       }
 
-      .subagent-content.show-raw .subagent-rendered {
+      .sub-agent-content.show-raw .sub-agent-rendered {
         display: none;
       }
-      .subagent-content.show-raw .subagent-raw {
+      .sub-agent-content.show-raw .sub-agent-raw {
         display: block;
       }
 
@@ -1297,17 +1297,17 @@
         });
       });
 
-      // Subagent raw toggle
+      // Sub-agent raw toggle
       document
-        .querySelectorAll(".subagent-result-container")
+        .querySelectorAll(".sub-agent-result-container")
         .forEach((group) => {
           const toggle = group.querySelector(".raw-toggle");
           const copyBtn = group.querySelector(".copy-raw-btn");
-          const block = group.querySelector(".subagent-content");
+          const block = group.querySelector(".sub-agent-content");
           const rendered = block
-            ? block.querySelector(".subagent-rendered")
+            ? block.querySelector(".sub-agent-rendered")
             : null;
-          const raw = block ? block.querySelector(".subagent-raw") : null;
+          const raw = block ? block.querySelector(".sub-agent-raw") : null;
 
           // Copy button logic
           if (copyBtn && rendered) {

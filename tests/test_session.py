@@ -780,7 +780,7 @@ class TestRenderMetadata:
         assert "$" in result
         assert "cost:" in result
 
-    def test_render_metadata_item_with_subagents(self):
+    def test_render_metadata_item_with_sub_agents(self):
         main = model.TaskMetadata(
             model_name="gpt-4",
             usage=model.Usage(input_tokens=100, output_tokens=50),

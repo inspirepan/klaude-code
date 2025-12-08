@@ -50,7 +50,7 @@ class REPLRenderer:
 
         self.session_map: dict[str, SessionStatus] = {}
         self.current_sub_agent_color: Style | None = None
-        self.subagent_color_index = 0
+        self.sub_agent_color_index = 0
 
     def register_session(self, session_id: str, sub_agent_state: model.SubAgentState | None = None) -> None:
         session_status = SessionStatus(
@@ -66,16 +66,16 @@ class REPLRenderer:
     def _advance_sub_agent_color_index(self) -> None:
         palette_size = len(self.themes.sub_agent_colors)
         if palette_size == 0:
-            self.subagent_color_index = 0
+            self.sub_agent_color_index = 0
             return
-        self.subagent_color_index = (self.subagent_color_index + 1) % palette_size
+        self.sub_agent_color_index = (self.sub_agent_color_index + 1) % palette_size
 
     def pick_sub_agent_color(self) -> Style:
         self._advance_sub_agent_color_index()
         palette = self.themes.sub_agent_colors
         if not palette:
             return Style()
-        return palette[self.subagent_color_index]
+        return palette[self.sub_agent_color_index]
 
     def get_session_sub_agent_color(self, session_id: str) -> Style:
         status = self.session_map.get(session_id)

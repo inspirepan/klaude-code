@@ -81,7 +81,7 @@ def _web_fetch_prompt_builder(args: dict[str, Any]) -> str:
 ```
 
 ### System Prompt
-Location: `src/klaude_code/core/prompts/prompt-subagent-webfetch.md`
+Location: `src/klaude_code/core/prompts/prompt-sub-agent-webfetch.md`
 
 Content should include:
 - Instructions for using WebFetch tool
@@ -92,7 +92,7 @@ Content should include:
 
 ### New Files
 1. `src/klaude_code/core/tool/web_fetch_tool.py` - WebFetch tool implementation
-2. `src/klaude_code/core/prompts/prompt-subagent-webfetch.md` - Sub-agent system prompt
+2. `src/klaude_code/core/prompts/prompt-sub-agent-webfetch.md` - Sub-agent system prompt
 
 ### Modified Files
 1. `src/klaude_code/protocol/tools.py` - Add `WEB_FETCH` constant
@@ -106,7 +106,7 @@ Content should include:
 1. Add `WEB_FETCH` constant to `protocol/tools.py`
 2. Create `web_fetch_tool.py` with WebFetch implementation
 3. Update `tool/__init__.py` exports
-4. Create `prompt-subagent-webfetch.md`
+4. Create `prompt-sub-agent-webfetch.md`
 5. Add prompt mapping in `prompt.py`
 6. Register WebFetchAgent in `sub_agent.py`
 7. Update `pyproject.toml` build config
