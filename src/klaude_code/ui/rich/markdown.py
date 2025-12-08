@@ -53,7 +53,7 @@ class LeftHeading(Heading):
         text = self.text
         text.justify = "left"  # Override justification
         if self.tag == "h1":
-            h1_text = text.assemble(("  ", "markdown.h1"), text, ("  ", "markdown.h1"))
+            h1_text = text.assemble((" ", "markdown.h1"), text, (" ", "markdown.h1"))
             yield h1_text
         elif self.tag == "h2":
             text.stylize(Style(bold=True, underline=False))

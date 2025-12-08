@@ -59,20 +59,32 @@ def _render_task_metadata_block(
     parts: list[Text] = []
 
     if metadata.usage is not None:
-        # Tokens: ↑37k c5k ↓907 r45k
-        token_parts: list[tuple[str, str]] = [
-            ("↑", ThemeKey.METADATA_DIM),
-            (format_number(metadata.usage.input_tokens), ThemeKey.METADATA),
+        # Tokens: ↑ 37k cache 5k ↓ 907 think 45k
+        token_parts: list[Text] = [
+            Text.assemble(
+                ("↑ ", ThemeKey.METADATA_DIM), (format_number(metadata.usage.input_tokens), ThemeKey.METADATA)
+            )
         ]
         if metadata.usage.cached_tokens > 0:
-            token_parts.append((" c", ThemeKey.METADATA_DIM))
-            token_parts.append((format_number(metadata.usage.cached_tokens), ThemeKey.METADATA))
-        token_parts.append((" ↓", ThemeKey.METADATA_DIM))
-        token_parts.append((format_number(metadata.usage.output_tokens), ThemeKey.METADATA))
+            token_parts.append(
+                Text.assemble(
+                    Text("cache ", style=ThemeKey.METADATA_DIM),
+                    Text(format_number(metadata.usage.cached_tokens), style=ThemeKey.METADATA),
+                )
+            )
+        token_parts.append(
+            Text.assemble(
+                ("↓ ", ThemeKey.METADATA_DIM), (format_number(metadata.usage.output_tokens), ThemeKey.METADATA)
+            )
+        )
         if metadata.usage.reasoning_tokens > 0:
-            token_parts.append((" r", ThemeKey.METADATA_DIM))
-            token_parts.append((format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA))
-        parts.append(Text.assemble(*token_parts))
+            token_parts.append(
+                Text.assemble(
+                    ("think ", ThemeKey.METADATA_DIM),
+                    (format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA),
+                )
+            )
+        parts.append(Text(" · ").join(token_parts))
 
     # Cost
     if metadata.usage is not None and metadata.usage.total_cost is not None:
