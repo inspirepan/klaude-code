@@ -1,5 +1,6 @@
 # pyright: reportReturnType=false
 # pyright: reportArgumentType=false
+# pyright: reportAssignmentType=false
 
 from typing import Any
 
@@ -51,6 +52,7 @@ def convert_history_to_input(
     items: list[responses.ResponseInputItemParam] = []
 
     pending_reasoning_text: str | None = None
+    degraded_thinking_texts: list[str] = []
 
     for item in history:
         match item:
@@ -60,6 +62,9 @@ def convert_history_to_input(
                 # or we can choose to output it if the next item is NOT reasoning?
                 # For now, based on instructions, we pair them.
                 if model_name != item.model:
+                    # Cross-model: collect thinking text for degradation
+                    if item.content:
+                        degraded_thinking_texts.append(item.content)
                     continue
                 pending_reasoning_text = item.content
 
@@ -129,6 +134,20 @@ def convert_history_to_input(
             case _:
                 # Other items may be Metadata
                 continue
+
+    # Cross-model: degrade thinking to plain text with <thinking> tags
+    if degraded_thinking_texts:
+        degraded_item: responses.ResponseInputItemParam = {
+            "type": "message",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "output_text",
+                    "text": "<thinking>\n" + "\n".join(degraded_thinking_texts) + "\n</thinking>",
+                }
+            ],
+        }
+        items.insert(0, degraded_item)
 
     return items
 

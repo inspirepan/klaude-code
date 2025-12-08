@@ -104,18 +104,22 @@ def _tool_groups_to_message(groups: list[ToolGroup]) -> BetaMessageParam:
 def _assistant_group_to_message(group: AssistantGroup, model_name: str | None) -> BetaMessageParam:
     content: list[dict[str, object]] = []
     current_reasoning_content: str | None = None
+    degraded_thinking_texts: list[str] = []
 
     # Process reasoning items in original order so that text and
     # encrypted parts are paired correctly for the given model.
+    # For cross-model scenarios, degrade thinking to plain text.
     for item in group.reasoning_items:
         if isinstance(item, model.ReasoningTextItem):
             if model_name != item.model:
-                continue
-            current_reasoning_content = item.content
+                # Cross-model: collect thinking text for degradation
+                if item.content:
+                    degraded_thinking_texts.append(item.content)
+            else:
+                current_reasoning_content = item.content
         else:
-            if model_name != item.model:
-                continue
-            if item.encrypted_content and len(item.encrypted_content) > 0:
+            # Same model: preserve signature
+            if model_name == item.model and item.encrypted_content and len(item.encrypted_content) > 0:
                 content.append(
                     {
                         "type": "thinking",
@@ -130,6 +134,11 @@ def _assistant_group_to_message(group: AssistantGroup, model_name: str | None) -
     # emit it as a plain thinking block.
     if len(current_reasoning_content or "") > 0:
         content.insert(0, {"type": "thinking", "thinking": current_reasoning_content})
+
+    # Cross-model: degrade thinking to plain text with <thinking> tags
+    if degraded_thinking_texts:
+        degraded_text = "<thinking>\n" + "\n".join(degraded_thinking_texts) + "\n</thinking>"
+        content.insert(0, {"type": "text", "text": degraded_text})
 
     if group.text_content:
         content.append({"type": "text", "text": group.text_content})

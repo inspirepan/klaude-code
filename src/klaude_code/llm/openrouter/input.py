@@ -28,9 +28,6 @@ def is_gemini_model(model_name: str | None) -> bool:
 def _assistant_group_to_message(group: AssistantGroup, model_name: str | None) -> chat.ChatCompletionMessageParam:
     assistant_message: dict[str, object] = {"role": "assistant"}
 
-    if group.text_content:
-        assistant_message["content"] = group.text_content
-
     if group.tool_calls:
         assistant_message["tool_calls"] = [
             {
@@ -48,9 +45,14 @@ def _assistant_group_to_message(group: AssistantGroup, model_name: str | None) -
     # The order of items in reasoning_details must match the original
     # stream order from the provider, so we iterate reasoning_items
     # instead of the separated reasoning_text / reasoning_encrypted lists.
+    # For cross-model scenarios, degrade thinking to plain text.
     reasoning_details: list[dict[str, object]] = []
+    degraded_thinking_texts: list[str] = []
     for item in group.reasoning_items:
         if model_name != item.model:
+            # Cross-model: collect thinking text for degradation
+            if isinstance(item, model.ReasoningTextItem) and item.content:
+                degraded_thinking_texts.append(item.content)
             continue
         if isinstance(item, model.ReasoningEncryptedItem):
             if item.encrypted_content and len(item.encrypted_content) > 0:
@@ -74,6 +76,15 @@ def _assistant_group_to_message(group: AssistantGroup, model_name: str | None) -
             )
     if reasoning_details:
         assistant_message["reasoning_details"] = reasoning_details
+
+    # Build content with optional degraded thinking prefix
+    content_parts: list[str] = []
+    if degraded_thinking_texts:
+        content_parts.append("<thinking>\n" + "\n".join(degraded_thinking_texts) + "\n</thinking>")
+    if group.text_content:
+        content_parts.append(group.text_content)
+    if content_parts:
+        assistant_message["content"] = "\n".join(content_parts)
 
     return assistant_message
 
