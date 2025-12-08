@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import math
+import random
 import time
 
 import rich.status as rich_status
@@ -20,7 +21,26 @@ from klaude_code.ui.terminal.color import get_last_terminal_background_rgb
 BREATHING_SPINNER_NAME = "dots"
 
 # Alternating glyphs for the breathing spinner - switches at each "transparent" point
-BREATHING_SPINNER_GLYPHS = ["◆", "◼"]
+# All glyphs are center-symmetric (point-symmetric)
+_BREATHING_SPINNER_GLYPHS_BASE = [
+    # Floral
+    "✿", "❀", "❁", "✾",
+    # Snowflake
+    "❄", "❅", "❆",
+    # Stars
+    "✦", "✧", "✴", "✵", "✶", "✷", "✸",
+    # Asterisks
+    "✱", "✲", "✳", "✻", "✼", "❃", "❊", "❋",
+    # Diamonds
+    "◆", "❖",
+    # Misc
+    "⚛",
+]
+
+# Shuffle glyphs on module load for variety across sessions
+BREATHING_SPINNER_GLYPHS = _BREATHING_SPINNER_GLYPHS_BASE.copy()
+random.shuffle(BREATHING_SPINNER_GLYPHS)
+
 
 _process_start: float | None = None
 
