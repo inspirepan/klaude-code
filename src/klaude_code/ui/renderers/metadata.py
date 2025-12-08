@@ -153,7 +153,7 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     for meta in sorted_items:
         renderables.append(_render_task_metadata_block(meta, is_sub_agent=True, show_context_and_time=False))
 
-    return Padding(Group(*renderables), (0, 0, 0, 1))
+    return Group(*renderables)
 
 
 def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> RenderableType:

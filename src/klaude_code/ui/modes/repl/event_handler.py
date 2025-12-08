@@ -121,7 +121,7 @@ class ActivityState:
             for name, count in self._tool_calls.items():
                 if not first:
                     activity_text.append(", ")
-                activity_text.append(name, style="bold")
+                activity_text.append(name)
                 if count > 1:
                     activity_text.append(f" x {count}")
                 first = False
