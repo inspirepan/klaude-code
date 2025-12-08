@@ -152,6 +152,7 @@ class REPLRenderer:
                     case events.ThinkingEvent() as e:
                         if is_sub_agent:
                             continue
+                        self.display_thinking_prefix()
                         self.display_thinking(e.content)
                     case events.DeveloperMessageEvent() as e:
                         self.display_developer_message(e)
