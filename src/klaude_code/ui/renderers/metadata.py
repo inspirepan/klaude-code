@@ -59,18 +59,18 @@ def _render_task_metadata_block(
     parts: list[Text] = []
 
     if metadata.usage is not None:
-        # Tokens: ↑37k ©5k ↓907 ®45k
+        # Tokens: ↑37k c5k ↓907 r45k
         token_parts: list[tuple[str, str]] = [
             ("↑", ThemeKey.METADATA_DIM),
             (format_number(metadata.usage.input_tokens), ThemeKey.METADATA),
         ]
         if metadata.usage.cached_tokens > 0:
-            token_parts.append((" (c)", ThemeKey.METADATA_DIM))
+            token_parts.append((" c", ThemeKey.METADATA_DIM))
             token_parts.append((format_number(metadata.usage.cached_tokens), ThemeKey.METADATA))
         token_parts.append((" ↓", ThemeKey.METADATA_DIM))
         token_parts.append((format_number(metadata.usage.output_tokens), ThemeKey.METADATA))
         if metadata.usage.reasoning_tokens > 0:
-            token_parts.append((" (r)", ThemeKey.METADATA_DIM))
+            token_parts.append((" r", ThemeKey.METADATA_DIM))
             token_parts.append((format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA))
         parts.append(Text.assemble(*token_parts))
 
@@ -125,7 +125,7 @@ def _render_task_metadata_block(
         content.append_text(Text(" · ", style=ThemeKey.METADATA_DIM).join(parts))
 
     grid.add_row(mark, content)
-    return grid
+    return grid if not is_sub_agent else Padding(grid, (0, 0, 0, 2))
 
 
 def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:

@@ -149,7 +149,7 @@ def parse_message_groups(history: list[model.ConversationItem]) -> list[MessageG
                 for item in items:
                     if isinstance(item, (model.UserMessageItem, model.DeveloperMessageItem)):
                         if item.content:
-                            group.text_parts.append(item.content)
+                            group.text_parts.append(item.content + "\n")
                         if item.images:
                             group.images.extend(item.images)
                 groups.append(group)
