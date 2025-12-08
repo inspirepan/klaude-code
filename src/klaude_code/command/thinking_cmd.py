@@ -142,7 +142,7 @@ def _select_anthropic_thinking_sync() -> llm_param.Thinking | None:
             use_jk_keys=False,
             style=SELECT_STYLE,
         ).ask()
-        if result is None:
+        if not result:
             return llm_param.Thinking(type="disabled", budget_tokens=0)
         return llm_param.Thinking(type="enabled", budget_tokens=result or 0)
     except KeyboardInterrupt:
