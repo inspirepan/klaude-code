@@ -159,7 +159,7 @@ class ShimmerStatusText:
     def __init__(self, main_text: str | Text, main_style: ThemeKey) -> None:
         self._main_text = main_text if isinstance(main_text, Text) else Text(main_text)
         self._main_style = main_style
-        self._hint_text = Text(" (esc to interrupt)")
+        self._hint_text = Text(const.STATUS_HINT_TEXT)
         self._hint_style = ThemeKey.STATUS_HINT
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:

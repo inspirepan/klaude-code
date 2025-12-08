@@ -105,6 +105,9 @@ UI_REFRESH_RATE_FPS = 20
 # Number of lines to keep visible at bottom of markdown streaming window
 MARKDOWN_STREAM_LIVE_WINDOW = 6
 
+# Status hint text shown after spinner status
+STATUS_HINT_TEXT = " (esc to interrupt)"
+
 # Status shimmer animation
 # Horizontal padding used when computing shimmer band position
 STATUS_SHIMMER_PADDING = 10

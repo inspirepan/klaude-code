@@ -514,7 +514,23 @@ class DisplayEventHandler:
                 if len(todo.content) > 0:
                     status_text = todo.content
         status_text = status_text.replace("\n", "")
-        return self._truncate_status_text(status_text, max_length=50)
+        max_length = self._calculate_base_status_max_length()
+        return self._truncate_status_text(status_text, max_length=max_length)
+
+    def _calculate_base_status_max_length(self) -> int:
+        """Calculate max length for base_status based on terminal width.
+
+        Reserve space for:
+        - Spinner glyph + space: 2 chars
+        - " | " separator: 3 chars (if activity text present)
+        - Activity text: ~20 chars estimate
+        - Status hint text (esc to interrupt)
+        - Buffer: 6 chars
+        """
+        terminal_width = self.renderer.console.size.width
+        reserved_space = 2 + 3 + 20 + len(const.STATUS_HINT_TEXT) + 6
+        max_length = max(20, terminal_width - reserved_space)
+        return max_length
 
     def _truncate_status_text(self, text: str, max_length: int) -> str:
         if len(text) <= max_length:
