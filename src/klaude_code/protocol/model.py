@@ -132,6 +132,7 @@ class AtPatternParseResult(BaseModel):
     tool_args: str
     operation: Literal["Read", "List"]
     images: list["ImageURLPart"] | None = None
+    mentioned_in: str | None = None  # Parent file that referenced this file
 
 
 class CommandOutput(BaseModel):

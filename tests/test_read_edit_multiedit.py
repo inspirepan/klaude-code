@@ -205,6 +205,85 @@ class TestReminders(BaseTempDirTest):
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNone(reminder)
 
+    def test_at_file_reader_reminder_recursive_loading(self):
+        # Create nested files: main.md -> sub.md -> leaf.txt
+        leaf_path = os.path.abspath("leaf.txt")
+        with open(leaf_path, "w", encoding="utf-8") as f:
+            f.write("leaf content\n")
+
+        sub_path = os.path.abspath("sub.md")
+        with open(sub_path, "w", encoding="utf-8") as f:
+            f.write(f"sub content\n@{leaf_path}\n")
+
+        main_path = os.path.abspath("main.md")
+        with open(main_path, "w", encoding="utf-8") as f:
+            f.write(f"main content\n@{sub_path}\n")
+
+        self.session.conversation_history.append(model.UserMessageItem(content=f"@{main_path}"))
+
+        reminder = arun(at_file_reader_reminder(self.session))
+        self.assertIsNotNone(reminder)
+        assert reminder is not None
+        self.assertIsNotNone(reminder.at_files)
+        assert reminder.at_files is not None
+        # Should load all 3 files recursively
+        self.assertEqual(len(reminder.at_files), 3)
+        at_files_by_path = {at.path: at for at in reminder.at_files}
+        self.assertIn(main_path, at_files_by_path)
+        self.assertIn(sub_path, at_files_by_path)
+        self.assertIn(leaf_path, at_files_by_path)
+        # Verify mentioned_in chain
+        self.assertIsNone(at_files_by_path[main_path].mentioned_in)
+        self.assertEqual(at_files_by_path[sub_path].mentioned_in, main_path)
+        self.assertEqual(at_files_by_path[leaf_path].mentioned_in, sub_path)
+
+    def test_at_file_reader_reminder_recursive_prevents_cycles(self):
+        # Create files that reference each other: a.md <-> b.md
+        a_path = os.path.abspath("a.md")
+        b_path = os.path.abspath("b.md")
+
+        with open(a_path, "w", encoding="utf-8") as f:
+            f.write(f"file a\n@{b_path}\n")
+        with open(b_path, "w", encoding="utf-8") as f:
+            f.write(f"file b\n@{a_path}\n")
+
+        self.session.conversation_history.append(model.UserMessageItem(content=f"@{a_path}"))
+
+        # Should not hang or error due to cycle
+        reminder = arun(at_file_reader_reminder(self.session))
+        self.assertIsNotNone(reminder)
+        assert reminder is not None
+        self.assertIsNotNone(reminder.at_files)
+        assert reminder.at_files is not None
+        # Should load both files exactly once
+        self.assertEqual(len(reminder.at_files), 2)
+
+    def test_at_file_reader_reminder_recursive_relative_path(self):
+        # Create subdir/child.md that references ../sibling.txt
+        subdir = Path("subdir")
+        subdir.mkdir(exist_ok=True)
+
+        sibling_path = os.path.abspath("sibling.txt")
+        with open(sibling_path, "w", encoding="utf-8") as f:
+            f.write("sibling content\n")
+
+        child_path = (subdir / "child.md").resolve()
+        with open(child_path, "w", encoding="utf-8") as f:
+            f.write("child content\n@../sibling.txt\n")
+
+        self.session.conversation_history.append(model.UserMessageItem(content=f"@{child_path}"))
+
+        reminder = arun(at_file_reader_reminder(self.session))
+        self.assertIsNotNone(reminder)
+        assert reminder is not None
+        self.assertIsNotNone(reminder.at_files)
+        assert reminder.at_files is not None
+        # Should load both files
+        self.assertEqual(len(reminder.at_files), 2)
+        paths = [at.path for at in reminder.at_files]
+        self.assertIn(str(child_path), paths)
+        self.assertIn(sibling_path, paths)
+
 
 class TestEditTool(BaseTempDirTest):
     def test_edit_requires_read_first(self):

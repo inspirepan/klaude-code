@@ -14,7 +14,8 @@ from klaude_code.session import Session
 type Reminder = Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]
 
 
-AT_FILE_PATTERN = re.compile(r'(?<!\S)@("(?P<quoted>[^\"]+)"|(?P<plain>\S+))')
+# Match @ preceded by whitespace, start of line, or → (ReadTool line number arrow)
+AT_FILE_PATTERN = re.compile(r'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P<plain>\S+))')
 
 
 def get_last_new_user_input(session: Session) -> str | None:
@@ -31,10 +32,69 @@ def get_last_new_user_input(session: Session) -> str | None:
     return "\n\n".join(result)
 
 
+async def _load_at_file_recursive(
+    session: Session,
+    pattern: str,
+    at_files: dict[str, model.AtPatternParseResult],
+    collected_images: list[model.ImageURLPart],
+    visited: set[str],
+    base_dir: Path | None = None,
+    mentioned_in: str | None = None,
+) -> None:
+    """Recursively load @ file references."""
+    path = (base_dir / pattern).resolve() if base_dir else Path(pattern).resolve()
+    path_str = str(path)
+
+    if path_str in visited:
+        return
+    visited.add(path_str)
+
+    context_token = set_tool_context_from_session(session)
+    try:
+        if path.exists() and path.is_file():
+            args = ReadTool.ReadArguments(file_path=path_str)
+            tool_result = await ReadTool.call_with_args(args)
+            at_files[path_str] = model.AtPatternParseResult(
+                path=path_str,
+                tool_name=tools.READ,
+                result=tool_result.output or "",
+                tool_args=args.model_dump_json(exclude_none=True),
+                operation="Read",
+                images=tool_result.images,
+                mentioned_in=mentioned_in,
+            )
+            if tool_result.images:
+                collected_images.extend(tool_result.images)
+
+            # Recursively parse @ references from ReadTool output
+            output = tool_result.output or ""
+            if "@" in output:
+                for match in AT_FILE_PATTERN.finditer(output):
+                    nested = match.group("quoted") or match.group("plain")
+                    if nested:
+                        await _load_at_file_recursive(
+                            session, nested, at_files, collected_images, visited,
+                            base_dir=path.parent, mentioned_in=path_str,
+                        )
+        elif path.exists() and path.is_dir():
+            quoted_path = shlex.quote(path_str)
+            args = BashTool.BashArguments(command=f"ls {quoted_path}")
+            tool_result = await BashTool.call_with_args(args)
+            at_files[path_str] = model.AtPatternParseResult(
+                path=path_str + "/",
+                tool_name=tools.BASH,
+                result=tool_result.output or "",
+                tool_args=args.model_dump_json(exclude_none=True),
+                operation="List",
+            )
+    finally:
+        reset_tool_context(context_token)
+
+
 async def at_file_reader_reminder(
     session: Session,
 ) -> model.DeveloperMessageItem | None:
-    """Parse @foo/bar to read"""
+    """Parse @foo/bar to read, with recursive loading of nested @ references"""
     last_user_input = get_last_new_user_input(session)
     if not last_user_input or "@" not in last_user_input:
         return None
@@ -53,38 +113,16 @@ async def at_file_reader_reminder(
 
     at_files: dict[str, model.AtPatternParseResult] = {}  # path -> content
     collected_images: list[model.ImageURLPart] = []
+    visited: set[str] = set()
 
     for pattern in at_patterns:
-        path = Path(pattern).resolve()
-        context_token = set_tool_context_from_session(session)
-        try:
-            if path.exists() and path.is_file():
-                args = ReadTool.ReadArguments(file_path=str(path))
-                tool_result = await ReadTool.call_with_args(args)
-                at_result = model.AtPatternParseResult(
-                    path=str(path),
-                    tool_name=tools.READ,
-                    result=tool_result.output or "",
-                    tool_args=args.model_dump_json(exclude_none=True),
-                    operation="Read",
-                    images=tool_result.images,
-                )
-                at_files[str(path)] = at_result
-                if tool_result.images:
-                    collected_images.extend(tool_result.images)
-            elif path.exists() and path.is_dir():
-                quoted_path = shlex.quote(str(path))
-                args = BashTool.BashArguments(command=f"ls {quoted_path}")
-                tool_result = await BashTool.call_with_args(args)
-                at_files[str(path)] = model.AtPatternParseResult(
-                    path=str(path) + "/",
-                    tool_name=tools.BASH,
-                    result=tool_result.output or "",
-                    tool_args=args.model_dump_json(exclude_none=True),
-                    operation="List",
-                )
-        finally:
-            reset_tool_context(context_token)
+        await _load_at_file_recursive(
+            session,
+            pattern,
+            at_files,
+            collected_images,
+            visited,
+        )
 
     if len(at_files) == 0:
         return None

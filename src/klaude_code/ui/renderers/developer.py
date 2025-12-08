@@ -67,13 +67,24 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
     if e.item.at_files:
         grid = create_grid()
         for at_file in e.item.at_files:
-            grid.add_row(
-                Text("  +", style=ThemeKey.REMINDER),
-                Text.assemble(
-                    (f"{at_file.operation} ", ThemeKey.REMINDER),
-                    render_path(at_file.path, ThemeKey.REMINDER_BOLD),
-                ),
-            )
+            if at_file.mentioned_in:
+                grid.add_row(
+                    Text("  +", style=ThemeKey.REMINDER),
+                    Text.assemble(
+                        (f"{at_file.operation} ", ThemeKey.REMINDER),
+                        render_path(at_file.path, ThemeKey.REMINDER_BOLD),
+                        (" mentioned in ", ThemeKey.REMINDER),
+                        render_path(at_file.mentioned_in, ThemeKey.REMINDER_BOLD),
+                    ),
+                )
+            else:
+                grid.add_row(
+                    Text("  +", style=ThemeKey.REMINDER),
+                    Text.assemble(
+                        (f"{at_file.operation} ", ThemeKey.REMINDER),
+                        render_path(at_file.path, ThemeKey.REMINDER_BOLD),
+                    ),
+                )
         parts.append(grid)
 
     if uic := e.item.user_image_count:
