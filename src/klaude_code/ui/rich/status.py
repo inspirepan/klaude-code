@@ -5,7 +5,6 @@ import math
 import time
 
 import rich.status as rich_status
-from rich._spinners import SPINNERS
 from rich.color import Color
 from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
 from rich.spinner import Spinner as RichSpinner
@@ -17,18 +16,11 @@ from klaude_code import const
 from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.terminal.color import get_last_terminal_background_rgb
 
-BREATHING_SPINNER_NAME = "dot"
+# Use an existing Rich spinner name; BreathingSpinner overrides its rendering
+BREATHING_SPINNER_NAME = "dots"
 
-SPINNERS.update(
-    {
-        BREATHING_SPINNER_NAME: {
-            "interval": 100,
-            # Frames content is ignored by the custom breathing spinner implementation,
-            # but we keep a single-frame list for correct width measurement.
-            "frames": ["⏺"],
-        }
-    }
-)
+# Alternating glyphs for the breathing spinner - switches at each "transparent" point
+BREATHING_SPINNER_GLYPHS = ["◆", "◼"]
 
 _process_start: float | None = None
 
@@ -126,6 +118,17 @@ def _breathing_intensity() -> float:
     return 0.5 * (1.0 - math.cos(2.0 * math.pi * phase))
 
 
+def _breathing_glyph() -> str:
+    """Get the current glyph for the breathing spinner.
+
+    Alternates between glyphs at each breath cycle (when intensity reaches 0).
+    """
+    period = max(const.SPINNER_BREATH_PERIOD_SECONDS, 0.1)
+    elapsed = _elapsed_since_start()
+    cycle = int(elapsed / period)
+    return BREATHING_SPINNER_GLYPHS[cycle % len(BREATHING_SPINNER_GLYPHS)]
+
+
 def _breathing_style(console: Console, base_style: Style, intensity: float) -> Style:
     """Blend a base style's foreground color toward terminal background.
 
@@ -219,7 +222,7 @@ class BreathingSpinner(RichSpinner):
         intensity = _breathing_intensity()
         style = _breathing_style(console, base_style, intensity)
 
-        glyph = self.frames[0] if self.frames else "⏺"
+        glyph = _breathing_glyph()
         frame = Text(glyph, style=style)
 
         if not self.text:
