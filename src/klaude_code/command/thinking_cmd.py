@@ -211,7 +211,11 @@ class ThinkingCommand(CommandABC):
                         content=f"Thinking changed: {current} -> {new_status}",
                         command_output=model.CommandOutput(command_name=self.name),
                     ),
-                )
+                ),
+                events.WelcomeEvent(
+                    work_dir=str(agent.session.work_dir),
+                    llm_config=config,
+                ),
             ]
         )
 

@@ -256,7 +256,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.hr": palette.grey3,
                 "markdown.item.bullet": palette.grey2,
                 "markdown.item.number": palette.grey2,
-                "markdown.code.block": "italic " + palette.grey1,
+                "markdown.code.block": palette.grey1,
                 "markdown.strong": "bold italic " + palette.grey1,
             }
         ),
