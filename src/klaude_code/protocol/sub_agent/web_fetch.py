@@ -11,13 +11,19 @@ Launch a sub-agent to fetch and analyze web content. Use this when you need to:
 - Analyze web page content based on specific instructions
 - Get structured data from URLs
 
+This is an autonomous agent with its own reasoning capabilities. It can:
+- Follow links and navigate across multiple pages to gather comprehensive information
+- Decide which related pages to visit based on the initial content
+- Aggregate information from multiple sources into a coherent response
+
 The agent will fetch the URL content, handle HTML-to-Markdown conversion automatically, \
 and can use tools like rg to search through large responses that were truncated and saved to files.
 
 Usage notes:
 - Provide a clear prompt describing what information to extract or analyze
 - The agent will return a summary of the findings
-- For large web pages, the content may be truncated and saved to a file; the agent can search through it\
+- For large web pages, the content may be truncated and saved to a file; the agent can search through it
+- The agent can autonomously follow links to related pages if needed to complete the task\
 """
 
 WEB_FETCH_AGENT_PARAMETERS = {
