@@ -79,8 +79,8 @@ class Config(BaseModel):
 
 def get_example_config() -> Config:
     return Config(
-        main_model="gpt-5.1",
-        sub_agent_models={"explore": "haiku", "oracle": "gpt-5.1-high"},
+        main_model="opus",
+        sub_agent_models={"explore": "haiku", "oracle": "gpt-5.1", "webfetchagent": "haiku", "task": "opus"},
         provider_list=[
             llm_param.LLMConfigProviderParameter(
                 provider_name="openai",
@@ -93,6 +93,11 @@ def get_example_config() -> Config:
                 protocol=llm_param.LLMClientProtocol.OPENROUTER,
                 api_key="your-openrouter-api-key",
             ),
+            llm_param.LLMConfigProviderParameter(
+                provider_name="anthropic",
+                protocol=llm_param.LLMClientProtocol.ANTHROPIC,
+                api_key="your-anthropic-api-key",
+            ),
         ],
         model_list=[
             ModelConfig(
@@ -100,31 +105,25 @@ def get_example_config() -> Config:
                 provider="openai",
                 model_params=llm_param.LLMConfigModelParameter(
                     model="gpt-5.1-2025-11-13",
-                    max_tokens=32000,
-                    verbosity="medium",
-                    thinking=llm_param.Thinking(
-                        reasoning_effort="medium",
-                        reasoning_summary="auto",
-                        type="enabled",
-                        budget_tokens=None,
-                    ),
-                    context_limit=368000,
-                ),
-            ),
-            ModelConfig(
-                model_name="gpt-5.1-high",
-                provider="openai",
-                model_params=llm_param.LLMConfigModelParameter(
-                    model="gpt-5.1-2025-11-13",
-                    max_tokens=32000,
                     verbosity="medium",
                     thinking=llm_param.Thinking(
                         reasoning_effort="high",
                         reasoning_summary="auto",
-                        type="enabled",
-                        budget_tokens=None,
                     ),
-                    context_limit=368000,
+                    context_limit=400000,
+                ),
+            ),
+            ModelConfig(
+                model_name="opus",
+                provider="anthropic",
+                model_params=llm_param.LLMConfigModelParameter(
+                    model="claude-opus-4-5-20251101",
+                    verbosity="high",
+                    thinking=llm_param.Thinking(
+                        type="enabled",
+                        budget_tokens=31999,
+                    ),
+                    context_limit=200000,
                 ),
             ),
             ModelConfig(
@@ -136,7 +135,7 @@ def get_example_config() -> Config:
                     provider_routing=llm_param.OpenRouterProviderRouting(
                         sort="throughput",
                     ),
-                    context_limit=168000,
+                    context_limit=200000,
                 ),
             ),
         ],
