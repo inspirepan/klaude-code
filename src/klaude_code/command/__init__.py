@@ -30,6 +30,7 @@ def ensure_commands_loaded() -> None:
     from .clear_cmd import ClearCommand
     from .diff_cmd import DiffCommand
     from .export_cmd import ExportCommand
+    from .export_online_cmd import ExportOnlineCommand
     from .help_cmd import HelpCommand
     from .model_cmd import ModelCommand
     from .refresh_cmd import RefreshTerminalCommand
@@ -40,6 +41,7 @@ def ensure_commands_loaded() -> None:
 
     # Register in desired display order
     register(ExportCommand())
+    register(ExportOnlineCommand())
     register(RefreshTerminalCommand())
     register(ThinkingCommand())
     register(ModelCommand())
@@ -60,6 +62,7 @@ def __getattr__(name: str) -> object:
         "ClearCommand": "clear_cmd",
         "DiffCommand": "diff_cmd",
         "ExportCommand": "export_cmd",
+        "ExportOnlineCommand": "export_online_cmd",
         "HelpCommand": "help_cmd",
         "ModelCommand": "model_cmd",
         "RefreshTerminalCommand": "refresh_cmd",

@@ -11,6 +11,7 @@ class CommandName(str, Enum):
     CLEAR = "clear"
     TERMINAL_SETUP = "terminal-setup"
     EXPORT = "export"
+    EXPORT_ONLINE = "export-online"
     STATUS = "status"
     RELEASE_NOTES = "release-notes"
     THINKING = "thinking"
