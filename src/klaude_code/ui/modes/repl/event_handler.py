@@ -137,11 +137,13 @@ class SpinnerStatusState:
     Composed of two independent layers:
     - base_status: Set by TodoChange, persistent within a turn
     - activity: Current activity (composing or tool_calls), mutually exclusive
+    - context_percent: Context usage percentage, updated during task execution
 
     Display logic:
     - If activity: show base + activity (if base exists) or activity + "..."
     - Elif base_status: show base_status
     - Else: show "Thinking …"
+    - Context percent is appended at the end if available
     """
 
     DEFAULT_STATUS = "Thinking …"
@@ -149,11 +151,13 @@ class SpinnerStatusState:
     def __init__(self) -> None:
         self._base_status: str | None = None
         self._activity = ActivityState()
+        self._context_percent: float | None = None
 
     def reset(self) -> None:
         """Reset all layers."""
         self._base_status = None
         self._activity.reset()
+        self._context_percent = None
 
     def set_base_status(self, status: str | None) -> None:
         """Set base status from TodoChange."""
@@ -175,12 +179,16 @@ class SpinnerStatusState:
         """Clear activity state for a new turn."""
         self._activity.reset()
 
+    def set_context_percent(self, percent: float) -> None:
+        """Set context usage percentage."""
+        self._context_percent = percent
+
     def get_activity_text(self) -> Text | None:
         """Get current activity text. Returns None if idle."""
         return self._activity.get_activity_text()
 
     def get_status(self) -> Text:
-        """Get current spinner status as rich Text."""
+        """Get current spinner status as rich Text (without context)."""
         activity_text = self._activity.get_activity_text()
 
         if self._base_status:
@@ -188,11 +196,19 @@ class SpinnerStatusState:
             if activity_text:
                 result.append(" | ")
                 result.append_text(activity_text)
-            return result
-        if activity_text:
+        elif activity_text:
             activity_text.append(" …")
-            return activity_text
-        return Text(self.DEFAULT_STATUS)
+            result = activity_text
+        else:
+            result = Text(self.DEFAULT_STATUS)
+
+        return result
+
+    def get_context_text(self) -> Text | None:
+        """Get context usage text for right-aligned display."""
+        if self._context_percent is None:
+            return None
+        return Text(f"{self._context_percent:.1f}%", style=ThemeKey.METADATA_DIM)
 
 
 class DisplayEventHandler:
@@ -247,6 +263,8 @@ class DisplayEventHandler:
                 self._on_task_metadata(e)
             case events.TodoChangeEvent() as e:
                 self._on_todo_change(e)
+            case events.ContextUsageEvent() as e:
+                self._on_context_usage(e)
             case events.TurnEndEvent():
                 pass
             case events.ResponseMetadataEvent():
@@ -412,6 +430,12 @@ class DisplayEventHandler:
         self.spinner_status.clear_for_new_turn()
         self._update_spinner()
 
+    def _on_context_usage(self, event: events.ContextUsageEvent) -> None:
+        if self.renderer.is_sub_agent_session(event.session_id):
+            return
+        self.spinner_status.set_context_percent(event.context_percent)
+        self._update_spinner()
+
     async def _on_task_finish(self, event: events.TaskFinishEvent) -> None:
         self.renderer.display_task_finish(event)
         if not self.renderer.is_sub_agent_session(event.session_id):
@@ -459,7 +483,10 @@ class DisplayEventHandler:
 
     def _update_spinner(self) -> None:
         """Update spinner text from current status state."""
-        self.renderer.spinner_update(self.spinner_status.get_status())
+        self.renderer.spinner_update(
+            self.spinner_status.get_status(),
+            self.spinner_status.get_context_text(),
+        )
 
     async def _flush_assistant_buffer(self, state: StreamState) -> None:
         if state.is_active:

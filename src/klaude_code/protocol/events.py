@@ -133,6 +133,13 @@ class TodoChangeEvent(BaseModel):
     todos: list[model.TodoItem]
 
 
+class ContextUsageEvent(BaseModel):
+    """Real-time context usage update during task execution."""
+
+    session_id: str
+    context_percent: float  # Context usage percentage (0-100)
+
+
 HistoryItemEvent = (
     ThinkingEvent
     | TaskStartEvent
@@ -178,4 +185,5 @@ Event = (
     | TurnStartEvent
     | TurnEndEvent
     | TurnToolCallStartEvent
+    | ContextUsageEvent
 )

@@ -172,15 +172,36 @@ def _breathing_style(console: Console, base_style: Style, intensity: float) -> S
 
 
 class ShimmerStatusText:
-    """Renderable status line with shimmer effect on the main text and hint."""
+    """Renderable status line with shimmer effect on the main text and hint.
 
-    def __init__(self, main_text: str | Text, main_style: ThemeKey) -> None:
+    Supports optional right-aligned text that stays fixed at the right edge.
+    """
+
+    def __init__(
+        self, main_text: str | Text, main_style: ThemeKey, right_text: Text | None = None
+    ) -> None:
         self._main_text = main_text if isinstance(main_text, Text) else Text(main_text)
         self._main_style = main_style
         self._hint_text = Text(const.STATUS_HINT_TEXT)
         self._hint_style = ThemeKey.STATUS_HINT
+        self._right_text = right_text
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        left_text = self._render_left_text(console)
+
+        if self._right_text is None:
+            yield left_text
+            return
+
+        # Use Table.grid to create left-right aligned layout
+        table = Table.grid(expand=True)
+        table.add_column(justify="left", ratio=1)
+        table.add_column(justify="right")
+        table.add_row(left_text, self._right_text)
+        yield table
+
+    def _render_left_text(self, console: Console) -> Text:
+        """Render the left part with shimmer effect."""
         result = Text()
         main_style = console.get_style(str(self._main_style))
         hint_style = console.get_style(str(self._hint_style))
@@ -198,7 +219,7 @@ class ShimmerStatusText:
             style = _shimmer_style(console, base_style, intensity)
             result.append(ch, style=style)
 
-        yield result
+        return result
 
 
 def spinner_name() -> str:

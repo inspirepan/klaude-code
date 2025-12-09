@@ -264,9 +264,9 @@ class REPLRenderer:
         """Stop the spinner animation."""
         self._spinner.stop()
 
-    def spinner_update(self, status_text: str | Text) -> None:
-        """Update the spinner status text."""
-        self._spinner.update(ShimmerStatusText(status_text, ThemeKey.SPINNER_STATUS_TEXT))
+    def spinner_update(self, status_text: str | Text, right_text: Text | None = None) -> None:
+        """Update the spinner status text with optional right-aligned text."""
+        self._spinner.update(ShimmerStatusText(status_text, ThemeKey.SPINNER_STATUS_TEXT, right_text))
 
     def spinner_renderable(self) -> Spinner:
         """Return the spinner's renderable for embedding in other components."""

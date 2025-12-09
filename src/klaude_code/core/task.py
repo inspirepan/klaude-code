@@ -182,6 +182,14 @@ class TaskExecutor:
                                 yield am
                             case events.ResponseMetadataEvent() as e:
                                 metadata_accumulator.add(e.metadata)
+                                # Emit context usage event if available
+                                if e.metadata.usage is not None:
+                                    context_percent = e.metadata.usage.context_usage_percent
+                                    if context_percent is not None:
+                                        yield events.ContextUsageEvent(
+                                            session_id=session_ctx.session_id,
+                                            context_percent=context_percent,
+                                        )
                             case events.ToolResultEvent() as e:
                                 # Collect sub-agent task metadata from tool results
                                 if e.task_metadata is not None:
