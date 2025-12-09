@@ -12,7 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - add report_back tool for sub-agent structured output (`b35f96b`)
-- update status (`86ba9dc`)
 - shuffle spinner glyphs on module load for variety (`70f420e`)
 - show WelcomeEvent after changing thinking level (`780f999`)
 - update web_fetch agent desc (`4ca4d35`)

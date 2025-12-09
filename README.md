@@ -54,47 +54,137 @@ Open the configuration file in editor:
 klaude config
 ```
 
-An minimal example config yaml using OpenRouter's API Key:
+An example config yaml:
 
 ```yaml
 provider_list:
-- provider_name: openrouter-work
+- provider_name: openrouter
   protocol: openrouter # support <responses|openrouter|anthropic|openai>
   api_key: <your-openrouter-api-key>
+
+- provider_name: openai-responses
+  protocol: responses
+  api_key: <your-openai-api-key>
+
+- provider_name: anthropic
+  protocol: anthropic
+  api_key: <your-anthropic-api-key>
+
+- provider_name: moonshot
+  protocol: anthropic
+  base_url: https://api.moonshot.cn/anthropic
+  api_key: <your-api-key>
+
+- provider_name: deepseek
+  protocol: anthropic
+  base_url: https://api.deepseek.com/anthropic
+  api_key: <your-api-key>
+
 model_list:
-- model_name: gpt-5.1-codex
-  provider: openrouter
+
+- model_name: deepseek
+  provider: deepseek
   model_params:
-    model: openai/gpt-5.1-codex
-    context_limit: 368000
+    model: deepseek-reasoner
+    context_limit: 128000
+    thinking:
+      type: enabled
+      budget_tokens: 8192
+    cost:
+      currency: CNY
+      input: 2
+      output: 3
+      cache_read: 0.2
+
+- model_name: codex-max
+  provider: openai-responses
+  model_params:
+    model: gpt-5.1-codex-max
     thinking:
       reasoning_effort: medium
-- model_name: gpt-5.1-high
+    context_limit: 400000
+    max_tokens: 128000
+    cost:
+      input: 1.25
+      output: 10
+      cache_read: 0.13
+
+- model_name: gpt-5.1
   provider: openrouter
   model_params:
     model: openai/gpt-5.1
-    context_limit: 368000
+    context_limit: 400000
+    max_tokens: 128000
+    verbosity: high
     thinking:
       reasoning_effort: high
-- model_name: sonnet
+    cost:
+      input: 1.25
+      output: 10
+      cache_read: 0.13
+
+- model_name: kimi@moonshot
+  provider: moonshot
+  model_params:
+    model: kimi-k2-thinking
+    context_limit: 262144
+    thinking:
+      type: enabled
+      budget_tokens: 8192
+    cost:
+      currency: CNY
+      input: 4
+      output: 16
+      cache_read: 1
+
+- model_name: opus
   provider: openrouter
   model_params:
-    model: anthropic/claude-4.5-sonnet
-    context_limit: 168000
+    model: anthropic/claude-4.5-opus
+    context_limit: 200000
     provider_routing:
-      sort: throughput
+      only: [ google-vertex ]
+    verbosity: high
+    thinking:
+      type: enabled
+      budget_tokens: 31999
+    cost:
+      input: 5
+      output: 25
+      cache_read: 0.5
+      cache_write: 6.25
+
+- model_name: gemini
+  provider: openrouter
+  model_params:
+    model: google/gemini-3-pro-preview
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: medium
+    cost:
+      input: 2
+      output: 12
+      cache_read: 0.2
+
 - model_name: haiku
-  provider: openrouter
+  provider: anthropic
   model_params:
-    model: anthropic/claude-haiku-4.5
-    context_limit: 168000
-    provider_routing:
-      sort: throughput
-main_model: gpt-5.1-codex
+    model: claude-haiku-4-5-20251001
+    context_limit: 200000
+    cost:
+      input: 1
+      output: 5
+      cache_read: 0.1
+      cache_write: 1.25
+
+main_model: opus
+
 sub_agent_models:
-  oracle: gpt-5.1-high
+  oracle: gpt-5.1
   explore: haiku
-  task: sonnet
+  task: opus
+  webfetchagent: haiku
+
 ```
 
 List configured providers and models:
