@@ -23,33 +23,14 @@ BREATHING_SPINNER_NAME = "dots"
 # Alternating glyphs for the breathing spinner - switches at each "transparent" point
 # All glyphs are center-symmetric (point-symmetric)
 _BREATHING_SPINNER_GLYPHS_BASE = [
-    # Floral
-    "✿",
-    "❀",
-    "❁",
-    "✾",
-    # Snowflake
-    "❄",
     # Stars
     "✦",
-    "✧",
-    "✴",
     "✶",
-    "✷",
-    # Asterisks
-    "✱",
     "✲",
     "✳",
-    "✻",
-    "✼",
-    "❃",
-    "❊",
-    "❋",
     # Diamonds
     "◆",
     "❖",
-    # Misc
-    "⚛",
 ]
 
 # Shuffle glyphs on module load for variety across sessions
