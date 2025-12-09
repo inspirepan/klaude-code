@@ -16,7 +16,7 @@ from klaude_code.ui.rich.theme import ThemeKey
 
 def _compact_schema_value(value: dict[str, Any]) -> str | list[Any] | dict[str, Any]:
     """Convert a JSON Schema value to compact representation."""
-    value_type = value.get("type", "any")
+    value_type = value.get("type", "any").lower()
     desc = value.get("description", "")
 
     if value_type == "object":

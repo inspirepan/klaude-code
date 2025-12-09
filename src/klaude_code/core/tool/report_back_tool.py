@@ -1,8 +1,33 @@
 """ReportBackTool for sub-agents to return structured output."""
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 from klaude_code.protocol import llm_param, model, tools
+
+
+def _normalize_schema_types(schema: dict[str, Any]) -> dict[str, Any]:
+    """Recursively normalize JSON schema type values to lowercase.
+
+    Some LLMs (e.g., Gemini 3) generate type values in uppercase like "OBJECT", "STRING".
+    Standard JSON Schema requires lowercase type values.
+    """
+    result: dict[str, Any] = {}
+    for key, value in schema.items():
+        if key == "type" and isinstance(value, str):
+            result[key] = value.lower()
+        elif isinstance(value, dict):
+            result[key] = _normalize_schema_types(cast(dict[str, Any], value))
+        elif isinstance(value, list):
+            normalized_list: list[Any] = []
+            for item in cast(list[Any], value):
+                if isinstance(item, dict):
+                    normalized_list.append(_normalize_schema_types(cast(dict[str, Any], item)))
+                else:
+                    normalized_list.append(item)
+            result[key] = normalized_list
+        else:
+            result[key] = value
+    return result
 
 
 class ReportBackTool:
@@ -29,7 +54,8 @@ class ReportBackTool:
         Returns:
             A new class with the schema set as a class variable.
         """
-        return type("ReportBackTool", (ReportBackTool,), {"_schema": schema})
+        normalized = _normalize_schema_types(schema)
+        return type("ReportBackTool", (ReportBackTool,), {"_schema": normalized})
 
     @classmethod
     def schema(cls) -> llm_param.ToolSchema:
