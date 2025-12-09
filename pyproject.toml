@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "klaude-code"
-version = "1.2.15"
+version = "1.2.16"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"

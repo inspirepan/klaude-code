@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.16] - 2025-12-09
+
+### Added
+
+- add report_back tool for sub-agent structured output (`b35f96b`)
+- update status (`86ba9dc`)
+- shuffle spinner glyphs on module load for variety (`70f420e`)
+- show WelcomeEvent after changing thinking level (`780f999`)
+- update web_fetch agent desc (`4ca4d35`)
+- add thinking prefix display in replay (`4be1e50`)
+- preserve thinking content when switching models (`e50590d`)
+- add recursive @ file loading with cycle detection (`006511b`)
+- add handoff command (`0b0315d`)
+
+### Changed
+
+- move sub-agent prompt file mapping to SubAgentProfile (`bf7f5c0`)
+- extract reusable helper functions across CLI and protocol modules (`ef0fbd9`)
+- update markdown code style (`b72a967`)
+- remove Rich private SPINNERS API dependency and increase markdown window (`97fb3fc`)
+- use hex color codes for consistent rendering (`ade2dda`)
+- tweak spinner and metadata (`6f0efad`)
+- spilt sub_agent package, rename subagent to sub_agent (`d805925`)
+- update metadata (`cdaeb29`)
+- update thinking style (`ad2a10d`)
+
+### Fixed
+
+- improve spinner status width calculation and format cleanups (`41c9d53`)
+- dynamically truncate spinner status based on terminal width (`ccd2474`)
+- prevent spinner jitter during markdown streaming (`f4f1e38`)
+- add padding spaces around reversed h1 headings (`ff4ef9a`)
+
+### Other
+
+- add handoff source (`8e4e94c`)
 ## [1.2.15] - 2025-12-08
 
 ### Added
@@ -465,7 +501,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.15...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.16...HEAD
+[1.2.16]: https://github.com/inspirepan/klaude-code/compare/v1.2.15...v1.2.16
 [1.2.15]: https://github.com/inspirepan/klaude-code/compare/v1.2.14...v1.2.15
 [1.2.14]: https://github.com/inspirepan/klaude-code/compare/v1.2.13...v1.2.14
 [1.2.13]: https://github.com/inspirepan/klaude-code/compare/v1.2.12...v1.2.13
