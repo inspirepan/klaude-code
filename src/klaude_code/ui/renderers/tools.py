@@ -186,14 +186,7 @@ def render_write_tool_call(arguments: str) -> RenderableType:
     try:
         json_dict = json.loads(arguments)
         file_path = json_dict.get("file_path")
-        op_label = "Create"
-        if isinstance(file_path, str):
-            abs_path = Path(file_path)
-            if not abs_path.is_absolute():
-                abs_path = (Path().cwd() / abs_path).resolve()
-            if abs_path.exists():
-                op_label = "Write"
-        tool_name_column = Text.assemble(("→", ThemeKey.TOOL_MARK), " ", (op_label, ThemeKey.TOOL_NAME))
+        tool_name_column = Text.assemble(("→", ThemeKey.TOOL_MARK), " ", ("Write", ThemeKey.TOOL_NAME))
         arguments_column = render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
     except json.JSONDecodeError:
         tool_name_column = Text.assemble(("→", ThemeKey.TOOL_MARK), " ", ("Write", ThemeKey.TOOL_NAME))
