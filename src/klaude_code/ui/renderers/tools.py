@@ -7,7 +7,7 @@ from rich.padding import Padding
 from rich.text import Text
 
 from klaude_code import const
-from klaude_code.protocol import events, model
+from klaude_code.protocol import events, model, tools
 from klaude_code.protocol.sub_agent import is_sub_agent_tool as _is_sub_agent_tool
 from klaude_code.ui.renderers import diffs as r_diffs
 from klaude_code.ui.renderers.common import create_grid
@@ -435,35 +435,28 @@ def get_truncation_info(tr: events.ToolResultEvent) -> model.TruncationUIExtra |
     return _extract_truncation(tr.ui_extra)
 
 
-# Tool name to mark mapping
-_TOOL_MARKS: dict[str, str] = {
-    "Read": "←",
-    "Edit": "→",
-    "Write": "→",
-    "MultiEdit": "→",
-    "Bash": ">",
-    "apply_patch": "→",
-    "TodoWrite": "◎",
-    "update_plan": "◎",
-    "Mermaid": "⧉",
-    "Memory": "★",
-    "Skill": "◈",
-}
+def render_report_back_tool_call() -> RenderableType:
+    grid = create_grid()
+    tool_name_column = Text.assemble(("✔", ThemeKey.TOOL_MARK), " ", ("Report Back", ThemeKey.TOOL_NAME))
+    grid.add_row(tool_name_column, "")
+    return grid
+
 
 # Tool name to active form mapping (for spinner status)
 _TOOL_ACTIVE_FORM: dict[str, str] = {
-    "Bash": "Bashing",
-    "apply_patch": "Patching",
-    "Edit": "Editing",
-    "MultiEdit": "Editing",
-    "Read": "Reading",
-    "Write": "Writing",
-    "TodoWrite": "Planning",
-    "update_plan": "Planning",
-    "Skill": "Skilling",
-    "Mermaid": "Diagramming",
-    "Memory": "Memorizing",
-    "WebFetch": "Fetching",
+    tools.BASH: "Bashing",
+    tools.APPLY_PATCH: "Patching",
+    tools.EDIT: "Editing",
+    tools.MULTI_EDIT: "Editing",
+    tools.READ: "Reading",
+    tools.WRITE: "Writing",
+    tools.TODO_WRITE: "Planning",
+    tools.UPDATE_PLAN: "Planning",
+    tools.SKILL: "Skilling",
+    tools.MERMAID: "Diagramming",
+    tools.MEMORY: "Memorizing",
+    tools.WEB_FETCH: "Fetching",
+    tools.REPORT_BACK: "Submitting Report",
 }
 
 
@@ -490,7 +483,6 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
 
     Returns a Rich Renderable or None if the tool call should not be rendered.
     """
-    from klaude_code.protocol import tools
 
     if is_sub_agent_tool(e.tool_name):
         return None
@@ -518,6 +510,8 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
             return render_memory_tool_call(e.arguments)
         case tools.SKILL:
             return render_generic_tool_call(e.tool_name, e.arguments, "◈")
+        case tools.REPORT_BACK:
+            return render_report_back_tool_call()
         case _:
             return render_generic_tool_call(e.tool_name, e.arguments)
 
@@ -533,7 +527,6 @@ def render_tool_result(e: events.ToolResultEvent) -> RenderableType | None:
 
     Returns a Rich Renderable or None if the tool result should not be rendered.
     """
-    from klaude_code.protocol import tools
     from klaude_code.ui.renderers import errors as r_errors
 
     if is_sub_agent_tool(e.tool_name):

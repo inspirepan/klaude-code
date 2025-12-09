@@ -7,7 +7,7 @@ from typing import ClassVar
 
 from pydantic import BaseModel, Field, PrivateAttr
 
-from klaude_code.protocol import events, model
+from klaude_code.protocol import events, model, tools
 
 
 class Session(BaseModel):
@@ -270,6 +270,7 @@ class Session(BaseModel):
         seen_sub_agent_sessions: set[str] = set()
         prev_item: model.ConversationItem | None = None
         last_assistant_content: str = ""
+        report_back_result: str | None = None
         yield events.TaskStartEvent(session_id=self.id, sub_agent_state=self.sub_agent_state)
         for it in self.conversation_history:
             if self.need_turn_start(prev_item, it):
@@ -286,6 +287,8 @@ class Session(BaseModel):
                         session_id=self.id,
                     )
                 case model.ToolCallItem() as tc:
+                    if tc.name == tools.REPORT_BACK:
+                        report_back_result = tc.arguments
                     yield events.ToolCallEvent(
                         tool_call_id=tc.call_id,
                         tool_name=tc.name,
@@ -336,7 +339,14 @@ class Session(BaseModel):
                 case _:
                     continue
             prev_item = it
-        yield events.TaskFinishEvent(session_id=self.id, task_result=last_assistant_content)
+
+        has_structured_output = report_back_result is not None
+        task_result = report_back_result if has_structured_output else last_assistant_content
+        yield events.TaskFinishEvent(
+            session_id=self.id,
+            task_result=task_result,
+            has_structured_output=has_structured_output,
+        )
 
     def _iter_sub_agent_history(
         self, tool_result: model.ToolResultItem, seen_sub_agent_sessions: set[str]

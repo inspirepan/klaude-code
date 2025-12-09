@@ -73,8 +73,13 @@ async def _load_at_file_recursive(
                     nested = match.group("quoted") or match.group("plain")
                     if nested:
                         await _load_at_file_recursive(
-                            session, nested, at_files, collected_images, visited,
-                            base_dir=path.parent, mentioned_in=path_str,
+                            session,
+                            nested,
+                            at_files,
+                            collected_images,
+                            visited,
+                            base_dir=path.parent,
+                            mentioned_in=path_str,
                         )
         elif path.exists() and path.is_dir():
             quoted_path = shlex.quote(path_str)

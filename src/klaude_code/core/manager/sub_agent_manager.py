@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import asyncio
 
-from klaude_code.core.agent import Agent, ModelProfileProvider
+from klaude_code.core.agent import Agent, AgentProfile, ModelProfileProvider
 from klaude_code.core.manager.llm_clients import LLMClients
+from klaude_code.core.tool import ReportBackTool
 from klaude_code.protocol import events, model
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.session import Session
@@ -47,6 +48,25 @@ class SubAgentManager:
             self._llm_clients.get_client(state.sub_agent_type),
             state.sub_agent_type,
         )
+
+        # Inject report_back tool if output_schema is provided
+        if state.output_schema:
+            report_back_tool_class = ReportBackTool.for_schema(state.output_schema)
+            report_back_prompt = """\
+
+# Structured Output
+You have a `report_back` tool available. When you complete the task,\
+you MUST call `report_back` with the structured result matching the required schema.\
+This will end the task and return the structured data to the caller.
+"""
+            base_prompt = child_profile.system_prompt or ""
+            child_profile = AgentProfile(
+                llm_client=child_profile.llm_client,
+                system_prompt=base_prompt + report_back_prompt,
+                tools=[*child_profile.tools, report_back_tool_class.schema()],
+                reminders=child_profile.reminders,
+            )
+
         child_agent = Agent(session=child_session, profile=child_profile)
 
         log_debug(
@@ -68,7 +88,11 @@ class SubAgentManager:
                 elif isinstance(event, events.TaskMetadataEvent):
                     task_metadata = event.metadata.main
                 await self.emit_event(event)
-            return SubAgentResult(task_result=result, session_id=child_session.id, task_metadata=task_metadata)
+            return SubAgentResult(
+                task_result=result,
+                session_id=child_session.id,
+                task_metadata=task_metadata,
+            )
         except asyncio.CancelledError:
             # Propagate cancellation so tooling can treat it as user interrupt
             log_debug(

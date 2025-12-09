@@ -26,6 +26,7 @@ class TaskStartEvent(BaseModel):
 class TaskFinishEvent(BaseModel):
     session_id: str
     task_result: str
+    has_structured_output: bool = False
 
 
 class TurnStartEvent(BaseModel):

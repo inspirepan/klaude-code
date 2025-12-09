@@ -5,6 +5,7 @@ An minimal and opinionated code agent with multi-model support.
 ## Key Features
 - **Adaptive Tooling**: Model-aware toolsets (Claude Code tools for Sonnet, Codex `apply_patch` for GPT-5.1/Codex).
 - **Multi-Provider Support**: Compatible with `anthropic-messages-api`,`openai-responses-api`, and `openai-compatible-api`(`openrouter-api`),  featuring interleaved thinking, OpenRouter's provider sorting etc.
+- **Structured Sub-Agent Output**: Main agent defines output JSON schema for sub-agents; sub-agents use `report_back` tool with constrained decoding to return schema-compliant structured data.
 - **Skill System**: Extensible support for loading Claude Skills.
 - **Session Management**: Robust context preservation with resumable sessions (`--continue`).
 - **Simple TUI**: Clean interface offering full visibility into model responses, reasoning and actions.

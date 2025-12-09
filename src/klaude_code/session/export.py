@@ -299,7 +299,13 @@ def _try_render_todo_args(arguments: str) -> str | None:
 
 
 def _render_sub_agent_result(content: str) -> str:
-    encoded = _escape_html(content)
+    # Try to format as JSON for better readability
+    try:
+        parsed = json.loads(content)
+        formatted = "```json\n" + json.dumps(parsed, ensure_ascii=False, indent=2) + "\n```"
+    except (json.JSONDecodeError, TypeError):
+        formatted = content
+    encoded = _escape_html(formatted)
     return (
         f'<div class="sub-agent-result-container">'
         f'<div class="sub-agent-toolbar">'

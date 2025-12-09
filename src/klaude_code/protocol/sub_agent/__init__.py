@@ -60,6 +60,9 @@ class SubAgentProfile:
     show_in_main_agent: bool = True
     target_model_filter: AvailabilityPredicate | None = None
 
+    # Structured output support: specifies which parameter in the tool schema contains the output schema
+    output_schema_arg: str | None = None
+
     def enabled_for_model(self, model_name: str | None) -> bool:
         if not self.enabled_by_default:
             return False

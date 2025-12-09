@@ -3,9 +3,10 @@ from collections.abc import AsyncGenerator, Callable, Iterable, Sequence
 from dataclasses import dataclass
 
 from klaude_code import const
+from klaude_code.core.tool.report_back_tool import ReportBackTool
 from klaude_code.core.tool.tool_abc import ToolABC
 from klaude_code.core.tool.truncation import truncate_tool_output
-from klaude_code.protocol import model
+from klaude_code.protocol import model, tools
 from klaude_code.protocol.sub_agent import is_sub_agent_tool
 
 
@@ -19,6 +20,13 @@ async def run_tool(tool_call: model.ToolCallItem, registry: dict[str, type[ToolA
     Returns:
         The result of the tool execution.
     """
+    # Special handling for report_back tool (not registered in global registry)
+    if tool_call.name == tools.REPORT_BACK:
+        tool_result = await ReportBackTool.call(tool_call.arguments)
+        tool_result.call_id = tool_call.call_id
+        tool_result.tool_name = tool_call.name
+        return tool_result
+
     if tool_call.name not in registry:
         return model.ToolResultItem(
             call_id=tool_call.call_id,

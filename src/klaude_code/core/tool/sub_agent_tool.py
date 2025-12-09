@@ -63,12 +63,18 @@ class SubAgentTool(ToolABC):
         prompt = profile.prompt_builder(args)
         description = args.get("description", "")
 
+        # Extract output_schema if configured
+        output_schema = None
+        if profile.output_schema_arg:
+            output_schema = args.get(profile.output_schema_arg)
+
         try:
             result = await runner(
                 model.SubAgentState(
                     sub_agent_type=profile.name,
                     sub_agent_desc=description,
                     sub_agent_prompt=prompt,
+                    output_schema=output_schema,
                 )
             )
         except asyncio.CancelledError:

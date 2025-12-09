@@ -19,7 +19,11 @@ Usage notes:
 - The agent's outputs should generally be trusted
 - Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, etc.), since it is not aware of the user's intent
 - If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
-- If the user specifies that they want you to run agents "in parallel", you MUST send a single message with multiple Task tool use content blocks. For example, if you need to launch both a code-reviewer agent and a test-runner agent in parallel, send a single message with both tool calls.\
+- If the user specifies that they want you to run agents "in parallel", you MUST send a single message with multiple Task tool use content blocks. For example, if you need to launch both a code-reviewer agent and a test-runner agent in parallel, send a single message with both tool calls.
+
+Structured output:
+- Provide an `output_format` (JSON Schema) parameter for structured data back from the agent
+- Example: `output_format={"type": "object", "properties": {"files": {"type": "array", "items": {"type": "string"}, "description": "List of file paths that match the search criteria, e.g. ['src/main.py', 'src/utils/helper.py']"}}, "required": ["files"]}`\
 """
 
 TASK_PARAMETERS = {
@@ -32,6 +36,12 @@ TASK_PARAMETERS = {
         "prompt": {
             "type": "string",
             "description": "The task for the agent to perform",
+        },
+        "output_format": {
+            "type": "object",
+            "description": (
+                "Optional JSON Schema for structured output, better with examples in argument descriptions."
+            ),
         },
     },
     "required": ["description", "prompt"],
@@ -46,5 +56,6 @@ register_sub_agent(
         prompt_file="prompts/prompt-sub-agent.md",
         tool_set=(tools.BASH, tools.READ, tools.EDIT, tools.WRITE),
         active_form="Tasking",
+        output_schema_arg="output_format",
     )
 )

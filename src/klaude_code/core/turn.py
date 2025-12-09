@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from klaude_code.core.tool import ToolABC, tool_context
@@ -17,7 +17,7 @@ from klaude_code.core.tool.tool_runner import (
     ToolExecutorEvent,
 )
 from klaude_code.llm import LLMClientABC
-from klaude_code.protocol import events, llm_param, model
+from klaude_code.protocol import events, llm_param, model, tools
 from klaude_code.trace import DebugType, log_debug
 
 
@@ -46,6 +46,7 @@ class TurnResult:
     assistant_message: model.AssistantMessageItem | None
     tool_calls: list[model.ToolCallItem]
     stream_error: model.StreamErrorItem | None
+    report_back_result: str | None = field(default=None)
 
 
 def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEvent) -> list[events.Event]:
@@ -101,8 +102,38 @@ class TurnExecutor:
         self._turn_result: TurnResult | None = None
 
     @property
-    def has_tool_call(self) -> bool:
-        return bool(self._turn_result and self._turn_result.tool_calls)
+    def report_back_result(self) -> str | None:
+        return self._turn_result.report_back_result if self._turn_result else None
+
+    @property
+    def task_finished(self) -> bool:
+        """Check if this turn indicates the task should end.
+
+        Task ends when there are no tool calls or report_back was called.
+        """
+        if self._turn_result is None:
+            return True
+        if not self._turn_result.tool_calls:
+            return True
+        return self._turn_result.report_back_result is not None
+
+    @property
+    def task_result(self) -> str:
+        """Get the task result from this turn.
+
+        Returns report_back result if available, otherwise returns
+        the assistant message content.
+        """
+        if self._turn_result is not None and self._turn_result.report_back_result is not None:
+            return self._turn_result.report_back_result
+        if self._turn_result is not None and self._turn_result.assistant_message is not None:
+            return self._turn_result.assistant_message.content or ""
+        return ""
+
+    @property
+    def has_structured_output(self) -> bool:
+        """Check if the task result is structured output from report_back."""
+        return bool(self._turn_result and self._turn_result.report_back_result)
 
     def cancel(self) -> list[events.Event]:
         """Cancel running tools and return any resulting events."""
@@ -143,10 +174,20 @@ class TurnExecutor:
         self._append_success_history(self._turn_result)
 
         if self._turn_result.tool_calls:
+            # Check for report_back before running tools
+            self._detect_report_back(self._turn_result)
+
             async for ui_event in self._run_tool_executor(self._turn_result.tool_calls):
                 yield ui_event
 
         yield events.TurnEndEvent(session_id=session_ctx.session_id)
+
+    def _detect_report_back(self, turn_result: TurnResult) -> None:
+        """Detect report_back tool call and store its arguments as JSON string."""
+        for tool_call in turn_result.tool_calls:
+            if tool_call.name == tools.REPORT_BACK:
+                turn_result.report_back_result = tool_call.arguments
+                break
 
     async def _consume_llm_stream(self, turn_result: TurnResult) -> AsyncGenerator[events.Event]:
         """Stream events from LLM and update turn_result in place."""

@@ -21,6 +21,8 @@ and can use tools like rg to search through large responses that were truncated 
 
 Usage notes:
 - Provide a clear prompt describing what information to extract or analyze
+- Provide an `output_format` (JSON Schema) parameter for structured data back from the sub-agent
+  - Example: `output_format={"type": "object", "properties": {"main_content": {"type": "string", "description": "The main content extracted from the page, e.g. 'This article discusses...'"}, "key_insights": {"type": "array", "items": {"type": "string"}, "description": "Key takeaways from the content, e.g. ['Insight 1', 'Insight 2']"}}, "required": ["main_content", "key_insights"]}`
 - The agent will return a summary of the findings
 - For large web pages, the content may be truncated and saved to a file; the agent can search through it
 - The agent can autonomously follow links to related pages if needed to complete the task\
@@ -41,8 +43,12 @@ WEB_FETCH_AGENT_PARAMETERS = {
             "type": "string",
             "description": "Instructions for analyzing or extracting content from the web page",
         },
+        "output_format": {
+            "type": "object",
+            "description": "Optional JSON Schema for sub-agent structured output",
+        },
     },
-    "required": ["description", "url", "prompt"],
+    "required": ["description", "url", "prompt", "output_format"],
     "additionalProperties": False,
 }
 
@@ -63,5 +69,6 @@ register_sub_agent(
         tool_set=(tools.BASH, tools.READ, tools.WEB_FETCH),
         prompt_builder=_web_fetch_prompt_builder,
         active_form="Fetching Web",
+        output_schema_arg="output_format",
     )
 )

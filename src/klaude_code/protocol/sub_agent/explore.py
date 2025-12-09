@@ -9,7 +9,11 @@ EXPLORE_DESCRIPTION = """\
 Spin up a fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. "src/components/**/*.tsx"), \
 search code for keywords (eg. "API endpoints"), or answer questions about the codebase (eg. "how do API endpoints work?")\
 When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "very thorough" for comprehensive analysis across multiple locations and naming conventions.
-Always spawn multiple search agents in parallel to maximise speed.\
+Always spawn multiple search agents in parallel to maximise speed.
+
+Structured output:
+- Provide an `output_format` (JSON Schema) parameter for structured data back from the sub-agent
+- Example: `output_format={"type": "object", "properties": {"files": {"type": "array", "items": {"type": "string"}, "description": "List of file paths that match the search criteria, e.g. ['src/main.py', 'src/utils/helper.py']"}}, "required": ["files"]}`\
 """
 
 EXPLORE_PARAMETERS = {
@@ -28,8 +32,12 @@ EXPLORE_PARAMETERS = {
             "enum": ["quick", "medium", "very thorough"],
             "description": "Controls how deep the sub-agent should search the repo",
         },
+        "output_format": {
+            "type": "object",
+            "description": "Optional JSON Schema for sub-agent structured output",
+        },
     },
-    "required": ["description", "prompt"],
+    "required": ["description", "prompt", "output_format"],
     "additionalProperties": False,
 }
 
@@ -50,5 +58,6 @@ register_sub_agent(
         tool_set=(tools.BASH, tools.READ),
         prompt_builder=_explore_prompt_builder,
         active_form="Exploring",
+        output_schema_arg="output_format",
     )
 )

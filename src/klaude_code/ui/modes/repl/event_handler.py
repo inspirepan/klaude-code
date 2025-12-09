@@ -541,7 +541,7 @@ class DisplayEventHandler:
             # " | " separator + actual activity text length
             reserved_space += 3 + len(activity_text.plain)
 
-        max_length = max(20, terminal_width - reserved_space)
+        max_length = max(10, terminal_width - reserved_space)
         return max_length
 
     def _truncate_status_text(self, text: str, max_length: int) -> str:

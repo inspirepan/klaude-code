@@ -261,9 +261,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     restore_sigint = install_sigint_double_press_exit(_show_toast_once, _hide_progress)
 
     try:
-        active_session_id = await initialize_session(
-            components.executor, components.event_queue, session_id=session_id
-        )
+        active_session_id = await initialize_session(components.executor, components.event_queue, session_id=session_id)
 
         # Input
         await input_provider.start()

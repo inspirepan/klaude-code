@@ -100,9 +100,9 @@ class REPLRenderer:
         if self.current_sub_agent_color:
             if objects:
                 content = objects[0] if len(objects) == 1 else objects
-                self.console.print(Quote(content, style=self.current_sub_agent_color))
+                self.console.print(Quote(content, style=self.current_sub_agent_color), overflow="ellipsis")
             return
-        self.console.print(*objects, style=style, end=end)
+        self.console.print(*objects, style=style, end=end, overflow="ellipsis")
 
     def display_tool_call(self, e: events.ToolCallEvent) -> None:
         if r_tools.is_sub_agent_tool(e.tool_name):
@@ -234,6 +234,7 @@ class REPLRenderer:
                     r_sub_agent.render_sub_agent_result(
                         event.task_result,
                         code_theme=self.themes.code_theme,
+                        has_structured_output=event.has_structured_output,
                     )
                 )
 

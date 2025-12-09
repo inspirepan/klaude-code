@@ -7,6 +7,7 @@ from .file.write_tool import WriteTool
 from .memory.memory_tool import MEMORY_DIR_NAME, MemoryTool
 from .memory.skill_loader import Skill, SkillLoader
 from .memory.skill_tool import SkillTool
+from .report_back_tool import ReportBackTool
 from .shell.bash_tool import BashTool
 from .shell.command_safety import SafetyCheckResult, is_safe_command
 from .sub_agent_tool import SubAgentTool
@@ -38,6 +39,7 @@ __all__ = [
     "MermaidTool",
     "MultiEditTool",
     "ReadTool",
+    "ReportBackTool",
     "SafetyCheckResult",
     "SimpleTruncationStrategy",
     "Skill",
