@@ -32,9 +32,9 @@ class NoInsetCodeBlock(CodeBlock):
             self.lexer_name,
             theme=self.theme,
             word_wrap=True,
-            padding=(0, 1),
+            padding=(0, 0),
         )
-        yield Panel.fit(syntax, padding=(0, 0), style="markdown.code.block", box=box.SIMPLE)
+        yield Panel.fit(syntax, padding=(0, 0), box=box.HORIZONTALS, border_style="markdown.code.border")
 
 
 class ThinkingCodeBlock(CodeBlock):
