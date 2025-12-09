@@ -41,10 +41,8 @@ class MetadataAccumulator:
             if main.usage is None:
                 main.usage = model.Usage()
             acc_usage = main.usage
-            acc_usage.input_tokens += usage.input_tokens
-            acc_usage.cached_tokens += usage.cached_tokens
-            acc_usage.reasoning_tokens += usage.reasoning_tokens
-            acc_usage.output_tokens += usage.output_tokens
+
+            model.TaskMetadata.merge_usage(acc_usage, usage)
             acc_usage.currency = usage.currency
 
             if usage.context_size is not None:
@@ -66,13 +64,6 @@ class MetadataAccumulator:
                 if current_output > 0:
                     self._throughput_weighted_sum += usage.throughput_tps * current_output
                     self._throughput_tracked_tokens += current_output
-
-            if usage.input_cost is not None:
-                acc_usage.input_cost = (acc_usage.input_cost or 0.0) + usage.input_cost
-            if usage.output_cost is not None:
-                acc_usage.output_cost = (acc_usage.output_cost or 0.0) + usage.output_cost
-            if usage.cache_read_cost is not None:
-                acc_usage.cache_read_cost = (acc_usage.cache_read_cost or 0.0) + usage.cache_read_cost
 
         if turn_metadata.provider is not None:
             main.provider = turn_metadata.provider

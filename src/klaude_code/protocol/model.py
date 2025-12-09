@@ -329,6 +329,26 @@ class TaskMetadata(BaseModel):
     turn_count: int = 0
 
     @staticmethod
+    def merge_usage(dst: Usage, src: Usage) -> None:
+        """Merge src usage into dst usage (in-place).
+
+        Accumulates token counts and cost components. Does not handle
+        special fields like throughput_tps, first_token_latency_ms,
+        context_size, or context_limit - those require custom logic.
+        """
+        dst.input_tokens += src.input_tokens
+        dst.cached_tokens += src.cached_tokens
+        dst.reasoning_tokens += src.reasoning_tokens
+        dst.output_tokens += src.output_tokens
+
+        if src.input_cost is not None:
+            dst.input_cost = (dst.input_cost or 0.0) + src.input_cost
+        if src.output_cost is not None:
+            dst.output_cost = (dst.output_cost or 0.0) + src.output_cost
+        if src.cache_read_cost is not None:
+            dst.cache_read_cost = (dst.cache_read_cost or 0.0) + src.cache_read_cost
+
+    @staticmethod
     def aggregate_by_model(metadata_list: list["TaskMetadata"]) -> list["TaskMetadata"]:
         """Aggregate multiple TaskMetadata by (model_name, provider).
 
@@ -357,19 +377,7 @@ class TaskMetadata(BaseModel):
             if agg.usage is None:
                 continue
 
-            # Accumulate primary token fields (total_tokens is computed)
-            agg.usage.input_tokens += usage.input_tokens
-            agg.usage.cached_tokens += usage.cached_tokens
-            agg.usage.reasoning_tokens += usage.reasoning_tokens
-            agg.usage.output_tokens += usage.output_tokens
-
-            # Accumulate cost components (total_cost is computed)
-            if usage.input_cost is not None:
-                agg.usage.input_cost = (agg.usage.input_cost or 0.0) + usage.input_cost
-            if usage.output_cost is not None:
-                agg.usage.output_cost = (agg.usage.output_cost or 0.0) + usage.output_cost
-            if usage.cache_read_cost is not None:
-                agg.usage.cache_read_cost = (agg.usage.cache_read_cost or 0.0) + usage.cache_read_cost
+            TaskMetadata.merge_usage(agg.usage, usage)
 
         # Sort by total_cost descending
         return sorted(

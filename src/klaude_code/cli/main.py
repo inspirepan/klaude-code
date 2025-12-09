@@ -13,13 +13,70 @@ from klaude_code.cli.debug import DEBUG_FILTER_HELP, open_log_file_in_editor, re
 from klaude_code.cli.session_cmd import register_session_commands
 from klaude_code.config import load_config
 from klaude_code.session import Session, resume_select_session
-from klaude_code.trace import prepare_debug_log_file
+from klaude_code.trace import DebugType, prepare_debug_log_file
 
 
 def set_terminal_title(title: str) -> None:
     """Set terminal window title using ANSI escape sequence."""
     sys.stdout.write(f"\033]0;{title}\007")
     sys.stdout.flush()
+
+
+def setup_terminal_title() -> None:
+    """Set terminal title to current folder name."""
+    folder_name = os.path.basename(os.getcwd())
+    set_terminal_title(f"{folder_name}: klaude")
+
+
+def prepare_debug_logging(debug: bool, debug_filter: str | None) -> tuple[bool, set[DebugType] | None, Path | None]:
+    """Resolve debug settings and prepare log file if debugging is enabled.
+
+    Returns:
+        A tuple of (debug_enabled, debug_filters, log_path).
+        log_path is None if debugging is disabled.
+    """
+    debug_enabled, debug_filters = resolve_debug_settings(debug, debug_filter)
+    log_path: Path | None = None
+    if debug_enabled:
+        log_path = prepare_debug_log_file()
+    return debug_enabled, debug_filters, log_path
+
+
+def read_input_content(cli_argument: str) -> str | None:
+    """Read and merge input from stdin and CLI argument.
+
+    Args:
+        cli_argument: The input content passed as CLI argument.
+
+    Returns:
+        The merged input content, or None if no input was provided.
+    """
+    from klaude_code.trace import log
+
+    parts: list[str] = []
+
+    # Handle stdin input
+    if not sys.stdin.isatty():
+        try:
+            stdin = sys.stdin.read().rstrip("\n")
+            if stdin:
+                parts.append(stdin)
+        except (OSError, ValueError) as e:
+            # Expected I/O-related errors when reading from stdin (e.g. broken pipe, closed stream).
+            log((f"Error reading from stdin: {e}", "red"))
+        except Exception as e:
+            # Unexpected errors are still reported but kept from crashing the CLI.
+            log((f"Unexpected error reading from stdin: {e}", "red"))
+
+    if cli_argument:
+        parts.append(cli_argument)
+
+    content = "\n".join(parts)
+    if len(content) == 0:
+        log(("Error: No input content provided", "red"))
+        return None
+
+    return content
 
 
 def _version_callback(value: bool) -> None:
@@ -90,33 +147,10 @@ def exec_command(
     ),
 ) -> None:
     """Execute non-interactively with provided input."""
-    from klaude_code.trace import log
+    setup_terminal_title()
 
-    # Set terminal title with current folder name
-    folder_name = os.path.basename(os.getcwd())
-    set_terminal_title(f"{folder_name}: klaude")
-
-    parts: list[str] = []
-
-    # Handle stdin input
-    if not sys.stdin.isatty():
-        try:
-            stdin = sys.stdin.read().rstrip("\n")
-            if stdin:
-                parts.append(stdin)
-        except (OSError, ValueError) as e:
-            # Expected I/O-related errors when reading from stdin (e.g. broken pipe, closed stream).
-            log((f"Error reading from stdin: {e}", "red"))
-        except Exception as e:
-            # Unexpected errors are still reported but kept from crashing the CLI.
-            log((f"Unexpected error reading from stdin: {e}", "red"))
-
-    if input_content:
-        parts.append(input_content)
-
-    input_content = "\n".join(parts)
-    if len(input_content) == 0:
-        log(("Error: No input content provided", "red"))
+    merged_input = read_input_content(input_content)
+    if merged_input is None:
         raise typer.Exit(1)
 
     from klaude_code.cli.runtime import AppInitConfig, run_exec
@@ -133,11 +167,7 @@ def exec_command(
         if chosen_model is None:
             return
 
-    debug_enabled, debug_filters = resolve_debug_settings(debug, debug_filter)
-
-    log_path: Path | None = None
-    if debug_enabled:
-        log_path = prepare_debug_log_file()
+    debug_enabled, debug_filters, log_path = prepare_debug_logging(debug, debug_filter)
 
     init_config = AppInitConfig(
         model=chosen_model,
@@ -154,7 +184,7 @@ def exec_command(
     asyncio.run(
         run_exec(
             init_config=init_config,
-            input_content=input_content,
+            input_content=merged_input,
         )
     )
 
@@ -210,10 +240,8 @@ def main_callback(
         from klaude_code.cli.runtime import AppInitConfig, run_interactive
         from klaude_code.config.select_model import select_model_from_config
 
-        # Set terminal title with current folder name
-        folder_name = os.path.basename(os.getcwd())
-        set_terminal_title(f"{folder_name}: klaude")
-        # Interactive mode
+        setup_terminal_title()
+
         chosen_model = model
         if select_model:
             chosen_model = select_model_from_config(preferred=model)
@@ -232,11 +260,7 @@ def main_callback(
             session_id = Session.most_recent_session_id()
         # If still no session_id, leave as None to create a new session
 
-        debug_enabled, debug_filters = resolve_debug_settings(debug, debug_filter)
-
-        log_path: Path | None = None
-        if debug_enabled:
-            log_path = prepare_debug_log_file()
+        debug_enabled, debug_filters, log_path = prepare_debug_logging(debug, debug_filter)
 
         init_config = AppInitConfig(
             model=chosen_model,

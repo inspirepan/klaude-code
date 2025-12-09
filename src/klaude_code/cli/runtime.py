@@ -127,6 +127,28 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     )
 
 
+async def initialize_session(
+    executor: Executor,
+    event_queue: asyncio.Queue[events.Event],
+    session_id: str | None = None,
+) -> str | None:
+    """Initialize a session and return the active session ID.
+
+    Args:
+        executor: The executor to submit operations to.
+        event_queue: The event queue for synchronization.
+        session_id: Optional session ID to resume. If None, creates a new session.
+
+    Returns:
+        The active session ID, or None if no session is active.
+    """
+    await executor.submit_and_wait(op.InitAgentOperation(session_id=session_id))
+    await event_queue.join()
+
+    active_session_ids = executor.context.agent_manager.active_session_ids()
+    return active_session_ids[0] if active_session_ids else session_id
+
+
 async def cleanup_app_components(components: AppComponents) -> None:
     """Clean up all application components."""
     try:
@@ -167,13 +189,7 @@ async def run_exec(init_config: AppInitConfig, input_content: str) -> None:
     components = await initialize_app_components(init_config)
 
     try:
-        # Initialize a new session (session_id=None means create new)
-        await components.executor.submit_and_wait(op.InitAgentOperation())
-        await components.event_queue.join()
-
-        # Get the session_id from the newly created agent
-        session_ids = components.executor.context.agent_manager.active_session_ids()
-        session_id = session_ids[0] if session_ids else None
+        session_id = await initialize_session(components.executor, components.event_queue)
 
         # Submit the input content directly
         await components.executor.submit_and_wait(
@@ -245,12 +261,9 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     restore_sigint = install_sigint_double_press_exit(_show_toast_once, _hide_progress)
 
     try:
-        await components.executor.submit_and_wait(op.InitAgentOperation(session_id=session_id))
-        await components.event_queue.join()
-
-        # Get the actual session_id (may have been auto-generated if None was passed)
-        active_session_ids = components.executor.context.agent_manager.active_session_ids()
-        active_session_id = active_session_ids[0] if active_session_ids else session_id
+        active_session_id = await initialize_session(
+            components.executor, components.event_queue, session_id=session_id
+        )
 
         # Input
         await input_provider.start()

@@ -27,8 +27,7 @@ _BREATHING_SPINNER_GLYPHS_BASE = [
     "✦",
     "✶",
     "✲",
-    "✳",
-    # Diamonds
+    "⏺",
     "◆",
     "❖",
 ]
