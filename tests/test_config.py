@@ -26,7 +26,6 @@ _config_spec.loader.exec_module(_config_module)
 Config = _config_module.Config
 ModelConfig = _config_module.ModelConfig
 config_path = _config_module.config_path
-get_example_config = _config_module.get_example_config
 load_config = _config_module.load_config
 
 
@@ -295,60 +294,6 @@ class TestConfigSave:
         asyncio.run(config.save())
 
         assert test_config_path.exists()
-
-
-# =============================================================================
-# get_example_config Tests
-# =============================================================================
-
-
-class TestGetExampleConfig:
-    """Tests for get_example_config function."""
-
-    def test_get_example_config_returns_valid_config(self) -> None:
-        """Test that get_example_config returns a valid Config object."""
-        config = get_example_config()
-
-        assert isinstance(config, Config)
-        assert config.main_model == "gpt-5.1"
-        assert len(config.provider_list) >= 2
-        assert len(config.model_list) >= 3
-
-    def test_get_example_config_has_openai_provider(self) -> None:
-        """Test that example config has OpenAI provider."""
-        config = get_example_config()
-
-        openai_provider = next(
-            (p for p in config.provider_list if p.provider_name == "openai"),
-            None,
-        )
-        assert openai_provider is not None
-        assert openai_provider.protocol == llm_param.LLMClientProtocol.RESPONSES
-
-    def test_get_example_config_has_openrouter_provider(self) -> None:
-        """Test that example config has OpenRouter provider."""
-        config = get_example_config()
-
-        openrouter_provider = next(
-            (p for p in config.provider_list if p.provider_name == "openrouter"),
-            None,
-        )
-        assert openrouter_provider is not None
-        assert openrouter_provider.protocol == llm_param.LLMClientProtocol.OPENROUTER
-
-    def test_get_example_config_main_model_exists_in_list(self) -> None:
-        """Test that main_model exists in model_list."""
-        config = get_example_config()
-
-        model_names = [m.model_name for m in config.model_list]
-        assert config.main_model in model_names
-
-    def test_get_example_config_sub_agent_models(self) -> None:
-        """Test that example config has sub-agent models configured."""
-        config = get_example_config()
-
-        assert "Explore" in config.sub_agent_models
-        assert "Oracle" in config.sub_agent_models
 
 
 # =============================================================================
