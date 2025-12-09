@@ -5,6 +5,7 @@ from importlib.resources import files
 from pathlib import Path
 
 from klaude_code.protocol import llm_param
+from klaude_code.protocol.sub_agent import get_sub_agent_profile
 
 COMMAND_DESCRIPTIONS: dict[str, str] = {
     "rg": "ripgrep - fast text search",
@@ -19,15 +20,15 @@ PROMPT_FILES: dict[str, str] = {
     "main_gpt_5_1_codex_max": "prompts/prompt-codex-gpt-5-1-codex-max.md",
     "main": "prompts/prompt-claude-code.md",
     "main_gemini": "prompts/prompt-gemini.md",  # https://ai.google.dev/gemini-api/docs/prompting-strategies?hl=zh-cn#agentic-si-template
-    # Sub-agent prompts keyed by their name
-    "Task": "prompts/prompt-sub-agent.md",
-    "Oracle": "prompts/prompt-sub-agent-oracle.md",
-    "Explore": "prompts/prompt-sub-agent-explore.md",
-    "WebFetchAgent": "prompts/prompt-sub-agent-webfetch.md",
 }
 
 
 @cache
+def _load_prompt_by_path(prompt_path: str) -> str:
+    """Load and cache prompt content from a file path relative to core package."""
+    return files(__package__).joinpath(prompt_path).read_text(encoding="utf-8").strip()
+
+
 def _load_base_prompt(file_key: str) -> str:
     """Load and cache the base prompt content from file."""
     try:
@@ -35,14 +36,11 @@ def _load_base_prompt(file_key: str) -> str:
     except KeyError as exc:
         raise ValueError(f"Unknown prompt key: {file_key}") from exc
 
-    return files(__package__).joinpath(prompt_path).read_text(encoding="utf-8").strip()
+    return _load_prompt_by_path(prompt_path)
 
 
-def _get_file_key(model_name: str, protocol: llm_param.LLMClientProtocol, sub_agent_type: str | None) -> str:
-    """Determine which prompt file to use based on model and agent type."""
-    if sub_agent_type is not None:
-        return sub_agent_type
-
+def _get_file_key(model_name: str, protocol: llm_param.LLMClientProtocol) -> str:
+    """Determine which prompt file to use based on model."""
     match model_name:
         case name if "gpt-5.1-codex-max" in name:
             return "main_gpt_5_1_codex_max"
@@ -90,8 +88,12 @@ def load_system_prompt(
     model_name: str, protocol: llm_param.LLMClientProtocol, sub_agent_type: str | None = None
 ) -> str:
     """Get system prompt content for the given model and sub-agent type."""
-    file_key = _get_file_key(model_name, protocol, sub_agent_type)
-    base_prompt = _load_base_prompt(file_key)
+    if sub_agent_type is not None:
+        profile = get_sub_agent_profile(sub_agent_type)
+        base_prompt = _load_prompt_by_path(profile.prompt_file)
+    else:
+        file_key = _get_file_key(model_name, protocol)
+        base_prompt = _load_base_prompt(file_key)
 
     if protocol == llm_param.LLMClientProtocol.CODEX:
         # Do not append environment info for Codex protocol

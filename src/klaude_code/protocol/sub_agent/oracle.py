@@ -82,6 +82,7 @@ register_sub_agent(
         name="Oracle",
         description=ORACLE_DESCRIPTION,
         parameters=ORACLE_PARAMETERS,
+        prompt_file="prompts/prompt-sub-agent-oracle.md",
         tool_set=(tools.READ, tools.BASH),
         prompt_builder=_oracle_prompt_builder,
         active_form="Consulting Oracle",

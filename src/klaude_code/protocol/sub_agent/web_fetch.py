@@ -59,6 +59,7 @@ register_sub_agent(
         name="WebFetchAgent",
         description=WEB_FETCH_AGENT_DESCRIPTION,
         parameters=WEB_FETCH_AGENT_PARAMETERS,
+        prompt_file="prompts/prompt-sub-agent-webfetch.md",
         tool_set=(tools.BASH, tools.READ, tools.WEB_FETCH),
         prompt_builder=_web_fetch_prompt_builder,
         active_form="Fetching Web",

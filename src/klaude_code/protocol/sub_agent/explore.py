@@ -46,6 +46,7 @@ register_sub_agent(
         name="Explore",
         description=EXPLORE_DESCRIPTION,
         parameters=EXPLORE_PARAMETERS,
+        prompt_file="prompts/prompt-sub-agent-explore.md",
         tool_set=(tools.BASH, tools.READ),
         prompt_builder=_explore_prompt_builder,
         active_form="Exploring",

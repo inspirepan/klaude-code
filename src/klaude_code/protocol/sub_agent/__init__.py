@@ -45,6 +45,9 @@ class SubAgentProfile:
         default_factory=lambda: dict[str, Any](), hash=False
     )  # JSON Schema for tool parameters
 
+    # System prompt
+    prompt_file: str = ""  # Resource file path relative to core package (e.g., "prompts/prompt-sub-agent.md")
+
     # Sub agent configuration
     tool_set: tuple[str, ...] = ()  # Tools available to this sub agent
     prompt_builder: PromptBuilder = _default_prompt_builder  # Builds the sub agent prompt from tool arguments
