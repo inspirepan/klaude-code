@@ -456,7 +456,7 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.MERMAID: "Diagramming",
     tools.MEMORY: "Memorizing",
     tools.WEB_FETCH: "Fetching",
-    tools.REPORT_BACK: "Submitting Report",
+    tools.REPORT_BACK: "Reporting",
 }
 
 

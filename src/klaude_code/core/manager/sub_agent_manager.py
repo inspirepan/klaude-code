@@ -57,7 +57,7 @@ class SubAgentManager:
 # Structured Output
 You have a `report_back` tool available. When you complete the task,\
 you MUST call `report_back` with the structured result matching the required schema.\
-This will end the task and return the structured data to the caller.
+Only the content passed to `report_back` will be returned to user.\
 """
             base_prompt = child_profile.system_prompt or ""
             child_profile = AgentProfile(

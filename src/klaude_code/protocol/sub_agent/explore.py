@@ -37,7 +37,7 @@ EXPLORE_PARAMETERS = {
             "description": "Optional JSON Schema for sub-agent structured output",
         },
     },
-    "required": ["description", "prompt", "output_format"],
+    "required": ["description", "prompt"],
     "additionalProperties": False,
 }
 

@@ -48,7 +48,7 @@ WEB_FETCH_AGENT_PARAMETERS = {
             "description": "Optional JSON Schema for sub-agent structured output",
         },
     },
-    "required": ["description", "url", "prompt", "output_format"],
+    "required": ["description", "url", "prompt"],
     "additionalProperties": False,
 }
 

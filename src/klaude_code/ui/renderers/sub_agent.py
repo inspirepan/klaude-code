@@ -64,16 +64,20 @@ def render_sub_agent_result(
 
     # Use rich JSON for structured output
     if has_structured_output:
-        return Panel.fit(
-            Group(
-                Text(
-                    "use /export to view full output",
-                    style=ThemeKey.TOOL_RESULT,
+        try:
+            return Panel.fit(
+                Group(
+                    Text(
+                        "use /export to view full output",
+                        style=ThemeKey.TOOL_RESULT,
+                    ),
+                    JSON(stripped_result),
                 ),
-                JSON(stripped_result),
-            ),
-            border_style=ThemeKey.LINES,
-        )
+                border_style=ThemeKey.LINES,
+            )
+        except json.JSONDecodeError:
+            # Fall back to markdown if not valid JSON
+            pass
 
     lines = stripped_result.splitlines()
     if len(lines) > const.SUB_AGENT_RESULT_MAX_LINES:
