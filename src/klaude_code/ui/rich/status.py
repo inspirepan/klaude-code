@@ -21,15 +21,22 @@ from klaude_code.ui.terminal.color import get_last_terminal_background_rgb
 BREATHING_SPINNER_NAME = "dots"
 
 # Alternating glyphs for the breathing spinner - switches at each "transparent" point
-# All glyphs are center-symmetric (point-symmetric)
 _BREATHING_SPINNER_GLYPHS_BASE = [
-    # Stars
     "✦",
     "✶",
     "✲",
-    "⏺",
     "◆",
     "❖",
+    "✧",
+    "❋",
+    "✸",
+    "✻",
+    "◇",
+    "✴",
+    "✷",
+    "⟡",
+    "⬡",
+    "⬢",
 ]
 
 # Shuffle glyphs on module load for variety across sessions
@@ -177,9 +184,7 @@ class ShimmerStatusText:
     Supports optional right-aligned text that stays fixed at the right edge.
     """
 
-    def __init__(
-        self, main_text: str | Text, main_style: ThemeKey, right_text: Text | None = None
-    ) -> None:
+    def __init__(self, main_text: str | Text, main_style: ThemeKey, right_text: Text | None = None) -> None:
         self._main_text = main_text if isinstance(main_text, Text) else Text(main_text)
         self._main_style = main_style
         self._hint_text = Text(const.STATUS_HINT_TEXT)

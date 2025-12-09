@@ -192,7 +192,7 @@ def render_write_tool_call(arguments: str) -> RenderableType:
             if not abs_path.is_absolute():
                 abs_path = (Path().cwd() / abs_path).resolve()
             if abs_path.exists():
-                op_label = "Overwrite"
+                op_label = "Write"
         tool_name_column = Text.assemble(("→", ThemeKey.TOOL_MARK), " ", (op_label, ThemeKey.TOOL_NAME))
         arguments_column = render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
     except json.JSONDecodeError:

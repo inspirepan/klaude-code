@@ -552,15 +552,15 @@ class DisplayEventHandler:
         """Calculate max length for base_status based on terminal width.
 
         Reserve space for:
-        - Spinner glyph + space: 2 chars
+        - Spinner glyph + space + context text: 2 chars + context text length 10 chars
         - " | " separator: 3 chars (only if activity text present)
         - Activity text: actual length (only if present)
         - Status hint text (esc to interrupt)
         """
         terminal_width = self.renderer.console.size.width
 
-        # Base reserved space: spinner + status hint
-        reserved_space = 2 + len(const.STATUS_HINT_TEXT)
+        # Base reserved space: spinner + context + status hint
+        reserved_space = 12 + len(const.STATUS_HINT_TEXT)
 
         # Add space for activity text if present
         activity_text = self.spinner_status.get_activity_text()

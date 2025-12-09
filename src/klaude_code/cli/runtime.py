@@ -261,7 +261,15 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     restore_sigint = install_sigint_double_press_exit(_show_toast_once, _hide_progress)
 
     try:
-        active_session_id = await initialize_session(components.executor, components.event_queue, session_id=session_id)
+        await initialize_session(components.executor, components.event_queue, session_id=session_id)
+
+        def _get_active_session_id() -> str | None:
+            """Get the current active session ID dynamically.
+
+            This is necessary because /clear command creates a new session with a different ID.
+            """
+            active_ids = components.executor.context.agent_manager.active_session_ids()
+            return active_ids[0] if active_ids else None
 
         # Input
         await input_provider.start()
@@ -272,6 +280,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             elif user_input.text.strip() == "":
                 continue
             # Submit user input operation - directly use the payload from iter_inputs
+            # Use dynamic session_id lookup to handle /clear creating new sessions
+            active_session_id = _get_active_session_id()
             submission_id = await components.executor.submit(
                 op.UserInputOperation(input=user_input, session_id=active_session_id)
             )
@@ -282,7 +292,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             else:
                 # Esc monitor for long-running, interruptible operations
                 async def _on_esc_interrupt() -> None:
-                    await components.executor.submit(op.InterruptOperation(target_session_id=active_session_id))
+                    await components.executor.submit(op.InterruptOperation(target_session_id=_get_active_session_id()))
 
                 stop_event, esc_task = start_esc_interrupt_monitor(_on_esc_interrupt)
                 # Wait for this specific task to complete before accepting next input
