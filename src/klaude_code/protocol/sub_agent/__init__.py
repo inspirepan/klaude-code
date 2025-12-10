@@ -114,4 +114,4 @@ def sub_agent_tool_names(enabled_only: bool = False, model_name: str | None = No
 from klaude_code.protocol.sub_agent import explore as explore  # noqa: E402
 from klaude_code.protocol.sub_agent import oracle as oracle  # noqa: E402
 from klaude_code.protocol.sub_agent import task as task  # noqa: E402
-from klaude_code.protocol.sub_agent import web_fetch as web_fetch  # noqa: E402
+from klaude_code.protocol.sub_agent import web as web  # noqa: E402

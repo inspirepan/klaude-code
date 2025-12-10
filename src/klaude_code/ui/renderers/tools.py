@@ -448,7 +448,8 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.SKILL: "Skilling",
     tools.MERMAID: "Diagramming",
     tools.MEMORY: "Memorizing",
-    tools.WEB_FETCH: "Fetching",
+    tools.WEB_FETCH: "Fetching Web",
+    tools.WEB_SEARCH: "Searching Web",
     tools.REPORT_BACK: "Reporting",
 }
 

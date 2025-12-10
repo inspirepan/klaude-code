@@ -80,7 +80,7 @@ class Config(BaseModel):
 def get_example_config() -> Config:
     return Config(
         main_model="opus",
-        sub_agent_models={"explore": "haiku", "oracle": "gpt-5.1", "webfetchagent": "haiku", "task": "opus"},
+        sub_agent_models={"explore": "haiku", "oracle": "gpt-5.1", "webagent": "haiku", "task": "opus"},
         provider_list=[
             llm_param.LLMConfigProviderParameter(
                 provider_name="openai",

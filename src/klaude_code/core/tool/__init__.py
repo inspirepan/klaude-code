@@ -28,6 +28,7 @@ from .tool_runner import run_tool
 from .truncation import SimpleTruncationStrategy, TruncationStrategy, get_truncation_strategy, set_truncation_strategy
 from .web.mermaid_tool import MermaidTool
 from .web.web_fetch_tool import WebFetchTool
+from .web.web_search_tool import WebSearchTool
 
 __all__ = [
     "MEMORY_DIR_NAME",
@@ -53,6 +54,7 @@ __all__ = [
     "TruncationStrategy",
     "UpdatePlanTool",
     "WebFetchTool",
+    "WebSearchTool",
     "WriteTool",
     "build_todo_context",
     "current_run_subtask_callback",
