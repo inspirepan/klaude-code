@@ -5,4 +5,4 @@ The tool automatically processes the response based on Content-Type:
 - JSON responses are formatted with indentation
 - Markdown and other text content is returned as-is
 
-Use this tool to retrieve web page content for analysis.
+Content is always saved to a local file. The file path is included at the start of the output in a `<file_saved>` tag. For large content that gets truncated, you can read the saved file directly.

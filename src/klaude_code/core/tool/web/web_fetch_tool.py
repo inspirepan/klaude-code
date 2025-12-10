@@ -1,18 +1,23 @@
 import asyncio
 import json
+import re
+import time
 import urllib.error
 import urllib.request
 from http.client import HTTPResponse
 from pathlib import Path
+from urllib.parse import urlparse
 
 from pydantic import BaseModel
 
+from klaude_code import const
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, model, tools
 
 DEFAULT_TIMEOUT_SEC = 30
 DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; KlaudeCode/1.0)"
+WEB_FETCH_SAVE_DIR = Path(const.TOOL_OUTPUT_TRUNCATION_DIR) / "web"
 
 
 def _extract_content_type(response: HTTPResponse) -> str:
@@ -41,6 +46,30 @@ def _format_json(text: str) -> str:
         return json.dumps(parsed, indent=2, ensure_ascii=False)
     except json.JSONDecodeError:
         return text
+
+
+def _extract_url_filename(url: str) -> str:
+    """Extract a safe filename from a URL."""
+    parsed = urlparse(url)
+    host = parsed.netloc.replace(".", "_").replace(":", "_")
+    path = parsed.path.strip("/").replace("/", "_")
+    name = f"{host}_{path}" if path else host
+    name = re.sub(r"[^a-zA-Z0-9_\-]", "_", name)
+    return name[:80] if len(name) > 80 else name
+
+
+def _save_web_content(url: str, content: str) -> str | None:
+    """Save web content to file. Returns file path or None on failure."""
+    try:
+        WEB_FETCH_SAVE_DIR.mkdir(parents=True, exist_ok=True)
+        timestamp = int(time.time())
+        identifier = _extract_url_filename(url)
+        filename = f"{identifier}-{timestamp}.md"
+        file_path = WEB_FETCH_SAVE_DIR / filename
+        file_path.write_text(content, encoding="utf-8")
+        return str(file_path)
+    except OSError:
+        return None
 
 
 def _process_content(content_type: str, text: str) -> str:
@@ -127,9 +156,15 @@ class WebFetchTool(ToolABC):
             content_type, text = await asyncio.to_thread(_fetch_url, url)
             processed = _process_content(content_type, text)
 
+            # Always save content to file
+            saved_path = _save_web_content(url, processed)
+
+            # Build output with file path info
+            output = f"<file_saved>{saved_path}</file_saved>\n\n{processed}" if saved_path else processed
+
             return model.ToolResultItem(
                 status="success",
-                output=processed,
+                output=output,
             )
 
         except urllib.error.HTTPError as e:

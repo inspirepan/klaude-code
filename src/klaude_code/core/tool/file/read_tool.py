@@ -16,12 +16,6 @@ from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, model, tools
 
-SYSTEM_REMINDER_MALICIOUS = (
-    "<system-reminder>\n"
-    "Whenever you read a file, you should consider whether it looks malicious. If it does, you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer high-level questions about the code behavior.\n"
-    "</system-reminder>"
-)
-
 _IMAGE_MIME_TYPES: dict[str, str] = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
@@ -51,6 +45,8 @@ class ReadSegmentResult:
     selected_lines: list[tuple[int, str]]
     selected_chars_count: int
     remaining_selected_beyond_cap: int
+    # For large file diagnostics: list of (start_line, end_line, char_count)
+    segment_char_stats: list[tuple[int, int, int]]
 
 
 def _read_segment(options: ReadOptions) -> ReadSegmentResult:
@@ -59,6 +55,13 @@ def _read_segment(options: ReadOptions) -> ReadSegmentResult:
     remaining_selected_beyond_cap = 0
     selected_lines: list[tuple[int, str]] = []
     selected_chars = 0
+
+    # Track char counts per 100-line segment for diagnostics
+    segment_size = 100
+    segment_char_stats: list[tuple[int, int, int]] = []
+    current_segment_start = options.offset
+    current_segment_chars = 0
+
     with open(options.file_path, encoding="utf-8", errors="replace") as f:
         for line_no, raw_line in enumerate(f, start=1):
             total_lines = line_no
@@ -74,16 +77,32 @@ def _read_segment(options: ReadOptions) -> ReadSegmentResult:
                     content[: options.char_limit_per_line]
                     + f" ... (more {truncated_chars} characters in this line are truncated)"
                 )
-            selected_chars += len(content) + 1
+            line_chars = len(content) + 1
+            selected_chars += line_chars
+            current_segment_chars += line_chars
+
+            # Check if we've completed a segment
+            if selected_lines_count % segment_size == 0:
+                segment_char_stats.append((current_segment_start, line_no, current_segment_chars))
+                current_segment_start = line_no + 1
+                current_segment_chars = 0
+
             if options.global_line_cap is None or len(selected_lines) < options.global_line_cap:
                 selected_lines.append((line_no, content))
             else:
                 remaining_selected_beyond_cap += 1
+
+    # Add the last partial segment if any
+    if current_segment_chars > 0 and selected_lines_count > 0:
+        last_line = options.offset + selected_lines_count - 1
+        segment_char_stats.append((current_segment_start, last_line, current_segment_chars))
+
     return ReadSegmentResult(
         total_lines=total_lines,
         selected_lines=selected_lines,
         selected_chars_count=selected_chars,
         remaining_selected_beyond_cap=remaining_selected_beyond_cap,
+        segment_char_stats=segment_char_stats,
     )
 
 
@@ -292,10 +311,21 @@ class ReadTool(ToolABC):
 
         # After limit/offset, if total selected chars exceed limit, error (only check if limits are enabled)
         if max_chars is not None and read_result.selected_chars_count > max_chars:
+            # Build segment statistics for better guidance
+            stats_lines: list[str] = []
+            for start, end, chars in read_result.segment_char_stats:
+                stats_lines.append(f"  Lines {start}-{end}: {chars} chars")
+            segment_stats_str = "\n".join(stats_lines) if stats_lines else "  (no segment data)"
+
             return model.ToolResultItem(
                 status="error",
                 output=(
-                    f"File content ({read_result.selected_chars_count} chars) exceeds maximum allowed tokens ({max_chars}). Please use offset and limit parameters to read specific portions of the file, or use the `rg` command to search for specific content."
+                    f"Selected file content {read_result.selected_chars_count} chars exceeds maximum allowed chars ({max_chars}).\n"
+                    f"File has {read_result.total_lines} total lines.\n\n"
+                    f"Character distribution by segment:\n{segment_stats_str}\n\n"
+                    f"Use offset and limit parameters to read specific portions. "
+                    f"For example: offset=1, limit=100 to read the first 100 lines. "
+                    f"Or use `rg` command to search for specific content."
                 ),
             )
 
@@ -304,8 +334,6 @@ class ReadTool(ToolABC):
         if read_result.remaining_selected_beyond_cap > 0:
             lines_out.append(f"... (more {read_result.remaining_selected_beyond_cap} lines are truncated)")
         read_result_str = "\n".join(lines_out)
-        # if read_result_str:
-        # read_result_str += "\n\n" + SYSTEM_REMINDER_MALICIOUS
 
         # Update FileTracker with last modified time
         _track_file_access(file_path)

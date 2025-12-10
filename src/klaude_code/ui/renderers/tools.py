@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-from rich.console import RenderableType
+from rich.console import Group, RenderableType
 from rich.padding import Padding
 from rich.text import Text
 
@@ -478,16 +478,12 @@ def _extract_truncation(
 
 def render_truncation_info(ui_extra: model.TruncationUIExtra) -> RenderableType:
     """Render truncation info for the user."""
-    original_kb = ui_extra.original_length / 1024
     truncated_kb = ui_extra.truncated_length / 1024
+
     text = Text.assemble(
-        ("Output truncated: ", ThemeKey.TOOL_RESULT),
-        (f"{original_kb:.1f}KB", ThemeKey.TOOL_RESULT),
-        (" total, ", ThemeKey.TOOL_RESULT),
-        (f"{truncated_kb:.1f}KB", ThemeKey.TOOL_RESULT_BOLD),
-        (" hidden\nFull output saved to ", ThemeKey.TOOL_RESULT),
-        (ui_extra.saved_file_path, ThemeKey.TOOL_RESULT),
-        ("\nUse Read with limit+offset or rg/grep to inspect", ThemeKey.TOOL_RESULT),
+        ("Offload context to ", ThemeKey.TOOL_RESULT_TRUNCATED),
+        (ui_extra.saved_file_path, ThemeKey.TOOL_RESULT_TRUNCATED),
+        (f", {truncated_kb:.1f}KB truncated", ThemeKey.TOOL_RESULT_TRUNCATED),
     )
     return Padding.indent(text, level=2)
 
@@ -607,7 +603,7 @@ def render_tool_result(e: events.ToolResultEvent) -> RenderableType | None:
     # Show truncation info if output was truncated and saved to file
     truncation_info = get_truncation_info(e)
     if truncation_info:
-        return render_truncation_info(truncation_info)
+        return Group(render_truncation_info(truncation_info), render_generic_tool_result(e.result))
 
     diff_text = _extract_diff_text(e.ui_extra)
 

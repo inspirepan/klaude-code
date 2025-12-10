@@ -27,7 +27,8 @@ How to use:
 What you receive:
 - The agent returns a text response summarizing its findings
 - With `output_format`, you receive structured JSON matching your schema
-- The response is the agent's analysis, not raw web content\
+- The response is the agent's analysis, not raw web content
+- Web content is saved to local files (paths included in Sources) - read them directly if you need full content\
 """
 
 WEB_AGENT_PARAMETERS = {

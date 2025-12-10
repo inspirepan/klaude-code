@@ -21,6 +21,15 @@ class TruncationResult:
     truncated_length: int = 0
 
 
+FILE_SAVED_PATTERN = re.compile(r"<file_saved>([^<]+)</file_saved>")
+
+
+def _extract_saved_file_path(output: str) -> str | None:
+    """Extract file path from <file_saved> tag if present."""
+    match = FILE_SAVED_PATTERN.search(output)
+    return match.group(1) if match else None
+
+
 def _extract_url_filename(url: str) -> str:
     """Extract a safe filename from a URL."""
     parsed = urlparse(url)
@@ -116,24 +125,29 @@ class SmartTruncationStrategy(TruncationStrategy):
         if original_length <= self.max_length:
             return TruncationResult(output=output, was_truncated=False, original_length=original_length)
 
-        # Save full output to file
-        saved_file_path = self._save_to_file(output, tool_call)
+        # Check if file was already saved (e.g., by WebFetch)
+        existing_file_path = _extract_saved_file_path(output)
+        saved_file_path = existing_file_path or self._save_to_file(output, tool_call)
 
-        truncated_length = original_length - self.head_chars - self.tail_chars
-        head_content = output[: self.head_chars]
-        tail_content = output[-self.tail_chars :]
+        # Strip existing <file_saved> tag to avoid duplication in head/tail
+        content_to_truncate = FILE_SAVED_PATTERN.sub("", output).lstrip("\n") if existing_file_path else output
+        content_length = len(content_to_truncate)
+
+        truncated_length = content_length - self.head_chars - self.tail_chars
+        head_content = content_to_truncate[: self.head_chars]
+        tail_content = content_to_truncate[-self.tail_chars :]
 
         # Build truncated output with file info
         if saved_file_path:
             header = (
-                f"<system-reminder>Output truncated: {truncated_length} chars hidden. "
-                f"Full tool output saved to {saved_file_path}. "
-                f"Use Read with limit+offset or rg/grep to inspect.\n"
+                f"<system-reminder>Output truncated ({truncated_length} chars hidden) to reduce context usage. "
+                f"Full content saved to <file_saved>{saved_file_path}</file_saved>. "
+                f"Use Read(offset, limit) or rg to inspect if needed. "
                 f"Showing first {self.head_chars} and last {self.tail_chars} chars:</system-reminder>\n\n"
             )
         else:
             header = (
-                f"<system-reminder>Output truncated: {truncated_length} chars hidden. "
+                f"<system-reminder>Output truncated ({truncated_length} chars hidden) to reduce context usage. "
                 f"Showing first {self.head_chars} and last {self.tail_chars} chars:</system-reminder>\n\n"
             )
 

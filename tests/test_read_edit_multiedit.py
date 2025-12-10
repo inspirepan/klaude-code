@@ -98,7 +98,11 @@ class TestReadTool(BaseTempDirTest):
                 f.write("x" * 20 + "\n")
         res = arun(ReadTool.call(json.dumps({"file_path": p})))
         self.assertEqual(res.status, "error")
-        self.assertIn("maximum allowed tokens (60000)", res.output or "")
+        output = res.output or ""
+        self.assertIn("maximum allowed chars", output)
+        self.assertIn("File has 4000 total lines", output)
+        self.assertIn("Character distribution by segment", output)
+        self.assertIn("Lines 1-100:", output)
 
     def test_read_per_line_truncation(self):
         p = os.path.abspath("longline.txt")
