@@ -100,6 +100,8 @@ class TurnExecutor:
         self._context = context
         self._tool_executor: ToolExecutor | None = None
         self._turn_result: TurnResult | None = None
+        self._assistant_delta_buffer: list[str] = []
+        self._assistant_response_id: str | None = None
 
     @property
     def report_back_result(self) -> str | None:
@@ -138,6 +140,7 @@ class TurnExecutor:
     def cancel(self) -> list[events.Event]:
         """Cancel running tools and return any resulting events."""
         ui_events: list[events.Event] = []
+        self._persist_partial_assistant_on_cancel()
         if self._tool_executor is not None:
             for exec_event in self._tool_executor.cancel():
                 for ui_event in build_events_from_tool_executor_event(self._context.session_ctx.session_id, exec_event):
@@ -227,6 +230,9 @@ class TurnExecutor:
                         session_id=session_ctx.session_id,
                     )
                 case model.AssistantMessageDelta() as item:
+                    if item.response_id:
+                        self._assistant_response_id = item.response_id
+                    self._assistant_delta_buffer.append(item.content)
                     yield events.AssistantMessageDeltaEvent(
                         content=item.content,
                         response_id=item.response_id,
@@ -274,6 +280,8 @@ class TurnExecutor:
             session_ctx.append_history([turn_result.assistant_message])
         if turn_result.tool_calls:
             session_ctx.append_history(turn_result.tool_calls)
+        self._assistant_delta_buffer.clear()
+        self._assistant_response_id = None
 
     async def _run_tool_executor(self, tool_calls: list[model.ToolCallItem]) -> AsyncGenerator[events.Event]:
         """Run tools for the turn and translate executor events to UI events."""
@@ -292,3 +300,23 @@ class TurnExecutor:
                         yield ui_event
             finally:
                 self._tool_executor = None
+
+    def _persist_partial_assistant_on_cancel(self) -> None:
+        """Persist streamed assistant text when a turn is interrupted.
+
+        Reasoning and tool calls are intentionally discarded on interrupt; only
+        the assistant message text collected so far is saved so it appears in
+        subsequent history/context.
+        """
+
+        if not self._assistant_delta_buffer:
+            return
+        partial_text = "".join(self._assistant_delta_buffer) + "<system interrupted by user>"
+        if not partial_text:
+            return
+        message_item = model.AssistantMessageItem(
+            content=partial_text,
+            response_id=self._assistant_response_id,
+        )
+        self._context.session_ctx.append_history([message_item])
+        self._assistant_delta_buffer.clear()
