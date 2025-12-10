@@ -7,11 +7,9 @@ import time
 from collections.abc import Callable
 from typing import Any, ClassVar
 
-from rich import box
 from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.live import Live
 from rich.markdown import CodeBlock, Heading, Markdown
-from rich.panel import Panel
 from rich.rule import Rule
 from rich.spinner import Spinner
 from rich.style import Style
@@ -20,6 +18,7 @@ from rich.text import Text
 from rich.theme import Theme
 
 from klaude_code import const
+from klaude_code.ui.rich.code_panel import CodePanel
 
 
 class NoInsetCodeBlock(CodeBlock):
@@ -34,7 +33,7 @@ class NoInsetCodeBlock(CodeBlock):
             word_wrap=True,
             padding=(0, 0),
         )
-        yield Panel.fit(syntax, padding=(0, 0), box=box.HORIZONTALS, border_style="markdown.code.border")
+        yield CodePanel(syntax, border_style="markdown.code.border")
 
 
 class ThinkingCodeBlock(CodeBlock):
@@ -43,7 +42,7 @@ class ThinkingCodeBlock(CodeBlock):
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         code = str(self.text).rstrip()
         text = Text(code, "markdown.code.block")
-        yield text
+        yield CodePanel(text, border_style="markdown.code.border")
 
 
 class LeftHeading(Heading):
