@@ -672,8 +672,90 @@
       /* Markdown Elements */
       .markdown-body {
         font-family: var(--font-markdown);
-        line-height: 1.5;
+        line-height: 1.6;
+        font-size: var(--font-size-base);
       }
+      .markdown-body > *:first-child {
+        margin-top: 0 !important;
+      }
+      .markdown-body > *:last-child {
+        margin-bottom: 0 !important;
+      }
+      
+      .markdown-body h1,
+      .markdown-body h2,
+      .markdown-body h3,
+      .markdown-body h4,
+      .markdown-body h5,
+      .markdown-body h6 {
+        margin-top: 24px;
+        margin-bottom: 16px;
+        font-weight: var(--font-weight-bold);
+        line-height: 1.25;
+      }
+
+      .markdown-body p {
+        margin-bottom: 8px; /* Tighter spacing */
+      }
+      
+      .markdown-body ul,
+      .markdown-body ol {
+        margin-bottom: 8px; /* Tighter spacing */
+        padding-left: 1.5rem;
+        list-style-position: outside;
+      }
+      
+      .markdown-body ul ul,
+      .markdown-body ol ul,
+      .markdown-body ul ol,
+      .markdown-body ol ol {
+        margin-top: 0;
+        margin-bottom: 0;
+      }
+      
+      .markdown-body li > p {
+        margin-bottom: 0;
+      }
+      .markdown-body li + li {
+        margin-top: 0.25em;
+      }
+
+      .markdown-body blockquote {
+        margin: 0 0 16px;
+        padding: 0 1em;
+        color: var(--text-dim);
+        border-left: 0.25em solid var(--border);
+      }
+
+      .markdown-body table {
+        border-collapse: collapse;
+        width: 100%;
+        margin-top: 8px;
+        margin-bottom: 16px;
+        display: block;
+        overflow-x: auto;
+      }
+      
+      .markdown-body table tr {
+        background-color: var(--bg-card);
+        border-top: 1px solid var(--border);
+      }
+      
+      .markdown-body table tr:nth-child(2n) {
+        background-color: rgba(0, 0, 0, 0.02);
+      }
+      
+      .markdown-body table th,
+      .markdown-body table td {
+        padding: 6px 13px;
+        border: 1px solid var(--border);
+      }
+      
+      .markdown-body table th {
+        font-weight: var(--font-weight-bold);
+        background-color: rgba(0, 0, 0, 0.04);
+      }
+
       .markdown-body hr {
         height: 0;
         margin: 24px 0;
@@ -682,10 +764,10 @@
       }
       .markdown-body pre {
         background: var(--bg-code);
-        padding: 16px;
+        padding: 12px;
         border-radius: var(--radius-md);
         overflow-x: auto;
-        margin: 12px 0;
+        margin: 8px 0 16px 0;
         border: 1px solid var(--border);
       }
       .markdown-body code {
@@ -694,35 +776,16 @@
         font-size: var(--font-size-sm);
         padding: 2px 4px;
         border-radius: var(--radius-sm);
+        background-color: rgba(0, 0, 0, 0.05); /* Slight bg for inline code */
       }
       .markdown-body pre code {
         background: transparent;
         padding: 0;
         border-radius: 0;
+        color: inherit;
       }
       .markdown-body pre code.hljs {
         background: transparent;
-      }
-      .markdown-body p {
-        margin-bottom: 12px;
-      }
-      .markdown-body > *:first-child {
-        margin-top: 0;
-      }
-      .markdown-body > *:last-child {
-        margin-bottom: 0;
-      }
-      .markdown-body ul,
-      .markdown-body ol {
-        margin-bottom: 12px;
-        padding-left: 1.5rem;
-        list-style-position: outside;
-      }
-      .markdown-body ul ul,
-      .markdown-body ol ul,
-      .markdown-body ul ol,
-      .markdown-body ol ol {
-        margin-left: 1rem;
       }
 
       /* Diff View */
