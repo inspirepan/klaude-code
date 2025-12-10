@@ -10,7 +10,7 @@ from rich.text import Text
 from klaude_code import ui
 from klaude_code.command import has_interactive_command
 from klaude_code.config import Config, load_config
-from klaude_code.core.agent import Agent, DefaultModelProfileProvider, VanillaModelProfileProvider
+from klaude_code.core.agent import DefaultModelProfileProvider, VanillaModelProfileProvider
 from klaude_code.core.executor import Executor
 from klaude_code.core.manager import build_llm_clients
 from klaude_code.protocol import events, op
@@ -145,8 +145,8 @@ async def initialize_session(
     await executor.submit_and_wait(op.InitAgentOperation(session_id=session_id))
     await event_queue.join()
 
-    active_session_ids = executor.context.agent_manager.active_session_ids()
-    return active_session_ids[0] if active_session_ids else session_id
+    active_session_id = executor.context.current_session_id()
+    return active_session_id or session_id
 
 
 async def cleanup_app_components(components: AppComponents) -> None:
@@ -214,16 +214,12 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     # Create status provider for bottom toolbar
     def _status_provider() -> REPLStatusSnapshot:
-        agent: Agent | None = None
-        # Get the first active agent (there should only be one in interactive mode)
-        active_agents = components.executor.context.active_agents
-        if active_agents:
-            agent = next(iter(active_agents.values()), None)
-
         # Check for updates (returns None if uv not available)
         update_message = get_update_message()
 
-        return build_repl_status_snapshot(agent=agent, update_message=update_message)
+        return build_repl_status_snapshot(
+            agent=components.executor.context.current_agent, update_message=update_message
+        )
 
     # Set up input provider for interactive mode
     input_provider: ui.InputProviderABC = ui.PromptToolkitInput(status_provider=_status_provider)
@@ -268,8 +264,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
             This is necessary because /clear command creates a new session with a different ID.
             """
-            active_ids = components.executor.context.agent_manager.active_session_ids()
-            return active_ids[0] if active_ids else None
+            return components.executor.context.current_session_id()
 
         # Input
         await input_provider.start()
