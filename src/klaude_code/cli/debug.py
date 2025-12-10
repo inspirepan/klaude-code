@@ -48,7 +48,7 @@ def open_log_file_in_editor(path: Path) -> None:
     editor = os.environ.get("EDITOR")
 
     if not editor:
-        for cmd in ["open", "xdg-open", "code", "nvim", "vim", "nano"]:
+        for cmd in ["open", "xdg-open", "code", "TextEdit", "notepad"]:
             try:
                 subprocess.run(["which", cmd], check=True, capture_output=True)
                 editor = cmd

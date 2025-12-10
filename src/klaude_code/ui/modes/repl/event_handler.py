@@ -415,10 +415,11 @@ class DisplayEventHandler:
             self.renderer.display_tool_call(event)
 
     async def _on_tool_result(self, event: events.ToolResultEvent) -> None:
-        if self.renderer.is_sub_agent_session(event.session_id):
+        if self.renderer.is_sub_agent_session(event.session_id) and event.status == "success":
             return
         await self.stage_manager.transition_to(Stage.TOOL_RESULT)
-        self.renderer.display_tool_call_result(event)
+        with self.renderer.session_print_context(event.session_id):
+            self.renderer.display_tool_call_result(event)
 
     def _on_task_metadata(self, event: events.TaskMetadataEvent) -> None:
         self.renderer.display_task_metadata(event)

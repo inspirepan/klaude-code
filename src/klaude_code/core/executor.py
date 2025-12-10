@@ -171,9 +171,7 @@ class InputActionExecutor:
                 style="yellow",
                 debug_type=DebugType.EXECUTION,
             )
-            await self._emit_event(
-                events.TaskFinishEvent(session_id=session_id, task_result="task cancelled")
-            )
+            await self._emit_event(events.TaskFinishEvent(session_id=session_id, task_result="task cancelled"))
 
         except Exception as e:
             import traceback
@@ -217,9 +215,7 @@ class InputActionExecutor:
         agent.session.append_history([developer_item])
 
         await self._emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
-        await self._emit_event(
-            events.WelcomeEvent(llm_config=llm_config, work_dir=str(agent.session.work_dir))
-        )
+        await self._emit_event(events.WelcomeEvent(llm_config=llm_config, work_dir=str(agent.session.work_dir)))
 
     async def _apply_clear(self, agent: Agent) -> None:
         """Start a new conversation for the agent and notify the UI."""

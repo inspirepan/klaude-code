@@ -61,9 +61,7 @@ def _render_task_metadata_block(
     if metadata.usage is not None:
         # Tokens: ↑ 37k cache 5k ↓ 907 think 45k
         token_parts: list[Text] = [
-            Text.assemble(
-                ("↑ ", ThemeKey.METADATA_DIM), (format_number(metadata.usage.input_tokens), ThemeKey.METADATA)
-            )
+            Text.assemble(("↑", ThemeKey.METADATA_DIM), (format_number(metadata.usage.input_tokens), ThemeKey.METADATA))
         ]
         if metadata.usage.cached_tokens > 0:
             token_parts.append(
@@ -74,7 +72,7 @@ def _render_task_metadata_block(
             )
         token_parts.append(
             Text.assemble(
-                ("↓ ", ThemeKey.METADATA_DIM), (format_number(metadata.usage.output_tokens), ThemeKey.METADATA)
+                ("↓", ThemeKey.METADATA_DIM), (format_number(metadata.usage.output_tokens), ThemeKey.METADATA)
             )
         )
         if metadata.usage.reasoning_tokens > 0:

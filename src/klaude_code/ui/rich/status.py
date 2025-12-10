@@ -35,8 +35,6 @@ _BREATHING_SPINNER_GLYPHS_BASE = [
     "✴",
     "✷",
     "⟡",
-    "⬡",
-    "⬢",
 ]
 
 # Shuffle glyphs on module load for variety across sessions
