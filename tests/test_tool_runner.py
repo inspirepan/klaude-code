@@ -266,27 +266,27 @@ class TestToolExecutor:
 class TestToolExecutorPartition:
     """Test ToolExecutor._partition_tool_calls static method."""
 
-    def test_partition_regular_tools_only(self):
-        """Test partitioning with only regular tools."""
+    def test_partition_sequential_tools_only(self):
+        """Test partitioning with only sequential tools."""
         tool_calls = [
             model.ToolCallItem(call_id="1", name="Read", arguments="{}"),
             model.ToolCallItem(call_id="2", name="Bash", arguments="{}"),
         ]
-        regular, sub_agent = ToolExecutor._partition_tool_calls(tool_calls)
+        sequential, concurrent = ToolExecutor._partition_tool_calls(tool_calls)
 
-        assert len(regular) == 2
-        assert len(sub_agent) == 0
+        assert len(sequential) == 2
+        assert len(concurrent) == 0
 
-    def test_partition_sub_agent_tools_only(self):
-        """Test partitioning with only sub-agent tools."""
+    def test_partition_concurrent_tools_only(self):
+        """Test partitioning with only concurrent tools (sub-agents)."""
         tool_calls = [
             model.ToolCallItem(call_id="1", name="Task", arguments="{}"),
             model.ToolCallItem(call_id="2", name="Explore", arguments="{}"),
         ]
-        regular, sub_agent = ToolExecutor._partition_tool_calls(tool_calls)
+        sequential, concurrent = ToolExecutor._partition_tool_calls(tool_calls)
 
-        assert len(regular) == 0
-        assert len(sub_agent) == 2
+        assert len(sequential) == 0
+        assert len(concurrent) == 2
 
     def test_partition_mixed_tools(self):
         """Test partitioning with mixed tool types."""
@@ -295,13 +295,28 @@ class TestToolExecutorPartition:
             model.ToolCallItem(call_id="2", name="Task", arguments="{}"),
             model.ToolCallItem(call_id="3", name="Bash", arguments="{}"),
         ]
-        regular, sub_agent = ToolExecutor._partition_tool_calls(tool_calls)
+        sequential, concurrent = ToolExecutor._partition_tool_calls(tool_calls)
 
-        assert len(regular) == 2
-        assert len(sub_agent) == 1
-        assert regular[0].name == "Read"
-        assert regular[1].name == "Bash"
-        assert sub_agent[0].name == "Task"
+        assert len(sequential) == 2
+        assert len(concurrent) == 1
+        assert sequential[0].name == "Read"
+        assert sequential[1].name == "Bash"
+        assert concurrent[0].name == "Task"
+
+    def test_partition_web_tools_as_concurrent(self):
+        """Test that web tools are partitioned as concurrent."""
+        tool_calls = [
+            model.ToolCallItem(call_id="1", name="Read", arguments="{}"),
+            model.ToolCallItem(call_id="2", name="WebSearch", arguments="{}"),
+            model.ToolCallItem(call_id="3", name="WebFetch", arguments="{}"),
+            model.ToolCallItem(call_id="4", name="Task", arguments="{}"),
+        ]
+        sequential, concurrent = ToolExecutor._partition_tool_calls(tool_calls)
+
+        assert len(sequential) == 1
+        assert len(concurrent) == 3
+        assert sequential[0].name == "Read"
+        assert {c.name for c in concurrent} == {"WebSearch", "WebFetch", "Task"}
 
 
 class TestToolExecutorEvents:

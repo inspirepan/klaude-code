@@ -9,6 +9,9 @@ from klaude_code.core.tool.truncation import truncate_tool_output
 from klaude_code.protocol import model, tools
 from klaude_code.protocol.sub_agent import is_sub_agent_tool
 
+# Tools that can run concurrently (IO-bound, no local state mutations)
+_CONCURRENT_TOOLS: frozenset[str] = frozenset({tools.WEB_SEARCH, tools.WEB_FETCH})
+
 
 async def run_tool(tool_call: model.ToolCallItem, registry: dict[str, type[ToolABC]]) -> model.ToolResultItem:
     """Execute a tool call and return the result.
@@ -89,8 +92,8 @@ class ToolExecutor:
     """Execute and coordinate a batch of tool calls for a single turn.
 
     The executor is responsible for:
-    - Partitioning tool calls into regular tools and sub-agent tools
-    - Running regular tools sequentially and sub-agent tools concurrently
+    - Partitioning tool calls into sequential and concurrent tools
+    - Running sequential tools one by one and concurrent tools in parallel
     - Emitting ToolCall/ToolResult events and tool side-effect events
     - Tracking unfinished calls so `cancel()` can synthesize cancellation results
     """
@@ -106,7 +109,7 @@ class ToolExecutor:
 
         self._unfinished_calls: dict[str, model.ToolCallItem] = {}
         self._call_event_emitted: set[str] = set()
-        self._sub_agent_tasks: set[asyncio.Task[list[ToolExecutorEvent]]] = set()
+        self._concurrent_tasks: set[asyncio.Task[list[ToolExecutorEvent]]] = set()
 
     async def run_tools(self, tool_calls: list[model.ToolCallItem]) -> AsyncGenerator[ToolExecutorEvent]:
         """Run the given tool calls and yield execution events.
@@ -119,10 +122,10 @@ class ToolExecutor:
         for tool_call in tool_calls:
             self._unfinished_calls[tool_call.call_id] = tool_call
 
-        regular_tool_calls, sub_agent_tool_calls = self._partition_tool_calls(tool_calls)
+        sequential_tool_calls, concurrent_tool_calls = self._partition_tool_calls(tool_calls)
 
-        # Run regular tools sequentially.
-        for tool_call in regular_tool_calls:
+        # Run sequential tools one by one.
+        for tool_call in sequential_tool_calls:
             tool_call_event = self._build_tool_call_started(tool_call)
             self._call_event_emitted.add(tool_call.call_id)
             yield tool_call_event
@@ -136,16 +139,16 @@ class ToolExecutor:
             for exec_event in result_events:
                 yield exec_event
 
-        # Run sub-agent tools concurrently.
-        if sub_agent_tool_calls:
+        # Run concurrent tools (sub-agents, web tools) in parallel.
+        if concurrent_tool_calls:
             execution_tasks: list[asyncio.Task[list[ToolExecutorEvent]]] = []
-            for tool_call in sub_agent_tool_calls:
+            for tool_call in concurrent_tool_calls:
                 tool_call_event = self._build_tool_call_started(tool_call)
                 self._call_event_emitted.add(tool_call.call_id)
                 yield tool_call_event
 
                 task = asyncio.create_task(self._run_single_tool_call(tool_call))
-                self._register_sub_agent_task(task)
+                self._register_concurrent_task(task)
                 execution_tasks.append(task)
 
             for task in asyncio.as_completed(execution_tasks):
@@ -165,7 +168,7 @@ class ToolExecutor:
     def cancel(self) -> Iterable[ToolExecutorEvent]:
         """Cancel unfinished tool calls and synthesize error results.
 
-        - Cancels any running sub-agent tool tasks so they stop emitting events.
+        - Cancels any running concurrent tool tasks so they stop emitting events.
         - For each unfinished tool call, yields a ToolExecutionCallStarted (if not
           already emitted for this turn) followed by a ToolExecutionResult with
           error status and a standard cancellation output. The corresponding
@@ -174,11 +177,11 @@ class ToolExecutor:
 
         events_to_yield: list[ToolExecutorEvent] = []
 
-        # Cancel running sub-agent tool tasks.
-        for task in list(self._sub_agent_tasks):
+        # Cancel running concurrent tool tasks.
+        for task in list(self._concurrent_tasks):
             if not task.done():
                 task.cancel()
-        self._sub_agent_tasks.clear()
+        self._concurrent_tasks.clear()
 
         if not self._unfinished_calls:
             return events_to_yield
@@ -203,11 +206,11 @@ class ToolExecutor:
 
         return events_to_yield
 
-    def _register_sub_agent_task(self, task: asyncio.Task[list[ToolExecutorEvent]]) -> None:
-        self._sub_agent_tasks.add(task)
+    def _register_concurrent_task(self, task: asyncio.Task[list[ToolExecutorEvent]]) -> None:
+        self._concurrent_tasks.add(task)
 
         def _cleanup(completed: asyncio.Task[list[ToolExecutorEvent]]) -> None:
-            self._sub_agent_tasks.discard(completed)
+            self._concurrent_tasks.discard(completed)
 
         task.add_done_callback(_cleanup)
 
@@ -215,14 +218,14 @@ class ToolExecutor:
     def _partition_tool_calls(
         tool_calls: list[model.ToolCallItem],
     ) -> tuple[list[model.ToolCallItem], list[model.ToolCallItem]]:
-        regular_tool_calls: list[model.ToolCallItem] = []
-        sub_agent_tool_calls: list[model.ToolCallItem] = []
+        sequential_tool_calls: list[model.ToolCallItem] = []
+        concurrent_tool_calls: list[model.ToolCallItem] = []
         for tool_call in tool_calls:
-            if is_sub_agent_tool(tool_call.name):
-                sub_agent_tool_calls.append(tool_call)
+            if is_sub_agent_tool(tool_call.name) or tool_call.name in _CONCURRENT_TOOLS:
+                concurrent_tool_calls.append(tool_call)
             else:
-                regular_tool_calls.append(tool_call)
-        return regular_tool_calls, sub_agent_tool_calls
+                sequential_tool_calls.append(tool_call)
+        return sequential_tool_calls, concurrent_tool_calls
 
     def _build_tool_call_started(self, tool_call: model.ToolCallItem) -> ToolExecutionCallStarted:
         return ToolExecutionCallStarted(tool_call=tool_call)
