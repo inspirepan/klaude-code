@@ -26,7 +26,7 @@ Balance efficiency with thoroughness. For open-ended questions (e.g., "recommend
 - Keep queries concise (1-6 words). Start broad, then narrow if needed
 - Avoid repeating similar queries - they won't yield new results
 - NEVER use '-', 'site:', or quotes unless explicitly asked
-- Include year/date for time-sensitive queries (check "Today's date" in <env>)
+- Include year/date for time-sensitive queries (check "Today's date" in <env>), don't limit yourself to your knowledge cutoff date
 - Use WebFetch to get full content - search snippets are often insufficient
 - Follow relevant links on pages with WebFetch
 - If truncated results are saved to local files, use grep/read to explore

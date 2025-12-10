@@ -20,9 +20,9 @@ Capabilities:
 
 How to use:
 - Write a clear prompt describing what information you need - the agent will search and fetch as needed
+- Account for "Today's date" in <env>. For example, if <env> says "Today's date: 2025-07-01", and the user wants the latest docs, do not use 2024 in the search query. Use 2025.
 - Optionally provide a `url` if you already know the target page
 - Use `output_format` (JSON Schema) to get structured data back from the agent
-- Account for "Today's date" in <env>. For example, if <env> says "Today's date: 2025-07-01", and the user wants the latest docs, do not use 2024 in the search query. Use 2025.
 
 What you receive:
 - The agent returns a text response summarizing its findings

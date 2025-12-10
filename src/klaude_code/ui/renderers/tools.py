@@ -379,6 +379,75 @@ def render_mermaid_tool_call(arguments: str) -> RenderableType:
     return grid
 
 
+def _truncate_url(url: str, max_length: int = 400) -> str:
+    """Truncate URL for display, preserving domain and path structure."""
+    if len(url) <= max_length:
+        return url
+    # Remove protocol for display
+    display_url = url
+    for prefix in ("https://", "http://"):
+        if display_url.startswith(prefix):
+            display_url = display_url[len(prefix) :]
+            break
+    if len(display_url) <= max_length:
+        return display_url
+    # Truncate with ellipsis
+    return display_url[: max_length - 3] + "..."
+
+
+def render_web_fetch_tool_call(arguments: str) -> RenderableType:
+    grid = create_grid()
+    tool_name_column = Text.assemble(("↓", ThemeKey.TOOL_MARK), " ", ("Fetch", ThemeKey.TOOL_NAME))
+
+    try:
+        payload: dict[str, str] = json.loads(arguments)
+    except json.JSONDecodeError:
+        summary = Text(
+            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            style=ThemeKey.INVALID_TOOL_CALL_ARGS,
+        )
+        grid.add_row(tool_name_column, summary)
+        return grid
+
+    url = payload.get("url", "")
+    summary = Text(_truncate_url(url), ThemeKey.TOOL_PARAM_FILE_PATH) if url else Text("(no url)", ThemeKey.TOOL_PARAM)
+
+    grid.add_row(tool_name_column, summary)
+    return grid
+
+
+def render_web_search_tool_call(arguments: str) -> RenderableType:
+    grid = create_grid()
+    tool_name_column = Text.assemble(("◉", ThemeKey.TOOL_MARK), " ", ("Search", ThemeKey.TOOL_NAME))
+
+    try:
+        payload: dict[str, Any] = json.loads(arguments)
+    except json.JSONDecodeError:
+        summary = Text(
+            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            style=ThemeKey.INVALID_TOOL_CALL_ARGS,
+        )
+        grid.add_row(tool_name_column, summary)
+        return grid
+
+    query = payload.get("query", "")
+    max_results = payload.get("max_results")
+
+    summary = Text("", ThemeKey.TOOL_PARAM)
+    if query:
+        # Truncate long queries
+        display_query = query if len(query) <= 80 else query[:77] + "..."
+        summary.append(display_query, ThemeKey.TOOL_PARAM)
+    else:
+        summary.append("(no query)", ThemeKey.TOOL_PARAM)
+
+    if isinstance(max_results, int) and max_results != 10:
+        summary.append(f" (max {max_results})", ThemeKey.TOOL_TIMEOUT)
+
+    grid.add_row(tool_name_column, summary)
+    return grid
+
+
 def render_mermaid_tool_result(tr: events.ToolResultEvent) -> RenderableType:
     from klaude_code.ui.terminal import supports_osc8_hyperlinks
 
@@ -506,6 +575,10 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
             return render_generic_tool_call(e.tool_name, e.arguments, "◈")
         case tools.REPORT_BACK:
             return render_report_back_tool_call()
+        case tools.WEB_FETCH:
+            return render_web_fetch_tool_call(e.arguments)
+        case tools.WEB_SEARCH:
+            return render_web_search_tool_call(e.arguments)
         case _:
             return render_generic_tool_call(e.tool_name, e.arguments)
 

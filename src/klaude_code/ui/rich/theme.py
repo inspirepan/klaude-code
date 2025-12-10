@@ -243,11 +243,14 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.hr": palette.grey3,
                 "markdown.item.bullet": palette.grey2,
                 "markdown.item.number": palette.grey2,
+                "markdown.link": "underline " + palette.blue,
+                "markdown.link_url": "underline " + palette.blue,
             }
         ),
         thinking_markdown_theme=Theme(
             styles={
                 "markdown.code": palette.grey1 + " italic on " + palette.text_background,
+                "markdown.code.block": palette.grey1,
                 "markdown.h1": "bold reverse",
                 "markdown.h1.border": palette.grey3,
                 "markdown.h2.border": palette.grey3,
@@ -256,7 +259,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.hr": palette.grey3,
                 "markdown.item.bullet": palette.grey2,
                 "markdown.item.number": palette.grey2,
-                "markdown.code.block": palette.grey1,
+                "markdown.link": "underline " + palette.blue,
+                "markdown.link_url": "underline " + palette.blue,
                 "markdown.strong": "bold italic " + palette.grey1,
             }
         ),
