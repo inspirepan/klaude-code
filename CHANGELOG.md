@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.17] - 2025-12-10
+
+### Added
+
+- refactor WebFetchAgent to WebAgent with search capability (`6af0058`)
+- add /export-online command to deploy session to surge.sh (`5c81f84`)
+- display real-time context usage percentage in spinner (`5c387e1`)
+
+### Changed
+
+- enhance markdown hyperlink styling (`342a201`)
+- improve session export template markdown styling (`138f0e4`)
+- remove obsolete get_example_config tests (`1e59c63`)
+- update example config with better defaults (`30795e6`)
+
+### Fixed
+
+- simplify operation label handling in render_write_tool_call (`f826084`)
+- fix issue of /clear not working - dynamically retrieve active session ID to handle session changes (`60920ad`)
+- improve sub-agent output_format and rendering (`03bd61b`)
+- normalize JSON schema type values to lowercase for Gemini compatibility (`c2ad2c6`)
+
+### Other
+
+- update readme.md (`0122e99`)
 ## [1.2.16] - 2025-12-09
 
 ### Added
@@ -500,7 +525,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.16...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.17...HEAD
+[1.2.17]: https://github.com/inspirepan/klaude-code/compare/v1.2.16...v1.2.17
 [1.2.16]: https://github.com/inspirepan/klaude-code/compare/v1.2.15...v1.2.16
 [1.2.15]: https://github.com/inspirepan/klaude-code/compare/v1.2.14...v1.2.15
 [1.2.14]: https://github.com/inspirepan/klaude-code/compare/v1.2.13...v1.2.14
