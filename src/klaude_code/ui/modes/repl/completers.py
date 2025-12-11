@@ -26,6 +26,7 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import HTML
 
 from klaude_code.command import get_commands
+from klaude_code.trace.log import DebugType, log_debug
 
 # Pattern to match @token for completion refresh (used by key bindings).
 # Supports both plain tokens like `@src/file.py` and quoted tokens like
@@ -444,6 +445,8 @@ class _AtFilesCompleter(Completer):
         return items[: min(self._max_results, 100)]
 
     def _run_cmd(self, cmd: list[str], cwd: Path | None = None) -> _CmdResult:
+        cmd_str = " ".join(cmd)
+        start = time.monotonic()
         try:
             p = subprocess.run(
                 cmd,
@@ -453,9 +456,23 @@ class _AtFilesCompleter(Completer):
                 text=True,
                 timeout=1.5,
             )
+            elapsed_ms = (time.monotonic() - start) * 1000
             if p.returncode == 0:
                 lines = [ln.strip() for ln in p.stdout.splitlines() if ln.strip()]
+                log_debug(
+                    f"[completer] cmd={cmd_str} elapsed={elapsed_ms:.1f}ms results={len(lines)}",
+                    debug_type=DebugType.EXECUTION,
+                )
                 return _CmdResult(True, lines)
+            log_debug(
+                f"[completer] cmd={cmd_str} elapsed={elapsed_ms:.1f}ms returncode={p.returncode}",
+                debug_type=DebugType.EXECUTION,
+            )
             return _CmdResult(False, [])
-        except Exception:
+        except Exception as e:
+            elapsed_ms = (time.monotonic() - start) * 1000
+            log_debug(
+                f"[completer] cmd={cmd_str} elapsed={elapsed_ms:.1f}ms error={e!r}",
+                debug_type=DebugType.EXECUTION,
+            )
             return _CmdResult(False, [])
