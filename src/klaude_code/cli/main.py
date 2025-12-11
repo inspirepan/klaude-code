@@ -11,7 +11,6 @@ from klaude_code.cli.auth_cmd import register_auth_commands
 from klaude_code.cli.config_cmd import register_config_commands
 from klaude_code.cli.debug import DEBUG_FILTER_HELP, open_log_file_in_editor, resolve_debug_settings
 from klaude_code.cli.session_cmd import register_session_commands
-from klaude_code.config import load_config
 from klaude_code.session import Session, resume_select_session
 from klaude_code.trace import DebugType, prepare_debug_log_file
 
@@ -157,13 +156,8 @@ def exec_command(
     from klaude_code.config.select_model import select_model_from_config
 
     chosen_model = model
-    if select_model:
-        # Prefer the explicitly provided model as default; otherwise main model
-        config = load_config()
-        if config is None:
-            raise typer.Exit(1)
-        default_name = model or config.main_model
-        chosen_model = select_model_from_config(preferred=default_name)
+    if model or select_model:
+        chosen_model = select_model_from_config(preferred=model)
         if chosen_model is None:
             return
 
@@ -243,7 +237,7 @@ def main_callback(
         setup_terminal_title()
 
         chosen_model = model
-        if select_model:
+        if model or select_model:
             chosen_model = select_model_from_config(preferred=model)
             if chosen_model is None:
                 return

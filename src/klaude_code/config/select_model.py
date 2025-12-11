@@ -40,6 +40,9 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
         if matches:
             # Multiple matches: filter the list for interactive selection
             filtered_models = matches
+        else:
+            # No matches: show all models without filter hint
+            preferred = None
 
     try:
         import questionary
