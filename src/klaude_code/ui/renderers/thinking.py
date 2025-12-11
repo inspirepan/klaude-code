@@ -12,7 +12,7 @@ def thinking_prefix() -> Text:
     return Text.from_markup("[not italic]⸫[/not italic] Thinking …", style=ThemeKey.THINKING)
 
 
-def _normalize_thinking_content(content: str) -> str:
+def normalize_thinking_content(content: str) -> str:
     """Normalize thinking content for display."""
     text = content.rstrip()
 
@@ -47,7 +47,7 @@ def render_thinking(content: str, *, code_theme: str, style: str) -> RenderableT
 
     return Padding.indent(
         ThinkingMarkdown(
-            _normalize_thinking_content(content),
+            normalize_thinking_content(content),
             code_theme=code_theme,
             style=style,
         ),

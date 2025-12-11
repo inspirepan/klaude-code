@@ -9,7 +9,7 @@ from klaude_code import const
 from klaude_code.protocol import events
 from klaude_code.ui.core.stage_manager import Stage, StageManager
 from klaude_code.ui.modes.repl.renderer import REPLRenderer
-from klaude_code.ui.renderers.thinking import _normalize_thinking_content
+from klaude_code.ui.renderers.thinking import normalize_thinking_content
 from klaude_code.ui.rich.markdown import MarkdownStream, ThinkingMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.terminal.notifier import Notification, NotificationType, TerminalNotifier
@@ -349,9 +349,7 @@ class DisplayEventHandler:
         self.thinking_stream.append(event.content)
 
         if first_delta and self.thinking_stream.mdstream is not None:
-            self.thinking_stream.mdstream.update(
-                _normalize_thinking_content(self.thinking_stream.buffer)
-            )
+            self.thinking_stream.mdstream.update(normalize_thinking_content(self.thinking_stream.buffer))
 
         await self.stage_manager.enter_thinking_stage()
         self.thinking_stream.debouncer.schedule()
@@ -502,14 +500,14 @@ class DisplayEventHandler:
         if state.is_active:
             mdstream = state.mdstream
             assert mdstream is not None
-            mdstream.update(_normalize_thinking_content(state.buffer))
+            mdstream.update(normalize_thinking_content(state.buffer))
 
     async def _finish_thinking_stream(self) -> None:
         if self.thinking_stream.is_active:
             self.thinking_stream.debouncer.cancel()
             mdstream = self.thinking_stream.mdstream
             assert mdstream is not None
-            mdstream.update(_normalize_thinking_content(self.thinking_stream.buffer), final=True)
+            mdstream.update(normalize_thinking_content(self.thinking_stream.buffer), final=True)
             self.thinking_stream.finish()
             self.renderer.console.pop_theme()
             self.renderer.print()
