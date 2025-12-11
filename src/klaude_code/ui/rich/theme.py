@@ -86,6 +86,7 @@ class ThemeKey(str, Enum):
     # SPINNER_STATUS
     SPINNER_STATUS = "spinner.status"
     SPINNER_STATUS_TEXT = "spinner.status.text"
+    SPINNER_STATUS_TEXT_BOLD = "spinner.status.text.bold"
     # STATUS
     STATUS_HINT = "status.hint"
     # USER_INPUT
@@ -182,6 +183,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 # SPINNER_STATUS
                 ThemeKey.SPINNER_STATUS.value: palette.blue,
                 ThemeKey.SPINNER_STATUS_TEXT.value: palette.blue,
+                ThemeKey.SPINNER_STATUS_TEXT_BOLD.value: "bold " + palette.blue,
                 # STATUS
                 ThemeKey.STATUS_HINT.value: palette.grey2,
                 # REMINDER

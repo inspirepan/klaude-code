@@ -121,7 +121,7 @@ class ActivityState:
             for name, count in self._tool_calls.items():
                 if not first:
                     activity_text.append(", ")
-                activity_text.append(name)
+                activity_text.append(Text(name, style=ThemeKey.SPINNER_STATUS_TEXT_BOLD))
                 if count > 1:
                     activity_text.append(f" x {count}")
                 first = False
