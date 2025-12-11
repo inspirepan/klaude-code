@@ -98,8 +98,10 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     executor_task = asyncio.create_task(executor.start())
 
     theme: str | None = config.theme
-    if theme is None:
+    if theme is None and not init_config.is_exec_mode:
         # Auto-detect theme from terminal background when config does not specify a theme.
+        # Skip detection in exec mode to avoid TTY race conditions with parent process's
+        # ESC monitor when running as a subprocess.
         detected = is_light_terminal_background()
         if detected is True:
             theme = "light"
