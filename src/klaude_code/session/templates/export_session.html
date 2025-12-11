@@ -9,22 +9,36 @@
       href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%230851b2%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%2216 18 22 12 16 6%22></polyline><polyline points=%228 6 2 12 8 18%22></polyline></svg>"
     />
     <link
-      href="https://cdn.jsdelivr.net/npm/@fontsource/geist-sans/latin-400.css"
+      href="https://cdn.jsdelivr.net/npm/@fontsource/source-sans-3/400.css"
       rel="stylesheet"
     />
     <link
-      href="https://cdn.jsdelivr.net/npm/@fontsource/geist-sans/latin-500.css"
+      href="https://cdn.jsdelivr.net/npm/@fontsource/source-sans-3/400-italic.css"
       rel="stylesheet"
     />
     <link
-      href="https://cdn.jsdelivr.net/npm/@fontsource/geist-sans/latin-700.css"
+      href="https://cdn.jsdelivr.net/npm/@fontsource/source-sans-3/700.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@fontsource/source-sans-3/700-italic.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@fontsource/fira-code/400.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@fontsource/fira-code/700.css"
       rel="stylesheet"
     />
     <style>
       :root {
-        --bg-body: #ededed;
-        --bg-container: #f0f0f0;
-        --bg-card: #f0f0f0;
+        --bg-body: #eae9e5;
+        --bg-container: #edece9;
+        --bg-card: #edece9;
+        --bg-error: #ffebee;
+        --bg-code: #efeeeb;
         --border: #c8c8c8;
         --text: #111111;
         --text-dim: #64748b;
@@ -32,12 +46,10 @@
         --accent-dim: rgba(8, 145, 178, 0.08);
         --success: #15803d;
         --error: #dc2626;
-        --bg-error: #ffebee;
-        --bg-code: #f3f3f3;
         --fg-inline-code: #4f4fc7;
-        --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-        --font-markdown-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-        --font-markdown: "Geist Sans", system-ui, sans-serif;
+        --font-mono: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+        --font-markdown-mono: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+        --font-markdown: "Source Sans 3", system-ui, sans-serif;
         --font-weight-bold: 700;
         --font-size-xs: 13px;
         --font-size-sm: 14px;
@@ -62,7 +74,6 @@
         background-color: var(--bg-body);
         color: var(--text);
         font-family: var(--font-mono);
-        font-feature-settings: "ss18";
         line-height: 1.6;
         font-size: var(--font-size-lg);
         -webkit-font-smoothing: antialiased;
