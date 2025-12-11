@@ -36,7 +36,7 @@ class Session(BaseModel):
 
     @property
     def messages_count(self) -> int:
-        """Count of user and assistant messages in conversation history.
+        """Count of user, assistant messages, and tool calls in conversation history.
 
         This is a cached property that is invalidated when append_history is called.
         """
@@ -44,7 +44,7 @@ class Session(BaseModel):
             self._messages_count_cache = sum(
                 1
                 for it in self.conversation_history
-                if isinstance(it, (model.UserMessageItem, model.AssistantMessageItem))
+                if isinstance(it, (model.UserMessageItem, model.AssistantMessageItem, model.ToolCallItem))
             )
         return self._messages_count_cache
 

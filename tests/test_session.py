@@ -13,6 +13,24 @@ from klaude_code.protocol.llm_param import ToolSchema
 from klaude_code.session import export
 from klaude_code.session.session import Session
 
+
+@pytest.fixture(autouse=True)
+def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Isolate user home directory for session tests.
+
+    Session persistence uses `Path.home()` under `~/.klaude/projects`. Without
+    patching, tests would write into the real user home. This fixture redirects
+    `Path.home()` and `HOME` to a per-test temporary directory so that all
+    filesystem writes stay under pytest's temp area.
+    """
+
+    fake_home = tmp_path / "home"
+    fake_home.mkdir(exist_ok=True)
+
+    # Keep OS view and Path.home() consistent
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
 # =====================
 # Tests for export.py
 # =====================
@@ -394,7 +412,7 @@ class TestSession:
             model.UserMessageItem(content="Bye"),
         ]
         # Should count only User and Assistant messages
-        assert session.messages_count == 3
+        assert session.messages_count == 4
 
     def test_messages_count_cached(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)
