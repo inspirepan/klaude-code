@@ -1,4 +1,3 @@
-import json
 import re
 import shlex
 from collections.abc import Awaitable, Callable
@@ -282,7 +281,6 @@ def get_memory_paths() -> list[tuple[Path, str]]:
             "user's private global instructions for all projects",
         ),
         (Path.cwd() / "AGENTS.md", "project instructions, checked into the codebase"),
-        (Path.cwd() / "AGENT.md", "project instructions, checked into the codebase"),
         (Path.cwd() / "CLAUDE.md", "project instructions, checked into the codebase"),
     ]
 
@@ -351,46 +349,22 @@ IMPORTANT: this context may or may not be relevant to your tasks. You should not
     return None
 
 
-def get_last_turn_tool_call(session: Session) -> list[model.ToolCallItem]:
-    tool_calls: list[model.ToolCallItem] = []
-    for item in reversed(session.conversation_history):
-        if isinstance(item, model.ToolCallItem):
-            tool_calls.append(item)
-        if isinstance(
-            item,
-            (
-                model.ReasoningEncryptedItem,
-                model.ReasoningTextItem,
-                model.AssistantMessageItem,
-            ),
-        ):
-            break
-    return tool_calls
-
-
 MEMORY_FILE_NAMES = ["CLAUDE.md", "AGENTS.md", "AGENT.md"]
 
 
 async def last_path_memory_reminder(
     session: Session,
 ) -> model.DeveloperMessageItem | None:
-    """When last turn tool call entered a directory (or parent directory) with CLAUDE.md AGENTS.md"""
-    tool_calls = get_last_turn_tool_call(session)
-    if len(tool_calls) == 0:
+    """Load CLAUDE.md/AGENTS.md from directories containing files in file_tracker.
+
+    Uses session.file_tracker to detect accessed paths (works for both tool calls
+    and @ file references). Uses session.loaded_memory to avoid duplicate loading.
+    """
+    if not session.file_tracker:
         return None
-    paths: list[str] = []
-    for tool_call in tool_calls:
-        if tool_call.name in (tools.READ, tools.EDIT, tools.MULTI_EDIT, tools.WRITE):
-            try:
-                json_dict = json.loads(tool_call.arguments)
-                if path := json_dict.get("file_path", ""):
-                    paths.append(path)
-            except json.JSONDecodeError:
-                continue
-    paths = list(set(paths))
+
+    paths = list(session.file_tracker.keys())
     memories: list[Memory] = []
-    if len(paths) == 0:
-        return None
 
     cwd = Path.cwd().resolve()
     loaded_set: set[str] = set(session.loaded_memory)
@@ -484,8 +458,8 @@ def load_agent_reminders(
     reminders.extend(
         [
             memory_reminder,
-            last_path_memory_reminder,
             at_file_reader_reminder,
+            last_path_memory_reminder,
             file_changed_externally_reminder,
             image_reminder,
         ]
