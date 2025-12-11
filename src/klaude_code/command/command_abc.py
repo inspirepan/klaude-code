@@ -80,6 +80,11 @@ class CommandABC(ABC):
         """Whether this command support additional parameters."""
         return False
 
+    @property
+    def placeholder(self) -> str:
+        """Placeholder text for additional parameters in help display."""
+        return "additional instructions"
+
     @abstractmethod
     async def run(self, raw: str, agent: "Agent") -> CommandResult:
         """

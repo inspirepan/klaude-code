@@ -39,8 +39,8 @@ Available slash commands:"""
 
         if commands:
             for cmd_name, cmd_obj in sorted(commands.items()):
-                additional_instructions = " \\[additional instructions]" if cmd_obj.support_addition_params else ""
-                lines.append(f"  [b]/{cmd_name}[/b]{additional_instructions} — {cmd_obj.summary}")
+                placeholder = f" \\[{cmd_obj.placeholder}]" if cmd_obj.support_addition_params else ""
+                lines.append(f"  [b]/{cmd_name}[/b]{placeholder} — {cmd_obj.summary}")
 
         event = events.DeveloperMessageEvent(
             session_id=agent.session.id,

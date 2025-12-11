@@ -41,19 +41,19 @@ def ensure_commands_loaded() -> None:
     from .thinking_cmd import ThinkingCommand
 
     # Register in desired display order
-    register(DebugCommand())
     register(ExportCommand())
     register(ExportOnlineCommand())
     register(RefreshTerminalCommand())
     register(ThinkingCommand())
     register(ModelCommand())
     load_prompt_commands()
-    register(ClearCommand())
     register(StatusCommand())
     register(DiffCommand())
     register(HelpCommand())
     register(ReleaseNotesCommand())
     register(TerminalSetupCommand())
+    register(DebugCommand())
+    register(ClearCommand())
 
     # Load prompt-based commands (appended after built-in commands)
 

@@ -25,7 +25,11 @@ class ExportCommand(CommandABC):
 
     @property
     def support_addition_params(self) -> bool:
-        return False
+        return True
+
+    @property
+    def placeholder(self) -> str:
+        return "output path"
 
     @property
     def is_interactive(self) -> bool:
@@ -33,7 +37,7 @@ class ExportCommand(CommandABC):
 
     async def run(self, raw: str, agent: Agent) -> CommandResult:
         try:
-            output_path = self._resolve_output_path("", agent)
+            output_path = self._resolve_output_path(raw, agent)
             html_doc = self._build_html(agent)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(html_doc, encoding="utf-8")

@@ -34,6 +34,10 @@ class DebugCommand(CommandABC):
     def support_addition_params(self) -> bool:
         return True
 
+    @property
+    def placeholder(self) -> str:
+        return "filter types"
+
     async def run(self, raw: str, agent: "Agent") -> CommandResult:
         raw = raw.strip()
 

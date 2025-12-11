@@ -24,6 +24,14 @@ class ModelCommand(CommandABC):
     def is_interactive(self) -> bool:
         return True
 
+    @property
+    def support_addition_params(self) -> bool:
+        return True
+
+    @property
+    def placeholder(self) -> str:
+        return "model name"
+
     async def run(self, raw: str, agent: "Agent") -> CommandResult:
         selected_model = await asyncio.to_thread(select_model_from_config, preferred=raw)
 
