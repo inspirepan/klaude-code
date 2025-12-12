@@ -1,0 +1,99 @@
+# pyright: reportPrivateUsage=false
+
+"""Tests for command registry dispatch matching."""
+
+from __future__ import annotations
+
+import asyncio
+from typing import Any
+
+import pytest
+
+from klaude_code.command import registry
+from klaude_code.command.command_abc import Agent, CommandABC, CommandResult, InputAction
+from klaude_code.protocol import commands
+
+
+def arun(coro: Any) -> Any:
+    """Helper to run async coroutines."""
+
+    return asyncio.run(coro)
+
+
+class _DummyCommand(CommandABC):
+    def __init__(self, name: commands.CommandName | str, action_text: str, *, interactive: bool = False):
+        self._name = name
+        self._action_text = action_text
+        self._interactive = interactive
+
+    @property
+    def name(self) -> commands.CommandName | str:
+        return self._name
+
+    @property
+    def summary(self) -> str:
+        return "dummy"
+
+    @property
+    def is_interactive(self) -> bool:
+        return self._interactive
+
+    async def run(self, raw: str, _agent: Agent) -> CommandResult:
+        return CommandResult(actions=[InputAction.run_agent(f"{self._action_text}:{raw}")])
+
+
+class _DummyAgent:
+    # Only needed for error-path in dispatch; not used in these tests.
+    session = None
+
+
+@pytest.fixture
+def _isolated_registry(monkeypatch: pytest.MonkeyPatch) -> dict[commands.CommandName | str, CommandABC]:
+    monkeypatch.setattr(registry, "_ensure_commands_loaded", lambda: None)
+    commands_map: dict[commands.CommandName | str, CommandABC] = {}
+    monkeypatch.setattr(registry, "_COMMANDS", commands_map)
+    return commands_map
+
+
+def test_dispatch_prefix_prefers_base_command_when_other_is_extension(_isolated_registry):
+    _isolated_registry[commands.CommandName.EXPORT] = _DummyCommand(commands.CommandName.EXPORT, "export")
+    _isolated_registry[commands.CommandName.EXPORT_ONLINE] = _DummyCommand(
+        commands.CommandName.EXPORT_ONLINE,
+        "export-online",
+    )
+
+    result = arun(registry.dispatch_command("/exp foo", _DummyAgent()))
+    assert result.actions is not None
+    assert result.actions[0].text == "export:foo"
+
+
+def test_dispatch_prefix_can_target_extension_command(_isolated_registry):
+    _isolated_registry[commands.CommandName.EXPORT] = _DummyCommand(commands.CommandName.EXPORT, "export")
+    _isolated_registry[commands.CommandName.EXPORT_ONLINE] = _DummyCommand(
+        commands.CommandName.EXPORT_ONLINE,
+        "export-online",
+    )
+
+    result = arun(registry.dispatch_command("/export-o bar", _DummyAgent()))
+    assert result.actions is not None
+    assert result.actions[0].text == "export-online:bar"
+
+
+def test_slash_command_name_supports_prefix_match(_isolated_registry):
+    _isolated_registry[commands.CommandName.EXPORT] = _DummyCommand(commands.CommandName.EXPORT, "export")
+    _isolated_registry[commands.CommandName.EXPORT_ONLINE] = _DummyCommand(
+        commands.CommandName.EXPORT_ONLINE,
+        "export-online",
+    )
+
+    assert registry.is_slash_command_name("exp") is True
+    assert registry.is_slash_command_name("export-o") is True
+
+
+def test_dispatch_ambiguous_prefix_falls_back_to_agent(_isolated_registry):
+    _isolated_registry["exit"] = _DummyCommand("exit", "exit")
+    _isolated_registry["export"] = _DummyCommand("export", "export")
+
+    result = arun(registry.dispatch_command("/ex something", _DummyAgent()))
+    assert result.actions is not None
+    assert result.actions[0].text == "/ex something"
