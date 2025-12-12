@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.18] - 2025-12-12
+
+### Added
+
+- add GPT-5.2 thinking levels (`4bd003e`)
+- support normalized model aliases (`3398b34`)
+- add debug logging for file completion commands (`dd71edd`)
+- trigger model selection when --model is specified (`390c461`)
+- add placeholder property and improve /model filtering (`2f850af`)
+- add /debug slash command (`1eb200e`)
+- always save web content to local files and improve read error diagnostics (`dcb0d15`)
+- run WebSearch and WebFetch tools concurrently (`06c543b`)
+- add CodePanel for code blocks with top/bottom borders only (`18a0cea`)
+- persist partial assistant output on interrupt (`37d3e5f`)
+
+### Changed
+
+- clarify --model interactive selection (`ca90772`)
+- rename _normalize_thinking_content to public API (`159f143`)
+- use file_tracker for memory loading (`610dd60`)
+- tweak ui of status tool names and export (`5f41cbd`)
+- update export html style (`8c467b8`)
+- inline agent manager into executor (`e0edb91`)
+
+### Fixed
+
+- skip terminal color detection in exec mode to prevent TTY race (`bd8b065`)
+- include ToolCallItem in messages_count and isolate test home dir (`ef3b108`)
+- normalize thinking stream formatting for OpenRouter (`0cf216a`)
+- minor UI adjustments and formatting improvements (`ca3b96e`)
+- strip all ANSI/terminal control sequences from output (`4a0aca1`)
+
+### Other
+
+- align test tooling and import layers (`bbf22eb`)
+- misc UI and prompt improvements (`dc8ed57`)
 ## [1.2.17] - 2025-12-10
 
 ### Added
@@ -525,7 +561,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.17...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.18...HEAD
+[1.2.18]: https://github.com/inspirepan/klaude-code/compare/v1.2.17...v1.2.18
 [1.2.17]: https://github.com/inspirepan/klaude-code/compare/v1.2.16...v1.2.17
 [1.2.16]: https://github.com/inspirepan/klaude-code/compare/v1.2.15...v1.2.16
 [1.2.15]: https://github.com/inspirepan/klaude-code/compare/v1.2.14...v1.2.15
