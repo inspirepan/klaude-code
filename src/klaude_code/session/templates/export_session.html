@@ -6,54 +6,50 @@
     <title>Klaude Code - $first_user_message</title>
     <link
       rel="icon"
-      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%230851b2%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%2216 18 22 12 16 6%22></polyline><polyline points=%228 6 2 12 8 18%22></polyline></svg>"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%230b5bd3%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%2216 18 22 12 16 6%22></polyline><polyline points=%228 6 2 12 8 18%22></polyline></svg>"
     />
     <link
-      href="https://cdn.jsdelivr.net/npm/@fontsource/source-sans-3/400.css"
+      href="https://cdn.jsdelivr.net/npm/@fontsource/geist/400.css"
       rel="stylesheet"
     />
     <link
-      href="https://cdn.jsdelivr.net/npm/@fontsource/source-sans-3/400-italic.css"
+      href="https://cdn.jsdelivr.net/npm/@fontsource/geist/800.css"
       rel="stylesheet"
     />
     <link
-      href="https://cdn.jsdelivr.net/npm/@fontsource/source-sans-3/700.css"
+      href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono/400.css"
       rel="stylesheet"
     />
     <link
-      href="https://cdn.jsdelivr.net/npm/@fontsource/source-sans-3/700-italic.css"
-      rel="stylesheet"
-    />
-    <link
-      href="https://cdn.jsdelivr.net/npm/@fontsource/fira-code/400.css"
-      rel="stylesheet"
-    />
-    <link
-      href="https://cdn.jsdelivr.net/npm/@fontsource/fira-code/700.css"
+      href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono/800.css"
       rel="stylesheet"
     />
     <style>
       :root {
-        --bg-body: #eae9e5;
-        --bg-container: #edece9;
-        --bg-card: #efeeeb;
-        --bg-error: #ffebee;
-        --bg-code: #f2f1ed;
-        --border: #c8c8c8;
-        --text: #111111;
-        --text-dim: #64748b;
-        --accent: #0851b2;
-        --accent-dim: rgba(8, 145, 178, 0.08);
-        --success: #15803d;
-        --error: #dc2626;
-        --fg-inline-code: #4f4fc7;
-        --font-mono: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-        --font-markdown-mono: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-        --font-markdown: "Source Sans 3", system-ui, sans-serif;
-        --font-weight-bold: 700;
-        --font-size-xs: 13px;
-        --font-size-sm: 14px;
-        --font-size-base: 15px;
+        --bg-body: #f0efeb;
+        --bg-container: #f3f2ee;
+        --bg-card: #f3f2ee;
+        --bg-overlay: rgba(248, 246, 240, 0.98);
+        --bg-error: #fdecec;
+        --bg-success: #eaf6ed;
+        --bg-code: #f7f7f4;
+        --border: #ded8cf;
+        --text: #151515;
+        --text-dim: #5f6b7a;
+        --accent: #0b5bd3;
+        --accent-dim: rgba(11, 91, 211, 0.10);
+        --accent-underline: rgba(11, 91, 211, 0.25);
+        --accent-hover: rgba(11, 91, 211, 0.06);
+        --success: #1a7f37;
+        --error: #c62828;
+        --fg-inline-code: #1f4fbf;
+        --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+        --font-markdown-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+        --font-markdown: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+        --font-weight-bold: 800;
+        --font-size-xs: 12px;
+        --font-size-sm: 13px;
+        --font-size-base: 14px;
         --font-size-lg: 16px;
         --spacing-xs: 4px;
         --spacing-sm: 8px;
@@ -351,7 +347,7 @@
         left: 0;
         width: 100vw;
         height: 100vh;
-        background: rgba(255, 255, 255, 0.98);
+        background: var(--bg-overlay);
         z-index: 1000;
         display: flex;
         flex-direction: column;
@@ -708,12 +704,12 @@
       .markdown-body a {
         color: var(--accent);
         text-decoration: none;
-        border-bottom: 1px solid rgba(8, 81, 178, 0.2);
+        border-bottom: 1px solid var(--accent-underline);
         transition: border-color 0.2s, background-color 0.2s;
       }
       .markdown-body a:hover {
         border-bottom-color: var(--accent);
-        background-color: rgba(8, 81, 178, 0.05);
+        background-color: var(--accent-hover);
         border-radius: 2px;
       }
 
@@ -824,13 +820,13 @@
         white-space: pre;
       }
       .diff-plus {
-        color: #166534;
-        background: #e7f5e9;
+        color: var(--success);
+        background: var(--bg-success);
         display: block;
       }
       .diff-minus {
-        color: #991b1b;
-        background: #ffebee;
+        color: var(--error);
+        background: var(--bg-error);
         display: block;
       }
       .diff-ctx {
@@ -1278,10 +1274,16 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script type="module">
       import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+      const markdownMonoFont = getComputedStyle(document.documentElement)
+        .getPropertyValue("--font-markdown-mono")
+        .trim();
+
       mermaid.initialize({
         startOnLoad: true,
         theme: "neutral",
-        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace',
+        fontFamily:
+          markdownMonoFont ||
+          'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace',
       });
     </script>
     <script>
