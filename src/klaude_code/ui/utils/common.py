@@ -2,8 +2,6 @@ import re
 import subprocess
 from pathlib import Path
 
-from klaude_code import const
-
 LEADING_NEWLINES_REGEX = re.compile(r"^\n{2,}")
 
 
@@ -90,19 +88,3 @@ def show_path_with_tilde(path: Path | None = None):
         return f"~/{relative_path}"
     except ValueError:
         return str(path)
-
-
-def truncate_display(
-    text: str,
-    max_lines: int = const.TRUNCATE_DISPLAY_MAX_LINES,
-    max_line_length: int = const.TRUNCATE_DISPLAY_MAX_LINE_LENGTH,
-) -> str:
-    lines = text.split("\n")
-    if len(lines) > max_lines:
-        lines = [*lines[:max_lines], "… (more " + str(len(lines) - max_lines) + " lines)"]
-    for i, line in enumerate(lines):
-        if len(line) > max_line_length:
-            lines[i] = (
-                line[:max_line_length] + "… (more " + str(len(line) - max_line_length) + " characters in this line)"
-            )
-    return "\n".join(lines)

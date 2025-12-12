@@ -5,11 +5,10 @@ from rich.text import Text
 
 from klaude_code.protocol import commands, events, model
 from klaude_code.ui.renderers import diffs as r_diffs
-from klaude_code.ui.renderers.common import create_grid
+from klaude_code.ui.renderers.common import create_grid, truncate_display
 from klaude_code.ui.renderers.tools import render_path
 from klaude_code.ui.rich.markdown import NoInsetMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
-from klaude_code.ui.utils.common import truncate_display
 
 
 def need_render_developer_message(e: events.DeveloperMessageEvent) -> bool:
@@ -117,7 +116,7 @@ def render_command_output(e: events.DeveloperMessageEvent) -> RenderableType:
         case _:
             content = e.item.content or "(no content)"
             style = ThemeKey.TOOL_RESULT if not e.item.command_output.is_error else ThemeKey.ERROR
-            return Padding.indent(Text(truncate_display(content), style=style), level=2)
+            return Padding.indent(truncate_display(content, base_style=style), level=2)
 
 
 def _format_tokens(tokens: int) -> str:

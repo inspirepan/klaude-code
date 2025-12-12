@@ -22,11 +22,11 @@ from klaude_code.ui.renderers import sub_agent as r_sub_agent
 from klaude_code.ui.renderers import thinking as r_thinking
 from klaude_code.ui.renderers import tools as r_tools
 from klaude_code.ui.renderers import user_input as r_user_input
+from klaude_code.ui.renderers.common import truncate_display
 from klaude_code.ui.rich import status as r_status
 from klaude_code.ui.rich.quote import Quote
 from klaude_code.ui.rich.status import ShimmerStatusText
 from klaude_code.ui.rich.theme import ThemeKey, get_theme
-from klaude_code.ui.utils.common import truncate_display
 
 
 @dataclass
@@ -244,7 +244,7 @@ class REPLRenderer:
     def display_error(self, event: events.ErrorEvent) -> None:
         self.print(
             r_errors.render_error(
-                self.console.render_str(truncate_display(event.error_message)),
+                truncate_display(event.error_message),
                 indent=0,
             )
         )

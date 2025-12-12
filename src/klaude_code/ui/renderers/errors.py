@@ -11,6 +11,6 @@ def render_error(error_msg: Text, indent: int = 2) -> RenderableType:
     Shows a two-column grid with an error mark and truncated message.
     """
     grid = create_grid()
-    error_msg.stylize(ThemeKey.ERROR)
+    error_msg.style = ThemeKey.ERROR
     grid.add_row(Text(" " * indent + "✘", style=ThemeKey.ERROR_BOLD), error_msg)
     return grid
