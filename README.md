@@ -33,11 +33,16 @@ klaude [--model <name>] [--select-model]
 
 **Options:**
 - `--version`/`-V`: Show version and exit.
-- `--model`/`-m`: Select a model by logical name from config.
-- `--select-model`/`-s`: Interactively choose a model at startup.
+- `--model`/`-m`: Preferred model name (exact match picks immediately; otherwise opens the interactive selector filtered by this value).
+- `--select-model`/`-s`: Open the interactive model selector at startup (shows all models unless `--model` is also provided).
 - `--continue`/`-c`: Resume the most recent session.
 - `--resume`/`-r`: Select a session to resume for this project.
 - `--vanilla`: Minimal mode with only basic tools (Bash, Read, Edit) and no system prompts.
+
+**Model selection behavior:**
+- Default: uses `main_model` from config.
+- `--select-model`: always prompts you to pick.
+- `--model <value>`: tries to resolve `<value>` to a single model; if it can't, it prompts with a filtered list (and falls back to showing all models if there are no matches).
 
 **Debug Options:**
 - `--debug`/`-d`: Enable debug mode with verbose logging and LLM trace.
@@ -245,5 +250,10 @@ klaude exec "what is 2+2?"
 echo "hello world" | klaude exec
 
 # With model selection
+
+# Exact model name (non-interactive)
 echo "generate quicksort in python" | klaude exec --model gpt-5.1
+
+# Partial/ambiguous name opens the interactive selector (filtered)
+echo "generate quicksort in python" | klaude exec --model gpt
 ```
