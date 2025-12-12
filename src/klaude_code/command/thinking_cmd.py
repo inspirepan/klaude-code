@@ -8,6 +8,7 @@ from klaude_code.protocol import commands, events, llm_param, model
 # Thinking level options for different protocols
 RESPONSES_LEVELS = ["minimal", "low", "medium", "high"]
 RESPONSES_GPT51_LEVELS = ["none", "minimal", "low", "medium", "high"]
+RESPONSES_GPT52_LEVELS = ["none", "minimal", "low", "medium", "high", "xhigh"]
 RESPONSES_CODEX_MAX_LEVELS = ["medium", "high", "xhigh"]
 
 ANTHROPIC_LEVELS: list[tuple[str, int | None]] = [
@@ -30,7 +31,14 @@ def _is_gpt51_model(model_name: str | None) -> bool:
     """Check if the model is GPT-5.1."""
     if not model_name:
         return False
-    return model_name.lower() in ["gpt5.1", "openai/gpt-5.1", "gpt-5.1-codex-2025-11-13"]
+    return model_name.lower() in ["gpt-5.1", "openai/gpt-5.1", "gpt-5.1-codex-2025-11-13"]
+
+
+def _is_gpt52_model(model_name: str | None) -> bool:
+    """Check if the model is GPT-5.2."""
+    if not model_name:
+        return False
+    return model_name.lower() in ["gpt-5.2", "openai/gpt-5.2"]
 
 
 def _is_codex_max_model(model_name: str | None) -> bool:
@@ -44,6 +52,8 @@ def _get_levels_for_responses(model_name: str | None) -> list[str]:
     """Get thinking levels for responses protocol."""
     if _is_codex_max_model(model_name):
         return RESPONSES_CODEX_MAX_LEVELS
+    if _is_gpt52_model(model_name):
+        return RESPONSES_GPT52_LEVELS
     if _is_gpt51_model(model_name):
         return RESPONSES_GPT51_LEVELS
     return RESPONSES_LEVELS
