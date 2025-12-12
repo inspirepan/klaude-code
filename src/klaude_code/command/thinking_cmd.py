@@ -1,14 +1,9 @@
 import asyncio
-from typing import TYPE_CHECKING
 
 import questionary
 
-from klaude_code.command.command_abc import CommandABC, CommandResult
+from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, llm_param, model
-
-if TYPE_CHECKING:
-    from klaude_code.core.agent import Agent
-
 
 # Thinking level options for different protocols
 RESPONSES_LEVELS = ["minimal", "low", "medium", "high"]
@@ -164,7 +159,7 @@ class ThinkingCommand(CommandABC):
     def is_interactive(self) -> bool:
         return True
 
-    async def run(self, raw: str, agent: "Agent") -> CommandResult:
+    async def run(self, raw: str, agent: Agent) -> CommandResult:
         if not agent.profile:
             return self._no_change_result(agent, "No profile configured")
 

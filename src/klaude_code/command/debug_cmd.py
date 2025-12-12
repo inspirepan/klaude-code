@@ -1,12 +1,6 @@
-from typing import TYPE_CHECKING
-
-from klaude_code.cli.debug import parse_debug_filters
-from klaude_code.command.command_abc import CommandABC, CommandResult
+from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, model
 from klaude_code.trace import DebugType, get_current_log_file, is_debug_enabled, set_debug_logging
-
-if TYPE_CHECKING:
-    from klaude_code.core.agent import Agent
 
 
 def _format_status() -> str:
@@ -17,6 +11,19 @@ def _format_status() -> str:
     log_file = get_current_log_file()
     log_path_str = str(log_file) if log_file else "(console)"
     return f"Debug: ON\nLog file: {log_path_str}"
+
+
+def _parse_debug_filters(raw: str) -> set[DebugType] | None:
+    filters: set[DebugType] = set()
+    for chunk in raw.split(","):
+        normalized = chunk.strip().lower().replace("-", "_")
+        if not normalized:
+            continue
+        try:
+            filters.add(DebugType(normalized))
+        except ValueError as exc:
+            raise ValueError(normalized) from exc
+    return filters or None
 
 
 class DebugCommand(CommandABC):
@@ -38,7 +45,7 @@ class DebugCommand(CommandABC):
     def placeholder(self) -> str:
         return "filter types"
 
-    async def run(self, raw: str, agent: "Agent") -> CommandResult:
+    async def run(self, raw: str, agent: Agent) -> CommandResult:
         raw = raw.strip()
 
         # /debug (no args) - enable debug
@@ -48,12 +55,12 @@ class DebugCommand(CommandABC):
 
         # /debug <filters> - enable with filters
         try:
-            filters = parse_debug_filters(raw)
+            filters = _parse_debug_filters(raw)
             if filters:
                 set_debug_logging(True, write_to_file=True, filters=filters)
                 filter_names = ", ".join(sorted(dt.value for dt in filters))
                 return self._message_result(agent, f"Filters: {filter_names}\n{_format_status()}")
-        except SystemExit:
+        except ValueError:
             pass
 
         return self._message_result(

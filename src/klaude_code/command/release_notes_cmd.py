@@ -1,11 +1,7 @@
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from klaude_code.command.command_abc import CommandABC, CommandResult
+from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, model
-
-if TYPE_CHECKING:
-    from klaude_code.core.agent import Agent
 
 
 def _read_changelog() -> str:
@@ -72,7 +68,7 @@ class ReleaseNotesCommand(CommandABC):
     def summary(self) -> str:
         return "Show the latest release notes"
 
-    async def run(self, raw: str, agent: "Agent") -> CommandResult:
+    async def run(self, raw: str, agent: Agent) -> CommandResult:
         changelog = _read_changelog()
         content = _extract_releases(changelog, count=10)
 

@@ -7,6 +7,10 @@ wheels/
 *.egg-info
 .ruff_cache/
 .pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
 # Virtual environments
 .venv
 .DS_Store

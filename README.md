@@ -46,7 +46,7 @@ klaude [--model <name>] [--select-model]
 
 ### Configuration
 
-An example config will be created in `~/.klaude/config.yaml` when first run.
+An example config will be created in `~/.klaude/klaude-config.yaml` when first run.
 
 Open the configuration file in editor:
 
@@ -183,7 +183,7 @@ sub_agent_models:
   oracle: gpt-5.1
   explore: haiku
   task: opus
-  webfetchagent: haiku
+  webagent: haiku
 
 ```
 

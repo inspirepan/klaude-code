@@ -1,10 +1,5 @@
-from typing import TYPE_CHECKING
-
-from klaude_code.command.command_abc import CommandABC, CommandResult, InputAction
+from klaude_code.command.command_abc import Agent, CommandABC, CommandResult, InputAction
 from klaude_code.protocol import commands
-
-if TYPE_CHECKING:
-    from klaude_code.core.agent import Agent
 
 
 class ClearCommand(CommandABC):
@@ -18,5 +13,5 @@ class ClearCommand(CommandABC):
     def summary(self) -> str:
         return "Clear conversation history and free up context"
 
-    async def run(self, raw: str, agent: "Agent") -> CommandResult:
+    async def run(self, raw: str, agent: Agent) -> CommandResult:
         return CommandResult(actions=[InputAction.clear()])

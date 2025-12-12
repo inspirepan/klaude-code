@@ -1,11 +1,6 @@
-from typing import TYPE_CHECKING
-
-from klaude_code.command.command_abc import CommandABC, CommandResult
+from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, model
 from klaude_code.session.session import Session
-
-if TYPE_CHECKING:
-    from klaude_code.core.agent import Agent
 
 
 class AggregatedUsage(model.BaseModel):
@@ -137,7 +132,7 @@ class StatusCommand(CommandABC):
     def summary(self) -> str:
         return "Show session usage statistics"
 
-    async def run(self, raw: str, agent: "Agent") -> CommandResult:
+    async def run(self, raw: str, agent: Agent) -> CommandResult:
         session = agent.session
         aggregated = accumulate_session_usage(session)
 

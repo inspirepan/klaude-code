@@ -1,12 +1,8 @@
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from klaude_code.command.command_abc import CommandABC, CommandResult
+from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, model
-
-if TYPE_CHECKING:
-    from klaude_code.core.agent import Agent
 
 
 class DiffCommand(CommandABC):
@@ -20,7 +16,7 @@ class DiffCommand(CommandABC):
     def summary(self) -> str:
         return "Show git diff"
 
-    async def run(self, raw: str, agent: "Agent") -> CommandResult:
+    async def run(self, raw: str, agent: Agent) -> CommandResult:
         try:
             # Check if current directory is in a git repository
             git_check = subprocess.run(

@@ -1,13 +1,9 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from klaude_code.command.command_abc import CommandABC, CommandResult
+from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, model
-
-if TYPE_CHECKING:
-    from klaude_code.core.agent import Agent
 
 
 class TerminalSetupCommand(CommandABC):
@@ -25,7 +21,7 @@ class TerminalSetupCommand(CommandABC):
     def is_interactive(self) -> bool:
         return False
 
-    async def run(self, raw: str, agent: "Agent") -> CommandResult:
+    async def run(self, raw: str, agent: Agent) -> CommandResult:
         term_program = os.environ.get("TERM_PROGRAM", "").lower()
 
         try:

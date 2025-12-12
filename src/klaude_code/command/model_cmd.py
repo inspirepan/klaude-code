@@ -1,12 +1,8 @@
 import asyncio
-from typing import TYPE_CHECKING
 
-from klaude_code.command.command_abc import CommandABC, CommandResult, InputAction
+from klaude_code.command.command_abc import Agent, CommandABC, CommandResult, InputAction
 from klaude_code.config.select_model import select_model_from_config
 from klaude_code.protocol import commands, events, model
-
-if TYPE_CHECKING:
-    from klaude_code.core.agent import Agent
 
 
 class ModelCommand(CommandABC):
@@ -32,7 +28,7 @@ class ModelCommand(CommandABC):
     def placeholder(self) -> str:
         return "model name"
 
-    async def run(self, raw: str, agent: "Agent") -> CommandResult:
+    async def run(self, raw: str, agent: Agent) -> CommandResult:
         selected_model = await asyncio.to_thread(select_model_from_config, preferred=raw)
 
         current_model = agent.profile.llm_client.model_name if agent.profile else None

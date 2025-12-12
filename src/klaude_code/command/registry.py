@@ -1,14 +1,12 @@
 from importlib.resources import files
 from typing import TYPE_CHECKING
 
-from klaude_code.command.command_abc import CommandResult, InputAction
+from klaude_code.command.command_abc import Agent, CommandResult, InputAction
 from klaude_code.command.prompt_command import PromptCommand
 from klaude_code.protocol import commands, events, model
 from klaude_code.trace import log_debug
 
 if TYPE_CHECKING:
-    from klaude_code.core.agent import Agent
-
     from .command_abc import CommandABC
 
 _COMMANDS: dict[commands.CommandName | str, "CommandABC"] = {}
@@ -50,7 +48,7 @@ def is_slash_command_name(name: str) -> bool:
     return name in _COMMANDS
 
 
-async def dispatch_command(raw: str, agent: "Agent") -> CommandResult:
+async def dispatch_command(raw: str, agent: Agent) -> CommandResult:
     _ensure_commands_loaded()
     # Detect command name
     if not raw.startswith("/"):

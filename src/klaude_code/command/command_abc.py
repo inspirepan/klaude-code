@@ -1,14 +1,37 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import Protocol
 
 from pydantic import BaseModel
 
-from klaude_code.protocol import commands
+from klaude_code.llm import LLMClientABC
+from klaude_code.protocol import commands, llm_param
 from klaude_code.protocol import events as protocol_events
+from klaude_code.session.session import Session
 
-if TYPE_CHECKING:
-    from klaude_code.core.agent import Agent
+
+class AgentProfile(Protocol):
+    """Protocol for the agent's active model profile."""
+
+    @property
+    def llm_client(self) -> LLMClientABC: ...
+
+    @property
+    def system_prompt(self) -> str | None: ...
+
+    @property
+    def tools(self) -> list[llm_param.ToolSchema]: ...
+
+
+class Agent(Protocol):
+    """Protocol for Agent objects passed to commands."""
+
+    session: Session
+
+    @property
+    def profile(self) -> AgentProfile | None: ...
+
+    def get_llm_client(self) -> LLMClientABC: ...
 
 
 class InputActionType(str, Enum):
@@ -86,7 +109,7 @@ class CommandABC(ABC):
         return "additional instructions"
 
     @abstractmethod
-    async def run(self, raw: str, agent: "Agent") -> CommandResult:
+    async def run(self, raw: str, agent: Agent) -> CommandResult:
         """
         Execute the command.
 
