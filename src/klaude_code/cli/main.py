@@ -242,6 +242,35 @@ def main_callback(
             session_id = Session.most_recent_session_id()
         # If still no session_id, leave as None to create a new session
 
+        if session_id is not None and chosen_model is None:
+            from klaude_code.config import load_config
+            from klaude_code.trace import log
+
+            session_meta = Session.load_meta(session_id)
+            cfg = load_config()
+
+            if cfg is not None and session_meta.model_config_name:
+                if any(m.model_name == session_meta.model_config_name for m in cfg.model_list):
+                    chosen_model = session_meta.model_config_name
+                else:
+                    log(
+                        (
+                            f"Warning: session model '{session_meta.model_config_name}' is not defined in config; falling back to default",
+                            "yellow",
+                        )
+                    )
+
+            if cfg is not None and chosen_model is None and session_meta.model_name:
+                raw_model = session_meta.model_name.strip()
+                if raw_model:
+                    matches = [
+                        m.model_name
+                        for m in cfg.model_list
+                        if (m.model_params.model or "").strip().lower() == raw_model.lower()
+                    ]
+                    if len(matches) == 1:
+                        chosen_model = matches[0]
+
         debug_enabled, debug_filters, log_path = prepare_debug_logging(debug, debug_filter)
 
         init_config = AppInitConfig(

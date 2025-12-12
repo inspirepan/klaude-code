@@ -208,6 +208,9 @@ class InputActionExecutor:
         llm_client = create_llm_client(llm_config)
         agent.set_model_profile(self._model_profile_provider.build_profile(llm_client))
 
+        agent.session.model_config_name = model_name
+        agent.session.model_thinking = llm_config.thinking
+
         developer_item = model.DeveloperMessageItem(
             content=f"switched to model: {model_name}",
             command_output=model.CommandOutput(command_name=commands.CommandName.MODEL),
@@ -222,6 +225,8 @@ class InputActionExecutor:
 
         new_session = Session(work_dir=agent.session.work_dir)
         new_session.model_name = agent.session.model_name
+        new_session.model_config_name = agent.session.model_config_name
+        new_session.model_thinking = agent.session.model_thinking
 
         agent.session = new_session
         agent.session.save()
@@ -301,6 +306,13 @@ class ExecutorContext:
             return self._agent
 
         session = Session.create() if session_id is None else Session.load(session_id)
+
+        if (
+            session.model_thinking is not None
+            and session.model_name
+            and session.model_name == self.llm_clients.main.model_name
+        ):
+            self.llm_clients.main.get_llm_config().thinking = session.model_thinking
 
         profile = self.model_profile_provider.build_profile(self.llm_clients.main)
         agent = Agent(session=session, profile=profile)

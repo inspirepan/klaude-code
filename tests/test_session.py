@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from klaude_code.protocol import events, model
+from klaude_code.protocol import events, llm_param, model
 from klaude_code.protocol.llm_param import ToolSchema
 from klaude_code.session import export
 from klaude_code.session.session import Session
@@ -516,7 +516,12 @@ class TestSessionPersistence:
         monkeypatch.chdir(project_dir)
 
         # Create session with some data
-        session = Session(work_dir=project_dir, model_name="test-model")
+        session = Session(
+            work_dir=project_dir,
+            model_name="test-model",
+            model_config_name="test-config-model",
+            model_thinking=llm_param.Thinking(reasoning_effort="high"),
+        )
         session.todos = [model.TodoItem(content="Task 1", status="pending")]
         session.file_tracker = {"/path/to/file": 1234567890.0}
         session.save()
@@ -526,9 +531,31 @@ class TestSessionPersistence:
         assert loaded.id == session.id
         assert loaded.work_dir == project_dir
         assert loaded.model_name == "test-model"
+        assert loaded.model_config_name == "test-config-model"
+        assert loaded.model_thinking is not None
+        assert loaded.model_thinking.reasoning_effort == "high"
         assert len(loaded.todos) == 1
         assert loaded.todos[0].content == "Task 1"
         assert "/path/to/file" in loaded.file_tracker
+
+    def test_load_meta_does_not_load_messages(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        session = Session(work_dir=project_dir, model_name="test-model", model_config_name="test-config-model")
+        session.append_history(
+            [
+                model.UserMessageItem(content="Hello"),
+                model.AssistantMessageItem(content="Hi"),
+            ]
+        )
+
+        meta = Session.load_meta(session.id)
+        assert meta.id == session.id
+        assert meta.model_name == "test-model"
+        assert meta.model_config_name == "test-config-model"
+        assert len(meta.conversation_history) == 0
 
     def test_load_nonexistent_session_creates_new(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"

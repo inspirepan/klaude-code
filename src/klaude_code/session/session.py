@@ -7,7 +7,7 @@ from typing import ClassVar
 
 from pydantic import BaseModel, Field, PrivateAttr
 
-from klaude_code.protocol import events, model, tools
+from klaude_code.protocol import events, llm_param, model, tools
 
 
 class Session(BaseModel):
@@ -22,6 +22,9 @@ class Session(BaseModel):
     # Model name used for this session
     # Used in list method SessionMetaBrief
     model_name: str | None = None
+
+    model_config_name: str | None = None
+    model_thinking: llm_param.Thinking | None = None
     # Timestamps (epoch seconds)
     created_at: float = Field(default_factory=lambda: time.time())
     updated_at: float = Field(default_factory=lambda: time.time())
@@ -103,14 +106,7 @@ class Session(BaseModel):
         return self._messages_dir() / f"{prefix}-{self.id}.jsonl"
 
     @classmethod
-    def create(cls, id: str | None = None) -> "Session":
-        """Create a new session without checking for existing files."""
-        return Session(id=id or uuid.uuid4().hex, work_dir=Path.cwd())
-
-    @classmethod
-    def load(cls, id: str) -> "Session":
-        """Load an existing session or create a new one if not found."""
-        # Load session metadata
+    def _find_session_file(cls, id: str) -> Path | None:
         sessions_dir = cls._sessions_dir()
         session_candidates = sorted(
             sessions_dir.glob(f"*-{id}.json"),
@@ -118,13 +114,24 @@ class Session(BaseModel):
             reverse=True,
         )
         if not session_candidates:
-            # No existing session; create a new one
+            return None
+        return session_candidates[0]
+
+    @classmethod
+    def create(cls, id: str | None = None) -> "Session":
+        """Create a new session without checking for existing files."""
+        return Session(id=id or uuid.uuid4().hex, work_dir=Path.cwd())
+
+    @classmethod
+    def load_meta(cls, id: str) -> "Session":
+        """Load session metadata only (without loading messages history)."""
+
+        session_path = cls._find_session_file(id)
+        if session_path is None:
             return Session(id=id, work_dir=Path.cwd())
-        session_path = session_candidates[0]
 
         raw = json.loads(session_path.read_text())
 
-        # Basic fields (conversation history is loaded separately)
         work_dir_str = raw.get("work_dir", str(Path.cwd()))
 
         sub_agent_state_raw = raw.get("sub_agent_state")
@@ -135,8 +142,12 @@ class Session(BaseModel):
         created_at = float(raw.get("created_at", time.time()))
         updated_at = float(raw.get("updated_at", created_at))
         model_name = raw.get("model_name")
+        model_config_name = raw.get("model_config_name")
 
-        sess = Session(
+        model_thinking_raw = raw.get("model_thinking")
+        model_thinking = llm_param.Thinking(**model_thinking_raw) if isinstance(model_thinking_raw, dict) else None  # pyright: ignore[reportUnknownArgumentType]
+
+        return Session(
             id=id,
             work_dir=Path(work_dir_str),
             sub_agent_state=sub_agent_state,
@@ -146,7 +157,14 @@ class Session(BaseModel):
             created_at=created_at,
             updated_at=updated_at,
             model_name=model_name,
+            model_config_name=model_config_name,
+            model_thinking=model_thinking,
         )
+
+    @classmethod
+    def load(cls, id: str) -> "Session":
+        """Load an existing session or create a new one if not found."""
+        sess = cls.load_meta(id)
 
         # Load conversation history from messages JSONL
         messages_dir = cls._messages_dir()
@@ -204,6 +222,8 @@ class Session(BaseModel):
             "updated_at": self.updated_at,
             "messages_count": self.messages_count,
             "model_name": self.model_name,
+            "model_config_name": self.model_config_name,
+            "model_thinking": self.model_thinking.model_dump() if self.model_thinking else None,
         }
         self._session_file().write_text(json.dumps(payload, ensure_ascii=False, indent=2))
 

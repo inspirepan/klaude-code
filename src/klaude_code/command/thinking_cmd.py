@@ -206,6 +206,7 @@ class ThinkingCommand(CommandABC):
 
         # Apply the new thinking configuration
         config.thinking = new_thinking
+        agent.session.model_thinking = new_thinking
         new_status = _format_current_thinking(config)
 
         return CommandResult(

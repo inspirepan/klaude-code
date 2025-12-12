@@ -11,7 +11,7 @@ from klaude_code import ui
 from klaude_code.cli.self_update import get_update_message
 from klaude_code.command import has_interactive_command
 from klaude_code.config import Config, load_config
-from klaude_code.core.agent import DefaultModelProfileProvider, VanillaModelProfileProvider
+from klaude_code.core.agent import Agent, DefaultModelProfileProvider, VanillaModelProfileProvider
 from klaude_code.core.executor import Executor
 from klaude_code.core.manager import build_llm_clients
 from klaude_code.protocol import events, op
@@ -151,6 +151,29 @@ async def initialize_session(
     return active_session_id or session_id
 
 
+def _backfill_session_model_config(
+    agent: Agent | None,
+    model_override: str | None,
+    default_model: str,
+    is_new_session: bool,
+) -> None:
+    """Backfill model_config_name and model_thinking on newly created sessions."""
+    if agent is None or agent.session.model_config_name is not None:
+        return
+
+    if model_override is not None:
+        agent.session.model_config_name = model_override
+    elif is_new_session:
+        agent.session.model_config_name = default_model
+    else:
+        return
+
+    if agent.session.model_thinking is None and agent.profile:
+        agent.session.model_thinking = agent.profile.llm_client.get_llm_config().thinking
+
+    agent.session.save()
+
+
 async def cleanup_app_components(components: AppComponents) -> None:
     """Clean up all application components."""
     try:
@@ -192,6 +215,12 @@ async def run_exec(init_config: AppInitConfig, input_content: str) -> None:
 
     try:
         session_id = await initialize_session(components.executor, components.event_queue)
+        _backfill_session_model_config(
+            components.executor.context.current_agent,
+            init_config.model,
+            components.config.main_model,
+            is_new_session=True,
+        )
 
         # Submit the input content directly
         await components.executor.submit_and_wait(
@@ -260,6 +289,12 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     try:
         await initialize_session(components.executor, components.event_queue, session_id=session_id)
+        _backfill_session_model_config(
+            components.executor.context.current_agent,
+            init_config.model,
+            components.config.main_model,
+            is_new_session=session_id is None,
+        )
 
         def _get_active_session_id() -> str | None:
             """Get the current active session ID dynamically.
