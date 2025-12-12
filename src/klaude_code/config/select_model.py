@@ -1,5 +1,18 @@
-from klaude_code.config.config import load_config
+from klaude_code.config.config import ModelConfig, load_config
 from klaude_code.trace import log
+
+
+def _normalize_model_key(value: str) -> str:
+    """Normalize a model identifier for loose matching.
+
+    This enables aliases like:
+    - gpt52 -> gpt-5.2
+    - gpt5.2 -> gpt-5.2
+
+    Strategy: case-fold + keep only alphanumeric characters.
+    """
+
+    return "".join(ch for ch in value.casefold() if ch.isalnum())
 
 
 def select_model_from_config(preferred: str | None = None) -> str | None:
@@ -14,7 +27,7 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
     """
     config = load_config()
     assert config is not None
-    models = sorted(config.model_list, key=lambda m: m.model_name.lower())
+    models: list[ModelConfig] = sorted(config.model_list, key=lambda m: m.model_name.lower())
 
     if not models:
         raise ValueError("No models configured. Please update your config.yaml")
@@ -28,9 +41,43 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
         # Exact match
         if preferred in names:
             return preferred
-        # Partial match (case-insensitive) on model_name or model_params.model
+
         preferred_lower = preferred.lower()
-        matches = [
+        # Case-insensitive exact match (model_name or model_params.model)
+        exact_ci_matches = [
+            m
+            for m in models
+            if preferred_lower == m.model_name.lower() or preferred_lower == (m.model_params.model or "").lower()
+        ]
+        if len(exact_ci_matches) == 1:
+            return exact_ci_matches[0].model_name
+
+        # Normalized matching (e.g. gpt52 == gpt-5.2, gpt52 in gpt-5.2-2025-...)
+        preferred_norm = _normalize_model_key(preferred)
+        normalized_matches: list[ModelConfig] = []
+        if preferred_norm:
+            normalized_matches = [
+                m
+                for m in models
+                if preferred_norm == _normalize_model_key(m.model_name)
+                or preferred_norm == _normalize_model_key(m.model_params.model or "")
+            ]
+            if len(normalized_matches) == 1:
+                return normalized_matches[0].model_name
+
+            if not normalized_matches and len(preferred_norm) >= 4:
+                normalized_matches = [
+                    m
+                    for m in models
+                    if preferred_norm in _normalize_model_key(m.model_name)
+                    or preferred_norm in _normalize_model_key(m.model_params.model or "")
+                ]
+                if len(normalized_matches) == 1:
+                    return normalized_matches[0].model_name
+
+        # Partial match (case-insensitive) on model_name or model_params.model.
+        # If normalized matching found candidates (even if multiple), prefer those as the filter set.
+        matches = normalized_matches or [
             m
             for m in models
             if preferred_lower in m.model_name.lower() or preferred_lower in (m.model_params.model or "").lower()

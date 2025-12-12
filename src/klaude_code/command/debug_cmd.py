@@ -63,9 +63,7 @@ class DebugCommand(CommandABC):
         except ValueError:
             pass
 
-        return self._message_result(
-            agent, f"Invalid filter: {raw}\nValid: {', '.join(dt.value for dt in DebugType)}"
-        )
+        return self._message_result(agent, f"Invalid filter: {raw}\nValid: {', '.join(dt.value for dt in DebugType)}")
 
     def _message_result(self, agent: "Agent", content: str) -> CommandResult:
         return CommandResult(

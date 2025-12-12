@@ -31,6 +31,7 @@ def _isolate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.setattr(Path, "home", lambda: fake_home)
 
+
 # =====================
 # Tests for export.py
 # =====================

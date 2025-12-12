@@ -580,6 +580,160 @@ class TestLLMConfigParameterIntegration:
         assert llm_config.provider_routing.allow_fallbacks is True
 
 
+class TestSelectModelFromConfig:
+    def test_select_model_supports_case_insensitive_exact_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import klaude_code.config.select_model as select_model_module
+        from klaude_code.config.select_model import select_model_from_config
+
+        provider = llm_param.LLMConfigProviderParameter(
+            provider_name="p",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+        )
+        model = ModelConfig(
+            model_name="gpt-5.2",
+            provider="p",
+            model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-01"),
+        )
+        config = Config(provider_list=[provider], model_list=[model], main_model="gpt-5.2")
+
+        monkeypatch.setattr(select_model_module, "load_config", lambda: config)
+
+        assert select_model_from_config(preferred="GPT-5.2") == "gpt-5.2"
+
+    def test_select_model_supports_normalized_alias_against_model_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import klaude_code.config.select_model as select_model_module
+        from klaude_code.config.select_model import select_model_from_config
+
+        provider = llm_param.LLMConfigProviderParameter(
+            provider_name="p",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+        )
+        model = ModelConfig(
+            model_name="gpt-5.2",
+            provider="p",
+            model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-01"),
+        )
+        config = Config(provider_list=[provider], model_list=[model], main_model="gpt-5.2")
+
+        monkeypatch.setattr(select_model_module, "load_config", lambda: config)
+
+        assert select_model_from_config(preferred="gpt52") == "gpt-5.2"
+
+    def test_select_model_supports_normalized_punctuation_variants(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import klaude_code.config.select_model as select_model_module
+        from klaude_code.config.select_model import select_model_from_config
+
+        provider = llm_param.LLMConfigProviderParameter(
+            provider_name="p",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+        )
+        model = ModelConfig(
+            model_name="gpt-5.2",
+            provider="p",
+            model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-01"),
+        )
+        config = Config(provider_list=[provider], model_list=[model], main_model="gpt-5.2")
+
+        monkeypatch.setattr(select_model_module, "load_config", lambda: config)
+
+        assert select_model_from_config(preferred="gpt_5_2") == "gpt-5.2"
+
+    def test_select_model_supports_normalized_alias_against_model_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import klaude_code.config.select_model as select_model_module
+        from klaude_code.config.select_model import select_model_from_config
+
+        provider = llm_param.LLMConfigProviderParameter(
+            provider_name="p",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+        )
+        model = ModelConfig(
+            model_name="primary",
+            provider="p",
+            model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-01"),
+        )
+        config = Config(provider_list=[provider], model_list=[model], main_model="primary")
+
+        monkeypatch.setattr(select_model_module, "load_config", lambda: config)
+
+        assert select_model_from_config(preferred="gpt52") == "primary"
+
+    def test_select_model_supports_normalized_alias_with_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import klaude_code.config.select_model as select_model_module
+        from klaude_code.config.select_model import select_model_from_config
+
+        provider = llm_param.LLMConfigProviderParameter(
+            provider_name="p",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+        )
+        model = ModelConfig(
+            model_name="primary",
+            provider="p",
+            model_params=llm_param.LLMConfigModelParameter(model="openai/gpt-5.2-2025-12-01"),
+        )
+        config = Config(provider_list=[provider], model_list=[model], main_model="primary")
+
+        monkeypatch.setattr(select_model_module, "load_config", lambda: config)
+
+        assert select_model_from_config(preferred="openai/gpt52") == "primary"
+
+    def test_select_model_uses_interactive_selector_on_ambiguity(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import types
+
+        import klaude_code.config.select_model as select_model_module
+        from klaude_code.config.select_model import select_model_from_config
+
+        provider = llm_param.LLMConfigProviderParameter(
+            provider_name="p",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+        )
+        model_a = ModelConfig(
+            model_name="gpt-5.2-2025-12-01",
+            provider="p",
+            model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-01"),
+        )
+        model_b = ModelConfig(
+            model_name="gpt-5.2-2025-12-02",
+            provider="p",
+            model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-02"),
+        )
+        config = Config(provider_list=[provider], model_list=[model_a, model_b], main_model=model_a.model_name)
+
+        monkeypatch.setattr(select_model_module, "load_config", lambda: config)
+
+        captured: dict[str, Any] = {}
+        questionary_stub: Any = types.ModuleType("questionary")
+
+        class Choice:
+            def __init__(self, title: str, value: str) -> None:
+                self.title = title
+                self.value = value
+
+        class Style:
+            def __init__(self, _styles: object) -> None:
+                self._styles = _styles
+
+        def select(*, message: str, choices: list[Choice], **kwargs: object) -> object:
+            captured["message"] = message
+            captured["choices"] = choices
+            captured["kwargs"] = kwargs
+
+            class _Result:
+                def ask(self) -> str:
+                    return model_b.model_name
+
+            return _Result()
+
+        questionary_stub.Choice = Choice
+        questionary_stub.Style = Style
+        questionary_stub.select = select
+
+        monkeypatch.setitem(sys.modules, "questionary", questionary_stub)
+
+        assert select_model_from_config(preferred="gpt52") == model_b.model_name
+        assert captured["message"] == "Select a model (filtered by 'gpt52'):"
+        assert len(captured["choices"]) == 2
+
+
 # =============================================================================
 # config_path Tests
 # =============================================================================
