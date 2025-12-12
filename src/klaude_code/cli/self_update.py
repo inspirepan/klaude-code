@@ -166,7 +166,7 @@ def get_update_message() -> str | None:
     info = check_for_updates()
     if info is None or not info.update_available:
         return None
-    return f"New version available: {info.latest}. Please run `uv tool upgrade {PACKAGE_NAME}` to upgrade."
+    return f"New version available: {info.latest}. Please run `klaude upgrade` to upgrade."
 
 
 def _print_version() -> None:
@@ -218,7 +218,7 @@ def update_command(
         log(f"Status: {status}")
 
         if info.update_available:
-            log(f"Run `uv tool upgrade {PACKAGE_NAME}` to upgrade.")
+            log("Run `klaude upgrade` to upgrade.")
 
         return
 
