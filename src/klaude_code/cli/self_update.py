@@ -1,4 +1,4 @@
-"""Version checking utilities for klaude-code."""
+"""Self-update and version utilities for klaude-code."""
 
 from __future__ import annotations
 
@@ -8,7 +8,13 @@ import subprocess
 import threading
 import time
 import urllib.request
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as pkg_version
 from typing import NamedTuple
+
+import typer
+
+from klaude_code.trace import log
 
 PACKAGE_NAME = "klaude-code"
 PYPI_URL = f"https://pypi.org/pypi/{PACKAGE_NAME}/json"
@@ -161,3 +167,105 @@ def get_update_message() -> str | None:
     if info is None or not info.update_available:
         return None
     return f"New version available: {info.latest}. Please run `uv tool upgrade {PACKAGE_NAME}` to upgrade."
+
+
+def _print_version() -> None:
+    try:
+        ver = pkg_version(PACKAGE_NAME)
+    except PackageNotFoundError:
+        ver = "unknown"
+    except Exception:
+        ver = "unknown"
+    print(f"{PACKAGE_NAME} {ver}")
+
+
+def version_option_callback(value: bool) -> None:
+    """Show version and exit."""
+    if value:
+        _print_version()
+        raise typer.Exit(0)
+
+
+def version_command() -> None:
+    """Show version and exit."""
+
+    _print_version()
+
+
+def update_command(
+    check: bool = typer.Option(
+        False,
+        "--check",
+        help="Check for updates and exit without upgrading",
+    ),
+) -> None:
+    """Upgrade klaude-code when installed via `uv tool`."""
+
+    info = check_for_updates_blocking()
+
+    if check:
+        if info is None:
+            log(("Error: `uv` is not available; cannot check for updates.", "red"))
+            log(f"Install uv, then run `uv tool upgrade {PACKAGE_NAME}`.")
+            raise typer.Exit(1)
+
+        installed_display = info.installed or "unknown"
+        latest_display = info.latest or "unknown"
+        status = "update available" if info.update_available else "up to date"
+
+        log(f"{PACKAGE_NAME} installed: {installed_display}")
+        log(f"{PACKAGE_NAME} latest:    {latest_display}")
+        log(f"Status: {status}")
+
+        if info.update_available:
+            log(f"Run `uv tool upgrade {PACKAGE_NAME}` to upgrade.")
+
+        return
+
+    if shutil.which("uv") is None:
+        log(("Error: `uv` not found in PATH.", "red"))
+        log(f"To update, install uv and run `uv tool upgrade {PACKAGE_NAME}`.")
+        raise typer.Exit(1)
+
+    log(f"Running `uv tool upgrade {PACKAGE_NAME}`...")
+    result = subprocess.run(["uv", "tool", "upgrade", PACKAGE_NAME], check=False)
+    if result.returncode != 0:
+        log((f"Error: update failed (exit code {result.returncode}).", "red"))
+        raise typer.Exit(result.returncode or 1)
+
+    log("Update complete. Please re-run `klaude` to use the new version.")
+
+
+def register_self_update_commands(app: typer.Typer) -> None:
+    """Register self-update and version subcommands to the given Typer app."""
+
+    app.command("update")(update_command)
+    app.command("upgrade", help="Alias for `klaude update`.")(update_command)
+    app.command("version", help="Alias for `klaude --version`.")(version_command)
+
+
+def check_for_updates_blocking() -> VersionInfo | None:
+    """Check for updates to klaude-code synchronously.
+
+    This is intended for CLI commands (e.g. `klaude update --check`) that need
+    a deterministic result instead of the async cached behavior.
+
+    Returns:
+        VersionInfo if uv is available, otherwise None.
+    """
+
+    if not _has_uv():
+        return None
+
+    installed = _get_installed_version()
+    latest = _get_latest_version()
+
+    update_available = False
+    if installed and latest:
+        update_available = _compare_versions(installed, latest)
+
+    return VersionInfo(
+        installed=installed,
+        latest=latest,
+        update_available=update_available,
+    )

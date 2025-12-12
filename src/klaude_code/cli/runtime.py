@@ -8,6 +8,7 @@ import typer
 from rich.text import Text
 
 from klaude_code import ui
+from klaude_code.cli.self_update import get_update_message
 from klaude_code.command import has_interactive_command
 from klaude_code.config import Config, load_config
 from klaude_code.core.agent import DefaultModelProfileProvider, VanillaModelProfileProvider
@@ -21,7 +22,6 @@ from klaude_code.ui.modes.repl.input_prompt_toolkit import REPLStatusSnapshot
 from klaude_code.ui.terminal.color import is_light_terminal_background
 from klaude_code.ui.terminal.control import install_sigint_double_press_exit, start_esc_interrupt_monitor
 from klaude_code.ui.terminal.progress_bar import OSC94States, emit_osc94
-from klaude_code.version import get_update_message
 
 
 class PrintCapable(Protocol):

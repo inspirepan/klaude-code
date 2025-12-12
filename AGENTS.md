@@ -26,6 +26,7 @@ Tests are located in the `tests/` directory. Configuration files include `pyproj
 - `uv run pytest`: Run tests
 - `uv run pyright`: Type checking in strict mode
 - `uv run klaude ...`: Execute CLI with the project's virtual environment
+- `uv run klaude update --check`: Check for newer CLI version
 
 ## Coding Style & Naming Conventions
 

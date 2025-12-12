@@ -23,6 +23,21 @@ To update:
 uv tool upgrade klaude-code
 ```
 
+Or use the built-in alias command:
+
+```bash
+klaude update
+klaude upgrade
+```
+
+To show version:
+
+```bash
+klaude --version
+klaude -v
+klaude version
+```
+
 ## Usage
 
 ### Interactive Mode
@@ -32,7 +47,7 @@ klaude [--model <name>] [--select-model]
 ```
 
 **Options:**
-- `--version`/`-V`: Show version and exit.
+- `--version`/`-V`/`-v`: Show version and exit.
 - `--model`/`-m`: Preferred model name (exact match picks immediately; otherwise opens the interactive selector filtered by this value).
 - `--select-model`/`-s`: Open the interactive model selector at startup (shows all models unless `--model` is also provided).
 - `--continue`/`-c`: Resume the most recent session.

@@ -1,8 +1,6 @@
 import asyncio
 import os
 import sys
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as pkg_version
 from pathlib import Path
 
 import typer
@@ -10,6 +8,7 @@ import typer
 from klaude_code.cli.auth_cmd import register_auth_commands
 from klaude_code.cli.config_cmd import register_config_commands
 from klaude_code.cli.debug import DEBUG_FILTER_HELP, open_log_file_in_editor, resolve_debug_settings
+from klaude_code.cli.self_update import register_self_update_commands, version_option_callback
 from klaude_code.cli.session_cmd import register_session_commands
 from klaude_code.session import Session, resume_select_session
 from klaude_code.trace import DebugType, prepare_debug_log_file
@@ -78,20 +77,6 @@ def read_input_content(cli_argument: str) -> str | None:
     return content
 
 
-def _version_callback(value: bool) -> None:
-    """Show version and exit."""
-    if value:
-        try:
-            ver = pkg_version("klaude-code")
-        except PackageNotFoundError:
-            # Package is not installed or has no metadata; show a generic version string.
-            ver = "unknown"
-        except Exception:
-            ver = "unknown"
-        print(f"klaude-code {ver}")
-        raise typer.Exit(0)
-
-
 app = typer.Typer(
     add_completion=False,
     pretty_exceptions_enable=False,
@@ -102,6 +87,8 @@ app = typer.Typer(
 register_session_commands(app)
 register_auth_commands(app)
 register_config_commands(app)
+
+register_self_update_commands(app)
 
 
 @app.command("exec")
@@ -190,8 +177,9 @@ def main_callback(
         False,
         "--version",
         "-V",
+        "-v",
         help="Show version and exit",
-        callback=_version_callback,
+        callback=version_option_callback,
         is_eager=True,
     ),
     model: str | None = typer.Option(
