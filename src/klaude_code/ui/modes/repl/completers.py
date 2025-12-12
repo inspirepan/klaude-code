@@ -158,7 +158,7 @@ class _AtFilesCompleter(Completer):
     def __init__(
         self,
         debounce_sec: float = 0.25,
-        cache_ttl_sec: float = 10.0,
+        cache_ttl_sec: float = 60.0,
         max_results: int = 20,
     ):
         self._debounce_sec = debounce_sec
@@ -170,13 +170,26 @@ class _AtFilesCompleter(Completer):
         self._last_query_key: str | None = None
         self._last_results: list[str] = []
         self._last_results_time: float = 0.0
+        self._last_results_truncated: bool = False
 
         # rg --files cache (used when fd is unavailable)
         self._rg_file_list: list[str] | None = None
         self._rg_file_list_time: float = 0.0
+        self._rg_file_list_cwd: Path | None = None
 
-        # Cache for ignored paths (gitignored files)
-        self._last_ignored_paths: set[str] = set()
+        # git ls-files cache (preferred when inside a git repo)
+        self._git_repo_root: Path | None = None
+        self._git_repo_root_time: float = 0.0
+        self._git_repo_root_cwd: Path | None = None
+
+        self._git_file_list: list[str] | None = None
+        self._git_file_list_lower: list[str] | None = None
+        self._git_file_list_time: float = 0.0
+        self._git_file_list_cwd: Path | None = None
+
+        # Command timeout is intentionally higher than a keypress cadence.
+        # We rely on caching/narrowing to avoid calling fd repeatedly.
+        self._cmd_timeout_sec: float = 3.0
 
     # ---- prompt_toolkit API ----
     def get_completions(self, document: Document, complete_event) -> Iterable[Completion]:  # type: ignore[override]
@@ -234,6 +247,8 @@ class _AtFilesCompleter(Completer):
         key_norm = keyword.lower()
         query_key = f"{cwd.resolve()}::search::{key_norm}"
 
+        max_scan_results = self._max_results * 3
+
         # Debounce: if called too soon again, filter last results
         if self._last_results and self._last_query_key is not None:
             prev = self._last_query_key
@@ -247,61 +262,100 @@ class _AtFilesCompleter(Completer):
                     and len(cur_kw) >= len(prev_kw)
                     and cur_kw.startswith(prev_kw)
                 )
+
+                # If the previous result set was not truncated, it is a complete
+                # superset for any narrower prefix. Reuse it even if the user
+                # pauses between keystrokes.
+                if (
+                    is_narrowing
+                    and not self._last_results_truncated
+                    and now - self._last_results_time < self._cache_ttl
+                ):
+                    return self._filter_and_format(self._last_results, cwd, key_norm)
+
                 if is_narrowing and (now - self._last_cmd_time) < self._debounce_sec:
-                    # For narrowing, fast-filter previous results to avoid expensive calls
-                    return self._filter_and_format(self._last_results, cwd, key_norm, self._last_ignored_paths)
+                    # For rapid narrowing, fast-filter previous results to avoid expensive calls
+                    # If the previous result set was truncated (e.g., for a 1-char query),
+                    # filtering it can legitimately produce an empty set even when matches
+                    # exist elsewhere. Fall back to a real search in that case.
+                    filtered = self._filter_and_format(self._last_results, cwd, key_norm)
+                    if filtered:
+                        return filtered
 
         # Cache TTL: reuse cached results for same query within TTL
         if self._last_results and self._last_query_key == query_key and now - self._last_results_time < self._cache_ttl:
-            return self._filter_and_format(self._last_results, cwd, key_norm, self._last_ignored_paths)
+            return self._filter_and_format(self._last_results, cwd, key_norm)
 
-        # Prefer fd; otherwise fallback to rg --files
+        # Prefer git index (fast in large repos), then fd, then rg --files.
         results: list[str] = []
-        ignored_paths: set[str] = set()
-        if self._has_cmd("fd"):
-            # Use fd to search anywhere in full path (files and directories), case-insensitive
-            results, ignored_paths = self._run_fd_search(cwd, key_norm)
-        elif self._has_cmd("rg"):
-            # Use rg to search only in current directory
-            if self._rg_file_list is None or now - self._rg_file_list_time > max(self._cache_ttl, 30.0):
-                cmd = ["rg", "--files", "--no-ignore", "--hidden"]
-                r = self._run_cmd(cmd, cwd=cwd)  # Search from current directory
-                if r.ok:
-                    self._rg_file_list = r.lines
-                    self._rg_file_list_time = now
-                else:
-                    self._rg_file_list = []
-                    self._rg_file_list_time = now
-            # Filter by keyword
-            all_files = self._rg_file_list or []
-            kn = key_norm
-            results = [p for p in all_files if kn in p.lower()]
-            # For rg fallback, we don't distinguish ignored files (no priority sorting)
-        else:
-            return []
+        truncated = False
+
+        # For very short keywords, prefer fd's early-exit behavior.
+        # For keywords >= 2 chars, using git's file list is typically faster
+        # than scanning the filesystem repeatedly.
+        if len(key_norm) >= 2:
+            results, truncated = self._git_paths_for_keyword(cwd, key_norm, max_results=max_scan_results)
+
+        if not results:
+            if self._has_cmd("fd"):
+                # Use fd to search anywhere in full path (files and directories), case-insensitive
+                results, truncated = self._run_fd_search(cwd, key_norm, max_results=max_scan_results)
+            elif self._has_cmd("rg"):
+                # Use rg to search only in current directory
+                rg_cache_ttl = max(self._cache_ttl, 30.0)
+                if (
+                    self._rg_file_list is None
+                    or self._rg_file_list_cwd != cwd
+                    or now - self._rg_file_list_time > rg_cache_ttl
+                ):
+                    cmd = [
+                        "rg",
+                        "--files",
+                        "--no-ignore",
+                        "--hidden",
+                        "--glob",
+                        "!**/.git/**",
+                        "--glob",
+                        "!**/.venv/**",
+                        "--glob",
+                        "!**/node_modules/**",
+                    ]
+                    r = self._run_cmd(cmd, cwd=cwd, timeout_sec=self._cmd_timeout_sec)  # Search from current directory
+                    if r.ok:
+                        self._rg_file_list = r.lines
+                        self._rg_file_list_time = now
+                        self._rg_file_list_cwd = cwd
+                    else:
+                        self._rg_file_list = []
+                        self._rg_file_list_time = now
+                        self._rg_file_list_cwd = cwd
+                # Filter by keyword
+                all_files = self._rg_file_list or []
+                kn = key_norm
+                results = [p for p in all_files if kn in p.lower()]
+                # For rg fallback, we don't distinguish ignored files (no priority sorting)
+            else:
+                return []
 
         # Update caches
         self._last_cmd_time = now
         self._last_query_key = query_key
         self._last_results = results
         self._last_results_time = now
-        self._last_ignored_paths = ignored_paths
-        return self._filter_and_format(results, cwd, key_norm, ignored_paths)
+        self._last_results_truncated = truncated
+        return self._filter_and_format(results, cwd, key_norm)
 
     def _filter_and_format(
         self,
         paths_from_root: list[str],
         cwd: Path,
         keyword_norm: str,
-        ignored_paths: set[str] | None = None,
     ) -> list[str]:
         # Filter to keyword (case-insensitive) and rank by:
-        # 1. Non-gitignored files first (is_ignored: 0 or 1)
-        # 2. Basename hit first, then path hit position, then length
+        # 1. Basename hit first, then path hit position, then length
         # Since both fd and rg now search from current directory, all paths are relative to cwd
         kn = keyword_norm
-        ignored_paths = ignored_paths or set()
-        out: list[tuple[str, tuple[int, int, int, int, int]]] = []
+        out: list[tuple[str, tuple[int, int, int, int]]] = []
         for p in paths_from_root:
             pl = p.lower()
             if kn not in pl:
@@ -309,23 +363,16 @@ class _AtFilesCompleter(Completer):
 
             # Use path directly since it's already relative to current directory
             rel_to_cwd = p.lstrip("./")
-            base = os.path.basename(p).lower()
+            base = os.path.basename(rel_to_cwd.rstrip("/")).lower()
             base_pos = base.find(kn)
             path_pos = pl.find(kn)
-            # Check if this path is in the ignored set (gitignored files)
-            is_ignored = 1 if rel_to_cwd in ignored_paths else 0
             score = (
-                is_ignored,
                 0 if base_pos != -1 else 1,
                 base_pos if base_pos != -1 else 10_000,
                 path_pos,
                 len(p),
             )
 
-            # Append trailing slash for directories
-            full_path = cwd / rel_to_cwd
-            if full_path.is_dir() and not rel_to_cwd.endswith("/"):
-                rel_to_cwd = rel_to_cwd + "/"
             out.append((rel_to_cwd, score))
         # Sort by score
         out.sort(key=lambda x: x[1])
@@ -336,6 +383,19 @@ class _AtFilesCompleter(Completer):
             if s not in seen:
                 seen.add(s)
                 uniq.append(s)
+
+        # Append trailing slash for directories, but avoid excessive stats.
+        # For large candidate lists, only stat the most relevant prefixes.
+        stat_limit = min(len(uniq), max(self._max_results * 3, 60))
+        for idx in range(stat_limit):
+            s = uniq[idx]
+            if s.endswith("/"):
+                continue
+            try:
+                if (cwd / s).is_dir():
+                    uniq[idx] = f"{s}/"
+            except Exception:
+                continue
         return uniq
 
     def _format_completion_text(self, suggestion: str, *, is_quoted: bool) -> str:
@@ -371,15 +431,13 @@ class _AtFilesCompleter(Completer):
             return None, None
 
     # ---- Utilities ----
-    def _run_fd_search(self, cwd: Path, keyword_norm: str) -> tuple[list[str], set[str]]:
-        """Run fd search and return (all_results, ignored_paths).
+    def _run_fd_search(self, cwd: Path, keyword_norm: str, *, max_results: int) -> tuple[list[str], bool]:
+        """Run fd search and return (results, truncated).
 
-        First runs fd without --no-ignore to get tracked files,
-        then runs with --no-ignore to get all files including gitignored ones.
-        Returns the combined results and a set of paths that are gitignored.
+        Note: This is called in the prompt_toolkit completion path, so avoid
+        doing extra background scans here.
         """
-        pattern = self._escape_regex(keyword_norm)
-        base_cmd = [
+        cmd = [
             "fd",
             "--color=never",
             "--type",
@@ -389,36 +447,115 @@ class _AtFilesCompleter(Completer):
             "--hidden",
             "--full-path",
             "-i",
+            "-F",
             "--max-results",
-            str(self._max_results * 3),
+            str(max_results),
             "--exclude",
             ".git",
             "--exclude",
             ".venv",
             "--exclude",
             "node_modules",
-            pattern,
+            keyword_norm,
             ".",
         ]
 
-        # First run: get tracked (non-ignored) files
-        r_tracked = self._run_cmd(base_cmd, cwd=cwd)
-        tracked_paths: set[str] = set(p.lstrip("./") for p in r_tracked.lines) if r_tracked.ok else set()
+        r = self._run_cmd(cmd, cwd=cwd, timeout_sec=self._cmd_timeout_sec)
+        lines = r.lines if r.ok else []
+        return lines, (len(lines) >= max_results)
 
-        # Second run: get all files including ignored ones
-        cmd_all = base_cmd.copy()
-        cmd_all.insert(2, "--no-ignore")  # Insert after --color=never
-        r_all = self._run_cmd(cmd_all, cwd=cwd)
-        all_paths = r_all.lines if r_all.ok else []
+    def _git_paths_for_keyword(self, cwd: Path, keyword_norm: str, *, max_results: int) -> tuple[list[str], bool]:
+        """Get path suggestions from the git index (fast for large repos).
 
-        # Calculate which paths are gitignored (in all but not in tracked)
-        ignored_paths = set(p.lstrip("./") for p in all_paths) - tracked_paths
+        Returns (candidates, truncated). "truncated" is True when we
+        intentionally stop early to keep per-keystroke costs bounded.
+        """
+        repo_root = self._get_git_repo_root(cwd)
+        if repo_root is None:
+            return [], False
 
-        return all_paths, ignored_paths
+        now = time.monotonic()
+        git_cache_ttl = max(self._cache_ttl, 30.0)
+        if (
+            self._git_file_list is None
+            or self._git_file_list_cwd != cwd
+            or now - self._git_file_list_time > git_cache_ttl
+        ):
+            cmd = ["git", "ls-files", "-co", "--exclude-standard"]
+            r = self._run_cmd(cmd, cwd=repo_root, timeout_sec=self._cmd_timeout_sec)
+            if not r.ok:
+                self._git_file_list = []
+                self._git_file_list_lower = []
+                self._git_file_list_time = now
+                self._git_file_list_cwd = cwd
+            else:
+                cwd_resolved = cwd.resolve()
+                root_resolved = repo_root.resolve()
+                files: list[str] = []
+                files_lower: list[str] = []
+                for rel in r.lines:
+                    abs_path = root_resolved / rel
+                    try:
+                        rel_to_cwd = abs_path.relative_to(cwd_resolved)
+                    except ValueError:
+                        continue
+                    rel_posix = rel_to_cwd.as_posix()
+                    files.append(rel_posix)
+                    files_lower.append(rel_posix.lower())
+                self._git_file_list = files
+                self._git_file_list_lower = files_lower
+                self._git_file_list_time = now
+                self._git_file_list_cwd = cwd
 
-    def _escape_regex(self, s: str) -> str:
-        # Escape for fd (regex by default). Keep '/' as is for path boundaries.
-        return re.escape(s).replace("/", "/")
+        all_files = self._git_file_list or []
+        all_files_lower = self._git_file_list_lower or []
+        kn = keyword_norm
+
+        # Bound per-keystroke work: stop scanning once enough matches are found.
+        matching_files: list[str] = []
+        scan_truncated = False
+        for p, pl in zip(all_files, all_files_lower, strict=False):
+            if kn in pl:
+                matching_files.append(p)
+                if len(matching_files) >= max_results:
+                    scan_truncated = True
+                    break
+
+        # Also include parent directories of matching files so users can
+        # complete into a folder, similar to fd's directory results.
+        dir_candidates: set[str] = set()
+        for p in matching_files[: max_results * 3]:
+            parent = os.path.dirname(p)
+            while parent and parent != ".":
+                dir_candidates.add(f"{parent}/")
+                parent = os.path.dirname(parent)
+
+        dir_list = sorted(dir_candidates)
+        dir_truncated = False
+        if len(dir_list) > max_results:
+            dir_list = dir_list[:max_results]
+            dir_truncated = True
+
+        candidates = matching_files + dir_list
+        truncated = scan_truncated or dir_truncated
+        return candidates, truncated
+
+    def _get_git_repo_root(self, cwd: Path) -> Path | None:
+        if not self._has_cmd("git"):
+            return None
+
+        now = time.monotonic()
+        ttl = max(self._cache_ttl, 30.0)
+        if self._git_repo_root_cwd == cwd and now - self._git_repo_root_time < ttl:
+            return self._git_repo_root
+
+        r = self._run_cmd(["git", "rev-parse", "--show-toplevel"], cwd=cwd, timeout_sec=0.5)
+        root = Path(r.lines[0]) if r.ok and r.lines else None
+
+        self._git_repo_root = root
+        self._git_repo_root_time = now
+        self._git_repo_root_cwd = cwd
+        return root
 
     def _has_cmd(self, name: str) -> bool:
         return shutil.which(name) is not None
@@ -444,7 +581,7 @@ class _AtFilesCompleter(Completer):
             return []
         return items[: min(self._max_results, 100)]
 
-    def _run_cmd(self, cmd: list[str], cwd: Path | None = None) -> _CmdResult:
+    def _run_cmd(self, cmd: list[str], cwd: Path | None = None, *, timeout_sec: float) -> _CmdResult:
         cmd_str = " ".join(cmd)
         start = time.monotonic()
         try:
@@ -454,7 +591,7 @@ class _AtFilesCompleter(Completer):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 text=True,
-                timeout=1.5,
+                timeout=timeout_sec,
             )
             elapsed_ms = (time.monotonic() - start) * 1000
             if p.returncode == 0:

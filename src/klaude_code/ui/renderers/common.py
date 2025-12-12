@@ -46,7 +46,7 @@ def truncate_display(
             out.append(line[:max_line_length])
             out.append_text(
                 Text(
-                    f"… (more {extra_chars} characters in this line)",
+                    f" … (more {extra_chars} characters in this line)",
                     style=ThemeKey.TOOL_RESULT_TRUNCATED,
                 )
             )

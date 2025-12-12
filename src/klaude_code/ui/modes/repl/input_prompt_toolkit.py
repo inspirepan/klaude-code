@@ -144,7 +144,7 @@ class PromptToolkitInput(InputProviderABC):
 
         # Build result with style
         toolbar_text = left_text + padding + right_text
-        return FormattedText([("#ansiblue", toolbar_text)])
+        return FormattedText([("#2c7eac", toolbar_text)])
 
     async def start(self) -> None:
         pass
