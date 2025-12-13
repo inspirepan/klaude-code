@@ -77,6 +77,7 @@ async def parse_responses_stream(
                     yield model.StartItem(response_id=response_id)
                 case responses.ResponseReasoningSummaryTextDeltaEvent() as event:
                     if event.delta:
+                        metadata_tracker.record_token()
                         yield model.ReasoningTextDelta(
                             content=event.delta,
                             response_id=response_id,
@@ -89,10 +90,12 @@ async def parse_responses_stream(
                             model=str(param.model),
                         )
                 case responses.ResponseTextDeltaEvent() as event:
-                    metadata_tracker.record_token()
+                    if event.delta:
+                        metadata_tracker.record_token()
                     yield model.AssistantMessageDelta(content=event.delta, response_id=response_id)
                 case responses.ResponseOutputItemAddedEvent() as event:
                     if isinstance(event.item, responses.ResponseFunctionToolCall):
+                        metadata_tracker.record_token()
                         yield model.ToolCallStartItem(
                             response_id=response_id,
                             call_id=event.item.call_id,
@@ -102,6 +105,7 @@ async def parse_responses_stream(
                     match event.item:
                         case responses.ResponseReasoningItem() as item:
                             if item.encrypted_content:
+                                metadata_tracker.record_token()
                                 yield model.ReasoningEncryptedItem(
                                     id=item.id,
                                     encrypted_content=item.encrypted_content,
@@ -109,6 +113,7 @@ async def parse_responses_stream(
                                     model=str(param.model),
                                 )
                         case responses.ResponseOutputMessage() as item:
+                            metadata_tracker.record_token()
                             yield model.AssistantMessageItem(
                                 content="\n".join(
                                     [

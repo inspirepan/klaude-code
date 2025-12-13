@@ -29,6 +29,8 @@ class MetadataAccumulator:
         self._sub_agent_metadata: list[model.TaskMetadata] = []
         self._throughput_weighted_sum: float = 0.0
         self._throughput_tracked_tokens: int = 0
+        self._first_token_latency_sum: float = 0.0
+        self._first_token_latency_count: int = 0
         self._turn_count: int = 0
 
     def add(self, turn_metadata: model.ResponseMetadataItem) -> None:
@@ -51,13 +53,8 @@ class MetadataAccumulator:
                 acc_usage.context_limit = usage.context_limit
 
             if usage.first_token_latency_ms is not None:
-                if acc_usage.first_token_latency_ms is None:
-                    acc_usage.first_token_latency_ms = usage.first_token_latency_ms
-                else:
-                    acc_usage.first_token_latency_ms = min(
-                        acc_usage.first_token_latency_ms,
-                        usage.first_token_latency_ms,
-                    )
+                self._first_token_latency_sum += usage.first_token_latency_ms
+                self._first_token_latency_count += 1
 
             if usage.throughput_tps is not None:
                 current_output = usage.output_tokens
@@ -82,6 +79,11 @@ class MetadataAccumulator:
                 main.usage.throughput_tps = self._throughput_weighted_sum / self._throughput_tracked_tokens
             else:
                 main.usage.throughput_tps = None
+
+            if self._first_token_latency_count > 0:
+                main.usage.first_token_latency_ms = self._first_token_latency_sum / self._first_token_latency_count
+            else:
+                main.usage.first_token_latency_ms = None
 
         main.task_duration_s = task_duration_s
         main.turn_count = self._turn_count

@@ -120,35 +120,38 @@ class AnthropicClient(LLMClientABC):
                     case BetaRawContentBlockDeltaEvent() as event:
                         match event.delta:
                             case BetaThinkingDelta() as delta:
-                                metadata_tracker.record_token()
+                                if delta.thinking:
+                                    metadata_tracker.record_token()
                                 accumulated_thinking.append(delta.thinking)
                                 yield model.ReasoningTextDelta(
                                     content=delta.thinking,
                                     response_id=response_id,
                                 )
                             case BetaSignatureDelta() as delta:
-                                metadata_tracker.record_token()
                                 yield model.ReasoningEncryptedItem(
                                     encrypted_content=delta.signature,
                                     response_id=response_id,
                                     model=str(param.model),
                                 )
                             case BetaTextDelta() as delta:
-                                metadata_tracker.record_token()
+                                if delta.text:
+                                    metadata_tracker.record_token()
                                 accumulated_content.append(delta.text)
                                 yield model.AssistantMessageDelta(
                                     content=delta.text,
                                     response_id=response_id,
                                 )
                             case BetaInputJSONDelta() as delta:
-                                metadata_tracker.record_token()
                                 if current_tool_inputs is not None:
+                                    if delta.partial_json:
+                                        metadata_tracker.record_token()
                                     current_tool_inputs.append(delta.partial_json)
                             case _:
                                 pass
                     case BetaRawContentBlockStartEvent() as event:
                         match event.content_block:
                             case BetaToolUseBlock() as block:
+                                metadata_tracker.record_token()
                                 yield model.ToolCallStartItem(
                                     response_id=response_id,
                                     call_id=block.id,
@@ -161,6 +164,7 @@ class AnthropicClient(LLMClientABC):
                                 pass
                     case BetaRawContentBlockStopEvent() as event:
                         if len(accumulated_thinking) > 0:
+                            metadata_tracker.record_token()
                             full_thinking = "".join(accumulated_thinking)
                             yield model.ReasoningTextItem(
                                 content=full_thinking,
@@ -169,12 +173,14 @@ class AnthropicClient(LLMClientABC):
                             )
                             accumulated_thinking.clear()
                         if len(accumulated_content) > 0:
+                            metadata_tracker.record_token()
                             yield model.AssistantMessageItem(
                                 content="".join(accumulated_content),
                                 response_id=response_id,
                             )
                             accumulated_content.clear()
                         if current_tool_name and current_tool_call_id:
+                            metadata_tracker.record_token()
                             yield model.ToolCallItem(
                                 name=current_tool_name,
                                 call_id=current_tool_call_id,

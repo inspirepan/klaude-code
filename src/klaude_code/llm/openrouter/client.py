@@ -139,7 +139,8 @@ class OpenRouterClient(LLMClientABC):
                     for item in reasoning_details:
                         try:
                             reasoning_detail = ReasoningDetail.model_validate(item)
-                            metadata_tracker.record_token()
+                            if reasoning_detail.text or reasoning_detail.summary:
+                                metadata_tracker.record_token()
                             state.stage = "reasoning"
                             # Yield delta immediately for streaming
                             if reasoning_detail.text:
@@ -198,7 +199,10 @@ class OpenRouterClient(LLMClientABC):
             yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
 
         # Finalize
-        for item in state.flush_all():
+        flushed_items = state.flush_all()
+        if flushed_items:
+            metadata_tracker.record_token()
+        for item in flushed_items:
             yield item
 
         metadata_tracker.set_response_id(state.response_id)

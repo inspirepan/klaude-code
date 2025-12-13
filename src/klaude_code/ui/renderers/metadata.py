@@ -112,6 +112,15 @@ def _render_task_metadata_block(
                 )
             )
 
+        # First token latency
+        if metadata.usage.first_token_latency_ms is not None:
+            parts.append(
+                Text.assemble(
+                    (f"{metadata.usage.first_token_latency_ms:.0f}", ThemeKey.METADATA),
+                    ("ms ftl", ThemeKey.METADATA_DIM),
+                )
+            )
+
     # Duration
     if show_context_and_time and metadata.task_duration_s is not None:
         parts.append(
