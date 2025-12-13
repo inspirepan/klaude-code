@@ -11,9 +11,7 @@ if TYPE_CHECKING:
     import pytest
 
 
-def test_at_files_completer_returns_git_candidates(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_at_files_completer_returns_git_candidates(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Ensure non-empty git candidates are not accidentally dropped.
 
     This protects against a control-flow bug where `_complete_paths` would
