@@ -1,5 +1,27 @@
 # Repository Guidelines
 
+## Version Control
+
+This project uses **jj (Jujutsu)** in colocated mode with git. Both `.jj/` and `.git/` coexist, and you can use either jj or git commands.
+
+**Prefer jj commands:**
+```bash
+jj status              # instead of git status
+jj diff                # instead of git diff
+jj log                 # instead of git log
+jj describe -m "msg"   # set commit message for current change
+jj new                 # create new empty change on top
+jj commit -m "msg"     # describe + new in one step
+jj git push            # push to remote
+jj undo                # undo last operation
+```
+
+**Use git for tags:**
+```bash
+git tag v1.2.3         # create tag
+git push origin v1.2.3 # push tag
+```
+
 ## Concepts
 
 - Session: A conversation between user and agent

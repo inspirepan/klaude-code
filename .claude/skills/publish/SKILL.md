@@ -52,12 +52,12 @@ The script will:
 
 ### Step 4: Commit and Tag
 
-Create a release commit and tag:
+This project uses jj (Jujutsu) in colocated mode with git. Create a release commit and tag:
 
 ```bash
-git add pyproject.toml CHANGELOG.md
-git commit -m "chore(release): v<new_version>"
-git tag v<new_version>
+jj describe -m "chore(release): v<new_version>"
+jj new
+git tag v<new_version> @-
 ```
 
 ### Step 5: Push Changes
@@ -65,7 +65,7 @@ git tag v<new_version>
 Push the commit and tag to remote:
 
 ```bash
-git push origin main
+jj git push
 git push origin v<new_version>
 ```
 
