@@ -175,8 +175,7 @@ def _backfill_session_model_config(
 
     if agent.session.model_thinking is None and agent.profile:
         agent.session.model_thinking = agent.profile.llm_client.get_llm_config().thinking
-
-    agent.session.save()
+    # Don't save here - session will be saved when first message is sent via append_history()
 
 
 async def cleanup_app_components(components: AppComponents) -> None:
