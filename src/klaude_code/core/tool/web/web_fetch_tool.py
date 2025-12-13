@@ -6,7 +6,7 @@ import urllib.error
 import urllib.request
 from http.client import HTTPResponse
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse, urlunparse
 
 from pydantic import BaseModel
 
@@ -18,6 +18,19 @@ from klaude_code.protocol import llm_param, model, tools
 DEFAULT_TIMEOUT_SEC = 30
 DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; KlaudeCode/1.0)"
 WEB_FETCH_SAVE_DIR = Path(const.TOOL_OUTPUT_TRUNCATION_DIR) / "web"
+
+
+def _encode_url(url: str) -> str:
+    """Encode non-ASCII characters in URL to make it safe for HTTP requests."""
+    parsed = urlparse(url)
+    encoded_path = quote(parsed.path, safe="/-_.~")
+    encoded_query = quote(parsed.query, safe="=&-_.~")
+    # Handle IDN (Internationalized Domain Names) by encoding to punycode
+    try:
+        netloc = parsed.netloc.encode("idna").decode("ascii")
+    except UnicodeError:
+        netloc = parsed.netloc
+    return urlunparse((parsed.scheme, netloc, encoded_path, parsed.params, encoded_query, parsed.fragment))
 
 
 def _extract_content_type(response: HTTPResponse) -> str:
@@ -98,7 +111,8 @@ def _fetch_url(url: str, timeout: int = DEFAULT_TIMEOUT_SEC) -> tuple[str, str]:
         "Accept": "text/markdown, */*",
         "User-Agent": DEFAULT_USER_AGENT,
     }
-    request = urllib.request.Request(url, headers=headers)
+    encoded_url = _encode_url(url)
+    request = urllib.request.Request(encoded_url, headers=headers)
 
     with urllib.request.urlopen(request, timeout=timeout) as response:
         content_type = _extract_content_type(response)
