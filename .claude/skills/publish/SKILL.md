@@ -55,9 +55,17 @@ The script will:
 This project uses jj (Jujutsu) in colocated mode with git. Create a release commit and tag:
 
 ```bash
+# Describe current change as release commit
 jj describe -m "chore(release): v<new_version>"
+
+# Create new empty change for future work
 jj new
-git tag v<new_version> @-
+
+# Get the git commit id of the release commit (jj's @- syntax doesn't work with git)
+jj log -r @- -T 'commit_id' --no-graph
+
+# Create tag using the git commit id
+git tag v<new_version> <commit_id>
 ```
 
 ### Step 5: Push Changes
@@ -65,7 +73,11 @@ git tag v<new_version> @-
 Push the commit and tag to remote:
 
 ```bash
+# Move main bookmark to the release commit, then push
+jj bookmark set main -r @-
 jj git push
+
+# Push the tag
 git push origin v<new_version>
 ```
 
