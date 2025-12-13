@@ -8,6 +8,7 @@ import typer
 from rich.text import Text
 
 from klaude_code import ui
+from klaude_code.cli.main import update_terminal_title
 from klaude_code.cli.self_update import get_update_message
 from klaude_code.command import has_interactive_command
 from klaude_code.config import Config, load_config
@@ -92,7 +93,11 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
         event_queue,
         llm_clients,
         model_profile_provider=model_profile_provider,
+        on_model_change=update_terminal_title,
     )
+
+    # Update terminal title with initial model name
+    update_terminal_title(llm_clients.main.model_name)
 
     # Start executor in background
     executor_task = asyncio.create_task(executor.start())

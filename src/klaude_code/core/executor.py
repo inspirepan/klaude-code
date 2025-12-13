@@ -90,11 +90,13 @@ class InputActionExecutor:
         sub_agent_manager: SubAgentManager,
         model_profile_provider: ModelProfileProvider,
         emit_event: Callable[[events.Event], Awaitable[None]],
+        on_model_change: Callable[[str], None] | None = None,
     ) -> None:
         self._task_manager = task_manager
         self._sub_agent_manager = sub_agent_manager
         self._model_profile_provider = model_profile_provider
         self._emit_event = emit_event
+        self._on_model_change = on_model_change
 
     async def run(self, action: InputAction, operation: op.UserInputOperation, agent: Agent) -> None:
         """Dispatch and execute a single input action."""
@@ -220,6 +222,9 @@ class InputActionExecutor:
         await self._emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
         await self._emit_event(events.WelcomeEvent(llm_config=llm_config, work_dir=str(agent.session.work_dir)))
 
+        if self._on_model_change is not None:
+            self._on_model_change(llm_client.model_name)
+
     async def _apply_clear(self, agent: Agent) -> None:
         """Start a new conversation for the agent and notify the UI."""
 
@@ -254,6 +259,7 @@ class ExecutorContext:
         event_queue: asyncio.Queue[events.Event],
         llm_clients: LLMClients,
         model_profile_provider: ModelProfileProvider | None = None,
+        on_model_change: Callable[[str], None] | None = None,
     ):
         self.event_queue: asyncio.Queue[events.Event] = event_queue
         self.llm_clients: LLMClients = llm_clients
@@ -268,6 +274,7 @@ class ExecutorContext:
             sub_agent_manager=self.sub_agent_manager,
             model_profile_provider=resolved_profile_provider,
             emit_event=self.emit_event,
+            on_model_change=on_model_change,
         )
         self._agent: Agent | None = None
 
@@ -451,8 +458,9 @@ class Executor:
         event_queue: asyncio.Queue[events.Event],
         llm_clients: LLMClients,
         model_profile_provider: ModelProfileProvider | None = None,
+        on_model_change: Callable[[str], None] | None = None,
     ):
-        self.context = ExecutorContext(event_queue, llm_clients, model_profile_provider)
+        self.context = ExecutorContext(event_queue, llm_clients, model_profile_provider, on_model_change)
         self.submission_queue: asyncio.Queue[op.Submission] = asyncio.Queue()
         # Track completion events for all submissions (not just those with ActiveTask)
         self._completion_events: dict[str, asyncio.Event] = {}

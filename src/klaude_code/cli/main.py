@@ -20,10 +20,13 @@ def set_terminal_title(title: str) -> None:
     sys.stdout.flush()
 
 
-def setup_terminal_title() -> None:
-    """Set terminal title to current folder name."""
+def update_terminal_title(model_name: str | None = None) -> None:
+    """Update terminal title with folder name and optional model name."""
     folder_name = os.path.basename(os.getcwd())
-    set_terminal_title(f"{folder_name}: klaude")
+    if model_name:
+        set_terminal_title(f"{folder_name}: klaude ✳ {model_name}")
+    else:
+        set_terminal_title(f"{folder_name}: klaude")
 
 
 def prepare_debug_logging(debug: bool, debug_filter: str | None) -> tuple[bool, set[DebugType] | None, Path | None]:
@@ -133,7 +136,7 @@ def exec_command(
     ),
 ) -> None:
     """Execute non-interactively with provided input."""
-    setup_terminal_title()
+    update_terminal_title()
 
     merged_input = read_input_content(input_content)
     if merged_input is None:
@@ -222,7 +225,7 @@ def main_callback(
         from klaude_code.cli.runtime import AppInitConfig, run_interactive
         from klaude_code.config.select_model import select_model_from_config
 
-        setup_terminal_title()
+        update_terminal_title()
 
         chosen_model = model
         if model or select_model:
