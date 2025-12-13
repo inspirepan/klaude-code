@@ -12,4 +12,3 @@ Usage:
 - This tool can only read files, not directories. To read a directory, use an ls command via the Bash tool.
 - You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful. 
 - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.
-- This tool does NOT support reading PDF files. Use a Python script with `pdfplumber` (for text/tables) or `pypdf` (for basic operations) to extract content from PDFs.

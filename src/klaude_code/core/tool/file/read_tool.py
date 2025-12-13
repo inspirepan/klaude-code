@@ -209,8 +209,9 @@ class ReadTool(ToolABC):
             return model.ToolResultItem(
                 status="error",
                 output=(
-                    "<tool_use_error>PDF files are not supported by this tool. "
-                    "Please use a Python script with `pdfplumber` to extract text/tables:\n\n"
+                    "<tool_use_error>PDF files are not supported by this tool.\n"
+                    "If there's an available skill for PDF, use it.\n"
+                    "Or use a Python script with `pdfplumber` to extract text/tables:\n\n"
                     "```python\n"
                     "# /// script\n"
                     '# dependencies = ["pdfplumber"]\n'

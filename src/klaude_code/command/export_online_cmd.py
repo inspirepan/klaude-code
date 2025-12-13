@@ -6,6 +6,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from rich.console import Console
+from rich.text import Text
+
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, model
 from klaude_code.session.export import build_export_html
@@ -56,9 +59,11 @@ class ExportOnlineCommand(CommandABC):
             return CommandResult(events=[event])
 
         try:
-            html_doc = self._build_html(agent)
-            domain = self._generate_domain()
-            url = self._deploy_to_surge(surge_cmd, html_doc, domain)
+            console = Console()
+            with console.status(Text("Deploying to surge.sh...", style="dim"), spinner_style="dim"):
+                html_doc = self._build_html(agent)
+                domain = self._generate_domain()
+                url = self._deploy_to_surge(surge_cmd, html_doc, domain)
 
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
