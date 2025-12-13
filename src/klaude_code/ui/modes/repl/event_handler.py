@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from rich.text import Text
@@ -14,7 +13,6 @@ from klaude_code.ui.rich.markdown import MarkdownStream, ThinkingMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.terminal.notifier import Notification, NotificationType, TerminalNotifier
 from klaude_code.ui.terminal.progress_bar import OSC94States, emit_osc94
-from klaude_code.ui.utils.debouncer import Debouncer
 
 
 @dataclass
@@ -43,13 +41,8 @@ class StreamState:
     This design ensures buffer and mdstream are always in sync.
     """
 
-    def __init__(self, interval: float, flush_handler: Callable[[StreamState], Awaitable[None]]):
+    def __init__(self) -> None:
         self._active: ActiveStream | None = None
-        self._flush_handler = flush_handler
-        self.debouncer = Debouncer(interval=interval, callback=self._debounced_flush)
-
-    async def _debounced_flush(self) -> None:
-        await self._flush_handler(self)
 
     @property
     def is_active(self) -> bool:
@@ -218,12 +211,8 @@ class DisplayEventHandler:
     def __init__(self, renderer: REPLRenderer, notifier: TerminalNotifier | None = None):
         self.renderer = renderer
         self.notifier = notifier
-        self.assistant_stream = StreamState(
-            interval=1 / const.UI_REFRESH_RATE_FPS, flush_handler=self._flush_assistant_buffer
-        )
-        self.thinking_stream = StreamState(
-            interval=1 / const.UI_REFRESH_RATE_FPS, flush_handler=self._flush_thinking_buffer
-        )
+        self.assistant_stream = StreamState()
+        self.thinking_stream = StreamState()
         self.spinner_status = SpinnerStatusState()
 
         self.stage_manager = StageManager(
@@ -280,10 +269,8 @@ class DisplayEventHandler:
                 await self._on_end(e)
 
     async def stop(self) -> None:
-        await self.assistant_stream.debouncer.flush()
-        self.assistant_stream.debouncer.cancel()
-        await self.thinking_stream.debouncer.flush()
-        self.thinking_stream.debouncer.cancel()
+        await self._flush_assistant_buffer(self.assistant_stream)
+        await self._flush_thinking_buffer(self.thinking_stream)
 
     # ─────────────────────────────────────────────────────────────────────────────
     # Private event handlers
@@ -352,7 +339,7 @@ class DisplayEventHandler:
             self.thinking_stream.mdstream.update(normalize_thinking_content(self.thinking_stream.buffer))
 
         await self.stage_manager.enter_thinking_stage()
-        self.thinking_stream.debouncer.schedule()
+        await self._flush_thinking_buffer(self.thinking_stream)
 
     async def _on_assistant_delta(self, event: events.AssistantMessageDeltaEvent) -> None:
         if self.renderer.is_sub_agent_session(event.session_id):
@@ -383,14 +370,13 @@ class DisplayEventHandler:
             self.renderer.spinner_stop()
             self.assistant_stream.mdstream.update(self.assistant_stream.buffer)
         await self.stage_manager.transition_to(Stage.ASSISTANT)
-        self.assistant_stream.debouncer.schedule()
+        await self._flush_assistant_buffer(self.assistant_stream)
 
     async def _on_assistant_message(self, event: events.AssistantMessageEvent) -> None:
         if self.renderer.is_sub_agent_session(event.session_id):
             return
         await self.stage_manager.transition_to(Stage.ASSISTANT)
         if self.assistant_stream.is_active:
-            self.assistant_stream.debouncer.cancel()
             mdstream = self.assistant_stream.mdstream
             assert mdstream is not None
             mdstream.update(event.content.strip(), final=True)
@@ -474,7 +460,6 @@ class DisplayEventHandler:
 
     async def _finish_assistant_stream(self) -> None:
         if self.assistant_stream.is_active:
-            self.assistant_stream.debouncer.cancel()
             mdstream = self.assistant_stream.mdstream
             assert mdstream is not None
             mdstream.update(self.assistant_stream.buffer, final=True)
@@ -504,7 +489,6 @@ class DisplayEventHandler:
 
     async def _finish_thinking_stream(self) -> None:
         if self.thinking_stream.is_active:
-            self.thinking_stream.debouncer.cancel()
             mdstream = self.thinking_stream.mdstream
             assert mdstream is not None
             mdstream.update(normalize_thinking_content(self.thinking_stream.buffer), final=True)
