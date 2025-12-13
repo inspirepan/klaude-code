@@ -1,26 +1,20 @@
 # Repository Guidelines
 
-## Version Control
+## CRITICAL: Check jj Change BEFORE Any Edit
 
-This project uses **jj (Jujutsu)** in colocated mode with git. Both `.jj/` and `.git/` coexist, and you can use either jj or git commands.
+> **STOP!** Before writing ANY code, you MUST run `jj log --limit 1` to check the current change description.
 
-**Prefer jj commands:**
-```bash
-jj status              # instead of git status
-jj diff                # instead of git diff
-jj log                 # instead of git log
-jj describe -m "msg"   # set commit message for current change
-jj new                 # create new empty change on top
-jj commit -m "msg"     # describe + new in one step
-jj git push            # push to remote
-jj undo                # undo last operation
-```
+This project uses **jj (Jujutsu)** in colocated mode with git. Every code modification must be associated with a properly named change.
 
-**Use git for tags:**
-```bash
-git tag v1.2.3         # create tag
-git push origin v1.2.3 # push tag
-```
+**Required workflow:**
+1. Run `jj log --limit 1` to see the current change description
+2. If the description matches your task, proceed with edits
+3. If NOT, create a new change first:
+   ```bash
+   jj new -m "brief description of the change"
+   ```
+
+**Never skip this step.** Unrelated changes mixed together create messy history.
 
 ## Concepts
 
