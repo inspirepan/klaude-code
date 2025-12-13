@@ -35,7 +35,7 @@ def build_payload(
     extra_headers: dict[str, str] = {}
 
     if param.thinking:
-        if param.thinking.budget_tokens is not None:
+        if param.thinking.type != "disabled" and param.thinking.budget_tokens is not None:
             extra_body["reasoning"] = {
                 "max_tokens": param.thinking.budget_tokens,
                 "enable": True,

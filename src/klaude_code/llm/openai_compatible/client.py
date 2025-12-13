@@ -23,7 +23,7 @@ def build_payload(param: llm_param.LLMCallParameter) -> tuple[CompletionCreatePa
 
     extra_body: dict[str, object] = {}
 
-    if param.thinking:
+    if param.thinking and param.thinking.type == "enabled":
         extra_body["thinking"] = {
             "type": param.thinking.type,
             "budget": param.thinking.budget_tokens,

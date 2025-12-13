@@ -6,9 +6,9 @@ from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, llm_param, model
 
 # Thinking level options for different protocols
-RESPONSES_LEVELS = ["minimal", "low", "medium", "high"]
-RESPONSES_GPT51_LEVELS = ["none", "minimal", "low", "medium", "high"]
-RESPONSES_GPT52_LEVELS = ["none", "minimal", "low", "medium", "high", "xhigh"]
+RESPONSES_LEVELS = ["low", "medium", "high"]
+RESPONSES_GPT51_LEVELS = ["none", "low", "medium", "high"]
+RESPONSES_GPT52_LEVELS = ["none", "low", "medium", "high", "xhigh"]
 RESPONSES_CODEX_MAX_LEVELS = ["medium", "high", "xhigh"]
 
 ANTHROPIC_LEVELS: list[tuple[str, int | None]] = [

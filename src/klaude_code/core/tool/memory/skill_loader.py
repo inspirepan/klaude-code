@@ -132,20 +132,22 @@ class SkillLoader:
         for user_dir in self.USER_SKILLS_DIRS:
             expanded_dir = user_dir.expanduser()
             if expanded_dir.exists():
-                for skill_file in expanded_dir.rglob("SKILL.md"):
-                    skill = self.load_skill(skill_file, location="user")
-                    if skill:
-                        skills.append(skill)
-                        self.loaded_skills[skill.name] = skill
+                for pattern in ("SKILL.md", "skill.md"):
+                    for skill_file in expanded_dir.rglob(pattern):
+                        skill = self.load_skill(skill_file, location="user")
+                        if skill:
+                            skills.append(skill)
+                            self.loaded_skills[skill.name] = skill
 
         # Load project-level skills (override user skills if same name)
         project_dir = self.PROJECT_SKILLS_DIR.resolve()
         if project_dir.exists():
-            for skill_file in project_dir.rglob("SKILL.md"):
-                skill = self.load_skill(skill_file, location="project")
-                if skill:
-                    skills.append(skill)
-                    self.loaded_skills[skill.name] = skill
+            for pattern in ("SKILL.md", "skill.md"):
+                for skill_file in project_dir.rglob(pattern):
+                    skill = self.load_skill(skill_file, location="project")
+                    if skill:
+                        skills.append(skill)
+                        self.loaded_skills[skill.name] = skill
 
         # Log discovery summary
         if skills:
