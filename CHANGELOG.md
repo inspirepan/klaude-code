@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.19] - 2025-12-13
+
+### Added
+
+- show model name in terminal title (`2b1f971`)
+- improve first token latency tracking and display (`9dd2678`)
+- add read to gpt-5 for images (`c17429a`)
+- support prefix matching for slash commands (`f68a02b`)
+- persist and restore model config on session resume (`2f425a8`)
+- update explore prompt (`a6089e4`)
+- add update aliases and version flag (`fcfd5b0`)
+
+### Changed
+
+- add jj workflow decision tree and commit format (`50dbcfc`)
+- add agent workflow rule to create jj change before coding (`9f028a4`)
+- add status when exporting online (`9e0d42a`)
+- optimize @-files completer with git index caching (`f17edb8`)
+- move truncate_display to renderers/common and return rich.Text (`b3476e9`)
+- update to jetbrains mono (`f3151fa`)
+
+### Fixed
+
+- preserve dotfile paths in @ completion (`a619cbc`)
+- resolve pyright errors in test_command_registry.py (`a274b85`)
+- don't save empty sessions on startup (`628dc7f`)
+- prevent sending thinking config when type is disabled (`dedd090`)
+- prevent ANTHROPIC_AUTH_TOKEN from conflicting with third-party API auth (`e127929`)
+- clarify metadata labels as average values (`75078f4`)
+- update version available hint text (`6daaa05`)
+
+### Other
+
+- remove finished dev docs (`05cd82f`)
+- update dependencies (`0077d6d`)
+- add .jj to .gitignore (`8f49725`)
+- switch to jj, update AGENTS.md and SKILL.md (`e32db2d`)
+- remove memory docs (`218b244`)
 ## [1.2.18] - 2025-12-12
 
 ### Added
@@ -561,7 +599,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.18...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.19...HEAD
+[1.2.19]: https://github.com/inspirepan/klaude-code/compare/v1.2.18...v1.2.19
 [1.2.18]: https://github.com/inspirepan/klaude-code/compare/v1.2.17...v1.2.18
 [1.2.17]: https://github.com/inspirepan/klaude-code/compare/v1.2.16...v1.2.17
 [1.2.16]: https://github.com/inspirepan/klaude-code/compare/v1.2.15...v1.2.16
