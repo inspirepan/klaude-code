@@ -1,4 +1,5 @@
 import json
+import os
 from collections.abc import AsyncGenerator
 from typing import override
 
@@ -61,11 +62,20 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
 class AnthropicClient(LLMClientABC):
     def __init__(self, config: llm_param.LLMConfigParameter):
         super().__init__(config)
-        client = anthropic.AsyncAnthropic(
-            api_key=config.api_key,
-            base_url=config.base_url,
-            timeout=httpx.Timeout(300.0, connect=15.0, read=285.0),
-        )
+        # Remove ANTHROPIC_AUTH_TOKEN env var to prevent anthropic SDK from adding
+        # Authorization: Bearer header that may conflict with third-party APIs
+        # (e.g., deepseek, moonshot) that use Authorization header for authentication.
+        # The API key will be sent via X-Api-Key header instead.
+        saved_auth_token = os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
+        try:
+            client = anthropic.AsyncAnthropic(
+                api_key=config.api_key,
+                base_url=config.base_url,
+                timeout=httpx.Timeout(300.0, connect=15.0, read=285.0),
+            )
+        finally:
+            if saved_auth_token is not None:
+                os.environ["ANTHROPIC_AUTH_TOKEN"] = saved_auth_token
         self.client: anthropic.AsyncAnthropic = client
 
     @classmethod
