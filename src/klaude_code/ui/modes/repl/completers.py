@@ -361,8 +361,12 @@ class _AtFilesCompleter(Completer):
             if kn not in pl:
                 continue
 
-            # Use path directly since it's already relative to current directory
-            rel_to_cwd = p.lstrip("./")
+            # Most tools return paths relative to cwd. Some include a leading
+            # './' prefix; strip that exact prefix only.
+            #
+            # Do not use lstrip('./') here: it would also remove the leading '.'
+            # from dotfiles/directories like '.claude/'.
+            rel_to_cwd = p.removeprefix("./").removeprefix(".\\")
             base = os.path.basename(rel_to_cwd.rstrip("/")).lower()
             base_pos = base.find(kn)
             path_pos = pl.find(kn)

@@ -42,3 +42,39 @@ def test_at_files_completer_returns_git_candidates(monkeypatch: pytest.MonkeyPat
     assert completions
     inserted = {c.text for c in completions}
     assert "@src/ " in inserted or "@src/main.py " in inserted
+
+
+def test_at_files_completer_preserves_dotfile_prefix(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Ensure dotfile paths like '.claude/' are not mangled.
+
+    Regression test: using `lstrip("./")` would incorrectly turn
+    '.claude/...' into 'claude/...'.
+    """
+
+    (tmp_path / ".claude" / "skills" / "publish" / "scripts").mkdir(parents=True)
+    (tmp_path / ".claude" / "skills" / "publish" / "scripts" / "update_changelog.py").write_text(
+        "print('ok')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    completer = _AtFilesCompleter()  # pyright: ignore[reportPrivateUsage]
+
+    def fake_git_paths_for_keyword(cwd: Path, keyword_norm: str, *, max_results: int) -> tuple[list[str], bool]:
+        assert cwd == tmp_path
+        assert keyword_norm == ".c"
+        assert max_results > 0
+        return [
+            ".claude/skills/publish/scripts/update_changelog.py",
+            "./.claude/skills/publish/scripts/update_changelog.py",
+        ], False
+
+    monkeypatch.setattr(completer, "_git_paths_for_keyword", fake_git_paths_for_keyword)
+    monkeypatch.setattr(completer, "_has_cmd", lambda _name: False)  # pyright: ignore[reportUnknownLambdaType,reportUnknownArgumentType]
+
+    doc = Document(text="@.c", cursor_position=len("@.c"))
+    completions = list(completer.get_completions(doc, cast(Any, None)))
+
+    assert completions
+    inserted = {c.text for c in completions}
+    assert "@.claude/skills/publish/scripts/update_changelog.py " in inserted
