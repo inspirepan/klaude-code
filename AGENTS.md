@@ -1,18 +1,17 @@
 # Repository Guidelines
 
-## CRITICAL: Check jj Change BEFORE Any Edit
-
-> **STOP!** Before writing ANY code, you MUST run `jj log --limit 1` to check the current change description.
-
-This project uses **jj (Jujutsu)** in colocated mode with git. Every code modification must be associated with a properly named change.
+## CRITICAL: Check jj status BEFORE Any Edit
+> **STOP!** Before writing ANY code, you MUST run `jj status` to check the working copy state.
+This project uses **jj (Jujutsu)** vcs. Every code modification must be associated with a properly named change.
 
 **Required workflow:**
-1. Run `jj log --limit 1` to see the current change description
-2. If the description matches your task, proceed with edits
-3. If NOT, create a new change first:
-   ```bash
-   jj new -m "brief description of the change"
-   ```
+1. Run `jj status` to see the current working copy state
+2. If the working copy already has **unrelated changes** or an **unrelated description** → start a fresh change:
+   - `jj new -m "type(scope): task description"`
+3. If the working copy is clean but shows **"(no description set)"** → set it:
+   - `jj describe -m "type(scope): task description"`
+
+**Quick rule:** use `jj new` whenever the current change is not about your task.
 
 **Never skip this step.** Unrelated changes mixed together create messy history.
 
