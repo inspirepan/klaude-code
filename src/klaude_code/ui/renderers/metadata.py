@@ -108,7 +108,7 @@ def _render_task_metadata_block(
             parts.append(
                 Text.assemble(
                     (f"{metadata.usage.throughput_tps:.1f} ", ThemeKey.METADATA),
-                    ("tps", ThemeKey.METADATA_DIM),
+                    ("avg-tps", ThemeKey.METADATA_DIM),
                 )
             )
 
@@ -117,7 +117,7 @@ def _render_task_metadata_block(
             parts.append(
                 Text.assemble(
                     (f"{metadata.usage.first_token_latency_ms:.0f}", ThemeKey.METADATA),
-                    ("ms ftl", ThemeKey.METADATA_DIM),
+                    ("ms avg-ftl", ThemeKey.METADATA_DIM),
                 )
             )
 
