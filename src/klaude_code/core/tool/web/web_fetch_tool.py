@@ -205,7 +205,7 @@ class WebFetchTool(ToolABC):
         if not url.startswith(("http://", "https://")):
             return model.ToolResultItem(
                 status="error",
-                output="Invalid URL: must start with http:// or https://",
+                output=f"Invalid URL: must start with http:// or https:// (url={url})",
             )
 
         try:
@@ -226,20 +226,20 @@ class WebFetchTool(ToolABC):
         except urllib.error.HTTPError as e:
             return model.ToolResultItem(
                 status="error",
-                output=f"HTTP error {e.code}: {e.reason}",
+                output=f"HTTP error {e.code}: {e.reason} (url={url})",
             )
         except urllib.error.URLError as e:
             return model.ToolResultItem(
                 status="error",
-                output=f"URL error: {e.reason}",
+                output=f"URL error: {e.reason} (url={url})",
             )
         except TimeoutError:
             return model.ToolResultItem(
                 status="error",
-                output=f"Request timed out after {DEFAULT_TIMEOUT_SEC} seconds",
+                output=f"Request timed out after {DEFAULT_TIMEOUT_SEC} seconds (url={url})",
             )
         except Exception as e:
             return model.ToolResultItem(
                 status="error",
-                output=f"Failed to fetch URL: {e}",
+                output=f"Failed to fetch URL: {e} (url={url})",
             )
