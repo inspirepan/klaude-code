@@ -1,17 +1,5 @@
 # Repository Guidelines
 
-## CRITICAL: Name your change with `jj` BEFORE Any Edit
-This project uses **jj (Jujutsu)** vcs. Every code modification must be associated with a properly described change.
-So before making any edit, you should:
-1. Run `jj status` to see the current working copy state
-2. If the working copy already has **unrelated changes** or an **unrelated description** → start a fresh change:
-   - `jj new -m "type(scope): task description"`
-3. If the working copy is clean but shows **"(no description set)"** → set it:
-   - `jj describe -m "type(scope): task description"`
-
-**Quick rule:** use `jj new` whenever the current change is not about your task.
-**Never skip this step.** Unrelated changes mixed together create messy history.
-
 ## Concepts
 
 - Session: A conversation between user and agent
