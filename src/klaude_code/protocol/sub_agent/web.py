@@ -71,7 +71,7 @@ register_sub_agent(
         description=WEB_AGENT_DESCRIPTION,
         parameters=WEB_AGENT_PARAMETERS,
         prompt_file="prompts/prompt-sub-agent-web.md",
-        tool_set=(tools.BASH, tools.READ, tools.WEB_FETCH, tools.WEB_SEARCH),
+        tool_set=(tools.BASH, tools.READ, tools.WEB_FETCH, tools.WEB_SEARCH, tools.WRITE),
         prompt_builder=_web_agent_prompt_builder,
         active_form="Surfing",
         output_schema_arg="output_format",
