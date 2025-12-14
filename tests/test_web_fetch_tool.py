@@ -8,7 +8,8 @@ import pytest
 from klaude_code.core.tool import WebFetchTool
 from klaude_code.core.tool.web.web_fetch_tool import (
     _convert_html_to_markdown,  # pyright: ignore[reportPrivateUsage]
-    _extract_content_type,  # pyright: ignore[reportPrivateUsage]
+    _decode_content,  # pyright: ignore[reportPrivateUsage]
+    _extract_content_type_and_charset,  # pyright: ignore[reportPrivateUsage]
     _format_json,  # pyright: ignore[reportPrivateUsage]
     _process_content,  # pyright: ignore[reportPrivateUsage]
 )
@@ -22,24 +23,48 @@ class TestHelperFunctions:
             def getheader(self, name: str, default: str = "") -> str:
                 return "text/html"
 
-        result = _extract_content_type(MockResponse())  # type: ignore[arg-type]
-        assert result == "text/html"
+        content_type, charset = _extract_content_type_and_charset(MockResponse())  # type: ignore[arg-type]
+        assert content_type == "text/html"
+        assert charset is None
 
     def test_extract_content_type_with_charset(self) -> None:
         class MockResponse:
             def getheader(self, name: str, default: str = "") -> str:
                 return "text/html; charset=utf-8"
 
-        result = _extract_content_type(MockResponse())  # type: ignore[arg-type]
-        assert result == "text/html"
+        content_type, charset = _extract_content_type_and_charset(MockResponse())  # type: ignore[arg-type]
+        assert content_type == "text/html"
+        assert charset == "utf-8"
 
     def test_extract_content_type_empty(self) -> None:
         class MockResponse:
             def getheader(self, name: str, default: str = "") -> str:
                 return default
 
-        result = _extract_content_type(MockResponse())  # type: ignore[arg-type]
-        assert result == ""
+        content_type, charset = _extract_content_type_and_charset(MockResponse())  # type: ignore[arg-type]
+        assert content_type == ""
+        assert charset is None
+
+    def test_decode_content_utf8(self) -> None:
+        data = b"Hello World"
+        result = _decode_content(data, "utf-8")
+        assert result == "Hello World"
+
+    def test_decode_content_gbk(self) -> None:
+        data = "Chinese".encode("gbk")
+        result = _decode_content(data, "gbk")
+        assert result == "Chinese"
+
+    def test_decode_content_auto_detect(self) -> None:
+        data = b"Hello"
+        result = _decode_content(data, None)
+        assert result == "Hello"
+
+    def test_decode_content_fallback(self) -> None:
+        # Invalid UTF-8 bytes should be replaced, not raise error
+        data = b"\xff\xfe invalid bytes"
+        result = _decode_content(data, None)
+        assert isinstance(result, str)
 
     def test_format_json_valid(self) -> None:
         input_json = '{"name":"test","value":123}'

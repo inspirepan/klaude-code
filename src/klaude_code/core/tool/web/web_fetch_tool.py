@@ -33,15 +33,57 @@ def _encode_url(url: str) -> str:
     return urlunparse((parsed.scheme, netloc, encoded_path, parsed.params, encoded_query, parsed.fragment))
 
 
-def _extract_content_type(response: HTTPResponse) -> str:
-    """Extract the base content type without charset parameters."""
-    content_type = response.getheader("Content-Type", "")
-    return content_type.split(";")[0].strip().lower()
+def _extract_content_type_and_charset(response: HTTPResponse) -> tuple[str, str | None]:
+    """Extract the base content type and charset from Content-Type header."""
+    content_type_header = response.getheader("Content-Type", "")
+    parts = content_type_header.split(";")
+    content_type = parts[0].strip().lower()
+
+    charset = None
+    for part in parts[1:]:
+        part = part.strip()
+        if part.lower().startswith("charset="):
+            charset = part[8:].strip().strip("\"'")
+            break
+
+    return content_type, charset
 
 
-def _validate_utf8(data: bytes) -> str:
-    """Validate and decode bytes as UTF-8."""
-    return data.decode("utf-8")
+def _detect_encoding(data: bytes, declared_charset: str | None) -> str:
+    """Detect the encoding of the data."""
+    # 1. Use declared charset from HTTP header if available
+    if declared_charset:
+        return declared_charset
+
+    # 2. Try to detect from HTML meta tags (check first 2KB)
+    head = data[:2048].lower()
+    # <meta charset="xxx">
+    if match := re.search(rb'<meta[^>]+charset=["\']?([^"\'\s>]+)', head):
+        return match.group(1).decode("ascii", errors="ignore")
+    # <meta http-equiv="Content-Type" content="text/html; charset=xxx">
+    if match := re.search(rb'content=["\'][^"\']*charset=([^"\'\s;]+)', head):
+        return match.group(1).decode("ascii", errors="ignore")
+
+    # 3. Use chardet for automatic detection
+    import chardet
+
+    result = chardet.detect(data)
+    if result["encoding"] and result["confidence"] and result["confidence"] > 0.7:
+        return result["encoding"]
+
+    # 4. Default to UTF-8
+    return "utf-8"
+
+
+def _decode_content(data: bytes, declared_charset: str | None) -> str:
+    """Decode bytes to string with automatic encoding detection."""
+    encoding = _detect_encoding(data, declared_charset)
+
+    try:
+        return data.decode(encoding)
+    except (UnicodeDecodeError, LookupError):
+        # Fallback: try UTF-8 with replacement for invalid chars
+        return data.decode("utf-8", errors="replace")
 
 
 def _convert_html_to_markdown(html: str) -> str:
@@ -115,9 +157,9 @@ def _fetch_url(url: str, timeout: int = DEFAULT_TIMEOUT_SEC) -> tuple[str, str]:
     request = urllib.request.Request(encoded_url, headers=headers)
 
     with urllib.request.urlopen(request, timeout=timeout) as response:
-        content_type = _extract_content_type(response)
+        content_type, charset = _extract_content_type_and_charset(response)
         data = response.read()
-        text = _validate_utf8(data)
+        text = _decode_content(data, charset)
         return content_type, text
 
 
@@ -190,11 +232,6 @@ class WebFetchTool(ToolABC):
             return model.ToolResultItem(
                 status="error",
                 output=f"URL error: {e.reason}",
-            )
-        except UnicodeDecodeError as e:
-            return model.ToolResultItem(
-                status="error",
-                output=f"Content is not valid UTF-8: {e}",
             )
         except TimeoutError:
             return model.ToolResultItem(
