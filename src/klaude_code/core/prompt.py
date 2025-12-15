@@ -57,18 +57,20 @@ def _build_env_info(model_name: str) -> str:
     cwd = Path.cwd()
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     is_git_repo = (cwd / ".git").exists()
+    is_empty_dir = not any(cwd.iterdir())
 
     available_tools: list[str] = []
     for command, desc in COMMAND_DESCRIPTIONS.items():
         if shutil.which(command) is not None:
             available_tools.append(f"{command}: {desc}")
 
+    cwd_display = f"{cwd} (empty)" if is_empty_dir else str(cwd)
     env_lines: list[str] = [
         "",
         "",
         "Here is useful information about the environment you are running in:",
         "<env>",
-        f"Working directory: {cwd}",
+        f"Working directory: {cwd_display}",
         f"Today's Date: {today}",
         f"Is directory a git repo: {is_git_repo}",
         f"You are powered by the model: {model_name}",
