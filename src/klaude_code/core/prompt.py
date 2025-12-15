@@ -12,6 +12,7 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
     "fd": "simple and fast alternative to find",
     "tree": "directory listing as a tree",
     "sg": "ast-grep - AST-aware code search",
+    "jj": "jujutsu - Git-compatible version control system",
 }
 
 # Mapping from logical prompt keys to resource file paths under the core/prompt directory.
