@@ -16,12 +16,7 @@ def _contains_cjk(text: str) -> bool:
 
 def _is_ascii_word_char(ch: str) -> bool:
     o = ord(ch)
-    return (
-        (48 <= o <= 57)
-        or (65 <= o <= 90)
-        or (97 <= o <= 122)
-        or ch in "_."
-    )
+    return (48 <= o <= 57) or (65 <= o <= 90) or (97 <= o <= 122) or ch in "_."
 
 
 def _find_prefix_len_for_remaining(word: str, remaining_space: int) -> int:
@@ -85,66 +80,149 @@ def install_rich_cjk_wrap_patch() -> bool:
 
     import rich._wrap as _wrap
     import rich.text as _text
-
     from rich._loop import loop_last
     from rich.cells import cell_len, chop_cells
 
+    _OPEN_TO_CLOSE = {
+        "(": ")",
+        "（": "）",
+        "[": "]",
+        "{": "}",
+        "“": "”",
+        "‘": "’",
+        "《": "》",
+        "〈": "〉",
+        "「": "」",
+        "『": "』",
+        "【": "】",
+    }
+
+    def _leading_unclosed_delim(word: str) -> str | None:
+        stripped = word.lstrip()
+        if not stripped:
+            return None
+
+        close_delim = _OPEN_TO_CLOSE.get(stripped[0])
+        if close_delim is None:
+            return None
+
+        if close_delim in stripped:
+            return None
+
+        return close_delim
+
+    def _close_delim_appears_soon(
+        word_tokens: list[str],
+        *,
+        start_index: int,
+        close_delim: str,
+        max_chars: int = 32,
+        max_tokens: int = 4,
+    ) -> bool:
+        consumed = 0
+        for token in word_tokens[start_index + 1 : start_index + 1 + max_tokens]:
+            if not token:
+                continue
+
+            close_pos = token.find(close_delim)
+            if close_pos != -1 and (consumed + close_pos) < max_chars:
+                return True
+
+            consumed += len(token)
+            if consumed >= max_chars:
+                return False
+
+        return False
+
     def divide_line_patched(text: str, width: int, fold: bool = True) -> list[int]:
         break_positions: list[int] = []
-        append = break_positions.append
+
+        def append(pos: int) -> None:
+            if pos and (not break_positions or break_positions[-1] != pos):
+                break_positions.append(pos)
 
         cell_offset = 0
         _cell_len: Callable[[str], int] = cell_len
 
-        for start, _end, word in _wrap.words(text):
+        words = list(_wrap.words(text))
+        word_tokens = [w for _s, _e, w in words]
+
+        for index, (start, _end, word) in enumerate(words):
+            next_word: str | None = None
+            if index + 1 < len(words):
+                next_word = words[index + 1][2]
+
+            # Heuristic: avoid leaving an unclosed opening delimiter fragment (e.g. "(Deep ")
+            # at the end of a line when the next token will wrap.
             word_length = _cell_len(word.rstrip())
             remaining_space = width - cell_offset
+            if remaining_space >= word_length and cell_offset and start and next_word is not None:
+                cell_offset_with_trailing = cell_offset + _cell_len(word)
+                next_length = _cell_len(next_word.rstrip())
+                next_will_wrap = next_length > width or (width - cell_offset_with_trailing) < next_length
 
-            if remaining_space >= word_length:
-                cell_offset += _cell_len(word)
-                continue
+                close_delim = _leading_unclosed_delim(word)
+                if close_delim is not None and next_will_wrap:
+                    stripped = word.strip()
+                    if _cell_len(stripped) <= 16 and _close_delim_appears_soon(
+                        word_tokens, start_index=index, close_delim=close_delim
+                    ):
+                        append(start)
+                        cell_offset = _cell_len(word)
+                        continue
 
-            # Special-case: if the token would fit on an empty line but doesn't fit
-            # on the current line, allow breaking within it when it contains CJK.
-            if (
-                fold
-                and cell_offset
-                and start
-                and remaining_space > 0
-                and word_length <= width
-                and _contains_cjk(word)
-            ):
-                prefix_len = _find_prefix_len_for_remaining(word, remaining_space)
-                if prefix_len:
-                    break_at = start + prefix_len
-                    if break_at:
+            while True:
+                word_length = _cell_len(word.rstrip())
+                remaining_space = width - cell_offset
+
+                if remaining_space >= word_length:
+                    cell_offset += _cell_len(word)
+                    break
+
+                # Prefer splitting CJK-containing tokens to fill remaining space.
+                if fold and cell_offset and start and remaining_space > 0 and _contains_cjk(word):
+                    prefix_len = _find_prefix_len_for_remaining(word, remaining_space)
+                    if prefix_len:
+                        break_at = start + prefix_len
                         append(break_at)
-                    rest = word[prefix_len:]
-                    cell_offset = _cell_len(rest)
-                    continue
+                        word = word[prefix_len:]
+                        start = break_at
 
-            # Fall back to Rich's original logic.
-            if word_length > width:
-                if fold:
-                    folded_word = chop_cells(word, width=width)
-                    for last, line in loop_last(folded_word):
+                        # If the remainder fits on the next (empty) line, keep Rich's
+                        # existing behaviour and move on.
+                        if _cell_len(word.rstrip()) <= width:
+                            cell_offset = _cell_len(word)
+                            break
+
+                        # Otherwise, continue folding the remainder starting on a new line.
+                        cell_offset = 0
+                        continue
+
+                # Fall back to Rich's original logic.
+                if word_length > width:
+                    if fold:
+                        folded_word = chop_cells(word, width=width)
+                        for last, line in loop_last(folded_word):
+                            if start:
+                                append(start)
+                            if last:
+                                cell_offset = _cell_len(line)
+                            else:
+                                start += len(line)
+                    else:
                         if start:
                             append(start)
-                        if last:
-                            cell_offset = _cell_len(line)
-                        else:
-                            start += len(line)
-                else:
-                    if start:
-                        append(start)
+                        cell_offset = _cell_len(word)
+                    break
+
+                if cell_offset and start:
+                    append(start)
                     cell_offset = _cell_len(word)
-            elif cell_offset and start:
-                append(start)
-                cell_offset = _cell_len(word)
+                break
 
         return break_positions
 
-    setattr(_wrap, "divide_line", divide_line_patched)
-    setattr(_text, "divide_line", divide_line_patched)
+    _wrap.divide_line = divide_line_patched
+    _text.divide_line = divide_line_patched
     _rich_cjk_wrap_patch_installed = True
     return True
