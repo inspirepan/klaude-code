@@ -1,13 +1,48 @@
+from __future__ import annotations
+
 import json
 import time
 import uuid
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, cast
 
 from pydantic import BaseModel, Field, PrivateAttr
 
 from klaude_code.protocol import events, llm_param, model, tools
+from klaude_code.session.store_v2 import JsonlSessionStoreV2, V2Paths, build_meta_snapshot
+
+_DEFAULT_STORES: dict[str, JsonlSessionStoreV2] = {}
+
+
+def _project_key_from_cwd() -> str:
+    return str(Path.cwd()).strip("/").replace("/", "-")
+
+
+def _read_json_dict(path: Path) -> dict[str, Any] | None:
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(raw, dict):
+        return None
+    return cast(dict[str, Any], raw)
+
+
+def get_default_store() -> JsonlSessionStoreV2:
+    project_key = _project_key_from_cwd()
+    store = _DEFAULT_STORES.get(project_key)
+    if store is None:
+        store = JsonlSessionStoreV2(project_key=project_key)
+        _DEFAULT_STORES[project_key] = store
+    return store
+
+
+async def close_default_store() -> None:
+    stores = list(_DEFAULT_STORES.values())
+    _DEFAULT_STORES.clear()
+    for store in stores:
+        await store.aclose()
 
 
 class Session(BaseModel):
@@ -15,34 +50,25 @@ class Session(BaseModel):
     work_dir: Path
     conversation_history: list[model.ConversationItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     sub_agent_state: model.SubAgentState | None = None
-    # FileTracker: track file path -> last modification time when last read/edited
     file_tracker: dict[str, float] = Field(default_factory=dict)
-    # Todo list for the session
     todos: list[model.TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    # Model name used for this session
-    # Used in list method SessionMetaBrief
     model_name: str | None = None
 
     model_config_name: str | None = None
     model_thinking: llm_param.Thinking | None = None
-    # Timestamps (epoch seconds)
     created_at: float = Field(default_factory=lambda: time.time())
     updated_at: float = Field(default_factory=lambda: time.time())
 
-    # Reminder flags
     loaded_memory: list[str] = Field(default_factory=list)
     need_todo_empty_cooldown_counter: int = Field(exclude=True, default=0)
     need_todo_not_used_cooldown_counter: int = Field(exclude=True, default=0)
 
-    # Cached messages count (computed property)
     _messages_count_cache: int | None = PrivateAttr(default=None)
+    _store: JsonlSessionStoreV2 = PrivateAttr(default_factory=get_default_store)
 
     @property
     def messages_count(self) -> int:
-        """Count of user, assistant messages, and tool calls in conversation history.
-
-        This is a cached property that is invalidated when append_history is called.
-        """
+        """Count of user, assistant messages, and tool calls in conversation history."""
         if self._messages_count_cache is None:
             self._messages_count_cache = sum(
                 1
@@ -52,102 +78,74 @@ class Session(BaseModel):
         return self._messages_count_cache
 
     def _invalidate_messages_count_cache(self) -> None:
-        """Invalidate the cached messages count."""
         self._messages_count_cache = None
-
-    # Internal: mapping for (de)serialization of conversation items
-    _TypeMap: ClassVar[dict[str, type[BaseModel]]] = {
-        # Messages
-        "SystemMessageItem": model.SystemMessageItem,
-        "DeveloperMessageItem": model.DeveloperMessageItem,
-        "UserMessageItem": model.UserMessageItem,
-        "AssistantMessageItem": model.AssistantMessageItem,
-        # Reasoning/Thinking
-        "ReasoningTextItem": model.ReasoningTextItem,
-        "ReasoningEncryptedItem": model.ReasoningEncryptedItem,
-        # Tools
-        "ToolCallItem": model.ToolCallItem,
-        "ToolResultItem": model.ToolResultItem,
-        # Stream/meta (not typically persisted in history, but supported)
-        "AssistantMessageDelta": model.AssistantMessageDelta,
-        "StartItem": model.StartItem,
-        "StreamErrorItem": model.StreamErrorItem,
-        "TaskMetadataItem": model.TaskMetadataItem,
-        "InterruptItem": model.InterruptItem,
-    }
 
     @staticmethod
     def _project_key() -> str:
-        # Derive a stable per-project key from current working directory
-        return str(Path.cwd()).strip("/").replace("/", "-")
+        return _project_key_from_cwd()
 
     @classmethod
-    def _base_dir(cls) -> Path:
-        return Path.home() / ".klaude" / "projects" / cls._project_key()
+    def paths(cls) -> V2Paths:
+        return get_default_store().paths
 
     @classmethod
-    def _sessions_dir(cls) -> Path:
-        return cls._base_dir() / "sessions"
+    def create(cls, id: str | None = None, *, work_dir: Path | None = None) -> Session:
+        session = Session(id=id or uuid.uuid4().hex, work_dir=work_dir or Path.cwd())
+        session._store = get_default_store()
+        return session
 
     @classmethod
-    def _messages_dir(cls) -> Path:
-        return cls._base_dir() / "messages"
+    def load_meta(cls, id: str) -> Session:
+        store = get_default_store()
+        raw = store.load_meta(id)
+        if raw is None:
+            session = Session(id=id, work_dir=Path.cwd())
+            session._store = store
+            return session
 
-    @classmethod
-    def _exports_dir(cls) -> Path:
-        return cls._base_dir() / "exports"
-
-    def _session_file(self) -> Path:
-        prefix = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime(self.created_at))
-        return self._sessions_dir() / f"{prefix}-{self.id}.json"
-
-    def _messages_file(self) -> Path:
-        prefix = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime(self.created_at))
-        return self._messages_dir() / f"{prefix}-{self.id}.jsonl"
-
-    @classmethod
-    def _find_session_file(cls, id: str) -> Path | None:
-        sessions_dir = cls._sessions_dir()
-        session_candidates = sorted(
-            sessions_dir.glob(f"*-{id}.json"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
-        if not session_candidates:
-            return None
-        return session_candidates[0]
-
-    @classmethod
-    def create(cls, id: str | None = None) -> "Session":
-        """Create a new session without checking for existing files."""
-        return Session(id=id or uuid.uuid4().hex, work_dir=Path.cwd())
-
-    @classmethod
-    def load_meta(cls, id: str) -> "Session":
-        """Load session metadata only (without loading messages history)."""
-
-        session_path = cls._find_session_file(id)
-        if session_path is None:
-            return Session(id=id, work_dir=Path.cwd())
-
-        raw = json.loads(session_path.read_text())
-
-        work_dir_str = raw.get("work_dir", str(Path.cwd()))
+        work_dir_str = raw.get("work_dir")
+        if not isinstance(work_dir_str, str) or not work_dir_str:
+            work_dir_str = str(Path.cwd())
 
         sub_agent_state_raw = raw.get("sub_agent_state")
-        sub_agent_state = model.SubAgentState(**sub_agent_state_raw) if sub_agent_state_raw else None
-        file_tracker = dict(raw.get("file_tracker", {}))
-        todos: list[model.TodoItem] = [model.TodoItem(**item) for item in raw.get("todos", [])]
-        loaded_memory = list(raw.get("loaded_memory", []))
+        sub_agent_state = (
+            model.SubAgentState.model_validate(sub_agent_state_raw) if isinstance(sub_agent_state_raw, dict) else None
+        )
+
+        file_tracker_raw = raw.get("file_tracker")
+        file_tracker: dict[str, float] = {}
+        if isinstance(file_tracker_raw, dict):
+            for k, v in cast(dict[object, object], file_tracker_raw).items():
+                if isinstance(k, str) and isinstance(v, (int, float)):
+                    file_tracker[k] = float(v)
+
+        todos_raw = raw.get("todos")
+        todos: list[model.TodoItem] = []
+        if isinstance(todos_raw, list):
+            for todo_raw in cast(list[object], todos_raw):
+                if not isinstance(todo_raw, dict):
+                    continue
+                try:
+                    todos.append(model.TodoItem.model_validate(todo_raw))
+                except Exception:
+                    continue
+
+        loaded_memory_raw = raw.get("loaded_memory")
+        loaded_memory: list[str] = []
+        if isinstance(loaded_memory_raw, list):
+            loaded_memory = [str(item) for item in cast(list[object], loaded_memory_raw)]
+
         created_at = float(raw.get("created_at", time.time()))
         updated_at = float(raw.get("updated_at", created_at))
-        model_name = raw.get("model_name")
-        model_config_name = raw.get("model_config_name")
+        model_name = raw.get("model_name") if isinstance(raw.get("model_name"), str) else None
+        model_config_name = raw.get("model_config_name") if isinstance(raw.get("model_config_name"), str) else None
 
         model_thinking_raw = raw.get("model_thinking")
-        model_thinking = llm_param.Thinking(**model_thinking_raw) if isinstance(model_thinking_raw, dict) else None  # pyright: ignore[reportUnknownArgumentType]
+        model_thinking = (
+            llm_param.Thinking.model_validate(model_thinking_raw) if isinstance(model_thinking_raw, dict) else None
+        )
 
-        return Session(
+        session = Session(
             id=id,
             work_dir=Path(work_dir_str),
             sub_agent_state=sub_agent_state,
@@ -160,120 +158,69 @@ class Session(BaseModel):
             model_config_name=model_config_name,
             model_thinking=model_thinking,
         )
+        session._store = store
+        return session
 
     @classmethod
-    def load(cls, id: str) -> "Session":
-        """Load an existing session or create a new one if not found."""
-        sess = cls.load_meta(id)
+    def load(cls, id: str) -> Session:
+        store = get_default_store()
+        session = cls.load_meta(id)
+        session._store = store
+        session.conversation_history = store.load_history(id)
+        return session
 
-        # Load conversation history from messages JSONL
-        messages_dir = cls._messages_dir()
-        # Expect a single messages file per session (prefixed filenames only)
-        msg_candidates = sorted(
-            messages_dir.glob(f"*-{id}.jsonl"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
-        if msg_candidates:
-            messages_path = msg_candidates[0]
-            history: list[model.ConversationItem] = []
-            for line in messages_path.read_text().splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                    t = obj.get("type")
-                    data = obj.get("data", {})
-                    cls_type = cls._TypeMap.get(t or "")
-                    if cls_type is None:
-                        continue
-                    item = cls_type(**data)
-                    # pyright: ignore[reportAssignmentType]
-                    history.append(item)  # type: ignore[arg-type]
-                except (json.JSONDecodeError, KeyError, TypeError):
-                    # Best-effort load; skip malformed lines
-                    continue
-            sess.conversation_history = history
-            # messages_count is now a computed property, no need to set it
+    def append_history(self, items: Sequence[model.ConversationItem]) -> None:
+        if not items:
+            return
 
-        return sess
+        self.conversation_history.extend(items)
+        self._invalidate_messages_count_cache()
 
-    def save(self):
-        # Ensure directories exist
-        sessions_dir = self._sessions_dir()
-        messages_dir = self._messages_dir()
-        sessions_dir.mkdir(parents=True, exist_ok=True)
-        messages_dir.mkdir(parents=True, exist_ok=True)
-
-        # Persist session metadata (excluding conversation history)
-        # Update timestamps
         if self.created_at <= 0:
             self.created_at = time.time()
         self.updated_at = time.time()
-        payload = {
-            "id": self.id,
-            "work_dir": str(self.work_dir),
-            "sub_agent_state": self.sub_agent_state.model_dump() if self.sub_agent_state else None,
-            "file_tracker": self.file_tracker,
-            "todos": [todo.model_dump() for todo in self.todos],
-            "loaded_memory": self.loaded_memory,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
-            "messages_count": self.messages_count,
-            "model_name": self.model_name,
-            "model_config_name": self.model_config_name,
-            "model_thinking": self.model_thinking.model_dump() if self.model_thinking else None,
-        }
-        self._session_file().write_text(json.dumps(payload, ensure_ascii=False, indent=2))
 
-    def append_history(self, items: Sequence[model.ConversationItem]):
-        # Append to in-memory history
-        self.conversation_history.extend(items)
-        # Invalidate messages count cache
-        self._invalidate_messages_count_cache()
+        meta = build_meta_snapshot(
+            session_id=self.id,
+            work_dir=self.work_dir,
+            sub_agent_state=self.sub_agent_state,
+            file_tracker=dict(self.file_tracker),
+            todos=list(self.todos),
+            loaded_memory=list(self.loaded_memory),
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+            messages_count=self.messages_count,
+            model_name=self.model_name,
+            model_config_name=self.model_config_name,
+            model_thinking=self.model_thinking,
+        )
+        self._store.append_and_flush(session_id=self.id, items=items, meta=meta)
 
-        # Incrementally persist to JSONL under messages directory
-        messages_dir = self._messages_dir()
-        messages_dir.mkdir(parents=True, exist_ok=True)
-        mpath = self._messages_file()
-
-        with mpath.open("a", encoding="utf-8") as f:
-            for it in items:
-                # Serialize with explicit type tag for reliable load
-                t = it.__class__.__name__
-                data = it.model_dump(mode="json")
-                f.write(json.dumps({"type": t, "data": data}, ensure_ascii=False))
-                f.write("\n")
-        # Refresh metadata timestamp after history change
-        self.save()
+    async def wait_for_flush(self) -> None:
+        await self._store.wait_for_flush(self.id)
 
     @classmethod
     def most_recent_session_id(cls) -> str | None:
-        sessions_dir = cls._sessions_dir()
-        if not sessions_dir.exists():
-            return None
+        store = get_default_store()
         latest_id: str | None = None
         latest_ts: float = -1.0
-        for p in sessions_dir.glob("*.json"):
-            try:
-                data = json.loads(p.read_text())
-                # Filter out sub-agent sessions
-                if data.get("sub_agent_state", None) is not None:
-                    continue
-                sid = str(data.get("id", p.stem))
-                ts = float(data.get("updated_at", 0.0))
-                if ts <= 0:
-                    ts = p.stat().st_mtime
-                if ts > latest_ts:
-                    latest_ts = ts
-                    latest_id = sid
-            except (json.JSONDecodeError, KeyError, TypeError, OSError):
+        for meta_path in store.iter_meta_files():
+            data = _read_json_dict(meta_path)
+            if data is None:
                 continue
+            if data.get("sub_agent_state") is not None:
+                continue
+            sid = str(data.get("id", meta_path.parent.name))
+            try:
+                ts = float(data.get("updated_at", 0.0))
+            except (TypeError, ValueError):
+                ts = meta_path.stat().st_mtime
+            if ts > latest_ts:
+                latest_ts = ts
+                latest_id = sid
         return latest_id
 
     def need_turn_start(self, prev_item: model.ConversationItem | None, item: model.ConversationItem) -> bool:
-        # Emit TurnStartEvent when a new turn starts to show an empty line in replay history
         if not isinstance(
             item,
             model.ReasoningEncryptedItem | model.ReasoningTextItem | model.AssistantMessageItem | model.ToolCallItem,
@@ -281,10 +228,7 @@ class Session(BaseModel):
             return False
         if prev_item is None:
             return True
-        return isinstance(
-            prev_item,
-            model.UserMessageItem | model.ToolResultItem | model.DeveloperMessageItem,
-        )
+        return isinstance(prev_item, model.UserMessageItem | model.ToolResultItem | model.DeveloperMessageItem)
 
     def get_history_item(self) -> Iterable[events.HistoryItemEvent]:
         seen_sub_agent_sessions: set[str] = set()
@@ -294,9 +238,7 @@ class Session(BaseModel):
         yield events.TaskStartEvent(session_id=self.id, sub_agent_state=self.sub_agent_state)
         for it in self.conversation_history:
             if self.need_turn_start(prev_item, it):
-                yield events.TurnStartEvent(
-                    session_id=self.id,
-                )
+                yield events.TurnStartEvent(session_id=self.id)
             match it:
                 case model.AssistantMessageItem() as am:
                     content = am.content or ""
@@ -328,34 +270,17 @@ class Session(BaseModel):
                     )
                     yield from self._iter_sub_agent_history(tr, seen_sub_agent_sessions)
                 case model.UserMessageItem() as um:
-                    yield events.UserMessageEvent(
-                        content=um.content or "",
-                        session_id=self.id,
-                    )
+                    yield events.UserMessageEvent(content=um.content or "", session_id=self.id, images=um.images)
                 case model.ReasoningTextItem() as ri:
-                    yield events.ThinkingEvent(
-                        content=ri.content,
-                        session_id=self.id,
-                    )
+                    yield events.ThinkingEvent(content=ri.content, session_id=self.id)
                 case model.TaskMetadataItem() as mt:
-                    yield events.TaskMetadataEvent(
-                        session_id=self.id,
-                        metadata=mt,
-                    )
+                    yield events.TaskMetadataEvent(session_id=self.id, metadata=mt)
                 case model.InterruptItem():
-                    yield events.InterruptEvent(
-                        session_id=self.id,
-                    )
+                    yield events.InterruptEvent(session_id=self.id)
                 case model.DeveloperMessageItem() as dm:
-                    yield events.DeveloperMessageEvent(
-                        session_id=self.id,
-                        item=dm,
-                    )
+                    yield events.DeveloperMessageEvent(session_id=self.id, item=dm)
                 case model.StreamErrorItem() as se:
-                    yield events.ErrorEvent(
-                        error_message=se.error,
-                        can_retry=False,
-                    )
+                    yield events.ErrorEvent(error_message=se.error, can_retry=False)
                 case _:
                     continue
             prev_item = it
@@ -363,37 +288,25 @@ class Session(BaseModel):
         has_structured_output = report_back_result is not None
         task_result = report_back_result if has_structured_output else last_assistant_content
         yield events.TaskFinishEvent(
-            session_id=self.id,
-            task_result=task_result,
-            has_structured_output=has_structured_output,
+            session_id=self.id, task_result=task_result, has_structured_output=has_structured_output
         )
 
     def _iter_sub_agent_history(
         self, tool_result: model.ToolResultItem, seen_sub_agent_sessions: set[str]
     ) -> Iterable[events.HistoryItemEvent]:
-        """Replay sub-agent session history when a tool result references it.
-
-        Sub-agent tool results embed a SessionIdUIExtra containing the child session ID.
-        When present, we load that session and yield its history events so replay/export
-        can show the full sub-agent transcript instead of only the summarized tool output.
-        """
         ui_extra = tool_result.ui_extra
         if not isinstance(ui_extra, model.SessionIdUIExtra):
             return
-
         session_id = ui_extra.session_id
         if not session_id or session_id == self.id:
             return
         if session_id in seen_sub_agent_sessions:
             return
-
         seen_sub_agent_sessions.add(session_id)
-
         try:
             sub_session = Session.load(session_id)
         except Exception:
             return
-
         yield from sub_session.get_history_item()
 
     class SessionMetaBrief(BaseModel):
@@ -403,91 +316,52 @@ class Session(BaseModel):
         work_dir: str
         path: str
         first_user_message: str | None = None
-        messages_count: int = -1  # -1 indicates N/A
+        messages_count: int = -1
         model_name: str | None = None
 
     @classmethod
     def list_sessions(cls) -> list[SessionMetaBrief]:
-        """List all sessions for the current project.
+        store = get_default_store()
 
-        Returns a list of dicts with keys: id, created_at, updated_at, work_dir, path.
-        Sorted by updated_at descending.
-        """
-        sessions_dir = cls._sessions_dir()
-        if not sessions_dir.exists():
-            return []
-
-        def _get_first_user_message(session_id: str, created_at: float) -> str | None:
-            """Get the first user message from the session's jsonl file."""
-            messages_dir = cls._messages_dir()
-            if not messages_dir.exists():
+        def _get_first_user_message(session_id: str) -> str | None:
+            events_path = store.paths.events_file(session_id)
+            if not events_path.exists():
                 return None
-
-            # Find the messages file for this session
-            prefix = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime(created_at))
-            msg_file = messages_dir / f"{prefix}-{session_id}.jsonl"
-
-            if not msg_file.exists():
-                # Try to find by pattern if exact file doesn't exist
-                msg_candidates = sorted(
-                    messages_dir.glob(f"*-{session_id}.jsonl"),
-                    key=lambda p: p.stat().st_mtime,
-                    reverse=True,
-                )
-                if not msg_candidates:
-                    return None
-                msg_file = msg_candidates[0]
-
             try:
-                for line in msg_file.read_text().splitlines():
-                    line = line.strip()
-                    if not line:
+                for line in events_path.read_text(encoding="utf-8").splitlines():
+                    obj_raw = json.loads(line)
+                    if not isinstance(obj_raw, dict):
                         continue
-                    obj = json.loads(line)
-                    if obj.get("type") == "UserMessageItem":
-                        data = obj.get("data", {})
-                        content = data.get("content", "")
-                        if isinstance(content, str):
-                            return content
-                        elif isinstance(content, list) and content:
-                            # Handle structured content - extract text
-                            text_parts: list[str] = []
-                            for part in content:  # pyright: ignore[reportUnknownVariableType]
-                                if (
-                                    isinstance(part, dict) and part.get("type") == "text"  # pyright: ignore[reportUnknownMemberType]
-                                ):
-                                    text = part.get("text", "")  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
-                                    if isinstance(text, str):
-                                        text_parts.append(text)
-                            return " ".join(text_parts) if text_parts else None
+                    obj = cast(dict[str, Any], obj_raw)
+                    if obj.get("type") != "UserMessageItem":
+                        continue
+                    data_raw = obj.get("data")
+                    if not isinstance(data_raw, dict):
                         return None
-            except (json.JSONDecodeError, KeyError, TypeError, OSError):
+                    data = cast(dict[str, Any], data_raw)
+                    content = data.get("content")
+                    if isinstance(content, str):
+                        return content
+                    return None
+            except (OSError, json.JSONDecodeError):
                 return None
             return None
 
         items: list[Session.SessionMetaBrief] = []
-        for p in sessions_dir.glob("*.json"):
-            try:
-                data = json.loads(p.read_text())
-            except (json.JSONDecodeError, OSError):
-                # Skip unreadable files
+        for meta_path in store.iter_meta_files():
+            data = _read_json_dict(meta_path)
+            if data is None:
                 continue
-            # Filter out sub-agent sessions
-            if data.get("sub_agent_state", None) is not None:
+            if data.get("sub_agent_state") is not None:
                 continue
-            sid = str(data.get("id", p.stem))
-            created = float(data.get("created_at", p.stat().st_mtime))
-            updated = float(data.get("updated_at", p.stat().st_mtime))
+
+            sid = str(data.get("id", meta_path.parent.name))
+            created = float(data.get("created_at", meta_path.stat().st_mtime))
+            updated = float(data.get("updated_at", meta_path.stat().st_mtime))
             work_dir = str(data.get("work_dir", ""))
-
-            # Get first user message
-            first_user_message = _get_first_user_message(sid, created)
-
-            # Get messages count from session data, no fallback
-            messages_count = int(data.get("messages_count", -1))  # -1 indicates N/A
-
-            # Get model name from session data
-            model_name = data.get("model_name")
+            first_user_message = _get_first_user_message(sid)
+            messages_count = int(data.get("messages_count", -1))
+            model_name = data.get("model_name") if isinstance(data.get("model_name"), str) else None
 
             items.append(
                 Session.SessionMetaBrief(
@@ -495,63 +369,39 @@ class Session(BaseModel):
                     created_at=created,
                     updated_at=updated,
                     work_dir=work_dir,
-                    path=str(p),
+                    path=str(meta_path),
                     first_user_message=first_user_message,
                     messages_count=messages_count,
                     model_name=model_name,
                 )
             )
-        # Sort by updated_at desc
+
         items.sort(key=lambda d: d.updated_at, reverse=True)
         return items
 
     @classmethod
     def clean_small_sessions(cls, min_messages: int = 5) -> int:
-        """Remove sessions with fewer than min_messages messages.
-
-        Returns the number of sessions deleted.
-        """
         sessions = cls.list_sessions()
         deleted_count = 0
-
+        store = get_default_store()
         for session_meta in sessions:
-            # Skip sessions with unknown message count
             if session_meta.messages_count < 0:
                 continue
             if session_meta.messages_count < min_messages:
-                cls._delete_session_files(session_meta.id, session_meta.created_at)
+                store.delete_session(session_meta.id)
                 deleted_count += 1
-
         return deleted_count
 
     @classmethod
     def clean_all_sessions(cls) -> int:
-        """Remove all sessions for the current project.
-
-        Returns the number of sessions deleted.
-        """
         sessions = cls.list_sessions()
         deleted_count = 0
-
+        store = get_default_store()
         for session_meta in sessions:
-            cls._delete_session_files(session_meta.id, session_meta.created_at)
+            store.delete_session(session_meta.id)
             deleted_count += 1
-
         return deleted_count
 
     @classmethod
-    def _delete_session_files(cls, session_id: str, created_at: float) -> None:
-        """Delete session and messages files for a given session."""
-        sessions_dir = cls._sessions_dir()
-        messages_dir = cls._messages_dir()
-
-        # Delete session file
-        prefix = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime(created_at))
-        session_file = sessions_dir / f"{prefix}-{session_id}.json"
-        if session_file.exists():
-            session_file.unlink()
-
-        # Delete messages file
-        messages_file = messages_dir / f"{prefix}-{session_id}.jsonl"
-        if messages_file.exists():
-            messages_file.unlink()
+    def exports_dir(cls) -> Path:
+        return get_default_store().paths.exports_dir

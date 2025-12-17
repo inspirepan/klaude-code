@@ -63,7 +63,7 @@ def get_default_export_path(session: Session) -> Path:
     """Get default export path for a session."""
     from klaude_code.session.session import Session as SessionClass
 
-    exports_dir = SessionClass._exports_dir()  # pyright: ignore[reportPrivateUsage]
+    exports_dir = SessionClass.exports_dir()
     timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     first_msg = get_first_user_message(session.conversation_history)
     sanitized_msg = _sanitize_filename(first_msg)
