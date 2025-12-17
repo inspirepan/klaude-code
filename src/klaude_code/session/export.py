@@ -267,20 +267,30 @@ def _render_assistant_message(index: int, content: str, timestamp: datetime) -> 
     )
 
 
-def _try_render_todo_args(arguments: str) -> str | None:
+def _try_render_todo_args(arguments: str, tool_name: str) -> str | None:
     try:
         parsed = json.loads(arguments)
-        if not isinstance(parsed, dict) or "todos" not in parsed or not isinstance(parsed["todos"], list):
+        if not isinstance(parsed, dict):
             return None
 
-        todos = cast(list[dict[str, str]], parsed["todos"])
-        if not todos:
+        # Support both TodoWrite (todos/content) and update_plan (plan/step)
+        parsed_dict = cast(dict[str, Any], parsed)
+        if tool_name == "TodoWrite":
+            items = parsed_dict.get("todos")
+            content_key = "content"
+        elif tool_name == "update_plan":
+            items = parsed_dict.get("plan")
+            content_key = "step"
+        else:
+            return None
+
+        if not isinstance(items, list) or not items:
             return None
 
         items_html: list[str] = []
-        for todo in todos:
-            content = _escape_html(todo.get("content", ""))
-            status = todo.get("status", "pending")
+        for item in cast(list[dict[str, str]], items):
+            content = _escape_html(item.get(content_key, ""))
+            status = item.get("status", "pending")
             status_class = f"status-{status}"
 
             items_html.append(
@@ -447,8 +457,8 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
     is_todo_list = False
     ts_str = _format_msg_timestamp(tool_call.created_at)
 
-    if tool_call.name == "TodoWrite":
-        args_html = _try_render_todo_args(tool_call.arguments)
+    if tool_call.name in ("TodoWrite", "update_plan"):
+        args_html = _try_render_todo_args(tool_call.arguments, tool_call.name)
         if args_html:
             is_todo_list = True
 
@@ -506,7 +516,7 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
         diff_text = _get_diff_text(result.ui_extra)
         mermaid_html = _get_mermaid_link_html(result.ui_extra, tool_call)
 
-        should_hide_text = tool_call.name == "TodoWrite" and result.status != "error"
+        should_hide_text = tool_call.name in ("TodoWrite", "update_plan") and result.status != "error"
 
         if tool_call.name == "Edit" and not diff_text and result.status != "error":
             try:

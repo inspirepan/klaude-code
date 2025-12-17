@@ -312,23 +312,44 @@ class TestTryRenderTodoArgs:
                 ]
             }
         )
-        result = export._try_render_todo_args(args)
+        result = export._try_render_todo_args(args, "TodoWrite")
         assert result is not None
         assert "Task 1" in result
         assert "Task 2" in result
         assert "status-pending" in result
         assert "status-completed" in result
 
+    def test_valid_plan(self):
+        args = json.dumps(
+            {
+                "plan": [
+                    {"step": "Step 1", "status": "pending"},
+                    {"step": "Step 2", "status": "completed"},
+                ]
+            }
+        )
+        result = export._try_render_todo_args(args, "update_plan")
+        assert result is not None
+        assert "Step 1" in result
+        assert "Step 2" in result
+        assert "status-pending" in result
+        assert "status-completed" in result
+
     def test_invalid_json(self):
-        result = export._try_render_todo_args("not json")
+        result = export._try_render_todo_args("not json", "TodoWrite")
         assert result is None
 
     def test_missing_todos_key(self):
-        result = export._try_render_todo_args('{"other": []}')
+        result = export._try_render_todo_args('{"other": []}', "TodoWrite")
         assert result is None
 
     def test_empty_todos_list(self):
-        result = export._try_render_todo_args('{"todos": []}')
+        result = export._try_render_todo_args('{"todos": []}', "TodoWrite")
+        assert result is None
+
+    def test_unknown_tool_name(self):
+        args = json.dumps({"todos": [{"content": "Task", "status": "pending"}]})
+        result = export._try_render_todo_args(args, "UnknownTool")
         assert result is None
 
 
