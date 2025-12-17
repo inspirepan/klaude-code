@@ -4,11 +4,14 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import shutil
 from collections.abc import Sequence
 from typing import Any
 
 import pytest
 
+from klaude_code.core.tool.shell.bash_tool import BashTool
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.core.tool.tool_runner import (
     ToolExecutionCallStarted,
@@ -431,3 +434,19 @@ class TestBuildToolSideEffectEvents:
         )
         events = executor._build_tool_side_effect_events(result)
         assert events == []
+
+
+class TestBashToolCancellation:
+    def test_bash_tool_propagates_cancelled_error(self) -> None:
+        if os.name != "posix" or shutil.which("bash") is None:
+            pytest.skip("bash tool requires POSIX + bash")
+
+        async def _run() -> None:
+            args = BashTool.BashArguments(command="sleep 10", timeout_ms=60_000)
+            task = asyncio.create_task(BashTool.call_with_args(args))
+            await asyncio.sleep(0.1)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+        arun(_run())

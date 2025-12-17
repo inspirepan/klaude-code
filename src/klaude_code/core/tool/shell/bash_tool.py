@@ -1,5 +1,8 @@
 import asyncio
+import contextlib
+import os
 import re
+import signal
 import subprocess
 from pathlib import Path
 
@@ -87,22 +90,94 @@ class BashTool(ToolABC):
 
         # Run the command using bash -lc so shell semantics work (pipes, &&, etc.)
         # Capture stdout/stderr, respect timeout, and return a ToolMessage.
+        #
+        # Important: this tool is intentionally non-interactive.
+        # - Always detach stdin (DEVNULL) so interactive programs can't steal REPL input.
+        # - Always disable pagers/editors to avoid launching TUI subprocesses that can
+        #   leave the terminal in a bad state.
         cmd = ["bash", "-lc", args.command]
         timeout_sec = max(0.0, args.timeout_ms / 1000.0)
 
-        try:
-            completed = await asyncio.to_thread(
-                subprocess.run,
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout_sec,
-                check=False,
-            )
+        env = os.environ.copy()
+        env.update(
+            {
+                # Avoid blocking on git/jj prompts.
+                "GIT_TERMINAL_PROMPT": "0",
+                # Avoid pagers.
+                "PAGER": "cat",
+                "GIT_PAGER": "cat",
+                # Avoid opening editors.
+                "EDITOR": "true",
+                "VISUAL": "true",
+                "GIT_EDITOR": "true",
+                "JJ_EDITOR": "true",
+                # Encourage non-interactive output.
+                "TERM": "dumb",
+            }
+        )
 
-            stdout = _ANSI_ESCAPE_RE.sub("", completed.stdout or "")
-            stderr = _ANSI_ESCAPE_RE.sub("", completed.stderr or "")
-            rc = completed.returncode
+        async def _terminate_process(proc: asyncio.subprocess.Process) -> None:
+            # Best-effort termination. Ensure we don't hang on cancellation.
+            if proc.returncode is not None:
+                return
+
+            try:
+                if os.name == "posix" and proc.pid is not None:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                else:
+                    proc.terminate()
+            except ProcessLookupError:
+                return
+            except Exception:
+                # Fall back to kill below.
+                pass
+
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(proc.wait(), timeout=1.0)
+                return
+
+            # Escalate to hard kill if it didn't exit quickly.
+            with contextlib.suppress(Exception):
+                if os.name == "posix" and proc.pid is not None:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                else:
+                    proc.kill()
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(proc.wait(), timeout=1.0)
+
+        try:
+            # Create a dedicated process group so we can terminate the whole tree.
+            # (macOS/Linux support start_new_session; Windows does not.)
+            kwargs: dict[str, object] = {
+                "stdin": asyncio.subprocess.DEVNULL,
+                "stdout": asyncio.subprocess.PIPE,
+                "stderr": asyncio.subprocess.PIPE,
+                "env": env,
+            }
+            if os.name == "posix":
+                kwargs["start_new_session"] = True
+            elif os.name == "nt":  # pragma: no cover
+                kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+
+            proc = await asyncio.create_subprocess_exec(*cmd, **kwargs)
+            try:
+                stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=timeout_sec)
+            except TimeoutError:
+                with contextlib.suppress(Exception):
+                    await _terminate_process(proc)
+                return model.ToolResultItem(
+                    status="error",
+                    output=f"Timeout after {args.timeout_ms} ms running: {args.command}",
+                )
+            except asyncio.CancelledError:
+                # Ensure subprocess is stopped and propagate cancellation.
+                with contextlib.suppress(Exception):
+                    await asyncio.shield(_terminate_process(proc))
+                raise
+
+            stdout = _ANSI_ESCAPE_RE.sub("", (stdout_b or b"").decode(errors="replace"))
+            stderr = _ANSI_ESCAPE_RE.sub("", (stderr_b or b"").decode(errors="replace"))
+            rc = proc.returncode
 
             if rc == 0:
                 output = stdout if stdout else ""
@@ -125,17 +200,14 @@ class BashTool(ToolABC):
                     status="error",
                     output=combined.strip(),
                 )
-
-        except subprocess.TimeoutExpired:
-            return model.ToolResultItem(
-                status="error",
-                output=f"Timeout after {args.timeout_ms} ms running: {args.command}",
-            )
         except FileNotFoundError:
             return model.ToolResultItem(
                 status="error",
                 output="bash not found on system path",
             )
+        except asyncio.CancelledError:
+            # Propagate cooperative cancellation so outer layers can handle interrupts correctly.
+            raise
         except Exception as e:  # safeguard against unexpected failures
             return model.ToolResultItem(
                 status="error",
