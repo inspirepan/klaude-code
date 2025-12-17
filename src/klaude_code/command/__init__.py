@@ -1,4 +1,4 @@
-from .command_abc import CommandABC, CommandResult, InputAction, InputActionType
+from .command_abc import CommandABC, CommandResult
 from .registry import (
     dispatch_command,
     get_commands,
@@ -89,8 +89,6 @@ __all__ = [
     # "StatusCommand", "TerminalSetupCommand",
     "CommandABC",
     "CommandResult",
-    "InputAction",
-    "InputActionType",
     "dispatch_command",
     "ensure_commands_loaded",
     "get_commands",

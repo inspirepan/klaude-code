@@ -21,7 +21,8 @@ class TerminalSetupCommand(CommandABC):
     def is_interactive(self) -> bool:
         return False
 
-    async def run(self, raw: str, agent: Agent) -> CommandResult:
+    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+        del raw, user_input  # unused
         term_program = os.environ.get("TERM_PROGRAM", "").lower()
 
         try:

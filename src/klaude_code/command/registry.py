@@ -1,9 +1,9 @@
 from importlib.resources import files
 from typing import TYPE_CHECKING
 
-from klaude_code.command.command_abc import Agent, CommandResult, InputAction
+from klaude_code.command.command_abc import Agent, CommandResult
 from klaude_code.command.prompt_command import PromptCommand
-from klaude_code.protocol import commands, events, model
+from klaude_code.protocol import commands, events, model, op
 from klaude_code.trace import log_debug
 
 if TYPE_CHECKING:
@@ -110,11 +110,20 @@ def is_slash_command_name(name: str) -> bool:
     return _resolve_command_key(name) is not None
 
 
-async def dispatch_command(raw: str, agent: Agent) -> CommandResult:
+async def dispatch_command(user_input: model.UserInputPayload, agent: Agent, *, submission_id: str) -> CommandResult:
     _ensure_commands_loaded()
     # Detect command name
+    raw = user_input.text
     if not raw.startswith("/"):
-        return CommandResult(actions=[InputAction.run_agent(raw)])
+        return CommandResult(
+            operations=[
+                op.RunAgentOperation(
+                    id=submission_id,
+                    session_id=agent.session.id,
+                    input=user_input,
+                )
+            ]
+        )
 
     splits = raw.split(" ", maxsplit=1)
     command_name_raw = splits[0][1:]
@@ -122,13 +131,28 @@ async def dispatch_command(raw: str, agent: Agent) -> CommandResult:
 
     command_key = _resolve_command_key(command_name_raw)
     if command_key is None:
-        return CommandResult(actions=[InputAction.run_agent(raw)])
+        return CommandResult(
+            operations=[
+                op.RunAgentOperation(
+                    id=submission_id,
+                    session_id=agent.session.id,
+                    input=user_input,
+                )
+            ]
+        )
 
     command = _COMMANDS[command_key]
     command_identifier: commands.CommandName | str = command.name
 
     try:
-        return await command.run(rest, agent)
+        result = await command.run(rest, agent, user_input)
+        ops = list(result.operations or [])
+        for operation in ops:
+            if isinstance(operation, op.RunAgentOperation):
+                operation.id = submission_id
+        if ops:
+            result.operations = ops
+        return result
     except Exception as e:
         command_output = (
             model.CommandOutput(command_name=command_identifier, is_error=True)

@@ -1,5 +1,5 @@
-from klaude_code.command.command_abc import Agent, CommandABC, CommandResult, InputAction
-from klaude_code.protocol import commands
+from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
+from klaude_code.protocol import commands, model, op
 
 
 class ClearCommand(CommandABC):
@@ -13,5 +13,6 @@ class ClearCommand(CommandABC):
     def summary(self) -> str:
         return "Clear conversation history and free up context"
 
-    async def run(self, raw: str, agent: Agent) -> CommandResult:
-        return CommandResult(actions=[InputAction.clear()])
+    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+        del raw, user_input  # unused
+        return CommandResult(operations=[op.ClearSessionOperation(session_id=agent.session.id)])

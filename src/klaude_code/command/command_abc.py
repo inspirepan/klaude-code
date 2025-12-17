@@ -1,11 +1,10 @@
 from abc import ABC, abstractmethod
-from enum import Enum
 from typing import Protocol
 
 from pydantic import BaseModel
 
 from klaude_code.llm import LLMClientABC
-from klaude_code.protocol import commands, llm_param
+from klaude_code.protocol import commands, llm_param, model, op
 from klaude_code.protocol import events as protocol_events
 from klaude_code.session.session import Session
 
@@ -34,40 +33,6 @@ class Agent(Protocol):
     def get_llm_client(self) -> LLMClientABC: ...
 
 
-class InputActionType(str, Enum):
-    """Supported input action kinds."""
-
-    RUN_AGENT = "run_agent"
-    CHANGE_MODEL = "change_model"
-    CLEAR = "clear"
-
-
-class InputAction(BaseModel):
-    """Structured executor action derived from a user input."""
-
-    type: InputActionType
-    text: str = ""
-    model_name: str | None = None
-
-    @classmethod
-    def run_agent(cls, text: str) -> "InputAction":
-        """Create a RunAgent action preserving the provided text."""
-
-        return cls(type=InputActionType.RUN_AGENT, text=text)
-
-    @classmethod
-    def change_model(cls, model_name: str) -> "InputAction":
-        """Create a ChangeModel action for the provided model name."""
-
-        return cls(type=InputActionType.CHANGE_MODEL, model_name=model_name)
-
-    @classmethod
-    def clear(cls) -> "InputAction":
-        """Create a Clear action to reset the session."""
-
-        return cls(type=InputActionType.CLEAR)
-
-
 class CommandResult(BaseModel):
     """Result of a command execution."""
 
@@ -75,7 +40,7 @@ class CommandResult(BaseModel):
         list[protocol_events.DeveloperMessageEvent | protocol_events.WelcomeEvent | protocol_events.ReplayHistoryEvent]
         | None
     ) = None  # List of UI events to display immediately
-    actions: list[InputAction] | None = None
+    operations: list[op.Operation] | None = None
 
 
 class CommandABC(ABC):
@@ -109,7 +74,7 @@ class CommandABC(ABC):
         return "additional instructions"
 
     @abstractmethod
-    async def run(self, raw: str, agent: Agent) -> CommandResult:
+    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
         """
         Execute the command.
 

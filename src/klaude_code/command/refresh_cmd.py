@@ -1,5 +1,5 @@
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
-from klaude_code.protocol import commands, events
+from klaude_code.protocol import commands, events, model
 
 
 class RefreshTerminalCommand(CommandABC):
@@ -17,7 +17,8 @@ class RefreshTerminalCommand(CommandABC):
     def is_interactive(self) -> bool:
         return True
 
-    async def run(self, raw: str, agent: Agent) -> CommandResult:
+    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+        del raw, user_input  # unused
         import os
 
         os.system("cls" if os.name == "nt" else "clear")

@@ -2,8 +2,8 @@ from importlib.resources import files
 
 import yaml
 
-from klaude_code.command.command_abc import Agent, CommandABC, CommandResult, InputAction
-from klaude_code.protocol import commands
+from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
+from klaude_code.protocol import commands, model, op
 from klaude_code.trace import log_debug
 
 
@@ -55,16 +55,23 @@ class PromptCommand(CommandABC):
     def support_addition_params(self) -> bool:
         return True
 
-    async def run(self, raw: str, agent: Agent) -> CommandResult:
+    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
         self._ensure_loaded()
         template_content = self._content or ""
-        user_input = raw.strip() or "<none>"
+        user_input_text = raw.strip() or "<none>"
 
         if "$ARGUMENTS" in template_content:
-            final_prompt = template_content.replace("$ARGUMENTS", user_input)
+            final_prompt = template_content.replace("$ARGUMENTS", user_input_text)
         else:
             final_prompt = template_content
-            if user_input:
-                final_prompt += f"\n\nAdditional Instructions:\n{user_input}"
+            if user_input_text:
+                final_prompt += f"\n\nAdditional Instructions:\n{user_input_text}"
 
-        return CommandResult(actions=[InputAction.run_agent(final_prompt)])
+        return CommandResult(
+            operations=[
+                op.RunAgentOperation(
+                    session_id=agent.session.id,
+                    input=model.UserInputPayload(text=final_prompt, images=user_input.images),
+                )
+            ]
+        )
