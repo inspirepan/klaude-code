@@ -5,6 +5,7 @@ import re
 import signal
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -122,7 +123,7 @@ class BashTool(ToolABC):
                 return
 
             try:
-                if os.name == "posix" and proc.pid is not None:
+                if os.name == "posix":
                     os.killpg(proc.pid, signal.SIGTERM)
                 else:
                     proc.terminate()
@@ -138,7 +139,7 @@ class BashTool(ToolABC):
 
             # Escalate to hard kill if it didn't exit quickly.
             with contextlib.suppress(Exception):
-                if os.name == "posix" and proc.pid is not None:
+                if os.name == "posix":
                     os.killpg(proc.pid, signal.SIGKILL)
                 else:
                     proc.kill()
@@ -148,7 +149,7 @@ class BashTool(ToolABC):
         try:
             # Create a dedicated process group so we can terminate the whole tree.
             # (macOS/Linux support start_new_session; Windows does not.)
-            kwargs: dict[str, object] = {
+            kwargs: dict[str, Any] = {
                 "stdin": asyncio.subprocess.DEVNULL,
                 "stdout": asyncio.subprocess.PIPE,
                 "stderr": asyncio.subprocess.PIPE,

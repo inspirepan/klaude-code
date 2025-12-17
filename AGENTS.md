@@ -52,3 +52,26 @@ Tests are located in the `tests/` directory. Configuration files include `pyproj
 - Prefer `str | None` over `Optional[str]`
 - Prefer `list[str]` over `typing.List[str]`
 - For complex function inputs or outputs, define a Pydantic model rather than returning tuples
+
+## Git Commit Convention
+
+Follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+
+```
+<type>(<scope>): <description>
+```
+
+Types:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting, no logic change)
+- `refactor`: Code refactoring (no feature or fix)
+- `test`: Adding or updating tests
+- `chore`: Build process, dependencies, or tooling changes
+
+Examples:
+- `feat(cli): add --verbose flag for debug output`
+- `fix(llm): handle API timeout errors gracefully`
+- `docs(readme): update installation instructions`
+- `refactor(core): simplify session state management`
