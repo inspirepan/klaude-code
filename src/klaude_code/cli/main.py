@@ -194,6 +194,11 @@ def main_callback(
     ),
     continue_: bool = typer.Option(False, "--continue", "-c", help="Continue from latest session"),
     resume: bool = typer.Option(False, "--resume", "-r", help="Select a session to resume for this project"),
+    resume_by_id: str | None = typer.Option(
+        None,
+        "--resume-by-id",
+        help="Resume a session by its ID (must exist)",
+    ),
     select_model: bool = typer.Option(
         False,
         "--select-model",
@@ -224,6 +229,7 @@ def main_callback(
     if ctx.invoked_subcommand is None:
         from klaude_code.cli.runtime import AppInitConfig, run_interactive
         from klaude_code.config.select_model import select_model_from_config
+        from klaude_code.trace import log
 
         update_terminal_title()
 
@@ -236,6 +242,16 @@ def main_callback(
         # Resolve session id before entering asyncio loop
         # session_id=None means create a new session
         session_id: str | None = None
+
+        resume_by_id_value = resume_by_id.strip() if resume_by_id is not None else None
+        if resume_by_id_value == "":
+            log(("Error: --resume-by-id cannot be empty", "red"))
+            raise typer.Exit(2)
+
+        if resume_by_id_value is not None and (resume or continue_):
+            log(("Error: --resume-by-id cannot be combined with --resume/--continue", "red"))
+            raise typer.Exit(2)
+
         if resume:
             session_id = resume_select_session()
             if session_id is None:
@@ -243,6 +259,13 @@ def main_callback(
         # If user didn't pick, allow fallback to --continue
         if session_id is None and continue_:
             session_id = Session.most_recent_session_id()
+
+        if resume_by_id_value is not None:
+            if not Session.exists(resume_by_id_value):
+                log((f"Error: session id '{resume_by_id_value}' not found for this project", "red"))
+                log(("Hint: run `klaude --resume` to select an existing session", "yellow"))
+                raise typer.Exit(2)
+            session_id = resume_by_id_value
         # If still no session_id, leave as None to create a new session
 
         if session_id is not None and chosen_model is None:

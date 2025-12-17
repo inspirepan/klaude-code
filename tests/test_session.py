@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
 from klaude_code.protocol import events, llm_param, model
 from klaude_code.protocol.llm_param import ToolSchema
@@ -817,8 +818,13 @@ class TestSessionMetaBrief:
             model_name="gpt-4",
         )
         assert meta.id == "test123"
+        assert meta.created_at == 1700000000.0
+        assert meta.updated_at == 1700001000.0
+        assert meta.work_dir == "/home/user/project"
+        assert meta.path == "/home/user/.klaude/projects/test/sessions/test123.json"
         assert meta.first_user_message == "Hello world"
         assert meta.messages_count == 5
+        assert meta.model_name == "gpt-4"
 
     def test_default_values(self):
         meta = Session.SessionMetaBrief(
@@ -831,6 +837,62 @@ class TestSessionMetaBrief:
         assert meta.first_user_message is None
         assert meta.messages_count == -1
         assert meta.model_name is None
+
+
+class TestSessionExists:
+    def test_returns_false_when_missing(self):
+        assert Session.exists("does-not-exist") is False
+
+    def test_returns_true_when_persisted(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            session = Session(work_dir=project_dir)
+            session.append_history([model.UserMessageItem(content="hello")])
+            await session.wait_for_flush()
+
+            assert Session.exists(session.id) is True
+            await close_default_store()
+
+        arun(_test())
+
+
+class TestCliResumeById:
+    def test_errors_when_session_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        from klaude_code.cli.main import app
+
+        def _should_not_run(*_args: object, **_kwargs: object) -> None:
+            raise AssertionError("interactive runtime should not start when --resume-by-id is invalid")
+
+        monkeypatch.setattr("klaude_code.cli.main.asyncio.run", _should_not_run)
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["--resume-by-id", "missing-session-id"])
+        assert result.exit_code == 2
+        assert "not found" in result.output
+
+    def test_errors_on_conflicting_flags(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        from klaude_code.cli.main import app
+
+        def _should_not_run(*_args: object, **_kwargs: object) -> None:
+            raise AssertionError("interactive runtime should not start when flags conflict")
+
+        monkeypatch.setattr("klaude_code.cli.main.asyncio.run", _should_not_run)
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["--resume-by-id", "any", "--continue"])
+        assert result.exit_code == 2
+        assert "cannot be combined" in result.output
 
 
 class TestRenderMetadata:

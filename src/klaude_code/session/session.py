@@ -87,6 +87,13 @@ class Session(BaseModel):
         return get_default_store().paths
 
     @classmethod
+    def exists(cls, id: str) -> bool:
+        """Return True if a persisted session exists for the current project."""
+
+        paths = cls.paths()
+        return paths.meta_file(id).exists() or paths.events_file(id).exists()
+
+    @classmethod
     def create(cls, id: str | None = None, *, work_dir: Path | None = None) -> Session:
         session = Session(id=id or uuid.uuid4().hex, work_dir=work_dir or Path.cwd())
         session._store = get_default_store()

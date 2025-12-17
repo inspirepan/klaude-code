@@ -44,7 +44,9 @@ class _DummyCommand(CommandABC):
             operations=[
                 op.RunAgentOperation(
                     session_id="dummy",
-                    input=model.UserInputPayload(text=f"{self._action_text}:{user_input.text}", images=user_input.images),
+                    input=model.UserInputPayload(
+                        text=f"{self._action_text}:{user_input.text}", images=user_input.images
+                    ),
                 )
             ]
         )

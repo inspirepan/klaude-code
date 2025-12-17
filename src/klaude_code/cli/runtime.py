@@ -17,7 +17,7 @@ from klaude_code.core.executor import Executor
 from klaude_code.core.manager import build_llm_clients
 from klaude_code.protocol import events, op
 from klaude_code.protocol.model import UserInputPayload
-from klaude_code.session.session import close_default_store
+from klaude_code.session.session import Session, close_default_store
 from klaude_code.trace import DebugType, log, set_debug_logging
 from klaude_code.ui.modes.repl import build_repl_status_snapshot
 from klaude_code.ui.modes.repl.input_prompt_toolkit import REPLStatusSnapshot
@@ -212,6 +212,9 @@ async def _handle_keyboard_interrupt(executor: Executor) -> None:
     """Handle Ctrl+C by logging and sending a global interrupt."""
 
     log("Bye!")
+    session_id = executor.context.current_session_id()
+    if session_id and Session.exists(session_id):
+        log(("Resume with:", "dim"), (f"klaude --resume-by-id {session_id}", "green"))
     # Executor might already be stopping
     with contextlib.suppress(Exception):
         await executor.submit(op.InterruptOperation(target_session_id=None))
@@ -296,6 +299,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     restore_sigint = install_sigint_double_press_exit(_show_toast_once, _hide_progress)
 
+    exit_hint_printed = False
+
     try:
         await initialize_session(components.executor, components.event_queue, session_id=session_id)
         _backfill_session_model_config(
@@ -347,8 +352,15 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     except KeyboardInterrupt:
         await _handle_keyboard_interrupt(components.executor)
+        exit_hint_printed = True
     finally:
         # Restore original SIGINT handler
         with contextlib.suppress(Exception):
             restore_sigint()
         await cleanup_app_components(components)
+
+        if not exit_hint_printed:
+            active_session_id = components.executor.context.current_session_id()
+            if active_session_id and Session.exists(active_session_id):
+                log(f"Session ID: {active_session_id}")
+                log(f"Resume with: klaude --resume-by-id {active_session_id}")
