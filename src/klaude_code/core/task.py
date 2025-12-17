@@ -149,8 +149,7 @@ class TaskExecutor:
             session_id=session_ctx.session_id,
             sub_agent_state=ctx.sub_agent_state,
         )
-
-        session_ctx.append_history([model.UserMessageItem(content=user_input.text, images=user_input.images)])
+        del user_input  # Persisted by the operation handler before launching the task.
 
         profile = ctx.profile
         metadata_accumulator = MetadataAccumulator(model_name=profile.llm_client.model_name)

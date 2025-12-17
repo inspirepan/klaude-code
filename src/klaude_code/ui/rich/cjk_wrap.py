@@ -222,7 +222,7 @@ def install_rich_cjk_wrap_patch() -> bool:
 
         return break_positions
 
-    _wrap.divide_line = divide_line_patched
-    _text.divide_line = divide_line_patched
+    _wrap.divide_line = divide_line_patched  # pyright: ignore[reportPrivateImportUsage]
+    _text.divide_line = divide_line_patched  # pyright: ignore[reportPrivateImportUsage]
     _rich_cjk_wrap_patch_installed = True
     return True

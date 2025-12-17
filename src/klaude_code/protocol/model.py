@@ -170,7 +170,7 @@ A conversation history input contains:
 - [DeveloperMessageItem]
 
 When adding a new item, please also modify the following:
-- session.py#_TypeMap
+- session/codec.py (ConversationItem registry derived from ConversationItem union)
 """
 
 
