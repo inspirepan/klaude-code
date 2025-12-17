@@ -23,6 +23,10 @@ class OperationType(Enum):
     """Enumeration of supported operation types."""
 
     USER_INPUT = "user_input"
+    RUN_AGENT = "run_agent"
+    CHANGE_MODEL = "change_model"
+    CLEAR_SESSION = "clear_session"
+    EXPORT_SESSION = "export_session"
     INTERRUPT = "interrupt"
     INIT_AGENT = "init_agent"
     END = "end"
@@ -49,6 +53,49 @@ class UserInputOperation(Operation):
     async def execute(self, handler: OperationHandler) -> None:
         """Execute user input by running it through an agent."""
         await handler.handle_user_input(self)
+
+
+class RunAgentOperation(Operation):
+    """Operation for launching an agent task for a given session."""
+
+    type: OperationType = OperationType.RUN_AGENT
+    session_id: str
+    input: UserInputPayload
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_run_agent(self)
+
+
+class ChangeModelOperation(Operation):
+    """Operation for changing the model used by the active agent session."""
+
+    type: OperationType = OperationType.CHANGE_MODEL
+    session_id: str
+    model_name: str
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_change_model(self)
+
+
+class ClearSessionOperation(Operation):
+    """Operation for clearing the active session and starting a new one."""
+
+    type: OperationType = OperationType.CLEAR_SESSION
+    session_id: str
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_clear_session(self)
+
+
+class ExportSessionOperation(Operation):
+    """Operation for exporting a session transcript to HTML."""
+
+    type: OperationType = OperationType.EXPORT_SESSION
+    session_id: str
+    output_path: str | None = None
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_export_session(self)
 
 
 class InterruptOperation(Operation):

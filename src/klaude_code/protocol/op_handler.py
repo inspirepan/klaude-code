@@ -9,7 +9,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from klaude_code.protocol.op import InitAgentOperation, InterruptOperation, UserInputOperation
+    from klaude_code.protocol.op import (
+        ChangeModelOperation,
+        ClearSessionOperation,
+        ExportSessionOperation,
+        InitAgentOperation,
+        InterruptOperation,
+        RunAgentOperation,
+        UserInputOperation,
+    )
 
 
 class OperationHandler(Protocol):
@@ -17,6 +25,22 @@ class OperationHandler(Protocol):
 
     async def handle_user_input(self, operation: UserInputOperation) -> None:
         """Handle a user input operation."""
+        ...
+
+    async def handle_run_agent(self, operation: RunAgentOperation) -> None:
+        """Handle a run agent operation."""
+        ...
+
+    async def handle_change_model(self, operation: ChangeModelOperation) -> None:
+        """Handle a change model operation."""
+        ...
+
+    async def handle_clear_session(self, operation: ClearSessionOperation) -> None:
+        """Handle a clear session operation."""
+        ...
+
+    async def handle_export_session(self, operation: ExportSessionOperation) -> None:
+        """Handle an export session operation."""
         ...
 
     async def handle_interrupt(self, operation: InterruptOperation) -> None:
