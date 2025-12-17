@@ -311,7 +311,6 @@ class _AtFilesCompleter(Completer):
                     cmd = [
                         "rg",
                         "--files",
-                        "--no-ignore",
                         "--hidden",
                         "--glob",
                         "!**/.git/**",
@@ -333,7 +332,7 @@ class _AtFilesCompleter(Completer):
                 all_files = self._rg_file_list or []
                 kn = key_norm
                 results = [p for p in all_files if kn in p.lower()]
-                # For rg fallback, we don't distinguish ignored files (no priority sorting)
+                # For rg fallback, we don't implement any priority sorting.
             else:
                 return []
 
