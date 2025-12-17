@@ -28,9 +28,8 @@ class ModelCommand(CommandABC):
     def placeholder(self) -> str:
         return "model name"
 
-    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
-        del user_input  # unused
-        selected_model = await asyncio.to_thread(select_model_from_config, preferred=raw)
+    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+        selected_model = await asyncio.to_thread(select_model_from_config, preferred=user_input.text)
 
         current_model = agent.profile.llm_client.model_name if agent.profile else None
         if selected_model is None or selected_model == current_model:

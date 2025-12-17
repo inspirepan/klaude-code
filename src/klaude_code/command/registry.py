@@ -145,7 +145,8 @@ async def dispatch_command(user_input: model.UserInputPayload, agent: Agent, *, 
     command_identifier: commands.CommandName | str = command.name
 
     try:
-        result = await command.run(rest, agent, user_input)
+        user_input_for_command = model.UserInputPayload(text=rest, images=user_input.images)
+        result = await command.run(agent, user_input_for_command)
         ops = list(result.operations or [])
         for operation in ops:
             if isinstance(operation, op.RunAgentOperation):

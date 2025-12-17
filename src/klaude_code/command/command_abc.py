@@ -74,13 +74,13 @@ class CommandABC(ABC):
         return "additional instructions"
 
     @abstractmethod
-    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
         """
         Execute the command.
 
         Args:
-            raw: The full command string as typed by user (e.g., "/help" or "/model gpt-4")
-            session_id: Current session ID, may be None if no session initialized yet
+            agent: The agent instance
+            user_input: User input with text containing command arguments (without command name)
 
         Returns:
             CommandResult: Result of the command execution

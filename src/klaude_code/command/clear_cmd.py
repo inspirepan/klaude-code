@@ -13,6 +13,6 @@ class ClearCommand(CommandABC):
     def summary(self) -> str:
         return "Clear conversation history and free up context"
 
-    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
-        del raw, user_input  # unused
+    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+        del user_input  # unused
         return CommandResult(operations=[op.ClearSessionOperation(session_id=agent.session.id)])

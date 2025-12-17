@@ -45,9 +45,8 @@ class DebugCommand(CommandABC):
     def placeholder(self) -> str:
         return "filter types"
 
-    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
-        del user_input  # unused
-        raw = raw.strip()
+    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+        raw = user_input.text.strip()
 
         # /debug (no args) - enable debug
         if not raw:

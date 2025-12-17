@@ -169,7 +169,7 @@ class ThinkingCommand(CommandABC):
     def is_interactive(self) -> bool:
         return True
 
-    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
         del user_input  # unused
         if not agent.profile:
             return self._no_change_result(agent, "No profile configured")

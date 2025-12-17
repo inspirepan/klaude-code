@@ -17,8 +17,8 @@ class RefreshTerminalCommand(CommandABC):
     def is_interactive(self) -> bool:
         return True
 
-    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
-        del raw, user_input  # unused
+    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+        del user_input  # unused
         import os
 
         os.system("cls" if os.name == "nt" else "clear")

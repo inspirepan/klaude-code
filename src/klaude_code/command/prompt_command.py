@@ -55,10 +55,10 @@ class PromptCommand(CommandABC):
     def support_addition_params(self) -> bool:
         return True
 
-    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
         self._ensure_loaded()
         template_content = self._content or ""
-        user_input_text = raw.strip() or "<none>"
+        user_input_text = user_input.text.strip() or "<none>"
 
         if "$ARGUMENTS" in template_content:
             final_prompt = template_content.replace("$ARGUMENTS", user_input_text)

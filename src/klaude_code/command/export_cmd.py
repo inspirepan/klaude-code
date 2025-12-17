@@ -29,9 +29,8 @@ class ExportCommand(CommandABC):
     def is_interactive(self) -> bool:
         return False
 
-    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
-        del user_input  # unused
-        output_path = self._normalize_output_path(raw, agent)
+    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+        output_path = self._normalize_output_path(user_input.text, agent)
         return CommandResult(
             operations=[
                 op.ExportSessionOperation(

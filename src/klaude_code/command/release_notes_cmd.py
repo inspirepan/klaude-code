@@ -68,8 +68,8 @@ class ReleaseNotesCommand(CommandABC):
     def summary(self) -> str:
         return "Show the latest release notes"
 
-    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
-        del raw, user_input  # unused
+    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+        del user_input  # unused
         changelog = _read_changelog()
         content = _extract_releases(changelog, count=10)
 

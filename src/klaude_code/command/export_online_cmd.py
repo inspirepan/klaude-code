@@ -33,8 +33,8 @@ class ExportOnlineCommand(CommandABC):
     def is_interactive(self) -> bool:
         return False
 
-    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
-        del raw, user_input  # unused
+    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+        del user_input  # unused
         # Check if npx or surge is available
         surge_cmd = self._get_surge_command()
         if not surge_cmd:

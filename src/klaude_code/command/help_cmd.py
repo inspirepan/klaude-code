@@ -13,8 +13,8 @@ class HelpCommand(CommandABC):
     def summary(self) -> str:
         return "Show help and available commands"
 
-    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
-        del raw, user_input  # unused
+    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+        del user_input  # unused
         lines: list[str] = [
             """
 Usage:

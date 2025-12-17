@@ -38,13 +38,13 @@ class _DummyCommand(CommandABC):
     def is_interactive(self) -> bool:
         return self._interactive
 
-    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
         del agent  # unused
         return CommandResult(
             operations=[
                 op.RunAgentOperation(
                     session_id="dummy",
-                    input=model.UserInputPayload(text=f"{self._action_text}:{raw}", images=user_input.images),
+                    input=model.UserInputPayload(text=f"{self._action_text}:{user_input.text}", images=user_input.images),
                 )
             ]
         )

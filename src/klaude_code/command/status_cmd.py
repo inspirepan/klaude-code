@@ -132,8 +132,8 @@ class StatusCommand(CommandABC):
     def summary(self) -> str:
         return "Show session usage statistics"
 
-    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
-        del raw, user_input  # unused
+    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+        del user_input  # unused
         session = agent.session
         aggregated = accumulate_session_usage(session)
 
