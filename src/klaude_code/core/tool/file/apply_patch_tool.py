@@ -80,7 +80,9 @@ class ApplyPatchHandler:
 
             if file_tracker is not None:
                 with contextlib.suppress(Exception):  # pragma: no cover - file tracker best-effort
-                    file_tracker[resolved] = Path(resolved).stat().st_mtime
+                    existing = file_tracker.get(resolved)
+                    is_mem = existing.is_memory if existing else False
+                    file_tracker[resolved] = model.FileStatus(mtime=Path(resolved).stat().st_mtime, is_memory=is_mem)
 
         def remove_fn(path: str) -> None:
             resolved = resolve_path(path)

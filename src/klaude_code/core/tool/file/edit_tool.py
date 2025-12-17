@@ -119,8 +119,8 @@ class EditTool(ToolABC):
                 output=("File has not been read yet. Read it first before writing to it."),
             )
         if file_tracker is not None:
-            tracked = file_tracker.get(file_path)
-            if tracked is None:
+            tracked_status = file_tracker.get(file_path)
+            if tracked_status is None:
                 return model.ToolResultItem(
                     status="error",
                     output=("File has not been read yet. Read it first before writing to it."),
@@ -128,8 +128,8 @@ class EditTool(ToolABC):
             try:
                 current_mtime = Path(file_path).stat().st_mtime
             except Exception:
-                current_mtime = tracked
-            if current_mtime != tracked:
+                current_mtime = tracked_status.mtime
+            if current_mtime != tracked_status.mtime:
                 return model.ToolResultItem(
                     status="error",
                     output=(
@@ -193,7 +193,9 @@ class EditTool(ToolABC):
         # Update tracker with new mtime
         if file_tracker is not None:
             with contextlib.suppress(Exception):
-                file_tracker[file_path] = Path(file_path).stat().st_mtime
+                existing = file_tracker.get(file_path)
+                is_mem = existing.is_memory if existing else False
+                file_tracker[file_path] = model.FileStatus(mtime=Path(file_path).stat().st_mtime, is_memory=is_mem)
 
         # Build output message
         if args.replace_all:

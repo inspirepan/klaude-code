@@ -50,7 +50,7 @@ class Session(BaseModel):
     work_dir: Path
     conversation_history: list[model.ConversationItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     sub_agent_state: model.SubAgentState | None = None
-    file_tracker: dict[str, float] = Field(default_factory=dict)
+    file_tracker: dict[str, model.FileStatus] = Field(default_factory=dict)
     todos: list[model.TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     model_name: str | None = None
 
@@ -58,8 +58,6 @@ class Session(BaseModel):
     model_thinking: llm_param.Thinking | None = None
     created_at: float = Field(default_factory=lambda: time.time())
     updated_at: float = Field(default_factory=lambda: time.time())
-
-    loaded_memory: list[str] = Field(default_factory=list)
     need_todo_empty_cooldown_counter: int = Field(exclude=True, default=0)
     need_todo_not_used_cooldown_counter: int = Field(exclude=True, default=0)
 
@@ -113,11 +111,14 @@ class Session(BaseModel):
         )
 
         file_tracker_raw = raw.get("file_tracker")
-        file_tracker: dict[str, float] = {}
+        file_tracker: dict[str, model.FileStatus] = {}
         if isinstance(file_tracker_raw, dict):
             for k, v in cast(dict[object, object], file_tracker_raw).items():
-                if isinstance(k, str) and isinstance(v, (int, float)):
-                    file_tracker[k] = float(v)
+                if isinstance(k, str) and isinstance(v, dict):
+                    try:
+                        file_tracker[k] = model.FileStatus.model_validate(v)
+                    except Exception:
+                        continue
 
         todos_raw = raw.get("todos")
         todos: list[model.TodoItem] = []
@@ -129,11 +130,6 @@ class Session(BaseModel):
                     todos.append(model.TodoItem.model_validate(todo_raw))
                 except Exception:
                     continue
-
-        loaded_memory_raw = raw.get("loaded_memory")
-        loaded_memory: list[str] = []
-        if isinstance(loaded_memory_raw, list):
-            loaded_memory = [str(item) for item in cast(list[object], loaded_memory_raw)]
 
         created_at = float(raw.get("created_at", time.time()))
         updated_at = float(raw.get("updated_at", created_at))
@@ -151,7 +147,6 @@ class Session(BaseModel):
             sub_agent_state=sub_agent_state,
             file_tracker=file_tracker,
             todos=todos,
-            loaded_memory=loaded_memory,
             created_at=created_at,
             updated_at=updated_at,
             model_name=model_name,
@@ -184,9 +179,8 @@ class Session(BaseModel):
             session_id=self.id,
             work_dir=self.work_dir,
             sub_agent_state=self.sub_agent_state,
-            file_tracker=dict(self.file_tracker),
+            file_tracker=self.file_tracker,
             todos=list(self.todos),
-            loaded_memory=list(self.loaded_memory),
             created_at=self.created_at,
             updated_at=self.updated_at,
             messages_count=self.messages_count,

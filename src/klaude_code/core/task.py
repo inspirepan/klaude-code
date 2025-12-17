@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import AsyncGenerator, Callable, MutableMapping, Sequence
+from collections.abc import AsyncGenerator, Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from klaude_code import const
 from klaude_code.core.reminders import Reminder
-from klaude_code.core.tool import TodoContext, ToolABC
+from klaude_code.core.tool import FileTracker, TodoContext, ToolABC
 from klaude_code.core.turn import TurnError, TurnExecutionContext, TurnExecutor
 from klaude_code.protocol import events, model
 from klaude_code.trace import DebugType, log_debug
@@ -100,7 +100,7 @@ class SessionContext:
     session_id: str
     get_conversation_history: Callable[[], list[model.ConversationItem]]
     append_history: Callable[[Sequence[model.ConversationItem]], None]
-    file_tracker: MutableMapping[str, float]
+    file_tracker: FileTracker
     todo_context: TodoContext
 
 

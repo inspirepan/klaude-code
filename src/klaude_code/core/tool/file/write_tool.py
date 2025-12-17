@@ -64,10 +64,10 @@ class WriteTool(ToolABC):
         exists = file_exists(file_path)
 
         if exists:
-            tracked_mtime: float | None = None
+            tracked_status: model.FileStatus | None = None
             if file_tracker is not None:
-                tracked_mtime = file_tracker.get(file_path)
-            if tracked_mtime is None:
+                tracked_status = file_tracker.get(file_path)
+            if tracked_status is None:
                 return model.ToolResultItem(
                     status="error",
                     output=("File has not been read yet. Read it first before writing to it."),
@@ -75,8 +75,8 @@ class WriteTool(ToolABC):
             try:
                 current_mtime = Path(file_path).stat().st_mtime
             except Exception:
-                current_mtime = tracked_mtime
-            if current_mtime != tracked_mtime:
+                current_mtime = tracked_status.mtime
+            if current_mtime != tracked_status.mtime:
                 return model.ToolResultItem(
                     status="error",
                     output=(
@@ -100,7 +100,9 @@ class WriteTool(ToolABC):
 
         if file_tracker is not None:
             with contextlib.suppress(Exception):
-                file_tracker[file_path] = Path(file_path).stat().st_mtime
+                existing = file_tracker.get(file_path)
+                is_mem = existing.is_memory if existing else False
+                file_tracker[file_path] = model.FileStatus(mtime=Path(file_path).stat().st_mtime, is_memory=is_mem)
 
         # Build diff between previous and new content
         after = args.content

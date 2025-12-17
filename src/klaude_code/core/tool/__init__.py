@@ -15,6 +15,7 @@ from .todo.todo_write_tool import TodoWriteTool
 from .todo.update_plan_tool import UpdatePlanTool
 from .tool_abc import ToolABC
 from .tool_context import (
+    FileTracker,
     TodoContext,
     ToolContextToken,
     build_todo_context,
@@ -36,6 +37,7 @@ __all__ = [
     "BashTool",
     "DiffError",
     "EditTool",
+    "FileTracker",
     "MemoryTool",
     "MermaidTool",
     "MultiEditTool",

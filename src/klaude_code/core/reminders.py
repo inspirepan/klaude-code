@@ -1,6 +1,7 @@
 import re
 import shlex
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -29,6 +30,45 @@ def get_last_new_user_input(session: Session) -> str | None:
         if isinstance(item, model.DeveloperMessageItem):
             result.append(item.content or "")
     return "\n\n".join(result)
+
+
+@dataclass
+class AtPatternSource:
+    """Represents an @ pattern with its source file (if from a memory file)."""
+
+    pattern: str
+    mentioned_in: str | None = None
+
+
+def get_at_patterns_with_source(session: Session) -> list[AtPatternSource]:
+    """Get @ patterns from last user input and developer messages, preserving source info."""
+    patterns: list[AtPatternSource] = []
+
+    for item in reversed(session.conversation_history):
+        if isinstance(item, model.ToolResultItem):
+            break
+
+        if isinstance(item, model.UserMessageItem):
+            content = item.content or ""
+            if "@" in content:
+                for match in AT_FILE_PATTERN.finditer(content):
+                    path_str = match.group("quoted") or match.group("plain")
+                    if path_str:
+                        patterns.append(AtPatternSource(pattern=path_str, mentioned_in=None))
+            break
+
+        if isinstance(item, model.DeveloperMessageItem):
+            content = item.content or ""
+            if "@" not in content:
+                continue
+            # Use first memory_path as the source if available
+            source = item.memory_paths[0] if item.memory_paths else None
+            for match in AT_FILE_PATTERN.finditer(content):
+                path_str = match.group("quoted") or match.group("plain")
+                if path_str:
+                    patterns.append(AtPatternSource(pattern=path_str, mentioned_in=source))
+
+    return patterns
 
 
 async def _load_at_file_recursive(
@@ -99,33 +139,22 @@ async def at_file_reader_reminder(
     session: Session,
 ) -> model.DeveloperMessageItem | None:
     """Parse @foo/bar to read, with recursive loading of nested @ references"""
-    last_user_input = get_last_new_user_input(session)
-    if not last_user_input or "@" not in last_user_input:
-        return None
-
-    at_patterns: list[str] = []
-
-    for match in AT_FILE_PATTERN.finditer(last_user_input):
-        quoted = match.group("quoted")
-        plain = match.group("plain")
-        path_str = quoted if quoted is not None else plain
-        if path_str:
-            at_patterns.append(path_str)
-
-    if len(at_patterns) == 0:
+    at_pattern_sources = get_at_patterns_with_source(session)
+    if not at_pattern_sources:
         return None
 
     at_files: dict[str, model.AtPatternParseResult] = {}  # path -> content
     collected_images: list[model.ImageURLPart] = []
     visited: set[str] = set()
 
-    for pattern in at_patterns:
+    for source in at_pattern_sources:
         await _load_at_file_recursive(
             session,
-            pattern,
+            source.pattern,
             at_files,
             collected_images,
             visited,
+            mentioned_in=source.mentioned_in,
         )
 
     if len(at_files) == 0:
@@ -231,9 +260,9 @@ async def file_changed_externally_reminder(
     changed_files: list[tuple[str, str, list[model.ImageURLPart] | None]] = []
     collected_images: list[model.ImageURLPart] = []
     if session.file_tracker and len(session.file_tracker) > 0:
-        for path, mtime in session.file_tracker.items():
+        for path, status in session.file_tracker.items():
             try:
-                if Path(path).stat().st_mtime > mtime:
+                if Path(path).stat().st_mtime > status.mtime:
                     context_token = set_tool_context_from_session(session)
                     try:
                         tool_result = await ReadTool.call_with_args(
@@ -282,6 +311,7 @@ def get_memory_paths() -> list[tuple[Path, str]]:
         ),
         (Path.cwd() / "AGENTS.md", "project instructions, checked into the codebase"),
         (Path.cwd() / "CLAUDE.md", "project instructions, checked into the codebase"),
+        (Path.cwd() / ".claude" / "CLAUDE.md", "project instructions, checked into the codebase"),
     ]
 
 
@@ -313,16 +343,32 @@ async def image_reminder(session: Session) -> model.DeveloperMessageItem | None:
     )
 
 
+def _is_memory_loaded(session: Session, path: str) -> bool:
+    """Check if a memory file has already been loaded (tracked with is_memory=True)."""
+    status = session.file_tracker.get(path)
+    return status is not None and status.is_memory
+
+
+def _mark_memory_loaded(session: Session, path: str) -> None:
+    """Mark a file as loaded memory in file_tracker."""
+    try:
+        mtime = Path(path).stat().st_mtime
+    except (OSError, FileNotFoundError):
+        mtime = 0.0
+    session.file_tracker[path] = model.FileStatus(mtime=mtime, is_memory=True)
+
+
 async def memory_reminder(session: Session) -> model.DeveloperMessageItem | None:
     """CLAUDE.md AGENTS.md"""
     memory_paths = get_memory_paths()
     memories: list[Memory] = []
     for memory_path, instruction in memory_paths:
-        if memory_path.exists() and memory_path.is_file() and str(memory_path) not in session.loaded_memory:
+        path_str = str(memory_path)
+        if memory_path.exists() and memory_path.is_file() and not _is_memory_loaded(session, path_str):
             try:
                 text = memory_path.read_text()
-                session.loaded_memory.append(str(memory_path))
-                memories.append(Memory(path=str(memory_path), instruction=instruction, content=text))
+                _mark_memory_loaded(session, path_str)
+                memories.append(Memory(path=path_str, instruction=instruction, content=text))
             except (PermissionError, UnicodeDecodeError, OSError):
                 continue
     if len(memories) > 0:
@@ -358,7 +404,7 @@ async def last_path_memory_reminder(
     """Load CLAUDE.md/AGENTS.md from directories containing files in file_tracker.
 
     Uses session.file_tracker to detect accessed paths (works for both tool calls
-    and @ file references). Uses session.loaded_memory to avoid duplicate loading.
+    and @ file references). Checks is_memory flag to avoid duplicate loading.
     """
     if not session.file_tracker:
         return None
@@ -367,7 +413,6 @@ async def last_path_memory_reminder(
     memories: list[Memory] = []
 
     cwd = Path.cwd().resolve()
-    loaded_set: set[str] = set(session.loaded_memory)
     seen_memory_files: set[str] = set()
 
     for p_str in paths:
@@ -395,15 +440,14 @@ async def last_path_memory_reminder(
             for fname in MEMORY_FILE_NAMES:
                 mem_path = current_dir / fname
                 mem_path_str = str(mem_path)
-                if mem_path_str in seen_memory_files or mem_path_str in loaded_set:
+                if mem_path_str in seen_memory_files or _is_memory_loaded(session, mem_path_str):
                     continue
                 if mem_path.exists() and mem_path.is_file():
                     try:
                         text = mem_path.read_text()
                     except (PermissionError, UnicodeDecodeError, OSError):
                         continue
-                    session.loaded_memory.append(mem_path_str)
-                    loaded_set.add(mem_path_str)
+                    _mark_memory_loaded(session, mem_path_str)
                     seen_memory_files.add(mem_path_str)
                     memories.append(
                         Memory(

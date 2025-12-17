@@ -9,6 +9,8 @@ from klaude_code.protocol import model
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.session import Session
 
+type FileTracker = MutableMapping[str, model.FileStatus]
+
 
 @dataclass
 class TodoContext:
@@ -44,15 +46,13 @@ class ToolContextToken:
     finishes running.
     """
 
-    file_tracker_token: Token[MutableMapping[str, float] | None] | None
+    file_tracker_token: Token[FileTracker | None] | None
     todo_token: Token[TodoContext | None] | None
 
 
 # Holds the current file tracker mapping for tool execution context.
 # Set by Agent/Reminder right before invoking a tool.
-current_file_tracker_var: ContextVar[MutableMapping[str, float] | None] = ContextVar(
-    "current_file_tracker", default=None
-)
+current_file_tracker_var: ContextVar[FileTracker | None] = ContextVar("current_file_tracker", default=None)
 
 
 # Holds the todo access context for tools.
@@ -83,7 +83,7 @@ def reset_tool_context(token: ToolContextToken) -> None:
 
 
 @contextmanager
-def tool_context(file_tracker: MutableMapping[str, float], todo_ctx: TodoContext) -> Generator[ToolContextToken]:
+def tool_context(file_tracker: FileTracker, todo_ctx: TodoContext) -> Generator[ToolContextToken]:
     """Context manager for setting and resetting tool execution context."""
 
     file_tracker_token = current_file_tracker_var.set(file_tracker)
@@ -102,7 +102,7 @@ def build_todo_context(session: Session) -> TodoContext:
     return TodoContext(get_todos=store.get, set_todos=store.set)
 
 
-def get_current_file_tracker() -> MutableMapping[str, float] | None:
+def get_current_file_tracker() -> FileTracker | None:
     """Return the current file tracker mapping for this tool context."""
 
     return current_file_tracker_var.get()

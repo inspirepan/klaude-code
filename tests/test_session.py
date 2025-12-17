@@ -522,7 +522,7 @@ class TestSessionPersistence:
                 model_thinking=llm_param.Thinking(reasoning_effort="high"),
             )
             session.todos = [model.TodoItem(content="Task 1", status="pending")]
-            session.file_tracker = {"/path/to/file": 1234567890.0}
+            session.file_tracker = {"/path/to/file": model.FileStatus(mtime=1234567890.0)}
             session.append_history([model.UserMessageItem(content="persist")])
             await session.wait_for_flush()
 

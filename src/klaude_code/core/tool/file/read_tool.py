@@ -106,12 +106,15 @@ def _read_segment(options: ReadOptions) -> ReadSegmentResult:
     )
 
 
-def _track_file_access(file_path: str) -> None:
+def _track_file_access(file_path: str, *, is_memory: bool = False) -> None:
     file_tracker = get_current_file_tracker()
     if file_tracker is None or not file_exists(file_path) or is_directory(file_path):
         return
     with contextlib.suppress(Exception):
-        file_tracker[file_path] = Path(file_path).stat().st_mtime
+        existing = file_tracker.get(file_path)
+        # Preserve is_memory flag if already set
+        is_mem = is_memory or (existing.is_memory if existing else False)
+        file_tracker[file_path] = model.FileStatus(mtime=Path(file_path).stat().st_mtime, is_memory=is_mem)
 
 
 def _is_supported_image_file(file_path: str) -> bool:

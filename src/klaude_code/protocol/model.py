@@ -69,6 +69,13 @@ class TodoItem(BaseModel):
     active_form: str = Field(default="", alias="activeForm")
 
 
+class FileStatus(BaseModel):
+    """Tracks file state including modification time and memory file flag."""
+
+    mtime: float
+    is_memory: bool = False
+
+
 class TodoUIExtra(BaseModel):
     todos: list[TodoItem]
     new_completed: list[str]
