@@ -10,8 +10,8 @@ from typing import Any, cast
 import pytest
 
 from klaude_code.command import registry
-from klaude_code.command.command_abc import Agent, CommandABC, CommandResult, InputAction
-from klaude_code.protocol import commands
+from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
+from klaude_code.protocol import commands, model, op
 
 
 def arun(coro: Any) -> Any:
@@ -38,14 +38,21 @@ class _DummyCommand(CommandABC):
     def is_interactive(self) -> bool:
         return self._interactive
 
-    async def run(self, raw: str, agent: Agent) -> CommandResult:
+    async def run(self, raw: str, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
         del agent  # unused
-        return CommandResult(actions=[InputAction.run_agent(f"{self._action_text}:{raw}")])
+        return CommandResult(
+            operations=[
+                op.RunAgentOperation(
+                    session_id="dummy",
+                    input=model.UserInputPayload(text=f"{self._action_text}:{raw}", images=user_input.images),
+                )
+            ]
+        )
 
 
 class _DummyAgent:
     # Only needed for error-path in dispatch; not used in these tests.
-    session = None  # type: ignore[assignment]
+    session = type("Sess", (), {"id": "dummy"})()  # type: ignore[assignment]
     profile = None
 
     def get_llm_client(self) -> Any:
@@ -69,9 +76,14 @@ def test_dispatch_prefix_prefers_base_command_when_other_is_extension(
         "export-online",
     )
 
-    result = arun(registry.dispatch_command("/exp foo", cast(Agent, _DummyAgent())))
-    assert result.actions is not None
-    assert result.actions[0].text == "export:foo"
+    result = arun(
+        registry.dispatch_command(
+            model.UserInputPayload(text="/exp foo"), cast(Agent, _DummyAgent()), submission_id="s1"
+        )
+    )
+    assert result.operations is not None
+    assert isinstance(result.operations[0], op.RunAgentOperation)
+    assert result.operations[0].input.text == "export:foo"
 
 
 def test_dispatch_prefix_can_target_extension_command(
@@ -83,9 +95,14 @@ def test_dispatch_prefix_can_target_extension_command(
         "export-online",
     )
 
-    result = arun(registry.dispatch_command("/export-o bar", cast(Agent, _DummyAgent())))
-    assert result.actions is not None
-    assert result.actions[0].text == "export-online:bar"
+    result = arun(
+        registry.dispatch_command(
+            model.UserInputPayload(text="/export-o bar"), cast(Agent, _DummyAgent()), submission_id="s1"
+        )
+    )
+    assert result.operations is not None
+    assert isinstance(result.operations[0], op.RunAgentOperation)
+    assert result.operations[0].input.text == "export-online:bar"
 
 
 def test_slash_command_name_supports_prefix_match(
@@ -107,6 +124,11 @@ def test_dispatch_ambiguous_prefix_falls_back_to_agent(
     _isolated_registry["exit"] = _DummyCommand("exit", "exit")
     _isolated_registry["export"] = _DummyCommand("export", "export")
 
-    result = arun(registry.dispatch_command("/ex something", cast(Agent, _DummyAgent())))
-    assert result.actions is not None
-    assert result.actions[0].text == "/ex something"
+    result = arun(
+        registry.dispatch_command(
+            model.UserInputPayload(text="/ex something"), cast(Agent, _DummyAgent()), submission_id="s1"
+        )
+    )
+    assert result.operations is not None
+    assert isinstance(result.operations[0], op.RunAgentOperation)
+    assert result.operations[0].input.text == "/ex something"

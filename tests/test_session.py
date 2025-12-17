@@ -1,6 +1,7 @@
 # pyright: reportPrivateUsage=false, reportUnusedFunction=false
 """Tests for session module: export, selector, and session functionality."""
 
+import asyncio
 import json
 import time
 from datetime import datetime
@@ -11,7 +12,11 @@ import pytest
 from klaude_code.protocol import events, llm_param, model
 from klaude_code.protocol.llm_param import ToolSchema
 from klaude_code.session import export
-from klaude_code.session.session import Session
+from klaude_code.session.session import Session, close_default_store
+
+
+def arun(coro: object) -> object:
+    return asyncio.run(coro)  # type: ignore[arg-type]
 
 
 @pytest.fixture(autouse=True)
@@ -455,21 +460,15 @@ class TestSessionDirectories:
     """Tests for Session directory methods."""
 
     def test_base_dir_under_home(self):
-        base = Session._base_dir()
-        # _base_dir() returns ~/.klaude/projects/<project_key>
-        # So parent should be ~/.klaude/projects
-        assert base.parent == Path.home() / ".klaude" / "projects"
+        base = Session.paths().base_dir
+        assert base.parent == Path.home() / ".klaude" / "v2" / "projects"
 
     def test_sessions_dir_under_base(self):
-        sessions_dir = Session._sessions_dir()
+        sessions_dir = Session.paths().sessions_dir
         assert sessions_dir.name == "sessions"
 
-    def test_messages_dir_under_base(self):
-        messages_dir = Session._messages_dir()
-        assert messages_dir.name == "messages"
-
     def test_exports_dir_under_base(self):
-        exports_dir = Session._exports_dir()
+        exports_dir = Session.paths().exports_dir
         assert exports_dir.name == "exports"
 
 
@@ -515,47 +514,55 @@ class TestSessionPersistence:
         project_dir.mkdir()
         monkeypatch.chdir(project_dir)
 
-        # Create session with some data
-        session = Session(
-            work_dir=project_dir,
-            model_name="test-model",
-            model_config_name="test-config-model",
-            model_thinking=llm_param.Thinking(reasoning_effort="high"),
-        )
-        session.todos = [model.TodoItem(content="Task 1", status="pending")]
-        session.file_tracker = {"/path/to/file": 1234567890.0}
-        session.save()
+        async def _test() -> None:
+            session = Session(
+                work_dir=project_dir,
+                model_name="test-model",
+                model_config_name="test-config-model",
+                model_thinking=llm_param.Thinking(reasoning_effort="high"),
+            )
+            session.todos = [model.TodoItem(content="Task 1", status="pending")]
+            session.file_tracker = {"/path/to/file": 1234567890.0}
+            session.append_history([model.UserMessageItem(content="persist")])
+            await session.wait_for_flush()
 
-        # Load the session
-        loaded = Session.load(session.id)
-        assert loaded.id == session.id
-        assert loaded.work_dir == project_dir
-        assert loaded.model_name == "test-model"
-        assert loaded.model_config_name == "test-config-model"
-        assert loaded.model_thinking is not None
-        assert loaded.model_thinking.reasoning_effort == "high"
-        assert len(loaded.todos) == 1
-        assert loaded.todos[0].content == "Task 1"
-        assert "/path/to/file" in loaded.file_tracker
+            loaded = Session.load(session.id)
+            assert loaded.id == session.id
+            assert loaded.work_dir == project_dir
+            assert loaded.model_name == "test-model"
+            assert loaded.model_config_name == "test-config-model"
+            assert loaded.model_thinking is not None
+            assert loaded.model_thinking.reasoning_effort == "high"
+            assert len(loaded.todos) == 1
+            assert loaded.todos[0].content == "Task 1"
+            assert "/path/to/file" in loaded.file_tracker
+            await close_default_store()
+
+        arun(_test())
 
     def test_load_meta_does_not_load_messages(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
         monkeypatch.chdir(project_dir)
 
-        session = Session(work_dir=project_dir, model_name="test-model", model_config_name="test-config-model")
-        session.append_history(
-            [
-                model.UserMessageItem(content="Hello"),
-                model.AssistantMessageItem(content="Hi"),
-            ]
-        )
+        async def _test() -> None:
+            session = Session(work_dir=project_dir, model_name="test-model", model_config_name="test-config-model")
+            session.append_history(
+                [
+                    model.UserMessageItem(content="Hello"),
+                    model.AssistantMessageItem(content="Hi"),
+                ]
+            )
+            await session.wait_for_flush()
 
-        meta = Session.load_meta(session.id)
-        assert meta.id == session.id
-        assert meta.model_name == "test-model"
-        assert meta.model_config_name == "test-config-model"
-        assert len(meta.conversation_history) == 0
+            meta = Session.load_meta(session.id)
+            assert meta.id == session.id
+            assert meta.model_name == "test-model"
+            assert meta.model_config_name == "test-config-model"
+            assert len(meta.conversation_history) == 0
+            await close_default_store()
+
+        arun(_test())
 
     def test_load_nonexistent_session_creates_new(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"
@@ -572,81 +579,80 @@ class TestSessionPersistence:
         project_dir.mkdir()
         monkeypatch.chdir(project_dir)
 
-        session = Session(work_dir=project_dir)
-        items = [
-            model.UserMessageItem(content="Hello"),
-            model.AssistantMessageItem(content="Hi there"),
-        ]
-        session.append_history(items)
+        async def _test() -> None:
+            session = Session(work_dir=project_dir)
+            items = [
+                model.UserMessageItem(content="Hello"),
+                model.AssistantMessageItem(content="Hi there"),
+            ]
+            session.append_history(items)
+            await session.wait_for_flush()
 
-        assert len(session.conversation_history) == 2
-        assert session.messages_count == 2
+            assert len(session.conversation_history) == 2
+            assert session.messages_count == 2
 
-        # Verify the messages file was created
-        messages_file = session._messages_file()
-        assert messages_file.exists()
+            events_file = Session.paths().events_file(session.id)
+            assert events_file.exists()
 
-        # Load and verify
-        loaded = Session.load(session.id)
-        assert len(loaded.conversation_history) == 2
+            loaded = Session.load(session.id)
+            assert len(loaded.conversation_history) == 2
+            await close_default_store()
+
+        arun(_test())
 
     def test_replay_includes_sub_agent_history(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
         monkeypatch.chdir(project_dir)
 
-        # Create a sub-agent session with some history
-        sub_session = Session.create(id="sub-session")
-        sub_session.append_history(
-            [
-                model.ToolCallItem(call_id="sub-call", name="Bash", arguments="{}"),
-            ]
-        )
+        async def _test() -> None:
+            sub_session = Session.create(id="sub-session")
+            sub_session.append_history([model.ToolCallItem(call_id="sub-call", name="Bash", arguments="{}")])
+            await sub_session.wait_for_flush()
 
-        # Main session references the sub-agent session in a tool result
-        main_session = Session.create(id="main-session")
-        main_session.append_history(
-            [
-                model.ToolCallItem(call_id="parent-call", name="Task", arguments="{}"),
-                model.ToolResultItem(
-                    call_id="parent-call",
-                    output="Delegated to sub-agent",
-                    status="success",
-                    tool_name="Task",
-                    ui_extra=model.SessionIdUIExtra(session_id=sub_session.id),
-                ),
-            ]
-        )
+            main_session = Session.create(id="main-session")
+            main_session.append_history(
+                [
+                    model.ToolCallItem(call_id="parent-call", name="Task", arguments="{}"),
+                    model.ToolResultItem(
+                        call_id="parent-call",
+                        output="Delegated to sub-agent",
+                        status="success",
+                        tool_name="Task",
+                        ui_extra=model.SessionIdUIExtra(session_id=sub_session.id),
+                    ),
+                ]
+            )
+            await main_session.wait_for_flush()
 
-        # Reload main session to ensure it pulls from disk and replays sub-agent events
-        reloaded = Session.load(main_session.id)
-        events_list = list(reloaded.get_history_item())
+            reloaded = Session.load(main_session.id)
+            events_list = list(reloaded.get_history_item())
 
-        # Expect order: parent tool call -> parent tool result -> sub-agent tool call
-        parent_call_index = next(
-            i
-            for i, e in enumerate(events_list)
-            if isinstance(e, events.ToolCallEvent) and e.session_id == main_session.id
-        )
-        parent_result_index = next(
-            i
-            for i, e in enumerate(events_list)
-            if isinstance(e, events.ToolResultEvent) and e.session_id == main_session.id
-        )
+            parent_call_index = next(
+                i
+                for i, e in enumerate(events_list)
+                if isinstance(e, events.ToolCallEvent) and e.session_id == main_session.id
+            )
+            parent_result_index = next(
+                i
+                for i, e in enumerate(events_list)
+                if isinstance(e, events.ToolResultEvent) and e.session_id == main_session.id
+            )
 
-        sub_events = [e for e in events_list if getattr(e, "session_id", None) == sub_session.id]
-        assert sub_events, "Expected sub-agent events to be replayed"
+            sub_events = [e for e in events_list if getattr(e, "session_id", None) == sub_session.id]
+            assert sub_events, "Expected sub-agent events to be replayed"
 
-        # Should include TaskStartEvent for sub-agent session registration
-        sub_task_starts = [e for e in sub_events if isinstance(e, events.TaskStartEvent)]
-        assert sub_task_starts, "Expected TaskStartEvent from sub-agent"
+            sub_task_starts = [e for e in sub_events if isinstance(e, events.TaskStartEvent)]
+            assert sub_task_starts, "Expected TaskStartEvent from sub-agent"
 
-        # Should include ToolCallEvent from sub-agent
-        sub_tool_calls = [e for e in sub_events if isinstance(e, events.ToolCallEvent)]
-        assert sub_tool_calls, "Expected ToolCallEvent from sub-agent"
+            sub_tool_calls = [e for e in sub_events if isinstance(e, events.ToolCallEvent)]
+            assert sub_tool_calls, "Expected ToolCallEvent from sub-agent"
 
-        first_sub_event_index = min(events_list.index(e) for e in sub_events)
-        assert parent_call_index < parent_result_index < first_sub_event_index
+            first_sub_event_index = min(events_list.index(e) for e in sub_events)
+            assert parent_call_index < parent_result_index < first_sub_event_index
+            await close_default_store()
+
+        arun(_test())
 
 
 class TestSessionListAndClean:
@@ -665,37 +671,45 @@ class TestSessionListAndClean:
         project_dir.mkdir()
         monkeypatch.chdir(project_dir)
 
-        # Create a session
-        session = Session(work_dir=project_dir, model_name="gpt-4")
-        session.append_history([model.UserMessageItem(content="Test message")])
+        async def _test() -> None:
+            session = Session(work_dir=project_dir, model_name="gpt-4")
+            session.append_history([model.UserMessageItem(content="Test message")])
+            await session.wait_for_flush()
 
-        sessions = Session.list_sessions()
-        assert len(sessions) == 1
-        meta = sessions[0]
-        assert meta.id == session.id
-        assert meta.model_name == "gpt-4"
-        assert meta.first_user_message == "Test message"
-        assert meta.messages_count == 1
+            sessions = Session.list_sessions()
+            assert len(sessions) == 1
+            meta = sessions[0]
+            assert meta.id == session.id
+            assert meta.model_name == "gpt-4"
+            assert meta.first_user_message == "Test message"
+            assert meta.messages_count == 1
+            await close_default_store()
+
+        arun(_test())
 
     def test_list_sessions_sorted_by_updated_at(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
         monkeypatch.chdir(project_dir)
 
-        # Create two sessions with different timestamps
-        session1 = Session(work_dir=project_dir)
-        session1.created_at = time.time() - 100
-        session1.append_history([model.UserMessageItem(content="First")])
+        async def _test() -> None:
+            session1 = Session(work_dir=project_dir)
+            session1.created_at = time.time() - 100
+            session1.append_history([model.UserMessageItem(content="First")])
+            await session1.wait_for_flush()
 
-        session2 = Session(work_dir=project_dir)
-        session2.created_at = time.time()
-        session2.append_history([model.UserMessageItem(content="Second")])
+            session2 = Session(work_dir=project_dir)
+            session2.created_at = time.time()
+            session2.append_history([model.UserMessageItem(content="Second")])
+            await session2.wait_for_flush()
 
-        sessions = Session.list_sessions()
-        assert len(sessions) == 2
-        # Most recent first
-        assert sessions[0].id == session2.id
-        assert sessions[1].id == session1.id
+            sessions = Session.list_sessions()
+            assert len(sessions) == 2
+            assert sessions[0].id == session2.id
+            assert sessions[1].id == session1.id
+            await close_default_store()
+
+        arun(_test())
 
     def test_most_recent_session_id(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"
@@ -705,60 +719,66 @@ class TestSessionListAndClean:
         # No sessions yet
         assert Session.most_recent_session_id() is None
 
-        # Create a session
-        session = Session(work_dir=project_dir)
-        session.save()
+        async def _test() -> None:
+            session = Session(work_dir=project_dir)
+            session.append_history([model.UserMessageItem(content="hello")])
+            await session.wait_for_flush()
+            assert Session.most_recent_session_id() == session.id
+            await close_default_store()
 
-        assert Session.most_recent_session_id() == session.id
+        arun(_test())
 
     def test_clean_small_sessions(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
         monkeypatch.chdir(project_dir)
 
-        # Create a small session (less than 5 messages)
-        small_session = Session(work_dir=project_dir)
-        small_session.append_history([model.UserMessageItem(content="Only one")])
+        async def _test() -> None:
+            small_session = Session(work_dir=project_dir)
+            small_session.append_history([model.UserMessageItem(content="Only one")])
+            await small_session.wait_for_flush()
 
-        # Create a larger session (5+ messages)
-        large_session = Session(work_dir=project_dir)
-        large_session.append_history(
-            [
-                model.UserMessageItem(content="1"),
-                model.AssistantMessageItem(content="2"),
-                model.UserMessageItem(content="3"),
-                model.AssistantMessageItem(content="4"),
-                model.UserMessageItem(content="5"),
-            ]
-        )
+            large_session = Session(work_dir=project_dir)
+            large_session.append_history(
+                [
+                    model.UserMessageItem(content="1"),
+                    model.AssistantMessageItem(content="2"),
+                    model.UserMessageItem(content="3"),
+                    model.AssistantMessageItem(content="4"),
+                    model.UserMessageItem(content="5"),
+                ]
+            )
+            await large_session.wait_for_flush()
 
-        # Should have 2 sessions
-        assert len(Session.list_sessions()) == 2
+            assert len(Session.list_sessions()) == 2
+            deleted = Session.clean_small_sessions(min_messages=5)
+            assert deleted == 1
 
-        # Clean small sessions
-        deleted = Session.clean_small_sessions(min_messages=5)
-        assert deleted == 1
+            sessions = Session.list_sessions()
+            assert len(sessions) == 1
+            assert sessions[0].id == large_session.id
+            await close_default_store()
 
-        # Should have 1 session left
-        sessions = Session.list_sessions()
-        assert len(sessions) == 1
-        assert sessions[0].id == large_session.id
+        arun(_test())
 
     def test_clean_all_sessions(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
         monkeypatch.chdir(project_dir)
 
-        # Create some sessions
-        for i in range(3):
-            session = Session(work_dir=project_dir)
-            session.append_history([model.UserMessageItem(content=f"Message {i}")])
+        async def _test() -> None:
+            for i in range(3):
+                session = Session(work_dir=project_dir)
+                session.append_history([model.UserMessageItem(content=f"Message {i}")])
+                await session.wait_for_flush()
 
-        assert len(Session.list_sessions()) == 3
+            assert len(Session.list_sessions()) == 3
+            deleted = Session.clean_all_sessions()
+            assert deleted == 3
+            assert len(Session.list_sessions()) == 0
+            await close_default_store()
 
-        deleted = Session.clean_all_sessions()
-        assert deleted == 3
-        assert len(Session.list_sessions()) == 0
+        arun(_test())
 
 
 class TestSessionMetaBrief:

@@ -6,9 +6,10 @@ import pytest
 
 import klaude_code.core.tool as core_tool
 from klaude_code.core.tool import ToolABC, load_agent_tools
+from klaude_code.core.tool.tool_abc import ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.core.tool.tool_runner import ToolExecutor
 from klaude_code.protocol import llm_param, model
-from klaude_code.protocol.sub_agent import is_sub_agent_tool, sub_agent_tool_names
+from klaude_code.protocol.sub_agent import sub_agent_tool_names
 
 
 def test_sub_agent_tool_visibility_respects_filters() -> None:
@@ -35,6 +36,10 @@ class _SlowSubAgentTool(ToolABC):
     """Test-only slow tool used to exercise sub-agent cancellation behavior."""
 
     started: asyncio.Event | None = None
+
+    @classmethod
+    def metadata(cls) -> ToolMetadata:
+        return ToolMetadata(concurrency_policy=ToolConcurrencyPolicy.CONCURRENT, has_side_effects=True)
 
     @classmethod
     def schema(cls) -> llm_param.ToolSchema:
@@ -75,10 +80,6 @@ def _consume_tool_executor(executor: ToolExecutor, tool_calls: list[model.ToolCa
 
 def test_sub_agent_tool_cancellation_propagates_cancelled_error() -> None:
     async def _test() -> None:
-        # Ensure "Explore" is registered as a sub-agent tool so it goes through
-        # the concurrent execution path in ToolExecutor.run_tools.
-        assert is_sub_agent_tool("Explore")
-
         started_event = asyncio.Event()
         _SlowSubAgentTool.started = started_event
 
@@ -99,6 +100,7 @@ def test_sub_agent_tool_cancellation_propagates_cancelled_error() -> None:
         # Wait until the fake sub-agent tool call has started so we know the
         # executor is blocked inside run_tools on the sub-agent task.
         await asyncio.wait_for(started_event.wait(), timeout=1.0)
+        assert executor._concurrent_tasks  # pyright: ignore[reportPrivateUsage]
 
         # Cancelling the outer task should propagate asyncio.CancelledError all
         # the way out instead of being swallowed inside ToolExecutor.

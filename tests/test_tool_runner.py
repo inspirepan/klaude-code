@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from klaude_code.core.tool.tool_abc import ToolABC
+from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.core.tool.tool_runner import (
     ToolExecutionCallStarted,
     ToolExecutionResult,
@@ -81,6 +81,27 @@ class MockTodoChangeTool(ToolABC):
             ui_extra=ui_extra,
             side_effects=[model.ToolSideEffect.TODO_CHANGE],
         )
+
+
+class MockConcurrentTool(ToolABC):
+    """Mock tool marked as concurrent."""
+
+    @classmethod
+    def metadata(cls) -> ToolMetadata:
+        return ToolMetadata(concurrency_policy=ToolConcurrencyPolicy.CONCURRENT, has_side_effects=False)
+
+    @classmethod
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
+            name="MockConcurrent",
+            type="function",
+            description="Mock concurrent tool",
+            parameters={"type": "object", "properties": {}},
+        )
+
+    @classmethod
+    async def call(cls, arguments: str) -> model.ToolResultItem:
+        return model.ToolResultItem(status="success", output="Concurrent!")
 
 
 class TestRunTool:
@@ -272,18 +293,26 @@ class TestToolExecutorPartition:
             model.ToolCallItem(call_id="1", name="Read", arguments="{}"),
             model.ToolCallItem(call_id="2", name="Bash", arguments="{}"),
         ]
-        sequential, concurrent = ToolExecutor._partition_tool_calls(tool_calls)
+        executor = ToolExecutor(
+            registry={"Read": MockSuccessTool, "Bash": MockSuccessTool},
+            append_history=lambda items: None,  # type: ignore[arg-type]
+        )
+        sequential, concurrent = executor._partition_tool_calls(tool_calls)
 
         assert len(sequential) == 2
         assert len(concurrent) == 0
 
     def test_partition_concurrent_tools_only(self):
-        """Test partitioning with only concurrent tools (sub-agents)."""
+        """Test partitioning with only concurrent tools."""
         tool_calls = [
             model.ToolCallItem(call_id="1", name="Task", arguments="{}"),
             model.ToolCallItem(call_id="2", name="Explore", arguments="{}"),
         ]
-        sequential, concurrent = ToolExecutor._partition_tool_calls(tool_calls)
+        executor = ToolExecutor(
+            registry={"Task": MockConcurrentTool, "Explore": MockConcurrentTool},
+            append_history=lambda items: None,  # type: ignore[arg-type]
+        )
+        sequential, concurrent = executor._partition_tool_calls(tool_calls)
 
         assert len(sequential) == 0
         assert len(concurrent) == 2
@@ -295,7 +324,11 @@ class TestToolExecutorPartition:
             model.ToolCallItem(call_id="2", name="Task", arguments="{}"),
             model.ToolCallItem(call_id="3", name="Bash", arguments="{}"),
         ]
-        sequential, concurrent = ToolExecutor._partition_tool_calls(tool_calls)
+        executor = ToolExecutor(
+            registry={"Read": MockSuccessTool, "Bash": MockSuccessTool, "Task": MockConcurrentTool},
+            append_history=lambda items: None,  # type: ignore[arg-type]
+        )
+        sequential, concurrent = executor._partition_tool_calls(tool_calls)
 
         assert len(sequential) == 2
         assert len(concurrent) == 1
@@ -311,7 +344,16 @@ class TestToolExecutorPartition:
             model.ToolCallItem(call_id="3", name="WebFetch", arguments="{}"),
             model.ToolCallItem(call_id="4", name="Task", arguments="{}"),
         ]
-        sequential, concurrent = ToolExecutor._partition_tool_calls(tool_calls)
+        executor = ToolExecutor(
+            registry={
+                "Read": MockSuccessTool,
+                "WebSearch": MockConcurrentTool,
+                "WebFetch": MockConcurrentTool,
+                "Task": MockConcurrentTool,
+            },
+            append_history=lambda items: None,  # type: ignore[arg-type]
+        )
+        sequential, concurrent = executor._partition_tool_calls(tool_calls)
 
         assert len(sequential) == 1
         assert len(concurrent) == 3
