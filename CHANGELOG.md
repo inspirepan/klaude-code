@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.20] - 2025-12-17
+
+### Added
+
+- tx-02 (`90872ed`)
+- add new operation types for commands (`e00af52`)
+- add tool metadata for concurrency policy (`cbac822`)
+- async JSONL store v2 with background writer (`d3c6786`)
+- add codec for conversation item serialization (`d5c4f6d`)
+- add jj (jujutsu) to available CLI tools (`20459d2`)
+- add /jj-workspace for parallel workflow (`de15c23`)
+- add create tool for web-agent to create file (`0d51437`)
+
+### Changed
+
+- remove raw param (`a18ac97`)
+- unify file tracking with FileStatus model (`aaa4eac`)
+- update tests for async session and tool metadata (`aad3286`)
+- handle new operation types (`d5891df`)
+- return operations instead of actions (`b025d4d`)
+- remove debouncer from streaming (`ac62bd5`)
+- add jj workflow decision tree (`5533404`)
+- update publish skill with correct jj workflow (`3dce39c`)
+
+### Fixed
+
+- render update_plan (`020d139`)
+- make BashTool non-interactive and handle cancellation properly (`f6c4f9a`)
+- remove 'v2' in session path (`375d17a`)
+- improve Rich wrapping for mixed CJK/ASCII (`fb6dcf9`)
+- adjust inline code font size (`ca2935a`)
+- patch rich CJK wrapping (`44b83b8`)
+- include URL in all error messages (`e801376`)
+- handle non-UTF-8 encoded web pages (`a58c09b`)
+- fix web fetch tool handling chinese url (`673a952`)
+
+### Other
+
+- minor fixes and cleanup (`bfb5e5f`)
+- unify @ completer rg fallback with fd behavior: respect ignore rules (`04277e0`)
+- Show (empty) indicator for empty working directory in env info (`ef83b7d`)
+- move jj workflow to user claudemd (`c379500`)
+- update AGENTS.md jj workflow (`ca2d078`)
 ## [1.2.19] - 2025-12-13
 
 ### Added
@@ -599,7 +642,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.19...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.20...HEAD
+[1.2.20]: https://github.com/inspirepan/klaude-code/compare/v1.2.19...v1.2.20
 [1.2.19]: https://github.com/inspirepan/klaude-code/compare/v1.2.18...v1.2.19
 [1.2.18]: https://github.com/inspirepan/klaude-code/compare/v1.2.17...v1.2.18
 [1.2.17]: https://github.com/inspirepan/klaude-code/compare/v1.2.16...v1.2.17
