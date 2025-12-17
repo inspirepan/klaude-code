@@ -8,7 +8,6 @@ handling operations submitted from the CLI and coordinating with agents.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -24,7 +23,7 @@ from klaude_code.protocol import commands, events, model, op
 from klaude_code.protocol.op_handler import OperationHandler
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.export import build_export_html, get_default_export_path
-from klaude_code.session.session import Session, close_default_store
+from klaude_code.session.session import Session
 from klaude_code.trace import DebugType, log_debug
 
 
@@ -548,10 +547,6 @@ class Executor:
 
         # Clear the active task manager
         self.context.task_manager.clear()
-
-        # Drain and close session storage writer (best-effort).
-        with contextlib.suppress(Exception):
-            await close_default_store()
 
         # Send EndOperation to wake up the start() loop
         try:

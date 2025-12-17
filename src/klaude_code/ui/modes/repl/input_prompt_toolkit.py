@@ -44,12 +44,10 @@ class PromptToolkitInput(InputProviderABC):
         self._status_provider = status_provider
 
         project = str(Path.cwd()).strip("/").replace("/", "-")
-        history_path = Path.home() / ".klaude" / "projects" / f"{project}" / "input_history.txt"
+        history_path = Path.home() / ".klaude" / "projects" / project / "input" / "input_history.txt"
 
-        if not history_path.parent.exists():
-            history_path.parent.mkdir(parents=True, exist_ok=True)
-        if not history_path.exists():
-            history_path.touch()
+        history_path.parent.mkdir(parents=True, exist_ok=True)
+        history_path.touch(exist_ok=True)
 
         # Create key bindings with injected dependencies
         kb = create_key_bindings(
@@ -60,7 +58,7 @@ class PromptToolkitInput(InputProviderABC):
 
         self._session: PromptSession[str] = PromptSession(
             [(INPUT_PROMPT_STYLE, prompt)],
-            history=FileHistory(history_path),
+            history=FileHistory(str(history_path)),
             multiline=True,
             prompt_continuation=[(INPUT_PROMPT_STYLE, "  ")],
             key_bindings=kb,

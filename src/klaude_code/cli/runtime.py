@@ -17,6 +17,7 @@ from klaude_code.core.executor import Executor
 from klaude_code.core.manager import build_llm_clients
 from klaude_code.protocol import events, op
 from klaude_code.protocol.model import UserInputPayload
+from klaude_code.session.session import close_default_store
 from klaude_code.trace import DebugType, log, set_debug_logging
 from klaude_code.ui.modes.repl import build_repl_status_snapshot
 from klaude_code.ui.modes.repl.input_prompt_toolkit import REPLStatusSnapshot
@@ -184,6 +185,10 @@ async def cleanup_app_components(components: AppComponents) -> None:
         # Clean shutdown
         await components.executor.stop()
         components.executor_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await components.executor_task
+        with contextlib.suppress(Exception):
+            await close_default_store()
 
         # Signal UI to stop
         await components.event_queue.put(events.EndEvent())

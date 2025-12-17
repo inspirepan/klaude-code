@@ -10,9 +10,9 @@ from typing import Any, cast
 from pydantic import BaseModel, Field, PrivateAttr
 
 from klaude_code.protocol import events, llm_param, model, tools
-from klaude_code.session.store_v2 import JsonlSessionStoreV2, V2Paths, build_meta_snapshot
+from klaude_code.session.store import JsonlSessionStore, ProjectPaths, build_meta_snapshot
 
-_DEFAULT_STORES: dict[str, JsonlSessionStoreV2] = {}
+_DEFAULT_STORES: dict[str, JsonlSessionStore] = {}
 
 
 def _project_key_from_cwd() -> str:
@@ -29,11 +29,11 @@ def _read_json_dict(path: Path) -> dict[str, Any] | None:
     return cast(dict[str, Any], raw)
 
 
-def get_default_store() -> JsonlSessionStoreV2:
+def get_default_store() -> JsonlSessionStore:
     project_key = _project_key_from_cwd()
     store = _DEFAULT_STORES.get(project_key)
     if store is None:
-        store = JsonlSessionStoreV2(project_key=project_key)
+        store = JsonlSessionStore(project_key=project_key)
         _DEFAULT_STORES[project_key] = store
     return store
 
@@ -64,7 +64,7 @@ class Session(BaseModel):
     need_todo_not_used_cooldown_counter: int = Field(exclude=True, default=0)
 
     _messages_count_cache: int | None = PrivateAttr(default=None)
-    _store: JsonlSessionStoreV2 = PrivateAttr(default_factory=get_default_store)
+    _store: JsonlSessionStore = PrivateAttr(default_factory=get_default_store)
 
     @property
     def messages_count(self) -> int:
@@ -85,7 +85,7 @@ class Session(BaseModel):
         return _project_key_from_cwd()
 
     @classmethod
-    def paths(cls) -> V2Paths:
+    def paths(cls) -> ProjectPaths:
         return get_default_store().paths
 
     @classmethod

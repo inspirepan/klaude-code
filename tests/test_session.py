@@ -461,7 +461,7 @@ class TestSessionDirectories:
 
     def test_base_dir_under_home(self):
         base = Session.paths().base_dir
-        assert base.parent == Path.home() / ".klaude" / "v2" / "projects"
+        assert base.parent == Path.home() / ".klaude" / "projects"
 
     def test_sessions_dir_under_base(self):
         sessions_dir = Session.paths().sessions_dir

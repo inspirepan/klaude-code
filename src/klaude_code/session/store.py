@@ -13,12 +13,12 @@ from klaude_code.session.codec import decode_jsonl_line, encode_jsonl_line
 
 
 @dataclass(frozen=True)
-class V2Paths:
+class ProjectPaths:
     project_key: str
 
     @property
     def base_dir(self) -> Path:
-        return Path.home() / ".klaude" / "v2" / "projects" / self.project_key
+        return Path.home() / ".klaude" / "projects" / self.project_key
 
     @property
     def sessions_dir(self) -> Path:
@@ -50,8 +50,8 @@ class _WriteBatch:
     done: asyncio.Future[None]
 
 
-class JsonlSessionWriterV2:
-    def __init__(self, paths: V2Paths) -> None:
+class JsonlSessionWriter:
+    def __init__(self, paths: ProjectPaths) -> None:
         self._paths = paths
         self._queue: asyncio.Queue[_WriteBatch | None] = asyncio.Queue()
         self._task: asyncio.Task[None] | None = None
@@ -115,14 +115,14 @@ class JsonlSessionWriterV2:
             batch.done.set_result(None)
 
 
-class JsonlSessionStoreV2:
+class JsonlSessionStore:
     def __init__(self, *, project_key: str) -> None:
-        self._paths = V2Paths(project_key=project_key)
-        self._writer = JsonlSessionWriterV2(self._paths)
+        self._paths = ProjectPaths(project_key=project_key)
+        self._writer = JsonlSessionWriter(self._paths)
         self._last_flush: dict[str, asyncio.Future[None]] = {}
 
     @property
-    def paths(self) -> V2Paths:
+    def paths(self) -> ProjectPaths:
         return self._paths
 
     def load_meta(self, session_id: str) -> dict[str, Any] | None:
