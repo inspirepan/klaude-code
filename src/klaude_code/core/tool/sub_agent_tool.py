@@ -10,7 +10,7 @@ import asyncio
 import json
 from typing import TYPE_CHECKING, ClassVar
 
-from klaude_code.core.tool.tool_abc import ToolABC
+from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.core.tool.tool_context import current_run_subtask_callback
 from klaude_code.protocol import llm_param, model
 
@@ -35,6 +35,10 @@ class SubAgentTool(ToolABC):
             (SubAgentTool,),
             {"_profile": profile},
         )
+
+    @classmethod
+    def metadata(cls) -> ToolMetadata:
+        return ToolMetadata(concurrency_policy=ToolConcurrencyPolicy.CONCURRENT, has_side_effects=True)
 
     @classmethod
     def schema(cls) -> llm_param.ToolSchema:

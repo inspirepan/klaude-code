@@ -11,7 +11,7 @@ from urllib.parse import quote, urlparse, urlunparse
 from pydantic import BaseModel
 
 from klaude_code import const
-from klaude_code.core.tool.tool_abc import ToolABC, load_desc
+from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, model, tools
 
@@ -165,6 +165,10 @@ def _fetch_url(url: str, timeout: int = DEFAULT_TIMEOUT_SEC) -> tuple[str, str]:
 
 @register(tools.WEB_FETCH)
 class WebFetchTool(ToolABC):
+    @classmethod
+    def metadata(cls) -> ToolMetadata:
+        return ToolMetadata(concurrency_policy=ToolConcurrencyPolicy.CONCURRENT, has_side_effects=True)
+
     @classmethod
     def schema(cls) -> llm_param.ToolSchema:
         return llm_param.ToolSchema(

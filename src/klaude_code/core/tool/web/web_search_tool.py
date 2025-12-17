@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from klaude_code.core.tool.tool_abc import ToolABC, load_desc
+from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, model, tools
 
@@ -62,6 +62,10 @@ def _format_results(results: list[SearchResult]) -> str:
 
 @register(tools.WEB_SEARCH)
 class WebSearchTool(ToolABC):
+    @classmethod
+    def metadata(cls) -> ToolMetadata:
+        return ToolMetadata(concurrency_policy=ToolConcurrencyPolicy.CONCURRENT, has_side_effects=False)
+
     @classmethod
     def schema(cls) -> llm_param.ToolSchema:
         return llm_param.ToolSchema(

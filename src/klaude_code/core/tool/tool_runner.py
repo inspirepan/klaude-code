@@ -4,13 +4,9 @@ from dataclasses import dataclass
 
 from klaude_code import const
 from klaude_code.core.tool.report_back_tool import ReportBackTool
-from klaude_code.core.tool.tool_abc import ToolABC
+from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy
 from klaude_code.core.tool.truncation import truncate_tool_output
 from klaude_code.protocol import model, tools
-from klaude_code.protocol.sub_agent import is_sub_agent_tool
-
-# Tools that can run concurrently (IO-bound, no local state mutations)
-_CONCURRENT_TOOLS: frozenset[str] = frozenset({tools.WEB_SEARCH, tools.WEB_FETCH})
 
 
 async def run_tool(tool_call: model.ToolCallItem, registry: dict[str, type[ToolABC]]) -> model.ToolResultItem:
@@ -214,14 +210,18 @@ class ToolExecutor:
 
         task.add_done_callback(_cleanup)
 
-    @staticmethod
     def _partition_tool_calls(
+        self,
         tool_calls: list[model.ToolCallItem],
     ) -> tuple[list[model.ToolCallItem], list[model.ToolCallItem]]:
         sequential_tool_calls: list[model.ToolCallItem] = []
         concurrent_tool_calls: list[model.ToolCallItem] = []
         for tool_call in tool_calls:
-            if is_sub_agent_tool(tool_call.name) or tool_call.name in _CONCURRENT_TOOLS:
+            tool_cls = self._registry.get(tool_call.name)
+            policy = (
+                tool_cls.metadata().concurrency_policy if tool_cls is not None else ToolConcurrencyPolicy.SEQUENTIAL
+            )
+            if policy == ToolConcurrencyPolicy.CONCURRENT:
                 concurrent_tool_calls.append(tool_call)
             else:
                 sequential_tool_calls.append(tool_call)
