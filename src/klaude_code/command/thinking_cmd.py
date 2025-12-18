@@ -10,6 +10,7 @@ RESPONSES_LEVELS = ["low", "medium", "high"]
 RESPONSES_GPT51_LEVELS = ["none", "low", "medium", "high"]
 RESPONSES_GPT52_LEVELS = ["none", "low", "medium", "high", "xhigh"]
 RESPONSES_CODEX_MAX_LEVELS = ["medium", "high", "xhigh"]
+RESPONSES_GEMINI_FLASH_LEVELS = ["minimal", "low", "medium", "high"]
 
 ANTHROPIC_LEVELS: list[tuple[str, int | None]] = [
     ("off", 0),
@@ -48,6 +49,13 @@ def _is_codex_max_model(model_name: str | None) -> bool:
     return "codex-max" in model_name.lower()
 
 
+def _is_gemini_flash_model(model_name: str | None) -> bool:
+    """Check if the model is Gemini 3 Flash."""
+    if not model_name:
+        return False
+    return "gemini-3-flash" in model_name.lower()
+
+
 def _get_levels_for_responses(model_name: str | None) -> list[str]:
     """Get thinking levels for responses protocol."""
     if _is_codex_max_model(model_name):
@@ -56,6 +64,8 @@ def _get_levels_for_responses(model_name: str | None) -> list[str]:
         return RESPONSES_GPT52_LEVELS
     if _is_gpt51_model(model_name):
         return RESPONSES_GPT51_LEVELS
+    if _is_gemini_flash_model(model_name):
+        return RESPONSES_GEMINI_FLASH_LEVELS
     return RESPONSES_LEVELS
 
 
