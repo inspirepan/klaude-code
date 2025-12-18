@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.21] - 2025-12-18
+
+### Added
+
+- add /thinking gemini-3-flash-preview's minimal thinking level (`4f62bd3`)
+- add --resume-by-id (`beb0323`)
+- add syntax constraint for quoting node labels in Mermaid diagrams (`cae251a`)
+
+### Other
+
+- update agents.md & fix pyright (`616e6c3`)
 ## [1.2.20] - 2025-12-17
 
 ### Added
@@ -642,7 +653,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.20...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.21...HEAD
+[1.2.21]: https://github.com/inspirepan/klaude-code/compare/v1.2.20...v1.2.21
 [1.2.20]: https://github.com/inspirepan/klaude-code/compare/v1.2.19...v1.2.20
 [1.2.19]: https://github.com/inspirepan/klaude-code/compare/v1.2.18...v1.2.19
 [1.2.18]: https://github.com/inspirepan/klaude-code/compare/v1.2.17...v1.2.18
