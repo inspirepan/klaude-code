@@ -203,23 +203,20 @@ class ShimmerStatusText:
         yield table
 
     def _render_left_text(self, console: Console) -> Text:
-        """Render the left part with shimmer effect."""
+        """Render the left part with shimmer effect on main text only."""
         result = Text()
         main_style = console.get_style(str(self._main_style))
         hint_style = console.get_style(str(self._hint_style))
 
-        combined_text = self._main_text.plain + self._hint_text.plain
-        split_index = len(self._main_text.plain)
-
-        for index, (ch, intensity) in enumerate(_shimmer_profile(combined_text)):
-            if index < split_index:
-                # Get style from main_text, merge with main_style
-                char_style = self._main_text.get_style_at_offset(console, index)
-                base_style = main_style + char_style
-            else:
-                base_style = hint_style
+        # Apply shimmer only to main text
+        for index, (ch, intensity) in enumerate(_shimmer_profile(self._main_text.plain)):
+            char_style = self._main_text.get_style_at_offset(console, index)
+            base_style = main_style + char_style
             style = _shimmer_style(console, base_style, intensity)
             result.append(ch, style=style)
+
+        # Append hint text without shimmer
+        result.append(self._hint_text.plain, style=hint_style)
 
         return result
 
