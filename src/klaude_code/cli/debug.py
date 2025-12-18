@@ -1,6 +1,5 @@
 """Debug utilities for CLI."""
 
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -45,16 +44,15 @@ def resolve_debug_settings(flag: bool, raw_filters: str | None) -> tuple[bool, s
 def open_log_file_in_editor(path: Path) -> None:
     """Open the given log file in a text editor without blocking the CLI."""
 
-    editor = os.environ.get("EDITOR")
+    editor = ""
 
-    if not editor:
-        for cmd in ["open", "xdg-open", "code", "TextEdit", "notepad"]:
-            try:
-                subprocess.run(["which", cmd], check=True, capture_output=True)
-                editor = cmd
-                break
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                continue
+    for cmd in ["code", "TextEdit", "notepad"]:
+        try:
+            subprocess.run(["which", cmd], check=True, capture_output=True)
+            editor = cmd
+            break
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            continue
 
     if not editor:
         if sys.platform == "darwin":
