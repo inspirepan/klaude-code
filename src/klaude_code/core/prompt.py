@@ -19,6 +19,7 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
 PROMPT_FILES: dict[str, str] = {
     "main_gpt_5_1": "prompts/prompt-codex-gpt-5-1.md",
     "main_gpt_5_1_codex_max": "prompts/prompt-codex-gpt-5-1-codex-max.md",
+    "main_gpt_5_2_codex": "prompts/prompt-codex-gpt-5-2-codex.md",
     "main": "prompts/prompt-claude-code.md",
     "main_gemini": "prompts/prompt-gemini.md",  # https://ai.google.dev/gemini-api/docs/prompting-strategies?hl=zh-cn#agentic-si-template
 }
@@ -43,6 +44,8 @@ def _load_base_prompt(file_key: str) -> str:
 def _get_file_key(model_name: str, protocol: llm_param.LLMClientProtocol) -> str:
     """Determine which prompt file to use based on model."""
     match model_name:
+        case name if "gpt-5.2-codex" in name:
+            return "main_gpt_5_2_codex"
         case name if "gpt-5.1-codex-max" in name:
             return "main_gpt_5_1_codex_max"
         case name if "gpt-5" in name:
