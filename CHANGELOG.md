@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.22] - 2025-12-19
+
+### Added
+
+- track file access for cat/sed/mv commands (`e5d74b0`)
+- use content hash instead of mtime for change detection (`7775e60`)
+- show head and tail lines when truncating long output (`61a16a4`)
+- add context lines and hunk separators to structured diff (`2596d19`)
+- add character-level diff highlighting (`b5e8a6a`)
+- add spacing after horizontal rules in markdown (`8ad6091`)
+- update gpt-5.2-codex prompt (`52ee2e1`)
+
+### Changed
+
+- truncate large files instead of returning error (`1fb966c`)
+- improve diff color contrast for better readability (`41c5ee7`)
+- remove /diff command (`44c894a`)
+- remove MemoryTool (`02589a0`)
+- remove MultiEditTool (`bd17a58`)
+- simplify GPT codex prompt (`896c457`)
+
+### Fixed
+
+- add type annotation to satisfy pyright strict mode (`56e011f`)
+- exclude hint text from shimmer effect (`120bed0`)
+- update debug log editor (`ae711c8`)
 ## [1.2.21] - 2025-12-18
 
 ### Added
@@ -653,7 +679,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.21...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.22...HEAD
+[1.2.22]: https://github.com/inspirepan/klaude-code/compare/v1.2.21...v1.2.22
 [1.2.21]: https://github.com/inspirepan/klaude-code/compare/v1.2.20...v1.2.21
 [1.2.20]: https://github.com/inspirepan/klaude-code/compare/v1.2.19...v1.2.20
 [1.2.19]: https://github.com/inspirepan/klaude-code/compare/v1.2.18...v1.2.19
