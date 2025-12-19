@@ -131,12 +131,6 @@ def _image_mime_type(file_path: str) -> str:
     return mime_type
 
 
-def _encode_image_to_data_url(file_path: str, mime_type: str) -> str:
-    with open(file_path, "rb") as image_file:
-        encoded = b64encode(image_file.read()).decode("ascii")
-    return f"data:{mime_type};base64,{encoded}"
-
-
 @register(tools.READ)
 class ReadTool(ToolABC):
     class ReadArguments(BaseModel):

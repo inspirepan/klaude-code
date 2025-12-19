@@ -17,6 +17,7 @@ if SRC_DIR.is_dir() and str(SRC_DIR) not in os.sys.path:  # type: ignore
 
 from klaude_code.core.reminders import at_file_reader_reminder  # noqa: E402
 from klaude_code.core.tool import (  # noqa: E402
+    BashTool,
     EditTool,
     ReadTool,
     ToolContextToken,
@@ -497,6 +498,112 @@ class TestEditTool(BaseTempDirTest):
             res.output,
             "File has been modified externally. Either by user or a linter. Read it first before writing to it.",
         )
+
+
+class TestBashToolFileTracking(BaseTempDirTest):
+    def test_bash_cat_counts_as_read_for_edit(self):
+        p = os.path.abspath("cat_read.txt")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write("hello\n")
+
+        res = arun(BashTool.call(json.dumps({"command": f"cat {p}"})))
+        self.assertEqual(res.status, "success")
+
+        status = self.session.file_tracker.get(p)
+        self.assertIsNotNone(status)
+        assert status is not None
+        self.assertEqual(status.content_sha256, hashlib.sha256(b"hello\n").hexdigest())
+
+        # Edit should be allowed because the file is now tracked as read.
+        res2 = arun(
+            EditTool.call(
+                json.dumps(
+                    {
+                        "file_path": p,
+                        "old_string": "hello",
+                        "new_string": "HELLO",
+                        "replace_all": False,
+                    }
+                )
+            )
+        )
+        self.assertEqual(res2.status, "success")
+
+    def test_bash_sed_updates_tracker_to_avoid_external_change_error(self):
+        p = os.path.abspath("sed_inplace.txt")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write("foo\n")
+
+        # In-place edit via sed should update file_tracker so subsequent edits won't error.
+        res = arun(BashTool.call(json.dumps({"command": f"sed -i '' 's/foo/bar/' {p}"})))
+        self.assertEqual(res.status, "success")
+
+        status = self.session.file_tracker.get(p)
+        self.assertIsNotNone(status)
+        assert status is not None
+        self.assertEqual(status.content_sha256, hashlib.sha256(b"bar\n").hexdigest())
+
+        res2 = arun(
+            EditTool.call(
+                json.dumps(
+                    {
+                        "file_path": p,
+                        "old_string": "bar",
+                        "new_string": "baz",
+                        "replace_all": False,
+                    }
+                )
+            )
+        )
+        self.assertEqual(res2.status, "success")
+
+    def test_bash_mv_moves_tracked_status(self):
+        src = os.path.abspath("old_name.txt")
+        dst = os.path.abspath("new_name.txt")
+        with open(src, "w", encoding="utf-8") as f:
+            f.write("move me\n")
+
+        _ = arun(BashTool.call(json.dumps({"command": f"cat {src}"})))
+        self.assertIn(src, self.session.file_tracker)
+
+        res = arun(BashTool.call(json.dumps({"command": f"mv {src} {dst}"})))
+        self.assertEqual(res.status, "success")
+
+        self.assertNotIn(src, self.session.file_tracker)
+        self.assertIn(dst, self.session.file_tracker)
+        status = self.session.file_tracker.get(dst)
+        assert status is not None
+        self.assertEqual(status.content_sha256, hashlib.sha256(b"move me\n").hexdigest())
+
+    def test_bash_cd_and_cat_tracks_in_subdir(self):
+        sub = Path("sub")
+        sub.mkdir(parents=True, exist_ok=True)
+        p = (sub / "f.txt").resolve()
+        with open(p, "w", encoding="utf-8") as f:
+            f.write("hi\n")
+
+        res = arun(BashTool.call(json.dumps({"command": "cd sub && cat f.txt"})))
+        self.assertEqual(res.status, "success")
+        self.assertIn(str(p), self.session.file_tracker)
+        status = self.session.file_tracker.get(str(p))
+        assert status is not None
+        self.assertEqual(status.content_sha256, hashlib.sha256(b"hi\n").hexdigest())
+
+    def test_bash_cd_and_mv_moves_tracked_status(self):
+        sub = Path("submv")
+        sub.mkdir(parents=True, exist_ok=True)
+        src = (sub / "a.txt").resolve()
+        dst = (sub / "b.txt").resolve()
+        with open(src, "w", encoding="utf-8") as f:
+            f.write("x\n")
+
+        _ = arun(BashTool.call(json.dumps({"command": f"cd {sub} && cat a.txt"})))
+        self.assertIn(str(src), self.session.file_tracker)
+
+        res = arun(BashTool.call(json.dumps({"command": f"cd {sub} && mv a.txt b.txt"})))
+        self.assertEqual(res.status, "success")
+        self.assertNotIn(str(src), self.session.file_tracker)
+        self.assertIn(str(dst), self.session.file_tracker)
 
 
 if __name__ == "__main__":
