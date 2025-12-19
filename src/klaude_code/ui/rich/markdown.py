@@ -9,7 +9,7 @@ from typing import Any, ClassVar
 
 from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.live import Live
-from rich.markdown import CodeBlock, Heading, Markdown
+from rich.markdown import CodeBlock, Heading, HorizontalRule, Markdown
 from rich.rule import Rule
 from rich.spinner import Spinner
 from rich.style import Style
@@ -45,6 +45,14 @@ class ThinkingCodeBlock(CodeBlock):
         yield CodePanel(text, border_style="markdown.code.border")
 
 
+class SpacedHorizontalRule(HorizontalRule):
+    """A horizontal rule with an extra blank line below."""
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        yield from super().__rich_console__(console, options)
+        yield Text()
+
+
 class LeftHeading(Heading):
     """A heading class that renders left-justified."""
 
@@ -69,6 +77,7 @@ class NoInsetMarkdown(Markdown):
         "fence": NoInsetCodeBlock,
         "code_block": NoInsetCodeBlock,
         "heading_open": LeftHeading,
+        "hr": SpacedHorizontalRule,
     }
 
 
@@ -80,6 +89,7 @@ class ThinkingMarkdown(Markdown):
         "fence": ThinkingCodeBlock,
         "code_block": ThinkingCodeBlock,
         "heading_open": LeftHeading,
+        "hr": SpacedHorizontalRule,
     }
 
 
