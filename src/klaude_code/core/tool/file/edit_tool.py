@@ -55,7 +55,6 @@ class EditTool(ToolABC):
             },
         )
 
-    # Validation utility for MultiEdit integration
     @classmethod
     def valid(
         cls, *, content: str, old_string: str, new_string: str, replace_all: bool
@@ -74,7 +73,6 @@ class EditTool(ToolABC):
             )
         return None
 
-    # Execute utility for MultiEdit integration
     @classmethod
     def execute(cls, *, content: str, old_string: str, new_string: str, replace_all: bool) -> str:
         if old_string == "":

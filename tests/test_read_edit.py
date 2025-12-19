@@ -18,7 +18,6 @@ if SRC_DIR.is_dir() and str(SRC_DIR) not in os.sys.path:  # type: ignore
 from klaude_code.core.reminders import at_file_reader_reminder  # noqa: E402
 from klaude_code.core.tool import (  # noqa: E402
     EditTool,
-    MultiEditTool,
     ReadTool,
     ToolContextToken,
     reset_tool_context,
@@ -478,121 +477,6 @@ class TestEditTool(BaseTempDirTest):
                 )
             )
         )
-        self.assertEqual(res.status, "error")
-        self.assertEqual(
-            res.output,
-            "File has been modified externally. Either by user or a linter. Read it first before writing to it.",
-        )
-
-
-class TestMultiEditTool(BaseTempDirTest):
-    def test_multiedit_requires_read_first(self):
-        p = os.path.abspath("multi.txt")
-        with open(p, "w", encoding="utf-8") as f:
-            f.write("第一行：需要修改\n第二行：也要修改\n第三行：不变\n第四行：同样需要修改\n")
-        args = {
-            "file_path": p,
-            "edits": [
-                {"old_string": "第一行：需要修改", "new_string": "第一行：已修改"},
-                {"old_string": "第二行：也要修改", "new_string": "第二行：已修改"},
-            ],
-        }
-        res = arun(MultiEditTool.call(json.dumps(args)))
-        self.assertEqual(res.status, "error")
-        self.assertEqual(
-            res.output,
-            "File has not been read yet. Read it first before writing to it.",
-        )
-
-    def test_multiedit_success_sequence(self):
-        p = os.path.abspath("multi_ok.txt")
-        with open(p, "w", encoding="utf-8") as f:
-            f.write("第一行：需要修改\n第二行：也要修改\n第三行：不变\n第四行：同样需要修改\n")
-        _ = arun(ReadTool.call(json.dumps({"file_path": p})))
-        args = {
-            "file_path": p,
-            "edits": [
-                {"old_string": "第一行：需要修改", "new_string": "第一行：已修改"},
-                {"old_string": "第二行：也要修改", "new_string": "第二行：已修改"},
-                {"old_string": "第四行：同样需要修改", "new_string": "第四行：已修改"},
-            ],
-        }
-        res = arun(MultiEditTool.call(json.dumps(args)))
-        self.assertEqual(res.status, "success")
-        self.assertIn(f"Applied 3 edits to {p}:", res.output or "")
-        self.assertIn('1. Replaced "第一行：需要修改" with "第一行：已修改"', res.output or "")
-        self.assertIn('2. Replaced "第二行：也要修改" with "第二行：已修改"', res.output or "")
-        self.assertIn('3. Replaced "第四行：同样需要修改" with "第四行：已修改"', res.output or "")
-
-    def test_multiedit_validation_failure_mid_sequence(self):
-        p = os.path.abspath("multi_fail.txt")
-        with open(p, "w", encoding="utf-8") as f:
-            f.write("abc\n")
-        _ = arun(ReadTool.call(json.dumps({"file_path": p})))
-        args = {
-            "file_path": p,
-            "edits": [
-                {"old_string": "abc", "new_string": "def"},
-                {
-                    "old_string": "abc",
-                    "new_string": "xyz",
-                },  # not found after first edit
-            ],
-        }
-        res = arun(MultiEditTool.call(json.dumps(args)))
-        self.assertEqual(res.status, "error")
-        self.assertEqual(
-            res.output,
-            "<tool_use_error>String to replace not found in file.\nString: abc</tool_use_error>",
-        )
-
-    def test_multiedit_directory_error(self):
-        dir_path = os.path.abspath(".")
-        res = arun(
-            MultiEditTool.call(
-                json.dumps(
-                    {
-                        "file_path": dir_path,
-                        "edits": [{"old_string": "a", "new_string": "b"}],
-                    }
-                )
-            )
-        )
-        self.assertEqual(res.status, "error")
-        self.assertEqual(
-            res.output,
-            "<tool_use_error>Illegal operation on a directory. multi_edit</tool_use_error>",
-        )
-
-    def test_multiedit_creation_then_edit(self):
-        p = os.path.abspath("create_seq.txt")
-        args = {
-            "file_path": p,
-            "edits": [
-                {"old_string": "", "new_string": "Line1\n"},
-                {"old_string": "Line1", "new_string": "Line1 changed"},
-            ],
-        }
-        res = arun(MultiEditTool.call(json.dumps(args)))
-        self.assertEqual(res.status, "success")
-        with open(p, encoding="utf-8") as f:
-            content = f.read()
-        self.assertIn("Line1 changed", content)
-
-    def test_multiedit_mtime_mismatch(self):
-        p = os.path.abspath("multi_mtime.txt")
-        with open(p, "w", encoding="utf-8") as f:
-            f.write("hello\n")
-        _ = arun(ReadTool.call(json.dumps({"file_path": p})))
-        # external modification
-        with open(p, "a", encoding="utf-8") as f:
-            f.write("world\n")
-        time.sleep(0.01)
-        args = {
-            "file_path": p,
-            "edits": [{"old_string": "hello\nworld\n", "new_string": "X\nY\n"}],
-        }
-        res = arun(MultiEditTool.call(json.dumps(args)))
         self.assertEqual(res.status, "error")
         self.assertEqual(
             res.output,

@@ -1,7 +1,7 @@
 BASH = "Bash"
 APPLY_PATCH = "apply_patch"
 EDIT = "Edit"
-MULTI_EDIT = "MultiEdit"
+
 READ = "Read"
 WRITE = "Write"
 TODO_WRITE = "TodoWrite"

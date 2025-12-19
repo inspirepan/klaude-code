@@ -1,7 +1,6 @@
 from .file.apply_patch import DiffError, process_patch
 from .file.apply_patch_tool import ApplyPatchTool
 from .file.edit_tool import EditTool
-from .file.multi_edit_tool import MultiEditTool
 from .file.read_tool import ReadTool
 from .file.write_tool import WriteTool
 from .memory.memory_tool import MEMORY_DIR_NAME, MemoryTool
@@ -40,7 +39,6 @@ __all__ = [
     "FileTracker",
     "MemoryTool",
     "MermaidTool",
-    "MultiEditTool",
     "ReadTool",
     "ReportBackTool",
     "SafetyCheckResult",

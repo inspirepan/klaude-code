@@ -197,28 +197,6 @@ def render_write_tool_call(arguments: str) -> RenderableType:
     return grid
 
 
-def render_multi_edit_tool_call(arguments: str) -> RenderableType:
-    grid = create_grid()
-    tool_name_column = Text.assemble(("→", ThemeKey.TOOL_MARK), " ", ("MultiEdit", ThemeKey.TOOL_NAME))
-    try:
-        json_dict = json.loads(arguments)
-        file_path = json_dict.get("file_path")
-        edits = json_dict.get("edits", [])
-        arguments_column = Text.assemble(
-            render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH),
-            Text(" - "),
-            Text(f"{len(edits)}", ThemeKey.TOOL_PARAM_BOLD),
-            Text(" updates", ThemeKey.TOOL_PARAM_FILE_PATH),
-        )
-    except json.JSONDecodeError:
-        arguments_column = Text(
-            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
-            style=ThemeKey.INVALID_TOOL_CALL_ARGS,
-        )
-    grid.add_row(tool_name_column, arguments_column)
-    return grid
-
-
 def render_apply_patch_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
     tool_name_column = Text.assemble(("→", ThemeKey.TOOL_MARK), " ", ("Apply Patch", ThemeKey.TOOL_NAME))
@@ -504,7 +482,6 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.BASH: "Bashing",
     tools.APPLY_PATCH: "Patching",
     tools.EDIT: "Editing",
-    tools.MULTI_EDIT: "Editing",
     tools.READ: "Reading",
     tools.WRITE: "Writing",
     tools.TODO_WRITE: "Planning",
@@ -552,8 +529,7 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
             return render_edit_tool_call(e.arguments)
         case tools.WRITE:
             return render_write_tool_call(e.arguments)
-        case tools.MULTI_EDIT:
-            return render_multi_edit_tool_call(e.arguments)
+
         case tools.BASH:
             return render_bash_tool_call(e.arguments)
         case tools.APPLY_PATCH:
@@ -609,7 +585,7 @@ def render_tool_result(e: events.ToolResultEvent) -> RenderableType | None:
     match e.tool_name:
         case tools.READ:
             return None
-        case tools.EDIT | tools.MULTI_EDIT | tools.WRITE:
+        case tools.EDIT | tools.WRITE:
             return Padding.indent(r_diffs.render_diff(diff_text or ""), level=2)
         case tools.MEMORY:
             if diff_text:
