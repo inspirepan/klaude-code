@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from klaude_code.core.tool.file._utils import file_exists, is_directory, read_text, write_text
+from klaude_code.core.tool.file._utils import file_exists, hash_text_sha256, is_directory, read_text, write_text
 from klaude_code.core.tool.file.diff_builder import build_structured_diff
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
@@ -62,36 +62,52 @@ class WriteTool(ToolABC):
 
         file_tracker = get_current_file_tracker()
         exists = file_exists(file_path)
+        tracked_status: model.FileStatus | None = None
 
         if exists:
-            tracked_status: model.FileStatus | None = None
-            if file_tracker is not None:
-                tracked_status = file_tracker.get(file_path)
+            tracked_status = file_tracker.get(file_path) if file_tracker is not None else None
             if tracked_status is None:
                 return model.ToolResultItem(
                     status="error",
                     output=("File has not been read yet. Read it first before writing to it."),
                 )
-            try:
-                current_mtime = Path(file_path).stat().st_mtime
-            except Exception:
-                current_mtime = tracked_status.mtime
-            if current_mtime != tracked_status.mtime:
-                return model.ToolResultItem(
-                    status="error",
-                    output=(
-                        "File has been modified externally. Either by user or a linter. "
-                        "Read it first before writing to it."
-                    ),
-                )
 
-        # Capture previous content (if any) for diff generation
+        # Capture previous content (if any) for diff generation and external-change detection.
         before = ""
+        before_read_ok = False
         if exists:
             try:
                 before = await asyncio.to_thread(read_text, file_path)
+                before_read_ok = True
             except Exception:
                 before = ""
+                before_read_ok = False
+
+            # Re-check external modifications using content hash when available.
+            if before_read_ok and tracked_status is not None and tracked_status.content_sha256 is not None:
+                current_sha256 = hash_text_sha256(before)
+                if current_sha256 != tracked_status.content_sha256:
+                    return model.ToolResultItem(
+                        status="error",
+                        output=(
+                            "File has been modified externally. Either by user or a linter. "
+                            "Read it first before writing to it."
+                        ),
+                    )
+            elif tracked_status is not None:
+                # Backward-compat: old sessions only stored mtime, or we couldn't hash.
+                try:
+                    current_mtime = Path(file_path).stat().st_mtime
+                except Exception:
+                    current_mtime = tracked_status.mtime
+                if current_mtime != tracked_status.mtime:
+                    return model.ToolResultItem(
+                        status="error",
+                        output=(
+                            "File has been modified externally. Either by user or a linter. "
+                            "Read it first before writing to it."
+                        ),
+                    )
 
         try:
             await asyncio.to_thread(write_text, file_path, args.content)
@@ -102,7 +118,11 @@ class WriteTool(ToolABC):
             with contextlib.suppress(Exception):
                 existing = file_tracker.get(file_path)
                 is_mem = existing.is_memory if existing else False
-                file_tracker[file_path] = model.FileStatus(mtime=Path(file_path).stat().st_mtime, is_memory=is_mem)
+                file_tracker[file_path] = model.FileStatus(
+                    mtime=Path(file_path).stat().st_mtime,
+                    content_sha256=hash_text_sha256(args.content),
+                    is_memory=is_mem,
+                )
 
         # Build diff between previous and new content
         after = args.content

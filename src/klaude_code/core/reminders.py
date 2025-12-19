@@ -1,3 +1,4 @@
+import hashlib
 import re
 import shlex
 from collections.abc import Awaitable, Callable
@@ -8,6 +9,7 @@ from pydantic import BaseModel
 
 from klaude_code import const
 from klaude_code.core.tool import BashTool, ReadTool, reset_tool_context, set_tool_context_from_session
+from klaude_code.core.tool.file._utils import hash_text_sha256
 from klaude_code.protocol import model, tools
 from klaude_code.session import Session
 
@@ -262,7 +264,17 @@ async def file_changed_externally_reminder(
     if session.file_tracker and len(session.file_tracker) > 0:
         for path, status in session.file_tracker.items():
             try:
-                if Path(path).stat().st_mtime > status.mtime:
+                current_mtime = Path(path).stat().st_mtime
+
+                changed = False
+                if status.content_sha256 is not None:
+                    current_sha256 = _compute_file_content_sha256(path)
+                    changed = current_sha256 is not None and current_sha256 != status.content_sha256
+                else:
+                    # Backward-compat: old sessions only tracked mtime.
+                    changed = current_mtime != status.mtime
+
+                if changed:
                     context_token = set_tool_context_from_session(session)
                     try:
                         tool_result = await ReadTool.call_with_args(
@@ -297,6 +309,24 @@ async def file_changed_externally_reminder(
         )
 
     return None
+
+
+def _compute_file_content_sha256(path: str) -> str | None:
+    """Compute SHA-256 for file content using the same decoding behavior as ReadTool."""
+
+    try:
+        suffix = Path(path).suffix.lower()
+        if suffix in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
+            with open(path, "rb") as f:
+                return hashlib.sha256(f.read()).hexdigest()
+
+        hasher = hashlib.sha256()
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                hasher.update(line.encode("utf-8"))
+        return hasher.hexdigest()
+    except (FileNotFoundError, IsADirectoryError, OSError, PermissionError, UnicodeDecodeError):
+        return None
 
 
 def get_memory_paths() -> list[tuple[Path, str]]:
@@ -355,7 +385,11 @@ def _mark_memory_loaded(session: Session, path: str) -> None:
         mtime = Path(path).stat().st_mtime
     except (OSError, FileNotFoundError):
         mtime = 0.0
-    session.file_tracker[path] = model.FileStatus(mtime=mtime, is_memory=True)
+    try:
+        content_sha256 = hash_text_sha256(Path(path).read_text(encoding="utf-8", errors="replace"))
+    except (OSError, FileNotFoundError, PermissionError, UnicodeDecodeError):
+        content_sha256 = None
+    session.file_tracker[path] = model.FileStatus(mtime=mtime, content_sha256=content_sha256, is_memory=True)
 
 
 async def memory_reminder(session: Session) -> model.DeveloperMessageItem | None:

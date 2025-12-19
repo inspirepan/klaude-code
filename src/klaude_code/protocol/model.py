@@ -70,9 +70,15 @@ class TodoItem(BaseModel):
 
 
 class FileStatus(BaseModel):
-    """Tracks file state including modification time and memory file flag."""
+    """Tracks file state including modification time and content hash.
+
+    Notes:
+    - `mtime` is a cheap heuristic and may miss changes on some filesystems.
+    - `content_sha256` provides an explicit content-based change detector.
+    """
 
     mtime: float
+    content_sha256: str | None = None
     is_memory: bool = False
 
 

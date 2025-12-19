@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import os
 from base64 import b64encode
 from dataclasses import dataclass
@@ -47,6 +48,7 @@ class ReadSegmentResult:
     selected_chars_count: int
     remaining_selected_beyond_cap: int
     remaining_due_to_char_limit: int
+    content_sha256: str
 
 
 def _read_segment(options: ReadOptions) -> ReadSegmentResult:
@@ -57,10 +59,12 @@ def _read_segment(options: ReadOptions) -> ReadSegmentResult:
     selected_lines: list[tuple[int, str]] = []
     selected_chars = 0
     char_limit_reached = False
+    hasher = hashlib.sha256()
 
     with open(options.file_path, encoding="utf-8", errors="replace") as f:
         for line_no, raw_line in enumerate(f, start=1):
             total_lines = line_no
+            hasher.update(raw_line.encode("utf-8"))
             within = line_no >= options.offset and (options.limit is None or selected_lines_count < options.limit)
             if not within:
                 continue
@@ -97,17 +101,22 @@ def _read_segment(options: ReadOptions) -> ReadSegmentResult:
         selected_chars_count=selected_chars,
         remaining_selected_beyond_cap=remaining_selected_beyond_cap,
         remaining_due_to_char_limit=remaining_due_to_char_limit,
+        content_sha256=hasher.hexdigest(),
     )
 
 
-def _track_file_access(file_path: str, *, is_memory: bool = False) -> None:
+def _track_file_access(file_path: str, *, content_sha256: str | None = None, is_memory: bool = False) -> None:
     file_tracker = get_current_file_tracker()
     if file_tracker is None or not file_exists(file_path) or is_directory(file_path):
         return
     with contextlib.suppress(Exception):
         existing = file_tracker.get(file_path)
         is_mem = is_memory or (existing.is_memory if existing else False)
-        file_tracker[file_path] = model.FileStatus(mtime=Path(file_path).stat().st_mtime, is_memory=is_mem)
+        file_tracker[file_path] = model.FileStatus(
+            mtime=Path(file_path).stat().st_mtime,
+            content_sha256=content_sha256,
+            is_memory=is_mem,
+        )
 
 
 def _is_supported_image_file(file_path: str) -> bool:
@@ -232,14 +241,16 @@ class ReadTool(ToolABC):
                 )
             try:
                 mime_type = _image_mime_type(file_path)
-                data_url = _encode_image_to_data_url(file_path, mime_type)
+                with open(file_path, "rb") as image_file:
+                    image_bytes = image_file.read()
+                data_url = f"data:{mime_type};base64,{b64encode(image_bytes).decode('ascii')}"
             except Exception as exc:
                 return model.ToolResultItem(
                     status="error",
                     output=f"<tool_use_error>Failed to read image file: {exc}</tool_use_error>",
                 )
 
-            _track_file_access(file_path)
+            _track_file_access(file_path, content_sha256=hashlib.sha256(image_bytes).hexdigest())
             size_kb = size_bytes / 1024.0 if size_bytes else 0.0
             output_text = f"[image] {Path(file_path).name} ({size_kb:.1f}KB)"
             image_part = model.ImageURLPart(image_url=model.ImageURLPart.ImageURL(url=data_url, id=None))
@@ -276,7 +287,7 @@ class ReadTool(ToolABC):
 
         if offset > max(read_result.total_lines, 0):
             warn = f"<system-reminder>Warning: the file exists but is shorter than the provided offset ({offset}). The file has {read_result.total_lines} lines.</system-reminder>"
-            _track_file_access(file_path)
+            _track_file_access(file_path, content_sha256=read_result.content_sha256)
             return model.ToolResultItem(status="success", output=warn)
 
         lines_out: list[str] = [_format_numbered_line(no, content) for no, content in read_result.selected_lines]
@@ -294,6 +305,6 @@ class ReadTool(ToolABC):
             )
 
         read_result_str = "\n".join(lines_out)
-        _track_file_access(file_path)
+        _track_file_access(file_path, content_sha256=read_result.content_sha256)
 
         return model.ToolResultItem(status="success", output=read_result_str)

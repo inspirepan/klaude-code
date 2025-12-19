@@ -1,10 +1,10 @@
 import asyncio
 import base64
 import contextlib
+import hashlib
 import json
 import os
 import tempfile
-import time
 import unittest
 from pathlib import Path
 from typing import Any
@@ -57,6 +57,13 @@ class TestReadTool(BaseTempDirTest):
         self.assertEqual(res.status, "success")
         self.assertIn("1→line1", res.output or "")
         self.assertIn("2→line2", res.output or "")
+        # ReadTool should also record a content hash in file_tracker
+        status = self.session.file_tracker.get(file_path)
+        self.assertIsNotNone(status)
+        assert status is not None
+        self.assertIsNotNone(status.content_sha256)
+        expected = hashlib.sha256(b"line1\nline2\nline3\n").hexdigest()
+        self.assertEqual(status.content_sha256, expected)
         # self.assertIn("<system-reminder>", res.output or "")
 
     def test_read_directory_error(self):
@@ -467,11 +474,12 @@ class TestEditTool(BaseTempDirTest):
         with open(p, "w", encoding="utf-8") as f:
             f.write("hello\n")
         _ = arun(ReadTool.call(json.dumps({"file_path": p})))
+        orig_mtime_ns = os.stat(p).st_mtime_ns
         # external modification
         with open(p, "a", encoding="utf-8") as f:
             f.write("world\n")
-        # ensure mtime changes
-        time.sleep(0.01)
+        # Restore mtime to original to ensure hash-based detection is used.
+        os.utime(p, ns=(orig_mtime_ns, orig_mtime_ns))
         res = arun(
             EditTool.call(
                 json.dumps(

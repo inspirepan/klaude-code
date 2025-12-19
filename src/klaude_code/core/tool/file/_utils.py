@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 
@@ -28,3 +29,8 @@ def write_text(path: str, content: str) -> None:
     parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
+
+
+def hash_text_sha256(content: str) -> str:
+    """Return SHA-256 for the given text content encoded as UTF-8."""
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()

@@ -8,6 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from klaude_code.core.tool.file import apply_patch as apply_patch_module
+from klaude_code.core.tool.file._utils import hash_text_sha256
 from klaude_code.core.tool.file.diff_builder import build_structured_file_diff
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
@@ -82,7 +83,11 @@ class ApplyPatchHandler:
                 with contextlib.suppress(Exception):  # pragma: no cover - file tracker best-effort
                     existing = file_tracker.get(resolved)
                     is_mem = existing.is_memory if existing else False
-                    file_tracker[resolved] = model.FileStatus(mtime=Path(resolved).stat().st_mtime, is_memory=is_mem)
+                    file_tracker[resolved] = model.FileStatus(
+                        mtime=Path(resolved).stat().st_mtime,
+                        content_sha256=hash_text_sha256(content),
+                        is_memory=is_mem,
+                    )
 
         def remove_fn(path: str) -> None:
             resolved = resolve_path(path)
