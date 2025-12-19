@@ -17,7 +17,7 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
 
 # Mapping from logical prompt keys to resource file paths under the core/prompt directory.
 PROMPT_FILES: dict[str, str] = {
-    "main_gpt_5_1": "prompts/prompt-codex-gpt-5-1.md",
+    "main_codex": "prompts/prompt-codex.md",
     "main_gpt_5_1_codex_max": "prompts/prompt-codex-gpt-5-1-codex-max.md",
     "main_gpt_5_2_codex": "prompts/prompt-codex-gpt-5-2-codex.md",
     "main": "prompts/prompt-claude-code.md",
@@ -49,7 +49,7 @@ def _get_file_key(model_name: str, protocol: llm_param.LLMClientProtocol) -> str
         case name if "gpt-5.1-codex-max" in name:
             return "main_gpt_5_1_codex_max"
         case name if "gpt-5" in name:
-            return "main_gpt_5_1"
+            return "main_codex"
         case name if "gemini" in name:
             return "main_gemini"
         case _:
