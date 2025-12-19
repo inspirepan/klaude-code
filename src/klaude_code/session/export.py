@@ -399,8 +399,12 @@ def _render_diff_file_header(file_diff: model.DiffFileDiff) -> str:
 
 
 def _render_diff_line(line: model.DiffLine) -> str:
-    line_class = "diff-plus" if line.kind == "add" else "diff-minus" if line.kind == "remove" else "diff-ctx"
-    prefix = "+" if line.kind == "add" else "-" if line.kind == "remove" else " "
+    if line.kind == "gap":
+        line_class = "diff-ctx"
+        prefix = "⋮"
+    else:
+        line_class = "diff-plus" if line.kind == "add" else "diff-minus" if line.kind == "remove" else "diff-ctx"
+        prefix = "+" if line.kind == "add" else "-" if line.kind == "remove" else " "
     spans = [_render_diff_span(span, line.kind) for span in line.spans]
     content = "".join(spans)
     if not content:

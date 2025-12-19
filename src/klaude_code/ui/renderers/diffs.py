@@ -266,6 +266,8 @@ def _render_file_header(file_diff: model.DiffFileDiff) -> tuple[Text, Text]:
 
 
 def _make_structured_prefix(line: model.DiffLine, width: int) -> str:
+    if line.kind == "gap":
+        return f"{'⋮':>{width}}  "
     number = " " * width
     if line.kind in {"add", "ctx"} and line.new_line_no is not None:
         number = f"{line.new_line_no:>{width}}"
@@ -274,6 +276,8 @@ def _make_structured_prefix(line: model.DiffLine, width: int) -> str:
 
 
 def _render_structured_line(line: model.DiffLine) -> Text:
+    if line.kind == "gap":
+        return Text("")
     text = Text()
     for span in line.spans:
         text.append(span.text, style=_span_style(line.kind, span.op))

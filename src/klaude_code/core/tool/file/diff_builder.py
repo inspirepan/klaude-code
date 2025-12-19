@@ -8,6 +8,7 @@ from diff_match_patch import diff_match_patch  # type: ignore[import-untyped]
 from klaude_code.protocol import model
 
 _MAX_LINE_LENGTH_FOR_CHAR_DIFF = 2000
+_DEFAULT_CONTEXT_LINES = 3
 
 
 def build_structured_diff(before: str, after: str, *, file_path: str) -> model.DiffUIExtra:
@@ -26,46 +27,53 @@ def _build_file_diff(before: str, after: str, *, file_path: str) -> model.DiffFi
     after_lines = _split_lines(after)
 
     matcher = difflib.SequenceMatcher(None, before_lines, after_lines)
-    new_line_no = 1
     lines: list[model.DiffLine] = []
     stats_add = 0
     stats_remove = 0
 
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag == "equal":
-            for line in after_lines[j1:j2]:
-                lines.append(_ctx_line(line, new_line_no))
-                new_line_no += 1
-        elif tag == "delete":
-            for line in before_lines[i1:i2]:
-                lines.append(_remove_line([model.DiffSpan(op="equal", text=line)]))
-                stats_remove += 1
-        elif tag == "insert":
-            for line in after_lines[j1:j2]:
-                lines.append(_add_line([model.DiffSpan(op="equal", text=line)], new_line_no))
-                stats_add += 1
-                new_line_no += 1
-        elif tag == "replace":
-            old_block = before_lines[i1:i2]
-            new_block = after_lines[j1:j2]
-            max_len = max(len(old_block), len(new_block))
-            for idx in range(max_len):
-                old_line = old_block[idx] if idx < len(old_block) else None
-                new_line = new_block[idx] if idx < len(new_block) else None
-                if old_line is not None and new_line is not None:
-                    remove_spans, add_spans = _diff_line_spans(old_line, new_line)
-                    lines.append(_remove_line(remove_spans))
-                    lines.append(_add_line(add_spans, new_line_no))
+    grouped_opcodes = matcher.get_grouped_opcodes(n=_DEFAULT_CONTEXT_LINES)
+    for group_idx, group in enumerate(grouped_opcodes):
+        if group_idx > 0:
+            lines.append(_gap_line())
+
+        # Anchor line numbers to the actual start of the displayed hunk in the "after" file.
+        new_line_no = group[0][3] + 1
+
+        for tag, i1, i2, j1, j2 in group:
+            if tag == "equal":
+                for line in after_lines[j1:j2]:
+                    lines.append(_ctx_line(line, new_line_no))
+                    new_line_no += 1
+            elif tag == "delete":
+                for line in before_lines[i1:i2]:
+                    lines.append(_remove_line([model.DiffSpan(op="equal", text=line)]))
                     stats_remove += 1
+            elif tag == "insert":
+                for line in after_lines[j1:j2]:
+                    lines.append(_add_line([model.DiffSpan(op="equal", text=line)], new_line_no))
                     stats_add += 1
                     new_line_no += 1
-                elif old_line is not None:
-                    lines.append(_remove_line([model.DiffSpan(op="equal", text=old_line)]))
-                    stats_remove += 1
-                elif new_line is not None:
-                    lines.append(_add_line([model.DiffSpan(op="equal", text=new_line)], new_line_no))
-                    stats_add += 1
-                    new_line_no += 1
+            elif tag == "replace":
+                old_block = before_lines[i1:i2]
+                new_block = after_lines[j1:j2]
+                max_len = max(len(old_block), len(new_block))
+                for idx in range(max_len):
+                    old_line = old_block[idx] if idx < len(old_block) else None
+                    new_line = new_block[idx] if idx < len(new_block) else None
+                    if old_line is not None and new_line is not None:
+                        remove_spans, add_spans = _diff_line_spans(old_line, new_line)
+                        lines.append(_remove_line(remove_spans))
+                        lines.append(_add_line(add_spans, new_line_no))
+                        stats_remove += 1
+                        stats_add += 1
+                        new_line_no += 1
+                    elif old_line is not None:
+                        lines.append(_remove_line([model.DiffSpan(op="equal", text=old_line)]))
+                        stats_remove += 1
+                    elif new_line is not None:
+                        lines.append(_add_line([model.DiffSpan(op="equal", text=new_line)], new_line_no))
+                        stats_add += 1
+                        new_line_no += 1
 
     return model.DiffFileDiff(
         file_path=file_path,
@@ -86,6 +94,14 @@ def _ctx_line(text: str, new_line_no: int) -> model.DiffLine:
         kind="ctx",
         new_line_no=new_line_no,
         spans=[model.DiffSpan(op="equal", text=text)],
+    )
+
+
+def _gap_line() -> model.DiffLine:
+    return model.DiffLine(
+        kind="gap",
+        new_line_no=None,
+        spans=[model.DiffSpan(op="equal", text="")],
     )
 
 

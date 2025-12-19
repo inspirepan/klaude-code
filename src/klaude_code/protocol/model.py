@@ -92,7 +92,7 @@ class DiffSpan(BaseModel):
 
 
 class DiffLine(BaseModel):
-    kind: Literal["ctx", "add", "remove"]
+    kind: Literal["ctx", "add", "remove", "gap"]
     new_line_no: int | None = None
     spans: list[DiffSpan]
 
