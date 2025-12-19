@@ -362,31 +362,81 @@ def _should_collapse(text: str) -> bool:
     return text.count("\n") + 1 > _COLLAPSIBLE_LINE_THRESHOLD or len(text) > _COLLAPSIBLE_CHAR_THRESHOLD
 
 
-def _render_diff_block(diff: str) -> str:
-    lines = diff.splitlines()
+def _render_diff_block(diff: model.DiffUIExtra) -> str:
     rendered: list[str] = []
-    for line in lines:
-        escaped = _escape_html(line)
-        if line.startswith("+"):
-            rendered.append(f'<span class="diff-line diff-plus">{escaped}</span>')
-        elif line.startswith("-"):
-            rendered.append(f'<span class="diff-line diff-minus">{escaped}</span>')
-        else:
-            rendered.append(f'<span class="diff-line diff-ctx">{escaped}</span>')
+    line_count = 0
+
+    for file_diff in diff.files:
+        header = _render_diff_file_header(file_diff)
+        if header:
+            rendered.append(header)
+        for line in file_diff.lines:
+            rendered.append(_render_diff_line(line))
+            line_count += 1
+
+    if line_count == 0:
+        rendered.append('<span class="diff-line diff-ctx">&nbsp;</span>')
+
     diff_content = f'<div class="diff-view">{"".join(rendered)}</div>'
-    open_attr = "" if _should_collapse(diff) else " open"
+    open_attr = "" if _should_collapse("\n" * max(1, line_count)) else " open"
     return (
         f'<details class="diff-collapsible"{open_attr}>'
-        f"<summary>Diff ({len(lines)} lines)</summary>"
+        f"<summary>Diff ({line_count} lines)</summary>"
         f"{diff_content}"
         "</details>"
     )
 
 
-def _get_diff_text(ui_extra: model.ToolResultUIExtra | None) -> str | None:
-    if isinstance(ui_extra, model.DiffTextUIExtra):
-        return ui_extra.diff_text
+def _render_diff_file_header(file_diff: model.DiffFileDiff) -> str:
+    stats_parts: list[str] = []
+    if file_diff.stats_add > 0:
+        stats_parts.append(f'<span class="diff-stats-add">+{file_diff.stats_add}</span>')
+    if file_diff.stats_remove > 0:
+        stats_parts.append(f'<span class="diff-stats-remove">-{file_diff.stats_remove}</span>')
+    stats_html = f' <span class="diff-stats">{" ".join(stats_parts)}</span>' if stats_parts else ""
+    file_name = _escape_html(file_diff.file_path)
+    return f'<div class="diff-file">{file_name}{stats_html}</div>'
+
+
+def _render_diff_line(line: model.DiffLine) -> str:
+    line_class = "diff-plus" if line.kind == "add" else "diff-minus" if line.kind == "remove" else "diff-ctx"
+    prefix = "+" if line.kind == "add" else "-" if line.kind == "remove" else " "
+    spans = [_render_diff_span(span, line.kind) for span in line.spans]
+    content = "".join(spans)
+    if not content:
+        content = "&nbsp;"
+    return f'<span class="diff-line {line_class}">{prefix} {content}</span>'
+
+
+def _render_diff_span(span: model.DiffSpan, line_kind: str) -> str:
+    text = _escape_html(span.text)
+    if line_kind == "add" and span.op == "insert":
+        return f'<span class="diff-span diff-char-add">{text}</span>'
+    if line_kind == "remove" and span.op == "delete":
+        return f'<span class="diff-span diff-char-remove">{text}</span>'
+    return f'<span class="diff-span">{text}</span>'
+
+
+def _get_diff_ui_extra(ui_extra: model.ToolResultUIExtra | None) -> model.DiffUIExtra | None:
+    if isinstance(ui_extra, model.DiffUIExtra):
+        return ui_extra
     return None
+
+
+def _build_add_only_diff(text: str, file_path: str) -> model.DiffUIExtra:
+    lines: list[model.DiffLine] = []
+    new_line_no = 1
+    for line in text.splitlines():
+        lines.append(
+            model.DiffLine(
+                kind="add",
+                new_line_no=new_line_no,
+                spans=[model.DiffSpan(op="equal", text=line)],
+            )
+        )
+        new_line_no += 1
+    file_diff = model.DiffFileDiff(file_path=file_path, lines=lines, stats_add=len(lines), stats_remove=0)
+    return model.DiffUIExtra(files=[file_diff])
 
 
 def _get_mermaid_link_html(
@@ -513,18 +563,19 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
     ]
 
     if result:
-        diff_text = _get_diff_text(result.ui_extra)
+        diff_ui = _get_diff_ui_extra(result.ui_extra)
         mermaid_html = _get_mermaid_link_html(result.ui_extra, tool_call)
 
         should_hide_text = tool_call.name in ("TodoWrite", "update_plan") and result.status != "error"
 
-        if tool_call.name == "Edit" and not diff_text and result.status != "error":
+        if tool_call.name == "Edit" and not diff_ui and result.status != "error":
             try:
                 args_data = json.loads(tool_call.arguments)
+                file_path = args_data.get("file_path", "Unknown file")
                 old_string = args_data.get("old_string", "")
                 new_string = args_data.get("new_string", "")
                 if old_string == "" and new_string:
-                    diff_text = "\n".join(f"+{line}" for line in new_string.splitlines())
+                    diff_ui = _build_add_only_diff(new_string, file_path)
             except (json.JSONDecodeError, TypeError):
                 pass
 
@@ -536,8 +587,8 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
             else:
                 items_to_render.append(_render_text_block(result.output))
 
-        if diff_text:
-            items_to_render.append(_render_diff_block(diff_text))
+        if diff_ui:
+            items_to_render.append(_render_diff_block(diff_ui))
 
         if mermaid_html:
             items_to_render.append(mermaid_html)

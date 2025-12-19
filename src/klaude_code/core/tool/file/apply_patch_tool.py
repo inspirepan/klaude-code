@@ -2,13 +2,13 @@
 
 import asyncio
 import contextlib
-import difflib
 import os
 from pathlib import Path
 
 from pydantic import BaseModel
 
 from klaude_code.core.tool.file import apply_patch as apply_patch_module
+from klaude_code.core.tool.file.diff_builder import build_structured_file_diff
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
@@ -19,7 +19,7 @@ class ApplyPatchHandler:
     @classmethod
     async def handle_apply_patch(cls, patch_text: str) -> model.ToolResultItem:
         try:
-            output, diff_text = await asyncio.to_thread(cls._apply_patch_in_thread, patch_text)
+            output, diff_ui = await asyncio.to_thread(cls._apply_patch_in_thread, patch_text)
         except apply_patch_module.DiffError as error:
             return model.ToolResultItem(status="error", output=str(error))
         except Exception as error:  # pragma: no cover  # unexpected errors bubbled to tool result
@@ -27,11 +27,11 @@ class ApplyPatchHandler:
         return model.ToolResultItem(
             status="success",
             output=output,
-            ui_extra=model.DiffTextUIExtra(diff_text=diff_text),
+            ui_extra=diff_ui,
         )
 
     @staticmethod
-    def _apply_patch_in_thread(patch_text: str) -> tuple[str, str]:
+    def _apply_patch_in_thread(patch_text: str) -> tuple[str, model.DiffUIExtra]:
         ap = apply_patch_module
         normalized_start = patch_text.lstrip()
         if not normalized_start.startswith("*** Begin Patch"):
@@ -66,7 +66,7 @@ class ApplyPatchHandler:
 
         patch, _ = ap.text_to_patch(patch_text, orig)
         commit = ap.patch_to_commit(patch, orig)
-        diff_text = ApplyPatchHandler._commit_to_diff(commit)
+        diff_ui = ApplyPatchHandler._commit_to_structured_diff(commit)
 
         def write_fn(path: str, content: str) -> None:
             resolved = resolve_path(path)
@@ -97,74 +97,25 @@ class ApplyPatchHandler:
                     file_tracker.pop(resolved, None)
 
         ap.apply_commit(commit, write_fn, remove_fn)
-        return "Done!", diff_text
+        return "Done!", diff_ui
 
     @staticmethod
-    def _commit_to_diff(commit: apply_patch_module.Commit) -> str:
-        diff_chunks: list[str] = []
-        for path, change in commit.changes.items():
-            chunk = ApplyPatchHandler._render_change_diff(path, change)
-            if chunk:
-                if diff_chunks:
-                    diff_chunks.append("")
-                diff_chunks.extend(chunk)
-        return "\n".join(diff_chunks)
-
-    @staticmethod
-    def _render_change_diff(path: str, change: apply_patch_module.FileChange) -> list[str]:
-        lines: list[str] = []
-        if change.type == apply_patch_module.ActionType.ADD:
-            lines.append(f"diff --git a/{path} b/{path}")
-            lines.append("new file mode 100644")
-            new_lines = ApplyPatchHandler._split_lines(change.new_content)
-            lines.extend(ApplyPatchHandler._unified_diff([], new_lines, fromfile="/dev/null", tofile=f"b/{path}"))
-            return lines
-        if change.type == apply_patch_module.ActionType.DELETE:
-            lines.append(f"diff --git a/{path} b/{path}")
-            lines.append("deleted file mode 100644")
-            old_lines = ApplyPatchHandler._split_lines(change.old_content)
-            lines.extend(ApplyPatchHandler._unified_diff(old_lines, [], fromfile=f"a/{path}", tofile="/dev/null"))
-            return lines
-        if change.type == apply_patch_module.ActionType.UPDATE:
-            new_path = change.move_path or path
-            lines.append(f"diff --git a/{path} b/{new_path}")
-            if change.move_path and change.move_path != path:
-                lines.append(f"rename from {path}")
-                lines.append(f"rename to {new_path}")
-            old_lines = ApplyPatchHandler._split_lines(change.old_content)
-            new_lines = ApplyPatchHandler._split_lines(change.new_content)
-            lines.extend(
-                ApplyPatchHandler._unified_diff(old_lines, new_lines, fromfile=f"a/{path}", tofile=f"b/{new_path}")
-            )
-            return lines
-        return lines
-
-    @staticmethod
-    def _unified_diff(
-        old_lines: list[str],
-        new_lines: list[str],
-        *,
-        fromfile: str,
-        tofile: str,
-    ) -> list[str]:
-        diff_lines = list(
-            difflib.unified_diff(
-                old_lines,
-                new_lines,
-                fromfile=fromfile,
-                tofile=tofile,
-                lineterm="",
-            )
-        )
-        if not diff_lines:
-            diff_lines = [f"--- {fromfile}", f"+++ {tofile}"]
-        return diff_lines
-
-    @staticmethod
-    def _split_lines(text: str | None) -> list[str]:
-        if not text:
-            return []
-        return text.splitlines()
+    def _commit_to_structured_diff(commit: apply_patch_module.Commit) -> model.DiffUIExtra:
+        files: list[model.DiffFileDiff] = []
+        for path in sorted(commit.changes):
+            change = commit.changes[path]
+            if change.type == apply_patch_module.ActionType.ADD:
+                files.append(build_structured_file_diff("", change.new_content or "", file_path=path))
+            elif change.type == apply_patch_module.ActionType.DELETE:
+                files.append(build_structured_file_diff(change.old_content or "", "", file_path=path))
+            elif change.type == apply_patch_module.ActionType.UPDATE:
+                display_path = path
+                if change.move_path and change.move_path != path:
+                    display_path = f"{path} → {change.move_path}"
+                files.append(
+                    build_structured_file_diff(change.old_content or "", change.new_content or "", file_path=display_path)
+                )
+        return model.DiffUIExtra(files=files)
 
 
 @register(tools.APPLY_PATCH)

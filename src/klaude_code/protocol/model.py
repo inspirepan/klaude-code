@@ -86,9 +86,27 @@ class ToolSideEffect(str, Enum):
 
 
 # Discriminated union types for ToolResultUIExtra
-class DiffTextUIExtra(BaseModel):
-    type: Literal["diff_text"] = "diff_text"
-    diff_text: str
+class DiffSpan(BaseModel):
+    op: Literal["equal", "insert", "delete"]
+    text: str
+
+
+class DiffLine(BaseModel):
+    kind: Literal["ctx", "add", "remove"]
+    new_line_no: int | None = None
+    spans: list[DiffSpan]
+
+
+class DiffFileDiff(BaseModel):
+    file_path: str
+    lines: list[DiffLine]
+    stats_add: int = 0
+    stats_remove: int = 0
+
+
+class DiffUIExtra(BaseModel):
+    type: Literal["diff"] = "diff"
+    files: list[DiffFileDiff]
 
 
 class TodoListUIExtra(BaseModel):
@@ -122,7 +140,7 @@ class SessionStatusUIExtra(BaseModel):
 
 
 ToolResultUIExtra = Annotated[
-    DiffTextUIExtra
+    DiffUIExtra
     | TodoListUIExtra
     | SessionIdUIExtra
     | MermaidLinkUIExtra

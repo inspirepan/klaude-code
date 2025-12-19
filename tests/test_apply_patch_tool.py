@@ -13,7 +13,7 @@ if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from klaude_code.core.tool import ApplyPatchTool  # noqa: E402
-from klaude_code.protocol.model import DiffTextUIExtra  # noqa: E402
+from klaude_code.protocol.model import DiffUIExtra  # noqa: E402
 
 
 def arun(coro):  # type:ignore
@@ -48,10 +48,11 @@ class TestApplyPatchTool(BaseTempDirTest):
 
         self.assertEqual(result.status, "success")
         self.assertEqual(result.output, "Done!")
-        self.assertIsInstance(result.ui_extra, DiffTextUIExtra)
-        assert isinstance(result.ui_extra, DiffTextUIExtra)
-        self.assertIn("diff --git a/sample.txt b/sample.txt", result.ui_extra.diff_text)
-        self.assertIn("+hello", result.ui_extra.diff_text)
+        self.assertIsInstance(result.ui_extra, DiffUIExtra)
+        assert isinstance(result.ui_extra, DiffUIExtra)
+        self.assertEqual(result.ui_extra.files[0].file_path, "sample.txt")
+        added_lines = [line for line in result.ui_extra.files[0].lines if line.kind == "add"]
+        self.assertTrue(any("hello" in "".join(span.text for span in line.spans) for line in added_lines))
         self.assertTrue(Path("sample.txt").exists())
         self.assertEqual(Path("sample.txt").read_text(), "hello\nworld")
 
@@ -75,11 +76,13 @@ class TestApplyPatchTool(BaseTempDirTest):
 
         self.assertEqual(result.status, "success")
         self.assertEqual(result.output, "Done!")
-        self.assertIsInstance(result.ui_extra, DiffTextUIExtra)
-        assert isinstance(result.ui_extra, DiffTextUIExtra)
-        self.assertIn("diff --git a/data.txt b/data.txt", result.ui_extra.diff_text)
-        self.assertIn("-old line", result.ui_extra.diff_text)
-        self.assertIn("+new line", result.ui_extra.diff_text)
+        self.assertIsInstance(result.ui_extra, DiffUIExtra)
+        assert isinstance(result.ui_extra, DiffUIExtra)
+        self.assertEqual(result.ui_extra.files[0].file_path, "data.txt")
+        removed_lines = [line for line in result.ui_extra.files[0].lines if line.kind == "remove"]
+        added_lines = [line for line in result.ui_extra.files[0].lines if line.kind == "add"]
+        self.assertTrue(any("old line" == "".join(span.text for span in line.spans) for line in removed_lines))
+        self.assertTrue(any("new line" == "".join(span.text for span in line.spans) for line in added_lines))
         self.assertEqual(Path("data.txt").read_text(), "new line\nkeep\n")
 
     def test_apply_patch_add_file_absolute_path(self) -> None:

@@ -9,6 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from klaude_code.core.tool.file._utils import file_exists, is_directory, read_text, write_text
+from klaude_code.core.tool.file.diff_builder import build_structured_diff
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
@@ -185,8 +186,7 @@ class EditTool(ToolABC):
                 n=3,
             )
         )
-        diff_text = "\n".join(diff_lines)
-        ui_extra = model.DiffTextUIExtra(diff_text=diff_text)
+        ui_extra = build_structured_diff(before, after, file_path=file_path)
 
         # Update tracker with new mtime
         if file_tracker is not None:

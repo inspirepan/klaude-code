@@ -31,6 +31,8 @@
         --bg-overlay: rgba(248, 246, 240, 0.98);
         --bg-error: #fdecec;
         --bg-success: #eaf6ed;
+        --bg-error-strong: #f9d6d6;
+        --bg-success-strong: #d5efdd;
         --bg-code: #f7f7f4;
         --border: #ded8cf;
         --text: #151515;
@@ -815,6 +817,21 @@
         overflow-x: auto;
         border: 1px solid var(--border);
       }
+      .diff-file {
+        color: var(--accent);
+        font-weight: 700;
+        margin: 6px 0 4px 0;
+        font-size: var(--font-size-sm);
+      }
+      .diff-stats {
+        font-weight: 600;
+      }
+      .diff-stats-add {
+        color: var(--success);
+      }
+      .diff-stats-remove {
+        color: var(--error);
+      }
       .diff-line {
         white-space: pre;
       }
@@ -832,6 +849,17 @@
         color: var(--text-dim);
         opacity: 0.7;
         display: block;
+      }
+      .diff-span {
+        white-space: pre;
+      }
+      .diff-char-add {
+        background: var(--bg-success-strong);
+        font-weight: 600;
+      }
+      .diff-char-remove {
+        background: var(--bg-error-strong);
+        font-weight: 600;
       }
 
       /* Collapsible Diff View */

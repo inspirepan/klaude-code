@@ -497,9 +497,9 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
             return render_generic_tool_call(e.tool_name, e.arguments)
 
 
-def _extract_diff_text(ui_extra: model.ToolResultUIExtra | None) -> str | None:
-    if isinstance(ui_extra, model.DiffTextUIExtra):
-        return ui_extra.diff_text
+def _extract_diff(ui_extra: model.ToolResultUIExtra | None) -> model.DiffUIExtra | None:
+    if isinstance(ui_extra, model.DiffUIExtra):
+        return ui_extra
     return None
 
 
@@ -523,13 +523,13 @@ def render_tool_result(e: events.ToolResultEvent) -> RenderableType | None:
     if truncation_info:
         return Group(render_truncation_info(truncation_info), render_generic_tool_result(e.result))
 
-    diff_text = _extract_diff_text(e.ui_extra)
+    diff_ui = _extract_diff(e.ui_extra)
 
     match e.tool_name:
         case tools.READ:
             return None
         case tools.EDIT | tools.WRITE:
-            return Padding.indent(r_diffs.render_diff(diff_text or ""), level=2)
+            return Padding.indent(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""), level=2)
         case tools.TODO_WRITE | tools.UPDATE_PLAN:
             return render_todo(e)
         case tools.MERMAID:
@@ -537,8 +537,8 @@ def render_tool_result(e: events.ToolResultEvent) -> RenderableType | None:
         case _:
             if e.tool_name in (tools.BASH, tools.APPLY_PATCH) and e.result.startswith("diff --git"):
                 return r_diffs.render_diff_panel(e.result, show_file_name=True)
-            if e.tool_name == tools.APPLY_PATCH and diff_text:
-                return Padding.indent(r_diffs.render_diff(diff_text, show_file_name=True), level=2)
+            if e.tool_name == tools.APPLY_PATCH and diff_ui:
+                return Padding.indent(r_diffs.render_structured_diff(diff_ui, show_file_name=True), level=2)
             if len(e.result.strip()) == 0:
                 return render_generic_tool_result("(no content)")
             return render_generic_tool_result(e.result)

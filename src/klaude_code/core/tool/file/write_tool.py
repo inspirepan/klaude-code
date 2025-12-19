@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import difflib
 import os
 from pathlib import Path
 
 from pydantic import BaseModel
 
 from klaude_code.core.tool.file._utils import file_exists, is_directory, read_text, write_text
+from klaude_code.core.tool.file.diff_builder import build_structured_diff
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
@@ -106,17 +106,7 @@ class WriteTool(ToolABC):
 
         # Build diff between previous and new content
         after = args.content
-        diff_lines = list(
-            difflib.unified_diff(
-                before.splitlines(),
-                after.splitlines(),
-                fromfile=file_path,
-                tofile=file_path,
-                n=3,
-            )
-        )
-        diff_text = "\n".join(diff_lines)
-        ui_extra = model.DiffTextUIExtra(diff_text=diff_text)
+        ui_extra = build_structured_diff(before, after, file_path=file_path)
 
         message = f"File {'overwritten' if exists else 'created'} successfully at: {file_path}"
         return model.ToolResultItem(status="success", output=message, ui_extra=ui_extra)

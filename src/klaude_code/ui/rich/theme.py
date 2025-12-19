@@ -21,7 +21,9 @@ class Palette:
     purple: str
     lavender: str
     diff_add: str
+    diff_add_char: str
     diff_remove: str
+    diff_remove_char: str
     code_theme: str
     text_background: str
 
@@ -41,7 +43,9 @@ LIGHT_PALETTE = Palette(
     purple="#5f5fd7",
     lavender="#5f87af",
     diff_add="#2e5a32 on #e8f5e9",
+    diff_add_char="#1e4425 on #c8e6c9",
     diff_remove="#5a2e32 on #ffebee",
+    diff_remove_char="#442125 on #ffcdd2",
     code_theme="ansi_light",
     text_background="#e0e0e0",
 )
@@ -61,7 +65,9 @@ DARK_PALETTE = Palette(
     purple="#afbafe",
     lavender="#9898b8",
     diff_add="#c8e6c9 on #2e4a32",
+    diff_add_char="#e8f5e9 on #1f3a25",
     diff_remove="#ffcdd2 on #4a2e32",
+    diff_remove_char="#ffebee on #3a2125",
     code_theme="ansi_dark",
     text_background="#2f3440",
 )
@@ -73,6 +79,8 @@ class ThemeKey(str, Enum):
     DIFF_FILE_NAME = "diff.file_name"
     DIFF_REMOVE = "diff.remove"
     DIFF_ADD = "diff.add"
+    DIFF_ADD_CHAR = "diff.add.char"
+    DIFF_REMOVE_CHAR = "diff.remove.char"
     DIFF_STATS_ADD = "diff.stats.add"
     DIFF_STATS_REMOVE = "diff.stats.remove"
     # ERROR
@@ -165,6 +173,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.DIFF_FILE_NAME.value: palette.blue,
                 ThemeKey.DIFF_REMOVE.value: palette.diff_remove,
                 ThemeKey.DIFF_ADD.value: palette.diff_add,
+                ThemeKey.DIFF_ADD_CHAR.value: palette.diff_add_char,
+                ThemeKey.DIFF_REMOVE_CHAR.value: palette.diff_remove_char,
                 ThemeKey.DIFF_STATS_ADD.value: palette.green,
                 ThemeKey.DIFF_STATS_REMOVE.value: palette.red,
                 # ERROR

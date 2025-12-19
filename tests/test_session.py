@@ -354,20 +354,29 @@ class TestTryRenderTodoArgs:
         assert result is None
 
 
-class TestGetDiffText:
-    """Tests for _get_diff_text function."""
+class TestGetDiffUIExtra:
+    """Tests for _get_diff_ui_extra function."""
 
-    def test_diff_text_ui_extra(self):
-        extra = model.DiffTextUIExtra(diff_text="+added line")
-        result = export._get_diff_text(extra)
-        assert result == "+added line"
+    def test_diff_ui_extra(self):
+        extra = model.DiffUIExtra(
+            files=[
+                model.DiffFileDiff(
+                    file_path="file.txt",
+                    lines=[model.DiffLine(kind="add", new_line_no=1, spans=[model.DiffSpan(op="equal", text="ok")])],
+                    stats_add=1,
+                    stats_remove=0,
+                )
+            ]
+        )
+        result = export._get_diff_ui_extra(extra)
+        assert result == extra
 
     def test_none_returns_none(self):
-        assert export._get_diff_text(None) is None
+        assert export._get_diff_ui_extra(None) is None
 
     def test_other_type_returns_none(self):
         extra = model.MermaidLinkUIExtra(link="http://example.com", line_count=10)
-        result = export._get_diff_text(extra)
+        result = export._get_diff_ui_extra(extra)
         assert result is None
 
 
@@ -375,19 +384,52 @@ class TestRenderDiffBlock:
     """Tests for _render_diff_block function."""
 
     def test_plus_lines_styled(self):
-        diff = "+added line"
+        diff = model.DiffUIExtra(
+            files=[
+                model.DiffFileDiff(
+                    file_path="file.txt",
+                    lines=[
+                        model.DiffLine(kind="add", new_line_no=1, spans=[model.DiffSpan(op="equal", text="added")])
+                    ],
+                    stats_add=1,
+                    stats_remove=0,
+                )
+            ]
+        )
         result = export._render_diff_block(diff)
         assert "diff-plus" in result
-        assert "added line" in result
+        assert "added" in result
 
     def test_minus_lines_styled(self):
-        diff = "-removed line"
+        diff = model.DiffUIExtra(
+            files=[
+                model.DiffFileDiff(
+                    file_path="file.txt",
+                    lines=[
+                        model.DiffLine(kind="remove", new_line_no=None, spans=[model.DiffSpan(op="equal", text="gone")])
+                    ],
+                    stats_add=0,
+                    stats_remove=1,
+                )
+            ]
+        )
         result = export._render_diff_block(diff)
         assert "diff-minus" in result
-        assert "removed line" in result
+        assert "gone" in result
 
     def test_context_lines_styled(self):
-        diff = " context line"
+        diff = model.DiffUIExtra(
+            files=[
+                model.DiffFileDiff(
+                    file_path="file.txt",
+                    lines=[
+                        model.DiffLine(kind="ctx", new_line_no=1, spans=[model.DiffSpan(op="equal", text="context")])
+                    ],
+                    stats_add=0,
+                    stats_remove=0,
+                )
+            ]
+        )
         result = export._render_diff_block(diff)
         assert "diff-ctx" in result
 
