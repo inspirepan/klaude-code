@@ -1,15 +1,20 @@
-# Minimal Code Agent CLI (Klaude Code)
+# Klaude Code
 
-A lightweight code agent with multi-model support.
+Multi-model code agent CLI.
 
-## Key Features
-- **Adaptive Tooling**: Model-aware toolsets (Claude Code tools for Sonnet, Codex `apply_patch` for GPT-5/Codex).
-- **Multi-Provider Support**: Compatible with `anthropic-messages-api`,`openai-responses-api`, and `openai-compatible-api`(`openrouter-api`), featuring interleaved thinking, OpenRouter's provider sorting etc.
-- **Structured Sub-Agent Output**: Main agent defines output JSON schema for sub-agents; sub-agents use `report_back` tool with constrained decoding to return schema-compliant structured data.
-- **Skill System**: Extensible support for loading Claude Skills.
-- **Session Management**: Robust context preservation with resumable sessions (`--continue`).
-- **Simple TUI**: Clean interface offering full visibility into model responses, reasoning and actions.
-- **Core Utilities**: Slash commands, sub-agents, image pasting, terminal notifications, file mentioning, and auto-theming.
+## Features
+- **Multi-provider**: Anthropic, OpenAI Responses API, OpenRouter
+- **Keep reasoning item in context**: Interleaved thinking support
+- **Model-aware tools**: Claude Code tools for Sonnet, `apply_patch` for GPT-5/Codex
+- **Structured sub-agent output**: Define JSON schema, get schema-compliant responses via constrained decoding
+- **Recursive `@file` mentions**: Circular dependency protection, relative path resolution
+- **Reminders**: Cooldown-based todo tracking and instruction reinforcement
+- **External file sync**: Monitoring for external edits (linter, manual)
+- **Interrupt handling**: Ctrl+C preserves partial responses and synthesizes tool cancellation results
+- **Output truncation**: Large outputs saved to file system with snapshot links
+- **Skills**: Load Claude Skills
+- **Sessions**: Resumable with `--continue`
+- **Extras**: Slash commands, sub-agents, image paste, terminal notifications, auto-theming
 
 ## Installation
 
