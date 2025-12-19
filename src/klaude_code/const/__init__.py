@@ -49,11 +49,8 @@ READ_CHAR_LIMIT_PER_LINE = 2000
 # Maximum number of lines to read from a file
 READ_GLOBAL_LINE_CAP = 2000
 
-# Maximum total characters to read
+# Maximum total characters to read (truncates beyond this limit)
 READ_MAX_CHARS = 50000
-
-# Maximum file size in KB for text files
-READ_MAX_KB = 256
 
 # Maximum image file size in bytes (4MB)
 READ_MAX_IMAGE_BYTES = 4 * 1024 * 1024

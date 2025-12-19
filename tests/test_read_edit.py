@@ -74,13 +74,18 @@ class TestReadTool(BaseTempDirTest):
         self.assertEqual(res.status, "error")
         self.assertEqual(res.output, "<tool_use_error>File does not exist.</tool_use_error>")
 
-    def test_read_size_limit_error(self):
-        big = os.path.abspath("big.bin")
-        with open(big, "wb") as f:
-            f.write(b"a" * (256 * 1024 + 10))
+    def test_read_large_file_truncated(self):
+        # Large files are now truncated instead of erroring
+        big = os.path.abspath("big.txt")
+        with open(big, "w", encoding="utf-8") as f:
+            # Write many lines to exceed char limit
+            for i in range(5000):
+                f.write(f"line{i}\n")
         res = arun(ReadTool.call(json.dumps({"file_path": big})))
-        self.assertEqual(res.status, "error")
-        self.assertIn("maximum allowed size (256KB)", res.output or "")
+        self.assertEqual(res.status, "success")
+        # Should be truncated with remaining lines info and reason
+        self.assertIn("more lines truncated due to", res.output or "")
+        self.assertIn("use offset/limit to read other parts", res.output or "")
 
     def test_read_offset_beyond(self):
         p = os.path.abspath("short.txt")
@@ -90,18 +95,20 @@ class TestReadTool(BaseTempDirTest):
         self.assertEqual(res.status, "success")
         self.assertIn("shorter than the provided offset (2)", res.output or "")
 
-    def test_read_total_chars_limit(self):
+    def test_read_total_chars_limit_truncates(self):
+        # Files exceeding char limit are now truncated instead of erroring
         p = os.path.abspath("manylines.txt")
         with open(p, "w", encoding="utf-8") as f:
             for _ in range(4000):
                 f.write("x" * 20 + "\n")
         res = arun(ReadTool.call(json.dumps({"file_path": p})))
-        self.assertEqual(res.status, "error")
+        self.assertEqual(res.status, "success")
         output = res.output or ""
-        self.assertIn("maximum allowed chars", output)
-        self.assertIn("File has 4000 total lines", output)
-        self.assertIn("Character distribution by segment", output)
-        self.assertIn("Lines 1-100:", output)
+        # Should show content and truncation message with char limit reason and total lines
+        self.assertIn("1→", output)
+        self.assertIn("more lines truncated due to 50000 char limit", output)
+        self.assertIn("file has 4000 lines total", output)
+        self.assertIn("use offset/limit to read other parts", output)
 
     def test_read_per_line_truncation(self):
         p = os.path.abspath("longline.txt")
