@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from rich.rule import Rule
 from rich.text import Text
 
 from klaude_code import const
@@ -431,6 +432,8 @@ class DisplayEventHandler:
             emit_osc94(OSC94States.HIDDEN)
             self.spinner_status.reset()
             self.renderer.spinner_stop()
+            self.renderer.console.print(Rule(characters="-", style=ThemeKey.LINES))
+            self.renderer.print()
         await self.stage_manager.transition_to(Stage.WAITING)
         self._maybe_notify_task_finish(event)
 
