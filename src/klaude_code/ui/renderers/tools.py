@@ -349,7 +349,7 @@ def render_web_fetch_tool_call(arguments: str) -> RenderableType:
 
 def render_web_search_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
-    tool_name_column = Text.assemble(("⚲", ThemeKey.TOOL_MARK), " ", ("Web Search", ThemeKey.TOOL_NAME))
+    tool_name_column = Text.assemble(("☇", ThemeKey.TOOL_MARK), " ", ("Web Search", ThemeKey.TOOL_NAME))
 
     try:
         payload: dict[str, Any] = json.loads(arguments)
