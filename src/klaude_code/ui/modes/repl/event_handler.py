@@ -8,6 +8,7 @@ from klaude_code import const
 from klaude_code.protocol import events
 from klaude_code.ui.core.stage_manager import Stage, StageManager
 from klaude_code.ui.modes.repl.renderer import REPLRenderer
+from klaude_code.ui.renderers.assistant import ASSISTANT_MESSAGE_MARKER
 from klaude_code.ui.renderers.thinking import normalize_thinking_content
 from klaude_code.ui.rich.markdown import MarkdownStream, ThinkingMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
@@ -358,7 +359,7 @@ class DisplayEventHandler:
                 theme=self.renderer.themes.markdown_theme,
                 console=self.renderer.console,
                 spinner=self.renderer.spinner_renderable(),
-                mark="➤",
+                mark=ASSISTANT_MESSAGE_MARKER,
                 indent=2,
             )
             self.assistant_stream.start(mdstream)

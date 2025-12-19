@@ -3,6 +3,9 @@ from rich.console import RenderableType
 from klaude_code.ui.renderers.common import create_grid
 from klaude_code.ui.rich.markdown import NoInsetMarkdown
 
+# UI markers
+ASSISTANT_MESSAGE_MARKER = "➤"
+
 
 def render_assistant_message(content: str, *, code_theme: str) -> RenderableType | None:
     """Render assistant message for replay history display.
@@ -15,7 +18,7 @@ def render_assistant_message(content: str, *, code_theme: str) -> RenderableType
 
     grid = create_grid()
     grid.add_row(
-        "•",
+        ASSISTANT_MESSAGE_MARKER,
         NoInsetMarkdown(stripped, code_theme=code_theme),
     )
     return grid

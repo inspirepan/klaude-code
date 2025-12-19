@@ -45,7 +45,7 @@ def _render_task_metadata_block(
     currency_symbol = "¥" if currency == "CNY" else "$"
 
     # First column: mark only
-    mark = Text("└", style=ThemeKey.METADATA_DIM) if is_sub_agent else Text("•", style=ThemeKey.METADATA_BOLD)
+    mark = Text("└", style=ThemeKey.METADATA_DIM) if is_sub_agent else Text("⇅", style=ThemeKey.METADATA)
 
     # Second column: model@provider / tokens / cost / ...
     content = Text()

@@ -103,7 +103,7 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
 
 def render_update_plan_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
-    tool_name_column = Text.assemble(("◎", ThemeKey.TOOL_MARK), " ", ("Update Plan", ThemeKey.TOOL_NAME))
+    tool_name_column = Text.assemble(("⚑", ThemeKey.TOOL_MARK), " ", ("Update Plan", ThemeKey.TOOL_NAME))
     explanation_column = Text("")
 
     if arguments:
@@ -166,7 +166,7 @@ def render_read_tool_call(arguments: str) -> RenderableType:
 
 def render_edit_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
-    tool_name_column = Text.assemble(("→", ThemeKey.TOOL_MARK), " ", ("Edit", ThemeKey.TOOL_NAME))
+    tool_name_column = Text.assemble(("±", ThemeKey.TOOL_MARK), " ", ("Edit", ThemeKey.TOOL_NAME))
     try:
         json_dict = json.loads(arguments)
         file_path = json_dict.get("file_path")
@@ -185,10 +185,10 @@ def render_write_tool_call(arguments: str) -> RenderableType:
     try:
         json_dict = json.loads(arguments)
         file_path = json_dict.get("file_path")
-        tool_name_column = Text.assemble(("→", ThemeKey.TOOL_MARK), " ", ("Write", ThemeKey.TOOL_NAME))
+        tool_name_column = Text.assemble(("✚", ThemeKey.TOOL_MARK), " ", ("Write", ThemeKey.TOOL_NAME))
         arguments_column = render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
     except json.JSONDecodeError:
-        tool_name_column = Text.assemble(("→", ThemeKey.TOOL_MARK), " ", ("Write", ThemeKey.TOOL_NAME))
+        tool_name_column = Text.assemble(("✚", ThemeKey.TOOL_MARK), " ", ("Write", ThemeKey.TOOL_NAME))
         arguments_column = Text(
             arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
@@ -199,7 +199,7 @@ def render_write_tool_call(arguments: str) -> RenderableType:
 
 def render_apply_patch_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
-    tool_name_column = Text.assemble(("→", ThemeKey.TOOL_MARK), " ", ("Apply Patch", ThemeKey.TOOL_NAME))
+    tool_name_column = Text.assemble(("±", ThemeKey.TOOL_MARK), " ", ("Apply Patch", ThemeKey.TOOL_NAME))
 
     try:
         payload = json.loads(arguments)
@@ -215,9 +215,27 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
     arguments_column = Text("", ThemeKey.TOOL_PARAM)
 
     if isinstance(patch_content, str):
-        lines = [line for line in patch_content.splitlines() if line and not line.startswith("*** Begin Patch")]
-        if lines:
-            arguments_column = Text(lines[0][: const.INVALID_TOOL_CALL_MAX_LENGTH], ThemeKey.TOOL_PARAM)
+        update_count = 0
+        add_count = 0
+        delete_count = 0
+        for line in patch_content.splitlines():
+            if line.startswith("*** Update File:"):
+                update_count += 1
+            elif line.startswith("*** Add File:"):
+                add_count += 1
+            elif line.startswith("*** Delete File:"):
+                delete_count += 1
+
+        parts: list[str] = []
+        if update_count > 0:
+            parts.append(f"Update File x {update_count}" if update_count > 1 else "Update File")
+        if add_count > 0:
+            parts.append(f"Add File x {add_count}" if add_count > 1 else "Add File")
+        if delete_count > 0:
+            parts.append(f"Delete File x {delete_count}" if delete_count > 1 else "Delete File")
+
+        if parts:
+            arguments_column = Text(", ".join(parts), ThemeKey.TOOL_PARAM)
     else:
         arguments_column = Text(
             str(patch_content)[: const.INVALID_TOOL_CALL_MAX_LENGTH],
@@ -229,13 +247,7 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
 
 
 def render_todo(tr: events.ToolResultEvent) -> RenderableType:
-    if not isinstance(tr.ui_extra, model.TodoListUIExtra):
-        return Text.assemble(
-            ("  ✘", ThemeKey.ERROR_BOLD),
-            " ",
-            Text("(no content)" if tr.ui_extra is None else "(invalid ui_extra)", style=ThemeKey.ERROR),
-        )
-
+    assert isinstance(tr.ui_extra, model.TodoListUIExtra)
     ui_extra = tr.ui_extra.todo_list
     todo_grid = create_grid()
     for todo in ui_extra.todos:
@@ -253,10 +265,6 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
                 mark = "✔"
                 mark_style = ThemeKey.TODO_NEW_COMPLETED_MARK if is_new_completed else ThemeKey.TODO_COMPLETED_MARK
                 text_style = ThemeKey.TODO_NEW_COMPLETED if is_new_completed else ThemeKey.TODO_COMPLETED
-            case _:
-                mark = "?"
-                mark_style = ThemeKey.TODO_PENDING_MARK
-                text_style = ThemeKey.TODO_PENDING
         text = Text(todo.content)
         text.stylize(text_style)
         todo_grid.add_row(Text(mark, style=mark_style), text)
@@ -341,7 +349,7 @@ def render_web_fetch_tool_call(arguments: str) -> RenderableType:
 
 def render_web_search_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
-    tool_name_column = Text.assemble(("◉", ThemeKey.TOOL_MARK), " ", ("Search", ThemeKey.TOOL_NAME))
+    tool_name_column = Text.assemble(("⚲", ThemeKey.TOOL_MARK), " ", ("Web Search", ThemeKey.TOOL_NAME))
 
     try:
         payload: dict[str, Any] = json.loads(arguments)
@@ -474,13 +482,12 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
             return render_edit_tool_call(e.arguments)
         case tools.WRITE:
             return render_write_tool_call(e.arguments)
-
         case tools.BASH:
             return render_bash_tool_call(e.arguments)
         case tools.APPLY_PATCH:
             return render_apply_patch_tool_call(e.arguments)
         case tools.TODO_WRITE:
-            return render_generic_tool_call("Update Todos", "", "◎")
+            return render_generic_tool_call("Update Todos", "", "⚑")
         case tools.UPDATE_PLAN:
             return render_update_plan_tool_call(e.arguments)
         case tools.MERMAID:
