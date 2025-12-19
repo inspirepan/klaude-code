@@ -31,16 +31,20 @@ def truncate_display(
         return Text(f"… (more {remaining} lines)", style=ThemeKey.TOOL_RESULT_TRUNCATED)
 
     lines = text.split("\n")
-    extra_lines = 0
+    truncated_lines = 0
+    head_lines: list[str] = []
+    tail_lines: list[str] = []
+
     if len(lines) > max_lines:
-        extra_lines = len(lines) - max_lines
-        lines = lines[:max_lines]
+        truncated_lines = len(lines) - max_lines
+        head_count = max_lines // 2
+        tail_count = max_lines - head_count
+        head_lines = lines[:head_count]
+        tail_lines = lines[-tail_count:]
+    else:
+        head_lines = lines
 
-    out = Text()
-    if base_style is not None:
-        out.style = base_style
-
-    for idx, line in enumerate(lines):
+    def append_line(out: Text, line: str) -> None:
         if len(line) > max_line_length:
             extra_chars = len(line) - max_line_length
             out.append(line[:max_line_length])
@@ -53,10 +57,21 @@ def truncate_display(
         else:
             out.append(line)
 
-        if idx != len(lines) - 1 or extra_lines > 0:
+    out = Text()
+    if base_style is not None:
+        out.style = base_style
+
+    for idx, line in enumerate(head_lines):
+        append_line(out, line)
+        if idx < len(head_lines) - 1 or truncated_lines > 0 or tail_lines:
             out.append("\n")
 
-    if extra_lines > 0:
-        out.append_text(Text(f"… (more {extra_lines} lines)", style=ThemeKey.TOOL_RESULT_TRUNCATED))
+    if truncated_lines > 0:
+        out.append_text(Text(f"⋮ (more {truncated_lines} lines)\n", style=ThemeKey.TOOL_RESULT_TRUNCATED))
+
+    for idx, line in enumerate(tail_lines):
+        append_line(out, line)
+        if idx < len(tail_lines) - 1:
+            out.append("\n")
 
     return out
