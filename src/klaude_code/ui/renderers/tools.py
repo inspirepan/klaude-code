@@ -278,60 +278,6 @@ def _extract_mermaid_link(
     return None
 
 
-def render_memory_tool_call(arguments: str) -> RenderableType:
-    grid = create_grid()
-    command_display_names: dict[str, str] = {
-        "view": "View",
-        "create": "Create",
-        "str_replace": "Replace",
-        "insert": "Insert",
-        "delete": "Delete",
-        "rename": "Rename",
-    }
-
-    try:
-        payload: dict[str, str] = json.loads(arguments)
-    except json.JSONDecodeError:
-        tool_name_column = Text.assemble(("★", ThemeKey.TOOL_MARK), " ", ("Memory", ThemeKey.TOOL_NAME))
-        summary = Text(
-            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
-            style=ThemeKey.INVALID_TOOL_CALL_ARGS,
-        )
-        grid.add_row(tool_name_column, summary)
-        return grid
-
-    command = payload.get("command", "")
-    display_name = command_display_names.get(command, command.title())
-    tool_name_column = Text.assemble(("★", ThemeKey.TOOL_MARK), " ", (f"{display_name} Memory", ThemeKey.TOOL_NAME))
-
-    summary = Text("", ThemeKey.TOOL_PARAM)
-    path = payload.get("path")
-    old_path = payload.get("old_path")
-    new_path = payload.get("new_path")
-
-    if command == "rename" and old_path and new_path:
-        summary = Text.assemble(
-            Text(old_path, ThemeKey.TOOL_PARAM_FILE_PATH),
-            Text(" -> ", ThemeKey.TOOL_PARAM),
-            Text(new_path, ThemeKey.TOOL_PARAM_FILE_PATH),
-        )
-    elif command == "insert" and path:
-        insert_line = payload.get("insert_line")
-        summary = Text(path, ThemeKey.TOOL_PARAM_FILE_PATH)
-        if insert_line is not None:
-            summary.append(f" line {insert_line}", ThemeKey.TOOL_PARAM)
-    elif command == "view" and path:
-        view_range = payload.get("view_range")
-        summary = Text(path, ThemeKey.TOOL_PARAM_FILE_PATH)
-        if view_range and isinstance(view_range, list) and len(view_range) >= 2:
-            summary.append(f" {view_range[0]}:{view_range[1]}", ThemeKey.TOOL_PARAM)
-    elif path:
-        summary = Text(path, ThemeKey.TOOL_PARAM_FILE_PATH)
-
-    grid.add_row(tool_name_column, summary)
-    return grid
-
-
 def render_mermaid_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
     tool_name_column = Text.assemble(("⧉", ThemeKey.TOOL_MARK), " ", ("Mermaid", ThemeKey.TOOL_NAME))
@@ -488,7 +434,6 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.UPDATE_PLAN: "Planning",
     tools.SKILL: "Skilling",
     tools.MERMAID: "Diagramming",
-    tools.MEMORY: "Memorizing",
     tools.WEB_FETCH: "Fetching Web",
     tools.WEB_SEARCH: "Searching Web",
     tools.REPORT_BACK: "Reporting",
@@ -540,8 +485,6 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
             return render_update_plan_tool_call(e.arguments)
         case tools.MERMAID:
             return render_mermaid_tool_call(e.arguments)
-        case tools.MEMORY:
-            return render_memory_tool_call(e.arguments)
         case tools.SKILL:
             return render_generic_tool_call(e.tool_name, e.arguments, "◈")
         case tools.REPORT_BACK:
@@ -587,12 +530,6 @@ def render_tool_result(e: events.ToolResultEvent) -> RenderableType | None:
             return None
         case tools.EDIT | tools.WRITE:
             return Padding.indent(r_diffs.render_diff(diff_text or ""), level=2)
-        case tools.MEMORY:
-            if diff_text:
-                return Padding.indent(r_diffs.render_diff(diff_text), level=2)
-            elif len(e.result.strip()) > 0:
-                return render_generic_tool_result(e.result)
-            return None
         case tools.TODO_WRITE | tools.UPDATE_PLAN:
             return render_todo(e)
         case tools.MERMAID:
