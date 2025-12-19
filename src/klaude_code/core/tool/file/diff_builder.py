@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import difflib
+from typing import cast
 
-from diff_match_patch import diff_match_patch
+from diff_match_patch import diff_match_patch  # type: ignore[import-untyped]
 
 from klaude_code.protocol import model
 
@@ -110,8 +111,8 @@ def _diff_line_spans(old_line: str, new_line: str) -> tuple[list[model.DiffSpan]
         )
 
     differ = diff_match_patch()
-    diffs = differ.diff_main(old_line, new_line)
-    differ.diff_cleanupSemantic(diffs)
+    diffs = cast(list[tuple[int, str]], differ.diff_main(old_line, new_line))  # type: ignore[no-untyped-call]
+    differ.diff_cleanupSemantic(diffs)  # type: ignore[no-untyped-call]
 
     remove_spans: list[model.DiffSpan] = []
     add_spans: list[model.DiffSpan] = []
@@ -119,12 +120,12 @@ def _diff_line_spans(old_line: str, new_line: str) -> tuple[list[model.DiffSpan]
     for op, text in diffs:
         if not text:
             continue
-        if op == diff_match_patch.DIFF_EQUAL:
+        if op == diff_match_patch.DIFF_EQUAL:  # type: ignore[no-untyped-call]
             remove_spans.append(model.DiffSpan(op="equal", text=text))
             add_spans.append(model.DiffSpan(op="equal", text=text))
-        elif op == diff_match_patch.DIFF_DELETE:
+        elif op == diff_match_patch.DIFF_DELETE:  # type: ignore[no-untyped-call]
             remove_spans.append(model.DiffSpan(op="delete", text=text))
-        elif op == diff_match_patch.DIFF_INSERT:
+        elif op == diff_match_patch.DIFF_INSERT:  # type: ignore[no-untyped-call]
             add_spans.append(model.DiffSpan(op="insert", text=text))
 
     return _ensure_spans(remove_spans), _ensure_spans(add_spans)

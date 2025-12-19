@@ -1,7 +1,8 @@
 from klaude_code.core.tool.file.diff_builder import build_structured_diff
+from klaude_code.protocol import model
 
 
-def _find_spans(diff, kind: str, op: str) -> list[str]:
+def _find_spans(diff: model.DiffUIExtra, kind: str, op: str) -> list[str]:
     spans: list[str] = []
     for line in diff.files[0].lines:
         if line.kind != kind:
