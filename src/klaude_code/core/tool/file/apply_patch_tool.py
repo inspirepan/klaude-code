@@ -113,7 +113,9 @@ class ApplyPatchHandler:
                 if change.move_path and change.move_path != path:
                     display_path = f"{path} → {change.move_path}"
                 files.append(
-                    build_structured_file_diff(change.old_content or "", change.new_content or "", file_path=display_path)
+                    build_structured_file_diff(
+                        change.old_content or "", change.new_content or "", file_path=display_path
+                    )
                 )
         return model.DiffUIExtra(files=files)
 

@@ -388,9 +388,7 @@ class TestRenderDiffBlock:
             files=[
                 model.DiffFileDiff(
                     file_path="file.txt",
-                    lines=[
-                        model.DiffLine(kind="add", new_line_no=1, spans=[model.DiffSpan(op="equal", text="added")])
-                    ],
+                    lines=[model.DiffLine(kind="add", new_line_no=1, spans=[model.DiffSpan(op="equal", text="added")])],
                     stats_add=1,
                     stats_remove=0,
                 )

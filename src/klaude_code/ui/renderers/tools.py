@@ -530,15 +530,23 @@ def render_tool_result(e: events.ToolResultEvent) -> RenderableType | None:
             return None
         case tools.EDIT | tools.WRITE:
             return Padding.indent(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""), level=2)
+        case tools.APPLY_PATCH:
+            if diff_ui:
+                return Padding.indent(r_diffs.render_structured_diff(diff_ui, show_file_name=True), level=2)
+            if len(e.result.strip()) == 0:
+                return render_generic_tool_result("(no content)")
+            return render_generic_tool_result(e.result)
         case tools.TODO_WRITE | tools.UPDATE_PLAN:
             return render_todo(e)
         case tools.MERMAID:
             return render_mermaid_tool_result(e)
-        case _:
-            if e.tool_name in (tools.BASH, tools.APPLY_PATCH) and e.result.startswith("diff --git"):
+        case tools.BASH:
+            if e.result.startswith("diff --git"):
                 return r_diffs.render_diff_panel(e.result, show_file_name=True)
-            if e.tool_name == tools.APPLY_PATCH and diff_ui:
-                return Padding.indent(r_diffs.render_structured_diff(diff_ui, show_file_name=True), level=2)
+            if len(e.result.strip()) == 0:
+                return render_generic_tool_result("(no content)")
+            return render_generic_tool_result(e.result)
+        case _:
             if len(e.result.strip()) == 0:
                 return render_generic_tool_result("(no content)")
             return render_generic_tool_result(e.result)

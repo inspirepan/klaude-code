@@ -29,7 +29,6 @@ def ensure_commands_loaded() -> None:
     # Import and register commands in display order
     from .clear_cmd import ClearCommand
     from .debug_cmd import DebugCommand
-    from .diff_cmd import DiffCommand
     from .export_cmd import ExportCommand
     from .export_online_cmd import ExportOnlineCommand
     from .help_cmd import HelpCommand
@@ -48,7 +47,6 @@ def ensure_commands_loaded() -> None:
     register(ModelCommand())
     load_prompt_commands()
     register(StatusCommand())
-    register(DiffCommand())
     register(HelpCommand())
     register(ReleaseNotesCommand())
     register(TerminalSetupCommand())
@@ -63,7 +61,6 @@ def __getattr__(name: str) -> object:
     _commands_map = {
         "ClearCommand": "clear_cmd",
         "DebugCommand": "debug_cmd",
-        "DiffCommand": "diff_cmd",
         "ExportCommand": "export_cmd",
         "ExportOnlineCommand": "export_online_cmd",
         "HelpCommand": "help_cmd",

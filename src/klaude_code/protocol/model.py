@@ -140,12 +140,7 @@ class SessionStatusUIExtra(BaseModel):
 
 
 ToolResultUIExtra = Annotated[
-    DiffUIExtra
-    | TodoListUIExtra
-    | SessionIdUIExtra
-    | MermaidLinkUIExtra
-    | TruncationUIExtra
-    | SessionStatusUIExtra,
+    DiffUIExtra | TodoListUIExtra | SessionIdUIExtra | MermaidLinkUIExtra | TruncationUIExtra | SessionStatusUIExtra,
     Field(discriminator="type"),
 ]
 

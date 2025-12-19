@@ -81,8 +81,8 @@ class TestApplyPatchTool(BaseTempDirTest):
         self.assertEqual(result.ui_extra.files[0].file_path, "data.txt")
         removed_lines = [line for line in result.ui_extra.files[0].lines if line.kind == "remove"]
         added_lines = [line for line in result.ui_extra.files[0].lines if line.kind == "add"]
-        self.assertTrue(any("old line" == "".join(span.text for span in line.spans) for line in removed_lines))
-        self.assertTrue(any("new line" == "".join(span.text for span in line.spans) for line in added_lines))
+        self.assertTrue(any("".join(span.text for span in line.spans) == "old line" for line in removed_lines))
+        self.assertTrue(any("".join(span.text for span in line.spans) == "new line" for line in added_lines))
         self.assertEqual(Path("data.txt").read_text(), "new line\nkeep\n")
 
     def test_apply_patch_add_file_absolute_path(self) -> None:

@@ -4,7 +4,6 @@ from rich.table import Table
 from rich.text import Text
 
 from klaude_code.protocol import commands, events, model
-from klaude_code.ui.renderers import diffs as r_diffs
 from klaude_code.ui.renderers.common import create_grid, truncate_display
 from klaude_code.ui.renderers.tools import render_path
 from klaude_code.ui.rich.markdown import NoInsetMarkdown
@@ -103,10 +102,6 @@ def render_command_output(e: events.DeveloperMessageEvent) -> RenderableType:
         return Text("")
 
     match e.item.command_output.command_name:
-        case commands.CommandName.DIFF:
-            if e.item.content is None or len(e.item.content) == 0:
-                return Padding.indent(Text("(no changes)", style=ThemeKey.TOOL_RESULT), level=2)
-            return r_diffs.render_diff_panel(e.item.content, show_file_name=True)
         case commands.CommandName.HELP:
             return Padding.indent(Text.from_markup(e.item.content or ""), level=2)
         case commands.CommandName.STATUS:

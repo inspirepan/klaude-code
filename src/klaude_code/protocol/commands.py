@@ -4,7 +4,6 @@ from enum import Enum
 class CommandName(str, Enum):
     INIT = "init"
     DEBUG = "debug"
-    DIFF = "diff"
     HELP = "help"
     MODEL = "model"
     COMPACT = "compact"
