@@ -78,7 +78,7 @@ class SkillTool(ToolABC):
         base_dir = str(skill.skill_path.parent) if skill.skill_path else "unknown"
 
         # Return with loading message format
-        result = f"""<command-message>The "{skill.name}" skill is running</command-message>
+        result = f"""<command-message>The "{skill.name}" skill is activated</command-message>
 <command-name>{skill.name}</command-name>
 
 Base directory for this skill: {base_dir}

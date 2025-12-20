@@ -201,11 +201,17 @@ class SkillLoader:
         Returns:
             Skill object or None if not found
         """
+        # Prefer exact match first (supports namespaced skill names).
+        skill = self.loaded_skills.get(name)
+        if skill is not None:
+            return skill
+
         # Support both formats: 'pdf' and 'document-skills:pdf'
         if ":" in name:
-            name = name.split(":")[-1]
+            short = name.split(":")[-1]
+            return self.loaded_skills.get(short)
 
-        return self.loaded_skills.get(name)
+        return None
 
     def list_skills(self) -> list[str]:
         """Get list of all loaded skill names"""
@@ -254,25 +260,25 @@ class SkillLoader:
         content = re.sub(dir_pattern, replace_dir_path, content)
 
         # Pattern 2: Markdown links [text](./path or path)
-        # e.g., "[Guide](./docs/guide.md)" -> "[Guide](`/abs/path/to/docs/guide.md`) (use read_file to access)"
+        # e.g., "[Guide](./docs/guide.md)" -> "[Guide](`/abs/path/to/docs/guide.md`) (use the Read tool to access)"
         link_pattern = r"\[([^\]]+)\]\((\./)?([^\)]+\.md)\)"
 
         def replace_link(match: re.Match[str]) -> str:
             text = match.group(1)
             filename = match.group(3)
             abs_path = skill_dir / filename
-            return f"[{text}](`{abs_path}`) (use read_file to access)"
+            return f"[{text}](`{abs_path}`) (use the Read tool to access)"
 
         content = re.sub(link_pattern, replace_link, content)
 
         # Pattern 3: Standalone markdown references
-        # e.g., "see reference.md" -> "see `/abs/path/to/reference.md` (use read_file to access)"
+        # e.g., "see reference.md" -> "see `/abs/path/to/reference.md` (use the Read tool to access)"
         standalone_pattern = r"(?<!\])\b(\w+\.md)\b(?!\))"
 
         def replace_standalone(match: re.Match[str]) -> str:
             filename = match.group(1)
             abs_path = skill_dir / filename
-            return f"`{abs_path}` (use read_file to access)"
+            return f"`{abs_path}` (use the Read tool to access)"
 
         content = re.sub(standalone_pattern, replace_standalone, content)
 

@@ -46,8 +46,9 @@ def render_at_pattern(
 
 def _is_valid_skill_name(name: str) -> bool:
     """Check if a skill name is valid (exists in loaded skills)."""
+    short = name.split(":")[-1] if ":" in name else name
     available_skills = get_available_skills()
-    return any(skill_name == name for skill_name, _, _ in available_skills)
+    return any(skill_name in (name, short) for skill_name, _, _ in available_skills)
 
 
 def render_user_input(content: str) -> RenderableType:

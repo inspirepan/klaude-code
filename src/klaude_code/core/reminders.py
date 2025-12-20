@@ -406,7 +406,7 @@ async def skill_reminder(session: Session) -> model.DeveloperMessageItem | None:
     # Get base directory from skill_path
     base_dir = str(skill.skill_path.parent) if skill.skill_path else "unknown"
 
-    content = f"""<system-reminder>The user invoked the "{skill.name}" skill. Here is the skill content:
+    content = f"""<system-reminder>The user activated the "{skill.name}" skill. Here is the skill content:
 
 <skill>
 <name>{skill.name}</name>

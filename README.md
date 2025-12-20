@@ -12,7 +12,7 @@ Multi-model code agent CLI.
 - **External file sync**: Monitoring for external edits (linter, manual)
 - **Interrupt handling**: Ctrl+C preserves partial responses and synthesizes tool cancellation results
 - **Output truncation**: Large outputs saved to file system with snapshot links
-- **Skills**: Load Claude Skills
+- **Skills**: Built-in + user + project Agent Skills (with implicit invocation by Skill tool or explicit invocation by typing `$`)
 - **Sessions**: Resumable with `--continue`
 - **Extras**: Slash commands, sub-agents, image paste, terminal notifications, auto-theming
 
