@@ -205,11 +205,13 @@ def build_meta_snapshot(
         "work_dir": str(work_dir),
         "sub_agent_state": sub_agent_state.model_dump(mode="json") if sub_agent_state else None,
         "file_tracker": {path: status.model_dump(mode="json") for path, status in file_tracker.items()},
-        "todos": [todo.model_dump(mode="json") for todo in todos],
+        "todos": [todo.model_dump(mode="json", exclude_defaults=True) for todo in todos],
         "created_at": created_at,
         "updated_at": updated_at,
         "messages_count": messages_count,
         "model_name": model_name,
         "model_config_name": model_config_name,
-        "model_thinking": model_thinking.model_dump(mode="json") if model_thinking else None,
+        "model_thinking": model_thinking.model_dump(mode="json", exclude_defaults=True, exclude_none=True)
+        if model_thinking
+        else None,
     }
