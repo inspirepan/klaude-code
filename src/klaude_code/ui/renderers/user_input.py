@@ -13,8 +13,8 @@ from klaude_code.ui.rich.theme import ThemeKey
 # patterns such as foo@bar.com as file references.
 AT_FILE_RENDER_PATTERN = re.compile(r'(?<!\S)@("([^"]+)"|\S+)')
 
-# Match $skill pattern at the beginning of the first line
-SKILL_RENDER_PATTERN = re.compile(r"^\$(\S+)")
+# Match $skill or ¥skill pattern at the beginning of the first line
+SKILL_RENDER_PATTERN = re.compile(r"^[$¥](\S+)")
 
 USER_MESSAGE_MARK = "❯ "
 
@@ -77,7 +77,7 @@ def render_user_input(content: str) -> RenderableType:
                 renderables.append(line_text)
                 continue
 
-        if i == 0 and line.startswith("$"):
+        if i == 0 and (line.startswith("$") or line.startswith("¥")):
             m = SKILL_RENDER_PATTERN.match(line)
             if m and _is_valid_skill_name(m.group(1)):
                 has_command = True

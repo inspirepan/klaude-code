@@ -20,8 +20,8 @@ type Reminder = Callable[[Session], Awaitable[model.DeveloperMessageItem | None]
 # Match @ preceded by whitespace, start of line, or → (ReadTool line number arrow)
 AT_FILE_PATTERN = re.compile(r'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P<plain>\S+))')
 
-# Match $skill at the beginning of the first line
-SKILL_PATTERN = re.compile(r"^\$(?P<skill>\S+)")
+# Match $skill or ¥skill at the beginning of the first line
+SKILL_PATTERN = re.compile(r"^[$¥](?P<skill>\S+)")
 
 
 def get_last_new_user_input(session: Session) -> str | None:

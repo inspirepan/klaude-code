@@ -36,8 +36,8 @@ from klaude_code.trace.log import DebugType, log_debug
 # single logical token.
 AT_TOKEN_PATTERN = re.compile(r'(^|\s)@(?P<frag>"[^"]*"|[^\s]*)$')
 
-# Pattern to match $skill token for skill completion (used by key bindings).
-SKILL_TOKEN_PATTERN = re.compile(r"^\$(?P<frag>\S*)$")
+# Pattern to match $skill or ¥skill token for skill completion (used by key bindings).
+SKILL_TOKEN_PATTERN = re.compile(r"^[$¥](?P<frag>\S*)$")
 
 
 def create_repl_completer() -> Completer:
@@ -130,7 +130,7 @@ class _SkillCompleter(Completer):
     """Complete skill names at the beginning of the first line.
 
     Behavior:
-    - Only triggers when cursor is on first line and text matches $...
+    - Only triggers when cursor is on first line and text matches $ or ¥...
     - Shows available skills with descriptions
     - Inserts trailing space after completion
     """
@@ -152,7 +152,9 @@ class _SkillCompleter(Completer):
             return
 
         frag = m.group("frag").lower()
-        token_start = len(text_before) - len(f"${m.group('frag')}")
+        # Get the prefix character ($ or ¥)
+        prefix_char = text_before[0]
+        token_start = len(text_before) - len(f"{prefix_char}{m.group('frag')}")
         start_position = token_start - len(text_before)  # negative offset
 
         # Get available skills from SkillTool
