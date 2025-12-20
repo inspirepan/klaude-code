@@ -93,7 +93,7 @@ def _get_embedded_assets_path() -> Path | None:
     """
     try:
         # For Python 3.9+, use files() API
-        assets_ref = resources.files("klaude_code.core.tool.memory").joinpath("assets")
+        assets_ref = resources.files("klaude_code.skill").joinpath("assets")
         # Convert to actual path using as_file context manager
         # For a directory, we need to traverse it
         if hasattr(assets_ref, "_path"):

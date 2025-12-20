@@ -102,6 +102,7 @@ class ThemeKey(str, Enum):
     USER_INPUT_PROMPT = "user.input.prompt"
     USER_INPUT_AT_PATTERN = "user.at_pattern"
     USER_INPUT_SLASH_COMMAND = "user.slash_command"
+    USER_INPUT_SKILL = "user.skill"
     # REMINDER
     REMINDER = "reminder"
     REMINDER_BOLD = "reminder.bold"
@@ -186,6 +187,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.USER_INPUT_PROMPT.value: "bold " + palette.magenta,
                 ThemeKey.USER_INPUT_AT_PATTERN.value: palette.purple,
                 ThemeKey.USER_INPUT_SLASH_COMMAND.value: "bold reverse " + palette.blue,
+                ThemeKey.USER_INPUT_SKILL.value: "bold reverse " + palette.green,
                 # METADATA
                 ThemeKey.METADATA.value: palette.lavender,
                 ThemeKey.METADATA_DIM.value: "dim " + palette.lavender,

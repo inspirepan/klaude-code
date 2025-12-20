@@ -230,6 +230,7 @@ class DeveloperMessageItem(BaseModel):
     at_files: list[AtPatternParseResult] | None = None
     command_output: CommandOutput | None = None
     user_image_count: int | None = None
+    skill_name: str | None = None  # Skill name activated via $skill syntax
 
 
 class ImageURLPart(BaseModel):

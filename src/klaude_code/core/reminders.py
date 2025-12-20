@@ -12,12 +12,16 @@ from klaude_code.core.tool import BashTool, ReadTool, reset_tool_context, set_to
 from klaude_code.core.tool.file._utils import hash_text_sha256
 from klaude_code.protocol import model, tools
 from klaude_code.session import Session
+from klaude_code.skill import get_skill
 
 type Reminder = Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]
 
 
 # Match @ preceded by whitespace, start of line, or → (ReadTool line number arrow)
 AT_FILE_PATTERN = re.compile(r'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P<plain>\S+))')
+
+# Match $skill at the beginning of the first line
+SKILL_PATTERN = re.compile(r"^\$(?P<skill>\S+)")
 
 
 def get_last_new_user_input(session: Session) -> str | None:
@@ -71,6 +75,21 @@ def get_at_patterns_with_source(session: Session) -> list[AtPatternSource]:
                     patterns.append(AtPatternSource(pattern=path_str, mentioned_in=source))
 
     return patterns
+
+
+def get_skill_from_user_input(session: Session) -> str | None:
+    """Get $skill reference from the first line of last user input."""
+    for item in reversed(session.conversation_history):
+        if isinstance(item, model.ToolResultItem):
+            return None
+        if isinstance(item, model.UserMessageItem):
+            content = item.content or ""
+            first_line = content.split("\n", 1)[0]
+            m = SKILL_PATTERN.match(first_line)
+            if m:
+                return m.group("skill")
+            return None
+    return None
 
 
 async def _load_at_file_recursive(
@@ -373,6 +392,36 @@ async def image_reminder(session: Session) -> model.DeveloperMessageItem | None:
     )
 
 
+async def skill_reminder(session: Session) -> model.DeveloperMessageItem | None:
+    """Load skill content when user references a skill with $skill syntax."""
+    skill_name = get_skill_from_user_input(session)
+    if not skill_name:
+        return None
+
+    # Get the skill from skill module
+    skill = get_skill(skill_name)
+    if not skill:
+        return None
+
+    # Get base directory from skill_path
+    base_dir = str(skill.skill_path.parent) if skill.skill_path else "unknown"
+
+    content = f"""<system-reminder>The user invoked the "{skill.name}" skill. Here is the skill content:
+
+<skill>
+<name>{skill.name}</name>
+<base_dir>{base_dir}</base_dir>
+
+{skill.to_prompt()}
+</skill>
+</system-reminder>"""
+
+    return model.DeveloperMessageItem(
+        content=content,
+        skill_name=skill.name,
+    )
+
+
 def _is_memory_loaded(session: Session, path: str) -> bool:
     """Check if a memory file has already been loaded (tracked with is_memory=True)."""
     status = session.file_tracker.get(path)
@@ -510,6 +559,7 @@ ALL_REMINDERS = [
     last_path_memory_reminder,
     at_file_reader_reminder,
     image_reminder,
+    skill_reminder,
 ]
 
 
@@ -540,6 +590,7 @@ def load_agent_reminders(
             last_path_memory_reminder,
             file_changed_externally_reminder,
             image_reminder,
+            skill_reminder,
         ]
     )
 

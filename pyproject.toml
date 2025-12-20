@@ -81,6 +81,7 @@ layers = [
     "klaude_code.cli",
     "klaude_code.ui",
     "klaude_code.core",
+    "klaude_code.skill",
     "klaude_code.command",
     "klaude_code.session",
     "klaude_code.config",

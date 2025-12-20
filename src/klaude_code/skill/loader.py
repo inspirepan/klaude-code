@@ -56,7 +56,7 @@ class SkillLoader:
 
         Args:
             skill_path: Path to SKILL.md file
-            location: Skill location ('user' or 'project')
+            location: Skill location ('system', 'user', or 'project')
 
         Returns:
             Skill object or None if loading failed

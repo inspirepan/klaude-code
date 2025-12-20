@@ -17,6 +17,7 @@ def need_render_developer_message(e: events.DeveloperMessageEvent) -> bool:
         or e.item.todo_use
         or e.item.at_files
         or e.item.user_image_count
+        or e.item.skill_name
     )
 
 
@@ -90,6 +91,17 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
         grid.add_row(
             Text("  +", style=ThemeKey.REMINDER),
             Text(f"Attached {uic} image{'s' if uic > 1 else ''}", style=ThemeKey.REMINDER),
+        )
+        parts.append(grid)
+
+    if sn := e.item.skill_name:
+        grid = create_grid()
+        grid.add_row(
+            Text("  +", style=ThemeKey.REMINDER),
+            Text.assemble(
+                ("Activated skill ", ThemeKey.REMINDER),
+                (sn, ThemeKey.REMINDER_BOLD),
+            ),
         )
         parts.append(grid)
 

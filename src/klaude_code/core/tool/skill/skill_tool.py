@@ -1,38 +1,22 @@
+"""SkillTool - Tool for agent to activate and load skills."""
+
 from pathlib import Path
 
 from pydantic import BaseModel
 
-from klaude_code.core.tool.memory.skill_loader import SkillLoader
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, model, tools
+from klaude_code.skill import get_available_skills, get_skill, list_skill_names
 
 
 @register(tools.SKILL)
 class SkillTool(ToolABC):
-    """Tool to execute/load a skill within the main conversation"""
-
-    _skill_loader: SkillLoader | None = None
-    _discovery_done: bool = False
-
-    @classmethod
-    def set_skill_loader(cls, loader: SkillLoader) -> None:
-        """Set the skill loader instance"""
-        cls._skill_loader = loader
-        cls._discovery_done = False
-
-    @classmethod
-    def _ensure_skills_discovered(cls) -> None:
-        if cls._discovery_done:
-            return
-        if cls._skill_loader is not None:
-            cls._skill_loader.discover_skills()
-        cls._discovery_done = True
+    """Tool to execute/load a skill within the main conversation."""
 
     @classmethod
     def schema(cls) -> llm_param.ToolSchema:
-        """Generate schema with embedded available skills metadata"""
-        cls._ensure_skills_discovered()
+        """Generate schema with embedded available skills metadata."""
         skills_xml = cls._generate_skills_xml()
 
         return llm_param.ToolSchema(
@@ -53,16 +37,17 @@ class SkillTool(ToolABC):
 
     @classmethod
     def _generate_skills_xml(cls) -> str:
-        """Generate XML format skills metadata"""
-        if not cls._skill_loader:
+        """Generate XML format skills metadata."""
+        skills = get_available_skills()
+        if not skills:
             return ""
 
         xml_parts: list[str] = []
-        for skill in cls._skill_loader.loaded_skills.values():
+        for name, description, location in skills:
             xml_parts.append(f"""<skill>
-<name>{skill.name}</name>
-<description>{skill.description}</description>
-<location>{skill.location}</location>
+<name>{name}</name>
+<description>{description}</description>
+<location>{location}</location>
 </skill>""")
         return "\n".join(xml_parts)
 
@@ -71,7 +56,7 @@ class SkillTool(ToolABC):
 
     @classmethod
     async def call(cls, arguments: str) -> model.ToolResultItem:
-        """Load and return full skill content"""
+        """Load and return full skill content."""
         try:
             args = cls.SkillArguments.model_validate_json(arguments)
         except ValueError as e:
@@ -80,18 +65,10 @@ class SkillTool(ToolABC):
                 output=f"Invalid arguments: {e}",
             )
 
-        cls._ensure_skills_discovered()
-
-        if not cls._skill_loader:
-            return model.ToolResultItem(
-                status="error",
-                output="Skill loader not initialized",
-            )
-
-        skill = cls._skill_loader.get_skill(args.command)
+        skill = get_skill(args.command)
 
         if not skill:
-            available = ", ".join(cls._skill_loader.list_skills())
+            available = ", ".join(list_skill_names())
             return model.ToolResultItem(
                 status="error",
                 output=f"Skill '{args.command}' does not exist. Available skills: {available}",

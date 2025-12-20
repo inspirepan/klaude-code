@@ -1,13 +1,15 @@
-"""REPL completion handlers for @ file paths and / slash commands.
+"""REPL completion handlers for @ file paths, / slash commands, and $ skills.
 
 This module provides completers for the REPL input:
 - _SlashCommandCompleter: Completes slash commands on the first line
+- _SkillCompleter: Completes skill names on the first line with $ prefix
 - _AtFilesCompleter: Completes @path segments using fd or ripgrep
-- _ComboCompleter: Combines both completers with priority logic
+- _ComboCompleter: Combines all completers with priority logic
 
 Public API:
 - create_repl_completer(): Factory function to create the combined completer
 - AT_TOKEN_PATTERN: Regex pattern for @token matching (used by key bindings)
+- SKILL_TOKEN_PATTERN: Regex pattern for $skill matching (used by key bindings)
 """
 
 from __future__ import annotations
@@ -33,6 +35,9 @@ from klaude_code.trace.log import DebugType, log_debug
 # `@"path with spaces/file.py"` so that filenames with spaces remain a
 # single logical token.
 AT_TOKEN_PATTERN = re.compile(r'(^|\s)@(?P<frag>"[^"]*"|[^\s]*)$')
+
+# Pattern to match $skill token for skill completion (used by key bindings).
+SKILL_TOKEN_PATTERN = re.compile(r"^\$(?P<frag>\S*)$")
 
 
 def create_repl_completer() -> Completer:
@@ -121,12 +126,100 @@ class _SlashCommandCompleter(Completer):
         return bool(self._SLASH_TOKEN_RE.search(text_before))
 
 
+class _SkillCompleter(Completer):
+    """Complete skill names at the beginning of the first line.
+
+    Behavior:
+    - Only triggers when cursor is on first line and text matches $...
+    - Shows available skills with descriptions
+    - Inserts trailing space after completion
+    """
+
+    _SKILL_TOKEN_RE = SKILL_TOKEN_PATTERN
+
+    def get_completions(
+        self,
+        document: Document,
+        complete_event,  # type: ignore[override]
+    ) -> Iterable[Completion]:
+        # Only complete on first line
+        if document.cursor_position_row != 0:
+            return
+
+        text_before = document.current_line_before_cursor
+        m = self._SKILL_TOKEN_RE.search(text_before)
+        if not m:
+            return
+
+        frag = m.group("frag").lower()
+        token_start = len(text_before) - len(f"${m.group('frag')}")
+        start_position = token_start - len(text_before)  # negative offset
+
+        # Get available skills from SkillTool
+        skills = self._get_available_skills()
+        if not skills:
+            return
+
+        # Filter skills that match the fragment (case-insensitive)
+        matched: list[tuple[str, str, str]] = []  # (name, description, location)
+        for name, desc, location in skills:
+            if frag in name.lower() or frag in desc.lower():
+                matched.append((name, desc, location))
+
+        if not matched:
+            return
+
+        # Calculate max width for alignment
+        max_name_len = max(len(name) for name, _, _ in matched)
+        align_width = max(max_name_len, 20) + 2
+
+        for name, desc, location in matched:
+            # Format: name  [location]  description
+            # Align location tags (max length is "project" = 7, plus brackets = 9)
+            padding_name = " " * (align_width - len(name))
+            location_tag = f"[{location}]".ljust(9)
+
+            # Using HTML for formatting: bold skill name, cyan location tag, gray description
+            display_text = HTML(
+                f"<b>{name}</b>{padding_name}<style color='ansicyan'>{location_tag}</style> "
+                f"<style color='ansibrightblack'>{desc}</style>"
+            )
+            completion_text = f"${name} "
+            yield Completion(
+                text=completion_text,
+                start_position=start_position,
+                display=display_text,
+            )
+
+    def _get_available_skills(self) -> list[tuple[str, str, str]]:
+        """Get available skills from skill module.
+
+        Returns:
+            List of (name, description, location) tuples
+        """
+        try:
+            # Import here to avoid circular imports
+            from klaude_code.skill import get_available_skills
+
+            return get_available_skills()
+        except Exception:
+            return []
+
+    def is_skill_context(self, document: Document) -> bool:
+        """Check if current context is a skill completion."""
+        if document.cursor_position_row != 0:
+            return False
+        text_before = document.current_line_before_cursor
+        return bool(self._SKILL_TOKEN_RE.search(text_before))
+
+
 class _ComboCompleter(Completer):
-    """Combined completer that handles both @ file paths and / slash commands."""
+    """Combined completer that handles @ file paths, / slash commands, and $ skills."""
 
     def __init__(self) -> None:
         self._at_completer = _AtFilesCompleter()
         self._slash_completer = _SlashCommandCompleter()
+        self._skill_completer = _SkillCompleter()
 
     def get_completions(
         self,
@@ -136,6 +229,11 @@ class _ComboCompleter(Completer):
         # Try slash command completion first (only on first line)
         if document.cursor_position_row == 0 and self._slash_completer.is_slash_command_context(document):
             yield from self._slash_completer.get_completions(document, complete_event)
+            return
+
+        # Try skill completion (only on first line with $ prefix)
+        if document.cursor_position_row == 0 and self._skill_completer.is_skill_context(document):
+            yield from self._skill_completer.get_completions(document, complete_event)
             return
 
         # Fall back to @ file completion
