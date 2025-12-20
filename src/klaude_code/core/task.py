@@ -25,7 +25,7 @@ class MetadataAccumulator:
     """
 
     def __init__(self, model_name: str) -> None:
-        self._main = model.TaskMetadata(model_name=model_name)
+        self._main_agent = model.TaskMetadata(model_name=model_name)  # Main agent metadata
         self._sub_agent_metadata: list[model.TaskMetadata] = []
         self._throughput_weighted_sum: float = 0.0
         self._throughput_tracked_tokens: int = 0
@@ -36,13 +36,12 @@ class MetadataAccumulator:
     def add(self, turn_metadata: model.ResponseMetadataItem) -> None:
         """Merge a turn's metadata into the accumulated state."""
         self._turn_count += 1
-        main = self._main
         usage = turn_metadata.usage
 
         if usage is not None:
-            if main.usage is None:
-                main.usage = model.Usage()
-            acc_usage = main.usage
+            if self._main_agent.usage is None:
+                self._main_agent.usage = model.Usage()
+            acc_usage = self._main_agent.usage
 
             model.TaskMetadata.merge_usage(acc_usage, usage)
             acc_usage.currency = usage.currency
@@ -63,9 +62,9 @@ class MetadataAccumulator:
                     self._throughput_tracked_tokens += current_output
 
         if turn_metadata.provider is not None:
-            main.provider = turn_metadata.provider
+            self._main_agent.provider = turn_metadata.provider
         if turn_metadata.model_name:
-            main.model_name = turn_metadata.model_name
+            self._main_agent.model_name = turn_metadata.model_name
 
     def add_sub_agent_metadata(self, sub_agent_metadata: model.TaskMetadata) -> None:
         """Add sub-agent task metadata to the accumulated state."""
@@ -73,21 +72,22 @@ class MetadataAccumulator:
 
     def finalize(self, task_duration_s: float) -> model.TaskMetadataItem:
         """Return the final accumulated metadata with computed throughput and duration."""
-        main = self._main
-        if main.usage is not None:
+        if self._main_agent.usage is not None:
             if self._throughput_tracked_tokens > 0:
-                main.usage.throughput_tps = self._throughput_weighted_sum / self._throughput_tracked_tokens
+                self._main_agent.usage.throughput_tps = self._throughput_weighted_sum / self._throughput_tracked_tokens
             else:
-                main.usage.throughput_tps = None
+                self._main_agent.usage.throughput_tps = None
 
             if self._first_token_latency_count > 0:
-                main.usage.first_token_latency_ms = self._first_token_latency_sum / self._first_token_latency_count
+                self._main_agent.usage.first_token_latency_ms = (
+                    self._first_token_latency_sum / self._first_token_latency_count
+                )
             else:
-                main.usage.first_token_latency_ms = None
+                self._main_agent.usage.first_token_latency_ms = None
 
-        main.task_duration_s = task_duration_s
-        main.turn_count = self._turn_count
-        return model.TaskMetadataItem(main=main, sub_agent_task_metadata=self._sub_agent_metadata)
+        self._main_agent.task_duration_s = task_duration_s
+        self._main_agent.turn_count = self._turn_count
+        return model.TaskMetadataItem(main_agent=self._main_agent, sub_agent_task_metadata=self._sub_agent_metadata)
 
 
 @dataclass
@@ -126,17 +126,28 @@ class TaskExecutor:
         self._context = context
         self._current_turn: TurnExecutor | None = None
         self._started_at: float = 0.0
+        self._metadata_accumulator: MetadataAccumulator | None = None
 
     @property
     def current_turn(self) -> TurnExecutor | None:
         return self._current_turn
 
     def cancel(self) -> list[events.Event]:
-        """Cancel the current turn and return any resulting events."""
+        """Cancel the current turn and return any resulting events including metadata."""
         ui_events: list[events.Event] = []
         if self._current_turn is not None:
             ui_events.extend(self._current_turn.cancel())
             self._current_turn = None
+
+        # Emit partial metadata on cancellation
+        if self._metadata_accumulator is not None and self._started_at > 0:
+            task_duration_s = time.perf_counter() - self._started_at
+            accumulated = self._metadata_accumulator.finalize(task_duration_s)
+            if accumulated.main_agent.usage is not None:
+                session_id = self._context.session_ctx.session_id
+                ui_events.append(events.TaskMetadataEvent(metadata=accumulated, session_id=session_id))
+                self._context.session_ctx.append_history([accumulated])
+
         return ui_events
 
     async def run(self, user_input: model.UserInputPayload) -> AsyncGenerator[events.Event]:
@@ -152,7 +163,8 @@ class TaskExecutor:
         del user_input  # Persisted by the operation handler before launching the task.
 
         profile = ctx.profile
-        metadata_accumulator = MetadataAccumulator(model_name=profile.llm_client.model_name)
+        self._metadata_accumulator = MetadataAccumulator(model_name=profile.llm_client.model_name)
+        metadata_accumulator = self._metadata_accumulator
 
         while True:
             # Process reminders at the start of each turn

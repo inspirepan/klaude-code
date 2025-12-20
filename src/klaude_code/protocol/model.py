@@ -417,7 +417,7 @@ class TaskMetadata(BaseModel):
 class TaskMetadataItem(BaseModel):
     """Aggregated metadata for a complete task, stored in conversation history."""
 
-    main: TaskMetadata = Field(default_factory=TaskMetadata)
+    main_agent: TaskMetadata = Field(default_factory=TaskMetadata)  # Main agent metadata
     sub_agent_task_metadata: list[TaskMetadata] = Field(default_factory=lambda: list[TaskMetadata]())
     created_at: datetime = Field(default_factory=datetime.now)
 

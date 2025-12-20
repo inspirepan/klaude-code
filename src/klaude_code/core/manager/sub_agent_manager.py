@@ -89,7 +89,7 @@ Only the content passed to `report_back` will be returned to user.\
                     result = event.task_result
                 # Capture TaskMetadataEvent for metadata propagation
                 elif isinstance(event, events.TaskMetadataEvent):
-                    task_metadata = event.metadata.main
+                    task_metadata = event.metadata.main_agent
                 await self.emit_event(event)
             return SubAgentResult(
                 task_result=result,

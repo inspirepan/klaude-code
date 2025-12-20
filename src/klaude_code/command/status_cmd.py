@@ -22,7 +22,7 @@ def accumulate_session_usage(session: Session) -> AggregatedUsage:
     for item in session.conversation_history:
         if isinstance(item, model.TaskMetadataItem):
             task_count += 1
-            all_metadata.append(item.main)
+            all_metadata.append(item.main_agent)
             all_metadata.extend(item.sub_agent_task_metadata)
 
     # Aggregate by model+provider

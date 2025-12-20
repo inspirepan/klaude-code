@@ -235,7 +235,7 @@ def _render_metadata_item(item: model.TaskMetadataItem) -> str:
     lines: list[str] = []
 
     # Main agent metadata
-    lines.append(_render_single_metadata(item.main, indent=0, show_context=True))
+    lines.append(_render_single_metadata(item.main_agent, indent=0, show_context=True))
 
     # Sub-agent metadata with indent
     for sub in item.sub_agent_task_metadata:

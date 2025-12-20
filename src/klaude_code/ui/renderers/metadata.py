@@ -151,7 +151,9 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     """Render task metadata including main agent and sub-agents, aggregated by model+provider."""
     renderables: list[RenderableType] = []
 
-    renderables.append(_render_task_metadata_block(e.metadata.main, is_sub_agent=False, show_context_and_time=True))
+    renderables.append(
+        _render_task_metadata_block(e.metadata.main_agent, is_sub_agent=False, show_context_and_time=True)
+    )
 
     # Aggregate by (model_name, provider), sorted by total_cost descending
     sorted_items = model.TaskMetadata.aggregate_by_model(e.metadata.sub_agent_task_metadata)

@@ -978,7 +978,7 @@ class TestRenderMetadata:
             model_name="gpt-3.5",
             usage=model.Usage(input_tokens=50, output_tokens=25),
         )
-        item = model.TaskMetadataItem(main=main, sub_agent_task_metadata=[sub])
+        item = model.TaskMetadataItem(main_agent=main, sub_agent_task_metadata=[sub])
         result = export._render_metadata_item(item)
         assert "gpt-4" in result
         assert "gpt-3.5" in result
