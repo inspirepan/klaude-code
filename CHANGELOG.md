@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.23] - 2025-12-20
+
+### Added
+
+- sort skills by priority (project > user > system) (`2c4dfb3`)
+- support ¥ as skill trigger prefix for Chinese input (`3bb3655`)
+- add adaptive placeholder styles based on terminal background (`ac98eb7`)
+- support metadata.short-description for REPL completions (`2dd3127`)
+- extract skill module and add $skill UX (`880c468`)
+
+### Changed
+
+- improve skill loading and terminology (`2198796`)
+- convert prompt commands to built-in system skills (`9cc04d9`)
+- improve diff color contrast for better readability (`f39b30c`)
+- update diff header (`4c406f0`)
+- unify UI marker constants and improve prompt styling (`8a5bf91`)
+- update spinner glyph (`9cabc31`)
+- exclude default and none in session (`6be03fa`)
+- update readme (`29b6ccc`)
+- update display limits and add separator in REPL (`cdaf23f`)
+- update tool marks (`3772402`)
+
+### Fixed
+
+- reserve markdown margins for wrapping (`38475a0`)
+- emit partial metadata on task cancellation (`9cb8731`)
+- retry sub-agent when task result is empty (`e2c7fd3`)
+
+### Other
+
+-  (`c7206e3`)
 ## [1.2.22] - 2025-12-19
 
 ### Added
@@ -679,7 +711,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.22...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.23...HEAD
+[1.2.23]: https://github.com/inspirepan/klaude-code/compare/v1.2.22...v1.2.23
 [1.2.22]: https://github.com/inspirepan/klaude-code/compare/v1.2.21...v1.2.22
 [1.2.21]: https://github.com/inspirepan/klaude-code/compare/v1.2.20...v1.2.21
 [1.2.20]: https://github.com/inspirepan/klaude-code/compare/v1.2.19...v1.2.20
