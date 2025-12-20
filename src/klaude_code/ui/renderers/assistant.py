@@ -4,7 +4,7 @@ from klaude_code.ui.renderers.common import create_grid
 from klaude_code.ui.rich.markdown import NoInsetMarkdown
 
 # UI markers
-ASSISTANT_MESSAGE_MARKER = "➤"
+ASSISTANT_MESSAGE_MARK = "➤"
 
 
 def render_assistant_message(content: str, *, code_theme: str) -> RenderableType | None:
@@ -18,7 +18,7 @@ def render_assistant_message(content: str, *, code_theme: str) -> RenderableType
 
     grid = create_grid()
     grid.add_row(
-        ASSISTANT_MESSAGE_MARKER,
+        ASSISTANT_MESSAGE_MARK,
         NoInsetMarkdown(stripped, code_theme=code_theme),
     )
     return grid

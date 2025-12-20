@@ -7,6 +7,7 @@ from typing import NamedTuple, override
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import ThreadedCompleter
+from prompt_toolkit.cursor_shapes import CursorShape
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.patch_stdout import patch_stdout
@@ -17,6 +18,7 @@ from klaude_code.ui.core.input import InputProviderABC
 from klaude_code.ui.modes.repl.clipboard import capture_clipboard_tag, copy_to_clipboard, extract_images_from_text
 from klaude_code.ui.modes.repl.completers import AT_TOKEN_PATTERN, create_repl_completer
 from klaude_code.ui.modes.repl.key_bindings import create_key_bindings
+from klaude_code.ui.renderers.user_input import USER_MESSAGE_MARK
 from klaude_code.ui.utils.common import get_current_git_branch, show_path_with_tilde
 
 
@@ -32,13 +34,13 @@ class REPLStatusSnapshot(NamedTuple):
 
 COMPLETION_SELECTED = "#5869f7"
 COMPLETION_MENU = "ansibrightblack"
-INPUT_PROMPT_STYLE = "ansimagenta"
+INPUT_PROMPT_STYLE = "ansimagenta bold"
 
 
 class PromptToolkitInput(InputProviderABC):
     def __init__(
         self,
-        prompt: str = "❯ ",
+        prompt: str = USER_MESSAGE_MARK,
         status_provider: Callable[[], REPLStatusSnapshot] | None = None,
     ):  # ▌
         self._status_provider = status_provider
@@ -60,6 +62,7 @@ class PromptToolkitInput(InputProviderABC):
             [(INPUT_PROMPT_STYLE, prompt)],
             history=FileHistory(str(history_path)),
             multiline=True,
+            cursor=CursorShape.BEAM,
             prompt_continuation=[(INPUT_PROMPT_STYLE, "  ")],
             key_bindings=kb,
             completer=ThreadedCompleter(create_repl_completer()),

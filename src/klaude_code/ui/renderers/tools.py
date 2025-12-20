@@ -13,6 +13,24 @@ from klaude_code.ui.renderers import diffs as r_diffs
 from klaude_code.ui.renderers.common import create_grid, truncate_display
 from klaude_code.ui.rich.theme import ThemeKey
 
+# Tool markers (Unicode symbols for UI display)
+MARK_GENERIC = "⚒"
+MARK_BASH = "→"
+MARK_PLAN = "▪"
+MARK_READ = "←"
+MARK_EDIT = "±"
+MARK_WRITE = "+"
+MARK_MERMAID = "⧉"
+MARK_WEB_FETCH = "←"
+MARK_WEB_SEARCH = ""
+MARK_DONE = "✔"
+MARK_SKILL = "✪"
+
+# Todo status markers
+MARK_TODO_PENDING = "▢"
+MARK_TODO_IN_PROGRESS = "◉"
+MARK_TODO_COMPLETED = "✔"
+
 
 def is_sub_agent_tool(tool_name: str) -> bool:
     return _is_sub_agent_tool(tool_name)
@@ -30,7 +48,7 @@ def render_path(path: str, style: str, is_directory: bool = False) -> Text:
     return Text(path, style=style)
 
 
-def render_generic_tool_call(tool_name: str, arguments: str, markup: str = "•") -> RenderableType:
+def render_generic_tool_call(tool_name: str, arguments: str, markup: str = MARK_GENERIC) -> RenderableType:
     grid = create_grid()
 
     tool_name_column = Text.assemble((markup, ThemeKey.TOOL_MARK), " ", (tool_name, ThemeKey.TOOL_NAME))
@@ -60,7 +78,7 @@ def render_generic_tool_call(tool_name: str, arguments: str, markup: str = "•"
 
 def render_bash_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
-    tool_name_column = Text.assemble((">", ThemeKey.TOOL_MARK), " ", ("Bash", ThemeKey.TOOL_NAME))
+    tool_name_column = Text.assemble((MARK_BASH, ThemeKey.TOOL_MARK), " ", ("Bash", ThemeKey.TOOL_NAME))
 
     try:
         payload_raw: Any = json.loads(arguments) if arguments else {}
@@ -103,7 +121,7 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
 
 def render_update_plan_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
-    tool_name_column = Text.assemble(("⚑", ThemeKey.TOOL_MARK), " ", ("Update Plan", ThemeKey.TOOL_NAME))
+    tool_name_column = Text.assemble((MARK_PLAN, ThemeKey.TOOL_MARK), " ", ("Update Plan", ThemeKey.TOOL_NAME))
     explanation_column = Text("")
 
     if arguments:
@@ -160,13 +178,13 @@ def render_read_tool_call(arguments: str) -> RenderableType:
                 style=ThemeKey.INVALID_TOOL_CALL_ARGS,
             )
         )
-    grid.add_row(Text("←", ThemeKey.TOOL_MARK), render_result)
+    grid.add_row(Text(MARK_READ, ThemeKey.TOOL_MARK), render_result)
     return grid
 
 
 def render_edit_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
-    tool_name_column = Text.assemble(("±", ThemeKey.TOOL_MARK), " ", ("Edit", ThemeKey.TOOL_NAME))
+    tool_name_column = Text.assemble((MARK_EDIT, ThemeKey.TOOL_MARK), " ", ("Edit", ThemeKey.TOOL_NAME))
     try:
         json_dict = json.loads(arguments)
         file_path = json_dict.get("file_path")
@@ -185,10 +203,10 @@ def render_write_tool_call(arguments: str) -> RenderableType:
     try:
         json_dict = json.loads(arguments)
         file_path = json_dict.get("file_path")
-        tool_name_column = Text.assemble(("✚", ThemeKey.TOOL_MARK), " ", ("Write", ThemeKey.TOOL_NAME))
+        tool_name_column = Text.assemble((MARK_WRITE, ThemeKey.TOOL_MARK), " ", ("Write", ThemeKey.TOOL_NAME))
         arguments_column = render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
     except json.JSONDecodeError:
-        tool_name_column = Text.assemble(("✚", ThemeKey.TOOL_MARK), " ", ("Write", ThemeKey.TOOL_NAME))
+        tool_name_column = Text.assemble((MARK_WRITE, ThemeKey.TOOL_MARK), " ", ("Write", ThemeKey.TOOL_NAME))
         arguments_column = Text(
             arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
@@ -199,7 +217,7 @@ def render_write_tool_call(arguments: str) -> RenderableType:
 
 def render_apply_patch_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
-    tool_name_column = Text.assemble(("±", ThemeKey.TOOL_MARK), " ", ("Apply Patch", ThemeKey.TOOL_NAME))
+    tool_name_column = Text.assemble((MARK_EDIT, ThemeKey.TOOL_MARK), " ", ("Apply Patch", ThemeKey.TOOL_NAME))
 
     try:
         payload = json.loads(arguments)
@@ -228,11 +246,11 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
 
         parts: list[str] = []
         if update_count > 0:
-            parts.append(f"Update File x {update_count}" if update_count > 1 else "Update File")
+            parts.append(f"Update File × {update_count}" if update_count > 1 else "Update File")
         if add_count > 0:
-            parts.append(f"Add File x {add_count}" if add_count > 1 else "Add File")
+            parts.append(f"Add File × {add_count}" if add_count > 1 else "Add File")
         if delete_count > 0:
-            parts.append(f"Delete File x {delete_count}" if delete_count > 1 else "Delete File")
+            parts.append(f"Delete File × {delete_count}" if delete_count > 1 else "Delete File")
 
         if parts:
             arguments_column = Text(", ".join(parts), ThemeKey.TOOL_PARAM)
@@ -254,15 +272,15 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
         is_new_completed = todo.content in ui_extra.new_completed
         match todo.status:
             case "pending":
-                mark = "▢"
+                mark = MARK_TODO_PENDING
                 mark_style = ThemeKey.TODO_PENDING_MARK
                 text_style = ThemeKey.TODO_PENDING
             case "in_progress":
-                mark = "◉"
+                mark = MARK_TODO_IN_PROGRESS
                 mark_style = ThemeKey.TODO_IN_PROGRESS_MARK
                 text_style = ThemeKey.TODO_IN_PROGRESS
             case "completed":
-                mark = "✔"
+                mark = MARK_TODO_COMPLETED
                 mark_style = ThemeKey.TODO_NEW_COMPLETED_MARK if is_new_completed else ThemeKey.TODO_COMPLETED_MARK
                 text_style = ThemeKey.TODO_NEW_COMPLETED if is_new_completed else ThemeKey.TODO_COMPLETED
         text = Text(todo.content)
@@ -288,7 +306,7 @@ def _extract_mermaid_link(
 
 def render_mermaid_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
-    tool_name_column = Text.assemble(("⧉", ThemeKey.TOOL_MARK), " ", ("Mermaid", ThemeKey.TOOL_NAME))
+    tool_name_column = Text.assemble((MARK_MERMAID, ThemeKey.TOOL_MARK), " ", ("Mermaid", ThemeKey.TOOL_NAME))
     summary = Text("", ThemeKey.TOOL_PARAM)
 
     try:
@@ -328,7 +346,7 @@ def _truncate_url(url: str, max_length: int = 400) -> str:
 
 def render_web_fetch_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
-    tool_name_column = Text.assemble(("↓", ThemeKey.TOOL_MARK), " ", ("Fetch", ThemeKey.TOOL_NAME))
+    tool_name_column = Text.assemble((MARK_WEB_FETCH, ThemeKey.TOOL_MARK), " ", ("Fetch", ThemeKey.TOOL_NAME))
 
     try:
         payload: dict[str, str] = json.loads(arguments)
@@ -349,7 +367,7 @@ def render_web_fetch_tool_call(arguments: str) -> RenderableType:
 
 def render_web_search_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
-    tool_name_column = Text.assemble(("☇", ThemeKey.TOOL_MARK), " ", ("Web Search", ThemeKey.TOOL_NAME))
+    tool_name_column = Text.assemble((MARK_WEB_SEARCH, ThemeKey.TOOL_MARK), " ", ("Web Search", ThemeKey.TOOL_NAME))
 
     try:
         payload: dict[str, Any] = json.loads(arguments)
@@ -426,7 +444,7 @@ def get_truncation_info(tr: events.ToolResultEvent) -> model.TruncationUIExtra |
 
 def render_report_back_tool_call() -> RenderableType:
     grid = create_grid()
-    tool_name_column = Text.assemble(("✔", ThemeKey.TOOL_MARK), " ", ("Report Back", ThemeKey.TOOL_NAME))
+    tool_name_column = Text.assemble((MARK_DONE, ThemeKey.TOOL_MARK), " ", ("Report Back", ThemeKey.TOOL_NAME))
     grid.add_row(tool_name_column, "")
     return grid
 
@@ -487,13 +505,13 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
         case tools.APPLY_PATCH:
             return render_apply_patch_tool_call(e.arguments)
         case tools.TODO_WRITE:
-            return render_generic_tool_call("Update Todos", "", "⚑")
+            return render_generic_tool_call("Update Todos", "", MARK_PLAN)
         case tools.UPDATE_PLAN:
             return render_update_plan_tool_call(e.arguments)
         case tools.MERMAID:
             return render_mermaid_tool_call(e.arguments)
         case tools.SKILL:
-            return render_generic_tool_call(e.tool_name, e.arguments, "◈")
+            return render_generic_tool_call(e.tool_name, e.arguments, MARK_SKILL)
         case tools.REPORT_BACK:
             return render_report_back_tool_call()
         case tools.WEB_FETCH:

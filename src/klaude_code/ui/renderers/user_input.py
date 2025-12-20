@@ -12,6 +12,8 @@ from klaude_code.ui.rich.theme import ThemeKey
 # patterns such as foo@bar.com as file references.
 AT_FILE_RENDER_PATTERN = re.compile(r'(?<!\S)@("([^"]+)"|\S+)')
 
+USER_MESSAGE_MARK = "❯ "
+
 
 def render_at_pattern(
     text: str,
@@ -66,7 +68,7 @@ def render_user_input(content: str) -> RenderableType:
     grid = create_grid()
     grid.padding = (0, 0)
     mark = (
-        Text("❯ ", style=ThemeKey.USER_INPUT_PROMPT)
+        Text(USER_MESSAGE_MARK, style=ThemeKey.USER_INPUT_PROMPT)
         if not has_command
         else Text("  ", style=ThemeKey.USER_INPUT_SLASH_COMMAND)
     )
