@@ -15,7 +15,7 @@ class Skill:
     name: str  # Skill identifier (lowercase-hyphen)
     description: str  # What the skill does and when to use it
     content: str  # Full markdown instructions
-    location: str  # Skill location: 'user' or 'project'
+    location: str  # Skill location: 'system', 'user', or 'project'
     license: str | None = None
     allowed_tools: list[str] | None = None
     metadata: dict[str, str] | None = None
@@ -36,13 +36,15 @@ class Skill:
 class SkillLoader:
     """Load and manage Claude Skills from SKILL.md files"""
 
+    # System-level skills directory (built-in, lowest priority)
+    SYSTEM_SKILLS_DIR: ClassVar[Path] = Path("~/.klaude/skills/.system")
+
     # User-level skills directories (checked in order, later ones override earlier ones with same name)
     USER_SKILLS_DIRS: ClassVar[list[Path]] = [
         Path("~/.claude/skills"),
         Path("~/.klaude/skills"),
-        # Path("~/.claude/plugins/marketplaces"),
     ]
-    # Project-level skills directory
+    # Project-level skills directory (highest priority)
     PROJECT_SKILLS_DIR: ClassVar[Path] = Path("./.claude/skills")
 
     def __init__(self) -> None:
@@ -121,39 +123,57 @@ class SkillLoader:
             return None
 
     def discover_skills(self) -> list[Skill]:
-        """Recursively find all SKILL.md files and load them from both user and project directories
+        """Recursively find all SKILL.md files and load them from system, user and project directories.
+
+        Loading order (lower priority first, higher priority overrides):
+        1. System skills (~/.klaude/skills/.system/) - built-in, lowest priority
+        2. User skills (~/.claude/skills/, ~/.klaude/skills/) - user-level
+        3. Project skills (./.claude/skills/) - project-level, highest priority
 
         Returns:
             List of successfully loaded Skill objects
         """
         skills: list[Skill] = []
 
-        # Load user-level skills from all directories
+        # Load system-level skills first (lowest priority, can be overridden)
+        system_dir = self.SYSTEM_SKILLS_DIR.expanduser()
+        if system_dir.exists():
+            for skill_file in system_dir.rglob("SKILL.md"):
+                skill = self.load_skill(skill_file, location="system")
+                if skill:
+                    skills.append(skill)
+                    self.loaded_skills[skill.name] = skill
+
+        # Load user-level skills (override system skills if same name)
         for user_dir in self.USER_SKILLS_DIRS:
             expanded_dir = user_dir.expanduser()
             if expanded_dir.exists():
-                for pattern in ("SKILL.md", "skill.md"):
-                    for skill_file in expanded_dir.rglob(pattern):
-                        skill = self.load_skill(skill_file, location="user")
-                        if skill:
-                            skills.append(skill)
-                            self.loaded_skills[skill.name] = skill
-
-        # Load project-level skills (override user skills if same name)
-        project_dir = self.PROJECT_SKILLS_DIR.resolve()
-        if project_dir.exists():
-            for pattern in ("SKILL.md", "skill.md"):
-                for skill_file in project_dir.rglob(pattern):
-                    skill = self.load_skill(skill_file, location="project")
+                for skill_file in expanded_dir.rglob("SKILL.md"):
+                    # Skip files under .system directory (already loaded above)
+                    if ".system" in skill_file.parts:
+                        continue
+                    skill = self.load_skill(skill_file, location="user")
                     if skill:
                         skills.append(skill)
                         self.loaded_skills[skill.name] = skill
 
+        # Load project-level skills (override user skills if same name)
+        project_dir = self.PROJECT_SKILLS_DIR.resolve()
+        if project_dir.exists():
+            for skill_file in project_dir.rglob("SKILL.md"):
+                skill = self.load_skill(skill_file, location="project")
+                if skill:
+                    skills.append(skill)
+                    self.loaded_skills[skill.name] = skill
+
         # Log discovery summary
         if skills:
+            system_count = sum(1 for s in skills if s.location == "system")
             user_count = sum(1 for s in skills if s.location == "user")
             project_count = sum(1 for s in skills if s.location == "project")
             parts: list[str] = []
+            if system_count > 0:
+                parts.append(f"{system_count} system")
             if user_count > 0:
                 parts.append(f"{user_count} user")
             if project_count > 0:
