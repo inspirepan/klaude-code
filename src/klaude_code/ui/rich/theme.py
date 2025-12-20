@@ -44,8 +44,8 @@ LIGHT_PALETTE = Palette(
     lavender="#5f87af",
     diff_add="#2e5a32 on #dafbe1",
     diff_add_char="#2e5a32 on #aceebb",
-    diff_remove="#5a2e32 on #ffebe9",
-    diff_remove_char="#5a2e32 on #ffc1bb",
+    diff_remove="#82071e on #ffecec",
+    diff_remove_char="#82071e on #ffcfcf",
     code_theme="ansi_light",
     text_background="#e0e0e0",
 )
@@ -65,9 +65,9 @@ DARK_PALETTE = Palette(
     purple="#afbafe",
     lavender="#9898b8",
     diff_add="#c8e6c9 on #1b3928",
-    diff_add_char="#c8e6c9 on #264f35",
+    diff_add_char="#c8e6c9 on #2d6b42",
     diff_remove="#ffcdd2 on #3d1f23",
-    diff_remove_char="#ffcdd2 on #5c2d33",
+    diff_remove_char="#ffcdd2 on #7a3a42",
     code_theme="ansi_dark",
     text_background="#2f3440",
 )
