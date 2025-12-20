@@ -208,7 +208,7 @@ def render_diff_panel(
     diff_text: str,
     *,
     show_file_name: bool = True,
-    heading: str = "Git Diff",
+    heading: str = "DIFF",
     indent: int = 2,
 ) -> RenderableType:
     lines = diff_text.splitlines()
