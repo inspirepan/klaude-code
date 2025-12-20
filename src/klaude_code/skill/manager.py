@@ -50,10 +50,11 @@ def get_available_skills() -> list[tuple[str, str, str]]:
     """Get list of available skills for completion and display.
 
     Returns:
-        List of (name, description, location) tuples
+        List of (name, short_description, location) tuples.
+        Uses metadata['short-description'] if available, otherwise falls back to description.
     """
     loader = _ensure_initialized()
-    return [(s.name, s.description, s.location) for s in loader.loaded_skills.values()]
+    return [(s.name, s.short_description, s.location) for s in loader.loaded_skills.values()]
 
 
 def list_skill_names() -> list[str]:

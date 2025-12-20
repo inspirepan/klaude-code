@@ -21,6 +21,16 @@ class Skill:
     metadata: dict[str, str] | None = None
     skill_path: Path | None = None
 
+    @property
+    def short_description(self) -> str:
+        """Get short description for display in completions.
+
+        Returns metadata['short-description'] if available, otherwise falls back to description.
+        """
+        if self.metadata and "short-description" in self.metadata:
+            return self.metadata["short-description"]
+        return self.description
+
     def to_prompt(self) -> str:
         """Convert skill to prompt format for agent consumption"""
         return f"""# Skill: {self.name}
