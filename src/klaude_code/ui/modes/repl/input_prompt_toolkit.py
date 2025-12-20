@@ -19,6 +19,7 @@ from klaude_code.ui.modes.repl.clipboard import capture_clipboard_tag, copy_to_c
 from klaude_code.ui.modes.repl.completers import AT_TOKEN_PATTERN, create_repl_completer
 from klaude_code.ui.modes.repl.key_bindings import create_key_bindings
 from klaude_code.ui.renderers.user_input import USER_MESSAGE_MARK
+from klaude_code.ui.terminal.color import is_light_terminal_background
 from klaude_code.ui.utils.common import get_current_git_branch, show_path_with_tilde
 
 
@@ -35,6 +36,12 @@ class REPLStatusSnapshot(NamedTuple):
 COMPLETION_SELECTED = "#5869f7"
 COMPLETION_MENU = "ansibrightblack"
 INPUT_PROMPT_STYLE = "ansimagenta bold"
+PLACEHOLDER_TEXT_STYLE_DARK_BG = "fg:#5a5a5a italic"
+PLACEHOLDER_TEXT_STYLE_LIGHT_BG = "fg:#7a7a7a italic"
+PLACEHOLDER_TEXT_STYLE_UNKNOWN_BG = "fg:#8a8a8a italic"
+PLACEHOLDER_SYMBOL_STYLE_DARK_BG = "bg:#2a2a2a fg:#5a5a5a"
+PLACEHOLDER_SYMBOL_STYLE_LIGHT_BG = "bg:#e6e6e6 fg:#7a7a7a"
+PLACEHOLDER_SYMBOL_STYLE_UNKNOWN_BG = "bg:#2a2a2a fg:#8a8a8a"
 
 
 class PromptToolkitInput(InputProviderABC):
@@ -44,6 +51,7 @@ class PromptToolkitInput(InputProviderABC):
         status_provider: Callable[[], REPLStatusSnapshot] | None = None,
     ):  # ▌
         self._status_provider = status_provider
+        self._is_light_terminal_background = is_light_terminal_background(timeout=0.2)
 
         project = str(Path.cwd()).strip("/").replace("/", "-")
         history_path = Path.home() / ".klaude" / "projects" / project / "input" / "input_history.txt"
@@ -147,6 +155,34 @@ class PromptToolkitInput(InputProviderABC):
         toolbar_text = left_text + padding + right_text
         return FormattedText([("#2c7eac", toolbar_text)])
 
+    def _render_input_placeholder(self) -> FormattedText:
+        if self._is_light_terminal_background is True:
+            text_style = PLACEHOLDER_TEXT_STYLE_LIGHT_BG
+            symbol_style = PLACEHOLDER_SYMBOL_STYLE_LIGHT_BG
+        elif self._is_light_terminal_background is False:
+            text_style = PLACEHOLDER_TEXT_STYLE_DARK_BG
+            symbol_style = PLACEHOLDER_SYMBOL_STYLE_DARK_BG
+        else:
+            text_style = PLACEHOLDER_TEXT_STYLE_UNKNOWN_BG
+            symbol_style = PLACEHOLDER_SYMBOL_STYLE_UNKNOWN_BG
+
+        return FormattedText(
+            [
+                (text_style, " " * 10),
+                (symbol_style, " @ "),
+                (text_style, " "),
+                (text_style, "files"),
+                (text_style, "  "),
+                (symbol_style, " $ "),
+                (text_style, " "),
+                (text_style, "skills"),
+                (text_style, "  "),
+                (symbol_style, " / "),
+                (text_style, " "),
+                (text_style, "commands"),
+            ]
+        )
+
     async def start(self) -> None:
         pass
 
@@ -157,7 +193,7 @@ class PromptToolkitInput(InputProviderABC):
     async def iter_inputs(self) -> AsyncIterator[UserInputPayload]:
         while True:
             with patch_stdout():
-                line: str = await self._session.prompt_async()
+                line: str = await self._session.prompt_async(placeholder=self._render_input_placeholder())
 
             # Extract images referenced in the input text
             images = extract_images_from_text(line)
