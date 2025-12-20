@@ -22,18 +22,7 @@ BREATHING_SPINNER_NAME = "dots"
 
 # Alternating glyphs for the breathing spinner - switches at each "transparent" point
 _BREATHING_SPINNER_GLYPHS_BASE = [
-    "✦",
-    "✶",
-    "✲",
-    "◆",
-    "❖",
-    "✧",
-    "❋",
-    "✸",
-    "✻",
-    "◇",
-    "✴",
-    "✷",
+    "◉",
 ]
 
 # Shuffle glyphs on module load for variety across sessions
@@ -114,7 +103,6 @@ def _shimmer_style(console: Console, base_style: Style, intensity: float) -> Sty
 
     base_r, base_g, base_b = base_triplet
     bg_r, bg_g, bg_b = bg_triplet
-
     r = int(bg_r * alpha + base_r * (1.0 - alpha))
     g = int(bg_g * alpha + base_g * (1.0 - alpha))
     b = int(bg_b * alpha + base_b * (1.0 - alpha))
