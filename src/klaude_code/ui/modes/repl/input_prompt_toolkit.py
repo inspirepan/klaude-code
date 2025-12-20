@@ -33,7 +33,9 @@ class REPLStatusSnapshot(NamedTuple):
     update_message: str | None = None
 
 
-COMPLETION_SELECTED = "#5869f7"
+COMPLETION_SELECTED_DARK_BG = "#8b9bff"
+COMPLETION_SELECTED_LIGHT_BG = "#5869f7"
+COMPLETION_SELECTED_UNKNOWN_BG = "#7080f0"
 COMPLETION_MENU = "ansibrightblack"
 INPUT_PROMPT_STYLE = "ansimagenta bold"
 PLACEHOLDER_TEXT_STYLE_DARK_BG = "fg:#5a5a5a italic"
@@ -66,6 +68,14 @@ class PromptToolkitInput(InputProviderABC):
             at_token_pattern=AT_TOKEN_PATTERN,
         )
 
+        # Select completion selected color based on terminal background
+        if self._is_light_terminal_background is True:
+            completion_selected = COMPLETION_SELECTED_LIGHT_BG
+        elif self._is_light_terminal_background is False:
+            completion_selected = COMPLETION_SELECTED_DARK_BG
+        else:
+            completion_selected = COMPLETION_SELECTED_UNKNOWN_BG
+
         self._session: PromptSession[str] = PromptSession(
             [(INPUT_PROMPT_STYLE, prompt)],
             history=FileHistory(str(history_path)),
@@ -86,8 +96,8 @@ class PromptToolkitInput(InputProviderABC):
                     "scrollbar.button": "bg:default",
                     "completion-menu.completion": f"bg:default fg:{COMPLETION_MENU}",
                     "completion-menu.meta.completion": f"bg:default fg:{COMPLETION_MENU}",
-                    "completion-menu.completion.current": f"noreverse bg:default fg:{COMPLETION_SELECTED} bold",
-                    "completion-menu.meta.completion.current": f"bg:default fg:{COMPLETION_SELECTED} bold",
+                    "completion-menu.completion.current": f"noreverse bg:default fg:{completion_selected} bold",
+                    "completion-menu.meta.completion.current": f"bg:default fg:{completion_selected} bold",
                 }
             ),
         )

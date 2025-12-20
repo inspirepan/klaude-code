@@ -10,15 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.23] - 2025-12-20
 
 ### Added
-
+- add system skills auto-installation from bundled assets (`ca20403`)
+- extract skill module and add $skill UX (`880c468`)
 - sort skills by priority (project > user > system) (`2c4dfb3`)
-- support ¥ as skill trigger prefix for Chinese input (`3bb3655`)
 - add adaptive placeholder styles based on terminal background (`ac98eb7`)
 - support metadata.short-description for REPL completions (`2dd3127`)
-- extract skill module and add $skill UX (`880c468`)
 
 ### Changed
-
+- support ¥ as skill trigger prefix for Chinese input (`3bb3655`)
 - improve skill loading and terminology (`2198796`)
 - convert prompt commands to built-in system skills (`9cc04d9`)
 - improve diff color contrast for better readability (`f39b30c`)
