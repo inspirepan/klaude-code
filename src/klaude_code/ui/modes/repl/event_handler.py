@@ -329,7 +329,7 @@ class DisplayEventHandler:
                 theme=self.renderer.themes.thinking_markdown_theme,
                 console=self.renderer.console,
                 spinner=self.renderer.spinner_renderable(),
-                indent=2,
+                left_margin=const.MARKDOWN_LEFT_MARGIN,
                 markdown_class=ThinkingMarkdown,
             )
             self.thinking_stream.start(mdstream)
@@ -361,7 +361,7 @@ class DisplayEventHandler:
                 console=self.renderer.console,
                 spinner=self.renderer.spinner_renderable(),
                 mark=ASSISTANT_MESSAGE_MARK,
-                indent=2,
+                left_margin=const.MARKDOWN_LEFT_MARGIN,
             )
             self.assistant_stream.start(mdstream)
         self.assistant_stream.append(event.content)

@@ -9,7 +9,7 @@ from typing import Any, ClassVar
 
 from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.live import Live
-from rich.markdown import CodeBlock, Heading, HorizontalRule, Markdown
+from rich.markdown import CodeBlock, Heading, Markdown, MarkdownElement
 from rich.rule import Rule
 from rich.spinner import Spinner
 from rich.style import Style
@@ -45,12 +45,12 @@ class ThinkingCodeBlock(CodeBlock):
         yield CodePanel(text, border_style="markdown.code.border")
 
 
-class SpacedHorizontalRule(HorizontalRule):
+class Divider(MarkdownElement):
     """A horizontal rule with an extra blank line below."""
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
-        yield from super().__rich_console__(console, options)
-        yield Text()
+        style = console.get_style("markdown.hr", default="none")
+        yield Rule(style=style, characters="-")
 
 
 class LeftHeading(Heading):
@@ -77,7 +77,7 @@ class NoInsetMarkdown(Markdown):
         "fence": NoInsetCodeBlock,
         "code_block": NoInsetCodeBlock,
         "heading_open": LeftHeading,
-        "hr": SpacedHorizontalRule,
+        "hr": Divider,
     }
 
 
@@ -89,7 +89,7 @@ class ThinkingMarkdown(Markdown):
         "fence": ThinkingCodeBlock,
         "code_block": ThinkingCodeBlock,
         "heading_open": LeftHeading,
-        "hr": SpacedHorizontalRule,
+        "hr": Divider,
     }
 
 
@@ -108,7 +108,8 @@ class MarkdownStream:
         console: Console | None = None,
         spinner: Spinner | None = None,
         mark: str | None = None,
-        indent: int = 0,
+        left_margin: int = 0,
+        right_margin: int = const.MARKDOWN_RIGHT_MARGIN,
         markdown_class: Callable[..., Markdown] | None = None,
     ) -> None:
         """Initialize the markdown stream.
@@ -117,8 +118,9 @@ class MarkdownStream:
             mdargs (dict, optional): Additional arguments to pass to rich Markdown renderer
             theme (Theme, optional): Theme for rendering markdown
             console (Console, optional): External console to use for rendering
-            mark (str | None, optional): Marker shown before the first non-empty line when indent >= 2
-            indent (int, optional): Number of spaces to indent all rendered lines on the left
+            mark (str | None, optional): Marker shown before the first non-empty line when left_margin >= 2
+            left_margin (int, optional): Number of columns to reserve on the left side
+            right_margin (int, optional): Number of columns to reserve on the right side
             markdown_class: Markdown class to use for rendering (defaults to NoInsetMarkdown)
         """
         self.printed: list[str] = []  # Stores lines that have already been printed
@@ -140,7 +142,10 @@ class MarkdownStream:
         self.console = console
         self.spinner: Spinner | None = spinner
         self.mark: str | None = mark
-        self.indent: int = max(indent, 0)
+
+        self.left_margin: int = max(left_margin, 0)
+
+        self.right_margin: int = max(right_margin, 0)
         self.markdown_class: Callable[..., Markdown] = markdown_class or NoInsetMarkdown
 
     @property
@@ -160,15 +165,15 @@ class MarkdownStream:
         # Render the markdown to a string buffer
         string_io = io.StringIO()
 
-        # Determine console width and adjust for left indent so that
-        # the rendered content plus indent does not exceed the available width.
+        # Determine console width and adjust for left margin so that
+        # the rendered content plus margins does not exceed the available width.
         if self.console is not None:
             base_width = self.console.options.max_width
         else:
             probe_console = Console(theme=self.theme)
             base_width = probe_console.options.max_width
 
-        effective_width = max(base_width - self.indent, 1)
+        effective_width = max(base_width - self.left_margin - self.right_margin, 1)
 
         # Use external console for consistent theming, or create temporary one
         temp_console = Console(
@@ -182,17 +187,17 @@ class MarkdownStream:
         temp_console.print(markdown)
         output = string_io.getvalue()
 
-        # Split rendered output into lines, strip trailing spaces, and apply left indent.
+        # Split rendered output into lines, strip trailing spaces, and apply left margin.
         lines = output.splitlines(keepends=True)
-        indent_prefix = " " * self.indent if self.indent > 0 else ""
+        indent_prefix = " " * self.left_margin if self.left_margin > 0 else ""
         processed_lines: list[str] = []
         mark_applied = False
-        use_mark = bool(self.mark) and self.indent >= 2
+        use_mark = bool(self.mark) and self.left_margin >= 2
 
         for line in lines:
             stripped = line.rstrip()
 
-            # Apply mark to the first non-empty line only when indent is at least 2.
+            # Apply mark to the first non-empty line only when left_margin is at least 2.
             if use_mark and not mark_applied and stripped:
                 stripped = f"{self.mark} {stripped}"
                 mark_applied = True

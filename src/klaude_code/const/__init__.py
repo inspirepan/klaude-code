@@ -102,6 +102,12 @@ UI_REFRESH_RATE_FPS = 20
 # Number of lines to keep visible at bottom of markdown streaming window
 MARKDOWN_STREAM_LIVE_WINDOW = 6
 
+# Left margin (columns) to reserve when rendering markdown
+MARKDOWN_LEFT_MARGIN = 2
+
+# Right margin (columns) to reserve when rendering markdown
+MARKDOWN_RIGHT_MARGIN = 2
+
 # Status hint text shown after spinner status
 STATUS_HINT_TEXT = " (esc to interrupt)"
 
