@@ -327,7 +327,7 @@ class ExecutorContext:
             log_debug(traceback.format_exc(), style="red", debug_type=DebugType.EXECUTION)
             await self.emit_event(
                 events.ErrorEvent(
-                    error_message=f"Agent task failed: [{e.__class__.__name__}] {e!s}",
+                    error_message=f"Agent task failed: [{e.__class__.__name__}] {e!s} {traceback.format_exc()}",
                     can_retry=False,
                 )
             )
