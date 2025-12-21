@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.24] - 2025-12-21
+
+### Added
+
+- add color-matched backgrounds for sub-agent result panels (`c6625c53`)
+- add description header for sub-agent result (`e7da395e`)
+- show reasoning headers in status line (`ae362a6d`)
+- render markdown files in panel when using Write tool (`2fba67d8`)
+- add describe command (`448f18e4`)
+
+### Changed
+
+- update header rule character (`d0543d89`)
+- unify thinking and assistant message rendering with left marks (`be0f253c`)
+- change sub-agent result truncation from top to middle (`de7350c4`)
+- consolidate STATUS_DEFAULT_TEXT and convert const package to module (`56aa1a6c`)
+- unify stream processing for OpenAI-compatible and OpenRouter clients (`1b28790b`)
+- add background colors to result panels (`0e1cb7fa`)
+- bold user input (`f76cfb75`)
+- fix status truncation to support cjk via rich cell len (`966c43a9`)
+- update box style (`76bbbbb2`)
+- update completion selected color (`86f3b5a3`)
+
+### Fixed
+
+- add traceback for error (`e9aec3d2`)
+- detect binary files before reading as text (`3e8eed24`)
 ## [1.2.23] - 2025-12-20
 
 ### Added
@@ -710,7 +737,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.23...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.24...HEAD
+[1.2.24]: https://github.com/inspirepan/klaude-code/compare/v1.2.23...v1.2.24
 [1.2.23]: https://github.com/inspirepan/klaude-code/compare/v1.2.22...v1.2.23
 [1.2.22]: https://github.com/inspirepan/klaude-code/compare/v1.2.21...v1.2.22
 [1.2.21]: https://github.com/inspirepan/klaude-code/compare/v1.2.20...v1.2.21
