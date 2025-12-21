@@ -277,6 +277,9 @@ def get_theme(theme: str | None = None) -> Themes:
         ),
         thinking_markdown_theme=Theme(
             styles={
+                # THINKING (used for left-side mark in thinking output)
+                ThemeKey.THINKING.value: "italic " + palette.grey2,
+                ThemeKey.THINKING_BOLD.value: "bold italic " + palette.grey1,
                 "markdown.code": palette.grey1 + " italic on " + palette.code_background,
                 "markdown.code.block": palette.grey1,
                 "markdown.code.border": palette.grey3,

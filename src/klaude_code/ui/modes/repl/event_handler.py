@@ -11,7 +11,7 @@ from klaude_code.protocol import events
 from klaude_code.ui.core.stage_manager import Stage, StageManager
 from klaude_code.ui.modes.repl.renderer import REPLRenderer
 from klaude_code.ui.renderers.assistant import ASSISTANT_MESSAGE_MARK
-from klaude_code.ui.renderers.thinking import normalize_thinking_content
+from klaude_code.ui.renderers.thinking import THINKING_MESSAGE_MARK, normalize_thinking_content
 from klaude_code.ui.rich.markdown import MarkdownStream, ThinkingMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.terminal.notifier import Notification, NotificationType, TerminalNotifier
@@ -265,7 +265,6 @@ class DisplayEventHandler:
         self.stage_manager = StageManager(
             finish_assistant=self._finish_assistant_stream,
             finish_thinking=self._finish_thinking_stream,
-            on_enter_thinking=self._print_thinking_prefix,
         )
 
     async def consume_event(self, event: events.Event) -> None:
@@ -378,6 +377,8 @@ class DisplayEventHandler:
                 theme=self.renderer.themes.thinking_markdown_theme,
                 console=self.renderer.console,
                 spinner=self.renderer.spinner_renderable(),
+                mark=THINKING_MESSAGE_MARK,
+                mark_style=ThemeKey.THINKING,
                 left_margin=const.MARKDOWN_LEFT_MARGIN,
                 markdown_class=ThinkingMarkdown,
             )
@@ -522,9 +523,6 @@ class DisplayEventHandler:
             assert mdstream is not None
             mdstream.update(self.assistant_stream.buffer, final=True)
             self.assistant_stream.finish()
-
-    def _print_thinking_prefix(self) -> None:
-        self.renderer.display_thinking_prefix()
 
     def _update_spinner(self) -> None:
         """Update spinner text from current status state."""

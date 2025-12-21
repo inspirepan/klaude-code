@@ -12,7 +12,7 @@ from rich.live import Live
 from rich.markdown import CodeBlock, Heading, Markdown, MarkdownElement
 from rich.rule import Rule
 from rich.spinner import Spinner
-from rich.style import Style
+from rich.style import Style, StyleType
 from rich.syntax import Syntax
 from rich.text import Text
 from rich.theme import Theme
@@ -108,6 +108,7 @@ class MarkdownStream:
         console: Console | None = None,
         spinner: Spinner | None = None,
         mark: str | None = None,
+        mark_style: StyleType | None = None,
         left_margin: int = 0,
         right_margin: int = const.MARKDOWN_RIGHT_MARGIN,
         markdown_class: Callable[..., Markdown] | None = None,
@@ -119,6 +120,7 @@ class MarkdownStream:
             theme (Theme, optional): Theme for rendering markdown
             console (Console, optional): External console to use for rendering
             mark (str | None, optional): Marker shown before the first non-empty line when left_margin >= 2
+            mark_style (StyleType | None, optional): Style to apply to the mark
             left_margin (int, optional): Number of columns to reserve on the left side
             right_margin (int, optional): Number of columns to reserve on the right side
             markdown_class: Markdown class to use for rendering (defaults to NoInsetMarkdown)
@@ -142,6 +144,7 @@ class MarkdownStream:
         self.console = console
         self.spinner: Spinner | None = spinner
         self.mark: str | None = mark
+        self.mark_style: StyleType | None = mark_style
 
         self.left_margin: int = max(left_margin, 0)
 
@@ -194,12 +197,24 @@ class MarkdownStream:
         mark_applied = False
         use_mark = bool(self.mark) and self.left_margin >= 2
 
+        # Pre-render styled mark if needed
+        styled_mark: str | None = None
+        if use_mark and self.mark:
+            if self.mark_style:
+                mark_text = Text(self.mark, style=self.mark_style)
+                mark_buffer = io.StringIO()
+                mark_console = Console(file=mark_buffer, force_terminal=True, theme=self.theme)
+                mark_console.print(mark_text, end="")
+                styled_mark = mark_buffer.getvalue()
+            else:
+                styled_mark = self.mark
+
         for line in lines:
             stripped = line.rstrip()
 
             # Apply mark to the first non-empty line only when left_margin is at least 2.
             if use_mark and not mark_applied and stripped:
-                stripped = f"{self.mark} {stripped}"
+                stripped = f"{styled_mark} {stripped}"
                 mark_applied = True
             elif indent_prefix:
                 stripped = indent_prefix + stripped

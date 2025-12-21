@@ -6,7 +6,7 @@ from klaude_code.ui.renderers.common import create_grid
 from klaude_code.ui.rich.markdown import NoInsetMarkdown
 
 # UI markers
-ASSISTANT_MESSAGE_MARK = "➤"
+ASSISTANT_MESSAGE_MARK = "◆"
 
 
 def render_assistant_message(content: str, *, code_theme: str) -> RenderableType | None:

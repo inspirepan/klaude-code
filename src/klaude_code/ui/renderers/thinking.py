@@ -4,12 +4,13 @@ from rich.console import RenderableType
 from rich.padding import Padding
 from rich.text import Text
 
+from klaude_code import const
+from klaude_code.ui.renderers.common import create_grid
 from klaude_code.ui.rich.markdown import ThinkingMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
 
-
-def thinking_prefix() -> Text:
-    return Text.from_markup("[not italic]⸫[/not italic] Thinking …", style=ThemeKey.THINKING_BOLD)
+# UI markers
+THINKING_MESSAGE_MARK = "⠶"
 
 
 def normalize_thinking_content(content: str) -> str:
@@ -37,7 +38,7 @@ def normalize_thinking_content(content: str) -> str:
 
 
 def render_thinking(content: str, *, code_theme: str, style: str) -> RenderableType | None:
-    """Render thinking content as indented markdown.
+    """Render thinking content as markdown with left mark.
 
     Returns None if content is empty.
     Note: Caller should push thinking_markdown_theme before printing.
@@ -45,11 +46,16 @@ def render_thinking(content: str, *, code_theme: str, style: str) -> RenderableT
     if len(content.strip()) == 0:
         return None
 
-    return Padding.indent(
-        ThinkingMarkdown(
-            normalize_thinking_content(content),
-            code_theme=code_theme,
-            style=style,
+    grid = create_grid()
+    grid.add_row(
+        Text(THINKING_MESSAGE_MARK, style=ThemeKey.THINKING),
+        Padding(
+            ThinkingMarkdown(
+                normalize_thinking_content(content),
+                code_theme=code_theme,
+                style=style,
+            ),
+            (0, const.MARKDOWN_RIGHT_MARGIN, 0, 0),
         ),
-        level=2,
     )
+    return grid
