@@ -41,9 +41,9 @@ class REPLRenderer:
         self.console: Console = Console(theme=self.themes.app_theme)
         self.console.push_theme(self.themes.markdown_theme)
         self._spinner: Status = self.console.status(
-            ShimmerStatusText("Thinking …", ThemeKey.SPINNER_STATUS_TEXT),
+            ShimmerStatusText("Thinking …"),
             spinner=r_status.spinner_name(),
-            spinner_style=ThemeKey.SPINNER_STATUS,
+            spinner_style=ThemeKey.STATUS_SPINNER,
         )
 
         self.session_map: dict[str, SessionStatus] = {}
@@ -261,7 +261,7 @@ class REPLRenderer:
 
     def spinner_update(self, status_text: str | Text, right_text: Text | None = None) -> None:
         """Update the spinner status text with optional right-aligned text."""
-        self._spinner.update(ShimmerStatusText(status_text, ThemeKey.SPINNER_STATUS_TEXT, right_text))
+        self._spinner.update(ShimmerStatusText(status_text, right_text))
 
     def spinner_renderable(self) -> Spinner:
         """Return the spinner's renderable for embedding in other components."""

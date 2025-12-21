@@ -169,9 +169,19 @@ class ShimmerStatusText:
     Supports optional right-aligned text that stays fixed at the right edge.
     """
 
-    def __init__(self, main_text: str | Text, main_style: ThemeKey, right_text: Text | None = None) -> None:
-        self._main_text = main_text if isinstance(main_text, Text) else Text(main_text)
-        self._main_style = main_style
+    def __init__(
+        self,
+        main_text: str | Text,
+        right_text: Text | None = None,
+        main_style: ThemeKey = ThemeKey.STATUS_TEXT,
+    ) -> None:
+        if isinstance(main_text, Text):
+            text = main_text.copy()
+            if not text.style:
+                text.style = str(main_style)
+            self._main_text = text
+        else:
+            self._main_text = Text(main_text, style=main_style)
         self._hint_text = Text(const.STATUS_HINT_TEXT)
         self._hint_style = ThemeKey.STATUS_HINT
         self._right_text = right_text
@@ -193,13 +203,11 @@ class ShimmerStatusText:
     def _render_left_text(self, console: Console) -> Text:
         """Render the left part with shimmer effect on main text only."""
         result = Text()
-        main_style = console.get_style(str(self._main_style))
         hint_style = console.get_style(str(self._hint_style))
 
         # Apply shimmer only to main text
         for index, (ch, intensity) in enumerate(_shimmer_profile(self._main_text.plain)):
-            char_style = self._main_text.get_style_at_offset(console, index)
-            base_style = main_style + char_style
+            base_style = self._main_text.get_style_at_offset(console, index)
             style = _shimmer_style(console, base_style, intensity)
             result.append(ch, style=style)
 

@@ -18,6 +18,41 @@ from klaude_code.ui.terminal.notifier import Notification, NotificationType, Ter
 from klaude_code.ui.terminal.progress_bar import OSC94States, emit_osc94
 
 
+def extract_last_bold_header(text: str) -> str | None:
+    """Extract the latest complete bold header ("**...**") from text.
+
+    We treat a bold segment as a "header" only if it appears at the beginning
+    of a line (ignoring leading whitespace). This avoids picking up incidental
+    emphasis inside paragraphs.
+
+    Returns None if no complete bold segment is available yet.
+    """
+
+    last: str | None = None
+    i = 0
+    while True:
+        start = text.find("**", i)
+        if start < 0:
+            break
+
+        line_start = text.rfind("\n", 0, start) + 1
+        if text[line_start:start].strip():
+            i = start + 2
+            continue
+
+        end = text.find("**", start + 2)
+        if end < 0:
+            break
+
+        inner = " ".join(text[start + 2 : end].split())
+        if inner and "\n" not in inner:
+            last = inner
+
+        i = end + 2
+
+    return last
+
+
 @dataclass
 class ActiveStream:
     """Active streaming state containing buffer and markdown renderer.
@@ -118,7 +153,7 @@ class ActivityState:
             for name, count in self._tool_calls.items():
                 if not first:
                     activity_text.append(", ")
-                activity_text.append(Text(name, style=ThemeKey.SPINNER_STATUS_TEXT_BOLD))
+                activity_text.append(Text(name, style=ThemeKey.STATUS_TEXT_BOLD))
                 if count > 1:
                     activity_text.append(f" x {count}")
                 first = False
@@ -131,8 +166,9 @@ class ActivityState:
 class SpinnerStatusState:
     """Multi-layer spinner status state management.
 
-    Composed of two independent layers:
-    - base_status: Set by TodoChange, persistent within a turn
+    Layers:
+    - todo_status: Set by TodoChange (preferred when present)
+    - reasoning_status: Derived from Thinking/ThinkingDelta bold headers
     - activity: Current activity (composing or tool_calls), mutually exclusive
     - context_percent: Context usage percentage, updated during task execution
 
@@ -146,22 +182,30 @@ class SpinnerStatusState:
     DEFAULT_STATUS = "Thinking …"
 
     def __init__(self) -> None:
-        self._base_status: str | None = None
+        self._todo_status: str | None = None
+        self._reasoning_status: str | None = None
         self._activity = ActivityState()
         self._context_percent: float | None = None
 
     def reset(self) -> None:
         """Reset all layers."""
-        self._base_status = None
+        self._todo_status = None
+        self._reasoning_status = None
         self._activity.reset()
         self._context_percent = None
 
-    def set_base_status(self, status: str | None) -> None:
+    def set_todo_status(self, status: str | None) -> None:
         """Set base status from TodoChange."""
-        self._base_status = status
+        self._todo_status = status
+
+    def set_reasoning_status(self, status: str | None) -> None:
+        """Set reasoning-derived base status from ThinkingDelta bold headers."""
+        self._reasoning_status = status
 
     def set_composing(self, composing: bool) -> None:
         """Set composing state when assistant is streaming."""
+        if composing:
+            self._reasoning_status = None
         self._activity.set_composing(composing)
 
     def add_tool_call(self, tool_name: str) -> None:
@@ -188,8 +232,10 @@ class SpinnerStatusState:
         """Get current spinner status as rich Text (without context)."""
         activity_text = self._activity.get_activity_text()
 
-        if self._base_status:
-            result = Text(self._base_status)
+        base_status = self._todo_status or self._reasoning_status
+
+        if base_status:
+            result = Text(base_status, style=ThemeKey.STATUS_TEXT_BOLD)
             if activity_text:
                 result.append(" | ")
                 result.append_text(activity_text)
@@ -197,7 +243,7 @@ class SpinnerStatusState:
             activity_text.append(" …")
             result = activity_text
         else:
-            result = Text(self.DEFAULT_STATUS)
+            result = Text(self.DEFAULT_STATUS, style=ThemeKey.STATUS_TEXT)
 
         return result
 
@@ -312,6 +358,10 @@ class DisplayEventHandler:
             await self._finish_thinking_stream()
         else:
             # Non-streaming path (history replay or models without delta support)
+            reasoning_status = extract_last_bold_header(normalize_thinking_content(event.content))
+            if reasoning_status:
+                self.spinner_status.set_reasoning_status(reasoning_status)
+                self._update_spinner()
             await self.stage_manager.enter_thinking_stage()
             self.renderer.display_thinking(event.content)
 
@@ -337,6 +387,11 @@ class DisplayEventHandler:
             self.renderer.spinner_stop()
 
         self.thinking_stream.append(event.content)
+
+        reasoning_status = extract_last_bold_header(normalize_thinking_content(self.thinking_stream.buffer))
+        if reasoning_status:
+            self.spinner_status.set_reasoning_status(reasoning_status)
+            self._update_spinner()
 
         if first_delta and self.thinking_stream.mdstream is not None:
             self.thinking_stream.mdstream.update(normalize_thinking_content(self.thinking_stream.buffer))
@@ -416,7 +471,7 @@ class DisplayEventHandler:
 
     def _on_todo_change(self, event: events.TodoChangeEvent) -> None:
         active_form_status_text = self._extract_active_form_text(event)
-        self.spinner_status.set_base_status(active_form_status_text if active_form_status_text else None)
+        self.spinner_status.set_todo_status(active_form_status_text if active_form_status_text else None)
         # Clear tool calls when todo changes, as the tool execution has advanced
         self.spinner_status.clear_for_new_turn()
         self._update_spinner()
