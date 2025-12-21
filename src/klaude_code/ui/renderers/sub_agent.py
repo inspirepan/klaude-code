@@ -59,9 +59,18 @@ def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) ->
 
 
 def render_sub_agent_result(
-    result: str, *, code_theme: str, style: Style | None = None, has_structured_output: bool = False
+    result: str,
+    *,
+    code_theme: str,
+    style: Style | None = None,
+    has_structured_output: bool = False,
+    description: str | None = None,
 ) -> RenderableType:
     stripped_result = result.strip()
+
+    # Add markdown heading if description is provided
+    if description:
+        stripped_result = f"# {description}\n\n{stripped_result}"
 
     # Use rich JSON for structured output
     if has_structured_output:

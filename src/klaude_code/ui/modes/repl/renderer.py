@@ -224,12 +224,15 @@ class REPLRenderer:
 
     def display_task_finish(self, event: events.TaskFinishEvent) -> None:
         if self.is_sub_agent_session(event.session_id):
+            session_status = self.session_map.get(event.session_id)
+            description = session_status.sub_agent_state.sub_agent_desc if session_status and session_status.sub_agent_state else None
             with self.session_print_context(event.session_id):
                 self.print(
                     r_sub_agent.render_sub_agent_result(
                         event.task_result,
                         code_theme=self.themes.code_theme,
                         has_structured_output=event.has_structured_output,
+                        description=description,
                     )
                 )
 
