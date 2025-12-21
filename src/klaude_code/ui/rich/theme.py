@@ -28,6 +28,15 @@ class Palette:
     code_background: str
     green_background: str
     blue_grey_background: str
+    # Sub-agent backgrounds (corresponding to sub_agent_colors order)
+    cyan_background: str
+    green_sub_background: str
+    blue_sub_background: str
+    purple_background: str
+    orange_background: str
+    red_background: str
+    grey_background: str
+    yellow_background: str
 
 
 LIGHT_PALETTE = Palette(
@@ -52,6 +61,14 @@ LIGHT_PALETTE = Palette(
     code_background="#e0e0e0",
     green_background="#e8f1e9",
     blue_grey_background="#e8e9f1",
+    cyan_background="#e0f0f0",
+    green_sub_background="#e0f0e0",
+    blue_sub_background="#e0e8f5",
+    purple_background="#ede0f5",
+    orange_background="#f5ebe0",
+    red_background="#f5e0e0",
+    grey_background="#e8e8e8",
+    yellow_background="#f5f5e0",
 )
 
 DARK_PALETTE = Palette(
@@ -76,6 +93,14 @@ DARK_PALETTE = Palette(
     code_background="#2f3440",
     green_background="#23342c",
     blue_grey_background="#313848",
+    cyan_background="#1a3333",
+    green_sub_background="#1b3928",
+    blue_sub_background="#1a2a3d",
+    purple_background="#2a2640",
+    orange_background="#3d2a1a",
+    red_background="#3d1f23",
+    grey_background="#2a2d30",
+    yellow_background="#3d3a1a",
 )
 
 
@@ -172,6 +197,7 @@ class Themes:
     thinking_markdown_theme: Theme
     code_theme: str
     sub_agent_colors: list[Style]
+    sub_agent_backgrounds: list[Style]
 
 
 def get_theme(theme: str | None = None) -> Themes:
@@ -306,5 +332,15 @@ def get_theme(theme: str | None = None) -> Themes:
             Style(color=palette.red),
             Style(color=palette.grey1),
             Style(color=palette.yellow),
+        ],
+        sub_agent_backgrounds=[
+            Style(bgcolor=palette.cyan_background),
+            Style(bgcolor=palette.green_sub_background),
+            Style(bgcolor=palette.blue_sub_background),
+            Style(bgcolor=palette.purple_background),
+            Style(bgcolor=palette.orange_background),
+            Style(bgcolor=palette.red_background),
+            Style(bgcolor=palette.grey_background),
+            Style(bgcolor=palette.yellow_background),
         ],
     )

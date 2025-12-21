@@ -31,6 +31,7 @@ from klaude_code.ui.rich.theme import ThemeKey, get_theme
 @dataclass
 class SessionStatus:
     color: Style | None = None
+    color_index: int | None = None
     sub_agent_state: model.SubAgentState | None = None
 
 
@@ -56,7 +57,9 @@ class REPLRenderer:
             sub_agent_state=sub_agent_state,
         )
         if sub_agent_state is not None:
-            session_status.color = self.pick_sub_agent_color()
+            color, color_index = self.pick_sub_agent_color()
+            session_status.color = color
+            session_status.color_index = color_index
         self.session_map[session_id] = session_status
 
     def is_sub_agent_session(self, session_id: str) -> bool:
@@ -69,17 +72,24 @@ class REPLRenderer:
             return
         self.sub_agent_color_index = (self.sub_agent_color_index + 1) % palette_size
 
-    def pick_sub_agent_color(self) -> Style:
+    def pick_sub_agent_color(self) -> tuple[Style, int]:
         self._advance_sub_agent_color_index()
         palette = self.themes.sub_agent_colors
         if not palette:
-            return Style()
-        return palette[self.sub_agent_color_index]
+            return Style(), 0
+        return palette[self.sub_agent_color_index], self.sub_agent_color_index
 
     def get_session_sub_agent_color(self, session_id: str) -> Style:
         status = self.session_map.get(session_id)
         if status and status.color:
             return status.color
+        return Style()
+
+    def get_session_sub_agent_background(self, session_id: str) -> Style:
+        status = self.session_map.get(session_id)
+        backgrounds = self.themes.sub_agent_backgrounds
+        if status and status.color_index is not None and backgrounds:
+            return backgrounds[status.color_index]
         return Style()
 
     @contextmanager
@@ -226,6 +236,7 @@ class REPLRenderer:
         if self.is_sub_agent_session(event.session_id):
             session_status = self.session_map.get(event.session_id)
             description = session_status.sub_agent_state.sub_agent_desc if session_status and session_status.sub_agent_state else None
+            panel_style = self.get_session_sub_agent_background(event.session_id)
             with self.session_print_context(event.session_id):
                 self.print(
                     r_sub_agent.render_sub_agent_result(
@@ -233,6 +244,7 @@ class REPLRenderer:
                         code_theme=self.themes.code_theme,
                         has_structured_output=event.has_structured_output,
                         description=description,
+                        panel_style=panel_style,
                     )
                 )
 

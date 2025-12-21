@@ -65,12 +65,15 @@ def render_sub_agent_result(
     style: Style | None = None,
     has_structured_output: bool = False,
     description: str | None = None,
+    panel_style: Style | None = None,
 ) -> RenderableType:
     stripped_result = result.strip()
 
     # Add markdown heading if description is provided
     if description:
         stripped_result = f"# {description}\n\n{stripped_result}"
+
+    result_panel_style = panel_style or ThemeKey.SUB_AGENT_RESULT_PANEL
 
     # Use rich JSON for structured output
     if has_structured_output:
@@ -85,7 +88,7 @@ def render_sub_agent_result(
                 ),
                 box=box.SIMPLE,
                 border_style=ThemeKey.LINES,
-                style=ThemeKey.SUB_AGENT_RESULT_PANEL,
+                style=result_panel_style,
             )
         except json.JSONDecodeError:
             # Fall back to markdown if not valid JSON
@@ -109,13 +112,13 @@ def render_sub_agent_result(
             ),
             box=box.SIMPLE,
             border_style=ThemeKey.LINES,
-            style=ThemeKey.SUB_AGENT_RESULT_PANEL,
+            style=result_panel_style,
         )
     return Panel.fit(
         NoInsetMarkdown(stripped_result, code_theme=code_theme),
         box=box.SIMPLE,
         border_style=ThemeKey.LINES,
-        style=ThemeKey.SUB_AGENT_RESULT_PANEL,
+        style=result_panel_style,
     )
 
 
