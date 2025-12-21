@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 
+from klaude_code.llm.openai_compatible.stream import ReasoningDeltaResult, ReasoningHandlerABC
 from klaude_code.protocol import model
+from klaude_code.trace import log
 
 
 class ReasoningDetail(BaseModel):
@@ -16,8 +18,8 @@ class ReasoningDetail(BaseModel):
     signature: str | None = None  # Claude's signature
 
 
-class ReasoningStreamHandler:
-    """Accumulates reasoning text and flushes on encrypted content or finalize."""
+class ReasoningStreamHandler(ReasoningHandlerABC):
+    """Accumulates OpenRouter reasoning details and emits ordered outputs."""
 
     def __init__(
         self,
@@ -33,6 +35,26 @@ class ReasoningStreamHandler:
     def set_response_id(self, response_id: str | None) -> None:
         """Update the response identifier used for emitted items."""
         self._response_id = response_id
+
+    def on_delta(self, delta: object) -> ReasoningDeltaResult:
+        """Parse OpenRouter's reasoning_details and return ordered stream outputs."""
+        reasoning_details = getattr(delta, "reasoning_details", None)
+        if not reasoning_details:
+            return ReasoningDeltaResult(handled=False, outputs=[])
+
+        outputs: list[str | model.ConversationItem] = []
+        for item in reasoning_details:
+            try:
+                reasoning_detail = ReasoningDetail.model_validate(item)
+                if reasoning_detail.text:
+                    outputs.append(reasoning_detail.text)
+                if reasoning_detail.summary:
+                    outputs.append(reasoning_detail.summary)
+                outputs.extend(self.on_detail(reasoning_detail))
+            except Exception as e:
+                log("reasoning_details error", str(e), style="red")
+
+        return ReasoningDeltaResult(handled=True, outputs=outputs)
 
     def on_detail(self, detail: ReasoningDetail) -> list[model.ConversationItem]:
         """Process a single reasoning detail and return streamable items."""
