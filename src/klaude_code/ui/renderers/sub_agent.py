@@ -1,6 +1,7 @@
 import json
 from typing import Any, cast
 
+from rich import box
 from rich.console import Group, RenderableType
 from rich.json import JSON
 from rich.panel import Panel
@@ -73,7 +74,9 @@ def render_sub_agent_result(
                     ),
                     JSON(stripped_result),
                 ),
+                box=box.SIMPLE,
                 border_style=ThemeKey.LINES,
+                style=ThemeKey.SUB_AGENT_RESULT_PANEL,
             )
         except json.JSONDecodeError:
             # Fall back to markdown if not valid JSON
@@ -91,11 +94,15 @@ def render_sub_agent_result(
                 ),
                 NoInsetMarkdown(truncated_text, code_theme=code_theme, style=style or ""),
             ),
+            box=box.SIMPLE,
             border_style=ThemeKey.LINES,
+            style=ThemeKey.SUB_AGENT_RESULT_PANEL,
         )
     return Panel.fit(
         NoInsetMarkdown(stripped_result, code_theme=code_theme),
+        box=box.SIMPLE,
         border_style=ThemeKey.LINES,
+        style=ThemeKey.SUB_AGENT_RESULT_PANEL,
     )
 
 

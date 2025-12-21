@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
+from rich import box
 from rich.console import Group, RenderableType
 from rich.padding import Padding
 from rich.panel import Panel
@@ -540,7 +541,9 @@ def render_markdown_doc(md_ui: model.MarkdownDocUIExtra, *, code_theme: str) -> 
     """Render markdown document content in a panel."""
     return Panel.fit(
         NoInsetMarkdown(md_ui.content, code_theme=code_theme),
+        box=box.SIMPLE,
         border_style=ThemeKey.LINES,
+        style=ThemeKey.WRITE_MARKDOWN_PANEL,
     )
 
 

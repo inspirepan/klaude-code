@@ -25,7 +25,9 @@ class Palette:
     diff_remove: str
     diff_remove_char: str
     code_theme: str
-    text_background: str
+    code_background: str
+    green_background: str
+    blue_grey_background: str
 
 
 LIGHT_PALETTE = Palette(
@@ -47,7 +49,9 @@ LIGHT_PALETTE = Palette(
     diff_remove="#82071e on #ffecec",
     diff_remove_char="#82071e on #ffcfcf",
     code_theme="ansi_light",
-    text_background="#e0e0e0",
+    code_background="#e0e0e0",
+    green_background="#eefaf0",
+    blue_grey_background="#e7eef6",
 )
 
 DARK_PALETTE = Palette(
@@ -69,12 +73,18 @@ DARK_PALETTE = Palette(
     diff_remove="#ffcdd2 on #3d1f23",
     diff_remove_char="#ffcdd2 on #7a3a42",
     code_theme="ansi_dark",
-    text_background="#2f3440",
+    code_background="#2f3440",
+    green_background="#23342c",
+    blue_grey_background="#313848",
 )
 
 
 class ThemeKey(str, Enum):
     LINES = "lines"
+
+    # PANEL
+    SUB_AGENT_RESULT_PANEL = "panel.sub_agent_result"
+    WRITE_MARKDOWN_PANEL = "panel.write_markdown"
     # DIFF
     DIFF_FILE_NAME = "diff.file_name"
     DIFF_REMOVE = "diff.remove"
@@ -170,6 +180,9 @@ def get_theme(theme: str | None = None) -> Themes:
         app_theme=Theme(
             styles={
                 ThemeKey.LINES.value: palette.grey3,
+                # PANEL
+                ThemeKey.SUB_AGENT_RESULT_PANEL.value: f"on {palette.blue_grey_background}",
+                ThemeKey.WRITE_MARKDOWN_PANEL.value: f"on {palette.green_background}",
                 # DIFF
                 ThemeKey.DIFF_FILE_NAME.value: palette.blue,
                 ThemeKey.DIFF_REMOVE.value: palette.diff_remove,
@@ -265,7 +278,7 @@ def get_theme(theme: str | None = None) -> Themes:
         ),
         thinking_markdown_theme=Theme(
             styles={
-                "markdown.code": palette.grey1 + " italic on " + palette.text_background,
+                "markdown.code": palette.grey1 + " italic on " + palette.code_background,
                 "markdown.code.block": palette.grey1,
                 "markdown.code.border": palette.grey3,
                 "markdown.h1": "bold reverse",
