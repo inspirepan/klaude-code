@@ -50,8 +50,8 @@ LIGHT_PALETTE = Palette(
     diff_remove_char="#82071e on #ffcfcf",
     code_theme="ansi_light",
     code_background="#e0e0e0",
-    green_background="#eefaf0",
-    blue_grey_background="#e7eef6",
+    green_background="#e8f1e9",
+    blue_grey_background="#e8e9f1",
 )
 
 DARK_PALETTE = Palette(

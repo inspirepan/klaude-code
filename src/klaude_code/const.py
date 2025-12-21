@@ -93,7 +93,7 @@ TRUNCATE_DISPLAY_MAX_LINE_LENGTH = 1000
 TRUNCATE_DISPLAY_MAX_LINES = 8
 
 # Maximum lines for sub-agent result display
-SUB_AGENT_RESULT_MAX_LINES = 20
+SUB_AGENT_RESULT_MAX_LINES = 50
 
 
 # UI refresh rate (frames per second) for debounced content streaming

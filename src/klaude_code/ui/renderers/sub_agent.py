@@ -85,14 +85,18 @@ def render_sub_agent_result(
     lines = stripped_result.splitlines()
     if len(lines) > const.SUB_AGENT_RESULT_MAX_LINES:
         hidden_count = len(lines) - const.SUB_AGENT_RESULT_MAX_LINES
-        truncated_text = "\n".join(lines[-const.SUB_AGENT_RESULT_MAX_LINES :])
+        head_count = const.SUB_AGENT_RESULT_MAX_LINES // 2
+        tail_count = const.SUB_AGENT_RESULT_MAX_LINES - head_count
+        head_text = "\n".join(lines[:head_count])
+        tail_text = "\n".join(lines[-tail_count:])
         return Panel.fit(
             Group(
+                NoInsetMarkdown(head_text, code_theme=code_theme, style=style or ""),
                 Text(
-                    f"… more {hidden_count} lines — use /export to view full output",
-                    style=ThemeKey.TOOL_RESULT,
+                    f"\n… more {hidden_count} lines — use /export to view full output\n",
+                    style=ThemeKey.TOOL_RESULT_TRUNCATED,
                 ),
-                NoInsetMarkdown(truncated_text, code_theme=code_theme, style=style or ""),
+                NoInsetMarkdown(tail_text, code_theme=code_theme, style=style or ""),
             ),
             box=box.SIMPLE,
             border_style=ThemeKey.LINES,
