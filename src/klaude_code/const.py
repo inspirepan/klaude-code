@@ -111,6 +111,9 @@ MARKDOWN_RIGHT_MARGIN = 2
 # Status hint text shown after spinner status
 STATUS_HINT_TEXT = " (esc to interrupt)"
 
+# Default spinner status text when idle/thinking
+STATUS_DEFAULT_TEXT = "Thinking …"
+
 # Status shimmer animation
 # Horizontal padding used when computing shimmer band position
 STATUS_SHIMMER_PADDING = 10

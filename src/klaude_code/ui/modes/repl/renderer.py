@@ -11,6 +11,7 @@ from rich.status import Status
 from rich.style import Style, StyleType
 from rich.text import Text
 
+from klaude_code import const
 from klaude_code.protocol import events, model
 from klaude_code.ui.renderers import assistant as r_assistant
 from klaude_code.ui.renderers import developer as r_developer
@@ -41,7 +42,7 @@ class REPLRenderer:
         self.console: Console = Console(theme=self.themes.app_theme)
         self.console.push_theme(self.themes.markdown_theme)
         self._spinner: Status = self.console.status(
-            ShimmerStatusText("Thinking …"),
+            ShimmerStatusText(const.STATUS_DEFAULT_TEXT),
             spinner=r_status.spinner_name(),
             spinner_style=ThemeKey.STATUS_SPINNER,
         )

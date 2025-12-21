@@ -179,8 +179,6 @@ class SpinnerStatusState:
     - Context percent is appended at the end if available
     """
 
-    DEFAULT_STATUS = "Thinking …"
-
     def __init__(self) -> None:
         self._todo_status: str | None = None
         self._reasoning_status: str | None = None
@@ -243,7 +241,7 @@ class SpinnerStatusState:
             activity_text.append(" …")
             result = activity_text
         else:
-            result = Text(self.DEFAULT_STATUS, style=ThemeKey.STATUS_TEXT)
+            result = Text(const.STATUS_DEFAULT_TEXT, style=ThemeKey.STATUS_TEXT)
 
         return result
 
