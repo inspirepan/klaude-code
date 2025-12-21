@@ -124,9 +124,13 @@ class WriteTool(ToolABC):
                     is_memory=is_mem,
                 )
 
-        # Build diff between previous and new content
-        after = args.content
-        ui_extra = build_structured_diff(before, after, file_path=file_path)
+        # For markdown files, use MarkdownDocUIExtra to render content as markdown
+        # Otherwise, build diff between previous and new content
+        ui_extra: model.ToolResultUIExtra | None
+        if file_path.endswith(".md"):
+            ui_extra = model.MarkdownDocUIExtra(file_path=file_path, content=args.content)
+        else:
+            ui_extra = build_structured_diff(before, args.content, file_path=file_path)
 
         message = f"File {'overwritten' if exists else 'created'} successfully at: {file_path}"
         return model.ToolResultItem(status="success", output=message, ui_extra=ui_extra)

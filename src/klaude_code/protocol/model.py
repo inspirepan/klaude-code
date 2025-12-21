@@ -138,6 +138,12 @@ class TruncationUIExtra(BaseModel):
     truncated_length: int
 
 
+class MarkdownDocUIExtra(BaseModel):
+    type: Literal["markdown_doc"] = "markdown_doc"
+    file_path: str
+    content: str
+
+
 class SessionStatusUIExtra(BaseModel):
     type: Literal["session_status"] = "session_status"
     usage: "Usage"
@@ -146,7 +152,13 @@ class SessionStatusUIExtra(BaseModel):
 
 
 ToolResultUIExtra = Annotated[
-    DiffUIExtra | TodoListUIExtra | SessionIdUIExtra | MermaidLinkUIExtra | TruncationUIExtra | SessionStatusUIExtra,
+    DiffUIExtra
+    | TodoListUIExtra
+    | SessionIdUIExtra
+    | MermaidLinkUIExtra
+    | TruncationUIExtra
+    | MarkdownDocUIExtra
+    | SessionStatusUIExtra,
     Field(discriminator="type"),
 ]
 

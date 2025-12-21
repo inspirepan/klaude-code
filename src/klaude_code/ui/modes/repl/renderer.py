@@ -109,7 +109,7 @@ class REPLRenderer:
     def display_tool_call_result(self, e: events.ToolResultEvent) -> None:
         if r_tools.is_sub_agent_tool(e.tool_name):
             return
-        renderable = r_tools.render_tool_result(e)
+        renderable = r_tools.render_tool_result(e, code_theme=self.themes.code_theme)
         if renderable is not None:
             self.print(renderable)
 

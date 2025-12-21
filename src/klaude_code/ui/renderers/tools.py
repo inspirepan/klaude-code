@@ -4,6 +4,7 @@ from typing import Any, cast
 
 from rich.console import Group, RenderableType
 from rich.padding import Padding
+from rich.panel import Panel
 from rich.text import Text
 
 from klaude_code import const
@@ -11,6 +12,7 @@ from klaude_code.protocol import events, model, tools
 from klaude_code.protocol.sub_agent import is_sub_agent_tool as _is_sub_agent_tool
 from klaude_code.ui.renderers import diffs as r_diffs
 from klaude_code.ui.renderers.common import create_grid, truncate_display
+from klaude_code.ui.rich.markdown import NoInsetMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
 
 # Tool markers (Unicode symbols for UI display)
@@ -528,7 +530,21 @@ def _extract_diff(ui_extra: model.ToolResultUIExtra | None) -> model.DiffUIExtra
     return None
 
 
-def render_tool_result(e: events.ToolResultEvent) -> RenderableType | None:
+def _extract_markdown_doc(ui_extra: model.ToolResultUIExtra | None) -> model.MarkdownDocUIExtra | None:
+    if isinstance(ui_extra, model.MarkdownDocUIExtra):
+        return ui_extra
+    return None
+
+
+def render_markdown_doc(md_ui: model.MarkdownDocUIExtra, *, code_theme: str) -> RenderableType:
+    """Render markdown document content in a panel."""
+    return Panel.fit(
+        NoInsetMarkdown(md_ui.content, code_theme=code_theme),
+        border_style=ThemeKey.LINES,
+    )
+
+
+def render_tool_result(e: events.ToolResultEvent, *, code_theme: str = "monokai") -> RenderableType | None:
     """Unified entry point for rendering tool results.
 
     Returns a Rich Renderable or None if the tool result should not be rendered.
@@ -549,11 +565,16 @@ def render_tool_result(e: events.ToolResultEvent) -> RenderableType | None:
         return Group(render_truncation_info(truncation_info), render_generic_tool_result(e.result))
 
     diff_ui = _extract_diff(e.ui_extra)
+    md_ui = _extract_markdown_doc(e.ui_extra)
 
     match e.tool_name:
         case tools.READ:
             return None
-        case tools.EDIT | tools.WRITE:
+        case tools.EDIT:
+            return Padding.indent(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""), level=2)
+        case tools.WRITE:
+            if md_ui:
+                return Padding.indent(render_markdown_doc(md_ui, code_theme=code_theme), level=2)
             return Padding.indent(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""), level=2)
         case tools.APPLY_PATCH:
             if diff_ui:
