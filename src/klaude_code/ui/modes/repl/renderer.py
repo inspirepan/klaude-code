@@ -5,8 +5,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
-from rich import box
-from rich.box import Box
 from rich.console import Console
 from rich.spinner import Spinner
 from rich.status import Status
@@ -82,9 +80,6 @@ class REPLRenderer:
         if status and status.color:
             return status.color
         return Style()
-
-    def box_style(self) -> Box:
-        return box.ROUNDED
 
     @contextmanager
     def session_print_context(self, session_id: str) -> Iterator[None]:
@@ -196,7 +191,7 @@ class REPLRenderer:
             self.print()
 
     def display_welcome(self, event: events.WelcomeEvent) -> None:
-        self.print(r_metadata.render_welcome(event, box_style=self.box_style()))
+        self.print(r_metadata.render_welcome(event))
 
     def display_user_message(self, event: events.UserMessageEvent) -> None:
         self.print(r_user_input.render_user_input(event.content))

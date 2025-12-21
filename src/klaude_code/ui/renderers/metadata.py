@@ -1,7 +1,6 @@
 from importlib.metadata import version
 
 from rich import box
-from rich.box import Box
 from rich.console import Group, RenderableType
 from rich.padding import Padding
 from rich.panel import Panel
@@ -165,11 +164,8 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     return Group(*renderables)
 
 
-def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> RenderableType:
+def render_welcome(e: events.WelcomeEvent) -> RenderableType:
     """Render the welcome panel with model info and settings."""
-    if box_style is None:
-        box_style = box.ROUNDED
-
     debug_mode = is_debug_enabled()
 
     # First line: Klaude Code version
@@ -219,6 +215,6 @@ def render_welcome(e: events.WelcomeEvent, *, box_style: Box | None = None) -> R
 
     border_style = ThemeKey.WELCOME_DEBUG_BORDER if debug_mode else ThemeKey.LINES
     return Group(
-        Panel.fit(panel_content, border_style=border_style, box=box_style),
+        Panel.fit(panel_content, border_style=border_style, box=box.ROUNDED),
         "",  # empty line
     )
