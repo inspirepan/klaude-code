@@ -80,7 +80,7 @@ class PromptToolkitInput(InputProviderABC):
             [(INPUT_PROMPT_STYLE, prompt)],
             history=FileHistory(str(history_path)),
             multiline=True,
-            cursor=CursorShape.BEAM,
+            cursor=CursorShape.BLINKING_BEAM,
             prompt_continuation=[(INPUT_PROMPT_STYLE, "  ")],
             key_bindings=kb,
             completer=ThreadedCompleter(create_repl_completer()),
