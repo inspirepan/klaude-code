@@ -25,6 +25,18 @@ _IMAGE_MIME_TYPES: dict[str, str] = {
     ".webp": "image/webp",
 }
 
+_BINARY_CHECK_SIZE = 8192
+
+
+def _is_binary_file(file_path: str) -> bool:
+    """Check if a file is binary by looking for null bytes in the first chunk."""
+    try:
+        with open(file_path, "rb") as f:
+            chunk = f.read(_BINARY_CHECK_SIZE)
+            return b"\x00" in chunk
+    except OSError:
+        return False
+
 
 def _format_numbered_line(line_no: int, content: str) -> str:
     # 6-width right-aligned line number followed by a right arrow
@@ -218,12 +230,22 @@ class ReadTool(ToolABC):
                 ),
             )
 
+        is_image_file = _is_supported_image_file(file_path)
+        # Check for binary files (skip for images which are handled separately)
+        if not is_image_file and _is_binary_file(file_path):
+            return model.ToolResultItem(
+                status="error",
+                output=(
+                    "<tool_use_error>This appears to be a binary file and cannot be read as text. "
+                    "Use appropriate tools or libraries to handle binary files.</tool_use_error>"
+                ),
+            )
+
         try:
             size_bytes = Path(file_path).stat().st_size
         except OSError:
             size_bytes = 0
 
-        is_image_file = _is_supported_image_file(file_path)
         if is_image_file:
             if size_bytes > const.READ_MAX_IMAGE_BYTES:
                 size_mb = size_bytes / (1024 * 1024)
