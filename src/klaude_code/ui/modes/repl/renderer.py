@@ -235,7 +235,11 @@ class REPLRenderer:
     def display_task_finish(self, event: events.TaskFinishEvent) -> None:
         if self.is_sub_agent_session(event.session_id):
             session_status = self.session_map.get(event.session_id)
-            description = session_status.sub_agent_state.sub_agent_desc if session_status and session_status.sub_agent_state else None
+            description = (
+                session_status.sub_agent_state.sub_agent_desc
+                if session_status and session_status.sub_agent_state
+                else None
+            )
             panel_style = self.get_session_sub_agent_background(event.session_id)
             with self.session_print_context(event.session_id):
                 self.print(

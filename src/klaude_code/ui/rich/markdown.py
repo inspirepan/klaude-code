@@ -7,8 +7,9 @@ import time
 from collections.abc import Callable
 from typing import Any, ClassVar
 
+from markdown_it import MarkdownIt
+from markdown_it.token import Token
 from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
-from rich.live import Live
 from rich.markdown import CodeBlock, Heading, Markdown, MarkdownElement
 from rich.rule import Rule
 from rich.spinner import Spinner
@@ -19,6 +20,7 @@ from rich.theme import Theme
 
 from klaude_code import const
 from klaude_code.ui.rich.code_panel import CodePanel
+from klaude_code.ui.rich.live import CropAboveLive
 
 
 class NoInsetCodeBlock(CodeBlock):
@@ -94,11 +96,15 @@ class ThinkingMarkdown(Markdown):
 
 
 class MarkdownStream:
-    """Streaming markdown renderer that progressively displays content with a live updating window.
+    """Block-based streaming Markdown renderer.
 
-    Uses rich.console and rich.live to render markdown content with smooth scrolling
-    and partial updates. Maintains a sliding window of visible content while streaming
-    in new markdown text.
+    This renderer is optimized for terminal UX:
+
+    - Stable area: only prints *completed* Markdown blocks to scrollback (append-only).
+    - Live area: continuously repaints only the final *possibly incomplete* block.
+
+    Block boundaries are computed with `MarkdownIt("commonmark")` (token maps / top-level tokens).
+    Rendering is done with Rich Markdown (customizable via `markdown_class`).
     """
 
     def __init__(
@@ -125,7 +131,9 @@ class MarkdownStream:
             right_margin (int, optional): Number of columns to reserve on the right side
             markdown_class: Markdown class to use for rendering (defaults to NoInsetMarkdown)
         """
-        self.printed: list[str] = []  # Stores lines that have already been printed
+        self._stable_rendered_lines: list[str] = []
+        self._stable_source_line_count: int = 0
+        self._base_width: int | None = None
 
         if mdargs:
             self.mdargs: dict[str, Any] = mdargs
@@ -133,12 +141,12 @@ class MarkdownStream:
             self.mdargs = {}
 
         # Defer Live creation until the first update.
-        self.live: Live | None = None
+        self._live: CropAboveLive | None = None
 
         # Streaming control
         self.when: float = 0.0  # Timestamp of last update
         self.min_delay: float = 1.0 / 20  # Minimum time between updates (20fps)
-        self.live_window: int = const.MARKDOWN_STREAM_LIVE_WINDOW
+        self._parser: MarkdownIt = MarkdownIt("commonmark")
 
         self.theme = theme
         self.console = console
@@ -154,9 +162,100 @@ class MarkdownStream:
     @property
     def _live_started(self) -> bool:
         """Check if Live display has been started (derived from self.live)."""
-        return self.live is not None
+        return self._live is not None
 
-    def _render_markdown_to_lines(self, text: str) -> list[str]:
+    def _get_base_width(self) -> int:
+        if self._base_width is not None:
+            return self._base_width
+        if self.console is not None:
+            self._base_width = self.console.options.max_width
+        else:
+            self._base_width = Console(theme=self.theme).options.max_width
+        return self._base_width
+
+    def compute_candidate_stable_line(self, text: str) -> int:
+        """Return the start line of the last top-level block, or 0.
+
+        This value is not monotonic; callers should clamp it (e.g. with the
+        previous stable line) before using it to advance state.
+        """
+
+        try:
+            tokens = self._parser.parse(text)
+        except Exception:
+            return 0
+
+        top_level: list[Token] = [token for token in tokens if token.level == 0 and token.map is not None]
+        if len(top_level) < 2:
+            return 0
+
+        last = top_level[-1]
+        assert last.map is not None
+        start_line = last.map[0]
+        return max(start_line, 0)
+
+    def split_blocks(self, text: str, *, min_stable_line: int = 0, final: bool = False) -> tuple[str, str, int]:
+        """Split full markdown into stable and live sources.
+
+        Returns:
+            stable_source: Completed blocks (append-only)
+            live_source: Last (possibly incomplete) block
+            stable_line: Line index where live starts
+        """
+
+        lines = text.splitlines(keepends=True)
+        line_count = len(lines)
+
+        stable_line = line_count if final else self.compute_candidate_stable_line(text)
+
+        stable_line = min(stable_line, line_count)
+        stable_line = max(stable_line, min_stable_line)
+
+        stable_source = "".join(lines[:stable_line])
+        live_source = "".join(lines[stable_line:])
+        return stable_source, live_source, stable_line
+
+    def render_ansi(self, text: str, *, apply_mark: bool) -> str:
+        """Render markdown source to an ANSI string.
+
+        This is primarily intended for internal debugging and tests.
+        """
+
+        return "".join(self._render_markdown_to_lines(text, apply_mark=apply_mark))
+
+    def render_stable_ansi(self, stable_source: str, *, has_live_suffix: bool, final: bool) -> str:
+        """Render stable prefix to ANSI, preserving inter-block spacing."""
+
+        if not stable_source:
+            return ""
+
+        render_source = stable_source
+        if not final and has_live_suffix:
+            render_source = self._append_nonfinal_sentinel(stable_source)
+
+        return self.render_ansi(render_source, apply_mark=True)
+
+    def _append_nonfinal_sentinel(self, stable_source: str) -> str:
+        """Make Rich render stable content as if it isn't the last block.
+
+        Rich Markdown may omit trailing spacing for the last block in a document.
+        When we render only the stable prefix (without the live suffix), we still
+        need the *inter-block* spacing to match the full document.
+
+        A harmless HTML comment block causes Rich Markdown to emit the expected
+        spacing while rendering no visible content.
+        """
+
+        if not stable_source:
+            return stable_source
+
+        if stable_source.endswith("\n\n"):
+            return stable_source + "<!-- -->"
+        if stable_source.endswith("\n"):
+            return stable_source + "\n<!-- -->"
+        return stable_source + "\n\n<!-- -->"
+
+    def _render_markdown_to_lines(self, text: str, *, apply_mark: bool) -> list[str]:
         """Render markdown text to a list of lines.
 
         Args:
@@ -168,13 +267,8 @@ class MarkdownStream:
         # Render the markdown to a string buffer
         string_io = io.StringIO()
 
-        # Determine console width and adjust for left margin so that
-        # the rendered content plus margins does not exceed the available width.
-        if self.console is not None:
-            base_width = self.console.options.max_width
-        else:
-            probe_console = Console(theme=self.theme)
-            base_width = probe_console.options.max_width
+        # Keep width stable across frames to prevent reflow/jitter.
+        base_width = self._get_base_width()
 
         effective_width = max(base_width - self.left_margin - self.right_margin, 1)
 
@@ -195,7 +289,7 @@ class MarkdownStream:
         indent_prefix = " " * self.left_margin if self.left_margin > 0 else ""
         processed_lines: list[str] = []
         mark_applied = False
-        use_mark = bool(self.mark) and self.left_margin >= 2
+        use_mark = apply_mark and bool(self.mark) and self.left_margin >= 2
 
         # Pre-render styled mark if needed
         styled_mark: str | None = None
@@ -227,102 +321,70 @@ class MarkdownStream:
 
     def __del__(self) -> None:
         """Destructor to ensure Live display is properly cleaned up."""
-        if self.live:
+        if self._live:
             # Ignore any errors during cleanup
             with contextlib.suppress(Exception):
-                self.live.stop()
+                self._live.stop()
 
     def update(self, text: str, final: bool = False) -> None:
-        """Update the displayed markdown content.
+        """Update the display with the latest full markdown buffer."""
 
-        Args:
-            text (str): The markdown text received so far
-            final (bool): If True, this is the final update and we should clean up
-
-        Splits the output into "stable" older lines and the "last few" lines
-        which aren't considered stable. They may shift around as new chunks
-        are appended to the markdown text.
-
-        The stable lines emit to the console above the Live window.
-        The unstable lines emit into the Live window so they can be repainted.
-
-        Markdown going to the console works better in terminal scrollback buffers.
-        The live window doesn't play nice with terminal scrollback.
-        """
         if not self._live_started:
             initial_content = self._live_renderable(Text(""), final=False)
-            # transient=False keeps final frame on screen after stop()
-            self.live = Live(
+            self._live = CropAboveLive(
                 initial_content,
                 refresh_per_second=1.0 / self.min_delay,
                 console=self.console,
+                transient=True,
             )
-            self.live.start()
+            self._live.start()
 
-        if self.live is None:
+        live = self._live
+        if live is None:
             return
 
         now = time.time()
-        # Throttle updates to maintain smooth rendering
         if not final and now - self.when < self.min_delay:
             return
         self.when = now
 
-        # Measure render time and adjust min_delay to maintain smooth rendering
+        stable_source, live_source, stable_line = self.split_blocks(
+            text,
+            min_stable_line=self._stable_source_line_count,
+            final=final,
+        )
+
         start = time.time()
-        lines = self._render_markdown_to_lines(text)
-        render_time = time.time() - start
 
-        # Set min_delay to render time plus a small buffer
-        self.min_delay = min(max(render_time * 10, 1.0 / 20), 2)
+        stable_changed = final or stable_line > self._stable_source_line_count
+        if stable_changed and stable_source:
+            stable_ansi = self.render_stable_ansi(stable_source, has_live_suffix=bool(live_source), final=final)
+            stable_lines = stable_ansi.splitlines(keepends=True)
+            new_lines = stable_lines[len(self._stable_rendered_lines) :]
+            if new_lines:
+                live.console.print(Text.from_ansi("".join(new_lines)))
+            self._stable_rendered_lines = stable_lines
+            self._stable_source_line_count = stable_line
+        elif final and not stable_source:
+            self._stable_rendered_lines = []
+            self._stable_source_line_count = stable_line
 
-        num_lines = len(lines)
-
-        # Reserve last live_window lines for Live area to keep height stable
-        num_lines = max(num_lines - self.live_window, 0)
-
-        # Print new stable lines above Live window
-        if num_lines > 0:
-            num_printed = len(self.printed)
-            to_append_count = num_lines - num_printed
-
-            if to_append_count > 0:
-                append_chunk = lines[num_printed:num_lines]
-                append_chunk_text = Text.from_ansi("".join(append_chunk))
-                live = self.live
-                assert live is not None
-                live.console.print(append_chunk_text)
-                self.printed = lines[:num_lines]
-
-        rest_lines = lines[num_lines:]
-
-        # Final: render remaining lines without spinner, then stop Live
         if final:
-            live = self.live
-            assert live is not None
-            rest = "".join(rest_lines)
-            rest_text = Text.from_ansi(rest)
-            final_renderable = self._live_renderable(rest_text, final=True)
-            live.update(final_renderable)
+            live.update(Text(""), refresh=True)
             live.stop()
-            self.live = None
+            self._live = None
             return
 
-        rest = "".join(rest_lines)
-        rest = Text.from_ansi(rest)
-        live = self.live
-        assert live is not None
-        live_renderable = self._live_renderable(rest, final)
-        live.update(live_renderable)
+        apply_mark_live = self._stable_source_line_count == 0
+        live_lines = self._render_markdown_to_lines(live_source, apply_mark=apply_mark_live)
+        live_text = Text.from_ansi("".join(live_lines))
+        live.update(self._live_renderable(live_text, final=False), refresh=True)
+
+        elapsed = time.time() - start
+        self.min_delay = min(max(elapsed * 6, 1.0 / 30), 0.5)
 
     def _live_renderable(self, rest: Text, final: bool) -> RenderableType:
         if final or not self.spinner:
             return rest
         else:
             return Group(rest, Text(), self.spinner)
-
-    def find_minimal_suffix(self, text: str, match_lines: int = 50) -> None:
-        """
-        Splits text into chunks on blank lines "\n\n".
-        """
-        return None
