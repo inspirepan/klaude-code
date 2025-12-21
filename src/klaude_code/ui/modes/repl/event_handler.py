@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from rich.cells import cell_len
 from rich.rule import Rule
 from rich.text import Text
 
@@ -474,9 +475,12 @@ class DisplayEventHandler:
 
     def _update_spinner(self) -> None:
         """Update spinner text from current status state."""
+        status_text = self.spinner_status.get_status()
+        context_text = self.spinner_status.get_context_text()
+        status_text = self._truncate_spinner_status_text(status_text, right_text=context_text)
         self.renderer.spinner_update(
-            self.spinner_status.get_status(),
-            self.spinner_status.get_context_text(),
+            status_text,
+            context_text,
         )
 
     async def _flush_assistant_buffer(self, state: StreamState) -> None:
@@ -534,35 +538,28 @@ class DisplayEventHandler:
                     status_text = todo.active_form
                 if len(todo.content) > 0:
                     status_text = todo.content
-        status_text = status_text.replace("\n", "")
-        max_length = self._calculate_base_status_max_length()
-        return self._truncate_status_text(status_text, max_length=max_length)
+        return status_text.replace("\n", " ").strip()
 
-    def _calculate_base_status_max_length(self) -> int:
-        """Calculate max length for base_status based on terminal width.
+    def _truncate_spinner_status_text(self, status_text: Text, *, right_text: Text | None) -> Text:
+        """Truncate spinner status to a single line based on terminal width.
 
-        Reserve space for:
-        - Spinner glyph + space + context text: 2 chars + context text length 10 chars
-        - " | " separator: 3 chars (only if activity text present)
-        - Activity text: actual length (only if present)
-        - Status hint text (esc to interrupt)
+        Rich wraps based on terminal cell width (CJK chars count as 2). Use
+        cell-aware truncation to prevent the status from wrapping into two lines.
         """
+
         terminal_width = self.renderer.console.size.width
 
-        # Base reserved space: spinner + context + status hint
-        reserved_space = 12 + len(const.STATUS_HINT_TEXT)
+        # BreathingSpinner renders as a 2-column Table.grid(padding=1):
+        # 1 cell for glyph + 1 cell of padding between columns (collapsed).
+        spinner_prefix_cells = 2
 
-        # Add space for activity text if present
-        activity_text = self.spinner_status.get_activity_text()
-        if activity_text:
-            # " | " separator + actual activity text length
-            reserved_space += 3 + len(activity_text.plain)
+        hint_cells = cell_len(const.STATUS_HINT_TEXT)
+        right_cells = cell_len(right_text.plain) if right_text is not None else 0
 
-        max_length = max(10, terminal_width - reserved_space)
-        return max_length
+        max_main_cells = terminal_width - spinner_prefix_cells - hint_cells - right_cells - 1
+        # rich.text.Text.truncate behaves unexpectedly for 0; clamp to at least 1.
+        max_main_cells = max(1, max_main_cells)
 
-    def _truncate_status_text(self, text: str, max_length: int) -> str:
-        if len(text) <= max_length:
-            return text
-        truncated = text[:max_length]
-        return truncated + "…"
+        truncated = status_text.copy()
+        truncated.truncate(max_main_cells, overflow="ellipsis", pad=False)
+        return truncated
