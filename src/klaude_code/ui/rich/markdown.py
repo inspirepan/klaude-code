@@ -64,7 +64,7 @@ class LeftHeading(Heading):
             yield h1_text
         elif self.tag == "h2":
             text.stylize(Style(bold=True, underline=False))
-            yield Rule(title=text, characters="-", style="markdown.h2.border", align="left")
+            yield Rule(title=text, characters="·", style="markdown.h2.border", align="left")
         else:
             yield text
 
