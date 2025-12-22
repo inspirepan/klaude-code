@@ -375,7 +375,7 @@ class DisplayEventHandler:
                 },
                 theme=self.renderer.themes.thinking_markdown_theme,
                 console=self.renderer.console,
-                live_sink=self.renderer.set_stream_renderable,
+                live_sink=self.renderer.set_stream_renderable if const.MARKDOWN_STREAM_LIVE_REPAINT_ENABLED else None,
                 mark=THINKING_MESSAGE_MARK,
                 mark_style=ThemeKey.THINKING,
                 left_margin=const.MARKDOWN_LEFT_MARGIN,
@@ -412,7 +412,7 @@ class DisplayEventHandler:
                 mdargs={"code_theme": self.renderer.themes.code_theme},
                 theme=self.renderer.themes.markdown_theme,
                 console=self.renderer.console,
-                live_sink=self.renderer.set_stream_renderable,
+                live_sink=self.renderer.set_stream_renderable if const.MARKDOWN_STREAM_LIVE_REPAINT_ENABLED else None,
                 mark=ASSISTANT_MESSAGE_MARK,
                 left_margin=const.MARKDOWN_LEFT_MARGIN,
             )

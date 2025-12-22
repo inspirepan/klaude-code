@@ -1,4 +1,3 @@
-# copy from https://github.com/Aider-AI/aider/blob/main/aider/mdstream.py
 from __future__ import annotations
 
 import contextlib
@@ -341,9 +340,6 @@ class MarkdownStream:
     def update(self, text: str, final: bool = False) -> None:
         """Update the display with the latest full markdown buffer."""
 
-        if self._live_sink is None:
-            return
-
         now = time.time()
         if not final and now - self.when < self.min_delay:
             return
@@ -374,18 +370,20 @@ class MarkdownStream:
             self._stable_source_line_count = stable_line
 
         if final:
-            self._live_sink(None)
+            if self._live_sink is not None:
+                self._live_sink(None)
             return
 
-        apply_mark_live = self._stable_source_line_count == 0
-        live_lines = self._render_markdown_to_lines(live_source, apply_mark=apply_mark_live)
+        if const.MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._live_sink is not None:
+            apply_mark_live = self._stable_source_line_count == 0
+            live_lines = self._render_markdown_to_lines(live_source, apply_mark=apply_mark_live)
 
-        if self._stable_rendered_lines and not self._stable_rendered_lines[-1].strip():
-            while live_lines and not live_lines[0].strip():
-                live_lines.pop(0)
+            if self._stable_rendered_lines and not self._stable_rendered_lines[-1].strip():
+                while live_lines and not live_lines[0].strip():
+                    live_lines.pop(0)
 
-        live_text = Text.from_ansi("".join(live_lines))
-        self._live_sink(live_text)
+            live_text = Text.from_ansi("".join(live_lines))
+            self._live_sink(live_text)
 
         elapsed = time.time() - start
         self.min_delay = min(max(elapsed * 6, 1.0 / 30), 0.5)

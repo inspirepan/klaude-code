@@ -332,23 +332,28 @@ class REPLRenderer:
         self._bottom_live.start()
 
     def _bottom_renderable(self) -> RenderableType:
-        stream = self._stream_renderable
-        if stream is not None:
-            current_width = self.console.size.width
-            if self._stream_last_width != current_width:
-                height = len(self.console.render_lines(stream, self.console.options, pad=False))
-                self._stream_last_height = height
-                self._stream_last_width = current_width
-                self._stream_max_height = max(self._stream_max_height, height)
-            else:
-                height = self._stream_last_height
+        stream_part: RenderableType = Group()
+        gap_part: RenderableType = Group()
 
-            pad_lines = max(self._stream_max_height - height, 0)
-            if pad_lines:
-                stream = Padding(stream, (0, 0, pad_lines, 0))
+        if const.MARKDOWN_STREAM_LIVE_REPAINT_ENABLED:
+            stream = self._stream_renderable
+            if stream is not None:
+                current_width = self.console.size.width
+                if self._stream_last_width != current_width:
+                    height = len(self.console.render_lines(stream, self.console.options, pad=False))
+                    self._stream_last_height = height
+                    self._stream_last_width = current_width
+                    self._stream_max_height = max(self._stream_max_height, height)
+                else:
+                    height = self._stream_last_height
 
-        stream_part: RenderableType = stream if stream is not None else Group()
-        gap_part: RenderableType = Text("") if self._spinner_visible else Group()
+                pad_lines = max(self._stream_max_height - height, 0)
+                if pad_lines:
+                    stream = Padding(stream, (0, 0, pad_lines, 0))
+                stream_part = stream
+
+            gap_part = Text("") if self._spinner_visible else Group()
+
         status_part: RenderableType = SingleLine(self._status_spinner) if self._spinner_visible else Group()
         return Group(stream_part, gap_part, status_part)
 

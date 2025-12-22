@@ -99,6 +99,10 @@ SUB_AGENT_RESULT_MAX_LINES = 50
 # UI refresh rate (frames per second) for debounced content streaming
 UI_REFRESH_RATE_FPS = 10
 
+# Enable live area for streaming markdown (shows incomplete blocks being typed)
+# When False, only completed markdown blocks are displayed (more stable, less flicker)
+MARKDOWN_STREAM_LIVE_REPAINT_ENABLED = False
+
 # Number of lines to keep visible at bottom of markdown streaming window
 MARKDOWN_STREAM_LIVE_WINDOW = 6
 
