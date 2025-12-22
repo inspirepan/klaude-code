@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.26] - 2025-12-22
+
+### Added
+
+- enhance composing status with creative verbs and buffer length (`54bced12`)
+- add custom table element with MARKDOWN box style (`2a5e8d27`)
+- render markdown preview when adding .md files (`9e082581`)
+
+### Changed
+
+- update h2 heading style (`9b4fa47b`)
+- simplify h2 heading rendering by removing trailing rule (`ea462b18`)
+- remove red from sub-agent color palette (`4f69f1d9`)
+- conditionally insert description heading based on output type (`5421b821`)
+
+### Fixed
+
+- gate live markdown streaming behind feature flag (`72ee1a69`)
 ## [1.2.25] - 2025-12-22
 
 ### Added
@@ -756,7 +774,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.25...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.26...HEAD
+[1.2.26]: https://github.com/inspirepan/klaude-code/compare/v1.2.25...v1.2.26
 [1.2.25]: https://github.com/inspirepan/klaude-code/compare/v1.2.24...v1.2.25
 [1.2.24]: https://github.com/inspirepan/klaude-code/compare/v1.2.23...v1.2.24
 [1.2.23]: https://github.com/inspirepan/klaude-code/compare/v1.2.22...v1.2.23
