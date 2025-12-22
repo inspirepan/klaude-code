@@ -3,9 +3,10 @@ from __future__ import annotations
 import io
 
 from rich.console import Console
+from rich.text import Text
 from rich.theme import Theme
 
-from klaude_code.ui.rich.markdown import MarkdownStream, NoInsetMarkdown
+from klaude_code.ui.rich.markdown import MarkdownStream, NoInsetMarkdown, SingleLine
 
 
 def _make_stream(*, width: int = 80) -> MarkdownStream:
@@ -171,3 +172,10 @@ def test_heading_list_boundary_does_not_double_blank_during_streaming() -> None:
         assert combined == full_ansi
 
         min_stable_line = stable_line
+
+
+def test_single_line_wrapper_renders_first_line_only() -> None:
+    console = Console(file=io.StringIO(), force_terminal=True, width=20)
+    wrapped = SingleLine(Text("line1\nline2\nline3"))
+    lines = console.render_lines(wrapped, console.options, pad=False)
+    assert len(lines) == 1

@@ -24,6 +24,23 @@ from klaude_code.ui.rich.code_panel import CodePanel
 from klaude_code.ui.rich.live import CropAboveLive
 
 
+class SingleLine:
+    """Render only the first line of a renderable.
+
+    This is used to ensure the embedded spinner never wraps to multiple lines,
+    which would cause it to appear to jump vertically during streaming.
+    """
+
+    def __init__(self, renderable: RenderableType) -> None:
+        self.renderable = renderable
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        line_options = options.update(no_wrap=True, overflow="crop", height=1)
+        lines = console.render_lines(self.renderable, line_options, pad=False)
+        if lines:
+            yield from lines[0]
+
+
 class NoInsetCodeBlock(CodeBlock):
     """A code block with syntax highlighting and no padding."""
 
@@ -403,8 +420,6 @@ class MarkdownStream:
             final=final,
         )
 
-        stable_advanced = stable_line > previous_stable_line
-
         start = time.time()
 
         stable_changed = final or stable_line > self._stable_source_line_count
@@ -413,7 +428,8 @@ class MarkdownStream:
             stable_lines = stable_ansi.splitlines(keepends=True)
             new_lines = stable_lines[len(self._stable_rendered_lines) :]
             if new_lines:
-                live.console.print(Text.from_ansi("".join(new_lines)))
+                stable_chunk = "".join(new_lines)
+                live.console.print(Text.from_ansi(stable_chunk), end="\n")
             self._stable_rendered_lines = stable_lines
             self._stable_source_line_count = stable_line
         elif final and not stable_source:
@@ -436,7 +452,11 @@ class MarkdownStream:
 
         live_text = Text.from_ansi("".join(live_lines))
 
-        gap_lines = self.compute_live_gap_lines(len(live_lines), reset=stable_advanced)
+        # Keep live height monotonic for the entire streaming session.
+        # Use the *actual rendered height* to avoid off-by-one behavior around
+        # trailing newlines and Rich's line wrapping.
+        content_height = len(live.console.render_lines(live_text, live.console.options, pad=False))
+        gap_lines = self.compute_live_gap_lines(content_height, reset=False)
         live.update(
             self._live_renderable(live_text, final=False, gap_lines=gap_lines),
             refresh=True,
@@ -450,4 +470,4 @@ class MarkdownStream:
             return rest
         gap_lines = max(gap_lines, 0)
         padded = Padding(rest, (0, 0, gap_lines, 0)) if gap_lines else rest
-        return Group(padded, self.spinner)
+        return Group(padded, SingleLine(self.spinner))
