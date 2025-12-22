@@ -12,7 +12,7 @@ from markdown_it.token import Token
 from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
 from rich.markdown import CodeBlock, Heading, Markdown, MarkdownElement
 from rich.rule import Rule
-from rich.style import StyleType
+from rich.style import Style, StyleType
 from rich.syntax import Syntax
 from rich.text import Text
 from rich.theme import Theme
@@ -63,7 +63,7 @@ class LeftHeading(Heading):
             h1_text = text.assemble((" ", "markdown.h1"), text, (" ", "markdown.h1"))
             yield h1_text
         elif self.tag == "h2":
-            text.stylize(console.get_style("markdown.h2"))
+            text.stylize(Style(bold=True, underline=False))
             yield text
         else:
             yield text

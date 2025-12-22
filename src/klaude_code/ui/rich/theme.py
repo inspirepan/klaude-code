@@ -311,7 +311,6 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.code.border": palette.grey3,
                 "markdown.h1": "bold reverse",
                 "markdown.h1.border": palette.grey3,
-                "markdown.h2": "bold underline",
                 "markdown.h3": "bold " + palette.grey1,
                 "markdown.h4": "bold " + palette.grey2,
                 "markdown.hr": palette.grey3,
