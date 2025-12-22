@@ -611,7 +611,7 @@ wheels = [
 
 [[package]]
 name = "klaude-code"
-version = "1.2.24"
+version = "1.2.25"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
