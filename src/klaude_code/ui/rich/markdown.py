@@ -11,6 +11,7 @@ from markdown_it import MarkdownIt
 from markdown_it.token import Token
 from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.markdown import CodeBlock, Heading, Markdown, MarkdownElement
+from rich.padding import Padding
 from rich.rule import Rule
 from rich.spinner import Spinner
 from rich.style import Style, StyleType
@@ -236,6 +237,29 @@ class MarkdownStream:
 
         return self.render_ansi(render_source, apply_mark=True)
 
+    @staticmethod
+    def normalize_live_ansi_for_boundary(*, stable_ansi: str, live_ansi: str) -> str:
+        """Normalize whitespace at the stable/live boundary.
+
+        Some Rich Markdown blocks (e.g. lists) render with a leading blank line.
+        If the stable prefix already renders a trailing blank line, rendering the
+        live suffix separately may introduce an extra blank line that wouldn't
+        appear when rendering the full document.
+
+        This function removes leading blank lines from the live ANSI when the
+        stable ANSI already ends with a blank line.
+        """
+
+        stable_lines = stable_ansi.splitlines(keepends=True)
+        stable_ends_blank = bool(stable_lines) and not stable_lines[-1].strip()
+        if not stable_ends_blank:
+            return live_ansi
+
+        live_lines = live_ansi.splitlines(keepends=True)
+        while live_lines and not live_lines[0].strip():
+            live_lines.pop(0)
+        return "".join(live_lines)
+
     def compute_live_gap_lines(self, current_live_lines: int, *, reset: bool) -> int:
         """Compute and update the blank-line gap between live content and spinner.
 
@@ -405,6 +429,11 @@ class MarkdownStream:
 
         apply_mark_live = self._stable_source_line_count == 0
         live_lines = self._render_markdown_to_lines(live_source, apply_mark=apply_mark_live)
+
+        if self._stable_rendered_lines and not self._stable_rendered_lines[-1].strip():
+            while live_lines and not live_lines[0].strip():
+                live_lines.pop(0)
+
         live_text = Text.from_ansi("".join(live_lines))
 
         gap_lines = self.compute_live_gap_lines(len(live_lines), reset=stable_advanced)
@@ -419,7 +448,6 @@ class MarkdownStream:
     def _live_renderable(self, rest: Text, final: bool, *, gap_lines: int = 1) -> RenderableType:
         if final or not self.spinner:
             return rest
-        else:
-            gap_lines = max(gap_lines, 0)
-            gap = Text("\n" * gap_lines) if gap_lines else Text("")
-            return Group(rest, gap, self.spinner)
+        gap_lines = max(gap_lines, 0)
+        padded = Padding(rest, (0, 0, gap_lines, 0)) if gap_lines else rest
+        return Group(padded, self.spinner)
