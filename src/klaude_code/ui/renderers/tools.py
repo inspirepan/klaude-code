@@ -528,19 +528,28 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
 def _extract_diff(ui_extra: model.ToolResultUIExtra | None) -> model.DiffUIExtra | None:
     if isinstance(ui_extra, model.DiffUIExtra):
         return ui_extra
+    if isinstance(ui_extra, model.MultiUIExtra):
+        for item in ui_extra.items:
+            if isinstance(item, model.DiffUIExtra):
+                return item
     return None
 
 
 def _extract_markdown_doc(ui_extra: model.ToolResultUIExtra | None) -> model.MarkdownDocUIExtra | None:
     if isinstance(ui_extra, model.MarkdownDocUIExtra):
         return ui_extra
+    if isinstance(ui_extra, model.MultiUIExtra):
+        for item in ui_extra.items:
+            if isinstance(item, model.MarkdownDocUIExtra):
+                return item
     return None
 
 
 def render_markdown_doc(md_ui: model.MarkdownDocUIExtra, *, code_theme: str) -> RenderableType:
     """Render markdown document content in a panel."""
+    header = render_path(md_ui.file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
     return Panel.fit(
-        NoInsetMarkdown(md_ui.content, code_theme=code_theme),
+        Group(header, Text(""), NoInsetMarkdown(md_ui.content, code_theme=code_theme)),
         box=box.SIMPLE,
         border_style=ThemeKey.LINES,
         style=ThemeKey.WRITE_MARKDOWN_PANEL,
@@ -562,6 +571,19 @@ def render_tool_result(e: events.ToolResultEvent, *, code_theme: str = "monokai"
         error_msg = truncate_display(e.result)
         return r_errors.render_error(error_msg)
 
+    # Render multiple ui blocks if present
+    if isinstance(e.ui_extra, model.MultiUIExtra) and e.ui_extra.items:
+        rendered: list[RenderableType] = []
+        for item in e.ui_extra.items:
+            if isinstance(item, model.MarkdownDocUIExtra):
+                rendered.append(Padding.indent(render_markdown_doc(item, code_theme=code_theme), level=2))
+            elif isinstance(item, model.DiffUIExtra):
+                show_file_name = e.tool_name == tools.APPLY_PATCH
+                rendered.append(
+                    Padding.indent(r_diffs.render_structured_diff(item, show_file_name=show_file_name), level=2)
+                )
+        return Group(*rendered) if rendered else None
+
     # Show truncation info if output was truncated and saved to file
     truncation_info = get_truncation_info(e)
     if truncation_info:
@@ -580,6 +602,8 @@ def render_tool_result(e: events.ToolResultEvent, *, code_theme: str = "monokai"
                 return Padding.indent(render_markdown_doc(md_ui, code_theme=code_theme), level=2)
             return Padding.indent(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""), level=2)
         case tools.APPLY_PATCH:
+            if md_ui:
+                return Padding.indent(render_markdown_doc(md_ui, code_theme=code_theme), level=2)
             if diff_ui:
                 return Padding.indent(r_diffs.render_structured_diff(diff_ui, show_file_name=True), level=2)
             if len(e.result.strip()) == 0:

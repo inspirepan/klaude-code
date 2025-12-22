@@ -151,6 +151,28 @@ class SessionStatusUIExtra(BaseModel):
     by_model: list["TaskMetadata"] = []
 
 
+MultiUIExtraItem = (
+    DiffUIExtra
+    | TodoListUIExtra
+    | SessionIdUIExtra
+    | MermaidLinkUIExtra
+    | TruncationUIExtra
+    | MarkdownDocUIExtra
+    | SessionStatusUIExtra
+)
+
+
+class MultiUIExtra(BaseModel):
+    """A container UIExtra that can render multiple UI blocks for a single tool result.
+
+    This is primarily used by tools like apply_patch which can perform multiple
+    operations in one invocation.
+    """
+
+    type: Literal["multi"] = "multi"
+    items: list[MultiUIExtraItem]
+
+
 ToolResultUIExtra = Annotated[
     DiffUIExtra
     | TodoListUIExtra
@@ -158,7 +180,8 @@ ToolResultUIExtra = Annotated[
     | MermaidLinkUIExtra
     | TruncationUIExtra
     | MarkdownDocUIExtra
-    | SessionStatusUIExtra,
+    | SessionStatusUIExtra
+    | MultiUIExtra,
     Field(discriminator="type"),
 ]
 

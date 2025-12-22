@@ -20,7 +20,7 @@ class ApplyPatchHandler:
     @classmethod
     async def handle_apply_patch(cls, patch_text: str) -> model.ToolResultItem:
         try:
-            output, diff_ui = await asyncio.to_thread(cls._apply_patch_in_thread, patch_text)
+            output, ui_extra = await asyncio.to_thread(cls._apply_patch_in_thread, patch_text)
         except apply_patch_module.DiffError as error:
             return model.ToolResultItem(status="error", output=str(error))
         except Exception as error:  # pragma: no cover  # unexpected errors bubbled to tool result
@@ -28,11 +28,11 @@ class ApplyPatchHandler:
         return model.ToolResultItem(
             status="success",
             output=output,
-            ui_extra=diff_ui,
+            ui_extra=ui_extra,
         )
 
     @staticmethod
-    def _apply_patch_in_thread(patch_text: str) -> tuple[str, model.DiffUIExtra]:
+    def _apply_patch_in_thread(patch_text: str) -> tuple[str, model.ToolResultUIExtra]:
         ap = apply_patch_module
         normalized_start = patch_text.lstrip()
         if not normalized_start.startswith("*** Begin Patch"):
@@ -69,6 +69,16 @@ class ApplyPatchHandler:
         commit = ap.patch_to_commit(patch, orig)
         diff_ui = ApplyPatchHandler._commit_to_structured_diff(commit)
 
+        md_items: list[model.MarkdownDocUIExtra] = []
+        for change_path, change in commit.changes.items():
+            if change.type == apply_patch_module.ActionType.ADD and change_path.endswith(".md"):
+                md_items.append(
+                    model.MarkdownDocUIExtra(
+                        file_path=resolve_path(change_path),
+                        content=change.new_content or "",
+                    )
+                )
+
         def write_fn(path: str, content: str) -> None:
             resolved = resolve_path(path)
             if os.path.isdir(resolved):
@@ -102,6 +112,16 @@ class ApplyPatchHandler:
                     file_tracker.pop(resolved, None)
 
         ap.apply_commit(commit, write_fn, remove_fn)
+
+        # apply_patch can include multiple operations. If we added markdown files,
+        # return a MultiUIExtra so UI can render markdown previews (without showing a diff for those markdown adds).
+        if md_items:
+            items: list[model.MultiUIExtraItem] = []
+            items.extend(md_items)
+            if diff_ui.files:
+                items.append(diff_ui)
+            return "Done!", model.MultiUIExtra(items=items)
+
         return "Done!", diff_ui
 
     @staticmethod
@@ -110,6 +130,9 @@ class ApplyPatchHandler:
         for path in sorted(commit.changes):
             change = commit.changes[path]
             if change.type == apply_patch_module.ActionType.ADD:
+                # For markdown files created via Add File, we render content via MarkdownDocUIExtra instead of a diff.
+                if path.endswith(".md"):
+                    continue
                 files.append(build_structured_file_diff("", change.new_content or "", file_path=path))
             elif change.type == apply_patch_module.ActionType.DELETE:
                 files.append(build_structured_file_diff(change.old_content or "", "", file_path=path))
