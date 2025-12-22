@@ -23,7 +23,7 @@ def resume_select_session() -> str | None:
     def _fmt(ts: float) -> str:
         try:
             return time.strftime("%m-%d %H:%M:%S", time.localtime(ts))
-        except Exception:
+        except (ValueError, OSError):
             return str(ts)
 
     try:
@@ -76,6 +76,6 @@ def resume_select_session() -> str | None:
             idx = int(raw)
             if 1 <= idx <= len(sessions):
                 return str(sessions[idx - 1].id)
-        except Exception:
+        except (ValueError, EOFError):
             return None
     return None

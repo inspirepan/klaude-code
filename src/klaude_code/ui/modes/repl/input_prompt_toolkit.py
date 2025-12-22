@@ -118,7 +118,7 @@ class PromptToolkitInput(InputProviderABC):
             try:
                 status = self._status_provider()
                 update_message = status.update_message
-            except Exception:
+            except (AttributeError, RuntimeError):
                 pass
 
         # If update available, show only the update message
@@ -127,7 +127,7 @@ class PromptToolkitInput(InputProviderABC):
             try:
                 terminal_width = shutil.get_terminal_size().columns
                 padding = " " * max(0, terminal_width - len(left_text))
-            except Exception:
+            except (OSError, ValueError):
                 padding = ""
             toolbar_text = left_text + padding
             return FormattedText([("#ansiyellow", toolbar_text)])
@@ -151,7 +151,7 @@ class PromptToolkitInput(InputProviderABC):
                 # Add context if available
                 if status.context_usage_percent is not None:
                     right_parts.append(f"context {status.context_usage_percent:.1f}%")
-            except Exception:
+            except (AttributeError, RuntimeError):
                 pass
 
         # Build left and right text with borders
@@ -163,7 +163,7 @@ class PromptToolkitInput(InputProviderABC):
             terminal_width = shutil.get_terminal_size().columns
             used_width = len(left_text) + len(right_text)
             padding = " " * max(0, terminal_width - used_width)
-        except Exception:
+        except (OSError, ValueError):
             padding = ""
 
         # Build result with style

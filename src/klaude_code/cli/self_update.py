@@ -174,7 +174,8 @@ def _print_version() -> None:
         ver = pkg_version(PACKAGE_NAME)
     except PackageNotFoundError:
         ver = "unknown"
-    except Exception:
+    except (ValueError, TypeError):
+        # Catch invalid package name format or type errors
         ver = "unknown"
     print(f"{PACKAGE_NAME} {ver}")
 

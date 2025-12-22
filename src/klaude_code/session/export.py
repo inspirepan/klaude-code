@@ -702,7 +702,7 @@ def _render_sub_agent_session(
 
     try:
         sub_session = Session.load(session_id)
-    except Exception:
+    except (OSError, json.JSONDecodeError, ValueError):
         return None
 
     sub_history = sub_session.conversation_history

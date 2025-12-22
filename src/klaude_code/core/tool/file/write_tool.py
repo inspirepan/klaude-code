@@ -49,7 +49,7 @@ class WriteTool(ToolABC):
     async def call(cls, arguments: str) -> model.ToolResultItem:
         try:
             args = WriteArguments.model_validate_json(arguments)
-        except Exception as e:  # pragma: no cover - defensive
+        except ValueError as e:  # pragma: no cover - defensive
             return model.ToolResultItem(status="error", output=f"Invalid arguments: {e}")
 
         file_path = os.path.abspath(args.file_path)
@@ -79,7 +79,7 @@ class WriteTool(ToolABC):
             try:
                 before = await asyncio.to_thread(read_text, file_path)
                 before_read_ok = True
-            except Exception:
+            except OSError:
                 before = ""
                 before_read_ok = False
 
@@ -98,7 +98,7 @@ class WriteTool(ToolABC):
                 # Backward-compat: old sessions only stored mtime, or we couldn't hash.
                 try:
                     current_mtime = Path(file_path).stat().st_mtime
-                except Exception:
+                except OSError:
                     current_mtime = tracked_status.mtime
                 if current_mtime != tracked_status.mtime:
                     return model.ToolResultItem(
@@ -111,7 +111,7 @@ class WriteTool(ToolABC):
 
         try:
             await asyncio.to_thread(write_text, file_path, args.content)
-        except Exception as e:  # pragma: no cover
+        except (OSError, UnicodeError) as e:  # pragma: no cover
             return model.ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
 
         if file_tracker is not None:

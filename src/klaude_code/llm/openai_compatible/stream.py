@@ -20,6 +20,7 @@ from typing import Any, Literal, cast
 import httpx
 import openai
 import openai.types
+import pydantic
 from openai import AsyncStream
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
@@ -204,7 +205,7 @@ async def parse_chat_completions_stream(
                 try:
                     usage = openai.types.CompletionUsage.model_validate(choice_usage)
                     metadata_tracker.set_usage(convert_usage(usage, param.context_limit, param.max_tokens))
-                except Exception:
+                except pydantic.ValidationError:
                     pass
 
             delta = cast(Any, getattr(choice0, "delta", None))

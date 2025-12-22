@@ -48,7 +48,7 @@ def start_esc_interrupt_monitor(
         try:
             fd = sys.stdin.fileno()
             old = termios.tcgetattr(fd)
-        except Exception as exc:  # pragma: no cover - environment dependent
+        except OSError as exc:  # pragma: no cover - environment dependent
             log((f"esc monitor init error: {exc}", "r red"))
             return
 
@@ -60,7 +60,7 @@ def start_esc_interrupt_monitor(
                     continue
                 try:
                     ch = os.read(fd, 1).decode(errors="ignore")
-                except Exception:
+                except OSError:
                     continue
                 if ch != "\x1b":
                     continue
@@ -71,7 +71,7 @@ def start_esc_interrupt_monitor(
                 while r2:
                     try:
                         seq += os.read(fd, 1).decode(errors="ignore")
-                    except Exception:
+                    except OSError:
                         break
                     r2, _, _ = select.select([sys.stdin], [], [], 0.0)
 
@@ -127,7 +127,7 @@ def install_sigint_double_press_exit(
 
     try:
         signal.signal(signal.SIGINT, _handler)
-    except Exception:  # pragma: no cover - platform dependent
+    except (OSError, ValueError):  # pragma: no cover - platform dependent
         # If installing the handler fails, restore() will be a no-op.
         return lambda: None
 

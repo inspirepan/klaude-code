@@ -13,7 +13,7 @@ def _session_confirm(sessions: list[Session.SessionMetaBrief], message: str) -> 
     def _fmt(ts: float) -> str:
         try:
             return time.strftime("%m-%d %H:%M:%S", time.localtime(ts))
-        except Exception:
+        except (OSError, OverflowError, ValueError):
             return str(ts)
 
     log(f"Sessions to delete ({len(sessions)}):")

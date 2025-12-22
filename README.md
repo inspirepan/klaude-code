@@ -1,6 +1,6 @@
 # Klaude Code
 
-Multi-model code agent CLI.
+Minimal code agent CLI.
 
 ## Features
 - **Multi-provider**: Anthropic, OpenAI Responses API, OpenRouter

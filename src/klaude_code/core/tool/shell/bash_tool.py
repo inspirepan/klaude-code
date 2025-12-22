@@ -274,7 +274,7 @@ class BashTool(ToolABC):
                     proc.terminate()
             except ProcessLookupError:
                 return
-            except Exception:
+            except OSError:
                 # Fall back to kill below.
                 pass
 
@@ -356,7 +356,7 @@ class BashTool(ToolABC):
         except asyncio.CancelledError:
             # Propagate cooperative cancellation so outer layers can handle interrupts correctly.
             raise
-        except Exception as e:  # safeguard against unexpected failures
+        except OSError as e:  # safeguard: catch remaining OS-level errors (permissions, resources, etc.)
             return model.ToolResultItem(
                 status="error",
                 output=f"Execution error: {e}",

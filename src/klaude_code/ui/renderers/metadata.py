@@ -1,4 +1,4 @@
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 
 from rich import box
 from rich.console import Group, RenderableType
@@ -17,7 +17,7 @@ def _get_version() -> str:
     """Get the current version of klaude-code."""
     try:
         return version("klaude-code")
-    except Exception:
+    except PackageNotFoundError:
         return "unknown"
 
 

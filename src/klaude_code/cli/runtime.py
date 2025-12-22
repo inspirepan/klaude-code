@@ -305,8 +305,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 printer.print(Text(f" {MSG} ", style="bold yellow reverse"))
             else:
                 print(MSG, file=sys.stderr)
-        except Exception:
-            # Fallback if themed print is unavailable
+        except (AttributeError, TypeError, RuntimeError):
+            # Fallback if themed print is unavailable (e.g., display not ready or Rich internal error)
             print(MSG, file=sys.stderr)
 
     def _hide_progress() -> None:

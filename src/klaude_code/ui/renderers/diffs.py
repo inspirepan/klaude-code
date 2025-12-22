@@ -148,7 +148,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
                 plus = parts[2]  # like '+12,4'
                 new_start = int(plus[1:].split(",")[0])
                 new_ln = new_start
-            except Exception:
+            except (IndexError, ValueError):
                 new_ln = None
             if has_rendered_diff_content:
                 grid.add_row(Text(f"{'⋮':>{const.DIFF_PREFIX_WIDTH}}", style=ThemeKey.TOOL_RESULT), "")

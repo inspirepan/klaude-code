@@ -88,7 +88,7 @@ class EditTool(ToolABC):
     async def call(cls, arguments: str) -> model.ToolResultItem:
         try:
             args = EditTool.EditArguments.model_validate_json(arguments)
-        except Exception as e:  # pragma: no cover - defensive
+        except ValueError as e:  # pragma: no cover - defensive
             return model.ToolResultItem(status="error", output=f"Invalid arguments: {e}")
 
         file_path = os.path.abspath(args.file_path)
@@ -150,7 +150,7 @@ class EditTool(ToolABC):
                 # Backward-compat: old sessions only stored mtime.
                 try:
                     current_mtime = Path(file_path).stat().st_mtime
-                except Exception:
+                except OSError:
                     current_mtime = tracked_status.mtime
                 if current_mtime != tracked_status.mtime:
                     return model.ToolResultItem(
@@ -188,7 +188,7 @@ class EditTool(ToolABC):
         # Write back
         try:
             await asyncio.to_thread(write_text, file_path, after)
-        except Exception as e:  # pragma: no cover
+        except (OSError, UnicodeError) as e:  # pragma: no cover
             return model.ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
 
         # Prepare UI extra: unified diff with 3 context lines
@@ -233,7 +233,7 @@ class EditTool(ToolABC):
                     plus_range = plus.split(" ")[0]
                     start = int(plus_range.split(",")[0]) if "," in plus_range else int(plus_range)
                     after_line_no = start - 1
-                except Exception:
+                except (ValueError, IndexError):
                     after_line_no = 0
                 continue
             if line.startswith(" ") or (line.startswith("+") and not line.startswith("+++ ")):

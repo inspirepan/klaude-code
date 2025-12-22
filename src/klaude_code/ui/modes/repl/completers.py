@@ -204,7 +204,7 @@ class _SkillCompleter(Completer):
             from klaude_code.skill import get_available_skills
 
             return get_available_skills()
-        except Exception:
+        except (ImportError, RuntimeError):
             return []
 
     def is_skill_context(self, document: Document) -> bool:
@@ -497,7 +497,7 @@ class _AtFilesCompleter(Completer):
             try:
                 if (cwd / s).is_dir():
                     uniq[idx] = f"{s}/"
-            except Exception:
+            except OSError:
                 continue
         return uniq
 
@@ -530,7 +530,7 @@ class _AtFilesCompleter(Completer):
             if tag != "search":
                 return root, None
             return root, kw
-        except Exception:
+        except ValueError:
             return None, None
 
     # ---- Utilities ----
@@ -680,7 +680,7 @@ class _AtFilesCompleter(Completer):
                 if p.is_dir() and not rel.endswith("/"):
                     rel += "/"
                 items.append(rel)
-        except Exception:
+        except OSError:
             return []
         return items[: min(self._max_results, 100)]
 

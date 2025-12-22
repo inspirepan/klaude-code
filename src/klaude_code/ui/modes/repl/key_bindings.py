@@ -52,7 +52,7 @@ def create_key_bindings(
                 buf.delete_before_cursor()  # remove the sentinel backslash  # type: ignore[reportUnknownMemberType]
                 buf.insert_text("\n")  # type: ignore[reportUnknownMemberType]
                 return
-        except Exception:
+        except (AttributeError, TypeError):
             # Fall through to default behavior if anything goes wrong
             pass
 
@@ -111,7 +111,7 @@ def create_key_bindings(
 
             if should_refresh:
                 buf.start_completion(select_first=False)  # type: ignore[reportUnknownMemberType]
-        except Exception:
+        except (AttributeError, TypeError):
             pass
 
     @kb.add("left")
@@ -136,7 +136,7 @@ def create_key_bindings(
             # Default behavior: move one character left when possible.
             if doc.cursor_position > 0:  # type: ignore[reportUnknownMemberType]
                 buf.cursor_left()  # type: ignore[reportUnknownMemberType]
-        except Exception:
+        except (AttributeError, IndexError, TypeError):
             pass
 
     @kb.add("right")
@@ -163,7 +163,7 @@ def create_key_bindings(
             # Default behavior: move one character right when possible.
             if doc.cursor_position < len(doc.text):  # type: ignore[reportUnknownMemberType]
                 buf.cursor_right()  # type: ignore[reportUnknownMemberType]
-        except Exception:
+        except (AttributeError, IndexError, TypeError):
             pass
 
     return kb

@@ -192,7 +192,7 @@ class MarkdownStream:
 
         try:
             tokens = self._parser.parse(text)
-        except Exception:
+        except Exception:  # markdown-it-py may raise various internal errors during parsing
             return 0
 
         top_level: list[Token] = [token for token in tokens if token.level == 0 and token.map is not None]

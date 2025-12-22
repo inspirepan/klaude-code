@@ -7,7 +7,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any, cast
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, ValidationError
 
 from klaude_code.protocol import events, llm_param, model, tools
 from klaude_code.session.store import JsonlSessionStore, ProjectPaths, build_meta_snapshot
@@ -124,7 +124,7 @@ class Session(BaseModel):
                 if isinstance(k, str) and isinstance(v, dict):
                     try:
                         file_tracker[k] = model.FileStatus.model_validate(v)
-                    except Exception:
+                    except ValidationError:
                         continue
 
         todos_raw = raw.get("todos")
@@ -135,7 +135,7 @@ class Session(BaseModel):
                     continue
                 try:
                     todos.append(model.TodoItem.model_validate(todo_raw))
-                except Exception:
+                except ValidationError:
                     continue
 
         created_at = float(raw.get("created_at", time.time()))
@@ -306,7 +306,7 @@ class Session(BaseModel):
         seen_sub_agent_sessions.add(session_id)
         try:
             sub_session = Session.load(session_id)
-        except Exception:
+        except (OSError, json.JSONDecodeError, ValueError):
             return
         yield from sub_session.get_history_item()
 

@@ -182,7 +182,7 @@ def _parse_osc_color_response(data: bytes) -> tuple[int, int, int] | None:
 
     try:
         text = data.decode("ascii", errors="ignore")
-    except Exception:
+    except LookupError:  # encoding lookup failure (should not happen with "ascii")
         return None
 
     match = _OSC_BG_REGEX.search(text)
