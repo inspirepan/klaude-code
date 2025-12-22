@@ -63,3 +63,20 @@ class CropAboveLive(Live):
 
     def update(self, renderable: RenderableType, refresh: bool = True) -> None:  # type: ignore[override]
         super().update(CropAbove(renderable, style=self._crop_style), refresh=refresh)
+
+
+class SingleLine:
+    """Render only the first line of a renderable.
+
+    This is used to ensure dynamic UI elements (spinners / status) never wrap
+    to multiple lines, which would appear as a vertical "jump".
+    """
+
+    def __init__(self, renderable: RenderableType) -> None:
+        self.renderable = renderable
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        line_options = options.update(no_wrap=True, overflow="ellipsis", height=1)
+        lines = console.render_lines(self.renderable, line_options, pad=False)
+        if lines:
+            yield from lines[0]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import shutil
 from collections.abc import AsyncIterator, Callable
 from pathlib import Path
@@ -51,8 +52,12 @@ class PromptToolkitInput(InputProviderABC):
         self,
         prompt: str = USER_MESSAGE_MARK,
         status_provider: Callable[[], REPLStatusSnapshot] | None = None,
+        pre_prompt: Callable[[], None] | None = None,
+        post_prompt: Callable[[], None] | None = None,
     ):  # ▌
         self._status_provider = status_provider
+        self._pre_prompt = pre_prompt
+        self._post_prompt = post_prompt
         self._is_light_terminal_background = is_light_terminal_background(timeout=0.2)
 
         project = str(Path.cwd()).strip("/").replace("/", "-")
@@ -202,8 +207,14 @@ class PromptToolkitInput(InputProviderABC):
     @override
     async def iter_inputs(self) -> AsyncIterator[UserInputPayload]:
         while True:
+            if self._pre_prompt is not None:
+                with contextlib.suppress(Exception):
+                    self._pre_prompt()
             with patch_stdout():
                 line: str = await self._session.prompt_async(placeholder=self._render_input_placeholder())
+            if self._post_prompt is not None:
+                with contextlib.suppress(Exception):
+                    self._post_prompt()
 
             # Extract images referenced in the input text
             images = extract_images_from_text(line)

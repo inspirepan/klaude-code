@@ -9,11 +9,9 @@ from typing import Any, ClassVar
 
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
-from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
+from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
 from rich.markdown import CodeBlock, Heading, Markdown, MarkdownElement
-from rich.padding import Padding
 from rich.rule import Rule
-from rich.spinner import Spinner
 from rich.style import Style, StyleType
 from rich.syntax import Syntax
 from rich.text import Text
@@ -21,24 +19,6 @@ from rich.theme import Theme
 
 from klaude_code import const
 from klaude_code.ui.rich.code_panel import CodePanel
-from klaude_code.ui.rich.live import CropAboveLive
-
-
-class SingleLine:
-    """Render only the first line of a renderable.
-
-    This is used to ensure the embedded spinner never wraps to multiple lines,
-    which would cause it to appear to jump vertically during streaming.
-    """
-
-    def __init__(self, renderable: RenderableType) -> None:
-        self.renderable = renderable
-
-    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
-        line_options = options.update(no_wrap=True, overflow="crop", height=1)
-        lines = console.render_lines(self.renderable, line_options, pad=False)
-        if lines:
-            yield from lines[0]
 
 
 class NoInsetCodeBlock(CodeBlock):
@@ -127,10 +107,10 @@ class MarkdownStream:
 
     def __init__(
         self,
+        console: Console,
         mdargs: dict[str, Any] | None = None,
         theme: Theme | None = None,
-        console: Console | None = None,
-        spinner: Spinner | None = None,
+        live_sink: Callable[[RenderableType | None], None] | None = None,
         mark: str | None = None,
         mark_style: StyleType | None = None,
         left_margin: int = 0,
@@ -151,16 +131,13 @@ class MarkdownStream:
         """
         self._stable_rendered_lines: list[str] = []
         self._stable_source_line_count: int = 0
-        self._base_width: int | None = None
-        self._live_block_max_content_lines: int = 0
 
         if mdargs:
             self.mdargs: dict[str, Any] = mdargs
         else:
             self.mdargs = {}
 
-        # Defer Live creation until the first update.
-        self._live: CropAboveLive | None = None
+        self._live_sink = live_sink
 
         # Streaming control
         self.when: float = 0.0  # Timestamp of last update
@@ -169,7 +146,6 @@ class MarkdownStream:
 
         self.theme = theme
         self.console = console
-        self.spinner: Spinner | None = spinner
         self.mark: str | None = mark
         self.mark_style: StyleType | None = mark_style
 
@@ -181,16 +157,10 @@ class MarkdownStream:
     @property
     def _live_started(self) -> bool:
         """Check if Live display has been started (derived from self.live)."""
-        return self._live is not None
+        return self._live_sink is not None
 
     def _get_base_width(self) -> int:
-        if self._base_width is not None:
-            return self._base_width
-        if self.console is not None:
-            self._base_width = self.console.options.max_width
-        else:
-            self._base_width = Console(theme=self.theme).options.max_width
-        return self._base_width
+        return self.console.options.max_width
 
     def compute_candidate_stable_line(self, text: str) -> int:
         """Return the start line of the last top-level block, or 0.
@@ -276,28 +246,6 @@ class MarkdownStream:
         while live_lines and not live_lines[0].strip():
             live_lines.pop(0)
         return "".join(live_lines)
-
-    def compute_live_gap_lines(self, current_live_lines: int, *, reset: bool) -> int:
-        """Compute and update the blank-line gap between live content and spinner.
-
-        This keeps the spinner from moving upward when the live content becomes
-        shorter within the same block by padding with blank lines.
-
-        Args:
-            current_live_lines: Number of rendered lines for the live content.
-            reset: Reset the internal max height tracker (use when the live block changes).
-
-        Returns:
-            Total number of blank lines to insert between content and spinner.
-        """
-
-        if reset:
-            self._live_block_max_content_lines = 0
-
-        current_live_lines = max(current_live_lines, 0)
-        self._live_block_max_content_lines = max(self._live_block_max_content_lines, current_live_lines)
-        extra_blank_lines = self._live_block_max_content_lines - current_live_lines
-        return 1 + extra_blank_lines
 
     def _append_nonfinal_sentinel(self, stable_source: str) -> str:
         """Make Rich render stable content as if it isn't the last block.
@@ -385,26 +333,15 @@ class MarkdownStream:
 
     def __del__(self) -> None:
         """Destructor to ensure Live display is properly cleaned up."""
-        if self._live:
-            # Ignore any errors during cleanup
-            with contextlib.suppress(Exception):
-                self._live.stop()
+        if self._live_sink is None:
+            return
+        with contextlib.suppress(Exception):
+            self._live_sink(None)
 
     def update(self, text: str, final: bool = False) -> None:
         """Update the display with the latest full markdown buffer."""
 
-        if not self._live_started:
-            initial_content = self._live_renderable(Text(""), final=False)
-            self._live = CropAboveLive(
-                initial_content,
-                refresh_per_second=1.0 / self.min_delay,
-                console=self.console,
-                transient=True,
-            )
-            self._live.start()
-
-        live = self._live
-        if live is None:
+        if self._live_sink is None:
             return
 
         now = time.time()
@@ -429,7 +366,7 @@ class MarkdownStream:
             new_lines = stable_lines[len(self._stable_rendered_lines) :]
             if new_lines:
                 stable_chunk = "".join(new_lines)
-                live.console.print(Text.from_ansi(stable_chunk), end="\n")
+                self.console.print(Text.from_ansi(stable_chunk), end="\n")
             self._stable_rendered_lines = stable_lines
             self._stable_source_line_count = stable_line
         elif final and not stable_source:
@@ -437,10 +374,7 @@ class MarkdownStream:
             self._stable_source_line_count = stable_line
 
         if final:
-            live.update(Text(""), refresh=True)
-            live.stop()
-            self._live = None
-            self._live_block_max_content_lines = 0
+            self._live_sink(None)
             return
 
         apply_mark_live = self._stable_source_line_count == 0
@@ -451,23 +385,7 @@ class MarkdownStream:
                 live_lines.pop(0)
 
         live_text = Text.from_ansi("".join(live_lines))
-
-        # Keep live height monotonic for the entire streaming session.
-        # Use the *actual rendered height* to avoid off-by-one behavior around
-        # trailing newlines and Rich's line wrapping.
-        content_height = len(live.console.render_lines(live_text, live.console.options, pad=False))
-        gap_lines = self.compute_live_gap_lines(content_height, reset=False)
-        live.update(
-            self._live_renderable(live_text, final=False, gap_lines=gap_lines),
-            refresh=True,
-        )
+        self._live_sink(live_text)
 
         elapsed = time.time() - start
         self.min_delay = min(max(elapsed * 6, 1.0 / 30), 0.5)
-
-    def _live_renderable(self, rest: Text, final: bool, *, gap_lines: int = 1) -> RenderableType:
-        if final or not self.spinner:
-            return rest
-        gap_lines = max(gap_lines, 0)
-        padded = Padding(rest, (0, 0, gap_lines, 0)) if gap_lines else rest
-        return Group(padded, SingleLine(self.spinner))

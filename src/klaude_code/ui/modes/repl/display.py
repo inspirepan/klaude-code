@@ -57,3 +57,5 @@ class REPLDisplay(DisplayABC):
         # Spinner may already be stopped or not started; ignore.
         with contextlib.suppress(Exception):
             self.renderer.spinner_stop()
+        with contextlib.suppress(Exception):
+            self.renderer.stop_bottom_live()

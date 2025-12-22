@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
-from rich.console import Console
+from rich.console import Console, Group, RenderableType
+from rich.padding import Padding
 from rich.spinner import Spinner
-from rich.status import Status
 from rich.style import Style, StyleType
 from rich.text import Text
 
@@ -23,8 +24,9 @@ from klaude_code.ui.renderers import tools as r_tools
 from klaude_code.ui.renderers import user_input as r_user_input
 from klaude_code.ui.renderers.common import truncate_display
 from klaude_code.ui.rich import status as r_status
+from klaude_code.ui.rich.live import CropAboveLive, SingleLine
 from klaude_code.ui.rich.quote import Quote
-from klaude_code.ui.rich.status import ShimmerStatusText
+from klaude_code.ui.rich.status import BreathingSpinner, ShimmerStatusText
 from klaude_code.ui.rich.theme import ThemeKey, get_theme
 
 
@@ -42,10 +44,18 @@ class REPLRenderer:
         self.themes = get_theme(theme)
         self.console: Console = Console(theme=self.themes.app_theme)
         self.console.push_theme(self.themes.markdown_theme)
-        self._spinner: Status = self.console.status(
-            ShimmerStatusText(const.STATUS_DEFAULT_TEXT),
-            spinner=r_status.spinner_name(),
-            spinner_style=ThemeKey.STATUS_SPINNER,
+        self._bottom_live: CropAboveLive | None = None
+        self._stream_renderable: RenderableType | None = None
+        self._stream_max_height: int = 0
+        self._stream_last_height: int = 0
+        self._stream_last_width: int = 0
+        self._spinner_visible: bool = False
+
+        self._status_text: ShimmerStatusText = ShimmerStatusText(const.STATUS_DEFAULT_TEXT)
+        self._status_spinner: Spinner = BreathingSpinner(
+            r_status.spinner_name(),
+            text=SingleLine(self._status_text),
+            style=ThemeKey.STATUS_SPINNER,
         )
 
         self.session_map: dict[str, SessionStatus] = {}
@@ -269,16 +279,89 @@ class REPLRenderer:
 
     def spinner_start(self) -> None:
         """Start the spinner animation."""
-        self._spinner.start()
+        self._spinner_visible = True
+        self._ensure_bottom_live_started()
+        self._refresh_bottom_live()
 
     def spinner_stop(self) -> None:
         """Stop the spinner animation."""
-        self._spinner.stop()
+        self._spinner_visible = False
+        self._refresh_bottom_live()
 
     def spinner_update(self, status_text: str | Text, right_text: Text | None = None) -> None:
         """Update the spinner status text with optional right-aligned text."""
-        self._spinner.update(ShimmerStatusText(status_text, right_text))
+        self._status_text = ShimmerStatusText(status_text, right_text)
+        self._status_spinner.update(text=SingleLine(self._status_text), style=ThemeKey.STATUS_SPINNER)
+        self._refresh_bottom_live()
 
     def spinner_renderable(self) -> Spinner:
         """Return the spinner's renderable for embedding in other components."""
-        return self._spinner.renderable
+        return self._status_spinner
+
+    def set_stream_renderable(self, renderable: RenderableType | None) -> None:
+        """Set the current streaming renderable displayed above the status line."""
+
+        if renderable is None:
+            self._stream_renderable = None
+            self._stream_max_height = 0
+            self._stream_last_height = 0
+            self._stream_last_width = 0
+            self._refresh_bottom_live()
+            return
+
+        self._ensure_bottom_live_started()
+        self._stream_renderable = renderable
+
+        height = len(self.console.render_lines(renderable, self.console.options, pad=False))
+        self._stream_last_height = height
+        self._stream_last_width = self.console.size.width
+        self._stream_max_height = max(self._stream_max_height, height)
+        self._refresh_bottom_live()
+
+    def _ensure_bottom_live_started(self) -> None:
+        if self._bottom_live is not None:
+            return
+        self._bottom_live = CropAboveLive(
+            Text(""),
+            console=self.console,
+            refresh_per_second=30,
+            transient=True,
+            redirect_stdout=False,
+            redirect_stderr=False,
+        )
+        self._bottom_live.start()
+
+    def _bottom_renderable(self) -> RenderableType:
+        stream = self._stream_renderable
+        if stream is not None:
+            current_width = self.console.size.width
+            if self._stream_last_width != current_width:
+                height = len(self.console.render_lines(stream, self.console.options, pad=False))
+                self._stream_last_height = height
+                self._stream_last_width = current_width
+                self._stream_max_height = max(self._stream_max_height, height)
+            else:
+                height = self._stream_last_height
+
+            pad_lines = max(self._stream_max_height - height, 0)
+            if pad_lines:
+                stream = Padding(stream, (0, 0, pad_lines, 0))
+
+        stream_part: RenderableType = stream if stream is not None else Group()
+        gap_part: RenderableType = Text("") if self._spinner_visible else Group()
+        status_part: RenderableType = SingleLine(self._status_spinner) if self._spinner_visible else Group()
+        return Group(stream_part, gap_part, status_part)
+
+    def _refresh_bottom_live(self) -> None:
+        if self._bottom_live is None:
+            return
+        self._bottom_live.update(self._bottom_renderable(), refresh=True)
+
+    def stop_bottom_live(self) -> None:
+        if self._bottom_live is None:
+            return
+        with contextlib.suppress(Exception):
+            # Avoid cursor restore when stopping right before prompt_toolkit.
+            self._bottom_live.transient = False
+            self._bottom_live.stop()
+        self._bottom_live = None

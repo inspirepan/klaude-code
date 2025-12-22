@@ -368,22 +368,20 @@ class DisplayEventHandler:
 
         first_delta = not self.thinking_stream.is_active
         if first_delta:
-            self.renderer.console.push_theme(self.renderer.themes.thinking_markdown_theme)
             mdstream = MarkdownStream(
                 mdargs={
                     "code_theme": self.renderer.themes.code_theme,
-                    "style": self.renderer.console.get_style(ThemeKey.THINKING),
+                    "style": ThemeKey.THINKING,
                 },
                 theme=self.renderer.themes.thinking_markdown_theme,
                 console=self.renderer.console,
-                spinner=self.renderer.spinner_renderable(),
+                live_sink=self.renderer.set_stream_renderable,
                 mark=THINKING_MESSAGE_MARK,
                 mark_style=ThemeKey.THINKING,
                 left_margin=const.MARKDOWN_LEFT_MARGIN,
                 markdown_class=ThinkingMarkdown,
             )
             self.thinking_stream.start(mdstream)
-            self.renderer.spinner_stop()
 
         self.thinking_stream.append(event.content)
 
@@ -414,17 +412,13 @@ class DisplayEventHandler:
                 mdargs={"code_theme": self.renderer.themes.code_theme},
                 theme=self.renderer.themes.markdown_theme,
                 console=self.renderer.console,
-                spinner=self.renderer.spinner_renderable(),
+                live_sink=self.renderer.set_stream_renderable,
                 mark=ASSISTANT_MESSAGE_MARK,
                 left_margin=const.MARKDOWN_LEFT_MARGIN,
             )
             self.assistant_stream.start(mdstream)
         self.assistant_stream.append(event.content)
         if first_delta and self.assistant_stream.mdstream is not None:
-            # Stop spinner and immediately start MarkdownStream's Live
-            # to avoid flicker. The update() call starts the Live with
-            # the spinner embedded, providing seamless transition.
-            self.renderer.spinner_stop()
             self.assistant_stream.mdstream.update(self.assistant_stream.buffer)
         await self.stage_manager.transition_to(Stage.ASSISTANT)
         await self._flush_assistant_buffer(self.assistant_stream)
@@ -488,7 +482,6 @@ class DisplayEventHandler:
             self.spinner_status.reset()
             self.renderer.spinner_stop()
             self.renderer.console.print(Rule(characters="-", style=ThemeKey.LINES))
-            self.renderer.print()
         await self.stage_manager.transition_to(Stage.WAITING)
         self._maybe_notify_task_finish(event)
 
@@ -552,7 +545,6 @@ class DisplayEventHandler:
             assert mdstream is not None
             mdstream.update(normalize_thinking_content(self.thinking_stream.buffer), final=True)
             self.thinking_stream.finish()
-            self.renderer.console.pop_theme()
             self.renderer.print()
             self.renderer.spinner_start()
 

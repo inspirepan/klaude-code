@@ -265,7 +265,23 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         )
 
     # Set up input provider for interactive mode
-    input_provider: ui.InputProviderABC = ui.PromptToolkitInput(status_provider=_status_provider)
+    def _stop_rich_bottom_ui() -> None:
+        display = components.display
+        if isinstance(display, ui.REPLDisplay):
+            display.renderer.spinner_stop()
+            display.renderer.stop_bottom_live()
+        elif (
+            isinstance(display, ui.DebugEventDisplay)
+            and display.wrapped_display
+            and isinstance(display.wrapped_display, ui.REPLDisplay)
+        ):
+            display.wrapped_display.renderer.spinner_stop()
+            display.wrapped_display.renderer.stop_bottom_live()
+
+    input_provider: ui.InputProviderABC = ui.PromptToolkitInput(
+        status_provider=_status_provider,
+        pre_prompt=_stop_rich_bottom_ui,
+    )
 
     # --- Custom Ctrl+C handler: double-press within 2s to exit, single press shows toast ---
     def _show_toast_once() -> None:
