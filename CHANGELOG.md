@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.25] - 2025-12-22
+
+### Added
+
+- auto-trigger thinking selection after model switch (`0179e7b9`)
+
+### Changed
+
+- unify bottom live display for spinner and markdown stream (`637271f5`)
+- update status glyph (`e1f344d3`)
+- rewrite MarkdownStream with block-level streaming using markdown-it-py (`35bd708f`)
+- sync shimmer and breathing animation frequency (`fac8e9b8`)
+- use blinking beam cursor in REPL input (`b5a89ab2`)
+
+### Fixed
+
+- keep live height monotonic across block transitions (`ac513ba6`)
+- normalize stable/live boundary whitespace in markdown streaming (`fbf753e0`)
+- improve code panel border width calculation and spinner stability (`b7ccb2f4`)
 ## [1.2.24] - 2025-12-21
 
 ### Added
@@ -737,7 +756,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.24...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.25...HEAD
+[1.2.25]: https://github.com/inspirepan/klaude-code/compare/v1.2.24...v1.2.25
 [1.2.24]: https://github.com/inspirepan/klaude-code/compare/v1.2.23...v1.2.24
 [1.2.23]: https://github.com/inspirepan/klaude-code/compare/v1.2.22...v1.2.23
 [1.2.22]: https://github.com/inspirepan/klaude-code/compare/v1.2.21...v1.2.22
