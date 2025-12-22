@@ -56,6 +56,14 @@ def _is_gemini_flash_model(model_name: str | None) -> bool:
     return "gemini-3-flash" in model_name.lower()
 
 
+def should_auto_trigger_thinking(model_name: str | None) -> bool:
+    """Check if model should auto-trigger thinking selection on switch."""
+    if not model_name:
+        return False
+    model_lower = model_name.lower()
+    return "gpt-5" in model_lower or "gemini-3" in model_lower or "opus" in model_lower
+
+
 def _get_levels_for_responses(model_name: str | None) -> list[str]:
     """Get thinking levels for responses protocol."""
     if _is_codex_max_model(model_name):
@@ -69,7 +77,7 @@ def _get_levels_for_responses(model_name: str | None) -> list[str]:
     return RESPONSES_LEVELS
 
 
-def _format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
+def format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
     """Format the current thinking configuration for display."""
     thinking = config.thinking
     if not thinking:
@@ -164,6 +172,31 @@ def _select_anthropic_thinking_sync() -> llm_param.Thinking | None:
         return None
 
 
+async def select_thinking_for_protocol(config: llm_param.LLMConfigParameter) -> llm_param.Thinking | None:
+    """Select thinking configuration based on the LLM protocol.
+
+    Returns the selected Thinking config, or None if user cancelled.
+    """
+    protocol = config.protocol
+    model_name = config.model
+
+    if protocol in (llm_param.LLMClientProtocol.RESPONSES, llm_param.LLMClientProtocol.CODEX):
+        return await asyncio.to_thread(_select_responses_thinking_sync, model_name)
+
+    if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
+        return await asyncio.to_thread(_select_anthropic_thinking_sync)
+
+    if protocol == llm_param.LLMClientProtocol.OPENROUTER:
+        if _is_openrouter_model_with_reasoning_effort(model_name):
+            return await asyncio.to_thread(_select_responses_thinking_sync, model_name)
+        return await asyncio.to_thread(_select_anthropic_thinking_sync)
+
+    if protocol == llm_param.LLMClientProtocol.OPENAI:
+        return await asyncio.to_thread(_select_anthropic_thinking_sync)
+
+    return None
+
+
 class ThinkingCommand(CommandABC):
     """Configure model thinking/reasoning level."""
 
@@ -185,40 +218,16 @@ class ThinkingCommand(CommandABC):
             return self._no_change_result(agent, "No profile configured")
 
         config = agent.profile.llm_client.get_llm_config()
-        protocol = config.protocol
-        model_name = config.model
+        current = format_current_thinking(config)
 
-        current = _format_current_thinking(config)
-
-        # Select new thinking configuration based on protocol
-        new_thinking: llm_param.Thinking | None = None
-
-        if protocol in (llm_param.LLMClientProtocol.RESPONSES, llm_param.LLMClientProtocol.CODEX):
-            new_thinking = await asyncio.to_thread(_select_responses_thinking_sync, model_name)
-
-        elif protocol == llm_param.LLMClientProtocol.ANTHROPIC:
-            new_thinking = await asyncio.to_thread(_select_anthropic_thinking_sync)
-
-        elif protocol == llm_param.LLMClientProtocol.OPENROUTER:
-            if _is_openrouter_model_with_reasoning_effort(model_name):
-                new_thinking = await asyncio.to_thread(_select_responses_thinking_sync, model_name)
-            else:
-                new_thinking = await asyncio.to_thread(_select_anthropic_thinking_sync)
-
-        elif protocol == llm_param.LLMClientProtocol.OPENAI:
-            # openai_compatible uses anthropic style
-            new_thinking = await asyncio.to_thread(_select_anthropic_thinking_sync)
-
-        else:
-            return self._no_change_result(agent, f"Unsupported protocol: {protocol}")
-
+        new_thinking = await select_thinking_for_protocol(config)
         if new_thinking is None:
             return self._no_change_result(agent, "(no change)")
 
         # Apply the new thinking configuration
         config.thinking = new_thinking
         agent.session.model_thinking = new_thinking
-        new_status = _format_current_thinking(config)
+        new_status = format_current_thinking(config)
 
         return CommandResult(
             events=[

@@ -25,6 +25,7 @@ class OperationType(Enum):
     USER_INPUT = "user_input"
     RUN_AGENT = "run_agent"
     CHANGE_MODEL = "change_model"
+    CHANGE_THINKING = "change_thinking"
     CLEAR_SESSION = "clear_session"
     EXPORT_SESSION = "export_session"
     INTERRUPT = "interrupt"
@@ -75,6 +76,16 @@ class ChangeModelOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_change_model(self)
+
+
+class ChangeThinkingOperation(Operation):
+    """Operation for changing the thinking/reasoning configuration."""
+
+    type: OperationType = OperationType.CHANGE_THINKING
+    session_id: str
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_change_thinking(self)
 
 
 class ClearSessionOperation(Operation):

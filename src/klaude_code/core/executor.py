@@ -14,6 +14,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from klaude_code.command import dispatch_command
+from klaude_code.command.thinking_cmd import (
+    format_current_thinking,
+    select_thinking_for_protocol,
+    should_auto_trigger_thinking,
+)
 from klaude_code.config import load_config
 from klaude_code.core.agent import Agent, DefaultModelProfileProvider, ModelProfileProvider
 from klaude_code.core.manager import LLMClients, SubAgentManager
@@ -235,16 +240,54 @@ class ExecutorContext:
         agent.session.model_thinking = llm_config.thinking
 
         developer_item = model.DeveloperMessageItem(
-            content=f"switched to model: {operation.model_name}",
+            content=f"Switched to: {llm_config.model}",
             command_output=model.CommandOutput(command_name=commands.CommandName.MODEL),
         )
         agent.session.append_history([developer_item])
 
         await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
-        await self.emit_event(events.WelcomeEvent(llm_config=llm_config, work_dir=str(agent.session.work_dir)))
 
         if self._on_model_change is not None:
             self._on_model_change(llm_client.model_name)
+
+        if should_auto_trigger_thinking(llm_config.model):
+            thinking_op = op.ChangeThinkingOperation(session_id=operation.session_id)
+            await thinking_op.execute(handler=self)
+            # WelcomeEvent is already handled by the thinking change
+        else:
+            await self.emit_event(events.WelcomeEvent(llm_config=llm_config, work_dir=str(agent.session.work_dir)))
+
+    async def handle_change_thinking(self, operation: op.ChangeThinkingOperation) -> None:
+        """Handle a change thinking operation by prompting user to select thinking level."""
+        agent = await self._ensure_agent(operation.session_id)
+        if not agent.profile:
+            return
+
+        config = agent.profile.llm_client.get_llm_config()
+        current = format_current_thinking(config)
+
+        new_thinking = await select_thinking_for_protocol(config)
+
+        if new_thinking is None:
+            developer_item = model.DeveloperMessageItem(
+                content="(thinking unchanged)",
+                command_output=model.CommandOutput(command_name=commands.CommandName.THINKING),
+            )
+            await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
+            return
+
+        config.thinking = new_thinking
+        agent.session.model_thinking = new_thinking
+        new_status = format_current_thinking(config)
+
+        developer_item = model.DeveloperMessageItem(
+            content=f"Thinking changed: {current} -> {new_status}",
+            command_output=model.CommandOutput(command_name=commands.CommandName.THINKING),
+        )
+        agent.session.append_history([developer_item])
+
+        await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
+        await self.emit_event(events.WelcomeEvent(work_dir=str(agent.session.work_dir), llm_config=config))
 
     async def handle_clear_session(self, operation: op.ClearSessionOperation) -> None:
         agent = await self._ensure_agent(operation.session_id)
