@@ -5,7 +5,7 @@ import io
 from rich.console import Console
 from rich.theme import Theme
 
-from klaude_code.ui.rich.markdown import MarkdownStream
+from klaude_code.ui.rich.markdown import MarkdownStream, NoInsetMarkdown
 
 
 def _make_stream(*, width: int = 80) -> MarkdownStream:
@@ -77,3 +77,54 @@ def test_frame_equivalence_stream_split_vs_full_render() -> None:
 
         stable_rendered_prev = stable_rendered
         min_stable_line = stable_line
+
+
+def test_live_gap_lines_only_increases_within_block() -> None:
+    stream = _make_stream(width=60)
+
+    # Use hard line breaks (two trailing spaces) to force multiple rendered lines
+    # within a single paragraph block.
+    long_live = "A  \nB  \nC  \nD  \n"
+    short_live = "A  \n"
+
+    _stable_source, live_source, stable_line = stream.split_blocks(long_live, final=False)
+    assert stable_line == 0
+    live_lines_long = stream.render_ansi(live_source, apply_mark=True).splitlines(keepends=True)
+    gap_long = stream.compute_live_gap_lines(len(live_lines_long), reset=False)
+    assert gap_long == 1
+
+    _stable_source, live_source, stable_line = stream.split_blocks(short_live, final=False)
+    assert stable_line == 0
+    live_lines_short = stream.render_ansi(live_source, apply_mark=True).splitlines(keepends=True)
+    gap_short = stream.compute_live_gap_lines(len(live_lines_short), reset=False)
+    assert gap_short >= gap_long
+    assert gap_short > 1
+
+    gap_reset = stream.compute_live_gap_lines(len(live_lines_short), reset=True)
+    assert gap_reset == 1
+
+
+def test_code_panel_border_grows_with_longer_code_line() -> None:
+    theme = Theme(
+        {
+            "markdown.code.border": "dim",
+            "markdown.code.block": "dim",
+            "markdown.h1": "bold",
+            "markdown.h2.border": "dim",
+            "markdown.hr": "dim",
+        }
+    )
+    console = Console(file=io.StringIO(), force_terminal=True, width=80, theme=theme)
+    stream = MarkdownStream(console=console, theme=theme, markdown_class=NoInsetMarkdown)
+
+    short = "```py\nprint(1)\n```\n"
+    long = "```py\nprint(1)\nprint('this is a much much much longer line')\n```\n"
+
+    short_ansi = stream.render_ansi(short, apply_mark=False)
+    long_ansi = stream.render_ansi(long, apply_mark=False)
+
+    short_lines = short_ansi.splitlines()
+    long_lines = long_ansi.splitlines()
+
+    assert len(long_lines[0]) > len(short_lines[0])
+    assert len(long_lines[0]) == len(long_lines[-1])

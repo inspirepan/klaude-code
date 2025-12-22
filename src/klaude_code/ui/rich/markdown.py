@@ -134,6 +134,7 @@ class MarkdownStream:
         self._stable_rendered_lines: list[str] = []
         self._stable_source_line_count: int = 0
         self._base_width: int | None = None
+        self._live_block_max_content_lines: int = 0
 
         if mdargs:
             self.mdargs: dict[str, Any] = mdargs
@@ -234,6 +235,28 @@ class MarkdownStream:
             render_source = self._append_nonfinal_sentinel(stable_source)
 
         return self.render_ansi(render_source, apply_mark=True)
+
+    def compute_live_gap_lines(self, current_live_lines: int, *, reset: bool) -> int:
+        """Compute and update the blank-line gap between live content and spinner.
+
+        This keeps the spinner from moving upward when the live content becomes
+        shorter within the same block by padding with blank lines.
+
+        Args:
+            current_live_lines: Number of rendered lines for the live content.
+            reset: Reset the internal max height tracker (use when the live block changes).
+
+        Returns:
+            Total number of blank lines to insert between content and spinner.
+        """
+
+        if reset:
+            self._live_block_max_content_lines = 0
+
+        current_live_lines = max(current_live_lines, 0)
+        self._live_block_max_content_lines = max(self._live_block_max_content_lines, current_live_lines)
+        extra_blank_lines = self._live_block_max_content_lines - current_live_lines
+        return 1 + extra_blank_lines
 
     def _append_nonfinal_sentinel(self, stable_source: str) -> str:
         """Make Rich render stable content as if it isn't the last block.
@@ -348,11 +371,15 @@ class MarkdownStream:
             return
         self.when = now
 
+        previous_stable_line = self._stable_source_line_count
+
         stable_source, live_source, stable_line = self.split_blocks(
             text,
-            min_stable_line=self._stable_source_line_count,
+            min_stable_line=previous_stable_line,
             final=final,
         )
+
+        stable_advanced = stable_line > previous_stable_line
 
         start = time.time()
 
@@ -373,18 +400,26 @@ class MarkdownStream:
             live.update(Text(""), refresh=True)
             live.stop()
             self._live = None
+            self._live_block_max_content_lines = 0
             return
 
         apply_mark_live = self._stable_source_line_count == 0
         live_lines = self._render_markdown_to_lines(live_source, apply_mark=apply_mark_live)
         live_text = Text.from_ansi("".join(live_lines))
-        live.update(self._live_renderable(live_text, final=False), refresh=True)
+
+        gap_lines = self.compute_live_gap_lines(len(live_lines), reset=stable_advanced)
+        live.update(
+            self._live_renderable(live_text, final=False, gap_lines=gap_lines),
+            refresh=True,
+        )
 
         elapsed = time.time() - start
         self.min_delay = min(max(elapsed * 6, 1.0 / 30), 0.5)
 
-    def _live_renderable(self, rest: Text, final: bool) -> RenderableType:
+    def _live_renderable(self, rest: Text, final: bool, *, gap_lines: int = 1) -> RenderableType:
         if final or not self.spinner:
             return rest
         else:
-            return Group(rest, Text(), self.spinner)
+            gap_lines = max(gap_lines, 0)
+            gap = Text("\n" * gap_lines) if gap_lines else Text("")
+            return Group(rest, gap, self.spinner)

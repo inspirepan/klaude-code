@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from rich.cells import cell_len
 from rich.console import ConsoleRenderable, RichCast
 from rich.jupyter import JupyterMixin
-from rich.measure import Measurement, measure_renderables
+from rich.measure import Measurement
 from rich.segment import Segment
 from rich.style import StyleType
 
@@ -58,17 +59,29 @@ class CodePanel(JupyterMixin):
         self.expand = expand
         self.padding = padding
 
+    @staticmethod
+    def _measure_max_line_cells(lines: list[list[Segment]]) -> int:
+        max_cells = 0
+        for line in lines:
+            plain = "".join(segment.text for segment in line).rstrip()
+            max_cells = max(max_cells, cell_len(plain))
+        return max_cells
+
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         border_style = console.get_style(self.border_style)
         max_width = options.max_width
         pad = self.padding
 
+        max_content_width = max(max_width - pad * 2, 1)
+
         # Measure the content width (account for padding)
         if self.expand:
-            content_width = max_width - pad * 2
+            content_width = max_content_width
         else:
-            content_width = console.measure(self.renderable, options=options.update(width=max_width - pad * 2)).maximum
-            content_width = min(content_width, max_width - pad * 2)
+            probe_options = options.update(width=max_content_width)
+            probe_lines = console.render_lines(self.renderable, probe_options, pad=False)
+            content_width = self._measure_max_line_cells(probe_lines)
+            content_width = max(1, min(content_width, max_content_width))
 
         # Render content lines
         child_options = options.update(width=content_width)
@@ -108,5 +121,11 @@ class CodePanel(JupyterMixin):
     def __rich_measure__(self, console: Console, options: ConsoleOptions) -> Measurement:
         if self.expand:
             return Measurement(options.max_width, options.max_width)
-        width = measure_renderables(console, options, [self.renderable]).maximum + self.padding * 2
+        max_width = options.max_width
+        max_content_width = max(max_width - self.padding * 2, 1)
+        probe_options = options.update(width=max_content_width)
+        probe_lines = console.render_lines(self.renderable, probe_options, pad=False)
+        content_width = self._measure_max_line_cells(probe_lines)
+        content_width = max(1, min(content_width, max_content_width))
+        width = content_width + self.padding * 2
         return Measurement(width, width)
