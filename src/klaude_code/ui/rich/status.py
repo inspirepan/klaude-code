@@ -22,7 +22,7 @@ BREATHING_SPINNER_NAME = "dots"
 
 # Alternating glyphs for the breathing spinner - switches at each "transparent" point
 _BREATHING_SPINNER_GLYPHS_BASE = [
-    "◉",
+    "✦",
 ]
 
 # Shuffle glyphs on module load for variety across sessions
