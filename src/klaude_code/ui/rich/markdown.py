@@ -8,11 +8,13 @@ from typing import Any, ClassVar
 
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
+from rich import box
 from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
-from rich.markdown import CodeBlock, Heading, Markdown, MarkdownElement
+from rich.markdown import CodeBlock, Heading, Markdown, MarkdownElement, TableElement
 from rich.rule import Rule
 from rich.style import Style, StyleType
 from rich.syntax import Syntax
+from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
@@ -52,6 +54,24 @@ class Divider(MarkdownElement):
         yield Rule(style=style, characters="-")
 
 
+class MinimalHeavyHeadTable(TableElement):
+    """A table element with MINIMAL_HEAVY_HEAD box style."""
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        table = Table(box=box.MARKDOWN)
+
+        if self.header is not None and self.header.row is not None:
+            for column in self.header.row.cells:
+                table.add_column(column.content)
+
+        if self.body is not None:
+            for row in self.body.rows:
+                row_content = [element.content for element in row.cells]
+                table.add_row(*row_content)
+
+        yield table
+
+
 class LeftHeading(Heading):
     """A heading class that renders left-justified."""
 
@@ -77,6 +97,7 @@ class NoInsetMarkdown(Markdown):
         "code_block": NoInsetCodeBlock,
         "heading_open": LeftHeading,
         "hr": Divider,
+        "table_open": MinimalHeavyHeadTable,
     }
 
 
@@ -89,6 +110,7 @@ class ThinkingMarkdown(Markdown):
         "code_block": ThinkingCodeBlock,
         "heading_open": LeftHeading,
         "hr": Divider,
+        "table_open": MinimalHeavyHeadTable,
     }
 
 
