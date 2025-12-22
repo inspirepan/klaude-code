@@ -122,6 +122,7 @@ class ActivityState:
 
     def __init__(self) -> None:
         self._composing: bool = False
+        self._buffer_length: int = 0
         self._tool_calls: dict[str, int] = {}
 
     @property
@@ -134,6 +135,11 @@ class ActivityState:
 
     def set_composing(self, composing: bool) -> None:
         self._composing = composing
+        if not composing:
+            self._buffer_length = 0
+
+    def set_buffer_length(self, length: int) -> None:
+        self._buffer_length = length
 
     def add_tool_call(self, tool_name: str) -> None:
         self._tool_calls[tool_name] = self._tool_calls.get(tool_name, 0) + 1
@@ -143,6 +149,7 @@ class ActivityState:
 
     def reset(self) -> None:
         self._composing = False
+        self._buffer_length = 0
         self._tool_calls = {}
 
     def get_activity_text(self) -> Text | None:
@@ -159,7 +166,12 @@ class ActivityState:
                 first = False
             return activity_text
         if self._composing:
-            return Text("Composing")
+            # Main status text with creative verb
+            text = Text.assemble(
+                ("Composing ", ThemeKey.STATUS_TEXT_BOLD),
+                (f"({self._buffer_length:,})", ThemeKey.STATUS_TEXT),
+            )
+            return text
         return None
 
 
@@ -205,6 +217,10 @@ class SpinnerStatusState:
         if composing:
             self._reasoning_status = None
         self._activity.set_composing(composing)
+
+    def set_buffer_length(self, length: int) -> None:
+        """Set buffer length for composing state display."""
+        self._activity.set_buffer_length(length)
 
     def add_tool_call(self, tool_name: str) -> None:
         """Add a tool call to the accumulator."""
@@ -418,6 +434,9 @@ class DisplayEventHandler:
             )
             self.assistant_stream.start(mdstream)
         self.assistant_stream.append(event.content)
+        self.spinner_status.set_buffer_length(len(self.assistant_stream.buffer))
+        if not first_delta:
+            self._update_spinner()
         if first_delta and self.assistant_stream.mdstream is not None:
             self.assistant_stream.mdstream.update(self.assistant_stream.buffer)
         await self.stage_manager.transition_to(Stage.ASSISTANT)

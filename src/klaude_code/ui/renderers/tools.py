@@ -19,7 +19,7 @@ from klaude_code.ui.rich.theme import ThemeKey
 # Tool markers (Unicode symbols for UI display)
 MARK_GENERIC = "⚒"
 MARK_BASH = "→"
-MARK_PLAN = "▪"
+MARK_PLAN = "Ξ"
 MARK_READ = "←"
 MARK_EDIT = "±"
 MARK_WRITE = "+"
