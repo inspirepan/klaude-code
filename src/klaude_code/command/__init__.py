@@ -31,6 +31,7 @@ def ensure_commands_loaded() -> None:
     from .debug_cmd import DebugCommand
     from .export_cmd import ExportCommand
     from .export_online_cmd import ExportOnlineCommand
+    from .fork_session_cmd import ForkSessionCommand
     from .help_cmd import HelpCommand
     from .model_cmd import ModelCommand
     from .refresh_cmd import RefreshTerminalCommand
@@ -45,6 +46,7 @@ def ensure_commands_loaded() -> None:
     register(RefreshTerminalCommand())
     register(ThinkingCommand())
     register(ModelCommand())
+    register(ForkSessionCommand())
     load_prompt_commands()
     register(StatusCommand())
     register(HelpCommand())
@@ -63,6 +65,7 @@ def __getattr__(name: str) -> object:
         "DebugCommand": "debug_cmd",
         "ExportCommand": "export_cmd",
         "ExportOnlineCommand": "export_online_cmd",
+        "ForkSessionCommand": "fork_session_cmd",
         "HelpCommand": "help_cmd",
         "ModelCommand": "model_cmd",
         "RefreshTerminalCommand": "refresh_cmd",

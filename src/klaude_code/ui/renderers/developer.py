@@ -120,6 +120,8 @@ def render_command_output(e: events.DeveloperMessageEvent) -> RenderableType:
             return _render_status_output(e.item.command_output)
         case commands.CommandName.RELEASE_NOTES:
             return Padding.indent(NoInsetMarkdown(e.item.content or ""), level=2)
+        case commands.CommandName.FORK_SESSION:
+            return _render_fork_session_output(e.item.command_output)
         case _:
             content = e.item.content or "(no content)"
             style = ThemeKey.TOOL_RESULT if not e.item.command_output.is_error else ThemeKey.ERROR
@@ -143,6 +145,21 @@ def _format_cost(cost: float | None, currency: str = "USD") -> str:
     if cost < 0.01:
         return f"{symbol}{cost:.4f}"
     return f"{symbol}{cost:.2f}"
+
+
+def _render_fork_session_output(command_output: model.CommandOutput) -> RenderableType:
+    """Render fork session output with usage instructions."""
+    if not isinstance(command_output.ui_extra, model.SessionIdUIExtra):
+        return Text("(no session id)", style=ThemeKey.METADATA)
+
+    session_id = command_output.ui_extra.session_id
+    grid = Table.grid(padding=(0, 1))
+    grid.add_column(style=ThemeKey.METADATA, overflow="fold")
+
+    grid.add_row(Text("Session forked. To continue in a new conversation:", style=ThemeKey.METADATA))
+    grid.add_row(Text(f"  klaude --resume-by-id {session_id}", style=ThemeKey.METADATA_BOLD))
+
+    return Padding.indent(grid, level=2)
 
 
 def _render_status_output(command_output: model.CommandOutput) -> RenderableType:

@@ -246,11 +246,25 @@ def main_callback(
 ) -> None:
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
+        from klaude_code.trace import log
+
+        resume_by_id_value = resume_by_id.strip() if resume_by_id is not None else None
+        if resume_by_id_value == "":
+            log(("Error: --resume-by-id cannot be empty", "red"))
+            raise typer.Exit(2)
+
+        if resume_by_id_value is not None and (resume or continue_):
+            log(("Error: --resume-by-id cannot be combined with --resume/--continue", "red"))
+            raise typer.Exit(2)
+
+        if resume_by_id_value is not None and not Session.exists(resume_by_id_value):
+            log((f"Error: session id '{resume_by_id_value}' not found for this project", "red"))
+            log(("Hint: run `klaude --resume` to select an existing session", "yellow"))
+            raise typer.Exit(2)
+
         # In non-interactive environments, default to exec-mode behavior.
         # This allows: echo "..." | klaude
         if not sys.stdin.isatty() or not sys.stdout.isatty():
-            from klaude_code.trace import log
-
             if continue_ or resume or resume_by_id is not None:
                 log(("Error: --continue/--resume options require a TTY", "red"))
                 log(("Hint: use `klaude exec` for non-interactive usage", "yellow"))
@@ -269,7 +283,6 @@ def main_callback(
 
         from klaude_code.cli.runtime import AppInitConfig, run_interactive
         from klaude_code.config.select_model import select_model_from_config
-        from klaude_code.trace import log
 
         update_terminal_title()
 
@@ -283,15 +296,6 @@ def main_callback(
         # session_id=None means create a new session
         session_id: str | None = None
 
-        resume_by_id_value = resume_by_id.strip() if resume_by_id is not None else None
-        if resume_by_id_value == "":
-            log(("Error: --resume-by-id cannot be empty", "red"))
-            raise typer.Exit(2)
-
-        if resume_by_id_value is not None and (resume or continue_):
-            log(("Error: --resume-by-id cannot be combined with --resume/--continue", "red"))
-            raise typer.Exit(2)
-
         if resume:
             session_id = resume_select_session()
             if session_id is None:
@@ -301,10 +305,6 @@ def main_callback(
             session_id = Session.most_recent_session_id()
 
         if resume_by_id_value is not None:
-            if not Session.exists(resume_by_id_value):
-                log((f"Error: session id '{resume_by_id_value}' not found for this project", "red"))
-                log(("Hint: run `klaude --resume` to select an existing session", "yellow"))
-                raise typer.Exit(2)
             session_id = resume_by_id_value
         # If still no session_id, leave as None to create a new session
 

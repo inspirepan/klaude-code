@@ -197,6 +197,28 @@ class Session(BaseModel):
         )
         self._store.append_and_flush(session_id=self.id, items=items, meta=meta)
 
+    def fork(self, *, new_id: str | None = None) -> Session:
+        """Create a new session as a fork of the current session.
+
+        The forked session copies metadata and conversation history, but does not
+        modify the current session.
+        """
+
+        forked = Session.create(id=new_id, work_dir=self.work_dir)
+
+        forked.sub_agent_state = None
+        forked.model_name = self.model_name
+        forked.model_config_name = self.model_config_name
+        forked.model_thinking = self.model_thinking.model_copy(deep=True) if self.model_thinking is not None else None
+        forked.file_tracker = {k: v.model_copy(deep=True) for k, v in self.file_tracker.items()}
+        forked.todos = [todo.model_copy(deep=True) for todo in self.todos]
+
+        items = [cast(model.ConversationItem, it.model_copy(deep=True)) for it in self.conversation_history]
+        if items:
+            forked.append_history(items)
+
+        return forked
+
     async def wait_for_flush(self) -> None:
         await self._store.wait_for_flush(self.id)
 

@@ -16,6 +16,15 @@ from klaude_code.session import export
 from klaude_code.session.session import Session, close_default_store
 
 
+class _ForkSessionDummyAgent:
+    def __init__(self, session: Session):
+        self.session = session
+        self.profile = None
+
+    def get_llm_client(self):  # pragma: no cover
+        raise NotImplementedError
+
+
 def arun(coro: object) -> object:
     return asyncio.run(coro)  # type: ignore[arg-type]
 
@@ -745,6 +754,87 @@ class TestSessionListAndClean:
             assert meta.model_name == "gpt-4"
             assert meta.first_user_message == "Test message"
             assert meta.messages_count == 1
+            await close_default_store()
+
+        arun(_test())
+
+
+class TestForkSessionCommand:
+    def test_fork_session_empty_does_not_create_session(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            from klaude_code.command.fork_session_cmd import ForkSessionCommand
+
+            session = Session(work_dir=project_dir)
+            cmd = ForkSessionCommand()
+            agent = _ForkSessionDummyAgent(session)
+            result = await cmd.run(agent, model.UserInputPayload(text=""))
+
+            assert result.events is not None
+            assert len(result.events) == 1
+            assert isinstance(result.events[0], events.DeveloperMessageEvent)
+            assert (result.events[0].item.content or "") == "(no messages to fork)"
+            assert Session.list_sessions() == []
+            await close_default_store()
+
+        arun(_test())
+
+    def test_fork_session_copies_history_and_returns_resume_command(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            from klaude_code.command.fork_session_cmd import ForkSessionCommand
+
+            session = Session(work_dir=project_dir, model_name="test-model", model_config_name="test-config")
+            session.model_thinking = llm_param.Thinking(type="enabled", budget_tokens=123)
+            session.file_tracker["/path/to/file"] = model.FileStatus(mtime=time.time(), content_sha256="abc")
+            session.todos.append(model.TodoItem(content="t1", status="pending"))
+            session.append_history(
+                [
+                    model.UserMessageItem(content="Hello"),
+                    model.AssistantMessageItem(content="Hi"),
+                ]
+            )
+            await session.wait_for_flush()
+
+            cmd = ForkSessionCommand()
+            agent = _ForkSessionDummyAgent(session)
+            result = await cmd.run(agent, model.UserInputPayload(text=""))
+
+            assert result.events is not None
+            assert len(result.events) == 1
+            assert isinstance(result.events[0], events.DeveloperMessageEvent)
+            content = result.events[0].item.content or ""
+            assert "Session forked successfully" in content
+
+            command_output = result.events[0].item.command_output
+            assert command_output is not None
+            assert isinstance(command_output.ui_extra, model.SessionIdUIExtra)
+            new_id = command_output.ui_extra.session_id
+            assert new_id
+            assert new_id != session.id
+
+            assert Session.exists(new_id)
+            forked = Session.load(new_id)
+            assert forked.work_dir == session.work_dir
+            assert forked.model_name == session.model_name
+            assert forked.model_config_name == session.model_config_name
+            assert forked.model_thinking == session.model_thinking
+            assert forked.file_tracker.keys() == session.file_tracker.keys()
+            assert len(forked.todos) == len(session.todos)
+            assert len(forked.conversation_history) == len(session.conversation_history)
+            assert isinstance(forked.conversation_history[0], model.UserMessageItem)
+            assert isinstance(forked.conversation_history[1], model.AssistantMessageItem)
+            assert forked.conversation_history[0].content == "Hello"
+            assert forked.conversation_history[1].content == "Hi"
+
             await close_default_store()
 
         arun(_test())
