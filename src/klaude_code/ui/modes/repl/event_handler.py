@@ -246,7 +246,7 @@ class SpinnerStatusState:
         """Get current spinner status as rich Text (without context)."""
         activity_text = self._activity.get_activity_text()
 
-        base_status = self._todo_status or self._reasoning_status
+        base_status = self._reasoning_status or self._todo_status
 
         if base_status:
             result = Text(base_status, style=ThemeKey.STATUS_TEXT_BOLD)
