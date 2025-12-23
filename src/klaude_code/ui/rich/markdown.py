@@ -54,11 +54,11 @@ class Divider(MarkdownElement):
         yield Rule(style=style, characters="-")
 
 
-class MinimalHeavyHeadTable(TableElement):
+class MarkdownTable(TableElement):
     """A table element with MINIMAL_HEAVY_HEAD box style."""
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
-        table = Table(box=box.MARKDOWN)
+        table = Table(box=box.MARKDOWN, border_style=console.get_style("markdown.table.border"))
 
         if self.header is not None and self.header.row is not None:
             for column in self.header.row.cells:
@@ -97,7 +97,7 @@ class NoInsetMarkdown(Markdown):
         "code_block": NoInsetCodeBlock,
         "heading_open": LeftHeading,
         "hr": Divider,
-        "table_open": MinimalHeavyHeadTable,
+        "table_open": MarkdownTable,
     }
 
 
@@ -110,7 +110,7 @@ class ThinkingMarkdown(Markdown):
         "code_block": ThinkingCodeBlock,
         "heading_open": LeftHeading,
         "hr": Divider,
-        "table_open": MinimalHeavyHeadTable,
+        "table_open": MarkdownTable,
     }
 
 

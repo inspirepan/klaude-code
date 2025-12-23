@@ -222,7 +222,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.ERROR_BOLD.value: "bold " + palette.red,
                 ThemeKey.INTERRUPT.value: "reverse bold " + palette.red,
                 # USER_INPUT
-                ThemeKey.USER_INPUT.value: "bold " + palette.magenta,
+                ThemeKey.USER_INPUT.value: palette.magenta,
                 ThemeKey.USER_INPUT_PROMPT.value: "bold " + palette.magenta,
                 ThemeKey.USER_INPUT_AT_PATTERN.value: palette.purple,
                 ThemeKey.USER_INPUT_SLASH_COMMAND.value: "bold reverse " + palette.blue,
@@ -299,6 +299,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.item.number": palette.grey2,
                 "markdown.link": "underline " + palette.blue,
                 "markdown.link_url": "underline " + palette.blue,
+                "markdown.table.border": palette.grey2,
             }
         ),
         thinking_markdown_theme=Theme(
@@ -319,6 +320,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.link": "underline " + palette.blue,
                 "markdown.link_url": "underline " + palette.blue,
                 "markdown.strong": "bold italic " + palette.grey1,
+                "markdown.table.border": palette.grey2,
             }
         ),
         code_theme=palette.code_theme,

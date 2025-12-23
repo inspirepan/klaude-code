@@ -205,9 +205,13 @@ def render_write_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
     try:
         json_dict = json.loads(arguments)
-        file_path = json_dict.get("file_path")
+        file_path = json_dict.get("file_path", "")
         tool_name_column = Text.assemble((MARK_WRITE, ThemeKey.TOOL_MARK), " ", ("Write", ThemeKey.TOOL_NAME))
-        arguments_column = render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
+        # Markdown files show path in result panel, skip here to avoid duplication
+        if file_path.endswith(".md"):
+            arguments_column = Text("")
+        else:
+            arguments_column = render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
     except json.JSONDecodeError:
         tool_name_column = Text.assemble((MARK_WRITE, ThemeKey.TOOL_MARK), " ", ("Write", ThemeKey.TOOL_NAME))
         arguments_column = Text(
