@@ -276,7 +276,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.RESUME_FLAG.value: "bold reverse " + palette.green,
                 ThemeKey.RESUME_INFO.value: palette.green,
                 # CONFIGURATION DISPLAY
-                ThemeKey.CONFIG_TABLE_HEADER.value: palette.green,
+                ThemeKey.CONFIG_TABLE_HEADER.value: palette.grey1,
                 ThemeKey.CONFIG_STATUS_OK.value: palette.green,
                 ThemeKey.CONFIG_STATUS_PRIMARY.value: palette.yellow,
                 ThemeKey.CONFIG_STATUS_ERROR.value: palette.red,

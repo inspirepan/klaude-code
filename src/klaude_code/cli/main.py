@@ -276,7 +276,7 @@ def main_callback(
             cfg = load_config()
 
             if cfg is not None and session_meta.model_config_name:
-                if any(m.model_name == session_meta.model_config_name for m in cfg.model_list):
+                if any(m.model_name == session_meta.model_config_name for m in cfg.iter_model_entries()):
                     chosen_model = session_meta.model_config_name
                 else:
                     log(
@@ -291,7 +291,7 @@ def main_callback(
                 if raw_model:
                     matches = [
                         m.model_name
-                        for m in cfg.model_list
+                        for m in cfg.iter_model_entries()
                         if (m.model_params.model or "").strip().lower() == raw_model.lower()
                     ]
                     if len(matches) == 1:

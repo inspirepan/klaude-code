@@ -15,13 +15,21 @@ config_path = Path.home() / ".klaude" / "klaude-config.yaml"
 
 class ModelConfig(BaseModel):
     model_name: str
+    model_params: llm_param.LLMConfigModelParameter
+
+
+class ProviderConfig(llm_param.LLMConfigProviderParameter):
+    model_list: list[ModelConfig] = Field(default_factory=lambda: [])
+
+
+class ModelEntry(BaseModel):
+    model_name: str
     provider: str
     model_params: llm_param.LLMConfigModelParameter
 
 
 class Config(BaseModel):
-    provider_list: list[llm_param.LLMConfigProviderParameter]
-    model_list: list[ModelConfig]
+    provider_list: list[ProviderConfig]
     main_model: str
     sub_agent_models: dict[str, str] = Field(default_factory=dict)
     theme: str | None = None
@@ -43,24 +51,27 @@ class Config(BaseModel):
         return self.get_model_config(self.main_model)
 
     def get_model_config(self, model_name: str) -> llm_param.LLMConfigParameter:
-        model = next(
-            (model for model in self.model_list if model.model_name == model_name),
-            None,
-        )
-        if model is None:
-            raise ValueError(f"Unknown model: {model_name}")
+        for provider in self.provider_list:
+            for model in provider.model_list:
+                if model.model_name == model_name:
+                    return llm_param.LLMConfigParameter(
+                        **provider.model_dump(exclude={"model_list"}),
+                        **model.model_params.model_dump(),
+                    )
 
-        provider = next(
-            (provider for provider in self.provider_list if provider.provider_name == model.provider),
-            None,
-        )
-        if provider is None:
-            raise ValueError(f"Unknown provider: {model.provider}")
+        raise ValueError(f"Unknown model: {model_name}")
 
-        return llm_param.LLMConfigParameter(
-            **provider.model_dump(),
-            **model.model_params.model_dump(),
-        )
+    def iter_model_entries(self) -> list[ModelEntry]:
+        """Return all model entries with their provider names."""
+        return [
+            ModelEntry(
+                model_name=model.model_name,
+                provider=provider.provider_name,
+                model_params=model.model_params,
+            )
+            for provider in self.provider_list
+            for model in provider.model_list
+        ]
 
     async def save(self) -> None:
         """
@@ -82,61 +93,62 @@ def get_example_config() -> Config:
         main_model="opus",
         sub_agent_models={"explore": "haiku", "oracle": "gpt-5.1", "webagent": "haiku", "task": "opus"},
         provider_list=[
-            llm_param.LLMConfigProviderParameter(
+            ProviderConfig(
                 provider_name="openai",
                 protocol=llm_param.LLMClientProtocol.RESPONSES,
                 api_key="your-openai-api-key",
                 base_url="https://api.openai.com/v1",
+                model_list=[
+                    ModelConfig(
+                        model_name="gpt-5.1",
+                        model_params=llm_param.LLMConfigModelParameter(
+                            model="gpt-5.1-2025-11-13",
+                            verbosity="medium",
+                            thinking=llm_param.Thinking(
+                                reasoning_effort="high",
+                                reasoning_summary="auto",
+                            ),
+                            context_limit=400000,
+                        ),
+                    ),
+                ],
             ),
-            llm_param.LLMConfigProviderParameter(
+            ProviderConfig(
                 provider_name="openrouter",
                 protocol=llm_param.LLMClientProtocol.OPENROUTER,
                 api_key="your-openrouter-api-key",
+                model_list=[
+                    ModelConfig(
+                        model_name="haiku",
+                        model_params=llm_param.LLMConfigModelParameter(
+                            model="anthropic/claude-haiku-4.5",
+                            max_tokens=32000,
+                            provider_routing=llm_param.OpenRouterProviderRouting(
+                                sort="throughput",
+                            ),
+                            context_limit=200000,
+                        ),
+                    ),
+                ],
             ),
-            llm_param.LLMConfigProviderParameter(
+            ProviderConfig(
                 provider_name="anthropic",
                 protocol=llm_param.LLMClientProtocol.ANTHROPIC,
                 api_key="your-anthropic-api-key",
-            ),
-        ],
-        model_list=[
-            ModelConfig(
-                model_name="gpt-5.1",
-                provider="openai",
-                model_params=llm_param.LLMConfigModelParameter(
-                    model="gpt-5.1-2025-11-13",
-                    verbosity="medium",
-                    thinking=llm_param.Thinking(
-                        reasoning_effort="high",
-                        reasoning_summary="auto",
+                model_list=[
+                    ModelConfig(
+                        model_name="opus",
+                        model_params=llm_param.LLMConfigModelParameter(
+                            model="claude-opus-4-5-20251101",
+                            verbosity="high",
+                            thinking=llm_param.Thinking(
+                                type="enabled",
+                                budget_tokens=31999,
+                            ),
+                            context_limit=200000,
+                        ),
                     ),
-                    context_limit=400000,
-                ),
-            ),
-            ModelConfig(
-                model_name="opus",
-                provider="anthropic",
-                model_params=llm_param.LLMConfigModelParameter(
-                    model="claude-opus-4-5-20251101",
-                    verbosity="high",
-                    thinking=llm_param.Thinking(
-                        type="enabled",
-                        budget_tokens=31999,
-                    ),
-                    context_limit=200000,
-                ),
-            ),
-            ModelConfig(
-                model_name="haiku",
-                provider="openrouter",
-                model_params=llm_param.LLMConfigModelParameter(
-                    model="anthropic/claude-haiku-4.5",
-                    max_tokens=32000,
-                    provider_routing=llm_param.OpenRouterProviderRouting(
-                        sort="throughput",
-                    ),
-                    context_limit=200000,
-                ),
+                ],
             ),
         ],
     )

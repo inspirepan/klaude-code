@@ -25,6 +25,7 @@ _config_spec.loader.exec_module(_config_module)
 
 Config = _config_module.Config
 ModelConfig = _config_module.ModelConfig
+ProviderConfig = _config_module.ProviderConfig
 config_path = _config_module.config_path
 load_config = _config_module.load_config
 
@@ -61,12 +62,10 @@ class TestModelConfig:
         )
         config = ModelConfig(
             model_name="test-model",
-            provider="openai",
             model_params=model_params,
         )
 
         assert config.model_name == "test-model"
-        assert config.provider == "openai"
         assert config.model_params.model == "gpt-4"
         assert config.model_params.max_tokens == 8192
 
@@ -84,7 +83,6 @@ class TestModelConfig:
         )
         config = ModelConfig(
             model_name="gpt-5-high",
-            provider="openai",
             model_params=model_params,
         )
 
@@ -103,13 +101,14 @@ class TestConfig:
     """Tests for the Config dataclass."""
 
     @pytest.fixture
-    def sample_provider(self) -> llm_param.LLMConfigProviderParameter:
+    def sample_provider(self, sample_model_config: ModelConfig) -> ProviderConfig:
         """Create a sample provider for testing."""
-        return llm_param.LLMConfigProviderParameter(
+        return ProviderConfig(
             provider_name="test-provider",
             protocol=llm_param.LLMClientProtocol.OPENAI,
             api_key="test-api-key",
             base_url="https://api.example.com/v1",
+            model_list=[sample_model_config],
         )
 
     @pytest.fixture
@@ -117,7 +116,6 @@ class TestConfig:
         """Create a sample model config for testing."""
         return ModelConfig(
             model_name="test-model",
-            provider="test-provider",
             model_params=llm_param.LLMConfigModelParameter(
                 model="test-model-v1",
                 max_tokens=4096,
@@ -125,13 +123,10 @@ class TestConfig:
         )
 
     @pytest.fixture
-    def sample_config(
-        self, sample_provider: llm_param.LLMConfigProviderParameter, sample_model_config: ModelConfig
-    ) -> Config:
+    def sample_config(self, sample_provider: ProviderConfig) -> Config:
         """Create a sample Config for testing."""
         return Config(
             provider_list=[sample_provider],
-            model_list=[sample_model_config],
             main_model="test-model",
         )
 
@@ -139,17 +134,16 @@ class TestConfig:
         """Test basic Config creation."""
         assert sample_config.main_model == "test-model"
         assert len(sample_config.provider_list) == 1
-        assert len(sample_config.model_list) == 1
+        assert len(sample_config.iter_model_entries()) == 1
         assert sample_config.sub_agent_models == {}
         assert sample_config.theme is None
 
     def test_config_with_theme(
-        self, sample_provider: llm_param.LLMConfigProviderParameter, sample_model_config: ModelConfig
+        self, sample_provider: ProviderConfig
     ) -> None:
         """Test Config with theme."""
         config = Config(
             provider_list=[sample_provider],
-            model_list=[sample_model_config],
             main_model="test-model",
             theme="dark",
         )
@@ -177,30 +171,29 @@ class TestConfig:
         with pytest.raises(ValueError, match="Unknown model: nonexistent-model"):
             sample_config.get_model_config("nonexistent-model")
 
-    def test_get_model_config_unknown_provider(self, sample_provider: llm_param.LLMConfigProviderParameter) -> None:
-        """Test getting config for model with unknown provider raises error."""
-        model = ModelConfig(
-            model_name="orphan-model",
-            provider="nonexistent-provider",
-            model_params=llm_param.LLMConfigModelParameter(model="some-model"),
+    def test_get_model_config_missing_model_in_providers(self) -> None:
+        """Test getting config for model missing from all providers raises error."""
+        provider = ProviderConfig(
+            provider_name="test-provider",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
+            model_list=[],
         )
         config = Config(
-            provider_list=[sample_provider],
-            model_list=[model],
+            provider_list=[provider],
             main_model="orphan-model",
         )
 
-        with pytest.raises(ValueError, match="Unknown provider: nonexistent-provider"):
+        with pytest.raises(ValueError, match="Unknown model: orphan-model"):
             config.get_model_config("orphan-model")
 
     def test_sub_agent_models_normalization(
-        self, sample_provider: llm_param.LLMConfigProviderParameter, sample_model_config: ModelConfig
+        self, sample_provider: ProviderConfig
     ) -> None:
         """Test that sub_agent_models keys are normalized to canonical names."""
         # Use lowercase keys that should be normalized
         config = Config(
             provider_list=[sample_provider],
-            model_list=[sample_model_config],
             main_model="test-model",
             sub_agent_models={"task": "model-a", "oracle": "model-b"},
         )
@@ -213,25 +206,21 @@ class TestConfig:
         assert config.sub_agent_models["Oracle"] == "model-b"
 
     def test_sub_agent_models_empty(
-        self, sample_provider: llm_param.LLMConfigProviderParameter, sample_model_config: ModelConfig
+        self, sample_provider: ProviderConfig
     ) -> None:
         """Test that empty sub_agent_models is handled correctly."""
         config = Config(
             provider_list=[sample_provider],
-            model_list=[sample_model_config],
             main_model="test-model",
             sub_agent_models={},
         )
         assert config.sub_agent_models == {}
 
-    def test_sub_agent_models_none(
-        self, sample_provider: llm_param.LLMConfigProviderParameter, sample_model_config: ModelConfig
-    ) -> None:
+    def test_sub_agent_models_none(self, sample_provider: ProviderConfig) -> None:
         """Test that None sub_agent_models is handled correctly."""
         # Pass data through model_validate to trigger validator
         data: dict[str, Any] = {
             "provider_list": [sample_provider.model_dump()],
-            "model_list": [sample_model_config.model_dump()],
             "main_model": "test-model",
             "sub_agent_models": None,
         }
@@ -254,12 +243,11 @@ class TestConfigSave:
         )
         model = ModelConfig(
             model_name="test-model",
-            provider="test-provider",
             model_params=llm_param.LLMConfigModelParameter(model="gpt-4"),
         )
+        provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
         config = Config(
-            provider_list=[provider],
-            model_list=[model],
+            provider_list=[provider_config],
             main_model="test-model",
         )
 
@@ -269,7 +257,7 @@ class TestConfigSave:
         saved_content = yaml.safe_load(test_config_path.read_text())
         assert saved_content["main_model"] == "test-model"
         assert len(saved_content["provider_list"]) == 1
-        assert len(saved_content["model_list"]) == 1
+        assert len(saved_content["provider_list"][0]["model_list"]) == 1
 
     def test_save_creates_parent_directory(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that save creates parent directory if it doesn't exist."""
@@ -282,12 +270,11 @@ class TestConfigSave:
         )
         model = ModelConfig(
             model_name="test",
-            provider="test",
             model_params=llm_param.LLMConfigModelParameter(),
         )
+        provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
         config = Config(
-            provider_list=[provider],
-            model_list=[model],
+            provider_list=[provider_config],
             main_model="test",
         )
 
@@ -358,13 +345,12 @@ class TestLoadConfig:
                     "provider_name": "my-provider",
                     "protocol": "openai",
                     "api_key": "test-key",
-                }
-            ],
-            "model_list": [
-                {
-                    "model_name": "my-model",
-                    "provider": "my-provider",
-                    "model_params": {"model": "gpt-4"},
+                    "model_list": [
+                        {
+                            "model_name": "my-model",
+                            "model_params": {"model": "gpt-4"},
+                        }
+                    ],
                 }
             ],
         }
@@ -413,13 +399,12 @@ class TestLoadConfig:
                     "provider_name": "p",
                     "protocol": "openai",
                     "api_key": "k",
-                }
-            ],
-            "model_list": [
-                {
-                    "model_name": "after-create",
-                    "provider": "p",
-                    "model_params": {"model": "gpt-4"},
+                    "model_list": [
+                        {
+                            "model_name": "after-create",
+                            "model_params": {"model": "gpt-4"},
+                        }
+                    ],
                 }
             ],
         }
@@ -509,7 +494,6 @@ class TestLLMConfigParameterIntegration:
         )
         model = ModelConfig(
             model_name="advanced-model",
-            provider="my-provider",
             model_params=llm_param.LLMConfigModelParameter(
                 model="gpt-5.1-2025",
                 temperature=0.7,
@@ -519,9 +503,9 @@ class TestLLMConfigParameterIntegration:
                 thinking=thinking,
             ),
         )
+        provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
         config = Config(
-            provider_list=[provider],
-            model_list=[model],
+            provider_list=[provider_config],
             main_model="advanced-model",
         )
 
@@ -561,15 +545,14 @@ class TestLLMConfigParameterIntegration:
         )
         model = ModelConfig(
             model_name="haiku",
-            provider="openrouter",
             model_params=llm_param.LLMConfigModelParameter(
                 model="anthropic/claude-haiku-4.5",
                 provider_routing=routing,
             ),
         )
+        provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
         config = Config(
-            provider_list=[provider],
-            model_list=[model],
+            provider_list=[provider_config],
             main_model="haiku",
         )
 
@@ -591,10 +574,10 @@ class TestSelectModelFromConfig:
         )
         model = ModelConfig(
             model_name="gpt-5.2",
-            provider="p",
             model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-01"),
         )
-        config = Config(provider_list=[provider], model_list=[model], main_model="gpt-5.2")
+        provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
+        config = Config(provider_list=[provider_config], main_model="gpt-5.2")
 
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 
@@ -610,10 +593,10 @@ class TestSelectModelFromConfig:
         )
         model = ModelConfig(
             model_name="gpt-5.2",
-            provider="p",
             model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-01"),
         )
-        config = Config(provider_list=[provider], model_list=[model], main_model="gpt-5.2")
+        provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
+        config = Config(provider_list=[provider_config], main_model="gpt-5.2")
 
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 
@@ -629,10 +612,10 @@ class TestSelectModelFromConfig:
         )
         model = ModelConfig(
             model_name="gpt-5.2",
-            provider="p",
             model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-01"),
         )
-        config = Config(provider_list=[provider], model_list=[model], main_model="gpt-5.2")
+        provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
+        config = Config(provider_list=[provider_config], main_model="gpt-5.2")
 
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 
@@ -648,10 +631,10 @@ class TestSelectModelFromConfig:
         )
         model = ModelConfig(
             model_name="primary",
-            provider="p",
             model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-01"),
         )
-        config = Config(provider_list=[provider], model_list=[model], main_model="primary")
+        provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
+        config = Config(provider_list=[provider_config], main_model="primary")
 
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 
@@ -667,10 +650,10 @@ class TestSelectModelFromConfig:
         )
         model = ModelConfig(
             model_name="primary",
-            provider="p",
             model_params=llm_param.LLMConfigModelParameter(model="openai/gpt-5.2-2025-12-01"),
         )
-        config = Config(provider_list=[provider], model_list=[model], main_model="primary")
+        provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
+        config = Config(provider_list=[provider_config], main_model="primary")
 
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 
@@ -688,15 +671,14 @@ class TestSelectModelFromConfig:
         )
         model_a = ModelConfig(
             model_name="gpt-5.2-2025-12-01",
-            provider="p",
             model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-01"),
         )
         model_b = ModelConfig(
             model_name="gpt-5.2-2025-12-02",
-            provider="p",
             model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-02"),
         )
-        config = Config(provider_list=[provider], model_list=[model_a, model_b], main_model=model_a.model_name)
+        provider_config = ProviderConfig(**provider.model_dump(), model_list=[model_a, model_b])
+        config = Config(provider_list=[provider_config], main_model=model_a.model_name)
 
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 

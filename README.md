@@ -79,128 +79,117 @@ Open the configuration file in editor:
 klaude config
 ```
 
-An example config yaml:
+An example config yaml (models live under each provider's `model_list`):
 
 ```yaml
 provider_list:
 - provider_name: openrouter
   protocol: openrouter # support <responses|openrouter|anthropic|openai>
   api_key: <your-openrouter-api-key>
+  model_list:
+  - model_name: gpt-5.1
+    model_params:
+      model: openai/gpt-5.1
+      context_limit: 400000
+      max_tokens: 128000
+      verbosity: high
+      thinking:
+        reasoning_effort: high
+      cost:
+        input: 1.25
+        output: 10
+        cache_read: 0.13
+  - model_name: opus
+    model_params:
+      model: anthropic/claude-4.5-opus
+      context_limit: 200000
+      provider_routing:
+        only: [ google-vertex ]
+      verbosity: high
+      thinking:
+        type: enabled
+        budget_tokens: 31999
+      cost:
+        input: 5
+        output: 25
+        cache_read: 0.5
+        cache_write: 6.25
+  - model_name: gemini
+    model_params:
+      model: google/gemini-3-pro-preview
+      context_limit: 1048576
+      thinking:
+        reasoning_effort: medium
+      cost:
+        input: 2
+        output: 12
+        cache_read: 0.2
 
 - provider_name: openai-responses
   protocol: responses
   api_key: <your-openai-api-key>
+  model_list:
+  - model_name: codex-max
+    model_params:
+      model: gpt-5.1-codex-max
+      thinking:
+        reasoning_effort: medium
+      context_limit: 400000
+      max_tokens: 128000
+      cost:
+        input: 1.25
+        output: 10
+        cache_read: 0.13
 
 - provider_name: anthropic
   protocol: anthropic
   api_key: <your-anthropic-api-key>
+  model_list:
+  - model_name: haiku
+    model_params:
+      model: claude-haiku-4-5-20251001
+      context_limit: 200000
+      cost:
+        input: 1
+        output: 5
+        cache_read: 0.1
+        cache_write: 1.25
 
 - provider_name: moonshot
   protocol: anthropic
   base_url: https://api.moonshot.cn/anthropic
   api_key: <your-api-key>
+  model_list:
+  - model_name: kimi@moonshot
+    model_params:
+      model: kimi-k2-thinking
+      context_limit: 262144
+      thinking:
+        type: enabled
+        budget_tokens: 8192
+      cost:
+        currency: CNY
+        input: 4
+        output: 16
+        cache_read: 1
 
 - provider_name: deepseek
   protocol: anthropic
   base_url: https://api.deepseek.com/anthropic
   api_key: <your-api-key>
-
-model_list:
-
-- model_name: deepseek
-  provider: deepseek
-  model_params:
-    model: deepseek-reasoner
-    context_limit: 128000
-    thinking:
-      type: enabled
-      budget_tokens: 8192
-    cost:
-      currency: CNY
-      input: 2
-      output: 3
-      cache_read: 0.2
-
-- model_name: codex-max
-  provider: openai-responses
-  model_params:
-    model: gpt-5.1-codex-max
-    thinking:
-      reasoning_effort: medium
-    context_limit: 400000
-    max_tokens: 128000
-    cost:
-      input: 1.25
-      output: 10
-      cache_read: 0.13
-
-- model_name: gpt-5.1
-  provider: openrouter
-  model_params:
-    model: openai/gpt-5.1
-    context_limit: 400000
-    max_tokens: 128000
-    verbosity: high
-    thinking:
-      reasoning_effort: high
-    cost:
-      input: 1.25
-      output: 10
-      cache_read: 0.13
-
-- model_name: kimi@moonshot
-  provider: moonshot
-  model_params:
-    model: kimi-k2-thinking
-    context_limit: 262144
-    thinking:
-      type: enabled
-      budget_tokens: 8192
-    cost:
-      currency: CNY
-      input: 4
-      output: 16
-      cache_read: 1
-
-- model_name: opus
-  provider: openrouter
-  model_params:
-    model: anthropic/claude-4.5-opus
-    context_limit: 200000
-    provider_routing:
-      only: [ google-vertex ]
-    verbosity: high
-    thinking:
-      type: enabled
-      budget_tokens: 31999
-    cost:
-      input: 5
-      output: 25
-      cache_read: 0.5
-      cache_write: 6.25
-
-- model_name: gemini
-  provider: openrouter
-  model_params:
-    model: google/gemini-3-pro-preview
-    context_limit: 1048576
-    thinking:
-      reasoning_effort: medium
-    cost:
-      input: 2
-      output: 12
-      cache_read: 0.2
-
-- model_name: haiku
-  provider: anthropic
-  model_params:
-    model: claude-haiku-4-5-20251001
-    context_limit: 200000
-    cost:
-      input: 1
-      output: 5
-      cache_read: 0.1
-      cache_write: 1.25
+  model_list:
+  - model_name: deepseek
+    model_params:
+      model: deepseek-reasoner
+      context_limit: 128000
+      thinking:
+        type: enabled
+        budget_tokens: 8192
+      cost:
+        currency: CNY
+        input: 2
+        output: 3
+        cache_read: 0.2
 
 main_model: opus
 

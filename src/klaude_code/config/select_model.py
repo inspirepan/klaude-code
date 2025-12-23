@@ -1,4 +1,4 @@
-from klaude_code.config.config import ModelConfig, load_config
+from klaude_code.config.config import ModelEntry, load_config
 from klaude_code.trace import log
 
 
@@ -27,7 +27,7 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
     """
     config = load_config()
     assert config is not None
-    models: list[ModelConfig] = sorted(config.model_list, key=lambda m: m.model_name.lower())
+    models: list[ModelEntry] = sorted(config.iter_model_entries(), key=lambda m: m.model_name.lower())
 
     if not models:
         raise ValueError("No models configured. Please update your config.yaml")
@@ -54,7 +54,7 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
 
         # Normalized matching (e.g. gpt52 == gpt-5.2, gpt52 in gpt-5.2-2025-...)
         preferred_norm = _normalize_model_key(preferred)
-        normalized_matches: list[ModelConfig] = []
+        normalized_matches: list[ModelEntry] = []
         if preferred_norm:
             normalized_matches = [
                 m
@@ -97,9 +97,11 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
         choices: list[questionary.Choice] = []
 
         max_model_name_length = max(len(m.model_name) for m in filtered_models)
+        max_model_id_length = max(len(m.model_params.model or "N/A") for m in filtered_models)
         for m in filtered_models:
             star = "★ " if m.model_name == config.main_model else "  "
-            title = f"{star}{m.model_name:<{max_model_name_length}}   →  {m.model_params.model or 'N/A'} @ {m.provider}"
+            model_id = m.model_params.model or "N/A"
+            title = f"{star}{m.model_name:<{max_model_name_length}}   →  {model_id:<{max_model_id_length}} @ {m.provider}"
             choices.append(questionary.Choice(title=title, value=m.model_name))
 
         try:
