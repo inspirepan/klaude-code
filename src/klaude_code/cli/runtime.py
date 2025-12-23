@@ -62,8 +62,6 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     set_debug_logging(init_config.debug, filters=init_config.debug_filters)
 
     config = load_config()
-    if config is None:
-        raise typer.Exit(1)
 
     # Initialize LLM clients
     try:

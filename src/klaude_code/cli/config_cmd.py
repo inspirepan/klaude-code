@@ -16,8 +16,6 @@ def list_models() -> None:
     from klaude_code.ui.terminal.color import is_light_terminal_background
 
     config = load_config()
-    if config is None:
-        raise typer.Exit(1)
 
     # Auto-detect theme when not explicitly set in config, to match other CLI entrypoints.
     if config.theme is None:
@@ -60,9 +58,7 @@ def edit_config() -> None:
             editor = "xdg-open"
 
     # Ensure config file exists
-    config = load_config()
-    if config is None:
-        raise typer.Exit(1)
+    load_config()
 
     try:
         if editor == "open -a TextEdit":

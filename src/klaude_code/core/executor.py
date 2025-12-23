@@ -229,8 +229,6 @@ class ExecutorContext:
     async def handle_change_model(self, operation: op.ChangeModelOperation) -> None:
         agent = await self._ensure_agent(operation.session_id)
         config = load_config()
-        if config is None:
-            raise ValueError("Configuration must be initialized before changing model")
 
         llm_config = config.get_model_config(operation.model_name)
         llm_client = create_llm_client(llm_config)
@@ -238,6 +236,10 @@ class ExecutorContext:
 
         agent.session.model_config_name = operation.model_name
         agent.session.model_thinking = llm_config.thinking
+
+        # Save the selection as default main_model
+        config.main_model = operation.model_name
+        await config.save()
 
         developer_item = model.DeveloperMessageItem(
             content=f"Switched to: {llm_config.model}",
