@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.27] - 2025-12-23
+
+### Added
+
+- persist model selection as default (`edadc21c`)
+- show thinking config in model selector and reduce default budget (`c2914782`)
+- add builtin provider configs with smart merging (`05065080`)
+- make main_model configuration optional (`59542281`)
+- support ${ENV_VAR} syntax for API key configuration (`b03b074f`)
+
+### Changed
+
+- update bash glyph and spinner status state (`7350368f`)
+- nest model_list under each provider (`fcffe898`)
+- narrow broad exception catches (`9cd234dc`)
+
+### Other
+
+- remove docs (`d581cf80`)
 ## [1.2.26] - 2025-12-22
 
 ### Added
@@ -774,7 +793,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.26...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.27...HEAD
+[1.2.27]: https://github.com/inspirepan/klaude-code/compare/v1.2.26...v1.2.27
 [1.2.26]: https://github.com/inspirepan/klaude-code/compare/v1.2.25...v1.2.26
 [1.2.25]: https://github.com/inspirepan/klaude-code/compare/v1.2.24...v1.2.25
 [1.2.24]: https://github.com/inspirepan/klaude-code/compare/v1.2.23...v1.2.24
