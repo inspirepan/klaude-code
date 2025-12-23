@@ -21,16 +21,11 @@ from klaude_code.ui.modes.repl.completers import AT_TOKEN_PATTERN, create_repl_c
 from klaude_code.ui.modes.repl.key_bindings import create_key_bindings
 from klaude_code.ui.renderers.user_input import USER_MESSAGE_MARK
 from klaude_code.ui.terminal.color import is_light_terminal_background
-from klaude_code.ui.utils.common import get_current_git_branch, show_path_with_tilde
 
 
 class REPLStatusSnapshot(NamedTuple):
     """Snapshot of REPL status for bottom toolbar display."""
 
-    model_name: str
-    context_usage_percent: float | None
-    llm_calls: int
-    tool_calls: int
     update_message: str | None = None
 
 
@@ -91,7 +86,6 @@ class PromptToolkitInput(InputProviderABC):
             completer=ThreadedCompleter(create_repl_completer()),
             complete_while_typing=True,
             erase_when_done=True,
-            bottom_toolbar=self._render_bottom_toolbar,
             mouse_support=False,
             style=Style.from_dict(
                 {
@@ -107,68 +101,29 @@ class PromptToolkitInput(InputProviderABC):
             ),
         )
 
-    def _render_bottom_toolbar(self) -> FormattedText:
-        """Render bottom toolbar with working directory, git branch on left, model name and context usage on right.
+    def _get_bottom_toolbar(self) -> FormattedText | None:
+        """Return bottom toolbar content only when there's an update message available."""
+        if not self._status_provider:
+            return None
 
-        If an update is available, only show the update message on the left side.
-        """
-        # Check for update message first
-        update_message: str | None = None
-        if self._status_provider:
-            try:
-                status = self._status_provider()
-                update_message = status.update_message
-            except (AttributeError, RuntimeError):
-                pass
+        try:
+            status = self._status_provider()
+            update_message = status.update_message
+        except (AttributeError, RuntimeError):
+            return None
 
-        # If update available, show only the update message
-        if update_message:
-            left_text = " " + update_message
-            try:
-                terminal_width = shutil.get_terminal_size().columns
-                padding = " " * max(0, terminal_width - len(left_text))
-            except (OSError, ValueError):
-                padding = ""
-            toolbar_text = left_text + padding
-            return FormattedText([("#ansiyellow", toolbar_text)])
+        if not update_message:
+            return None
 
-        # Normal mode: Left side: path and git branch
-        left_parts: list[str] = []
-        left_parts.append(show_path_with_tilde())
-
-        git_branch = get_current_git_branch()
-        if git_branch:
-            left_parts.append(git_branch)
-
-        # Right side: status info
-        right_parts: list[str] = []
-        if self._status_provider:
-            try:
-                status = self._status_provider()
-                model_name = status.model_name or "N/A"
-                right_parts.append(model_name)
-
-                # Add context if available
-                if status.context_usage_percent is not None:
-                    right_parts.append(f"context {status.context_usage_percent:.1f}%")
-            except (AttributeError, RuntimeError):
-                pass
-
-        # Build left and right text with borders
-        left_text = " " + " · ".join(left_parts)
-        right_text = (" · ".join(right_parts) + " ") if right_parts else " "
-
-        # Calculate padding
+        left_text = " " + update_message
         try:
             terminal_width = shutil.get_terminal_size().columns
-            used_width = len(left_text) + len(right_text)
-            padding = " " * max(0, terminal_width - used_width)
+            padding = " " * max(0, terminal_width - len(left_text))
         except (OSError, ValueError):
             padding = ""
 
-        # Build result with style
-        toolbar_text = left_text + padding + right_text
-        return FormattedText([("#2c7eac", toolbar_text)])
+        toolbar_text = left_text + padding
+        return FormattedText([("#ansiyellow", toolbar_text)])
 
     def _render_input_placeholder(self) -> FormattedText:
         if self._is_light_terminal_background is True:
@@ -210,8 +165,15 @@ class PromptToolkitInput(InputProviderABC):
             if self._pre_prompt is not None:
                 with contextlib.suppress(Exception):
                     self._pre_prompt()
+
+            # Only show bottom toolbar if there's an update message
+            bottom_toolbar = self._get_bottom_toolbar()
+
             with patch_stdout():
-                line: str = await self._session.prompt_async(placeholder=self._render_input_placeholder())
+                line: str = await self._session.prompt_async(
+                    placeholder=self._render_input_placeholder(),
+                    bottom_toolbar=bottom_toolbar,
+                )
             if self._post_prompt is not None:
                 with contextlib.suppress(Exception):
                     self._post_prompt()

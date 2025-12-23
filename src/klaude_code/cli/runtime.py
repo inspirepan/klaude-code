@@ -255,12 +255,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     # Create status provider for bottom toolbar
     def _status_provider() -> REPLStatusSnapshot:
-        # Check for updates (returns None if uv not available)
         update_message = get_update_message()
-
-        return build_repl_status_snapshot(
-            agent=components.executor.context.current_agent, update_message=update_message
-        )
+        return build_repl_status_snapshot(update_message)
 
     # Set up input provider for interactive mode
     def _stop_rich_bottom_ui() -> None:

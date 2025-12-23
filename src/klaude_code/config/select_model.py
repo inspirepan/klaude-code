@@ -96,6 +96,7 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
         else:
             # No matches: show all models without filter hint
             preferred = None
+            log(("No matching models found. Showing all models.", "yellow"))
 
     # Non-interactive environments (CI/pipes) should never enter an interactive prompt.
     # If we couldn't resolve to a single model deterministically above, fail with a clear hint.

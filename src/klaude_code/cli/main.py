@@ -16,6 +16,10 @@ from klaude_code.trace import DebugType, prepare_debug_log_file
 
 def set_terminal_title(title: str) -> None:
     """Set terminal window title using ANSI escape sequence."""
+    # Never write terminal control sequences when stdout is not a TTY (pipes/CI/redirects).
+    # This avoids corrupting machine-readable output (e.g., JSON streaming) and log captures.
+    if not sys.stdout.isatty():
+        return
     sys.stdout.write(f"\033]0;{title}\007")
     sys.stdout.flush()
 
@@ -242,6 +246,27 @@ def main_callback(
 ) -> None:
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
+        # In non-interactive environments, default to exec-mode behavior.
+        # This allows: echo "..." | klaude
+        if not sys.stdin.isatty() or not sys.stdout.isatty():
+            from klaude_code.trace import log
+
+            if continue_ or resume or resume_by_id is not None:
+                log(("Error: --continue/--resume options require a TTY", "red"))
+                log(("Hint: use `klaude exec` for non-interactive usage", "yellow"))
+                raise typer.Exit(2)
+
+            exec_command(
+                input_content="",
+                model=model,
+                select_model=select_model,
+                debug=debug,
+                debug_filter=debug_filter,
+                vanilla=vanilla,
+                stream_json=False,
+            )
+            return
+
         from klaude_code.cli.runtime import AppInitConfig, run_interactive
         from klaude_code.config.select_model import select_model_from_config
         from klaude_code.trace import log
