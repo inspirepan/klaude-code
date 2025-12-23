@@ -1,6 +1,6 @@
 import sys
 
-from klaude_code.config.config import ModelEntry, load_config
+from klaude_code.config.config import ModelEntry, load_config, print_no_available_models_hint
 from klaude_code.trace import log
 
 
@@ -28,9 +28,6 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
     - Otherwise: fall through to interactive selection
     """
     config = load_config()
-    if config is None:
-        log(("No model available", "red"))
-        return None
 
     # Only show models from providers with valid API keys
     models: list[ModelEntry] = sorted(
@@ -38,7 +35,7 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
     )
 
     if not models:
-        log(("No model available", "red"))
+        print_no_available_models_hint()
         return None
 
     names: list[str] = [m.model_name for m in models]
@@ -151,5 +148,11 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
         except KeyboardInterrupt:
             return None
     except Exception as e:
-        log(f"Failed to use questionary, falling back to default model, {e}")
-        return preferred
+        log((f"Failed to use questionary for model selection: {e}", "yellow"))
+        # Never return an unvalidated model name here.
+        # If we can't interactively select, fall back to a known configured model.
+        if isinstance(preferred, str) and preferred in names:
+            return preferred
+        if config.main_model and config.main_model in names:
+            return config.main_model
+        return None

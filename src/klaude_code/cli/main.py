@@ -150,12 +150,10 @@ def exec_command(
     if model or select_model:
         chosen_model = select_model_from_config(preferred=model)
         if chosen_model is None:
-            return
+            raise typer.Exit(1)
     else:
         # Check if main_model is configured; if not, trigger interactive selection
         config = load_config()
-        if config is None:
-            raise typer.Exit(1)
         if config.main_model is None:
             chosen_model = select_model_from_config()
             if chosen_model is None:
@@ -292,7 +290,7 @@ def main_callback(
             session_meta = Session.load_meta(session_id)
             cfg = load_config()
 
-            if cfg is not None and session_meta.model_config_name:
+            if session_meta.model_config_name:
                 if any(m.model_name == session_meta.model_config_name for m in cfg.iter_model_entries()):
                     chosen_model = session_meta.model_config_name
                 else:
@@ -303,7 +301,7 @@ def main_callback(
                         )
                     )
 
-            if cfg is not None and chosen_model is None and session_meta.model_name:
+            if chosen_model is None and session_meta.model_name:
                 raw_model = session_meta.model_name.strip()
                 if raw_model:
                     matches = [
@@ -319,8 +317,6 @@ def main_callback(
             from klaude_code.config import load_config
 
             cfg = load_config()
-            if cfg is None:
-                raise typer.Exit(1)
             if cfg.main_model is None:
                 chosen_model = select_model_from_config()
                 if chosen_model is None:

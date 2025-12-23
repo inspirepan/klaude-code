@@ -24,8 +24,10 @@ sys.modules["config_module"] = _config_module
 _config_spec.loader.exec_module(_config_module)
 
 Config = _config_module.Config
+UserConfig = _config_module.UserConfig
 ModelConfig = _config_module.ModelConfig
 ProviderConfig = _config_module.ProviderConfig
+UserProviderConfig = _config_module.UserProviderConfig
 config_path = _config_module.config_path
 load_config = _config_module.load_config
 
@@ -218,21 +220,24 @@ class TestConfig:
 class TestConfigSave:
     """Tests for Config.save() method."""
 
-    def test_save_config(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test saving config to file."""
+    def test_save_config_only_saves_user_config(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that save only saves user config fields, not merged providers."""
         test_config_path = tmp_path / "test-config.yaml"
         monkeypatch.setattr(_config_module, "config_path", test_config_path)
 
+        # Create a merged config with builtin providers
         provider = llm_param.LLMConfigProviderParameter(
-            provider_name="test-provider",
+            provider_name="builtin-provider",
             protocol=llm_param.LLMClientProtocol.OPENAI,
             api_key="test-key",
         )
         model = ModelConfig(
-            model_name="test-model",
+            model_name="builtin-model",
             model_params=llm_param.LLMConfigModelParameter(model="gpt-4"),
         )
         provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
+
+        # Config without user_config reference (simulates merged config with only builtin)
         config = Config(
             provider_list=[provider_config],
             main_model="test-model",
@@ -242,28 +247,65 @@ class TestConfigSave:
 
         assert test_config_path.exists()
         saved_content = yaml.safe_load(test_config_path.read_text())
+        # Only main_model should be saved, not the (builtin) provider_list
         assert saved_content["main_model"] == "test-model"
+        assert "provider_list" not in saved_content
+
+    def test_save_config_with_user_providers(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that save includes user-defined providers."""
+        test_config_path = tmp_path / "test-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        # Create user config with custom provider
+        user_provider = UserProviderConfig(
+            provider_name="my-custom-provider",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="my-key",
+            model_list=[
+                ModelConfig(
+                    model_name="my-model",
+                    model_params=llm_param.LLMConfigModelParameter(model="custom-model"),
+                )
+            ],
+        )
+        user_config = UserConfig(
+            main_model="my-model",
+            provider_list=[user_provider],
+        )
+
+        # Create merged config with user_config reference
+        full_provider = ProviderConfig(
+            provider_name="my-custom-provider",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="my-key",
+            model_list=[
+                ModelConfig(
+                    model_name="my-model",
+                    model_params=llm_param.LLMConfigModelParameter(model="custom-model"),
+                )
+            ],
+        )
+        config = Config(
+            provider_list=[full_provider],
+            main_model="my-model",
+        )
+        config.set_user_config(user_config)
+
+        asyncio.run(config.save())
+
+        assert test_config_path.exists()
+        saved_content = yaml.safe_load(test_config_path.read_text())
+        assert saved_content["main_model"] == "my-model"
+        # User provider should be saved
         assert len(saved_content["provider_list"]) == 1
-        assert len(saved_content["provider_list"][0]["model_list"]) == 1
+        assert saved_content["provider_list"][0]["provider_name"] == "my-custom-provider"
 
     def test_save_creates_parent_directory(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that save creates parent directory if it doesn't exist."""
         test_config_path = tmp_path / "nested" / "dir" / "config.yaml"
         monkeypatch.setattr(_config_module, "config_path", test_config_path)
 
-        provider = llm_param.LLMConfigProviderParameter(
-            provider_name="test",
-            protocol=llm_param.LLMClientProtocol.OPENAI,
-        )
-        model = ModelConfig(
-            model_name="test",
-            model_params=llm_param.LLMConfigModelParameter(),
-        )
-        provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
-        config = Config(
-            provider_list=[provider_config],
-            main_model="test",
-        )
+        config = Config(main_model="test")
 
         asyncio.run(config.save())
 
@@ -279,7 +321,7 @@ class TestLoadConfig:
     """Tests for load_config function."""
 
     def test_load_config_creates_example_when_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test that load_config creates example config when file doesn't exist."""
+        """Test that load_config creates example config and returns builtin when file doesn't exist."""
         test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
         monkeypatch.setattr(_config_module, "config_path", test_config_path)
 
@@ -288,16 +330,17 @@ class TestLoadConfig:
 
         result = load_config()
 
-        # When config doesn't exist, it returns None and creates commented example
-        assert result is None
+        # When user config doesn't exist, returns builtin config and creates example file
+        assert result is not None
+        assert len(result.provider_list) > 0  # Has builtin providers
         assert test_config_path.exists()
 
-        # Verify the file contains commented lines
+        # Verify the file contains commented lines (example config)
         content = test_config_path.read_text()
         assert content.startswith("#")
 
-    def test_load_config_returns_none_for_empty_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test that load_config returns None for empty config file."""
+    def test_load_config_returns_builtin_for_empty_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that load_config returns builtin config for empty user config file."""
         test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
         test_config_path.parent.mkdir(parents=True)
         test_config_path.write_text("")
@@ -306,10 +349,14 @@ class TestLoadConfig:
         load_config.cache_clear()
 
         result = load_config()
-        assert result is None
+        # Returns builtin config when user config is empty
+        assert result is not None
+        assert len(result.provider_list) > 0
 
-    def test_load_config_returns_none_for_all_commented(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test that load_config returns None when all lines are commented."""
+    def test_load_config_returns_builtin_for_all_commented(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that load_config returns builtin config when all lines are commented."""
         test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
         test_config_path.parent.mkdir(parents=True)
         test_config_path.write_text("# main_model: test\n# provider_list: []")
@@ -318,10 +365,12 @@ class TestLoadConfig:
         load_config.cache_clear()
 
         result = load_config()
-        assert result is None
+        # Returns builtin config when user config is all commented
+        assert result is not None
+        assert len(result.provider_list) > 0
 
     def test_load_config_loads_valid_config(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test that load_config loads a valid config file."""
+        """Test that load_config merges user config with builtin config."""
         test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
         test_config_path.parent.mkdir(parents=True)
 
@@ -350,16 +399,27 @@ class TestLoadConfig:
 
         assert result is not None
         assert result.main_model == "my-model"
-        assert len(result.provider_list) == 1
-        assert result.provider_list[0].provider_name == "my-provider"
+        # User provider is merged with builtin providers
+        provider_names = [p.provider_name for p in result.provider_list]
+        assert "my-provider" in provider_names
+        # Builtin providers are also present
+        assert "anthropic" in provider_names or "openai" in provider_names
 
     def test_load_config_raises_on_invalid_config(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that load_config raises ValueError for invalid config."""
         test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
         test_config_path.parent.mkdir(parents=True)
 
-        # Invalid config missing required fields
-        config_dict = {"main_model": "test"}
+        # Invalid config with invalid protocol value
+        config_dict = {
+            "provider_list": [
+                {
+                    "provider_name": "test",
+                    "protocol": "invalid-protocol",  # Invalid protocol
+                    "api_key": "test-key",
+                }
+            ]
+        }
         test_config_path.write_text(str(yaml.dump(config_dict) or ""))
 
         monkeypatch.setattr(_config_module, "config_path", test_config_path)
@@ -368,17 +428,19 @@ class TestLoadConfig:
         with pytest.raises(ValueError, match="Invalid config file"):
             load_config()
 
-    def test_load_config_does_not_cache_missing_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Ensure a missing config (returning None) does not get cached."""
+    def test_load_config_caches_result(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Ensure config is cached and requires cache_clear to reload."""
         test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        test_config_path.parent.mkdir(parents=True)
         monkeypatch.setattr(_config_module, "config_path", test_config_path)
         load_config.cache_clear()
 
-        # First call should create commented example and return None
+        # First call returns builtin config (no user config)
         first = load_config()
-        assert first is None
+        assert first is not None
+        assert first.main_model is None  # Builtin has no main_model
 
-        # Write a valid config and ensure it loads without needing cache_clear
+        # Write a valid user config
         config_dict = {
             "main_model": "after-create",
             "provider_list": [
@@ -397,9 +459,15 @@ class TestLoadConfig:
         }
         test_config_path.write_text(str(yaml.dump(config_dict) or ""))
 
-        second = load_config()
-        assert second is not None
-        assert second.main_model == "after-create"
+        # Without cache_clear, we still get cached result
+        cached = load_config()
+        assert cached.main_model is None
+
+        # After cache_clear, we get new config
+        load_config.cache_clear()
+        refreshed = load_config()
+        assert refreshed is not None
+        assert refreshed.main_model == "after-create"
 
 
 # =============================================================================
@@ -729,3 +797,397 @@ class TestConfigPath:
     def test_config_path_filename(self) -> None:
         """Test that config_path has correct filename."""
         assert config_path.name == "klaude-config.yaml"
+
+
+# =============================================================================
+# Out-of-Box Experience Tests
+# =============================================================================
+
+
+class TestOutOfBoxExperience:
+    """Tests simulating various out-of-box configuration scenarios."""
+
+    def test_first_run_no_config_no_api_keys(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """First run: no config file, no API keys set - should return builtin config with limited available models."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        # Clear all API key environment variables (including additional providers)
+        for env_var in [
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+            "OPENROUTER_API_KEY",
+            "DEEPSEEK_API_KEY",
+            "MOONSHOT_API_KEY",
+        ]:
+            monkeypatch.delenv(env_var, raising=False)
+
+        load_config.cache_clear()
+        config = load_config()
+
+        # Config is loaded (builtin)
+        assert config is not None
+        assert len(config.provider_list) > 0
+
+        # All models exist but most are unavailable (some providers like codex may not need API key)
+        all_models = config.iter_model_entries(only_available=False)
+        assert len(all_models) > 0
+
+        # Example config file should be created
+        assert test_config_path.exists()
+        content = test_config_path.read_text()
+        assert content.startswith("#")
+
+    def test_first_run_no_config_with_anthropic_key(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """First run: no config file, only ANTHROPIC_API_KEY set - should have anthropic models available."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        # Set only Anthropic API key, clear others
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-key-12345")
+        for env in ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY"]:
+            monkeypatch.delenv(env, raising=False)
+
+        load_config.cache_clear()
+        config = load_config()
+
+        available_models = config.iter_model_entries(only_available=True)
+        available_providers = {m.provider for m in available_models}
+
+        # Anthropic provider should have available models
+        assert "anthropic" in available_providers
+        # OpenAI provider should NOT have available models (no API key)
+        assert "openai" not in available_providers
+
+    def test_first_run_no_config_with_openai_key(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """First run: no config file, only OPENAI_API_KEY set - should have openai models available."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        # Set only OpenAI API key, clear others
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test-key-12345")
+        for env in ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY"]:
+            monkeypatch.delenv(env, raising=False)
+
+        load_config.cache_clear()
+        config = load_config()
+
+        available_models = config.iter_model_entries(only_available=True)
+        available_providers = {m.provider for m in available_models}
+
+        # OpenAI provider should have available models
+        assert "openai" in available_providers
+        # Anthropic provider should NOT have available models (no API key)
+        assert "anthropic" not in available_providers
+
+    def test_first_run_no_config_with_multiple_keys(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """First run: no config file, multiple API keys set - should have all corresponding models available."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        # Set multiple API keys
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test")
+        for env in ["OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY"]:
+            monkeypatch.delenv(env, raising=False)
+
+        load_config.cache_clear()
+        config = load_config()
+
+        available_models = config.iter_model_entries(only_available=True)
+        available_providers = {m.provider for m in available_models}
+
+        # Both anthropic and openai providers should have available models
+        assert "anthropic" in available_providers
+        assert "openai" in available_providers
+        # OpenRouter should NOT have available models
+        assert "openrouter" not in available_providers
+
+    def test_empty_config_file_uses_builtin(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Empty config file should fall back to builtin config."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        test_config_path.parent.mkdir(parents=True)
+        test_config_path.write_text("")
+
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        for env in ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY"]:
+            monkeypatch.delenv(env, raising=False)
+
+        load_config.cache_clear()
+        config = load_config()
+
+        # Should still have builtin providers
+        provider_names = [p.provider_name for p in config.provider_list]
+        assert "anthropic" in provider_names
+
+        # Anthropic models should be available
+        available = config.iter_model_entries(only_available=True)
+        assert any(m.provider == "anthropic" for m in available)
+
+    def test_user_config_merges_builtin_provider_models(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """User config with same provider name should merge model_list with builtin."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        test_config_path.parent.mkdir(parents=True)
+
+        # User adds a custom model to existing "anthropic" provider
+        user_config = {
+            "provider_list": [
+                {
+                    "provider_name": "anthropic",
+                    "model_list": [
+                        {
+                            "model_name": "my-custom-claude",
+                            "model_params": {"model": "claude-custom-model"},
+                        }
+                    ],
+                }
+            ]
+        }
+        test_config_path.write_text(str(yaml.dump(user_config) or ""))
+
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+        load_config.cache_clear()
+        config = load_config()
+
+        # Find the anthropic provider
+        anthropic_provider = next((p for p in config.provider_list if p.provider_name == "anthropic"), None)
+        assert anthropic_provider is not None
+
+        # Should have BOTH user's custom model AND builtin models
+        model_names = [m.model_name for m in anthropic_provider.model_list]
+        assert "my-custom-claude" in model_names
+        assert "sonnet" in model_names
+        assert "opus" in model_names
+
+    def test_user_config_overrides_builtin_model(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """User config with same model name should override builtin model."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        test_config_path.parent.mkdir(parents=True)
+
+        # User overrides the builtin "sonnet" model
+        user_config = {
+            "provider_list": [
+                {
+                    "provider_name": "anthropic",
+                    "model_list": [
+                        {
+                            "model_name": "sonnet",
+                            "model_params": {"model": "my-custom-sonnet-model", "max_tokens": 99999},
+                        }
+                    ],
+                }
+            ]
+        }
+        test_config_path.write_text(str(yaml.dump(user_config) or ""))
+
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+        load_config.cache_clear()
+        config = load_config()
+
+        # Find the anthropic provider
+        anthropic_provider = next((p for p in config.provider_list if p.provider_name == "anthropic"), None)
+        assert anthropic_provider is not None
+
+        # Find the sonnet model
+        sonnet_model = next((m for m in anthropic_provider.model_list if m.model_name == "sonnet"), None)
+        assert sonnet_model is not None
+
+        # Should use user's custom model params
+        assert sonnet_model.model_params.model == "my-custom-sonnet-model"
+        assert sonnet_model.model_params.max_tokens == 99999
+
+    def test_user_provider_settings_override_builtin(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """User's provider-level settings should override builtin."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        test_config_path.parent.mkdir(parents=True)
+
+        # User overrides api_key for anthropic provider
+        user_config = {
+            "provider_list": [
+                {
+                    "provider_name": "anthropic",
+                    "api_key": "sk-user-custom-key",
+                }
+            ]
+        }
+        test_config_path.write_text(str(yaml.dump(user_config) or ""))
+
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+        load_config.cache_clear()
+        config = load_config()
+
+        # Find the anthropic provider
+        anthropic_provider = next((p for p in config.provider_list if p.provider_name == "anthropic"), None)
+        assert anthropic_provider is not None
+
+        # Should use user's api_key
+        assert anthropic_provider.api_key == "sk-user-custom-key"
+
+        # But should still have builtin models
+        model_names = [m.model_name for m in anthropic_provider.model_list]
+        assert "sonnet" in model_names
+        assert "opus" in model_names
+
+    def test_user_config_adds_new_provider(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """User config with new provider should be added to builtin providers."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        test_config_path.parent.mkdir(parents=True)
+
+        # User adds a new provider
+        user_config = {
+            "provider_list": [
+                {
+                    "provider_name": "my-custom-provider",
+                    "protocol": "openai",
+                    "api_key": "sk-custom-key",
+                    "base_url": "https://my-api.example.com/v1",
+                    "model_list": [
+                        {
+                            "model_name": "custom-model",
+                            "model_params": {"model": "custom-model-id"},
+                        }
+                    ],
+                }
+            ]
+        }
+        test_config_path.write_text(str(yaml.dump(user_config) or ""))
+
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+        load_config.cache_clear()
+        config = load_config()
+
+        provider_names = [p.provider_name for p in config.provider_list]
+
+        # Should have both user's provider and builtin providers
+        assert "my-custom-provider" in provider_names
+        assert "anthropic" in provider_names
+        assert "openai" in provider_names
+
+    def test_user_main_model_takes_precedence(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """User's main_model setting should take precedence over builtin."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        test_config_path.parent.mkdir(parents=True)
+
+        user_config = {"main_model": "my-favorite-model"}
+        test_config_path.write_text(str(yaml.dump(user_config) or ""))
+
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+        load_config.cache_clear()
+        config = load_config()
+
+        assert config.main_model == "my-favorite-model"
+
+    def test_builtin_config_has_no_main_model(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Builtin config should NOT have main_model set (user must choose)."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        load_config.cache_clear()
+        config = load_config()
+
+        # Builtin should not preset main_model
+        assert config.main_model is None
+
+    def test_deepseek_provider_available(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """DeepSeek provider should be available when DEEPSEEK_API_KEY is set."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-deepseek-test")
+        for env in ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "MOONSHOT_API_KEY"]:
+            monkeypatch.delenv(env, raising=False)
+
+        load_config.cache_clear()
+        config = load_config()
+
+        available = config.iter_model_entries(only_available=True)
+        available_providers = {m.provider for m in available}
+
+        assert "deepseek" in available_providers
+        # Others should not be available
+        assert "anthropic" not in available_providers
+        assert "openai" not in available_providers
+
+    def test_openrouter_provider_available(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """OpenRouter provider should be available when OPENROUTER_API_KEY is set."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+        for env in ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY", "MOONSHOT_API_KEY"]:
+            monkeypatch.delenv(env, raising=False)
+
+        load_config.cache_clear()
+        config = load_config()
+
+        available = config.iter_model_entries(only_available=True)
+        available_providers = {m.provider for m in available}
+
+        assert "openrouter" in available_providers
+        # Others should not be available
+        assert "anthropic" not in available_providers
+
+    def test_all_providers_available(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Multiple providers should be available when their API keys are set."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test")
+        monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-deepseek-test")
+
+        load_config.cache_clear()
+        config = load_config()
+
+        available = config.iter_model_entries(only_available=True)
+        available_providers = {m.provider for m in available}
+
+        # All major providers should be available
+        assert "anthropic" in available_providers
+        assert "openai" in available_providers
+        assert "openrouter" in available_providers
+        assert "deepseek" in available_providers
+
+    def test_user_sub_agent_models_merged(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """User's sub_agent_models should be merged with builtin."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        test_config_path.parent.mkdir(parents=True)
+
+        user_config = {"sub_agent_models": {"explore": "my-fast-model", "oracle": "my-smart-model"}}
+        test_config_path.write_text(str(yaml.dump(user_config) or ""))
+
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+        load_config.cache_clear()
+        config = load_config()
+
+        # Keys are normalized to canonical form (Explore, Oracle)
+        assert config.sub_agent_models.get("Explore") == "my-fast-model"
+        assert config.sub_agent_models.get("Oracle") == "my-smart-model"
+
+    def test_commented_config_uses_builtin(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Fully commented config should use builtin config."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        test_config_path.parent.mkdir(parents=True)
+
+        commented_content = """# This is a comment
+# main_model: some-model
+# provider_list:
+#   - provider_name: test
+"""
+        test_config_path.write_text(commented_content)
+
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+
+        load_config.cache_clear()
+        config = load_config()
+
+        # Should still have builtin providers
+        provider_names = [p.provider_name for p in config.provider_list]
+        assert "anthropic" in provider_names
+
+        # Anthropic models should be available
+        available = config.iter_model_entries(only_available=True)
+        assert any(m.model_name == "sonnet" for m in available)

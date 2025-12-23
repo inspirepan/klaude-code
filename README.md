@@ -71,135 +71,140 @@ klaude [--model <name>] [--select-model]
 
 ### Configuration
 
-An example config will be created in `~/.klaude/klaude-config.yaml` when first run.
+#### Quick Start (Zero Config)
 
-Open the configuration file in editor:
+Klaude comes with built-in provider configurations. Just set an API key environment variable and start using it:
+
+```bash
+# Pick one (or more) of these:
+export ANTHROPIC_API_KEY=sk-ant-xxx      # Claude models
+export OPENAI_API_KEY=sk-xxx             # GPT models
+export OPENROUTER_API_KEY=sk-or-xxx      # OpenRouter (multi-provider)
+export DEEPSEEK_API_KEY=sk-xxx           # DeepSeek models
+export MOONSHOT_API_KEY=sk-xxx           # Moonshot/Kimi models
+
+# Then just run:
+klaude
+```
+
+On first run, you'll be prompted to select a model. Your choice is saved as `main_model`.
+
+#### Built-in Providers
+
+| Provider    | Env Variable          | Models                                                                        |
+|-------------|-----------------------|-------------------------------------------------------------------------------|
+| anthropic   | `ANTHROPIC_API_KEY`   | sonnet, opus                                                                  |
+| openai      | `OPENAI_API_KEY`      | gpt-5.2                                                                       |
+| openrouter  | `OPENROUTER_API_KEY`  | gpt-5.2, gpt-5.2-fast, gpt-5.1-codex-max, sonnet, opus, haiku, kimi, gemini-* |
+| deepseek    | `DEEPSEEK_API_KEY`    | deepseek                                                                      |
+| moonshot    | `MOONSHOT_API_KEY`    | kimi@moonshot                                                                 |
+| codex       | N/A (OAuth)           | gpt-5.2-codex                                                                 |
+
+List all configured providers and models:
+
+```bash
+klaude list
+```
+
+Models from providers without a valid API key are shown as dimmed/unavailable.
+
+#### Custom Configuration
+
+User config file: `~/.klaude/klaude-config.yaml`
+
+Open in editor:
 
 ```bash
 klaude config
 ```
 
-An example config yaml (models live under each provider's `model_list`):
+##### Adding Models to Built-in Providers
+
+You can add custom models to existing providers without redefining the entire provider:
+
+```yaml
+# Just specify provider_name and your new models - no need for protocol/api_key
+provider_list:
+  - provider_name: openrouter
+    model_list:
+      - model_name: my-custom-model
+        model_params:
+          model: some-provider/some-model-id
+          context_limit: 200000
+```
+
+Your models are merged with built-in models. To override a built-in model, use the same `model_name`.
+
+##### Overriding Provider Settings
+
+Override provider-level settings (like api_key) while keeping built-in models:
 
 ```yaml
 provider_list:
-- provider_name: openrouter
-  protocol: openrouter # support <responses|openrouter|anthropic|openai>
-  api_key: <your-openrouter-api-key>
-  model_list:
-  - model_name: gpt-5.1
-    model_params:
-      model: openai/gpt-5.1
-      context_limit: 400000
-      max_tokens: 128000
-      verbosity: high
-      thinking:
-        reasoning_effort: high
-      cost:
-        input: 1.25
-        output: 10
-        cache_read: 0.13
-  - model_name: opus
-    model_params:
-      model: anthropic/claude-4.5-opus
-      context_limit: 200000
-      provider_routing:
-        only: [ google-vertex ]
-      verbosity: high
-      thinking:
-        type: enabled
-        budget_tokens: 31999
-      cost:
-        input: 5
-        output: 25
-        cache_read: 0.5
-        cache_write: 6.25
-  - model_name: gemini
-    model_params:
-      model: google/gemini-3-pro-preview
-      context_limit: 1048576
-      thinking:
-        reasoning_effort: medium
-      cost:
-        input: 2
-        output: 12
-        cache_read: 0.2
+  - provider_name: anthropic
+    api_key: sk-my-custom-key  # Override the default ${ANTHROPIC_API_KEY}
+    # Built-in models (sonnet, opus) are still available
+```
 
-- provider_name: openai-responses
-  protocol: responses
-  api_key: <your-openai-api-key>
-  model_list:
-  - model_name: codex-max
-    model_params:
-      model: gpt-5.1-codex-max
-      thinking:
-        reasoning_effort: medium
-      context_limit: 400000
-      max_tokens: 128000
-      cost:
-        input: 1.25
-        output: 10
-        cache_read: 0.13
+##### Adding New Providers
 
-- provider_name: anthropic
-  protocol: anthropic
-  api_key: <your-anthropic-api-key>
-  model_list:
-  - model_name: haiku
-    model_params:
-      model: claude-haiku-4-5-20251001
-      context_limit: 200000
-      cost:
-        input: 1
-        output: 5
-        cache_read: 0.1
-        cache_write: 1.25
+For providers not in the built-in list, you must specify `protocol`:
 
-- provider_name: moonshot
-  protocol: anthropic
-  base_url: https://api.moonshot.cn/anthropic
-  api_key: <your-api-key>
-  model_list:
-  - model_name: kimi@moonshot
-    model_params:
-      model: kimi-k2-thinking
-      context_limit: 262144
-      thinking:
-        type: enabled
-        budget_tokens: 8192
-      cost:
-        currency: CNY
-        input: 4
-        output: 16
-        cache_read: 1
+```yaml
+provider_list:
+  - provider_name: my-azure-openai
+    protocol: openai
+    api_key: ${AZURE_OPENAI_KEY}
+    base_url: https://my-instance.openai.azure.com/
+    is_azure: true
+    azure_api_version: "2024-02-15-preview"
+    model_list:
+      - model_name: gpt-4-azure
+        model_params:
+          model: gpt-4
+          context_limit: 128000
+```
 
-- provider_name: deepseek
-  protocol: anthropic
-  base_url: https://api.deepseek.com/anthropic
-  api_key: <your-api-key>
-  model_list:
-  - model_name: deepseek
-    model_params:
-      model: deepseek-reasoner
-      context_limit: 128000
-      thinking:
-        type: enabled
-        budget_tokens: 8192
-      cost:
-        currency: CNY
-        input: 2
-        output: 3
-        cache_read: 0.2
+##### Full Example
 
+```yaml
+# User configuration - merged with built-in config
 main_model: opus
 
 sub_agent_models:
-  oracle: gpt-5.1
-  explore: haiku
+  oracle: gpt-4.1
+  explore: sonnet
   task: opus
-  webagent: haiku
+  webagent: sonnet
 
+provider_list:
+  # Add models to built-in openrouter
+  - provider_name: openrouter
+    model_list:
+      - model_name: qwen-coder
+        model_params:
+          model: qwen/qwen-2.5-coder-32b-instruct
+          context_limit: 131072
+
+  # Add a completely new provider
+  - provider_name: local-ollama
+    protocol: openai
+    base_url: http://localhost:11434/v1
+    api_key: ollama
+    model_list:
+      - model_name: local-llama
+        model_params:
+          model: llama3.2
+          context_limit: 8192
 ```
+
+##### Supported Protocols
+
+- `anthropic` - Anthropic Claude API
+- `openai` - OpenAI-compatible API
+- `responses` - OpenAI Responses API (for o-series, GPT-5, Codex)
+- `openrouter` - OpenRouter API
+- `codex` - OpenAI Codex CLI (OAuth-based)
 
 List configured providers and models:
 

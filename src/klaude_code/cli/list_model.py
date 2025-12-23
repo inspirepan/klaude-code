@@ -6,7 +6,7 @@ from rich.table import Table
 from rich.text import Text
 
 from klaude_code.config import Config
-from klaude_code.config.config import ProviderConfig
+from klaude_code.config.config import ModelConfig, ProviderConfig
 from klaude_code.protocol.llm_param import LLMClientProtocol
 from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 from klaude_code.ui.rich.theme import ThemeKey, get_theme
@@ -94,6 +94,47 @@ def format_api_key_display(provider: ProviderConfig) -> Text:
         return Text("N/A")
 
 
+def _get_model_params_display(model: ModelConfig) -> list[Text]:
+    """Get display elements for model parameters."""
+    params: list[Text] = []
+    if model.model_params.thinking:
+        if model.model_params.thinking.reasoning_effort is not None:
+            params.append(
+                Text.assemble(
+                    ("reason-effort", ThemeKey.CONFIG_PARAM_LABEL),
+                    ": ",
+                    model.model_params.thinking.reasoning_effort,
+                )
+            )
+        if model.model_params.thinking.reasoning_summary is not None:
+            params.append(
+                Text.assemble(
+                    ("reason-summary", ThemeKey.CONFIG_PARAM_LABEL),
+                    ": ",
+                    model.model_params.thinking.reasoning_summary,
+                )
+            )
+        if model.model_params.thinking.budget_tokens is not None:
+            params.append(
+                Text.assemble(
+                    ("thinking-budget-tokens", ThemeKey.CONFIG_PARAM_LABEL),
+                    ": ",
+                    str(model.model_params.thinking.budget_tokens),
+                )
+            )
+    if model.model_params.provider_routing:
+        params.append(
+            Text.assemble(
+                ("provider-routing", ThemeKey.CONFIG_PARAM_LABEL),
+                ": ",
+                model.model_params.provider_routing.model_dump_json(exclude_none=True),
+            )
+        )
+    if len(params) == 0:
+        params.append(Text("N/A", style=ThemeKey.CONFIG_PARAM_LABEL))
+    return params
+
+
 def display_models_and_providers(config: Config):
     """Display models and providers configuration using rich formatting"""
     themes = get_theme(config.theme)
@@ -121,6 +162,9 @@ def display_models_and_providers(config: Config):
                 format_api_key_display(provider),
             )
 
+        # Check if provider has valid API key
+        provider_available = not provider.is_api_key_missing()
+
         # Models table for this provider
         models_table = Table.grid(padding=(0, 1), expand=True)
         models_table.add_column(width=2, no_wrap=True)  # Status
@@ -138,53 +182,23 @@ def display_models_and_providers(config: Config):
 
         # Add models for this provider
         for model in provider.model_list:
-            status = Text("✔", style=ThemeKey.CONFIG_STATUS_OK)
-            if model.model_name == config.main_model:
+            if not provider_available:
+                # Provider API key not set - show as unavailable
+                status = Text("-", style="dim")
+                name = Text(model.model_name, style="dim")
+                model_id = Text(model.model_params.model or "N/A", style="dim")
+                params = [Text("(unavailable)", style="dim")]
+            elif model.model_name == config.main_model:
                 status = Text("★", style=ThemeKey.CONFIG_STATUS_PRIMARY)
+                name = Text(model.model_name, style=ThemeKey.CONFIG_STATUS_PRIMARY)
+                model_id = Text(model.model_params.model or "N/A", style="")
+                params = _get_model_params_display(model)
+            else:
+                status = Text("✔", style=ThemeKey.CONFIG_STATUS_OK)
+                name = Text(model.model_name, style=ThemeKey.CONFIG_ITEM_NAME)
+                model_id = Text(model.model_params.model or "N/A", style="")
+                params = _get_model_params_display(model)
 
-            name = Text(
-                model.model_name,
-                style=ThemeKey.CONFIG_STATUS_PRIMARY
-                if model.model_name == config.main_model
-                else ThemeKey.CONFIG_ITEM_NAME,
-            )
-            model_id = Text(model.model_params.model or "N/A", style="")
-            params: list[Text] = []
-            if model.model_params.thinking:
-                if model.model_params.thinking.reasoning_effort is not None:
-                    params.append(
-                        Text.assemble(
-                            ("reason-effort", ThemeKey.CONFIG_PARAM_LABEL),
-                            ": ",
-                            model.model_params.thinking.reasoning_effort,
-                        )
-                    )
-                if model.model_params.thinking.reasoning_summary is not None:
-                    params.append(
-                        Text.assemble(
-                            ("reason-summary", ThemeKey.CONFIG_PARAM_LABEL),
-                            ": ",
-                            model.model_params.thinking.reasoning_summary,
-                        )
-                    )
-                if model.model_params.thinking.budget_tokens is not None:
-                    params.append(
-                        Text.assemble(
-                            ("thinking-budget-tokens", ThemeKey.CONFIG_PARAM_LABEL),
-                            ": ",
-                            str(model.model_params.thinking.budget_tokens),
-                        )
-                    )
-            if model.model_params.provider_routing:
-                params.append(
-                    Text.assemble(
-                        ("provider-routing", ThemeKey.CONFIG_PARAM_LABEL),
-                        ": ",
-                        model.model_params.provider_routing.model_dump_json(exclude_none=True),
-                    )
-                )
-            if len(params) == 0:
-                params.append(Text("N/A", style=ThemeKey.CONFIG_PARAM_LABEL))
             models_table.add_row(status, name, model_id, Group(*params))
 
         # Create panel content with provider info and models
