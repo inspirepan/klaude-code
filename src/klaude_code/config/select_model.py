@@ -112,13 +112,25 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
         choices: list[questionary.Choice] = []
 
         max_model_name_length = max(len(m.model_name) for m in filtered_models)
-        max_model_id_length = max(len(m.model_params.model or "N/A") for m in filtered_models)
+
+        # Build model_id with thinking suffix as a single unit
+        def build_model_id_with_thinking(m: ModelEntry) -> str:
+            model_id = m.model_params.model or "N/A"
+            thinking = m.model_params.thinking
+            if thinking:
+                if thinking.reasoning_effort:
+                    return f"{model_id} ({thinking.reasoning_effort})"
+                elif thinking.budget_tokens:
+                    return f"{model_id} (think {thinking.budget_tokens})"
+            return model_id
+
+        model_id_with_thinking = {m.model_name: build_model_id_with_thinking(m) for m in filtered_models}
+        max_model_id_length = max(len(v) for v in model_id_with_thinking.values())
+
         for m in filtered_models:
             star = "★ " if m.model_name == config.main_model else "  "
-            model_id = m.model_params.model or "N/A"
-            title = (
-                f"{star}{m.model_name:<{max_model_name_length}}   →  {model_id:<{max_model_id_length}} @ {m.provider}"
-            )
+            model_id_str = model_id_with_thinking[m.model_name]
+            title = f"{star}{m.model_name:<{max_model_name_length}}   →  {model_id_str:<{max_model_id_length}} @ {m.provider}"
             choices.append(questionary.Choice(title=title, value=m.model_name))
 
         try:
