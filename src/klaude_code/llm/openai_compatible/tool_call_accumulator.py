@@ -1,9 +1,22 @@
+import re
 from abc import ABC, abstractmethod
 
 from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
 from pydantic import BaseModel, Field
 
 from klaude_code.protocol import model
+
+
+def normalize_tool_name(name: str) -> str:
+    """Normalize tool name from Gemini-3 format.
+
+    Gemini-3 sometimes returns tool names in format like 'tool_Edit_mUoY2p3W3r3z8uO5P2nZ'.
+    This function extracts the actual tool name (e.g., 'Edit').
+    """
+    match = re.match(r"^tool_([A-Za-z]+)_[A-Za-z0-9]+$", name)
+    if match:
+        return match.group(1)
+    return name
 
 
 class ToolCallAccumulatorABC(ABC):
@@ -74,7 +87,7 @@ class BasicToolCallAccumulator(ToolCallAccumulatorABC, BaseModel):
             if first_chunk.function is None:
                 continue
             if first_chunk.function.name:
-                result[-1].name = first_chunk.function.name
+                result[-1].name = normalize_tool_name(first_chunk.function.name)
             if first_chunk.function.arguments:
                 result[-1].arguments += first_chunk.function.arguments
         return result
