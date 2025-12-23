@@ -49,11 +49,16 @@ class PromptToolkitInput(InputProviderABC):
         status_provider: Callable[[], REPLStatusSnapshot] | None = None,
         pre_prompt: Callable[[], None] | None = None,
         post_prompt: Callable[[], None] | None = None,
+        is_light_background: bool | None = None,
     ):  # ▌
         self._status_provider = status_provider
         self._pre_prompt = pre_prompt
         self._post_prompt = post_prompt
-        self._is_light_terminal_background = is_light_terminal_background(timeout=0.2)
+        # Use provided value if available to avoid redundant TTY queries that may interfere
+        # with prompt_toolkit's terminal state after questionary has been used.
+        self._is_light_terminal_background = (
+            is_light_background if is_light_background is not None else is_light_terminal_background(timeout=0.2)
+        )
 
         project = str(Path.cwd()).strip("/").replace("/", "-")
         history_path = Path.home() / ".klaude" / "projects" / project / "input" / "input_history.txt"

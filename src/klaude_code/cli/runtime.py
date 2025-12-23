@@ -272,9 +272,19 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             display.wrapped_display.renderer.spinner_stop()
             display.wrapped_display.renderer.stop_bottom_live()
 
+    # Pass the pre-detected theme to avoid redundant TTY queries.
+    # Querying the terminal background again after questionary's interactive selection
+    # can interfere with prompt_toolkit's terminal state and break history navigation.
+    is_light_background: bool | None = None
+    if components.theme == "light":
+        is_light_background = True
+    elif components.theme == "dark":
+        is_light_background = False
+
     input_provider: ui.InputProviderABC = ui.PromptToolkitInput(
         status_provider=_status_provider,
         pre_prompt=_stop_rich_bottom_ui,
+        is_light_background=is_light_background,
     )
 
     # --- Custom Ctrl+C handler: double-press within 2s to exit, single press shows toast ---

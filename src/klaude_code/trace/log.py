@@ -302,6 +302,12 @@ def _trash_path(path: Path) -> None:
     """Send a path to trash, falling back to unlink if trash is unavailable."""
 
     try:
-        subprocess.run(["trash", str(path)], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(
+            ["trash", str(path)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
     except FileNotFoundError:
         path.unlink(missing_ok=True)

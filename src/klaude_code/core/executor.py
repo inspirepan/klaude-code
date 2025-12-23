@@ -404,7 +404,8 @@ class ExecutorContext:
 
     def _open_file(self, path: Path) -> None:
         try:
-            subprocess.run(["open", str(path)], check=True)
+            # Detach stdin to prevent interference with prompt_toolkit's terminal state
+            subprocess.run(["open", str(path)], stdin=subprocess.DEVNULL, check=True)
         except FileNotFoundError as exc:  # pragma: no cover
             msg = "`open` command not found; please open the HTML manually."
             raise RuntimeError(msg) from exc

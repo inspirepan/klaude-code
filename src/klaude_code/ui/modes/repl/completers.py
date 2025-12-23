@@ -691,6 +691,7 @@ class _AtFilesCompleter(Completer):
             p = subprocess.run(
                 cmd,
                 cwd=str(cwd) if cwd else None,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 text=True,

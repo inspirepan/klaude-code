@@ -63,7 +63,15 @@ def open_log_file_in_editor(path: Path) -> None:
             editor = "xdg-open"
 
     try:
-        subprocess.Popen([editor, str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Detach stdin to prevent the editor from interfering with terminal input state.
+        # Without this, the spawned process inherits the parent's TTY and can disrupt
+        # prompt_toolkit's keyboard handling (e.g., history navigation with up/down keys).
+        subprocess.Popen(
+            [editor, str(path)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
     except FileNotFoundError:
         log((f"Error: Editor '{editor}' not found", "red"))
     except Exception as exc:  # pragma: no cover - best effort
