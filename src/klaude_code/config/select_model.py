@@ -27,7 +27,10 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
     """
     config = load_config()
     assert config is not None
-    models: list[ModelEntry] = sorted(config.iter_model_entries(), key=lambda m: m.model_name.lower())
+    # Only show models from providers with valid API keys
+    models: list[ModelEntry] = sorted(
+        config.iter_model_entries(only_available=True), key=lambda m: m.model_name.lower()
+    )
 
     if not models:
         raise ValueError("No models configured. Please update your config.yaml")
@@ -101,7 +104,9 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
         for m in filtered_models:
             star = "★ " if m.model_name == config.main_model else "  "
             model_id = m.model_params.model or "N/A"
-            title = f"{star}{m.model_name:<{max_model_name_length}}   →  {model_id:<{max_model_id_length}} @ {m.provider}"
+            title = (
+                f"{star}{m.model_name:<{max_model_name_length}}   →  {model_id:<{max_model_id_length}} @ {m.provider}"
+            )
             choices.append(questionary.Choice(title=title, value=m.model_name))
 
         try:

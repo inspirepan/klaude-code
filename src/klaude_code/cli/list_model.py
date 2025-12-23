@@ -6,6 +6,7 @@ from rich.table import Table
 from rich.text import Text
 
 from klaude_code.config import Config
+from klaude_code.config.config import ProviderConfig
 from klaude_code.protocol.llm_param import LLMClientProtocol
 from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 from klaude_code.ui.rich.theme import ThemeKey, get_theme
@@ -69,6 +70,30 @@ def mask_api_key(api_key: str | None) -> str:
     return f"{api_key[:6]} … {api_key[-6:]}"
 
 
+def format_api_key_display(provider: ProviderConfig) -> Text:
+    """Format API key display with warning if env var is not set."""
+    env_var = provider.get_api_key_env_var()
+    resolved_key = provider.get_resolved_api_key()
+
+    if env_var:
+        # Using ${ENV_VAR} syntax
+        if resolved_key:
+            return Text.assemble(
+                (f"${{{env_var}}} = ", "dim"),
+                (mask_api_key(resolved_key), ""),
+            )
+        else:
+            return Text.assemble(
+                (f"${{{env_var}}} ", ""),
+                ("(not set)", ThemeKey.CONFIG_STATUS_ERROR),
+            )
+    elif provider.api_key:
+        # Plain API key
+        return Text(mask_api_key(provider.api_key))
+    else:
+        return Text("N/A")
+
+
 def display_models_and_providers(config: Config):
     """Display models and providers configuration using rich formatting"""
     themes = get_theme(config.theme)
@@ -93,7 +118,7 @@ def display_models_and_providers(config: Config):
         if provider.api_key:
             provider_info.add_row(
                 Text("API Key:", style=ThemeKey.CONFIG_PARAM_LABEL),
-                Text(mask_api_key(provider.api_key)),
+                format_api_key_display(provider),
             )
 
         # Models table for this provider

@@ -1,4 +1,6 @@
 import asyncio
+import os
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, cast
@@ -10,6 +12,43 @@ from klaude_code.protocol import llm_param
 from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 from klaude_code.trace import log
 
+# Pattern to match ${ENV_VAR} syntax
+_ENV_VAR_PATTERN = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
+
+
+def parse_env_var_syntax(value: str | None) -> tuple[str | None, str | None]:
+    """Parse a value that may use ${ENV_VAR} syntax.
+
+    Returns:
+        A tuple of (env_var_name, resolved_value).
+        - If value uses ${ENV_VAR} syntax: (env_var_name, os.environ.get(env_var_name))
+        - If value is a plain string: (None, value)
+        - If value is None: (None, None)
+    """
+    if value is None:
+        return None, None
+
+    match = _ENV_VAR_PATTERN.match(value)
+    if match:
+        env_var_name = match.group(1)
+        return env_var_name, os.environ.get(env_var_name)
+
+    return None, value
+
+
+def is_env_var_syntax(value: str | None) -> bool:
+    """Check if a value uses ${ENV_VAR} syntax."""
+    if value is None:
+        return False
+    return _ENV_VAR_PATTERN.match(value) is not None
+
+
+def resolve_api_key(value: str | None) -> str | None:
+    """Resolve an API key value, expanding ${ENV_VAR} syntax if present."""
+    _, resolved = parse_env_var_syntax(value)
+    return resolved
+
+
 config_path = Path.home() / ".klaude" / "klaude-config.yaml"
 
 
@@ -20,6 +59,19 @@ class ModelConfig(BaseModel):
 
 class ProviderConfig(llm_param.LLMConfigProviderParameter):
     model_list: list[ModelConfig] = Field(default_factory=lambda: [])
+
+    def get_resolved_api_key(self) -> str | None:
+        """Get the resolved API key, expanding ${ENV_VAR} syntax if present."""
+        return resolve_api_key(self.api_key)
+
+    def get_api_key_env_var(self) -> str | None:
+        """Get the environment variable name if ${ENV_VAR} syntax is used."""
+        env_var, _ = parse_env_var_syntax(self.api_key)
+        return env_var
+
+    def is_api_key_missing(self) -> bool:
+        """Check if the API key is missing (either not set or env var not found)."""
+        return self.get_resolved_api_key() is None
 
 
 class ModelEntry(BaseModel):
@@ -54,15 +106,22 @@ class Config(BaseModel):
         for provider in self.provider_list:
             for model in provider.model_list:
                 if model.model_name == model_name:
+                    provider_dump = provider.model_dump(exclude={"model_list"})
+                    # Resolve ${ENV_VAR} syntax for api_key
+                    provider_dump["api_key"] = provider.get_resolved_api_key()
                     return llm_param.LLMConfigParameter(
-                        **provider.model_dump(exclude={"model_list"}),
+                        **provider_dump,
                         **model.model_params.model_dump(),
                     )
 
         raise ValueError(f"Unknown model: {model_name}")
 
-    def iter_model_entries(self) -> list[ModelEntry]:
-        """Return all model entries with their provider names."""
+    def iter_model_entries(self, only_available: bool = False) -> list[ModelEntry]:
+        """Return all model entries with their provider names.
+
+        Args:
+            only_available: If True, only return models from providers with valid API keys.
+        """
         return [
             ModelEntry(
                 model_name=model.model_name,
@@ -70,6 +129,7 @@ class Config(BaseModel):
                 model_params=model.model_params,
             )
             for provider in self.provider_list
+            if not only_available or not provider.is_api_key_missing()
             for model in provider.model_list
         ]
 
@@ -96,7 +156,7 @@ def get_example_config() -> Config:
             ProviderConfig(
                 provider_name="openai",
                 protocol=llm_param.LLMClientProtocol.RESPONSES,
-                api_key="your-openai-api-key",
+                api_key="${OPENAI_API_KEY}",
                 base_url="https://api.openai.com/v1",
                 model_list=[
                     ModelConfig(
@@ -116,7 +176,7 @@ def get_example_config() -> Config:
             ProviderConfig(
                 provider_name="openrouter",
                 protocol=llm_param.LLMClientProtocol.OPENROUTER,
-                api_key="your-openrouter-api-key",
+                api_key="${OPENROUTER_API_KEY}",
                 model_list=[
                     ModelConfig(
                         model_name="haiku",
@@ -134,7 +194,7 @@ def get_example_config() -> Config:
             ProviderConfig(
                 provider_name="anthropic",
                 protocol=llm_param.LLMClientProtocol.ANTHROPIC,
-                api_key="your-anthropic-api-key",
+                api_key="${ANTHROPIC_API_KEY}",
                 model_list=[
                     ModelConfig(
                         model_name="opus",
