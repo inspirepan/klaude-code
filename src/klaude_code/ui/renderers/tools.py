@@ -569,7 +569,7 @@ def render_tool_result(e: events.ToolResultEvent, *, code_theme: str = "monokai"
     # Handle error case
     if e.status == "error" and e.ui_extra is None:
         error_msg = truncate_display(e.result)
-        return r_errors.render_error(error_msg)
+        return r_errors.render_tool_error(error_msg)
 
     # Render multiple ui blocks if present
     if isinstance(e.ui_extra, model.MultiUIExtra) and e.ui_extra.items:

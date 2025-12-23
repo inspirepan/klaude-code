@@ -266,12 +266,7 @@ class REPLRenderer:
         self.print(r_user_input.render_interrupt())
 
     def display_error(self, event: events.ErrorEvent) -> None:
-        self.print(
-            r_errors.render_error(
-                truncate_display(event.error_message),
-                indent=0,
-            )
-        )
+        self.print(r_errors.render_error(truncate_display(event.error_message)))
 
     # -------------------------------------------------------------------------
     # Spinner control methods
