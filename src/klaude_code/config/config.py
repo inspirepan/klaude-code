@@ -81,10 +81,10 @@ class ModelEntry(BaseModel):
 
 
 class Config(BaseModel):
-    provider_list: list[ProviderConfig]
-    main_model: str
+    main_model: str | None = None
     sub_agent_models: dict[str, str] = Field(default_factory=dict)
     theme: str | None = None
+    provider_list: list[ProviderConfig]
 
     @model_validator(mode="before")
     @classmethod
@@ -98,9 +98,6 @@ class Config(BaseModel):
             normalized[canonical] = str(value)
         data["sub_agent_models"] = normalized
         return data
-
-    def get_main_model_config(self) -> llm_param.LLMConfigParameter:
-        return self.get_model_config(self.main_model)
 
     def get_model_config(self, model_name: str) -> llm_param.LLMConfigParameter:
         for provider in self.provider_list:
@@ -234,7 +231,7 @@ def _load_config_uncached() -> Config | None:
     config_dict = yaml.safe_load(config_yaml)
 
     if config_dict is None:
-        log(f"Config file is empty or all commented: {config_path}", style="red bold")
+        log(f"Config file: {config_path}", style="red bold")
         log("Please edit the config file to set up your models", style="yellow bold")
         return None
 

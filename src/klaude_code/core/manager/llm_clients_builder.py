@@ -19,7 +19,10 @@ def build_llm_clients(
     """Create an ``LLMClients`` bundle driven by application config."""
 
     # Resolve main agent LLM config
-    llm_config = config.get_model_config(model_override) if model_override else config.get_main_model_config()
+    model_name = model_override or config.main_model
+    if model_name is None:
+        raise ValueError("No model specified. Use --model or --select-model to specify a model.")
+    llm_config = config.get_model_config(model_name)
 
     log_debug(
         "Main LLM config",

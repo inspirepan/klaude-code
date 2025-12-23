@@ -160,7 +160,7 @@ async def initialize_session(
 def _backfill_session_model_config(
     agent: Agent | None,
     model_override: str | None,
-    default_model: str,
+    default_model: str | None,
     is_new_session: bool,
 ) -> None:
     """Backfill model_config_name and model_thinking on newly created sessions."""
@@ -169,7 +169,7 @@ def _backfill_session_model_config(
 
     if model_override is not None:
         agent.session.model_config_name = model_override
-    elif is_new_session:
+    elif is_new_session and default_model is not None:
         agent.session.model_config_name = default_model
     else:
         return

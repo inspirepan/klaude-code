@@ -215,12 +215,20 @@ def display_models_and_providers(config: Config):
 
     # Display main model info
     console.print()
-    console.print(
-        Text.assemble(
-            ("Default Model: ", "bold"),
-            (config.main_model, ThemeKey.CONFIG_STATUS_PRIMARY),
+    if config.main_model:
+        console.print(
+            Text.assemble(
+                ("Default Model: ", "bold"),
+                (config.main_model, ThemeKey.CONFIG_STATUS_PRIMARY),
+            )
         )
-    )
+    else:
+        console.print(
+            Text.assemble(
+                ("Default Model: ", "bold"),
+                ("(not set)", ThemeKey.CONFIG_STATUS_ERROR),
+            )
+        )
 
     for profile in iter_sub_agent_profiles():
         sub_model_name = config.sub_agent_models.get(profile.name)

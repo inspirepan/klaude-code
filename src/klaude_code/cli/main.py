@@ -143,6 +143,7 @@ def exec_command(
         raise typer.Exit(1)
 
     from klaude_code.cli.runtime import AppInitConfig, run_exec
+    from klaude_code.config import load_config
     from klaude_code.config.select_model import select_model_from_config
 
     chosen_model = model
@@ -150,6 +151,22 @@ def exec_command(
         chosen_model = select_model_from_config(preferred=model)
         if chosen_model is None:
             return
+    else:
+        # Check if main_model is configured; if not, trigger interactive selection
+        config = load_config()
+        if config is None:
+            raise typer.Exit(1)
+        if config.main_model is None:
+            chosen_model = select_model_from_config()
+            if chosen_model is None:
+                raise typer.Exit(1)
+            # Save the selection as default
+            config.main_model = chosen_model
+            from klaude_code.config.config import config_path
+            from klaude_code.trace import log
+
+            asyncio.run(config.save())
+            log(f"Saved main_model={chosen_model} to {config_path}", style="cyan")
 
     debug_enabled, debug_filters, log_path = prepare_debug_logging(debug, debug_filter)
 
@@ -296,6 +313,25 @@ def main_callback(
                     ]
                     if len(matches) == 1:
                         chosen_model = matches[0]
+
+        # If still no model, check main_model; if not configured, trigger interactive selection
+        if chosen_model is None:
+            from klaude_code.config import load_config
+
+            cfg = load_config()
+            if cfg is None:
+                raise typer.Exit(1)
+            if cfg.main_model is None:
+                chosen_model = select_model_from_config()
+                if chosen_model is None:
+                    raise typer.Exit(1)
+                # Save the selection as default
+                cfg.main_model = chosen_model
+                from klaude_code.config.config import config_path
+                from klaude_code.trace import log
+
+                asyncio.run(cfg.save())
+                log(f"Saved main_model={chosen_model} to {config_path}", style="dim")
 
         debug_enabled, debug_filters, log_path = prepare_debug_logging(debug, debug_filter)
 

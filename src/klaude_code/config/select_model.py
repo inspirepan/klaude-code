@@ -1,3 +1,5 @@
+import sys
+
 from klaude_code.config.config import ModelEntry, load_config
 from klaude_code.trace import log
 
@@ -26,14 +28,18 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
     - Otherwise: fall through to interactive selection
     """
     config = load_config()
-    assert config is not None
+    if config is None:
+        log(("No model available", "red"))
+        return None
+
     # Only show models from providers with valid API keys
     models: list[ModelEntry] = sorted(
         config.iter_model_entries(only_available=True), key=lambda m: m.model_name.lower()
     )
 
     if not models:
-        raise ValueError("No models configured. Please update your config.yaml")
+        log(("No model available", "red"))
+        return None
 
     names: list[str] = [m.model_name for m in models]
 
@@ -93,6 +99,15 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
         else:
             # No matches: show all models without filter hint
             preferred = None
+
+    # Non-interactive environments (CI/pipes) should never enter an interactive prompt.
+    # If we couldn't resolve to a single model deterministically above, fail with a clear hint.
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        log(("Error: cannot use interactive model selection without a TTY", "red"))
+        log(("Hint: pass --model <config-name> or set main_model in ~/.klaude/klaude-config.yaml", "yellow"))
+        if preferred:
+            log((f"Hint: '{preferred}' did not resolve to a single configured model", "yellow"))
+        return None
 
     try:
         import questionary

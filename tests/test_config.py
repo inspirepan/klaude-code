@@ -138,9 +138,7 @@ class TestConfig:
         assert sample_config.sub_agent_models == {}
         assert sample_config.theme is None
 
-    def test_config_with_theme(
-        self, sample_provider: ProviderConfig
-    ) -> None:
+    def test_config_with_theme(self, sample_provider: ProviderConfig) -> None:
         """Test Config with theme."""
         config = Config(
             provider_list=[sample_provider],
@@ -158,13 +156,6 @@ class TestConfig:
         assert llm_config.provider_name == "test-provider"
         assert llm_config.protocol == llm_param.LLMClientProtocol.OPENAI
         assert llm_config.api_key == "test-api-key"
-
-    def test_get_main_model_config(self, sample_config: Config) -> None:
-        """Test getting main model config."""
-        llm_config = sample_config.get_main_model_config()
-
-        assert llm_config.model == "test-model-v1"
-        assert llm_config.provider_name == "test-provider"
 
     def test_get_model_config_unknown_model(self, sample_config: Config) -> None:
         """Test getting config for unknown model raises error."""
@@ -187,9 +178,7 @@ class TestConfig:
         with pytest.raises(ValueError, match="Unknown model: orphan-model"):
             config.get_model_config("orphan-model")
 
-    def test_sub_agent_models_normalization(
-        self, sample_provider: ProviderConfig
-    ) -> None:
+    def test_sub_agent_models_normalization(self, sample_provider: ProviderConfig) -> None:
         """Test that sub_agent_models keys are normalized to canonical names."""
         # Use lowercase keys that should be normalized
         config = Config(
@@ -205,9 +194,7 @@ class TestConfig:
         assert config.sub_agent_models["Task"] == "model-a"
         assert config.sub_agent_models["Oracle"] == "model-b"
 
-    def test_sub_agent_models_empty(
-        self, sample_provider: ProviderConfig
-    ) -> None:
+    def test_sub_agent_models_empty(self, sample_provider: ProviderConfig) -> None:
         """Test that empty sub_agent_models is handled correctly."""
         config = Config(
             provider_list=[sample_provider],
@@ -509,7 +496,7 @@ class TestLLMConfigParameterIntegration:
             main_model="advanced-model",
         )
 
-        llm_config = config.get_main_model_config()
+        llm_config = config.get_model_config("advanced-model")
 
         # Provider fields
         assert llm_config.provider_name == "my-provider"
@@ -571,6 +558,7 @@ class TestSelectModelFromConfig:
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
             protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
         )
         model = ModelConfig(
             model_name="gpt-5.2",
@@ -590,6 +578,7 @@ class TestSelectModelFromConfig:
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
             protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
         )
         model = ModelConfig(
             model_name="gpt-5.2",
@@ -609,6 +598,7 @@ class TestSelectModelFromConfig:
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
             protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
         )
         model = ModelConfig(
             model_name="gpt-5.2",
@@ -628,6 +618,7 @@ class TestSelectModelFromConfig:
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
             protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
         )
         model = ModelConfig(
             model_name="primary",
@@ -647,6 +638,7 @@ class TestSelectModelFromConfig:
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
             protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
         )
         model = ModelConfig(
             model_name="primary",
@@ -668,6 +660,7 @@ class TestSelectModelFromConfig:
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
             protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
         )
         model_a = ModelConfig(
             model_name="gpt-5.2-2025-12-01",
@@ -681,6 +674,10 @@ class TestSelectModelFromConfig:
         config = Config(provider_list=[provider_config], main_model=model_a.model_name)
 
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
+
+        # This test exercises the interactive branch; simulate a TTY.
+        monkeypatch.setattr(select_model_module.sys.stdin, "isatty", lambda: True)
+        monkeypatch.setattr(select_model_module.sys.stdout, "isatty", lambda: True)
 
         captured: dict[str, Any] = {}
         questionary_stub: Any = types.ModuleType("questionary")
