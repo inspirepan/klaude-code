@@ -427,6 +427,41 @@ def _get_diff_ui_extra(ui_extra: model.ToolResultUIExtra | None) -> model.DiffUI
     return None
 
 
+def _render_markdown_doc(doc: model.MarkdownDocUIExtra) -> str:
+    encoded = _escape_html(doc.content)
+    file_path = _escape_html(doc.file_path)
+    header = f'<div class="diff-file">{file_path} <span style="font-weight: normal; color: var(--text-dim); font-size: 12px; margin-left: 8px;">(markdown content)</span></div>'
+
+    # Using a container that mimics diff-view but for markdown
+    content = (
+        f'<div class="markdown-content markdown-body" data-raw="{encoded}" '
+        f'style="padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-body); margin-top: 4px;">'
+        f'<noscript><pre style="white-space: pre-wrap;">{encoded}</pre></noscript>'
+        f"</div>"
+    )
+
+    line_count = doc.content.count("\n") + 1
+    open_attr = " open"
+
+    return (
+        f'<details class="diff-collapsible"{open_attr}>'
+        f"<summary>File Content ({line_count} lines)</summary>"
+        f'<div style="margin-top: 8px;">'
+        f"{header}"
+        f"{content}"
+        f"</div>"
+        f"</details>"
+    )
+
+
+def _collect_ui_extras(ui_extra: model.ToolResultUIExtra | None) -> list[model.ToolResultUIExtra]:
+    if ui_extra is None:
+        return []
+    if isinstance(ui_extra, model.MultiUIExtra):
+        return list(ui_extra.items)
+    return [ui_extra]
+
+
 def _build_add_only_diff(text: str, file_path: str) -> model.DiffUIExtra:
     lines: list[model.DiffLine] = []
     new_line_no = 1
@@ -567,19 +602,26 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
     ]
 
     if result:
-        diff_ui = _get_diff_ui_extra(result.ui_extra)
-        mermaid_html = _get_mermaid_link_html(result.ui_extra, tool_call)
+        extras = _collect_ui_extras(result.ui_extra)
+
+        mermaid_extra = next((x for x in extras if isinstance(x, model.MermaidLinkUIExtra)), None)
+        mermaid_source = mermaid_extra if mermaid_extra else result.ui_extra
+        mermaid_html = _get_mermaid_link_html(mermaid_source, tool_call)
 
         should_hide_text = tool_call.name in ("TodoWrite", "update_plan") and result.status != "error"
 
-        if tool_call.name == "Edit" and not diff_ui and result.status != "error":
+        if (
+            tool_call.name == "Edit"
+            and not any(isinstance(x, model.DiffUIExtra) for x in extras)
+            and result.status != "error"
+        ):
             try:
                 args_data = json.loads(tool_call.arguments)
                 file_path = args_data.get("file_path", "Unknown file")
                 old_string = args_data.get("old_string", "")
                 new_string = args_data.get("new_string", "")
                 if old_string == "" and new_string:
-                    diff_ui = _build_add_only_diff(new_string, file_path)
+                    extras.append(_build_add_only_diff(new_string, file_path))
             except (json.JSONDecodeError, TypeError):
                 pass
 
@@ -591,8 +633,11 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
             else:
                 items_to_render.append(_render_text_block(result.output))
 
-        if diff_ui:
-            items_to_render.append(_render_diff_block(diff_ui))
+        for extra in extras:
+            if isinstance(extra, model.DiffUIExtra):
+                items_to_render.append(_render_diff_block(extra))
+            elif isinstance(extra, model.MarkdownDocUIExtra):
+                items_to_render.append(_render_markdown_doc(extra))
 
         if mermaid_html:
             items_to_render.append(mermaid_html)
