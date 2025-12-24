@@ -37,10 +37,17 @@ def truncate_display(
 
     if len(lines) > max_lines:
         truncated_lines = len(lines) - max_lines
-        head_count = max_lines // 2
-        tail_count = max_lines - head_count
-        head_lines = lines[:head_count]
-        tail_lines = lines[-tail_count:]
+
+        # If the hidden section is too small, show everything instead of inserting
+        # the "(more N lines)" indicator.
+        if truncated_lines < 5:
+            truncated_lines = 0
+            head_lines = lines
+        else:
+            head_count = max_lines // 2
+            tail_count = max_lines - head_count
+            head_lines = lines[:head_count]
+            tail_lines = lines[-tail_count:]
     else:
         head_lines = lines
 
