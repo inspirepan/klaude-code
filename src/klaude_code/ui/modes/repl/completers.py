@@ -398,8 +398,14 @@ class _AtFilesCompleter(Completer):
 
         if not results:
             if self._has_cmd("fd"):
+                # First, get immediate children matching the keyword (depth=0).
+                # fd's traversal order is not depth-first, so --max-results may
+                # truncate shallow matches. We ensure depth=0 items are always included.
+                immediate = self._get_immediate_matches(cwd, key_norm)
                 # Use fd to search anywhere in full path (files and directories), case-insensitive
-                results, truncated = self._run_fd_search(cwd, key_norm, max_results=max_scan_results)
+                fd_results, truncated = self._run_fd_search(cwd, key_norm, max_results=max_scan_results)
+                # Merge: immediate matches first, then fd results (deduped in _filter_and_format)
+                results = immediate + fd_results
             elif self._has_cmd("rg"):
                 # Use rg to search only in current directory
                 rg_cache_ttl = max(self._cache_ttl, 30.0)
@@ -451,10 +457,11 @@ class _AtFilesCompleter(Completer):
         keyword_norm: str,
     ) -> list[str]:
         # Filter to keyword (case-insensitive) and rank by:
-        # 1. Basename hit first, then path hit position, then length
+        # 1. Directory depth (shallower first)
+        # 2. Basename hit first, then path hit position, then length
         # Since both fd and rg now search from current directory, all paths are relative to cwd
         kn = keyword_norm
-        out: list[tuple[str, tuple[int, int, int, int]]] = []
+        out: list[tuple[str, tuple[int, int, int, int, int]]] = []
         for p in paths_from_root:
             pl = p.lower()
             if kn not in pl:
@@ -469,7 +476,9 @@ class _AtFilesCompleter(Completer):
             base = os.path.basename(rel_to_cwd.rstrip("/")).lower()
             base_pos = base.find(kn)
             path_pos = pl.find(kn)
+            depth = rel_to_cwd.rstrip("/").count("/")
             score = (
+                depth,
                 0 if base_pos != -1 else 1,
                 base_pos if base_pos != -1 else 10_000,
                 path_pos,
@@ -683,6 +692,28 @@ class _AtFilesCompleter(Completer):
         except OSError:
             return []
         return items[: min(self._max_results, 100)]
+
+    def _get_immediate_matches(self, cwd: Path, keyword_norm: str) -> list[str]:
+        """Get immediate children of cwd that match the keyword (case-insensitive).
+
+        This ensures depth=0 matches are always included, even when fd's
+        --max-results truncates before reaching them.
+        """
+        excluded = {".git", ".venv", "node_modules"}
+        items: list[str] = []
+        try:
+            for p in cwd.iterdir():
+                name = p.name
+                if name in excluded:
+                    continue
+                if keyword_norm in name.lower():
+                    rel = name
+                    if p.is_dir():
+                        rel += "/"
+                    items.append(rel)
+        except OSError:
+            return []
+        return items
 
     def _run_cmd(self, cmd: list[str], cwd: Path | None = None, *, timeout_sec: float) -> _CmdResult:
         cmd_str = " ".join(cmd)
