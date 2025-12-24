@@ -167,10 +167,9 @@ class ActivityState:
             return activity_text
         if self._composing:
             # Main status text with creative verb
-            text = Text.assemble(
-                ("Composing ", ThemeKey.STATUS_TEXT_BOLD),
-                (f"({self._buffer_length:,})", ThemeKey.STATUS_TEXT),
-            )
+            text = Text("Composing", style=ThemeKey.STATUS_TEXT_BOLD)
+            if self._buffer_length > 0:
+                text.append(f" ({self._buffer_length:,})", style=ThemeKey.STATUS_TEXT)
             return text
         return None
 
@@ -249,10 +248,13 @@ class SpinnerStatusState:
         base_status = self._reasoning_status or self._todo_status
 
         if base_status:
-            result = Text(base_status, style=ThemeKey.STATUS_TEXT_BOLD)
             if activity_text:
+                result = Text()
+                result.append(base_status, style=ThemeKey.STATUS_TEXT_BOLD_ITALIC)
                 result.append(" | ")
                 result.append_text(activity_text)
+            else:
+                result = Text(base_status, style=ThemeKey.STATUS_TEXT_BOLD_ITALIC)
         elif activity_text:
             activity_text.append(" …")
             result = activity_text
