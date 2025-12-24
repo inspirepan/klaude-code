@@ -260,6 +260,7 @@ class DeveloperMessageItem(BaseModel):
 
     # Special fields for reminders UI
     memory_paths: list[str] | None = None
+    memory_mentioned: dict[str, list[str]] | None = None  # memory_path -> list of @ patterns mentioned in it
     external_file_changes: list[str] | None = None
     todo_use: bool | None = None
     at_files: list[AtPatternParseResult] | None = None

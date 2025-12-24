@@ -46,6 +46,17 @@ class AtPatternSource:
     mentioned_in: str | None = None
 
 
+def _extract_at_patterns(content: str) -> list[str]:
+    """Extract @ patterns from content."""
+    patterns: list[str] = []
+    if "@" in content:
+        for match in AT_FILE_PATTERN.finditer(content):
+            path_str = match.group("quoted") or match.group("plain")
+            if path_str:
+                patterns.append(path_str)
+    return patterns
+
+
 def get_at_patterns_with_source(session: Session) -> list[AtPatternSource]:
     """Get @ patterns from last user input and developer messages, preserving source info."""
     patterns: list[AtPatternSource] = []
@@ -56,24 +67,14 @@ def get_at_patterns_with_source(session: Session) -> list[AtPatternSource]:
 
         if isinstance(item, model.UserMessageItem):
             content = item.content or ""
-            if "@" in content:
-                for match in AT_FILE_PATTERN.finditer(content):
-                    path_str = match.group("quoted") or match.group("plain")
-                    if path_str:
-                        patterns.append(AtPatternSource(pattern=path_str, mentioned_in=None))
+            for path_str in _extract_at_patterns(content):
+                patterns.append(AtPatternSource(pattern=path_str, mentioned_in=None))
             break
 
-        if isinstance(item, model.DeveloperMessageItem):
-            content = item.content or ""
-            if "@" not in content:
-                continue
-            # Use first memory_path as the source if available
-            source = item.memory_paths[0] if item.memory_paths else None
-            for match in AT_FILE_PATTERN.finditer(content):
-                path_str = match.group("quoted") or match.group("plain")
-                if path_str:
-                    patterns.append(AtPatternSource(pattern=path_str, mentioned_in=source))
-
+        if isinstance(item, model.DeveloperMessageItem) and item.memory_mentioned:
+            for memory_path, mentioned_patterns in item.memory_mentioned.items():
+                for pattern in mentioned_patterns:
+                    patterns.append(AtPatternSource(pattern=pattern, mentioned_in=memory_path))
     return patterns
 
 
@@ -458,6 +459,13 @@ async def memory_reminder(session: Session) -> model.DeveloperMessageItem | None
         memories_str = "\n\n".join(
             [f"Contents of {memory.path} ({memory.instruction}):\n\n{memory.content}" for memory in memories]
         )
+        # Build memory_mentioned: extract @ patterns from each memory's content
+        memory_mentioned: dict[str, list[str]] = {}
+        for memory in memories:
+            patterns = _extract_at_patterns(memory.content)
+            if patterns:
+                memory_mentioned[memory.path] = patterns
+
         return model.DeveloperMessageItem(
             content=f"""<system-reminder>As you answer the user's questions, you can use the following context:
 
@@ -474,6 +482,7 @@ NEVER proactively create documentation files (*.md) or README files. Only create
 IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.
 </system-reminder>""",
             memory_paths=[memory.path for memory in memories],
+            memory_mentioned=memory_mentioned or None,
         )
     return None
 
@@ -544,10 +553,18 @@ async def last_path_memory_reminder(
         memories_str = "\n\n".join(
             [f"Contents of {memory.path} ({memory.instruction}):\n\n{memory.content}" for memory in memories]
         )
+        # Build memory_mentioned: extract @ patterns from each memory's content
+        memory_mentioned: dict[str, list[str]] = {}
+        for memory in memories:
+            patterns = _extract_at_patterns(memory.content)
+            if patterns:
+                memory_mentioned[memory.path] = patterns
+
         return model.DeveloperMessageItem(
             content=f"""<system-reminder>{memories_str}
 </system-reminder>""",
             memory_paths=[memory.path for memory in memories],
+            memory_mentioned=memory_mentioned or None,
         )
 
 
