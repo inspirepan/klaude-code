@@ -211,6 +211,37 @@ class TestReminders(BaseTempDirTest):
         self.assertTrue(at_file.path.endswith("README.md"))
         self.assertIn("READ ME", at_file.result)
 
+    def test_at_file_reader_reminder_skips_tracked_unchanged_file(self):
+        file_path = os.path.abspath("tracked.txt")
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write("hello\n")
+
+        _ = arun(ReadTool.call(json.dumps({"file_path": file_path})))
+
+        self.session.conversation_history.append(model.UserMessageItem(content=f"@{file_path}"))
+
+        reminder = arun(at_file_reader_reminder(self.session))
+        self.assertIsNone(reminder)
+
+    def test_at_file_reader_reminder_skips_when_touched_but_hash_unchanged(self):
+        file_path = os.path.abspath("touched.txt")
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write("same content\n")
+
+        _ = arun(ReadTool.call(json.dumps({"file_path": file_path})))
+        status = self.session.file_tracker.get(file_path)
+        self.assertIsNotNone(status)
+        assert status is not None
+
+        orig_mtime_ns = os.stat(file_path).st_mtime_ns
+        new_mtime_ns = orig_mtime_ns + 2_000_000_000
+        os.utime(file_path, ns=(new_mtime_ns, new_mtime_ns))
+
+        self.session.conversation_history.append(model.UserMessageItem(content=f"@{file_path}"))
+
+        reminder = arun(at_file_reader_reminder(self.session))
+        self.assertIsNone(reminder)
+
     def test_at_file_reader_reminder_ignores_mid_word_at_symbols(self):
         file_path = os.path.abspath("bar.com")
         with open(file_path, "w", encoding="utf-8") as f:

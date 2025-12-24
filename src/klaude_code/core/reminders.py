@@ -93,6 +93,23 @@ def get_skill_from_user_input(session: Session) -> str | None:
     return None
 
 
+def _is_tracked_file_unchanged(session: Session, path: str) -> bool:
+    status = session.file_tracker.get(path)
+    if status is None or status.content_sha256 is None:
+        return False
+
+    try:
+        current_mtime = Path(path).stat().st_mtime
+    except (OSError, FileNotFoundError):
+        return False
+
+    if current_mtime == status.mtime:
+        return True
+
+    current_sha256 = _compute_file_content_sha256(path)
+    return current_sha256 is not None and current_sha256 == status.content_sha256
+
+
 async def _load_at_file_recursive(
     session: Session,
     pattern: str,
@@ -113,6 +130,8 @@ async def _load_at_file_recursive(
     context_token = set_tool_context_from_session(session)
     try:
         if path.exists() and path.is_file():
+            if _is_tracked_file_unchanged(session, path_str):
+                return
             args = ReadTool.ReadArguments(file_path=path_str)
             tool_result = await ReadTool.call_with_args(args)
             at_files[path_str] = model.AtPatternParseResult(
