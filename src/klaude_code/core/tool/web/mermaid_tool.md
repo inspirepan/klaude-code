@@ -45,3 +45,20 @@ sequenceDiagram
 
 # Styling
 - When defining custom classDefs, always define fill color, stroke color, and text color ("fill", "stroke", "color") explicitly
+- Use colors to distinguish node types and improve readability
+
+## Color Palette
+- Cyan #e0f0f0 - information, data flow
+- Green #e0f0e0 - success, completion
+- Blue #e0e8f5 - primary actions, main flow
+- Purple #ede0f5 - highlights, special nodes
+- Orange #f5ebe0 - warnings, pending
+- Red #f5e0e0 - errors, critical
+- Grey #e8e8e8 - neutral elements
+- Yellow #f5f5e0 - attention, notes
+
+Example:
+```mermaid
+classDef primary fill:#e0e8f5,stroke:#3078C5,color:#1a1a1a
+classDef success fill:#e0f0e0,stroke:#00875f,color:#1a1a1a
+```

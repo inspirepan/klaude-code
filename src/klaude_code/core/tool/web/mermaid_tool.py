@@ -11,7 +11,7 @@ from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, model, tools
 
-_MERMAID_LIVE_PREFIX = "https://mermaid.live/view#pako:"
+_MERMAID_LIVE_PREFIX = "https://mermaid.live/edit#pako:"
 
 
 @register(tools.MERMAID)
@@ -31,7 +31,7 @@ class MermaidTool(ToolABC):
                 "type": "object",
                 "properties": {
                     "code": {
-                        "description": "The Mermaid diagram code to render (DO NOT override with custom colors or other styles, DO NOT use HTML tags in node labels)",
+                        "description": "The Mermaid diagram code to render (DO NOT use HTML tags in node labels)",
                         "type": "string",
                     },
                 },
