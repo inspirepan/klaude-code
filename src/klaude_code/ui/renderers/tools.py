@@ -353,11 +353,15 @@ def _truncate_url(url: str, max_length: int = 400) -> str:
     return display_url[: max_length - 3] + "..."
 
 
-def _render_mermaid_viewer_link(tr: events.ToolResultEvent, link: str, *, use_osc8: bool) -> RenderableType:
-    viewer_path = r_mermaid_viewer.build_viewer_from_link(link=link, tool_call_id=tr.tool_call_id)
+def _render_mermaid_viewer_link(
+    tr: events.ToolResultEvent,
+    link_info: model.MermaidLinkUIExtra,
+    *,
+    use_osc8: bool,
+) -> RenderableType:
+    viewer_path = r_mermaid_viewer.build_viewer(code=link_info.code, link=link_info.link, tool_call_id=tr.tool_call_id)
     if viewer_path is None:
-        # Fallback: show the Mermaid.live URL without extra hints.
-        return Text(link, style=ThemeKey.TOOL_PARAM_FILE_PATH, overflow="fold")
+        return Text(link_info.link, style=ThemeKey.TOOL_PARAM_FILE_PATH, overflow="fold")
 
     display_path = str(viewer_path)
 
@@ -440,7 +444,7 @@ def render_mermaid_tool_result(tr: events.ToolResultEvent) -> RenderableType:
         return render_generic_tool_result(tr.result, is_error=tr.status == "error")
 
     use_osc8 = supports_osc8_hyperlinks()
-    viewer = _render_mermaid_viewer_link(tr, link_info.link, use_osc8=use_osc8)
+    viewer = _render_mermaid_viewer_link(tr, link_info, use_osc8=use_osc8)
     return Padding.indent(viewer, level=2)
 
 

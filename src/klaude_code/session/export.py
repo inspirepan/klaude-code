@@ -475,21 +475,28 @@ def _build_add_only_diff(text: str, file_path: str) -> model.DiffUIExtra:
 def _get_mermaid_link_html(
     ui_extra: model.ToolResultUIExtra | None, tool_call: model.ToolCallItem | None = None
 ) -> str | None:
-    if tool_call and tool_call.name == "Mermaid":
+    code = ""
+    link: str | None = None
+    line_count = 0
+
+    if isinstance(ui_extra, model.MermaidLinkUIExtra):
+        code = ui_extra.code
+        link = ui_extra.link
+        line_count = ui_extra.line_count
+
+    if not code and tool_call and tool_call.name == "Mermaid":
         try:
             args = json.loads(tool_call.arguments)
             code = args.get("code", "")
         except (json.JSONDecodeError, TypeError):
             code = ""
-    else:
-        code = ""
+        line_count = code.count("\n") + 1 if code else 0
 
-    if not code and not isinstance(ui_extra, model.MermaidLinkUIExtra):
+    if not code and not link:
         return None
 
     # Prepare code for rendering and copy
     escaped_code = _escape_html(code) if code else ""
-    line_count = code.count("\n") + 1 if code else 0
 
     # Build Toolbar
     toolbar_items: list[str] = []
@@ -505,8 +512,6 @@ def _get_mermaid_link_html(
         buttons_html.append(
             '<button type="button" class="fullscreen-mermaid-btn" title="View Fullscreen">Fullscreen</button>'
         )
-
-    link = ui_extra.link if isinstance(ui_extra, model.MermaidLinkUIExtra) else None
 
     if link:
         link_url = _escape_html(link)

@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import base64
 import html
 import importlib.resources
-import json
-import zlib
 from functools import lru_cache
 from pathlib import Path
 
@@ -13,30 +10,6 @@ from klaude_code import const
 
 def artifacts_dir() -> Path:
     return Path(const.TOOL_OUTPUT_TRUNCATION_DIR) / "mermaid"
-
-
-def decode_mermaid_live_link(link: str) -> str | None:
-    """Decode Mermaid.live pako link and return Mermaid code."""
-
-    if "#pako:" not in link:
-        return None
-
-    payload = link.split("#pako:", 1)[1]
-    if not payload:
-        return None
-
-    try:
-        padding = "=" * (-len(payload) % 4)
-        compressed = base64.urlsafe_b64decode(payload + padding)
-        decoded = zlib.decompress(compressed).decode("utf-8")
-        state = json.loads(decoded)
-    except (ValueError, zlib.error, json.JSONDecodeError):
-        return None
-
-    if not isinstance(state, dict):
-        return None
-    code = state.get("code")  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
-    return code if isinstance(code, str) else None
 
 
 @lru_cache(maxsize=1)
@@ -76,8 +49,10 @@ def ensure_viewer_file(*, code: str, link: str, tool_call_id: str) -> Path | Non
     return path
 
 
-def build_viewer_from_link(*, link: str, tool_call_id: str) -> Path | None:
-    code = decode_mermaid_live_link(link)
+def build_viewer(*, code: str, link: str, tool_call_id: str) -> Path | None:
+    """Create a local Mermaid viewer HTML file.
+    """
+
     if not code:
         return None
     return ensure_viewer_file(code=code, link=link, tool_call_id=tool_call_id)
