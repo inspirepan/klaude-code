@@ -6,6 +6,7 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import NoReturn
 
 import pytest
 from typer.testing import CliRunner
@@ -21,7 +22,7 @@ class _ForkSessionDummyAgent:
         self.session = session
         self.profile = None
 
-    def get_llm_client(self):  # pragma: no cover
+    def get_llm_client(self) -> NoReturn:  # pragma: no cover
         raise NotImplementedError
 
 
@@ -360,32 +361,6 @@ class TestTryRenderTodoArgs:
     def test_unknown_tool_name(self):
         args = json.dumps({"todos": [{"content": "Task", "status": "pending"}]})
         result = export._try_render_todo_args(args, "UnknownTool")
-        assert result is None
-
-
-class TestGetDiffUIExtra:
-    """Tests for _get_diff_ui_extra function."""
-
-    def test_diff_ui_extra(self):
-        extra = model.DiffUIExtra(
-            files=[
-                model.DiffFileDiff(
-                    file_path="file.txt",
-                    lines=[model.DiffLine(kind="add", new_line_no=1, spans=[model.DiffSpan(op="equal", text="ok")])],
-                    stats_add=1,
-                    stats_remove=0,
-                )
-            ]
-        )
-        result = export._get_diff_ui_extra(extra)
-        assert result == extra
-
-    def test_none_returns_none(self):
-        assert export._get_diff_ui_extra(None) is None
-
-    def test_other_type_returns_none(self):
-        extra = model.MermaidLinkUIExtra(link="http://example.com", line_count=10)
-        result = export._get_diff_ui_extra(extra)
         assert result is None
 
 

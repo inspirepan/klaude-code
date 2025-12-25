@@ -421,12 +421,6 @@ def _render_diff_span(span: model.DiffSpan, line_kind: str) -> str:
     return f'<span class="diff-span">{text}</span>'
 
 
-def _get_diff_ui_extra(ui_extra: model.ToolResultUIExtra | None) -> model.DiffUIExtra | None:
-    if isinstance(ui_extra, model.DiffUIExtra):
-        return ui_extra
-    return None
-
-
 def _render_markdown_doc(doc: model.MarkdownDocUIExtra) -> str:
     encoded = _escape_html(doc.content)
     file_path = _escape_html(doc.file_path)

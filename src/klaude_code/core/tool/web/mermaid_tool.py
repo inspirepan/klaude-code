@@ -11,7 +11,7 @@ from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, model, tools
 
-_MERMAID_LIVE_PREFIX = "https://mermaid.live/edit#pako:"
+_MERMAID_LIVE_PREFIX = "https://mermaid.live/view#pako:"
 
 
 @register(tools.MERMAID)

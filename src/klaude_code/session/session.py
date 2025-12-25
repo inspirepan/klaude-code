@@ -213,7 +213,7 @@ class Session(BaseModel):
         forked.file_tracker = {k: v.model_copy(deep=True) for k, v in self.file_tracker.items()}
         forked.todos = [todo.model_copy(deep=True) for todo in self.todos]
 
-        items = [cast(model.ConversationItem, it.model_copy(deep=True)) for it in self.conversation_history]
+        items = [it.model_copy(deep=True) for it in self.conversation_history]
         if items:
             forked.append_history(items)
 

@@ -6,12 +6,14 @@ from rich import box
 from rich.console import Group, RenderableType
 from rich.padding import Padding
 from rich.panel import Panel
+from rich.style import Style
 from rich.text import Text
 
 from klaude_code import const
 from klaude_code.protocol import events, model, tools
 from klaude_code.protocol.sub_agent import is_sub_agent_tool as _is_sub_agent_tool
 from klaude_code.ui.renderers import diffs as r_diffs
+from klaude_code.ui.renderers import mermaid_viewer as r_mermaid_viewer
 from klaude_code.ui.renderers.common import create_grid, truncate_display
 from klaude_code.ui.rich.markdown import NoInsetMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
@@ -351,6 +353,32 @@ def _truncate_url(url: str, max_length: int = 400) -> str:
     return display_url[: max_length - 3] + "..."
 
 
+def _render_mermaid_viewer_link(tr: events.ToolResultEvent, link: str, *, use_osc8: bool) -> RenderableType:
+    viewer_path = r_mermaid_viewer.build_viewer_from_link(link=link, tool_call_id=tr.tool_call_id)
+    if viewer_path is None:
+        # Fallback: show the Mermaid.live URL without extra hints.
+        return Text(link, style=ThemeKey.TOOL_PARAM_FILE_PATH, overflow="fold")
+
+    display_path = str(viewer_path)
+
+    file_url = ""
+    if use_osc8:
+        try:
+            file_url = viewer_path.resolve().as_uri()
+        except ValueError:
+            file_url = f"file://{viewer_path.as_posix()}"
+
+    rendered = Text.assemble(("saved in:", ThemeKey.TOOL_PARAM), " ")
+    start = len(rendered)
+    rendered.append(display_path, ThemeKey.TOOL_PARAM_FILE_PATH)
+    end = len(rendered)
+
+    if use_osc8 and file_url:
+        rendered.stylize(Style(link=file_url), start, end)
+
+    return rendered
+
+
 def render_web_fetch_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
     tool_name_column = Text.assemble((MARK_WEB_FETCH, ThemeKey.TOOL_MARK), " ", ("Fetch", ThemeKey.TOOL_NAME))
@@ -411,17 +439,9 @@ def render_mermaid_tool_result(tr: events.ToolResultEvent) -> RenderableType:
     if link_info is None:
         return render_generic_tool_result(tr.result, is_error=tr.status == "error")
 
-    if supports_osc8_hyperlinks():
-        link_text = Text.from_markup(f"[blue u][link={link_info.link}]Command+click to view[/link][/blue u]")
-        return Padding.indent(link_text, level=2)
-
-    # For terminals that don't support OSC 8, show a hint to use /export
-    hint_text = Text.assemble(
-        ("Use ", ThemeKey.TOOL_RESULT),
-        ("/export", ThemeKey.TOOL_RESULT_BOLD),
-        (" to view the diagram.", ThemeKey.TOOL_RESULT),
-    )
-    return Padding.indent(hint_text, level=2)
+    use_osc8 = supports_osc8_hyperlinks()
+    viewer = _render_mermaid_viewer_link(tr, link_info.link, use_osc8=use_osc8)
+    return Padding.indent(viewer, level=2)
 
 
 def _extract_truncation(
