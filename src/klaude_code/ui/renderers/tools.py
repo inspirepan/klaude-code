@@ -21,13 +21,13 @@ from klaude_code.ui.rich.theme import ThemeKey
 # Tool markers (Unicode symbols for UI display)
 MARK_GENERIC = "⚒"
 MARK_BASH = "$"
-MARK_PLAN = "Ξ"
-MARK_READ = "←"
+MARK_PLAN = "◈"
+MARK_READ = "→"
 MARK_EDIT = "±"
 MARK_WRITE = "+"
 MARK_MERMAID = "⧉"
-MARK_WEB_FETCH = "←"
-MARK_WEB_SEARCH = ""
+MARK_WEB_FETCH = "→"
+MARK_WEB_SEARCH = "✱"
 MARK_DONE = "✔"
 MARK_SKILL = "✪"
 

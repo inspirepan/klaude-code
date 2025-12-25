@@ -9,6 +9,8 @@ from klaude_code.ui.renderers.tools import render_path
 from klaude_code.ui.rich.markdown import NoInsetMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
 
+REMINDER_BULLET = "  ⧉"
+
 
 def need_render_developer_message(e: events.DeveloperMessageEvent) -> bool:
     return bool(
@@ -32,7 +34,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
     if mp := e.item.memory_paths:
         grid = create_grid()
         grid.add_row(
-            Text("  +", style=ThemeKey.REMINDER),
+            Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
             Text.assemble(
                 ("Load memory ", ThemeKey.REMINDER),
                 Text(", ", ThemeKey.REMINDER).join(
@@ -46,7 +48,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
         grid = create_grid()
         for file_path in fc:
             grid.add_row(
-                Text("  +", style=ThemeKey.REMINDER),
+                Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
                 Text.assemble(
                     ("Read ", ThemeKey.REMINDER),
                     render_path(file_path, ThemeKey.REMINDER_BOLD),
@@ -58,7 +60,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
     if e.item.todo_use:
         grid = create_grid()
         grid.add_row(
-            Text("  +", style=ThemeKey.REMINDER),
+            Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
             Text("Todo hasn't been updated recently", ThemeKey.REMINDER),
         )
         parts.append(grid)
@@ -68,7 +70,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
         for at_file in e.item.at_files:
             if at_file.mentioned_in:
                 grid.add_row(
-                    Text("  +", style=ThemeKey.REMINDER),
+                    Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
                     Text.assemble(
                         (f"{at_file.operation} ", ThemeKey.REMINDER),
                         render_path(at_file.path, ThemeKey.REMINDER_BOLD),
@@ -78,7 +80,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                 )
             else:
                 grid.add_row(
-                    Text("  +", style=ThemeKey.REMINDER),
+                    Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
                     Text.assemble(
                         (f"{at_file.operation} ", ThemeKey.REMINDER),
                         render_path(at_file.path, ThemeKey.REMINDER_BOLD),
@@ -89,7 +91,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
     if uic := e.item.user_image_count:
         grid = create_grid()
         grid.add_row(
-            Text("  +", style=ThemeKey.REMINDER),
+            Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
             Text(f"Attached {uic} image{'s' if uic > 1 else ''}", style=ThemeKey.REMINDER),
         )
         parts.append(grid)
@@ -97,7 +99,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
     if sn := e.item.skill_name:
         grid = create_grid()
         grid.add_row(
-            Text("  +", style=ThemeKey.REMINDER),
+            Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
             Text.assemble(
                 ("Activated skill ", ThemeKey.REMINDER),
                 (sn, ThemeKey.REMINDER_BOLD),

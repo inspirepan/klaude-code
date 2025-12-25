@@ -167,7 +167,8 @@ class ActivityState:
             return activity_text
         if self._composing:
             # Main status text with creative verb
-            text = Text("Composing", style=ThemeKey.STATUS_TEXT_BOLD)
+            text = Text()
+            text.append("Composing", style=ThemeKey.STATUS_TEXT_BOLD)
             if self._buffer_length > 0:
                 text.append(f" ({self._buffer_length:,})", style=ThemeKey.STATUS_TEXT)
             return text
@@ -363,6 +364,7 @@ class DisplayEventHandler:
         emit_osc94(OSC94States.INDETERMINATE)
         self.renderer.display_turn_start(event)
         self.spinner_status.clear_for_new_turn()
+        self.spinner_status.set_reasoning_status(None)
         self._update_spinner()
 
     async def _on_thinking(self, event: events.ThinkingEvent) -> None:
