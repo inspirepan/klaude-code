@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.29] - 2025-12-25
+
+### Added
+
+- create local HTML viewer for Mermaid.live links (`1b3480dd`)
+- add example config file and avoid auto-creating user config (`56b6ddd9`)
+
+### Changed
+
+- refresh message and tool markers (`66f6e23e`)
+- improve viewer and store code directly (`acd3f7a2`)
+
+### Fixed
+
+- duplicate turn start item when replay history (`9422613b`)
 ## [1.2.28] - 2025-12-25
 
 ### Added
@@ -822,7 +837,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.28...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.29...HEAD
+[1.2.29]: https://github.com/inspirepan/klaude-code/compare/v1.2.28...v1.2.29
 [1.2.28]: https://github.com/inspirepan/klaude-code/compare/v1.2.27...v1.2.28
 [1.2.27]: https://github.com/inspirepan/klaude-code/compare/v1.2.26...v1.2.27
 [1.2.26]: https://github.com/inspirepan/klaude-code/compare/v1.2.25...v1.2.26
