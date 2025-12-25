@@ -27,6 +27,7 @@ dependencies = [
 
 [project.scripts]
 klaude = "klaude_code.cli.main:app"
+klaude-code = "klaude_code.cli.main:app"
 
 [tool.uv.build-backend]
 module-name = "klaude_code"
