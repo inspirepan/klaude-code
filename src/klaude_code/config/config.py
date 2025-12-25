@@ -51,6 +51,7 @@ def resolve_api_key(value: str | None) -> str | None:
 
 
 config_path = Path.home() / ".klaude" / "klaude-config.yaml"
+example_config_path = Path.home() / ".klaude" / "klaude-config.example.yaml"
 
 
 class ModelConfig(BaseModel):
@@ -227,8 +228,8 @@ class Config(BaseModel):
 def get_example_config() -> UserConfig:
     """Generate example config for user reference (will be commented out)."""
     return UserConfig(
-        main_model="my-model",
-        sub_agent_models={"explore": "fast-model", "oracle": "smart-model", "webagent": "fast-model", "task": "opus"},
+        main_model="opus",
+        sub_agent_models={"explore": "haiku", "oracle": "gpt-5.2", "webagent": "sonnet", "task": "sonnet"},
         provider_list=[
             UserProviderConfig(
                 provider_name="my-provider",
@@ -357,30 +358,32 @@ def _load_user_config() -> UserConfig | None:
         raise ValueError(f"Invalid config file: {config_path}") from e
 
 
-def _ensure_config_file_exists() -> None:
-    """Ensure config file exists with commented example."""
-    if config_path.exists():
-        return
+def create_example_config() -> bool:
+    """Create example config file if it doesn't exist.
+
+    Returns:
+        True if file was created, False if it already exists.
+    """
+    if example_config_path.exists():
+        return False
 
     example_config = get_example_config()
-    config_path.parent.mkdir(parents=True, exist_ok=True)
+    example_config_path.parent.mkdir(parents=True, exist_ok=True)
     config_dict = example_config.model_dump(mode="json", exclude_none=True)
 
-    # Comment out all example config lines
     yaml_str = yaml.dump(config_dict, default_flow_style=False, sort_keys=False) or ""
-    commented_yaml = "# Custom configuration (optional)\n"
-    commented_yaml += "# Built-in providers (anthropic, openai, openrouter, deepseek) are available automatically.\n"
-    commented_yaml += "# Just set the corresponding API key environment variable to use them.\n"
-    commented_yaml += "#\n"
-    commented_yaml += "# Example custom provider:\n"
-    commented_yaml += "\n".join(f"# {line}" if line.strip() else "#" for line in yaml_str.splitlines())
-    _ = config_path.write_text(commented_yaml)
+    header = "# Example configuration for klaude-code\n"
+    header += "# Copy this file to klaude-config.yaml and modify as needed.\n"
+    header += "# Run `klaude list` to see available models.\n"
+    header += "#\n"
+    header += "# Built-in providers (anthropic, openai, openrouter, deepseek) are available automatically.\n"
+    header += "# Just set the corresponding API key environment variable to use them.\n\n"
+    _ = example_config_path.write_text(header + yaml_str)
+    return True
 
 
 def _load_config_uncached() -> Config:
     """Load and merge builtin + user config. Always returns a valid Config."""
-    _ensure_config_file_exists()
-
     builtin_config = _get_builtin_config()
     user_config = _load_user_config()
 
@@ -417,6 +420,7 @@ def print_no_available_models_hint() -> None:
             log(f"  export {env_var}=<your-api-key>", style="dim")
     log("")
     log(f"Or add custom providers in: {config_path}", style="dim")
+    log(f"See example config: {example_config_path}", style="dim")
 
 
 # Expose cache control for tests and callers that need to invalidate the cache.

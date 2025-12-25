@@ -179,6 +179,7 @@ class ThemeKey(str, Enum):
     RESUME_FLAG = "resume.flag"
     RESUME_INFO = "resume.info"
     # CONFIGURATION DISPLAY
+    CONFIG_PROVIDER = "config.provider"
     CONFIG_TABLE_HEADER = "config.table.header"
     CONFIG_STATUS_OK = "config.status.ok"
     CONFIG_STATUS_PRIMARY = "config.status.primary"
@@ -285,6 +286,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.CONFIG_ITEM_NAME.value: palette.cyan,
                 ThemeKey.CONFIG_PARAM_LABEL.value: palette.grey1,
                 ThemeKey.CONFIG_PANEL_BORDER.value: palette.grey3,
+                ThemeKey.CONFIG_PROVIDER.value: palette.cyan + " bold",
             }
         ),
         markdown_theme=Theme(

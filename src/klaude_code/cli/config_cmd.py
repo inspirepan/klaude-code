@@ -6,7 +6,7 @@ import sys
 
 import typer
 
-from klaude_code.config import config_path, load_config
+from klaude_code.config import config_path, create_example_config, example_config_path, load_config
 from klaude_code.trace import log
 
 
@@ -57,17 +57,24 @@ def edit_config() -> None:
         else:  # Linux and other Unix systems
             editor = "xdg-open"
 
-    # Ensure config file exists
-    load_config()
+    # Ensure config directory exists and create example config if needed
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    if create_example_config():
+        log(f"Created example config: {example_config_path}", style="dim")
+
+    # Decide which file to open
+    target_path = config_path if config_path.exists() else example_config_path
+    if target_path == example_config_path:
+        log(f"Opening example config (copy to {config_path.name} to use)", style="yellow")
 
     try:
         if editor == "open -a TextEdit":
-            subprocess.run(["open", "-a", "TextEdit", str(config_path)], check=True)
+            subprocess.run(["open", "-a", "TextEdit", str(target_path)], check=True)
         elif editor in ["open", "xdg-open"]:
             # For open/xdg-open, we need to pass the file directly
-            subprocess.run([editor, str(config_path)], check=True)
+            subprocess.run([editor, str(target_path)], check=True)
         else:
-            subprocess.run([editor, str(config_path)], check=True)
+            subprocess.run([editor, str(target_path)], check=True)
     except subprocess.CalledProcessError as e:
         log((f"Error: Failed to open editor: {e}", "red"))
         raise typer.Exit(1) from None

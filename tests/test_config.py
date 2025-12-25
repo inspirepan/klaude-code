@@ -320,8 +320,8 @@ class TestConfigSave:
 class TestLoadConfig:
     """Tests for load_config function."""
 
-    def test_load_config_creates_example_when_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test that load_config creates example config and returns builtin when file doesn't exist."""
+    def test_load_config_returns_builtin_when_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that load_config returns builtin config when file doesn't exist."""
         test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
         monkeypatch.setattr(_config_module, "config_path", test_config_path)
 
@@ -330,14 +330,11 @@ class TestLoadConfig:
 
         result = load_config()
 
-        # When user config doesn't exist, returns builtin config and creates example file
+        # When user config doesn't exist, returns builtin config
         assert result is not None
         assert len(result.provider_list) > 0  # Has builtin providers
-        assert test_config_path.exists()
-
-        # Verify the file contains commented lines (example config)
-        content = test_config_path.read_text()
-        assert content.startswith("#")
+        # Config file is NOT auto-created
+        assert not test_config_path.exists()
 
     def test_load_config_returns_builtin_for_empty_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that load_config returns builtin config for empty user config file."""
@@ -833,10 +830,8 @@ class TestOutOfBoxExperience:
         all_models = config.iter_model_entries(only_available=False)
         assert len(all_models) > 0
 
-        # Example config file should be created
-        assert test_config_path.exists()
-        content = test_config_path.read_text()
-        assert content.startswith("#")
+        # Config file is NOT auto-created
+        assert not test_config_path.exists()
 
     def test_first_run_no_config_with_anthropic_key(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """First run: no config file, only ANTHROPIC_API_KEY set - should have anthropic models available."""

@@ -218,7 +218,7 @@ def display_models_and_providers(config: Config):
 
         panel = Panel(
             panel_content,
-            title=Text(f"Provider: {provider.provider_name}", style="white bold"),
+            title=Text(f"Provider: {provider.provider_name}", style=ThemeKey.CONFIG_PROVIDER),
             border_style=ThemeKey.CONFIG_PANEL_BORDER,
             padding=(0, 1),
             title_align="left",
