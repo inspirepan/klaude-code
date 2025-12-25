@@ -53,6 +53,17 @@ provider_list:
   protocol: openrouter
   api_key: ${OPENROUTER_API_KEY}
   model_list:
+  - model_name: gpt-5-mini
+    model_params:
+      model: openai/gpt-5-mini
+      max_tokens: 128000
+      context_limit: 400000
+      thinking:
+        reasoning_effort: high
+      cost:
+        input: 0.25
+        output: 2.0
+        cache_read: 0.03
   - model_name: gpt-5.1-codex-max
     model_params:
       model: openai/gpt-5.1-codex-max
