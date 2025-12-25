@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.28] - 2025-12-25
+
+### Added
+
+- add klaude-code as alternative command entry point (`21d1d5bd`)
+- add color palette guide for Mermaid diagrams (`13b9b25d`)
+- support rendering markdown documents in HTML export (`8489c56a`)
+- add /fork-session (`acbe85a7`)
+
+### Changed
+
+- separate bold and bold-italic status text styles (`c8a98523`)
+- split render_error into separate functions for events and tools (`1ca5369b`)
+- show bottom toolbar only for updates (`c6032b87`)
+
+### Fixed
+
+- prioritize shallow @-path completions (`02474453`)
+- skip unchanged @ file reminders (`ff619fd5`)
+- avoid truncation marker for small overflows (`1ccac87d`)
+- correctly track which memory file contains @ references (`8387620b`)
+- hide duplicate path in Write tool call for markdown files (`3f25960a`)
+- detach stdin from subprocess to prevent terminal state interference (`ad6a49fa`)
+- show status spinner during surge login check (`fa330bef`)
+- normalize Gemini-3 tool names in accumulator (`24234298`)
+
+### Other
+
+- untrack .vscode/settings.json (`75be5ddb`)
 ## [1.2.27] - 2025-12-23
 
 ### Added
@@ -793,7 +822,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.27...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.28...HEAD
+[1.2.28]: https://github.com/inspirepan/klaude-code/compare/v1.2.27...v1.2.28
 [1.2.27]: https://github.com/inspirepan/klaude-code/compare/v1.2.26...v1.2.27
 [1.2.26]: https://github.com/inspirepan/klaude-code/compare/v1.2.25...v1.2.26
 [1.2.25]: https://github.com/inspirepan/klaude-code/compare/v1.2.24...v1.2.25
