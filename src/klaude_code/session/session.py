@@ -246,7 +246,7 @@ class Session(BaseModel):
     def need_turn_start(self, prev_item: model.ConversationItem | None, item: model.ConversationItem) -> bool:
         if not isinstance(
             item,
-            model.ReasoningEncryptedItem | model.ReasoningTextItem | model.AssistantMessageItem | model.ToolCallItem,
+            model.ReasoningTextItem | model.AssistantMessageItem | model.ToolCallItem,
         ):
             return False
         if prev_item is None:

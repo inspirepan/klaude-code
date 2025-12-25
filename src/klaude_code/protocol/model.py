@@ -127,7 +127,7 @@ class SessionIdUIExtra(BaseModel):
 
 class MermaidLinkUIExtra(BaseModel):
     type: Literal["mermaid_link"] = "mermaid_link"
-    code: str
+    code: str = ""
     link: str
     line_count: int
 
