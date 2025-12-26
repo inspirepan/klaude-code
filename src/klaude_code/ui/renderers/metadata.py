@@ -97,6 +97,7 @@ def _render_task_metadata_block(
             context_size = format_number(metadata.usage.context_size or 0)
             parts.append(
                 Text.assemble(
+                    ("context ", ThemeKey.METADATA_DIM),
                     (context_size, ThemeKey.METADATA),
                     (f" ({metadata.usage.context_usage_percent:.1f}%)", ThemeKey.METADATA_DIM),
                 )

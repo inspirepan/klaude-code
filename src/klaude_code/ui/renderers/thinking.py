@@ -10,7 +10,7 @@ from klaude_code.ui.rich.markdown import ThinkingMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
 
 # UI markers
-THINKING_MESSAGE_MARK = "⸫"
+THINKING_MESSAGE_MARK = "∴"
 
 
 def normalize_thinking_content(content: str) -> str:
