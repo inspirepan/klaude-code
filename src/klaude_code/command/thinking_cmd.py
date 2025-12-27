@@ -1,10 +1,13 @@
 import asyncio
+from typing import Literal, cast
 
 from prompt_toolkit.styles import Style
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, llm_param, model
 from klaude_code.ui.terminal.selector import SelectItem, select_one
+
+ReasoningEffort = Literal["high", "medium", "low", "minimal", "none", "xhigh"]
 
 # Thinking level options for different protocols
 RESPONSES_LEVELS = ["low", "medium", "high"]
@@ -148,7 +151,7 @@ def _select_responses_thinking_sync(model_name: str | None) -> llm_param.Thinkin
 
         if result is None:
             return None
-        return llm_param.Thinking(reasoning_effort=result)
+        return llm_param.Thinking(reasoning_effort=cast(ReasoningEffort, result))
     except KeyboardInterrupt:
         return None
 

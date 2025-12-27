@@ -9,11 +9,11 @@ from prompt_toolkit.application import Application
 from prompt_toolkit.application.current import get_app
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.filters import Always, Condition
-from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
+from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent, merge_key_bindings
 from prompt_toolkit.key_binding.defaults import load_key_bindings
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout import ConditionalContainer, Float, FloatContainer, HSplit, Layout, VSplit, Window
-from prompt_toolkit.layout.containers import ScrollOffsets
+from prompt_toolkit.layout.containers import Container, ScrollOffsets
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.styles import Style, merge_styles
 
@@ -118,23 +118,29 @@ def select_one[T](
 
     @kb.add(Keys.ControlC, eager=True)
     @kb.add(Keys.ControlQ, eager=True)
-    def _cancel(event):
+    def _cancel(event: KeyPressEvent) -> None:
         event.app.exit(result=None)
 
+    _ = _cancel  # registered via decorator
+
     @kb.add(Keys.Down, eager=True)
-    def _down(event):
+    def _down(event: KeyPressEvent) -> None:
         nonlocal pointed_at
         pointed_at += 1
         event.app.invalidate()
 
+    _ = _down  # registered via decorator
+
     @kb.add(Keys.Up, eager=True)
-    def _up(event):
+    def _up(event: KeyPressEvent) -> None:
         nonlocal pointed_at
         pointed_at -= 1
         event.app.invalidate()
 
+    _ = _up  # registered via decorator
+
     @kb.add(Keys.Enter, eager=True)
-    def _enter(event):
+    def _enter(event: KeyPressEvent) -> None:
         indices, _ = visible_indices()
         if not indices:
             event.app.exit(result=None)
@@ -142,8 +148,10 @@ def select_one[T](
         idx = indices[pointed_at % len(indices)]
         event.app.exit(result=items[idx].value)
 
+    _ = _enter  # registered via decorator
+
     @kb.add(Keys.Escape, eager=True)
-    def _esc(event):
+    def _esc(event: KeyPressEvent) -> None:
         nonlocal pointed_at
         if use_search_filter and search_buffer is not None and search_buffer.text:
             search_buffer.reset(append_to_history=False)
@@ -151,6 +159,8 @@ def select_one[T](
             event.app.invalidate()
             return
         event.app.exit(result=None)
+
+    _ = _esc  # registered via decorator
 
     if use_search_filter and search_buffer is not None:
         search_buffer.on_text_changed += _on_search_changed
@@ -208,7 +218,7 @@ def select_one[T](
                 dont_extend_height=Always(),
                 always_hide_cursor=Always(),
             ),
-            filter=Condition(lambda: search_buffer is not None and search_buffer.text == ""),
+            filter=Condition(lambda: search_buffer.text == ""),
         )
         search_input_window = input_window
         search_input_container = FloatContainer(
@@ -216,7 +226,7 @@ def select_one[T](
             floats=[Float(content=placeholder_window, top=0, left=0)],
         )
 
-        def _rounded_frame(body) -> HSplit:  # type: ignore[no-untyped-def]
+        def _rounded_frame(body: Container) -> HSplit:
             border = partial(Window, style="class:frame.border", height=1)
             top = VSplit(
                 [
@@ -258,7 +268,7 @@ def select_one[T](
     )
     merged_style = merge_styles([base_style, style] if style is not None else [base_style])
 
-    root_children = [header_window, spacer_window, list_window]
+    root_children: list[Container] = [header_window, spacer_window, list_window]
     if search_container is not None:
         root_children.append(search_container)
 
