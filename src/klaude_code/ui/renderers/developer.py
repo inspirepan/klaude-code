@@ -67,23 +67,34 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
 
     if e.item.at_files:
         grid = create_grid()
+        # Group at_files by (operation, mentioned_in)
+        grouped: dict[tuple[str, str | None], list[str]] = {}
         for at_file in e.item.at_files:
-            if at_file.mentioned_in:
+            key = (at_file.operation, at_file.mentioned_in)
+            if key not in grouped:
+                grouped[key] = []
+            grouped[key].append(at_file.path)
+
+        for (operation, mentioned_in), paths in grouped.items():
+            path_texts = Text(", ", ThemeKey.REMINDER).join(
+                render_path(p, ThemeKey.REMINDER_BOLD) for p in paths
+            )
+            if mentioned_in:
                 grid.add_row(
                     Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
                     Text.assemble(
-                        (f"{at_file.operation} ", ThemeKey.REMINDER),
-                        render_path(at_file.path, ThemeKey.REMINDER_BOLD),
+                        (f"{operation} ", ThemeKey.REMINDER),
+                        path_texts,
                         (" mentioned in ", ThemeKey.REMINDER),
-                        render_path(at_file.mentioned_in, ThemeKey.REMINDER_BOLD),
+                        render_path(mentioned_in, ThemeKey.REMINDER_BOLD),
                     ),
                 )
             else:
                 grid.add_row(
                     Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
                     Text.assemble(
-                        (f"{at_file.operation} ", ThemeKey.REMINDER),
-                        render_path(at_file.path, ThemeKey.REMINDER_BOLD),
+                        (f"{operation} ", ThemeKey.REMINDER),
+                        path_texts,
                     ),
                 )
         parts.append(grid)
