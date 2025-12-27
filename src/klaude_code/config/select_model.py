@@ -119,7 +119,7 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
             if not thinking:
                 return ""
             if thinking.reasoning_effort:
-                return f"reasoning effort {thinking.reasoning_effort}"
+                return f"reasoning {thinking.reasoning_effort}"
             if thinking.budget_tokens:
                 return f"thinking budget {thinking.budget_tokens}"
             return "thinking (configured)"
@@ -127,18 +127,18 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
         items: list[SelectItem[str]] = []
         for m in filtered_models:
             model_id = m.model_params.model or "N/A"
-            first_line_prefix = f"{m.model_name:<{max_model_name_length}}  → "
+            first_line_prefix = f"{m.model_name:<{max_model_name_length}} → "
             thinking_info = _thinking_info(m)
-            meta_parts = [m.provider]
+            meta_parts: list[str] = [m.provider]
             if thinking_info:
                 meta_parts.append(thinking_info)
             if m.model_params.verbosity:
                 meta_parts.append(f"verbosity {m.model_params.verbosity}")
-            meta_line = "   " + " · ".join(meta_parts)
+            meta_str = " · ".join(meta_parts)
             title = [
                 ("class:msg", first_line_prefix),
-                ("class:msg bold", f"{model_id}\n"),
-                ("class:meta", f"{meta_line}\n\n"),
+                ("class:msg bold", model_id),
+                ("class:meta", f"  {meta_str}\n"),
             ]
             search_text = f"{m.model_name} {model_id} {m.provider}"
             items.append(SelectItem(title=title, value=m.model_name, search_text=search_text))
@@ -158,7 +158,7 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
                         ("msg", ""),
                         ("meta", "fg:ansibrightblack"),
                         ("text", "ansibrightblack"),
-                        ("question", ""),
+                        ("question", "bold"),
                         ("search_prefix", "ansibrightblack"),
                         # search filter colors at the bottom
                         ("search_success", "noinherit fg:ansigreen"),
