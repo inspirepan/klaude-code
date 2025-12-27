@@ -11,7 +11,10 @@ import re
 from collections.abc import Callable
 from typing import cast
 
+from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.filters.app import has_completions
 from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
 
 def create_key_bindings(
@@ -31,8 +34,44 @@ def create_key_bindings(
     """
     kb = KeyBindings()
 
+    def _select_first_completion_if_needed(buf: Buffer) -> None:
+        """Ensure the completion menu has an active selection.
+
+        prompt_toolkit's default behavior keeps `complete_index=None` until the
+        user explicitly selects an item. We want the first item to be selected
+        by default, without modifying the buffer text.
+        """
+        state = buf.complete_state
+        if state is None or not state.completions:
+            return
+        if state.complete_index is None:
+            state.complete_index = 0
+
+    def _cycle_completion(buf: Buffer, *, delta: int) -> None:
+        state = buf.complete_state
+        if state is None or not state.completions:
+            return
+
+        _select_first_completion_if_needed(buf)
+        idx = state.complete_index or 0
+        state.complete_index = (idx + delta) % len(state.completions)
+
+    def _accept_current_completion(buf: Buffer) -> bool:
+        """Apply the currently selected completion, if any.
+
+        Returns True when a completion was applied.
+        """
+        state = buf.complete_state
+        if state is None or not state.completions:
+            return False
+
+        _select_first_completion_if_needed(buf)
+        completion = state.current_completion or state.completions[0]
+        buf.apply_completion(completion)
+        return True
+
     @kb.add("c-v")
-    def _(event):  # type: ignore
+    def _(event: KeyPressEvent) -> None:
         """Paste image from clipboard as [Image #N]."""
         tag = capture_clipboard_tag()
         if tag:
@@ -40,8 +79,8 @@ def create_key_bindings(
                 event.current_buffer.insert_text(tag)  # pyright: ignore[reportUnknownMemberType]
 
     @kb.add("enter")
-    def _(event):  # type: ignore
-        buf = event.current_buffer  # type: ignore
+    def _(event: KeyPressEvent) -> None:
+        buf = event.current_buffer
         doc = buf.document  # type: ignore
 
         # If VS Code/Windsurf/Cursor sent a "\\" sentinel before Enter (Shift+Enter mapping),
@@ -56,6 +95,12 @@ def create_key_bindings(
             # Fall through to default behavior if anything goes wrong
             pass
 
+        # When completions are visible, Enter accepts the current selection.
+        # This aligns with common TUI completion UX: navigation doesn't modify
+        # the buffer, and Enter/Tab inserts the selected option.
+        if _accept_current_completion(buf):
+            return
+
         # If the entire buffer is whitespace-only, insert a newline rather than submitting.
         if len(buf.text.strip()) == 0:  # type: ignore
             buf.insert_text("\n")  # type: ignore
@@ -64,12 +109,30 @@ def create_key_bindings(
         # No need to persist manifest anymore - iter_inputs will handle image extraction
         buf.validate_and_handle()  # type: ignore
 
+    @kb.add("tab", filter=has_completions)
+    def _(event: KeyPressEvent) -> None:
+        buf = event.current_buffer
+        if _accept_current_completion(buf):
+            event.app.invalidate()  # type: ignore[reportUnknownMemberType]
+
+    @kb.add("down", filter=has_completions)
+    def _(event: KeyPressEvent) -> None:
+        buf = event.current_buffer
+        _cycle_completion(buf, delta=1)
+        event.app.invalidate()  # type: ignore[reportUnknownMemberType]
+
+    @kb.add("up", filter=has_completions)
+    def _(event: KeyPressEvent) -> None:
+        buf = event.current_buffer
+        _cycle_completion(buf, delta=-1)
+        event.app.invalidate()  # type: ignore[reportUnknownMemberType]
+
     @kb.add("c-j")
-    def _(event):  # type: ignore
+    def _(event: KeyPressEvent) -> None:
         event.current_buffer.insert_text("\n")  # type: ignore
 
     @kb.add("c")
-    def _(event):  # type: ignore
+    def _(event: KeyPressEvent) -> None:
         """Copy selected text to system clipboard, or insert 'c' if no selection."""
         buf = event.current_buffer  # type: ignore
         if buf.selection_state:  # type: ignore[reportUnknownMemberType]
@@ -84,7 +147,7 @@ def create_key_bindings(
             buf.insert_text("c")  # type: ignore[reportUnknownMemberType]
 
     @kb.add("backspace")
-    def _(event):  # type: ignore
+    def _(event: KeyPressEvent) -> None:
         """Ensure completions refresh on backspace when editing an @token.
 
         We delete the character before cursor (default behavior), then explicitly
@@ -105,7 +168,7 @@ def create_key_bindings(
                 should_refresh = True
             elif buf.document.cursor_position_row == 0:  # type: ignore[reportUnknownMemberType]
                 # Check for slash command pattern without accessing protected attribute
-                text_before_str = cast(str, text_before or "")
+                text_before_str = text_before or ""
                 if text_before_str.strip().startswith("/") and " " not in text_before_str:
                     should_refresh = True
 
@@ -115,7 +178,7 @@ def create_key_bindings(
             pass
 
     @kb.add("left")
-    def _(event):  # type: ignore
+    def _(event: KeyPressEvent) -> None:
         """Support wrapping to previous line when pressing left at column 0."""
         buf = event.current_buffer  # type: ignore
         try:
@@ -140,7 +203,7 @@ def create_key_bindings(
             pass
 
     @kb.add("right")
-    def _(event):  # type: ignore
+    def _(event: KeyPressEvent) -> None:
         """Support wrapping to next line when pressing right at line end."""
         buf = event.current_buffer  # type: ignore
         try:

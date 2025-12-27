@@ -106,6 +106,26 @@ class PromptToolkitInput(InputProviderABC):
             ),
         )
 
+        def _select_first_completion_on_open(buf) -> None:  # type: ignore[no-untyped-def]
+            """Default to selecting the first completion without inserting it."""
+
+            try:
+                state = buf.complete_state  # type: ignore[reportUnknownMemberType]
+                if state is None:
+                    return
+                if not state.completions:  # type: ignore[reportUnknownMemberType]
+                    return
+                if state.complete_index is None:  # type: ignore[reportUnknownMemberType]
+                    state.complete_index = 0  # type: ignore[reportUnknownMemberType]
+                    with contextlib.suppress(Exception):
+                        self._session.app.invalidate()
+            except Exception:
+                return
+
+        # Ensure the completion menu always has a default selection (first item),
+        # so Enter/Tab can accept immediately.
+        self._session.default_buffer.on_completions_changed += _select_first_completion_on_open
+
     def _get_bottom_toolbar(self) -> FormattedText | None:
         """Return bottom toolbar content only when there's an update message available."""
         if not self._status_provider:
