@@ -12,6 +12,7 @@ from klaude_code.ui.core.stage_manager import Stage, StageManager
 from klaude_code.ui.modes.repl.renderer import REPLRenderer
 from klaude_code.ui.renderers.assistant import ASSISTANT_MESSAGE_MARK
 from klaude_code.ui.renderers.thinking import THINKING_MESSAGE_MARK, normalize_thinking_content
+from klaude_code.ui.rich import status as r_status
 from klaude_code.ui.rich.markdown import MarkdownStream, ThinkingMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.terminal.notifier import Notification, NotificationType, TerminalNotifier
@@ -352,6 +353,8 @@ class DisplayEventHandler:
         self.renderer.display_user_message(event)
 
     def _on_task_start(self, event: events.TaskStartEvent) -> None:
+        if event.sub_agent_state is None:
+            r_status.set_task_start()
         self.renderer.spinner_start()
         self.renderer.display_task_start(event)
         emit_osc94(OSC94States.INDETERMINATE)
@@ -501,6 +504,7 @@ class DisplayEventHandler:
     async def _on_task_finish(self, event: events.TaskFinishEvent) -> None:
         self.renderer.display_task_finish(event)
         if not self.renderer.is_sub_agent_session(event.session_id):
+            r_status.clear_task_start()
             emit_osc94(OSC94States.HIDDEN)
             self.spinner_status.reset()
             self.renderer.spinner_stop()
@@ -511,6 +515,7 @@ class DisplayEventHandler:
     async def _on_interrupt(self, event: events.InterruptEvent) -> None:
         self.renderer.spinner_stop()
         self.spinner_status.reset()
+        r_status.clear_task_start()
         await self.stage_manager.transition_to(Stage.WAITING)
         emit_osc94(OSC94States.HIDDEN)
         self.renderer.display_interrupt()
@@ -528,6 +533,7 @@ class DisplayEventHandler:
         await self.stage_manager.transition_to(Stage.WAITING)
         self.renderer.spinner_stop()
         self.spinner_status.reset()
+        r_status.clear_task_start()
 
     # ─────────────────────────────────────────────────────────────────────────────
     # Private helper methods
@@ -619,7 +625,7 @@ class DisplayEventHandler:
         # 1 cell for glyph + 1 cell of padding between columns (collapsed).
         spinner_prefix_cells = 2
 
-        hint_cells = cell_len(const.STATUS_HINT_TEXT)
+        hint_cells = cell_len(r_status.current_hint_text())
         right_cells = cell_len(right_text.plain) if right_text is not None else 0
 
         max_main_cells = terminal_width - spinner_prefix_cells - hint_cells - right_cells - 1

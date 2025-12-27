@@ -31,6 +31,7 @@ random.shuffle(BREATHING_SPINNER_GLYPHS)
 
 
 _process_start: float | None = None
+_task_start: float | None = None
 
 
 def _elapsed_since_start() -> float:
@@ -40,6 +41,59 @@ def _elapsed_since_start() -> float:
     if _process_start is None:
         _process_start = now
     return now - _process_start
+
+
+def set_task_start(start: float | None = None) -> None:
+    """Set the current task start time (perf_counter seconds)."""
+
+    global _task_start
+    _task_start = time.perf_counter() if start is None else start
+
+
+def clear_task_start() -> None:
+    """Clear the current task start time."""
+
+    global _task_start
+    _task_start = None
+
+
+def _task_elapsed_seconds(now: float | None = None) -> float | None:
+    if _task_start is None:
+        return None
+    current = time.perf_counter() if now is None else now
+    return max(0.0, current - _task_start)
+
+
+def _format_elapsed_compact(seconds: float) -> str:
+    total_seconds = max(0, int(seconds))
+    if total_seconds < 60:
+        return f"{total_seconds}s"
+
+    minutes, sec = divmod(total_seconds, 60)
+    if minutes < 60:
+        return f"{minutes}m{sec:02d}s"
+
+    hours, minute = divmod(minutes, 60)
+    return f"{hours}h{minute:02d}m{sec:02d}s"
+
+
+def current_hint_text(*, min_time_width: int = 0) -> str:
+    """Return the full hint string shown on the status line.
+
+    Includes an optional elapsed time prefix (right-aligned, min width) and
+    the constant hint suffix.
+    """
+
+    elapsed = _task_elapsed_seconds()
+    if elapsed is None:
+        return const.STATUS_HINT_TEXT
+    time_text = _format_elapsed_compact(elapsed)
+    if min_time_width > 0:
+        time_text = time_text.rjust(min_time_width)
+    suffix = const.STATUS_HINT_TEXT.strip()
+    if suffix.startswith("(") and suffix.endswith(")"):
+        suffix = suffix[1:-1]
+    return f" ({time_text} · {suffix})"
 
 
 def _shimmer_profile(main_text: str) -> list[tuple[str, float]]:
@@ -176,7 +230,6 @@ class ShimmerStatusText:
             self._main_text = text
         else:
             self._main_text = Text(main_text, style=main_style)
-        self._hint_text = Text(const.STATUS_HINT_TEXT)
         self._hint_style = ThemeKey.STATUS_HINT
         self._right_text = right_text
 
@@ -206,7 +259,7 @@ class ShimmerStatusText:
             result.append(ch, style=style)
 
         # Append hint text without shimmer
-        result.append(self._hint_text.plain, style=hint_style)
+        result.append(current_hint_text().strip("\n"), style=hint_style)
 
         return result
 
