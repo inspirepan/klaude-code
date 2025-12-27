@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2025-12-27
+
+### Added
+
+- show replace all param for Edit tool UX (`8e6a551a`)
+- add MoveTool for moving code between files (`61a0a8ba`)
+- align completion menu UX (`6b890e18`)
+
+### Changed
+
+- add dedicated theme key for mermaid result display (`18128d61`)
+- clarify default model save confirmation text (`9c82e382`)
 ## [1.2.30] - 2025-12-27
 
 ### Added
@@ -857,7 +869,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.30...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/inspirepan/klaude-code/compare/v1.2.30...v1.3.0
 [1.2.30]: https://github.com/inspirepan/klaude-code/compare/v1.2.29...v1.2.30
 [1.2.29]: https://github.com/inspirepan/klaude-code/compare/v1.2.28...v1.2.29
 [1.2.28]: https://github.com/inspirepan/klaude-code/compare/v1.2.27...v1.2.28
