@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2025-12-28
+
+### Changed
+
+- improve model selector display layout (`07202e00`)
+
+### Fixed
+
+- pyright (`790ccf74`)
 ## [1.4.0] - 2025-12-28
 
 ### Added
@@ -885,7 +894,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/inspirepan/klaude-code/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/inspirepan/klaude-code/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/inspirepan/klaude-code/compare/v1.2.30...v1.3.0
 [1.2.30]: https://github.com/inspirepan/klaude-code/compare/v1.2.29...v1.2.30
