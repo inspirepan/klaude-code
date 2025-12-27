@@ -36,6 +36,7 @@ def ensure_commands_loaded() -> None:
     from .model_cmd import ModelCommand
     from .refresh_cmd import RefreshTerminalCommand
     from .release_notes_cmd import ReleaseNotesCommand
+    from .resume_cmd import ResumeCommand
     from .status_cmd import StatusCommand
     from .terminal_setup_cmd import TerminalSetupCommand
     from .thinking_cmd import ThinkingCommand
@@ -47,6 +48,7 @@ def ensure_commands_loaded() -> None:
     register(ThinkingCommand())
     register(ModelCommand())
     register(ForkSessionCommand())
+    register(ResumeCommand())
     load_prompt_commands()
     register(StatusCommand())
     register(HelpCommand())
@@ -70,6 +72,7 @@ def __getattr__(name: str) -> object:
         "ModelCommand": "model_cmd",
         "RefreshTerminalCommand": "refresh_cmd",
         "ReleaseNotesCommand": "release_notes_cmd",
+        "ResumeCommand": "resume_cmd",
         "StatusCommand": "status_cmd",
         "TerminalSetupCommand": "terminal_setup_cmd",
         "ThinkingCommand": "thinking_cmd",

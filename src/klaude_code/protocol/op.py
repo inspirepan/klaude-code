@@ -27,6 +27,7 @@ class OperationType(Enum):
     CHANGE_MODEL = "change_model"
     CHANGE_THINKING = "change_thinking"
     CLEAR_SESSION = "clear_session"
+    RESUME_SESSION = "resume_session"
     EXPORT_SESSION = "export_session"
     INTERRUPT = "interrupt"
     INIT_AGENT = "init_agent"
@@ -96,6 +97,16 @@ class ClearSessionOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_clear_session(self)
+
+
+class ResumeSessionOperation(Operation):
+    """Operation for resuming a different session."""
+
+    type: OperationType = OperationType.RESUME_SESSION
+    target_session_id: str
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_resume_session(self)
 
 
 class ExportSessionOperation(Operation):

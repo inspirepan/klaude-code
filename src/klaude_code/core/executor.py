@@ -203,13 +203,15 @@ class ExecutorContext:
             raise ValueError("Multiple RunAgentOperation results are not supported")
 
         persisted_user_input = run_ops[0].input if run_ops else user_input
-        agent.session.append_history(
-            [model.UserMessageItem(content=persisted_user_input.text, images=persisted_user_input.images)]
-        )
+
+        if result.persist_user_input:
+            agent.session.append_history(
+                [model.UserMessageItem(content=persisted_user_input.text, images=persisted_user_input.images)]
+            )
 
         if result.events:
             for evt in result.events:
-                if isinstance(evt, events.DeveloperMessageEvent):
+                if result.persist_events and isinstance(evt, events.DeveloperMessageEvent):
                     agent.session.append_history([evt.item])
                 await self.emit_event(evt)
 
@@ -304,6 +306,37 @@ class ExecutorContext:
             command_output=model.CommandOutput(command_name=commands.CommandName.CLEAR),
         )
         await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
+
+    async def handle_resume_session(self, operation: op.ResumeSessionOperation) -> None:
+        target_session = Session.load(operation.target_session_id)
+        if (
+            target_session.model_thinking is not None
+            and target_session.model_name
+            and target_session.model_name == self.llm_clients.main.model_name
+        ):
+            self.llm_clients.main.get_llm_config().thinking = target_session.model_thinking
+
+        profile = self.model_profile_provider.build_profile(self.llm_clients.main)
+        from klaude_code.core.agent import Agent
+
+        agent = Agent(session=target_session, profile=profile)
+
+        async for evt in agent.replay_history():
+            await self.emit_event(evt)
+
+        await self.emit_event(
+            events.WelcomeEvent(
+                work_dir=str(target_session.work_dir),
+                llm_config=self.llm_clients.main.get_llm_config(),
+            )
+        )
+
+        self._agent = agent
+        log_debug(
+            f"Resumed session: {target_session.id}",
+            style="cyan",
+            debug_type=DebugType.EXECUTION,
+        )
 
     async def handle_export_session(self, operation: op.ExportSessionOperation) -> None:
         agent = await self._ensure_agent(operation.session_id)

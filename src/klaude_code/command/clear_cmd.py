@@ -15,4 +15,7 @@ class ClearCommand(CommandABC):
 
     async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
         del user_input  # unused
-        return CommandResult(operations=[op.ClearSessionOperation(session_id=agent.session.id)])
+        return CommandResult(
+            operations=[op.ClearSessionOperation(session_id=agent.session.id)],
+            persist_user_input=False,
+        )

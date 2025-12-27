@@ -24,7 +24,7 @@ class ForkSessionCommand(CommandABC):
                     command_output=model.CommandOutput(command_name=self.name),
                 ),
             )
-            return CommandResult(events=[event])
+            return CommandResult(events=[event], persist_user_input=False, persist_events=False)
 
         new_session = agent.session.fork()
         await new_session.wait_for_flush()
@@ -39,4 +39,4 @@ class ForkSessionCommand(CommandABC):
                 ),
             ),
         )
-        return CommandResult(events=[event])
+        return CommandResult(events=[event], persist_user_input=False, persist_events=False)
