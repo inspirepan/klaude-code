@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.30] - 2025-12-27
+
+### Added
+
+- highlight subcommands in bash syntax highlighting (`b40e7b2a`)
+- add confirmation to save model as default (`560e9cd0`)
+- add /resume command for session resumption (`6b53d016`)
+- use CodePanel for long bash commands (`2d9f78fd`)
+- add syntax highlighting for bash tool calls (`33e6a043`)
+- add gpt-5-mini (`5942fb44`)
+
+### Changed
+
+- adjust bash syntax highlighting colors for better contrast (`f4de1620`)
+- update thinking mark (`ea52a171`)
+
+### Fixed
+
+- retry when agent returns empty result (`d8d609ad`)
+- preserve leading whitespace and expand tabs for proper tool result alignment (`5e2049de`)
 ## [1.2.29] - 2025-12-25
 
 ### Added
@@ -837,7 +857,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.29...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.2.30...HEAD
+[1.2.30]: https://github.com/inspirepan/klaude-code/compare/v1.2.29...v1.2.30
 [1.2.29]: https://github.com/inspirepan/klaude-code/compare/v1.2.28...v1.2.29
 [1.2.28]: https://github.com/inspirepan/klaude-code/compare/v1.2.27...v1.2.28
 [1.2.27]: https://github.com/inspirepan/klaude-code/compare/v1.2.26...v1.2.27
