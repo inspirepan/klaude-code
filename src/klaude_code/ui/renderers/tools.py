@@ -1,7 +1,10 @@
 import json
+import re
 from pathlib import Path
 from typing import Any, cast
 
+from pygments.lexers import BashLexer  # pyright: ignore[reportUnknownVariableType]
+from pygments.token import Token
 from rich import box
 from rich.console import Group, RenderableType
 from rich.padding import Padding
@@ -35,6 +38,70 @@ MARK_SKILL = "✪"
 MARK_TODO_PENDING = "▢"
 MARK_TODO_IN_PROGRESS = "◉"
 MARK_TODO_COMPLETED = "✔"
+
+# Token types for bash syntax highlighting
+_BASH_STRING_TOKENS = frozenset(
+    {
+        Token.Literal.String,
+        Token.Literal.String.Double,
+        Token.Literal.String.Single,
+        Token.Literal.String.Backtick,
+        Token.Literal.String.Escape,
+        Token.Literal.String.Heredoc,
+        Token.Comment,
+        Token.Comment.Single,
+        Token.Comment.Hashbang,
+    }
+)
+
+_BASH_OPERATOR_TOKENS = frozenset(
+    {
+        Token.Operator,
+        Token.Punctuation,
+    }
+)
+
+# Operators that start a new command context (next non-whitespace token is a command)
+_BASH_COMMAND_STARTERS = frozenset({"&&", "||", "|", ";", "&"})
+
+_BASH_LEXER: Any = BashLexer()  # pyright: ignore[reportUnknownVariableType]
+
+# Regex to match heredoc: << [-]? [space]? ['"]? DELIMITER ['"]? [extra] \n body \n DELIMITER
+# Groups: (<<-?) (space) (quote) (delimiter) (quote) (extra on first line) (body) (end delimiter)
+_HEREDOC_PATTERN = re.compile(
+    r"^(<<-?)(\s*)(['\"]?)(\w+)\3([^\n]*)(\n.*\n)(\4)$",
+    re.DOTALL,
+)
+
+
+def _append_heredoc(result: Text, token_value: str) -> None:
+    """Append heredoc token with delimiter highlighting."""
+    match = _HEREDOC_PATTERN.match(token_value)
+    if match:
+        operator, space, quote, delimiter, extra, body, end_delimiter = match.groups()
+        # << or <<-
+        result.append(operator, style=ThemeKey.BASH_OPERATOR)
+        # Optional space
+        if space:
+            result.append(space)
+        # Opening quote
+        if quote:
+            result.append(quote, style=ThemeKey.BASH_HEREDOC_DELIMITER)
+        # Delimiter name (e.g., EOF)
+        result.append(delimiter, style=ThemeKey.BASH_HEREDOC_DELIMITER)
+        # Closing quote
+        if quote:
+            result.append(quote, style=ThemeKey.BASH_HEREDOC_DELIMITER)
+        # Extra content on first line (e.g., "> file.py")
+        if extra:
+            result.append(extra, style=ThemeKey.BASH_ARGUMENT)
+        # Body content
+        result.append(body, style=ThemeKey.BASH_STRING)
+        # End delimiter
+        result.append(end_delimiter, style=ThemeKey.BASH_HEREDOC_DELIMITER)
+    else:
+        # Fallback: couldn't parse heredoc structure
+        result.append(token_value, style=ThemeKey.BASH_STRING)
 
 
 def is_sub_agent_tool(tool_name: str) -> bool:
@@ -81,6 +148,56 @@ def render_generic_tool_call(tool_name: str, arguments: str, markup: str = MARK_
     return grid
 
 
+def _highlight_bash_command(command: str) -> Text:
+    """Apply bash syntax highlighting to a command string, returning Rich Text.
+
+    Styling:
+    - Command names (first token after line start or operators): bold green
+    - Arguments: green
+    - Operators (&&, ||, |, ;): dim green
+    - Strings and comments: green
+    """
+    result = Text()
+    token_type: Any
+    token_value: str
+
+    # Track whether next non-whitespace token is a command
+    expect_command = True
+
+    for token_type, token_value in _BASH_LEXER.get_tokens(command):
+        # Skip trailing newlines that Pygments adds
+        if token_type == Token.Text and token_value == "\n":
+            continue
+
+        # Determine style based on token type and context
+        if token_type in _BASH_STRING_TOKENS:
+            # Check if this is a heredoc (starts with <<)
+            if token_value.startswith("<<"):
+                _append_heredoc(result, token_value)
+            else:
+                result.append(token_value, style=ThemeKey.BASH_STRING)
+        elif token_type in _BASH_OPERATOR_TOKENS:
+            result.append(token_value, style=ThemeKey.BASH_OPERATOR)
+            # After command-starting operators, next token is a command
+            if token_value in _BASH_COMMAND_STARTERS:
+                expect_command = True
+        elif token_type in (Token.Text.Whitespace,):
+            result.append(token_value)
+        elif token_type == Token.Name.Builtin:
+            # Built-in commands are always commands
+            result.append(token_value, style=ThemeKey.BASH_COMMAND)
+            expect_command = False
+        elif expect_command and token_value.strip():
+            # First non-whitespace token in command context
+            result.append(token_value, style=ThemeKey.BASH_COMMAND)
+            expect_command = False
+        else:
+            # Regular arguments
+            result.append(token_value, style=ThemeKey.BASH_ARGUMENT)
+
+    return result
+
+
 def render_bash_tool_call(arguments: str) -> RenderableType:
     grid = create_grid()
     tool_name_column = Text.assemble((MARK_BASH, ThemeKey.TOOL_MARK), " ", ("Bash", ThemeKey.TOOL_NAME))
@@ -105,22 +222,28 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
 
     payload: dict[str, object] = cast(dict[str, object], payload_raw)
 
-    summary = Text("", ThemeKey.TOOL_PARAM)
     command = payload.get("command")
     timeout_ms = payload.get("timeout_ms")
 
+    # Build the command display with optional timeout suffix
     if isinstance(command, str) and command.strip():
-        summary.append(command.strip(), style=ThemeKey.TOOL_PARAM)
+        cmd_str = command.strip()
+        highlighted = _highlight_bash_command(cmd_str)
+        if isinstance(timeout_ms, int):
+            if timeout_ms >= 1000 and timeout_ms % 1000 == 0:
+                highlighted.append(f" {timeout_ms // 1000}s", style=ThemeKey.TOOL_TIMEOUT)
+            else:
+                highlighted.append(f" {timeout_ms}ms", style=ThemeKey.TOOL_TIMEOUT)
+        grid.add_row(tool_name_column, highlighted)
+    else:
+        summary = Text("", ThemeKey.TOOL_PARAM)
+        if isinstance(timeout_ms, int):
+            if timeout_ms >= 1000 and timeout_ms % 1000 == 0:
+                summary.append(f"{timeout_ms // 1000}s", style=ThemeKey.TOOL_TIMEOUT)
+            else:
+                summary.append(f"{timeout_ms}ms", style=ThemeKey.TOOL_TIMEOUT)
+        grid.add_row(tool_name_column, summary)
 
-    if isinstance(timeout_ms, int):
-        if summary:
-            summary.append(" ")
-        if timeout_ms >= 1000 and timeout_ms % 1000 == 0:
-            summary.append(f"{timeout_ms // 1000}s", style=ThemeKey.TOOL_TIMEOUT)
-        else:
-            summary.append(f"{timeout_ms}ms", style=ThemeKey.TOOL_TIMEOUT)
-
-    grid.add_row(tool_name_column, summary)
     return grid
 
 

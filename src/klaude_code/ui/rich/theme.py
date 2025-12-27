@@ -10,6 +10,7 @@ class Palette:
     red: str
     yellow: str
     green: str
+    grey_yellow: str
     cyan: str
     blue: str
     orange: str
@@ -43,6 +44,7 @@ LIGHT_PALETTE = Palette(
     red="red",
     yellow="yellow",
     green="#00875f",
+    grey_yellow="#9f9777",
     cyan="cyan",
     blue="#3078C5",
     orange="#d77757",
@@ -75,6 +77,7 @@ DARK_PALETTE = Palette(
     red="#d75f5f",
     yellow="yellow",
     green="#5fd787",
+    grey_yellow="#9f9777",
     cyan="cyan",
     blue="#00afff",
     orange="#e6704e",
@@ -157,6 +160,12 @@ class ThemeKey(str, Enum):
     TOOL_APPROVED = "tool.approved"
     TOOL_REJECTED = "tool.rejected"
     TOOL_TIMEOUT = "tool.timeout"
+    # BASH SYNTAX
+    BASH_COMMAND = "bash.command"
+    BASH_ARGUMENT = "bash.argument"
+    BASH_OPERATOR = "bash.operator"
+    BASH_STRING = "bash.string"
+    BASH_HEREDOC_DELIMITER = "bash.heredoc.delimiter"
     # THINKING
     THINKING = "thinking"
     THINKING_BOLD = "thinking.bold"
@@ -259,6 +268,12 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_APPROVED.value: palette.green + " bold reverse",
                 ThemeKey.TOOL_REJECTED.value: palette.red + " bold reverse",
                 ThemeKey.TOOL_TIMEOUT.value: palette.yellow,
+                # BASH SYNTAX
+                ThemeKey.BASH_COMMAND.value: "bold " + palette.green,
+                ThemeKey.BASH_ARGUMENT.value: palette.green,
+                ThemeKey.BASH_OPERATOR.value: palette.grey_yellow,
+                ThemeKey.BASH_STRING.value: palette.grey_yellow,
+                ThemeKey.BASH_HEREDOC_DELIMITER.value: "bold " + palette.grey_yellow,
                 # THINKING
                 ThemeKey.THINKING.value: "italic " + palette.grey2,
                 ThemeKey.THINKING_BOLD.value: "bold italic " + palette.grey1,
