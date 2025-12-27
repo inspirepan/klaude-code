@@ -18,6 +18,7 @@ from klaude_code.protocol.sub_agent import is_sub_agent_tool as _is_sub_agent_to
 from klaude_code.ui.renderers import diffs as r_diffs
 from klaude_code.ui.renderers import mermaid_viewer as r_mermaid_viewer
 from klaude_code.ui.renderers.common import create_grid, truncate_display
+from klaude_code.ui.rich.code_panel import CodePanel
 from klaude_code.ui.rich.markdown import NoInsetMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
 
@@ -64,7 +65,7 @@ _BASH_OPERATOR_TOKENS = frozenset(
 # Operators that start a new command context (next non-whitespace token is a command)
 _BASH_COMMAND_STARTERS = frozenset({"&&", "||", "|", ";", "&"})
 
-_BASH_LEXER: Any = BashLexer()  # pyright: ignore[reportUnknownVariableType]
+_BASH_LEXER: Any = BashLexer(ensurenl=False)  # pyright: ignore[reportUnknownVariableType]
 
 # Regex to match heredoc: << [-]? [space]? ['"]? DELIMITER ['"]? [extra] \n body \n DELIMITER
 # Groups: (<<-?) (space) (quote) (delimiter) (quote) (extra on first line) (body) (end delimiter)
@@ -165,10 +166,6 @@ def _highlight_bash_command(command: str) -> Text:
     expect_command = True
 
     for token_type, token_value in _BASH_LEXER.get_tokens(command):
-        # Skip trailing newlines that Pygments adds
-        if token_type == Token.Text and token_value == "\n":
-            continue
-
         # Determine style based on token type and context
         if token_type in _BASH_STRING_TOKENS:
             # Check if this is a heredoc (starts with <<)
@@ -228,7 +225,22 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
     # Build the command display with optional timeout suffix
     if isinstance(command, str) and command.strip():
         cmd_str = command.strip()
+        line_count = len(cmd_str.splitlines())
+
         highlighted = _highlight_bash_command(cmd_str)
+
+        # For commands > 10 lines, use CodePanel for better display
+        if line_count > 10:
+            code_panel = CodePanel(highlighted, border_style=ThemeKey.LINES)
+            if isinstance(timeout_ms, int):
+                if timeout_ms >= 1000 and timeout_ms % 1000 == 0:
+                    timeout_text = Text(f"{timeout_ms // 1000}s", style=ThemeKey.TOOL_TIMEOUT)
+                else:
+                    timeout_text = Text(f"{timeout_ms}ms", style=ThemeKey.TOOL_TIMEOUT)
+                grid.add_row(tool_name_column, Group(code_panel, timeout_text))
+            else:
+                grid.add_row(tool_name_column, code_panel)
+            return grid
         if isinstance(timeout_ms, int):
             if timeout_ms >= 1000 and timeout_ms % 1000 == 0:
                 highlighted.append(f" {timeout_ms // 1000}s", style=ThemeKey.TOOL_TIMEOUT)
