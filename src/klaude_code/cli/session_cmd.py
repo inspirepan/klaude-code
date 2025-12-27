@@ -7,8 +7,11 @@ from klaude_code.trace import log
 
 
 def _session_confirm(sessions: list[Session.SessionMetaBrief], message: str) -> bool:
-    """Show session list and confirm deletion using questionary."""
-    import questionary
+    """Show session list and confirm deletion using prompt_toolkit."""
+
+    from prompt_toolkit.styles import Style
+
+    from klaude_code.ui.terminal.selector import SelectItem, select_one
 
     def _fmt(ts: float) -> str:
         try:
@@ -24,14 +27,26 @@ def _session_confirm(sessions: list[Session.SessionMetaBrief], message: str) -> 
             first_msg += "..."
         log(f"  {_fmt(s.updated_at)}  {msg_count_display:>3} msgs  {first_msg}")
 
-    return (
-        questionary.confirm(
-            message,
-            default=False,
-            style=questionary.Style([("question", "bold")]),
-        ).ask()
-        or False
+    items: list[SelectItem[bool]] = [
+        SelectItem(title=[("class:text", "No\n")], value=False, search_text="No"),
+        SelectItem(title=[("class:text", "Yes\n")], value=True, search_text="Yes"),
+    ]
+
+    result = select_one(
+        message=message,
+        items=items,
+        pointer="→",
+        style=Style(
+            [
+                ("question", "bold"),
+                ("pointer", "ansigreen"),
+                ("highlighted", "ansigreen"),
+                ("text", ""),
+            ]
+        ),
+        use_search_filter=False,
     )
+    return bool(result)
 
 
 def session_clean(

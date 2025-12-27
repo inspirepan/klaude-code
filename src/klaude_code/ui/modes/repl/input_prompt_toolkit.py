@@ -55,7 +55,7 @@ class PromptToolkitInput(InputProviderABC):
         self._pre_prompt = pre_prompt
         self._post_prompt = post_prompt
         # Use provided value if available to avoid redundant TTY queries that may interfere
-        # with prompt_toolkit's terminal state after questionary has been used.
+        # with prompt_toolkit's terminal state after interactive UIs have been used.
         self._is_light_terminal_background = (
             is_light_background if is_light_background is not None else is_light_terminal_background(timeout=0.2)
         )

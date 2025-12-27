@@ -108,60 +108,70 @@ def select_model_from_config(preferred: str | None = None) -> str | None:
         return None
 
     try:
-        import questionary
+        from prompt_toolkit.styles import Style
 
-        choices: list[questionary.Choice] = []
+        from klaude_code.ui.terminal.selector import SelectItem, select_one
 
         max_model_name_length = max(len(m.model_name) for m in filtered_models)
 
-        # Build model_id with thinking suffix as a single unit
-        def build_model_id_with_thinking(m: ModelEntry) -> str:
-            model_id = m.model_params.model or "N/A"
+        def _thinking_info(m: ModelEntry) -> str:
             thinking = m.model_params.thinking
-            if thinking:
-                if thinking.reasoning_effort:
-                    return f"{model_id} ({thinking.reasoning_effort})"
-                elif thinking.budget_tokens:
-                    return f"{model_id} (think {thinking.budget_tokens})"
-            return model_id
+            if not thinking:
+                return ""
+            if thinking.reasoning_effort:
+                return f"reasoning effort {thinking.reasoning_effort}"
+            if thinking.budget_tokens:
+                return f"thinking budget {thinking.budget_tokens}"
+            return "thinking (configured)"
 
-        model_id_with_thinking = {m.model_name: build_model_id_with_thinking(m) for m in filtered_models}
-        max_model_id_length = max(len(v) for v in model_id_with_thinking.values())
-
+        items: list[SelectItem[str]] = []
         for m in filtered_models:
-            star = "★ " if m.model_name == config.main_model else "  "
-            model_id_str = model_id_with_thinking[m.model_name]
-            title = f"{star}{m.model_name:<{max_model_name_length}}   →  {model_id_str:<{max_model_id_length}} @ {m.provider}"
-            choices.append(questionary.Choice(title=title, value=m.model_name))
+            model_id = m.model_params.model or "N/A"
+            first_line_prefix = f"{m.model_name:<{max_model_name_length}}  → "
+            thinking_info = _thinking_info(m)
+            meta_parts = [m.provider]
+            if thinking_info:
+                meta_parts.append(thinking_info)
+            if m.model_params.verbosity:
+                meta_parts.append(f"verbosity {m.model_params.verbosity}")
+            meta_line = "   " + " · ".join(meta_parts)
+            title = [
+                ("class:msg", first_line_prefix),
+                ("class:msg bold", f"{model_id}\n"),
+                ("class:meta", f"{meta_line}\n\n"),
+            ]
+            search_text = f"{m.model_name} {model_id} {m.provider}"
+            items.append(SelectItem(title=title, value=m.model_name, search_text=search_text))
 
         try:
             message = f"Select a model (filtered by '{preferred}'):" if preferred else "Select a model:"
-            result = questionary.select(
+            result = select_one(
                 message=message,
-                choices=choices,
+                items=items,
                 pointer="→",
-                instruction="↑↓ to move • Enter to select",
-                use_jk_keys=False,
                 use_search_filter=True,
-                style=questionary.Style(
+                initial_value=config.main_model,
+                style=Style(
                     [
-                        ("instruction", "ansibrightblack"),
-                        ("pointer", "ansicyan"),
-                        ("highlighted", "ansicyan"),
+                        ("pointer", "ansigreen"),
+                        ("highlighted", "ansigreen"),
+                        ("msg", ""),
+                        ("meta", "fg:ansibrightblack"),
                         ("text", "ansibrightblack"),
+                        ("question", ""),
+                        ("search_prefix", "ansibrightblack"),
                         # search filter colors at the bottom
                         ("search_success", "noinherit fg:ansigreen"),
                         ("search_none", "noinherit fg:ansired"),
-                        ("question-mark", "fg:ansigreen"),
                     ]
                 ),
-            ).ask()
+            )
             if isinstance(result, str) and result in names:
                 return result
         except KeyboardInterrupt:
             return None
     except Exception as e:
-        log((f"Failed to use questionary for model selection: {e}", "yellow"))
+        log((f"Failed to use prompt_toolkit for model selection: {e}", "yellow"))
         # Never return an unvalidated model name here.
         # If we can't interactively select, fall back to a known configured model.
         if isinstance(preferred, str) and preferred in names:

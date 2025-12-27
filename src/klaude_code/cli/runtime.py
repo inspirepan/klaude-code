@@ -273,7 +273,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             display.wrapped_display.renderer.stop_bottom_live()
 
     # Pass the pre-detected theme to avoid redundant TTY queries.
-    # Querying the terminal background again after questionary's interactive selection
+    # Querying the terminal background again after an interactive selection
     # can interfere with prompt_toolkit's terminal state and break history navigation.
     is_light_background: bool | None = None
     if components.theme == "light":
@@ -352,7 +352,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 op.UserInputOperation(input=user_input, session_id=active_session_id)
             )
             # If it's an interactive command (e.g., /model), avoid starting the ESC monitor
-            # to prevent TTY conflicts with interactive prompts (questionary/prompt_toolkit).
+            # to prevent TTY conflicts with interactive prompt_toolkit UIs.
             if has_interactive_command(user_input.text):
                 await components.executor.wait_for(submission_id)
             else:

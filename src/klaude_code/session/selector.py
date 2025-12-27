@@ -1,10 +1,7 @@
 import time
-from typing import TYPE_CHECKING
 
 from klaude_code.trace import log, log_debug
-
-if TYPE_CHECKING:
-    from questionary import Choice
+from klaude_code.ui.terminal.selector import SelectItem, select_one
 
 from .session import Session
 
@@ -40,9 +37,9 @@ def resume_select_session() -> str | None:
         return None
 
     try:
-        import questionary
+        from prompt_toolkit.styles import Style
 
-        choices: list[Choice] = []
+        items: list[SelectItem[str]] = []
         for s in sessions:
             first_msg = s.first_user_message or "N/A"
             first_msg = first_msg.strip().replace("\n", " ")
@@ -52,31 +49,36 @@ def resume_select_session() -> str | None:
 
             title = [
                 ("class:msg", f"{first_msg}\n"),
-                ("class:meta", f"   {_relative_time(s.updated_at)} · {msg_count} · {model}\n"),
+                ("class:meta", f"   {msg_count} · {_relative_time(s.updated_at)} · {model} · {s.id}\n\n"),
             ]
-            choices.append(questionary.Choice(title=title, value=s.id))
+            items.append(
+                SelectItem(
+                    title=title,
+                    value=str(s.id),
+                    search_text=f"{first_msg} {model} {s.id}",
+                )
+            )
 
-        return questionary.select(
+        return select_one(
             message="Select a session to resume:",
-            choices=choices,
+            items=items,
             pointer="→",
-            instruction="↑↓ to move · type to search",
-            use_jk_keys=False,
-            use_search_filter=True,
-            style=questionary.Style(
+            style=Style(
                 [
                     ("msg", ""),
                     ("meta", "fg:ansibrightblack"),
-                    ("pointer", "bold fg:ansicyan"),
-                    ("highlighted", "fg:ansicyan"),
-                    ("instruction", "fg:ansibrightblack"),
+                    ("pointer", "bold fg:ansigreen"),
+                    ("highlighted", "fg:ansigreen"),
+                    ("search_prefix", "fg:ansibrightblack"),
                     ("search_success", "noinherit fg:ansigreen"),
                     ("search_none", "noinherit fg:ansired"),
+                    ("question", "bold"),
+                    ("text", ""),
                 ]
             ),
-        ).ask()
+        )
     except Exception as e:
-        log_debug(f"Failed to use questionary for session select, {e}")
+        log_debug(f"Failed to use prompt_toolkit for session select, {e}")
 
         for i, s in enumerate(sessions, 1):
             first_msg = (s.first_user_message or "N/A").strip().replace("\n", " ")

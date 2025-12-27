@@ -19,7 +19,6 @@ dependencies = [
     "prompt-toolkit>=3.0.52",
     "pydantic>=2.11.7",
     "pyyaml>=6.0.2",
-    "questionary>=2.1.1",
     "rich>=14.1.0",
     "trafilatura>=2.0.0",
     "typer>=0.17.3",

@@ -6,9 +6,7 @@ from collections.abc import Iterable, Sequence
 class SearchableFormattedText:
     """
     Wrapper for prompt_toolkit formatted text that also supports string-like
-    methods used by questionary's search filter (e.g., ``.lower()``).
-
-    This allows using ``use_search_filter=True`` with a formatted ``Choice.title``.
+    methods commonly expected by search filters (e.g., ``.lower()``).
 
     - ``fragments``: A sequence of (style, text) tuples accepted by
       prompt_toolkit's ``to_formatted_text``.
@@ -32,7 +30,7 @@ class SearchableFormattedText:
     def __str__(self) -> str:  # pragma: no cover - utility
         return self._plain
 
-    # Minimal string API to satisfy questionary's search filter logic.
+    # Minimal string API for search filtering.
     def lower(self) -> str:
         return self._plain.lower()
 
@@ -47,10 +45,9 @@ class SearchableFormattedText:
 
 class SearchableFormattedList(list[tuple[str, str]]):
     """
-    List variant compatible with questionary's expected ``Choice.title`` type.
+    List variant compatible with prompt_toolkit formatted-text usage.
 
-    - Behaves like ``List[Tuple[str, str]]`` for rendering (so ``isinstance(..., list)`` works),
-      preserving existing styling behavior in questionary.
+    - Behaves like ``List[Tuple[str, str]]`` for rendering (so ``isinstance(..., list)`` works).
     - Provides ``.lower()``/``.upper()`` returning the plain text for search filtering.
     """
 

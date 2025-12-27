@@ -717,8 +717,6 @@ class TestSelectModelFromConfig:
         assert select_model_from_config(preferred="openai/gpt52") == "primary"
 
     def test_select_model_uses_interactive_selector_on_ambiguity(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import types
-
         import klaude_code.config.select_model as select_model_module
         from klaude_code.config.select_model import select_model_from_config
 
@@ -745,37 +743,18 @@ class TestSelectModelFromConfig:
         monkeypatch.setattr(select_model_module.sys.stdout, "isatty", lambda: True)
 
         captured: dict[str, Any] = {}
-        questionary_stub: Any = types.ModuleType("questionary")
 
-        class Choice:
-            def __init__(self, title: str, value: str) -> None:
-                self.title = title
-                self.value = value
-
-        class Style:
-            def __init__(self, _styles: object) -> None:
-                self._styles = _styles
-
-        def select(*, message: str, choices: list[Choice], **kwargs: object) -> object:
+        def mock_select_one(*, message: str, items: list[Any], **kwargs: object) -> str:
             captured["message"] = message
-            captured["choices"] = choices
+            captured["items"] = items
             captured["kwargs"] = kwargs
+            return model_b.model_name
 
-            class _Result:
-                def ask(self) -> str:
-                    return model_b.model_name
-
-            return _Result()
-
-        questionary_stub.Choice = Choice
-        questionary_stub.Style = Style
-        questionary_stub.select = select
-
-        monkeypatch.setitem(sys.modules, "questionary", questionary_stub)
+        monkeypatch.setattr("klaude_code.ui.terminal.selector.select_one", mock_select_one)
 
         assert select_model_from_config(preferred="gpt52") == model_b.model_name
         assert captured["message"] == "Select a model (filtered by 'gpt52'):"
-        assert len(captured["choices"]) == 2
+        assert len(captured["items"]) == 2
 
 
 # =============================================================================

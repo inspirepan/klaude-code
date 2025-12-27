@@ -1,38 +1,43 @@
 import asyncio
 
-import questionary
+from prompt_toolkit.styles import Style
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.config.select_model import select_model_from_config
 from klaude_code.protocol import commands, events, model, op
+from klaude_code.ui.terminal.selector import SelectItem, select_one
 
-SELECT_STYLE = questionary.Style(
+SELECT_STYLE = Style(
     [
         ("instruction", "ansibrightblack"),
-        ("pointer", "ansicyan"),
-        ("highlighted", "ansicyan"),
+        ("pointer", "ansigreen"),
+        ("highlighted", "ansigreen"),
         ("text", "ansibrightblack"),
+        ("question", ""),
     ]
 )
 
 
 def _confirm_change_default_model_sync(selected_model: str) -> bool:
-    choices: list[questionary.Choice] = [
-        questionary.Choice(title="No  (session only)", value=False),
-        questionary.Choice(title="Yes (save as default main_model in ~/.klaude/klaude-config.yaml)", value=True),
+    items: list[SelectItem[bool]] = [
+        SelectItem(title=[("class:text", "No  (session only)\n")], value=False, search_text="No"),
+        SelectItem(
+            title=[("class:text", "Yes (save as default main_model in ~/.klaude/klaude-config.yaml)\n")],
+            value=True,
+            search_text="Yes",
+        ),
     ]
 
     try:
         # Add a blank line between the model selector and this confirmation prompt.
-        questionary.print("")
-        result = questionary.select(
+        print("")
+        result = select_one(
             message=f"Save '{selected_model}' as default model?",
-            choices=choices,
+            items=items,
             pointer="→",
-            instruction="Use arrow keys to move, Enter to select",
-            use_jk_keys=False,
             style=SELECT_STYLE,
-        ).ask()
+            use_search_filter=False,
+        )
     except KeyboardInterrupt:
         return False
 

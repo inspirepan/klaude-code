@@ -1,9 +1,10 @@
 import asyncio
 
-import questionary
+from prompt_toolkit.styles import Style
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, llm_param, model
+from klaude_code.ui.terminal.selector import SelectItem, select_one
 
 # Thinking level options for different protocols
 RESPONSES_LEVELS = ["low", "medium", "high"]
@@ -118,12 +119,13 @@ def format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
     return "unknown protocol"
 
 
-SELECT_STYLE = questionary.Style(
+SELECT_STYLE = Style(
     [
         ("instruction", "ansibrightblack"),
-        ("pointer", "ansicyan"),
-        ("highlighted", "ansicyan"),
+        ("pointer", "ansigreen"),
+        ("highlighted", "ansigreen"),
         ("text", "ansibrightblack"),
+        ("question", ""),
     ]
 )
 
@@ -131,17 +133,18 @@ SELECT_STYLE = questionary.Style(
 def _select_responses_thinking_sync(model_name: str | None) -> llm_param.Thinking | None:
     """Select thinking level for responses/codex protocol (sync version)."""
     levels = _get_levels_for_responses(model_name)
-    choices: list[questionary.Choice] = [questionary.Choice(title=level, value=level) for level in levels]
+    items: list[SelectItem[str]] = [
+        SelectItem(title=[("class:text", level + "\n")], value=level, search_text=level) for level in levels
+    ]
 
     try:
-        result = questionary.select(
+        result = select_one(
             message="Select reasoning effort:",
-            choices=choices,
+            items=items,
             pointer="→",
-            instruction="Use arrow keys to move, Enter to select",
-            use_jk_keys=False,
             style=SELECT_STYLE,
-        ).ask()
+            use_search_filter=False,
+        )
 
         if result is None:
             return None
@@ -152,22 +155,24 @@ def _select_responses_thinking_sync(model_name: str | None) -> llm_param.Thinkin
 
 def _select_anthropic_thinking_sync() -> llm_param.Thinking | None:
     """Select thinking level for anthropic/openai_compatible protocol (sync version)."""
-    choices: list[questionary.Choice] = [
-        questionary.Choice(title=label, value=tokens) for label, tokens in ANTHROPIC_LEVELS
+    items: list[SelectItem[int]] = [
+        SelectItem(title=[("class:text", label + "\n")], value=tokens or 0, search_text=label)
+        for label, tokens in ANTHROPIC_LEVELS
     ]
 
     try:
-        result = questionary.select(
+        result = select_one(
             message="Select thinking level:",
-            choices=choices,
+            items=items,
             pointer="→",
-            instruction="Use arrow keys to move, Enter to select",
-            use_jk_keys=False,
             style=SELECT_STYLE,
-        ).ask()
-        if not result:
+            use_search_filter=False,
+        )
+        if result is None:
+            return None
+        if result == 0:
             return llm_param.Thinking(type="disabled", budget_tokens=0)
-        return llm_param.Thinking(type="enabled", budget_tokens=result or 0)
+        return llm_param.Thinking(type="enabled", budget_tokens=result)
     except KeyboardInterrupt:
         return None
 
