@@ -18,15 +18,15 @@ SELECT_STYLE = questionary.Style(
 
 def _confirm_change_default_model_sync(selected_model: str) -> bool:
     choices: list[questionary.Choice] = [
-        questionary.Choice(title="No (session only)", value=False),
-        questionary.Choice(title="Yes (save as default)", value=True),
+        questionary.Choice(title="No  (session only)", value=False),
+        questionary.Choice(title="Yes (save as default main_model in ~/.klaude/klaude-config.yaml)", value=True),
     ]
 
     try:
         # Add a blank line between the model selector and this confirmation prompt.
         questionary.print("")
         result = questionary.select(
-            message=f"Save '{selected_model}' as default model (main_model)?",
+            message=f"Save '{selected_model}' as default model?",
             choices=choices,
             pointer="→",
             instruction="Use arrow keys to move, Enter to select",
