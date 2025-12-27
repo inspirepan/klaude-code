@@ -9,55 +9,69 @@ if TYPE_CHECKING:
 from .session import Session
 
 
+def _relative_time(ts: float) -> str:
+    """Format timestamp as relative time like '5 days ago'."""
+    now = time.time()
+    diff = now - ts
+
+    if diff < 60:
+        return "just now"
+    elif diff < 3600:
+        mins = int(diff / 60)
+        return f"{mins} minute{'s' if mins != 1 else ''} ago"
+    elif diff < 86400:
+        hours = int(diff / 3600)
+        return f"{hours} hour{'s' if hours != 1 else ''} ago"
+    elif diff < 604800:
+        days = int(diff / 86400)
+        return f"{days} day{'s' if days != 1 else ''} ago"
+    elif diff < 2592000:
+        weeks = int(diff / 604800)
+        return f"{weeks} week{'s' if weeks != 1 else ''} ago"
+    else:
+        months = int(diff / 2592000)
+        return f"{months} month{'s' if months != 1 else ''} ago"
+
+
 def resume_select_session() -> str | None:
-    # Column widths
-    UPDATED_AT_WIDTH = 16
-    MSG_COUNT_WIDTH = 3
-    MODEL_WIDTH = 25
-    FIRST_MESSAGE_WIDTH = 50
     sessions = Session.list_sessions()
     if not sessions:
         log("No sessions found for this project.")
         return None
-
-    def _fmt(ts: float) -> str:
-        try:
-            return time.strftime("%m-%d %H:%M:%S", time.localtime(ts))
-        except (ValueError, OSError):
-            return str(ts)
 
     try:
         import questionary
 
         choices: list[Choice] = []
         for s in sessions:
-            first_user_message = s.first_user_message or "N/A"
-            msg_count_display = "N/A" if s.messages_count == -1 else str(s.messages_count)
-            model_display = s.model_name or "N/A"
+            first_msg = s.first_user_message or "N/A"
+            first_msg = first_msg.strip().replace("\n", " ")
+
+            msg_count = "N/A" if s.messages_count == -1 else f"{s.messages_count} messages"
+            model = s.model_name or "N/A"
 
             title = [
-                ("class:d", f"{_fmt(s.updated_at):<{UPDATED_AT_WIDTH}} "),
-                ("class:b", f"{msg_count_display:>{MSG_COUNT_WIDTH}}  "),
-                (
-                    "class:t",
-                    f"{model_display[: MODEL_WIDTH - 1] + '…' if len(model_display) > MODEL_WIDTH else model_display:<{MODEL_WIDTH}}  ",
-                ),
-                (
-                    "class:t",
-                    f"{first_user_message.strip().replace('\n', ' ↩ '):<{FIRST_MESSAGE_WIDTH}}",
-                ),
+                ("class:msg", f"{first_msg}\n"),
+                ("class:meta", f"   {_relative_time(s.updated_at)} · {msg_count} · {model}\n"),
             ]
             choices.append(questionary.Choice(title=title, value=s.id))
+
         return questionary.select(
-            message=f"{' Updated at':<{UPDATED_AT_WIDTH + 1}} {'Msg':>{MSG_COUNT_WIDTH}}  {'Model':<{MODEL_WIDTH}}  {'First message':<{FIRST_MESSAGE_WIDTH}}",
+            message="Select a session to resume:",
             choices=choices,
             pointer="→",
-            instruction="↑↓ to move",
+            instruction="↑↓ to move · type to search",
+            use_jk_keys=False,
+            use_search_filter=True,
             style=questionary.Style(
                 [
-                    ("t", ""),
-                    ("b", "bold"),
-                    ("d", "dim"),
+                    ("msg", ""),
+                    ("meta", "fg:ansibrightblack"),
+                    ("pointer", "bold fg:ansicyan"),
+                    ("highlighted", "fg:ansicyan"),
+                    ("instruction", "fg:ansibrightblack"),
+                    ("search_success", "noinherit fg:ansigreen"),
+                    ("search_none", "noinherit fg:ansired"),
                 ]
             ),
         ).ask()
@@ -65,12 +79,13 @@ def resume_select_session() -> str | None:
         log_debug(f"Failed to use questionary for session select, {e}")
 
         for i, s in enumerate(sessions, 1):
-            msg_count_display = "N/A" if s.messages_count == -1 else str(s.messages_count)
-            model_display = s.model_name or "N/A"
-            print(
-                f"{i}. {_fmt(s.updated_at)}  {msg_count_display:>{MSG_COUNT_WIDTH}} "
-                f"{model_display[: MODEL_WIDTH - 1] + '…' if len(model_display) > MODEL_WIDTH else model_display:<{MODEL_WIDTH}} {s.id}  {s.work_dir}"
-            )
+            first_msg = (s.first_user_message or "N/A").strip().replace("\n", " ")
+            if len(first_msg) > 60:
+                first_msg = first_msg[:59] + "…"
+            msg_count = "N/A" if s.messages_count == -1 else f"{s.messages_count} msgs"
+            model = s.model_name or "N/A"
+            print(f"{i}. {first_msg}")
+            print(f"   {_relative_time(s.updated_at)} · {msg_count} · {model}")
         try:
             raw = input("Select a session number: ").strip()
             idx = int(raw)
