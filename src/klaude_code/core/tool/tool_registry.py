@@ -66,11 +66,11 @@ def load_agent_tools(
 
     # Main agent tools
     if "gpt-5" in model_name:
-        tool_names = [tools.BASH, tools.READ, tools.APPLY_PATCH, tools.UPDATE_PLAN]
+        tool_names = [tools.BASH, tools.READ, tools.APPLY_PATCH, tools.MOVE, tools.UPDATE_PLAN]
     elif "gemini-3" in model_name:
-        tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE]
+        tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.MOVE]
     else:
-        tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.TODO_WRITE]
+        tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.MOVE, tools.TODO_WRITE]
 
     tool_names.extend(sub_agent_tool_names(enabled_only=True, model_name=model_name))
     tool_names.extend([tools.SKILL, tools.MERMAID])

@@ -54,7 +54,7 @@ register_sub_agent(
         description=TASK_DESCRIPTION,
         parameters=TASK_PARAMETERS,
         prompt_file="prompts/prompt-sub-agent.md",
-        tool_set=(tools.BASH, tools.READ, tools.EDIT, tools.WRITE),
+        tool_set=(tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.MOVE),
         active_form="Tasking",
         output_schema_arg="output_format",
     )
