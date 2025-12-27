@@ -17,5 +17,5 @@ def render_tool_error(error_msg: Text) -> RenderableType:
     """Render error with indent for tool results."""
     grid = create_grid()
     error_msg.style = ThemeKey.ERROR
-    grid.add_row(Text("  "), error_msg)
+    grid.add_row(Text(" "), error_msg)
     return grid
