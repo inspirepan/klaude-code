@@ -217,7 +217,18 @@ def render_edit_tool_call(arguments: str) -> RenderableType:
     try:
         json_dict = json.loads(arguments)
         file_path = json_dict.get("file_path")
-        arguments_column = render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
+        replace_all = json_dict.get("replace_all", False)
+        path_text = render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
+        if replace_all:
+            old_string = json_dict.get("old_string", "")
+            new_string = json_dict.get("new_string", "")
+            replace_info = Text("Replacing all ", ThemeKey.TOOL_RESULT_TRUNCATED)
+            replace_info.append(old_string, ThemeKey.BASH_STRING)
+            replace_info.append(" → ", ThemeKey.BASH_OPERATOR)
+            replace_info.append(new_string, ThemeKey.BASH_STRING)
+            arguments_column: RenderableType = Group(path_text, replace_info)
+        else:
+            arguments_column = path_text
     except json.JSONDecodeError:
         arguments_column = Text(
             arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
