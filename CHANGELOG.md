@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2025-12-28
+
+### Added
+
+- display task elapsed time in status line (`e91e9bee`)
+
+### Changed
+
+- group at_files by operation and mentioned_in (`d210c438`)
+- replace questionary with custom prompt_toolkit selector (`557567d1`)
+- improve session selector with relative time and search filter (`3c887b19`)
+
+### Fixed
+
+- submit immediately when exact completion candidate is typed (`6da43a31`)
+- change move tool marker to ± (`c44bcfa7`)
 ## [1.3.0] - 2025-12-27
 
 ### Added
@@ -869,7 +885,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/inspirepan/klaude-code/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/inspirepan/klaude-code/compare/v1.2.30...v1.3.0
 [1.2.30]: https://github.com/inspirepan/klaude-code/compare/v1.2.29...v1.2.30
 [1.2.29]: https://github.com/inspirepan/klaude-code/compare/v1.2.28...v1.2.29
