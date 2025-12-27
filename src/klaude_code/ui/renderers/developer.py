@@ -76,9 +76,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
             grouped[key].append(at_file.path)
 
         for (operation, mentioned_in), paths in grouped.items():
-            path_texts = Text(", ", ThemeKey.REMINDER).join(
-                render_path(p, ThemeKey.REMINDER_BOLD) for p in paths
-            )
+            path_texts = Text(", ", ThemeKey.REMINDER).join(render_path(p, ThemeKey.REMINDER_BOLD) for p in paths)
             if mentioned_in:
                 grid.add_row(
                     Text(REMINDER_BULLET, style=ThemeKey.REMINDER),

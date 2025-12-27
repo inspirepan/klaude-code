@@ -34,6 +34,47 @@ def create_key_bindings(
     """
     kb = KeyBindings()
 
+    def _should_submit_instead_of_accepting_completion(buf: Buffer) -> bool:
+        """Return True when Enter should submit even if completions are visible.
+
+        We show completions proactively for contexts like `/`.
+        If the user already typed an exact candidate (e.g. `/clear`), accepting
+        a completion often only adds a trailing space and makes Enter require
+        two presses. In that case, prefer submitting.
+        """
+        state = buf.complete_state
+        if state is None or not state.completions:
+            return False
+
+        try:
+            doc = buf.document  # type: ignore[reportUnknownMemberType]
+            text = cast(str, doc.text)  # type: ignore[reportUnknownMemberType]
+            cursor_pos = cast(int, doc.cursor_position)  # type: ignore[reportUnknownMemberType]
+        except Exception:
+            return False
+
+        # Only apply this heuristic when the caret is at the end of the buffer.
+        if cursor_pos != len(text):
+            return False
+
+        for completion in state.completions:
+            try:
+                start = cursor_pos + completion.start_position
+                if start < 0 or start > cursor_pos:
+                    continue
+
+                replaced = text[start:cursor_pos]
+                inserted = completion.text
+
+                # If the user already typed an exact candidate, don't force
+                # accepting a completion (which often just adds a space).
+                if replaced == inserted or replaced == inserted.rstrip():
+                    return True
+            except Exception:
+                continue
+
+        return False
+
     def _select_first_completion_if_needed(buf: Buffer) -> None:
         """Ensure the completion menu has an active selection.
 
@@ -98,7 +139,7 @@ def create_key_bindings(
         # When completions are visible, Enter accepts the current selection.
         # This aligns with common TUI completion UX: navigation doesn't modify
         # the buffer, and Enter/Tab inserts the selected option.
-        if _accept_current_completion(buf):
+        if not _should_submit_instead_of_accepting_completion(buf) and _accept_current_completion(buf):
             return
 
         # If the entire buffer is whitespace-only, insert a newline rather than submitting.
