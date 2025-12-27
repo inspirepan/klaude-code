@@ -24,6 +24,8 @@ def truncate_display(
 
     Applies `ThemeKey.TOOL_RESULT_TRUNCATED` style to truncation indicators.
     """
+    # Expand tabs to spaces to ensure correct alignment when Rich applies padding.
+    text = text.expandtabs(8)
 
     if max_lines <= 0:
         truncated_lines = text.split("\n")

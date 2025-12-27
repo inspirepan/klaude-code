@@ -334,7 +334,9 @@ class BashTool(ToolABC):
                 _best_effort_update_file_tracker(args.command)
                 return model.ToolResultItem(
                     status="success",
-                    output=output.strip(),
+                    # Preserve leading whitespace for tools like `nl -ba`.
+                    # Only trim trailing newlines to avoid adding an extra blank line in the UI.
+                    output=output.rstrip("\n"),
                 )
             else:
                 combined = ""
@@ -346,7 +348,8 @@ class BashTool(ToolABC):
                     combined = f"Command exited with code {rc}"
                 return model.ToolResultItem(
                     status="error",
-                    output=combined.strip(),
+                    # Preserve leading whitespace; only trim trailing newlines.
+                    output=combined.rstrip("\n"),
                 )
         except FileNotFoundError:
             return model.ToolResultItem(
