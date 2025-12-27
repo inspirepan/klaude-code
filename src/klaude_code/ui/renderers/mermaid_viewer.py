@@ -50,8 +50,7 @@ def ensure_viewer_file(*, code: str, link: str, tool_call_id: str) -> Path | Non
 
 
 def build_viewer(*, code: str, link: str, tool_call_id: str) -> Path | None:
-    """Create a local Mermaid viewer HTML file.
-    """
+    """Create a local Mermaid viewer HTML file."""
 
     if not code:
         return None

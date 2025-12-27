@@ -74,6 +74,7 @@ class ChangeModelOperation(Operation):
     type: OperationType = OperationType.CHANGE_MODEL
     session_id: str
     model_name: str
+    save_as_default: bool = False
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_change_model(self)

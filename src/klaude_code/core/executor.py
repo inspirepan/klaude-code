@@ -239,12 +239,13 @@ class ExecutorContext:
         agent.session.model_config_name = operation.model_name
         agent.session.model_thinking = llm_config.thinking
 
-        # Save the selection as default main_model
-        config.main_model = operation.model_name
-        await config.save()
+        if operation.save_as_default:
+            config.main_model = operation.model_name
+            await config.save()
 
+        default_note = " (saved as default)" if operation.save_as_default else ""
         developer_item = model.DeveloperMessageItem(
-            content=f"Switched to: {llm_config.model}",
+            content=f"Switched to: {llm_config.model}{default_note}",
             command_output=model.CommandOutput(command_name=commands.CommandName.MODEL),
         )
         agent.session.append_history([developer_item])

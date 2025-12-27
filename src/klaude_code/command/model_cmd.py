@@ -1,8 +1,42 @@
 import asyncio
 
+import questionary
+
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.config.select_model import select_model_from_config
 from klaude_code.protocol import commands, events, model, op
+
+SELECT_STYLE = questionary.Style(
+    [
+        ("instruction", "ansibrightblack"),
+        ("pointer", "ansicyan"),
+        ("highlighted", "ansicyan"),
+        ("text", "ansibrightblack"),
+    ]
+)
+
+
+def _confirm_change_default_model_sync(selected_model: str) -> bool:
+    choices: list[questionary.Choice] = [
+        questionary.Choice(title="No (session only)", value=False),
+        questionary.Choice(title="Yes (save as default)", value=True),
+    ]
+
+    try:
+        # Add a blank line between the model selector and this confirmation prompt.
+        questionary.print("")
+        result = questionary.select(
+            message=f"Save '{selected_model}' as default model (main_model)?",
+            choices=choices,
+            pointer="→",
+            instruction="Use arrow keys to move, Enter to select",
+            use_jk_keys=False,
+            style=SELECT_STYLE,
+        ).ask()
+    except KeyboardInterrupt:
+        return False
+
+    return bool(result)
 
 
 class ModelCommand(CommandABC):
@@ -44,7 +78,13 @@ class ModelCommand(CommandABC):
                     )
                 ]
             )
-
+        save_as_default = await asyncio.to_thread(_confirm_change_default_model_sync, selected_model)
         return CommandResult(
-            operations=[op.ChangeModelOperation(session_id=agent.session.id, model_name=selected_model)]
+            operations=[
+                op.ChangeModelOperation(
+                    session_id=agent.session.id,
+                    model_name=selected_model,
+                    save_as_default=save_as_default,
+                )
+            ]
         )
