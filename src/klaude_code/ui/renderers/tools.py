@@ -65,6 +65,22 @@ _BASH_OPERATOR_TOKENS = frozenset(
 # Operators that start a new command context (next non-whitespace token is a command)
 _BASH_COMMAND_STARTERS = frozenset({"&&", "||", "|", ";", "&"})
 
+# Commands that have subcommands (e.g., git commit, docker run)
+_SUBCOMMAND_COMMANDS = frozenset({
+    # Version control
+    "git", "jj", "hg", "svn",
+    # Container & orchestration
+    "docker", "docker-compose", "podman", "kubectl", "helm",
+    # Package managers
+    "npm", "yarn", "pnpm", "cargo", "uv", "pip", "poetry", "brew", "apt", "apt-get", "dnf", "yum", "pacman",
+    # Cloud CLIs
+    "aws", "gcloud", "az",
+    # Language tools
+    "go", "rustup", "python", "ruby",
+    # Other common tools
+    "gh", "systemctl", "launchctl", "supervisorctl",
+})
+
 _BASH_LEXER: Any = BashLexer(ensurenl=False)  # pyright: ignore[reportUnknownVariableType]
 
 # Regex to match heredoc: << [-]? [space]? ['"]? DELIMITER ['"]? [extra] \n body \n DELIMITER
@@ -154,6 +170,7 @@ def _highlight_bash_command(command: str) -> Text:
 
     Styling:
     - Command names (first token after line start or operators): bold green
+    - Subcommands (for commands like git, docker): bold green
     - Arguments: green
     - Operators (&&, ||, |, ;): dim green
     - Strings and comments: green
@@ -164,6 +181,8 @@ def _highlight_bash_command(command: str) -> Text:
 
     # Track whether next non-whitespace token is a command
     expect_command = True
+    # Track whether next non-flag token is a subcommand
+    expect_subcommand = False
 
     for token_type, token_value in _BASH_LEXER.get_tokens(command):
         # Determine style based on token type and context
@@ -173,24 +192,34 @@ def _highlight_bash_command(command: str) -> Text:
                 _append_heredoc(result, token_value)
             else:
                 result.append(token_value, style=ThemeKey.BASH_STRING)
+            expect_subcommand = False
         elif token_type in _BASH_OPERATOR_TOKENS:
             result.append(token_value, style=ThemeKey.BASH_OPERATOR)
             # After command-starting operators, next token is a command
             if token_value in _BASH_COMMAND_STARTERS:
                 expect_command = True
+                expect_subcommand = False
         elif token_type in (Token.Text.Whitespace,):
             result.append(token_value)
         elif token_type == Token.Name.Builtin:
             # Built-in commands are always commands
             result.append(token_value, style=ThemeKey.BASH_COMMAND)
             expect_command = False
+            expect_subcommand = token_value in _SUBCOMMAND_COMMANDS
         elif expect_command and token_value.strip():
             # First non-whitespace token in command context
             result.append(token_value, style=ThemeKey.BASH_COMMAND)
             expect_command = False
+            expect_subcommand = token_value in _SUBCOMMAND_COMMANDS
+        elif expect_subcommand and token_value.strip() and not token_value.startswith("-"):
+            # Subcommand: non-flag token after a command that has subcommands
+            result.append(token_value, style=ThemeKey.BASH_COMMAND)
+            expect_subcommand = False
         else:
-            # Regular arguments
+            # Regular arguments (including flags, which reset subcommand expectation)
             result.append(token_value, style=ThemeKey.BASH_ARGUMENT)
+            if token_value.strip():
+                expect_subcommand = False
 
     return result
 
