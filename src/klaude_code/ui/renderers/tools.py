@@ -66,20 +66,49 @@ _BASH_OPERATOR_TOKENS = frozenset(
 _BASH_COMMAND_STARTERS = frozenset({"&&", "||", "|", ";", "&"})
 
 # Commands that have subcommands (e.g., git commit, docker run)
-_SUBCOMMAND_COMMANDS = frozenset({
-    # Version control
-    "git", "jj", "hg", "svn",
-    # Container & orchestration
-    "docker", "docker-compose", "podman", "kubectl", "helm",
-    # Package managers
-    "npm", "yarn", "pnpm", "cargo", "uv", "pip", "poetry", "brew", "apt", "apt-get", "dnf", "yum", "pacman",
-    # Cloud CLIs
-    "aws", "gcloud", "az",
-    # Language tools
-    "go", "rustup", "python", "ruby",
-    # Other common tools
-    "gh", "systemctl", "launchctl", "supervisorctl",
-})
+_SUBCOMMAND_COMMANDS = frozenset(
+    {
+        # Version control
+        "git",
+        "jj",
+        "hg",
+        "svn",
+        # Container & orchestration
+        "docker",
+        "docker-compose",
+        "podman",
+        "kubectl",
+        "helm",
+        # Package managers
+        "npm",
+        "yarn",
+        "pnpm",
+        "cargo",
+        "uv",
+        "pip",
+        "poetry",
+        "brew",
+        "apt",
+        "apt-get",
+        "dnf",
+        "yum",
+        "pacman",
+        # Cloud CLIs
+        "aws",
+        "gcloud",
+        "az",
+        # Language tools
+        "go",
+        "rustup",
+        "python",
+        "ruby",
+        # Other common tools
+        "gh",
+        "systemctl",
+        "launchctl",
+        "supervisorctl",
+    }
+)
 
 _BASH_LEXER: Any = BashLexer(ensurenl=False)  # pyright: ignore[reportUnknownVariableType]
 
@@ -525,7 +554,7 @@ def _render_mermaid_viewer_link(
 ) -> RenderableType:
     viewer_path = r_mermaid_viewer.build_viewer(code=link_info.code, link=link_info.link, tool_call_id=tr.tool_call_id)
     if viewer_path is None:
-        return Text(link_info.link, style=ThemeKey.TOOL_PARAM_FILE_PATH, overflow="fold")
+        return Text(link_info.link, style=ThemeKey.TOOL_RESULT_MERMAID, overflow="fold")
 
     display_path = str(viewer_path)
 
@@ -536,9 +565,9 @@ def _render_mermaid_viewer_link(
         except ValueError:
             file_url = f"file://{viewer_path.as_posix()}"
 
-    rendered = Text.assemble(("saved in:", ThemeKey.TOOL_PARAM), " ")
+    rendered = Text.assemble(("saved in:", ThemeKey.TOOL_RESULT), " ")
     start = len(rendered)
-    rendered.append(display_path, ThemeKey.TOOL_PARAM_FILE_PATH)
+    rendered.append(display_path, ThemeKey.TOOL_RESULT_MERMAID)
     end = len(rendered)
 
     if use_osc8 and file_url:
