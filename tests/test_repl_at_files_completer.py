@@ -78,3 +78,30 @@ def test_at_files_completer_preserves_dotfile_prefix(monkeypatch: pytest.MonkeyP
     assert completions
     inserted = {c.text for c in completions}
     assert "@.claude/skills/publish/scripts/update_changelog.py " in inserted
+
+
+def test_at_files_completer_formats_display_labels() -> None:
+    """Display labels show basename aligned with arrow and full path."""
+
+    completer = _AtFilesCompleter()  # pyright: ignore[reportPrivateUsage]
+
+    suggestions = [
+        "src/klaude_code/ui/modes/repl/completers.py",
+        "docs/",
+        "pyproject.toml",
+    ]
+
+    align_width = completer._display_align_width(suggestions)
+    labels = [
+        completer._format_display_label(suggestion, align_width) for suggestion in suggestions
+    ]
+
+    # Arrow columns should align for all labels
+    arrow_columns = {label.index("->") for label in labels}
+    assert len(arrow_columns) == 1
+
+    # Basename appears before arrow and path after
+    assert labels[0].startswith("completers.py")
+    assert "-> src/klaude_code/ui/modes/repl/completers.py" in labels[0]
+    assert labels[1].startswith("docs/")
+    assert labels[2].startswith("pyproject.toml")

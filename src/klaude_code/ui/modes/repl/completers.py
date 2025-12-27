@@ -318,11 +318,14 @@ class _AtFilesCompleter(Completer):
             if not suggestions:
                 return []  # type: ignore[reportUnknownVariableType]
             start_position = token_start_in_input - len(text_before)
-            for s in suggestions[: self._max_results]:
+            visible_suggestions = suggestions[: self._max_results]
+            display_align = self._display_align_width(visible_suggestions)
+
+            for s in visible_suggestions:
                 yield Completion(
                     text=self._format_completion_text(s, is_quoted=is_quoted),
                     start_position=start_position,
-                    display=s,
+                    display=self._format_display_label(s, display_align),
                 )
             return []  # type: ignore[reportUnknownVariableType]
 
@@ -333,12 +336,15 @@ class _AtFilesCompleter(Completer):
 
         # Prepare Completion objects. Replace from the '@' character.
         start_position = token_start_in_input - len(text_before)  # negative
-        for s in suggestions[: self._max_results]:
+        visible_suggestions = suggestions[: self._max_results]
+        display_align = self._display_align_width(visible_suggestions)
+
+        for s in visible_suggestions:
             # Insert formatted text (with quoting when needed) so that subsequent typing does not keep triggering
             yield Completion(
                 text=self._format_completion_text(s, is_quoted=is_quoted),
                 start_position=start_position,
-                display=s,
+                display=self._format_display_label(s, display_align),
             )
 
     # ---- Core logic ----
@@ -522,6 +528,35 @@ class _AtFilesCompleter(Completer):
         if needs_quotes or is_quoted:
             return f'@"{suggestion}" '
         return f"@{suggestion} "
+
+    def _format_display_label(self, suggestion: str, align_width: int) -> str:
+        """Format visible label for a completion option.
+
+        Shows the basename (or directory name) aligned, followed by an arrow
+        and the suggestion's relative path.
+        """
+
+        name = self._display_name(suggestion)
+        padding = " " * (max(align_width - len(name), 0) + 2)
+        return f"{name}{padding}-> {suggestion}"
+
+    def _display_align_width(self, suggestions: list[str]) -> int:
+        """Calculate alignment width for display labels."""
+
+        return max((len(self._display_name(s)) for s in suggestions), default=0)
+
+    def _display_name(self, suggestion: str) -> str:
+        """Return the basename (with trailing slash for directories) for display."""
+
+        if not suggestion:
+            return suggestion
+
+        is_dir = suggestion.endswith("/")
+        stripped = suggestion.rstrip("/")
+        base = stripped.split("/")[-1] if stripped else suggestion
+        if is_dir:
+            return f"{base}/"
+        return base
 
     def _same_scope(self, prev_key: str, cur_key: str) -> bool:
         # Consider same scope if they share the same base directory and one prefix startswith the other
