@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.3] - 2025-12-28
+
+### Changed
+
+- simplify completion menu styling with arrow indicator (`bb0613ed`)
 ## [1.4.2] - 2025-12-28
 
 ### Added
@@ -911,7 +916,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.4.2...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.4.3...HEAD
+[1.4.3]: https://github.com/inspirepan/klaude-code/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/inspirepan/klaude-code/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/inspirepan/klaude-code/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/inspirepan/klaude-code/compare/v1.3.0...v1.4.0
