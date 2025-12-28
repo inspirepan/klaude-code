@@ -254,18 +254,36 @@ class MarkdownStream:
         live suffix separately may introduce an extra blank line that wouldn't
         appear when rendering the full document.
 
-        This function removes leading blank lines from the live ANSI when the
-        stable ANSI already ends with a blank line.
+        This function removes *overlapping* blank lines from the live ANSI when
+        the stable ANSI already ends with one or more blank lines.
+
+        Important: don't remove *all* leading blank lines from the live suffix.
+        In some incomplete-block cases, the live render may begin with multiple
+        blank lines while the full-document render would keep one of them.
         """
 
         stable_lines = stable_ansi.splitlines(keepends=True)
-        stable_ends_blank = bool(stable_lines) and not stable_lines[-1].strip()
-        if not stable_ends_blank:
+        if not stable_lines:
+            return live_ansi
+
+        stable_trailing_blank = 0
+        for line in reversed(stable_lines):
+            if line.strip():
+                break
+            stable_trailing_blank += 1
+        if stable_trailing_blank <= 0:
             return live_ansi
 
         live_lines = live_ansi.splitlines(keepends=True)
-        while live_lines and not live_lines[0].strip():
-            live_lines.pop(0)
+        live_leading_blank = 0
+        for line in live_lines:
+            if line.strip():
+                break
+            live_leading_blank += 1
+
+        drop = min(stable_trailing_blank, live_leading_blank)
+        if drop > 0:
+            live_lines = live_lines[drop:]
         return "".join(live_lines)
 
     def _append_nonfinal_sentinel(self, stable_source: str) -> str:
@@ -400,9 +418,23 @@ class MarkdownStream:
             apply_mark_live = self._stable_source_line_count == 0
             live_lines = self._render_markdown_to_lines(live_source, apply_mark=apply_mark_live)
 
-            if self._stable_rendered_lines and not self._stable_rendered_lines[-1].strip():
-                while live_lines and not live_lines[0].strip():
-                    live_lines.pop(0)
+            if self._stable_rendered_lines:
+                stable_trailing_blank = 0
+                for line in reversed(self._stable_rendered_lines):
+                    if line.strip():
+                        break
+                    stable_trailing_blank += 1
+
+                if stable_trailing_blank > 0:
+                    live_leading_blank = 0
+                    for line in live_lines:
+                        if line.strip():
+                            break
+                        live_leading_blank += 1
+
+                    drop = min(stable_trailing_blank, live_leading_blank)
+                    if drop > 0:
+                        live_lines = live_lines[drop:]
 
             live_text = Text.from_ansi("".join(live_lines))
             self._live_sink(live_text)
