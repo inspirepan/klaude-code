@@ -107,9 +107,9 @@ class _SlashCommandCompleter(Completer):
             label_len = len(cmd_name) + len(hint)
             padding = " " * (align_width - label_len)
 
-            # Using HTML for formatting: bold command name, normal hint, gray summary
+            # Using HTML for formatting: default color command name, normal hint, gray summary
             display_text = HTML(
-                f"<b>{cmd_name}</b>{hint}{padding}<style color='ansibrightblack'>{cmd_obj.summary}</style>"  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+                f"<style color='ansidefault'>{cmd_name}</style>{hint}{padding}<style color='ansibrightblack'>{cmd_obj.summary}</style>"  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
             )
             completion_text = f"/{cmd_name} "
             yield Completion(
@@ -181,9 +181,9 @@ class _SkillCompleter(Completer):
             padding_name = " " * (align_width - len(name))
             location_tag = f"[{location}]".ljust(9)
 
-            # Using HTML for formatting: bold skill name, cyan location tag, gray description
+            # Using HTML for formatting: default color skill name, cyan location tag, gray description
             display_text = HTML(
-                f"<b>{name}</b>{padding_name}<style color='ansicyan'>{location_tag}</style> "
+                f"<style color='ansidefault'>{name}</style>{padding_name}<style color='ansicyan'>{location_tag}</style> "
                 f"<style color='ansibrightblack'>{desc}</style>"
             )
             completion_text = f"${name} "
@@ -463,11 +463,13 @@ class _AtFilesCompleter(Completer):
         keyword_norm: str,
     ) -> list[str]:
         # Filter to keyword (case-insensitive) and rank by:
-        # 1. Directory depth (shallower first)
-        # 2. Basename hit first, then path hit position, then length
+        # 1. Hidden files (starting with .) are deprioritized
+        # 2. Paths containing "test" are deprioritized
+        # 3. Directory depth (shallower first)
+        # 4. Basename hit first, then path hit position, then length
         # Since both fd and rg now search from current directory, all paths are relative to cwd
         kn = keyword_norm
-        out: list[tuple[str, tuple[int, int, int, int, int]]] = []
+        out: list[tuple[str, tuple[int, int, int, int, int, int, int]]] = []
         for p in paths_from_root:
             pl = p.lower()
             if kn not in pl:
@@ -483,7 +485,15 @@ class _AtFilesCompleter(Completer):
             base_pos = base.find(kn)
             path_pos = pl.find(kn)
             depth = rel_to_cwd.rstrip("/").count("/")
+
+            # Deprioritize hidden files/directories (any path segment starting with .)
+            is_hidden = any(seg.startswith(".") for seg in rel_to_cwd.split("/") if seg)
+            # Deprioritize paths containing "test"
+            has_test = "test" in pl
+
             score = (
+                1 if is_hidden else 0,
+                1 if has_test else 0,
                 depth,
                 0 if base_pos != -1 else 1,
                 base_pos if base_pos != -1 else 10_000,
@@ -529,16 +539,15 @@ class _AtFilesCompleter(Completer):
             return f'@"{suggestion}" '
         return f"@{suggestion} "
 
-    def _format_display_label(self, suggestion: str, align_width: int) -> str:
+    def _format_display_label(self, suggestion: str, align_width: int) -> HTML:
         """Format visible label for a completion option.
 
-        Shows the basename (or directory name) aligned, followed by an arrow
-        and the suggestion's relative path.
+        Shows the basename (or directory name) aligned, followed by the full path in gray.
         """
 
         name = self._display_name(suggestion)
         padding = " " * (max(align_width - len(name), 0) + 2)
-        return f"{name}{padding}-> {suggestion}"
+        return HTML(f"<style color='ansidefault'>{name}</style>{padding}<style color='ansibrightblack'>{suggestion}</style>")
 
     def _display_align_width(self, suggestions: list[str]) -> int:
         """Calculate alignment width for display labels."""
@@ -712,11 +721,20 @@ class _AtFilesCompleter(Completer):
 
         Avoids running external tools; shows immediate directories first, then files.
         Filters out .git, .venv, and node_modules to reduce noise.
+        Hidden files and paths containing "test" are deprioritized.
         """
         excluded = {".git", ".venv", "node_modules"}
         items: list[str] = []
         try:
-            for p in sorted(cwd.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
+            # Sort by: hidden files last, test paths last, directories first, then name
+            def sort_key(p: Path) -> tuple[int, int, int, str]:
+                name = p.name
+                is_hidden = name.startswith(".")
+                has_test = "test" in name.lower()
+                is_file = not p.is_dir()
+                return (1 if is_hidden else 0, 1 if has_test else 0, 1 if is_file else 0, name.lower())
+
+            for p in sorted(cwd.iterdir(), key=sort_key):
                 name = p.name
                 if name in excluded:
                     continue
