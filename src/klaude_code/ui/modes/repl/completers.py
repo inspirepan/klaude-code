@@ -25,9 +25,9 @@ from typing import NamedTuple
 
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.document import Document
-from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.formatted_text import FormattedText
 
-from klaude_code.command import get_commands
+from klaude_code.command import CommandABC, get_commands
 from klaude_code.trace.log import DebugType, log_debug
 
 # Pattern to match @token for completion refresh (used by key bindings).
@@ -88,7 +88,7 @@ class _SlashCommandCompleter(Completer):
         commands = get_commands()
 
         # Filter commands that match the fragment (preserve registration order)
-        matched: list[tuple[str, object, str]] = []
+        matched: list[tuple[str, CommandABC, str]] = []
         for cmd_name, cmd_obj in commands.items():
             if cmd_name.startswith(frag):
                 hint = f" [{cmd_obj.placeholder}]" if cmd_obj.support_addition_params else ""
@@ -97,25 +97,15 @@ class _SlashCommandCompleter(Completer):
         if not matched:
             return
 
-        # Calculate max width for alignment
-        # Find the longest command+hint length
-        max_len = max(len(name) + len(hint) for name, _, hint in matched)
-        # Set a minimum width (e.g. 20) and add some padding
-        align_width = max(max_len, 20) + 2
-
         for cmd_name, cmd_obj, hint in matched:
-            label_len = len(cmd_name) + len(hint)
-            padding = " " * (align_width - label_len)
-
-            # Using HTML for formatting: default color command name, normal hint, gray summary
-            display_text = HTML(
-                f"<style color='ansidefault'>{cmd_name}</style>{hint}{padding}<style color='ansibrightblack'>{cmd_obj.summary}</style>"  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
-            )
             completion_text = f"/{cmd_name} "
+            # Use FormattedText to style the hint (placeholder) in bright black
+            display = FormattedText([("", cmd_name), ("ansibrightblack", hint)]) if hint else cmd_name
             yield Completion(
                 text=completion_text,
                 start_position=start_position,
-                display=display_text,
+                display=display,
+                display_meta=str(cmd_obj.summary),
             )
 
     def is_slash_command_context(self, document: Document) -> bool:
@@ -171,26 +161,18 @@ class _SkillCompleter(Completer):
         if not matched:
             return
 
-        # Calculate max width for alignment
-        max_name_len = max(len(name) for name, _, _ in matched)
-        align_width = max(max_name_len, 20) + 2
+        # Calculate max location length for alignment
+        max_loc_len = max(len(loc) for _, _, loc in matched)
 
         for name, desc, location in matched:
-            # Format: name  [location]  description
-            # Align location tags (max length is "project" = 7, plus brackets = 9)
-            padding_name = " " * (align_width - len(name))
-            location_tag = f"[{location}]".ljust(9)
-
-            # Using HTML for formatting: default color skill name, cyan location tag, gray description
-            display_text = HTML(
-                f"<style color='ansidefault'>{name}</style>{padding_name}<style color='ansicyan'>{location_tag}</style> "
-                f"<style color='ansibrightblack'>{desc}</style>"
-            )
             completion_text = f"${name} "
+            # Pad location to align descriptions
+            padded_location = f"[{location}]".ljust(max_loc_len + 2)  # +2 for brackets
             yield Completion(
                 text=completion_text,
                 start_position=start_position,
-                display=display_text,
+                display=name,
+                display_meta=f"{padded_location} {desc}",
             )
 
     def _get_available_skills(self) -> list[tuple[str, str, str]]:
@@ -318,14 +300,12 @@ class _AtFilesCompleter(Completer):
             if not suggestions:
                 return []  # type: ignore[reportUnknownVariableType]
             start_position = token_start_in_input - len(text_before)
-            visible_suggestions = suggestions[: self._max_results]
-            display_align = self._display_align_width(visible_suggestions)
-
-            for s in visible_suggestions:
+            for s in suggestions[: self._max_results]:
                 yield Completion(
                     text=self._format_completion_text(s, is_quoted=is_quoted),
                     start_position=start_position,
-                    display=self._format_display_label(s, display_align),
+                    display=self._format_display_label(s, 0),
+                    display_meta=s,
                 )
             return []  # type: ignore[reportUnknownVariableType]
 
@@ -336,15 +316,13 @@ class _AtFilesCompleter(Completer):
 
         # Prepare Completion objects. Replace from the '@' character.
         start_position = token_start_in_input - len(text_before)  # negative
-        visible_suggestions = suggestions[: self._max_results]
-        display_align = self._display_align_width(visible_suggestions)
-
-        for s in visible_suggestions:
+        for s in suggestions[: self._max_results]:
             # Insert formatted text (with quoting when needed) so that subsequent typing does not keep triggering
             yield Completion(
                 text=self._format_completion_text(s, is_quoted=is_quoted),
                 start_position=start_position,
-                display=self._format_display_label(s, display_align),
+                display=self._format_display_label(s, 0),
+                display_meta=s,
             )
 
     # ---- Core logic ----
@@ -539,15 +517,15 @@ class _AtFilesCompleter(Completer):
             return f'@"{suggestion}" '
         return f"@{suggestion} "
 
-    def _format_display_label(self, suggestion: str, align_width: int) -> HTML:
+    def _format_display_label(self, suggestion: str, align_width: int) -> str:
         """Format visible label for a completion option.
 
-        Shows the basename (or directory name) aligned, followed by the full path in gray.
+        Keep this unstyled so that the completion menu's selection style can
+        fully override the selected row.
         """
 
-        name = self._display_name(suggestion)
-        padding = " " * (max(align_width - len(name), 0) + 2)
-        return HTML(f"<style color='ansidefault'>{name}</style>{padding}<style color='ansibrightblack'>{suggestion}</style>")
+        _ = align_width
+        return self._display_name(suggestion)
 
     def _display_align_width(self, suggestions: list[str]) -> int:
         """Calculate alignment width for display labels."""

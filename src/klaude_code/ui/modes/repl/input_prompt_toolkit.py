@@ -6,15 +6,20 @@ from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from typing import NamedTuple, override
 
+import prompt_toolkit.layout.menus as pt_menus
 from prompt_toolkit import PromptSession
-from prompt_toolkit.completion import ThreadedCompleter
+from prompt_toolkit.application.current import get_app
+from prompt_toolkit.completion import Completion, ThreadedCompleter
 from prompt_toolkit.cursor_shapes import CursorShape
-from prompt_toolkit.formatted_text import FormattedText
+from prompt_toolkit.data_structures import Point
+from prompt_toolkit.formatted_text import FormattedText, StyleAndTextTuples, to_formatted_text
 from prompt_toolkit.history import FileHistory
-from prompt_toolkit.layout.containers import Container, FloatContainer
+from prompt_toolkit.layout.containers import Container, FloatContainer, Window
+from prompt_toolkit.layout.controls import UIContent
 from prompt_toolkit.layout.menus import CompletionsMenu, MultiColumnCompletionsMenu
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
+from prompt_toolkit.utils import get_cwidth
 
 from klaude_code.protocol.model import UserInputPayload
 from klaude_code.ui.core.input import InputProviderABC
@@ -31,9 +36,9 @@ class REPLStatusSnapshot(NamedTuple):
     update_message: str | None = None
 
 
-COMPLETION_SELECTED_DARK_BG = "#8b9bff"
-COMPLETION_SELECTED_LIGHT_BG = "#5869f7"
-COMPLETION_SELECTED_UNKNOWN_BG = "#7080f0"
+COMPLETION_SELECTED_DARK_BG = "ansigreen"
+COMPLETION_SELECTED_LIGHT_BG = "ansigreen"
+COMPLETION_SELECTED_UNKNOWN_BG = "ansigreen"
 COMPLETION_MENU = "ansibrightblack"
 INPUT_PROMPT_STYLE = "ansimagenta bold"
 PLACEHOLDER_TEXT_STYLE_DARK_BG = "fg:#5a5a5a italic"
@@ -61,6 +66,109 @@ def _left_align_completion_menus(container: Container) -> None:
 
     for child in container.get_children():
         _left_align_completion_menus(child)
+
+
+class _KlaudeCompletionsMenuControl(pt_menus.CompletionsMenuControl):
+    """CompletionsMenuControl with stable 2-char left prefix.
+
+    Requirements:
+    - Add a 2-character prefix for every row.
+    - Render "→ " for the selected row, and "  " for non-selected rows.
+
+    Keep completion text unstyled so that the menu's current-row style can
+    override it entirely.
+    """
+
+    _PREFIX_WIDTH = 2
+
+    def _get_menu_width(self, max_width: int, complete_state: pt_menus.CompletionState) -> int:  # pyright: ignore[reportPrivateImportUsage]
+        """Return the width of the main column.
+
+        This is prompt_toolkit's default implementation, except we reserve one
+        extra character for the 2-char prefix ("→ "/"  ").
+        """
+
+        return min(
+            max_width,
+            max(
+                self.MIN_WIDTH,
+                max(get_cwidth(c.display_text) for c in complete_state.completions) + 3,
+            ),
+        )
+
+    def create_content(self, width: int, height: int) -> UIContent:
+        complete_state = get_app().current_buffer.complete_state
+        if complete_state:
+            completions = complete_state.completions
+            index = complete_state.complete_index
+
+            menu_width = self._get_menu_width(width, complete_state)
+            menu_meta_width = self._get_menu_meta_width(width - menu_width, complete_state)
+            show_meta = self._show_meta(complete_state)
+
+            def get_line(i: int) -> StyleAndTextTuples:
+                completion = completions[i]
+                is_current_completion = i == index
+
+                result = self._get_menu_item_fragments_with_cursor(
+                    completion,
+                    is_current_completion,
+                    menu_width,
+                    space_after=True,
+                )
+                if show_meta:
+                    result += self._get_menu_item_meta_fragments(
+                        completion,
+                        is_current_completion,
+                        menu_meta_width,
+                    )
+                return result
+
+            return UIContent(
+                get_line=get_line,
+                cursor_position=Point(x=0, y=index or 0),
+                line_count=len(completions),
+            )
+
+        return UIContent()
+
+    def _get_menu_item_fragments_with_cursor(
+        self,
+        completion: Completion,
+        is_current_completion: bool,
+        width: int,
+        *,
+        space_after: bool = False,
+    ) -> StyleAndTextTuples:
+        if is_current_completion:
+            style_str = f"class:completion-menu.completion.current {completion.style} {completion.selected_style}"
+            prefix = "→ "
+        else:
+            style_str = "class:completion-menu.completion " + completion.style
+            prefix = "  "
+
+        max_text_width = width - self._PREFIX_WIDTH - (1 if space_after else 0)
+        text, text_width = pt_menus._trim_formatted_text(completion.display, max_text_width)  # pyright: ignore[reportPrivateUsage]
+        padding = " " * (width - self._PREFIX_WIDTH - text_width)
+
+        return to_formatted_text(
+            [("", prefix), *text, ("", padding)],
+            style=style_str,
+        )
+
+
+def _patch_completion_menu_controls(container: Container) -> None:
+    """Replace prompt_toolkit completion menu controls with customized versions."""
+
+    if isinstance(container, Window):
+        content = container.content
+        if isinstance(content, pt_menus.CompletionsMenuControl) and not isinstance(
+            content, _KlaudeCompletionsMenuControl
+        ):
+            container.content = _KlaudeCompletionsMenuControl()
+
+    for child in container.get_children():
+        _patch_completion_menu_controls(child)
 
 
 class PromptToolkitInput(InputProviderABC):
@@ -119,10 +227,10 @@ class PromptToolkitInput(InputProviderABC):
                     "completion-menu.border": "bg:default",
                     "scrollbar.background": "bg:default",
                     "scrollbar.button": "bg:default",
-                    "completion-menu.completion": f"bg:default fg:{COMPLETION_MENU}",
+                    "completion-menu.completion": "bg:default fg:default",
                     "completion-menu.meta.completion": f"bg:default fg:{COMPLETION_MENU}",
-                    "completion-menu.completion.current": f"noreverse bg:default fg:{completion_selected} bold",
-                    "completion-menu.meta.completion.current": f"bg:default fg:{completion_selected} bold",
+                    "completion-menu.completion.current": f"noreverse bg:default fg:{completion_selected}",
+                    "completion-menu.meta.completion.current": f"bg:default fg:{completion_selected}",
                 }
             ),
         )
@@ -130,6 +238,10 @@ class PromptToolkitInput(InputProviderABC):
         # Keep completion popups left-aligned instead of shifting with the caret.
         with contextlib.suppress(Exception):
             _left_align_completion_menus(self._session.app.layout.container)
+
+        # Customize completion rendering (2-space indent + selected arrow prefix).
+        with contextlib.suppress(Exception):
+            _patch_completion_menu_controls(self._session.app.layout.container)
 
         def _select_first_completion_on_open(buf) -> None:  # type: ignore[no-untyped-def]
             """Default to selecting the first completion without inserting it."""
