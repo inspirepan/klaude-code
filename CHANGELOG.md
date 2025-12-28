@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.2] - 2025-12-28
+
+### Added
+
+- align path completion display (`1e17ab9a`)
+
+### Changed
+
+- improve completion menu styling and sorting (`5b8257b4`)
+
+### Fixed
+
+- keep completion menu left-aligned instead of following cursor (`0badf2ee`)
+
+### Other
+
+- Merge pull request #1 from inspirepan/codex/update-completer-file-path-display (`1a9138b0`)
 ## [1.4.1] - 2025-12-28
 
 ### Changed
@@ -894,7 +911,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.4.2...HEAD
+[1.4.2]: https://github.com/inspirepan/klaude-code/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/inspirepan/klaude-code/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/inspirepan/klaude-code/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/inspirepan/klaude-code/compare/v1.2.30...v1.3.0
