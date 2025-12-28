@@ -11,6 +11,8 @@ from prompt_toolkit.completion import ThreadedCompleter
 from prompt_toolkit.cursor_shapes import CursorShape
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.layout.containers import Container, FloatContainer
+from prompt_toolkit.layout.menus import CompletionsMenu, MultiColumnCompletionsMenu
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
 
@@ -40,6 +42,25 @@ PLACEHOLDER_TEXT_STYLE_UNKNOWN_BG = "fg:#8a8a8a italic"
 PLACEHOLDER_SYMBOL_STYLE_DARK_BG = "bg:#2a2a2a fg:#5a5a5a"
 PLACEHOLDER_SYMBOL_STYLE_LIGHT_BG = "bg:#e6e6e6 fg:#7a7a7a"
 PLACEHOLDER_SYMBOL_STYLE_UNKNOWN_BG = "bg:#2a2a2a fg:#8a8a8a"
+
+
+def _left_align_completion_menus(container: Container) -> None:
+    """Force completion menus to render at column 0.
+
+    prompt_toolkit's default completion menu floats are positioned relative to the
+    cursor (`xcursor=True`). That makes the popup indent as the caret moves.
+    We walk the layout tree and rewrite the Float positioning for completion menus
+    to keep them fixed at the left edge.
+    """
+
+    if isinstance(container, FloatContainer):
+        for flt in container.floats:
+            if isinstance(flt.content, (CompletionsMenu, MultiColumnCompletionsMenu)):
+                flt.xcursor = False
+                flt.left = 0
+
+    for child in container.get_children():
+        _left_align_completion_menus(child)
 
 
 class PromptToolkitInput(InputProviderABC):
@@ -105,6 +126,10 @@ class PromptToolkitInput(InputProviderABC):
                 }
             ),
         )
+
+        # Keep completion popups left-aligned instead of shifting with the caret.
+        with contextlib.suppress(Exception):
+            _left_align_completion_menus(self._session.app.layout.container)
 
         def _select_first_completion_on_open(buf) -> None:  # type: ignore[no-untyped-def]
             """Default to selecting the first completion without inserting it."""
