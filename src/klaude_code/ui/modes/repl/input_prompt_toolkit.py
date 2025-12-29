@@ -30,10 +30,9 @@ from prompt_toolkit.utils import get_cwidth
 from klaude_code.config import load_config
 from klaude_code.config.config import ModelEntry
 from klaude_code.config.thinking import (
-    ANTHROPIC_LEVELS,
     format_current_thinking,
-    get_levels_for_responses,
-    is_openrouter_model_with_reasoning_effort,
+    get_thinking_picker_data,
+    parse_thinking_value,
 )
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.commands import CommandInfo
@@ -504,73 +503,15 @@ class PromptToolkitInput(InputProviderABC):
     def _build_thinking_picker_items(
         self, config: llm_param.LLMConfigParameter
     ) -> tuple[list[SelectItem[str]], str | None]:
-        protocol = config.protocol
-        model_name = config.model
+        data = get_thinking_picker_data(config)
+        if data is None:
+            return [], None
 
-        items: list[SelectItem[str]] = []
-        current_thinking = config.thinking
-
-        if protocol in (llm_param.LLMClientProtocol.RESPONSES, llm_param.LLMClientProtocol.CODEX):
-            levels = get_levels_for_responses(model_name)
-            for level in levels:
-                items.append(
-                    SelectItem(title=[("class:text", level + "\n")], value=f"effort:{level}", search_text=level)
-                )
-            initial = None
-            if current_thinking and current_thinking.reasoning_effort:
-                initial = f"effort:{current_thinking.reasoning_effort}"
-            return items, initial
-
-        if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
-            for label, tokens in ANTHROPIC_LEVELS:
-                items.append(
-                    SelectItem(title=[("class:text", label + "\n")], value=f"budget:{tokens or 0}", search_text=label)
-                )
-            initial = None
-            if current_thinking:
-                if current_thinking.type == "disabled":
-                    initial = "budget:0"
-                elif current_thinking.budget_tokens:
-                    initial = f"budget:{current_thinking.budget_tokens}"
-            return items, initial
-
-        if protocol == llm_param.LLMClientProtocol.OPENROUTER:
-            if is_openrouter_model_with_reasoning_effort(model_name):
-                levels = get_levels_for_responses(model_name)
-                for level in levels:
-                    items.append(
-                        SelectItem(title=[("class:text", level + "\n")], value=f"effort:{level}", search_text=level)
-                    )
-                initial = None
-                if current_thinking and current_thinking.reasoning_effort:
-                    initial = f"effort:{current_thinking.reasoning_effort}"
-                return items, initial
-            for label, tokens in ANTHROPIC_LEVELS:
-                items.append(
-                    SelectItem(title=[("class:text", label + "\n")], value=f"budget:{tokens or 0}", search_text=label)
-                )
-            initial = None
-            if current_thinking:
-                if current_thinking.type == "disabled":
-                    initial = "budget:0"
-                elif current_thinking.budget_tokens:
-                    initial = f"budget:{current_thinking.budget_tokens}"
-            return items, initial
-
-        if protocol == llm_param.LLMClientProtocol.OPENAI:
-            for label, tokens in ANTHROPIC_LEVELS:
-                items.append(
-                    SelectItem(title=[("class:text", label + "\n")], value=f"budget:{tokens or 0}", search_text=label)
-                )
-            initial = None
-            if current_thinking:
-                if current_thinking.type == "disabled":
-                    initial = "budget:0"
-                elif current_thinking.budget_tokens:
-                    initial = f"budget:{current_thinking.budget_tokens}"
-            return items, initial
-
-        return [], None
+        items: list[SelectItem[str]] = [
+            SelectItem(title=[("class:text", opt.label + "\n")], value=opt.value, search_text=opt.label)
+            for opt in data.options
+        ]
+        return items, data.current_value
 
     def _open_thinking_picker(self) -> None:
         if self._thinking_picker is None:
@@ -593,21 +534,18 @@ class PromptToolkitInput(InputProviderABC):
         if self._on_change_thinking is None:
             return
 
-        toast_label: str
+        new_thinking = parse_thinking_value(value)
+        if new_thinking is None:
+            return
+
+        # Build toast label
         if value.startswith("effort:"):
-            effort = value[7:]
-            new_thinking = llm_param.Thinking(reasoning_effort=effort)  # type: ignore[arg-type]
-            toast_label = effort
+            toast_label = value[7:]
         elif value.startswith("budget:"):
             budget = int(value[7:])
-            if budget == 0:
-                new_thinking = llm_param.Thinking(type="disabled", budget_tokens=0)
-                toast_label = "off"
-            else:
-                new_thinking = llm_param.Thinking(type="enabled", budget_tokens=budget)
-                toast_label = f"{budget} tokens"
+            toast_label = "off" if budget == 0 else f"{budget} tokens"
         else:
-            return
+            toast_label = "updated"
 
         await self._on_change_thinking(new_thinking)
         self._set_toast(f"thinking: {toast_label}")

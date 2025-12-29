@@ -1,15 +1,9 @@
 import asyncio
-from typing import cast
 
 from prompt_toolkit.styles import Style
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
-from klaude_code.config.thinking import (
-    ANTHROPIC_LEVELS,
-    ReasoningEffort,
-    get_levels_for_responses,
-    is_openrouter_model_with_reasoning_effort,
-)
+from klaude_code.config.thinking import get_thinking_picker_data, parse_thinking_value
 from klaude_code.protocol import commands, events, llm_param, model, op
 from klaude_code.ui.terminal.selector import SelectItem, select_one
 
@@ -24,39 +18,20 @@ SELECT_STYLE = Style(
 )
 
 
-def _select_responses_thinking_sync(model_name: str | None) -> llm_param.Thinking | None:
-    """Select thinking level for responses/codex protocol (sync version)."""
-    levels = get_levels_for_responses(model_name)
-    items: list[SelectItem[str]] = [
-        SelectItem(title=[("class:text", level + "\n")], value=level, search_text=level) for level in levels
-    ]
-
-    try:
-        result = select_one(
-            message="Select reasoning effort:",
-            items=items,
-            pointer="→",
-            style=SELECT_STYLE,
-            use_search_filter=False,
-        )
-
-        if result is None:
-            return None
-        return llm_param.Thinking(reasoning_effort=cast(ReasoningEffort, result))
-    except KeyboardInterrupt:
+def _select_thinking_sync(config: llm_param.LLMConfigParameter) -> llm_param.Thinking | None:
+    """Select thinking level (sync version)."""
+    data = get_thinking_picker_data(config)
+    if data is None:
         return None
 
-
-def _select_anthropic_thinking_sync() -> llm_param.Thinking | None:
-    """Select thinking level for anthropic/openai_compatible protocol (sync version)."""
-    items: list[SelectItem[int]] = [
-        SelectItem(title=[("class:text", label + "\n")], value=tokens or 0, search_text=label)
-        for label, tokens in ANTHROPIC_LEVELS
+    items: list[SelectItem[str]] = [
+        SelectItem(title=[("class:text", opt.label + "\n")], value=opt.value, search_text=opt.label)
+        for opt in data.options
     ]
 
     try:
         result = select_one(
-            message="Select thinking level:",
+            message=data.message,
             items=items,
             pointer="→",
             style=SELECT_STYLE,
@@ -64,9 +39,7 @@ def _select_anthropic_thinking_sync() -> llm_param.Thinking | None:
         )
         if result is None:
             return None
-        if result == 0:
-            return llm_param.Thinking(type="disabled", budget_tokens=0)
-        return llm_param.Thinking(type="enabled", budget_tokens=result)
+        return parse_thinking_value(result)
     except KeyboardInterrupt:
         return None
 
@@ -76,24 +49,7 @@ async def select_thinking_for_protocol(config: llm_param.LLMConfigParameter) -> 
 
     Returns the selected Thinking config, or None if user cancelled.
     """
-    protocol = config.protocol
-    model_name = config.model
-
-    if protocol in (llm_param.LLMClientProtocol.RESPONSES, llm_param.LLMClientProtocol.CODEX):
-        return await asyncio.to_thread(_select_responses_thinking_sync, model_name)
-
-    if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
-        return await asyncio.to_thread(_select_anthropic_thinking_sync)
-
-    if protocol == llm_param.LLMClientProtocol.OPENROUTER:
-        if is_openrouter_model_with_reasoning_effort(model_name):
-            return await asyncio.to_thread(_select_responses_thinking_sync, model_name)
-        return await asyncio.to_thread(_select_anthropic_thinking_sync)
-
-    if protocol == llm_param.LLMClientProtocol.OPENAI:
-        return await asyncio.to_thread(_select_anthropic_thinking_sync)
-
-    return None
+    return await asyncio.to_thread(_select_thinking_sync, config)
 
 
 class ThinkingCommand(CommandABC):
