@@ -30,6 +30,59 @@ class SelectItem[T]:
 
 
 # ---------------------------------------------------------------------------
+# Model selection items builder
+# ---------------------------------------------------------------------------
+
+
+def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
+    """Build SelectItem list from ModelEntry objects.
+
+    Args:
+        models: List of ModelEntry objects (from config.iter_model_entries).
+
+    Returns:
+        List of SelectItem[str] with model_name as the value.
+    """
+    if not models:
+        return []
+
+    max_model_name_length = max(len(m.model_name) for m in models)
+    num_width = len(str(len(models)))
+
+    def _thinking_info(m: Any) -> str:
+        thinking = m.model_params.thinking
+        if not thinking:
+            return ""
+        if thinking.reasoning_effort:
+            return f"reasoning {thinking.reasoning_effort}"
+        if thinking.budget_tokens:
+            return f"thinking budget {thinking.budget_tokens}"
+        return "thinking (configured)"
+
+    items: list[SelectItem[str]] = []
+    for idx, m in enumerate(models, 1):
+        model_id = m.model_params.model or "N/A"
+        first_line_prefix = f"{m.model_name:<{max_model_name_length}} → "
+        thinking_info = _thinking_info(m)
+        meta_parts: list[str] = [m.provider]
+        if thinking_info:
+            meta_parts.append(thinking_info)
+        if m.model_params.verbosity:
+            meta_parts.append(f"verbosity {m.model_params.verbosity}")
+        meta_str = " · ".join(meta_parts)
+        title = [
+            ("class:meta", f"{idx:>{num_width}}. "),
+            ("class:msg", first_line_prefix),
+            ("class:msg bold", model_id),
+            ("class:meta", f"  {meta_str}\n"),
+        ]
+        search_text = f"{m.model_name} {model_id} {m.provider}"
+        items.append(SelectItem(title=title, value=m.model_name, search_text=search_text))
+
+    return items
+
+
+# ---------------------------------------------------------------------------
 # Shared helpers for select_one() and SelectOverlay
 # ---------------------------------------------------------------------------
 

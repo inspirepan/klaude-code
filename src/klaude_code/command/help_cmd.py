@@ -22,8 +22,9 @@ Usage:
   [b]esc[/b] to interrupt agent task
   [b]shift-enter[/b] or [b]ctrl-j[/b] for new line
   [b]ctrl-v[/b] for pasting image
+  [b]ctrl-l[/b] to switch model
+  [b]ctrl-t[/b] to switch thinking level
   [b]--continue[/b] or [b]--resume[/b] to continue an old session
-  [b]--select-model[/b] to switch model
 
 Available slash commands:"""
         ]

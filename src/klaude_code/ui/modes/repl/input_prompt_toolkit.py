@@ -43,7 +43,7 @@ from klaude_code.ui.modes.repl.completers import AT_TOKEN_PATTERN, create_repl_c
 from klaude_code.ui.modes.repl.key_bindings import create_key_bindings
 from klaude_code.ui.renderers.user_input import USER_MESSAGE_MARK
 from klaude_code.ui.terminal.color import is_light_terminal_background
-from klaude_code.ui.terminal.selector import SelectItem, SelectOverlay
+from klaude_code.ui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 
 
 class REPLStatusSnapshot(NamedTuple):
@@ -463,36 +463,7 @@ class PromptToolkitInput(InputProviderABC):
         if not models:
             return [], None
 
-        max_model_name_length = max(len(m.model_name) for m in models)
-
-        def _thinking_info(m: ModelEntry) -> str:
-            thinking = m.model_params.thinking
-            if not thinking:
-                return ""
-            if thinking.reasoning_effort:
-                return f"reasoning {thinking.reasoning_effort}"
-            if thinking.budget_tokens:
-                return f"thinking budget {thinking.budget_tokens}"
-            return "thinking (configured)"
-
-        items: list[SelectItem[str]] = []
-        for m in models:
-            model_id = m.model_params.model or "N/A"
-            first_line_prefix = f"{m.model_name:<{max_model_name_length}} → "
-            thinking_info = _thinking_info(m)
-            meta_parts: list[str] = [m.provider]
-            if thinking_info:
-                meta_parts.append(thinking_info)
-            if m.model_params.verbosity:
-                meta_parts.append(f"verbosity {m.model_params.verbosity}")
-            meta_str = " · ".join(meta_parts)
-            title = [
-                ("class:msg", first_line_prefix),
-                ("class:msg bold", model_id),
-                ("class:meta", f"  {meta_str}\n"),
-            ]
-            search_text = f"{m.model_name} {model_id} {m.provider}"
-            items.append(SelectItem(title=title, value=m.model_name, search_text=search_text))
+        items = build_model_select_items(models)
 
         initial = None
         if self._get_current_model_config_name is not None:
@@ -735,10 +706,6 @@ class PromptToolkitInput(InputProviderABC):
                 (symbol_style, " ctrl-l "),
                 (text_style, " "),
                 (text_style, "models"),
-                (text_style, "  "),
-                (symbol_style, " ctrl-t "),
-                (text_style, " "),
-                (text_style, "thinking"),
             ]
         )
 
