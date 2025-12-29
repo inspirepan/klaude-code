@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import contextlib
 import sys
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from functools import partial
+from typing import Any, cast
 
 from prompt_toolkit.application import Application
 from prompt_toolkit.application.current import get_app
@@ -27,6 +29,141 @@ class SelectItem[T]:
     search_text: str
 
 
+# ---------------------------------------------------------------------------
+# Shared helpers for select_one() and SelectOverlay
+# ---------------------------------------------------------------------------
+
+
+def _restyle_title(title: list[tuple[str, str]], cls: str) -> list[tuple[str, str]]:
+    """Re-apply a style class while keeping text attributes like bold/italic."""
+    keep_attrs = {"bold", "italic", "underline", "reverse", "blink", "strike"}
+    restyled: list[tuple[str, str]] = []
+    for old_style, text in title:
+        attrs = [tok for tok in old_style.split() if tok in keep_attrs]
+        style = f"{cls} {' '.join(attrs)}".strip()
+        restyled.append((style, text))
+    return restyled
+
+
+def _filter_items[T](
+    items: list[SelectItem[T]],
+    filter_text: str,
+) -> tuple[list[int], bool]:
+    """Return visible item indices and whether any matched the filter."""
+    if not items:
+        return [], True
+    if not filter_text:
+        return list(range(len(items))), True
+
+    needle = filter_text.lower()
+    matched = [i for i, it in enumerate(items) if needle in it.search_text.lower()]
+    if matched:
+        return matched, True
+    return list(range(len(items))), False
+
+
+def _build_choices_tokens[T](
+    items: list[SelectItem[T]],
+    visible_indices: list[int],
+    pointed_at: int,
+    pointer: str,
+) -> list[tuple[str, str]]:
+    """Build formatted tokens for the choice list."""
+    if not visible_indices:
+        return [("class:text", "(no items)\n")]
+
+    tokens: list[tuple[str, str]] = []
+    pointer_pad = " " * (2 + len(pointer))
+    pointed_prefix = f" {pointer} "
+
+    for pos, idx in enumerate(visible_indices):
+        is_pointed = pos == pointed_at
+        if is_pointed:
+            tokens.append(("class:pointer", pointed_prefix))
+            tokens.append(("[SetCursorPosition]", ""))
+        else:
+            tokens.append(("class:text", pointer_pad))
+
+        title_tokens = _restyle_title(items[idx].title, "class:highlighted") if is_pointed else items[idx].title
+        tokens.extend(title_tokens)
+
+    return tokens
+
+
+def _build_rounded_frame(body: Container) -> HSplit:
+    """Build a rounded border frame around the given container."""
+    border = partial(Window, style="class:frame.border", height=1)
+    top = VSplit(
+        [
+            border(width=1, char="╭"),
+            border(char="─"),
+            border(width=1, char="╮"),
+        ],
+        height=1,
+        padding=0,
+    )
+    middle = VSplit(
+        [
+            border(width=1, char="│"),
+            body,
+            border(width=1, char="│"),
+        ],
+        padding=0,
+    )
+    bottom = VSplit(
+        [
+            border(width=1, char="╰"),
+            border(char="─"),
+            border(width=1, char="╯"),
+        ],
+        height=1,
+        padding=0,
+    )
+    return HSplit([top, middle, bottom], padding=0, style="class:frame")
+
+
+def _build_search_container(
+    search_buffer: Buffer,
+    search_placeholder: str,
+) -> tuple[Window, Container]:
+    """Build the search input container with placeholder."""
+    placeholder_text = f"{search_placeholder} · ↑↓ to select · esc to quit"
+
+    search_prefix_window = Window(
+        FormattedTextControl([("class:search_prefix", "/ ")]),
+        width=2,
+        height=1,
+        dont_extend_height=Always(),
+        always_hide_cursor=Always(),
+    )
+    input_window = Window(
+        BufferControl(buffer=search_buffer),
+        height=1,
+        dont_extend_height=Always(),
+        style="class:search_input",
+    )
+    placeholder_window = ConditionalContainer(
+        content=Window(
+            FormattedTextControl([("class:search_placeholder", placeholder_text)]),
+            height=1,
+            dont_extend_height=Always(),
+            always_hide_cursor=Always(),
+        ),
+        filter=Condition(lambda: search_buffer.text == ""),
+    )
+    search_input_container = FloatContainer(
+        content=input_window,
+        floats=[Float(content=placeholder_window, top=0, left=0)],
+    )
+    framed = _build_rounded_frame(VSplit([search_prefix_window, search_input_container], padding=0))
+    return input_window, framed
+
+
+# ---------------------------------------------------------------------------
+# select_one: standalone single-choice selector
+# ---------------------------------------------------------------------------
+
+
 def select_one[T](
     *,
     message: str,
@@ -37,14 +174,7 @@ def select_one[T](
     initial_value: T | None = None,
     search_placeholder: str = "type to search",
 ) -> T | None:
-    """Terminal single-choice selector based on prompt_toolkit.
-
-    Features:
-    - Search-as-you-type filter (optional)
-    - Multi-line titles (via formatted text fragments)
-    - Highlight entire pointed item via `class:highlighted`
-    """
-
+    """Terminal single-choice selector based on prompt_toolkit."""
     if not items:
         return None
 
@@ -54,61 +184,22 @@ def select_one[T](
 
     pointed_at = 0
 
-    search_buffer: Buffer | None = None
-    if use_search_filter:
-        search_buffer = Buffer()
+    search_buffer: Buffer | None = Buffer() if use_search_filter else None
 
-    def visible_indices() -> tuple[list[int], bool]:
-        filter_text = search_buffer.text if (use_search_filter and search_buffer is not None) else ""
-        if not filter_text:
-            return list(range(len(items))), True
-
-        needle = filter_text.lower()
-        matched = [i for i, it in enumerate(items) if needle in it.search_text.lower()]
-        if matched:
-            return matched, True
-        return list(range(len(items))), False
-
-    def _restyle_title(title: list[tuple[str, str]], cls: str) -> list[tuple[str, str]]:
-        # Keep simple text attributes like bold/italic while overriding colors via `cls`.
-        keep_attrs = {"bold", "italic", "underline", "reverse", "blink", "strike"}
-        restyled: list[tuple[str, str]] = []
-        for old_style, text in title:
-            attrs = [tok for tok in old_style.split() if tok in keep_attrs]
-            style = f"{cls} {' '.join(attrs)}".strip()
-            restyled.append((style, text))
-        return restyled
+    def get_filter_text() -> str:
+        return search_buffer.text if (use_search_filter and search_buffer is not None) else ""
 
     def get_header_tokens() -> list[tuple[str, str]]:
         return [("class:question", message + " ")]
 
     def get_choices_tokens() -> list[tuple[str, str]]:
         nonlocal pointed_at
-        indices, _found = visible_indices()
-        if not indices:
-            return [("class:text", "(no items)\n")]
+        indices, _ = _filter_items(items, get_filter_text())
+        if indices:
+            pointed_at %= len(indices)
+        return _build_choices_tokens(items, indices, pointed_at, pointer)
 
-        pointed_at %= len(indices)
-        tokens: list[tuple[str, str]] = []
-
-        pointer_pad = " " * (2 + len(pointer))
-        pointed_prefix = f" {pointer} "
-
-        for pos, idx in enumerate(indices):
-            is_pointed = pos == pointed_at
-
-            if is_pointed:
-                tokens.append(("class:pointer", pointed_prefix))
-                tokens.append(("[SetCursorPosition]", ""))
-            else:
-                tokens.append(("class:text", pointer_pad))
-
-            title_tokens = _restyle_title(items[idx].title, "class:highlighted") if is_pointed else items[idx].title
-            tokens.extend(title_tokens)
-
-        return tokens
-
-    def _on_search_changed(_buf: Buffer) -> None:
+    def on_search_changed(_buf: Buffer) -> None:
         nonlocal pointed_at
         pointed_at = 0
         with contextlib.suppress(Exception):
@@ -118,40 +209,32 @@ def select_one[T](
 
     @kb.add(Keys.ControlC, eager=True)
     @kb.add(Keys.ControlQ, eager=True)
-    def _cancel(event: KeyPressEvent) -> None:
+    def _(event: KeyPressEvent) -> None:
         event.app.exit(result=None)
 
-    _ = _cancel  # registered via decorator
-
     @kb.add(Keys.Down, eager=True)
-    def _down(event: KeyPressEvent) -> None:
+    def _(event: KeyPressEvent) -> None:
         nonlocal pointed_at
         pointed_at += 1
         event.app.invalidate()
 
-    _ = _down  # registered via decorator
-
     @kb.add(Keys.Up, eager=True)
-    def _up(event: KeyPressEvent) -> None:
+    def _(event: KeyPressEvent) -> None:
         nonlocal pointed_at
         pointed_at -= 1
         event.app.invalidate()
 
-    _ = _up  # registered via decorator
-
     @kb.add(Keys.Enter, eager=True)
-    def _enter(event: KeyPressEvent) -> None:
-        indices, _ = visible_indices()
+    def _(event: KeyPressEvent) -> None:
+        indices, _ = _filter_items(items, get_filter_text())
         if not indices:
             event.app.exit(result=None)
             return
         idx = indices[pointed_at % len(indices)]
         event.app.exit(result=items[idx].value)
 
-    _ = _enter  # registered via decorator
-
     @kb.add(Keys.Escape, eager=True)
-    def _esc(event: KeyPressEvent) -> None:
+    def _(event: KeyPressEvent) -> None:
         nonlocal pointed_at
         if use_search_filter and search_buffer is not None and search_buffer.text:
             search_buffer.reset(append_to_history=False)
@@ -160,15 +243,13 @@ def select_one[T](
             return
         event.app.exit(result=None)
 
-    _ = _esc  # registered via decorator
-
     if use_search_filter and search_buffer is not None:
-        search_buffer.on_text_changed += _on_search_changed
+        search_buffer.on_text_changed += on_search_changed
 
     if initial_value is not None:
         try:
             full_index = next(i for i, it in enumerate(items) if it.value == initial_value)
-            indices, _ = visible_indices()
+            indices, _ = _filter_items(items, get_filter_text())  # pyright: ignore[reportAssignmentType]
             pointed_at = indices.index(full_index) if full_index in indices else 0
         except StopIteration:
             pointed_at = 0
@@ -193,70 +274,10 @@ def select_one[T](
         always_hide_cursor=Always(),
     )
 
-    search_container = None
+    search_container: Container | None = None
     search_input_window: Window | None = None
     if use_search_filter and search_buffer is not None:
-        placeholder_text = f"{search_placeholder} · ↑↓ to select"
-
-        search_prefix_window = Window(
-            FormattedTextControl([("class:search_prefix", "/ ")]),
-            width=2,
-            height=1,
-            dont_extend_height=Always(),
-            always_hide_cursor=Always(),
-        )
-        input_window = Window(
-            BufferControl(buffer=search_buffer),
-            height=1,
-            dont_extend_height=Always(),
-            style="class:search_input",
-        )
-        placeholder_window = ConditionalContainer(
-            content=Window(
-                FormattedTextControl([("class:search_placeholder", placeholder_text)]),
-                height=1,
-                dont_extend_height=Always(),
-                always_hide_cursor=Always(),
-            ),
-            filter=Condition(lambda: search_buffer.text == ""),
-        )
-        search_input_window = input_window
-        search_input_container = FloatContainer(
-            content=input_window,
-            floats=[Float(content=placeholder_window, top=0, left=0)],
-        )
-
-        def _rounded_frame(body: Container) -> HSplit:
-            border = partial(Window, style="class:frame.border", height=1)
-            top = VSplit(
-                [
-                    border(width=1, char="╭"),
-                    border(char="─"),
-                    border(width=1, char="╮"),
-                ],
-                height=1,
-                padding=0,
-            )
-            middle = VSplit(
-                [
-                    border(width=1, char="│"),
-                    body,
-                    border(width=1, char="│"),
-                ],
-                padding=0,
-            )
-            bottom = VSplit(
-                [
-                    border(width=1, char="╰"),
-                    border(char="─"),
-                    border(width=1, char="╯"),
-                ],
-                height=1,
-                padding=0,
-            )
-            return HSplit([top, middle, bottom], padding=0, style="class:frame")
-
-        search_container = _rounded_frame(VSplit([search_prefix_window, search_input_container], padding=0))
+        search_input_window, search_container = _build_search_container(search_buffer, search_placeholder)
 
     base_style = Style(
         [
@@ -281,3 +302,212 @@ def select_one[T](
         erase_when_done=True,
     )
     return app.run()
+
+
+# ---------------------------------------------------------------------------
+# SelectOverlay: embedded overlay for existing prompt_toolkit Application
+# ---------------------------------------------------------------------------
+
+
+class SelectOverlay[T]:
+    """Embedded single-choice selector overlay for an existing prompt_toolkit Application.
+
+    Unlike `select_one()`, this does not create or run a new Application.
+    It is designed for use inside an already-running PromptSession.app.
+    """
+
+    def __init__(
+        self,
+        *,
+        pointer: str = "→",
+        use_search_filter: bool = True,
+        search_placeholder: str = "type to search",
+        list_height: int = 8,
+        on_select: Callable[[T], Coroutine[Any, Any, None] | None] | None = None,
+        on_cancel: Callable[[], Coroutine[Any, Any, None] | None] | None = None,
+    ) -> None:
+        self._pointer = pointer
+        self._use_search_filter = use_search_filter
+        self._search_placeholder = search_placeholder
+        self._list_height = max(1, list_height)
+        self._on_select = on_select
+        self._on_cancel = on_cancel
+
+        self._is_open = False
+        self._message: str = ""
+        self._items: list[SelectItem[T]] = []
+        self._pointed_at = 0
+
+        self._prev_focus: Window | None = None
+        self._search_buffer: Buffer | None = Buffer() if use_search_filter else None
+
+        self._list_window: Window | None = None
+        self._search_input_window: Window | None = None
+
+        self.key_bindings = self._build_key_bindings()
+        self.container = self._build_layout()
+
+        if self._use_search_filter and self._search_buffer is not None:
+            self._search_buffer.on_text_changed += self._on_search_changed
+
+    def _get_filter_text(self) -> str:
+        if self._use_search_filter and self._search_buffer is not None:
+            return self._search_buffer.text
+        return ""
+
+    def _get_visible_indices(self) -> tuple[list[int], bool]:
+        return _filter_items(self._items, self._get_filter_text())
+
+    def _on_search_changed(self, _buf: Buffer) -> None:
+        self._pointed_at = 0
+        with contextlib.suppress(Exception):
+            get_app().invalidate()
+
+    def _build_key_bindings(self) -> KeyBindings:
+        kb = KeyBindings()
+        is_open_filter = Condition(lambda: self._is_open)
+
+        @kb.add(Keys.Down, filter=is_open_filter, eager=True)
+        def _(event: KeyPressEvent) -> None:
+            self._pointed_at += 1
+            event.app.invalidate()
+
+        @kb.add(Keys.Up, filter=is_open_filter, eager=True)
+        def _(event: KeyPressEvent) -> None:
+            self._pointed_at -= 1
+            event.app.invalidate()
+
+        @kb.add(Keys.Enter, filter=is_open_filter, eager=True)
+        def _(event: KeyPressEvent) -> None:
+            indices, _ = self._get_visible_indices()
+            if not indices:
+                self.close()
+                return
+            idx = indices[self._pointed_at % len(indices)]
+            value = self._items[idx].value
+            self.close()
+
+            if self._on_select is None:
+                return
+
+            result = self._on_select(value)
+            if hasattr(result, "__await__"):
+                event.app.create_background_task(cast(Coroutine[Any, Any, None], result))
+
+        @kb.add(Keys.Escape, filter=is_open_filter, eager=True)
+        def _(event: KeyPressEvent) -> None:
+            if self._use_search_filter and self._search_buffer is not None and self._search_buffer.text:
+                self._search_buffer.reset(append_to_history=False)
+                self._pointed_at = 0
+                event.app.invalidate()
+                return
+            self._close_and_invoke_cancel(event)
+
+        @kb.add(Keys.ControlL, filter=is_open_filter, eager=True)
+        def _(event: KeyPressEvent) -> None:
+            self.close()
+            event.app.invalidate()
+
+        @kb.add(Keys.ControlC, filter=is_open_filter, eager=True)
+        def _(event: KeyPressEvent) -> None:
+            self._close_and_invoke_cancel(event)
+
+        return kb
+
+    def _close_and_invoke_cancel(self, event: KeyPressEvent) -> None:
+        self.close()
+        if self._on_cancel is not None:
+            result = self._on_cancel()
+            if hasattr(result, "__await__"):
+                event.app.create_background_task(cast(Coroutine[Any, Any, None], result))
+
+    def _build_layout(self) -> ConditionalContainer:
+        def get_header_tokens() -> list[tuple[str, str]]:
+            return [("class:question", self._message + " ")]
+
+        def get_choices_tokens() -> list[tuple[str, str]]:
+            indices, _ = self._get_visible_indices()
+            if indices:
+                self._pointed_at %= len(indices)
+            return _build_choices_tokens(self._items, indices, self._pointed_at, self._pointer)
+
+        header_window = Window(
+            FormattedTextControl(get_header_tokens),
+            height=1,
+            dont_extend_height=Always(),
+            always_hide_cursor=Always(),
+        )
+        spacer_window = Window(
+            FormattedTextControl([("", "")]),
+            height=1,
+            dont_extend_height=Always(),
+            always_hide_cursor=Always(),
+        )
+        list_window = Window(
+            FormattedTextControl(get_choices_tokens),
+            height=self._list_height,
+            scroll_offsets=ScrollOffsets(top=0, bottom=2),
+            allow_scroll_beyond_bottom=True,
+            dont_extend_height=Always(),
+            always_hide_cursor=Always(),
+        )
+        self._list_window = list_window
+
+        search_container: Container | None = None
+        if self._use_search_filter and self._search_buffer is not None:
+            self._search_input_window, search_container = _build_search_container(
+                self._search_buffer, self._search_placeholder
+            )
+
+        root_children: list[Container] = [header_window, spacer_window, list_window]
+        if search_container is not None:
+            root_children.append(search_container)
+
+        return ConditionalContainer(
+            content=HSplit(root_children, padding=0),
+            filter=Condition(lambda: self._is_open),
+        )
+
+    @property
+    def is_open(self) -> bool:
+        return self._is_open
+
+    def set_content(self, *, message: str, items: list[SelectItem[T]], initial_value: T | None = None) -> None:
+        self._message = message
+        self._items = items
+
+        self._pointed_at = 0
+        if initial_value is not None:
+            try:
+                full_index = next(i for i, it in enumerate(items) if it.value == initial_value)
+                self._pointed_at = full_index
+            except StopIteration:
+                self._pointed_at = 0
+
+        if self._use_search_filter and self._search_buffer is not None:
+            self._search_buffer.reset(append_to_history=False)
+
+    def open(self) -> None:
+        if self._is_open:
+            return
+        self._is_open = True
+        app = get_app()
+        self._prev_focus = cast(Window | None, getattr(app.layout, "current_window", None))
+        with contextlib.suppress(Exception):
+            if self._search_input_window is not None:
+                app.layout.focus(self._search_input_window)
+            elif self._list_window is not None:
+                app.layout.focus(self._list_window)
+        app.invalidate()
+
+    def close(self) -> None:
+        if not self._is_open:
+            return
+        self._is_open = False
+        app = get_app()
+        prev = self._prev_focus
+        self._prev_focus = None
+        if prev is not None:
+            with contextlib.suppress(Exception):
+                app.layout.focus(prev)
+        app.invalidate()

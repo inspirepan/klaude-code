@@ -75,6 +75,17 @@ class ChangeModelOperation(Operation):
     session_id: str
     model_name: str
     save_as_default: bool = False
+    # When True, the executor must not auto-trigger an interactive thinking selector.
+    # This is required for in-prompt model switching where the terminal is already
+    # controlled by a prompt_toolkit PromptSession.
+    defer_thinking_selection: bool = False
+    # When False, do not emit WelcomeEvent (which renders a banner/panel).
+    # This is useful for in-prompt model switching where extra output is noisy.
+    emit_welcome_event: bool = True
+
+    # When False, do not emit the "Switched to: ..." developer message.
+    # This is useful for in-prompt model switching where extra output is noisy.
+    emit_switch_message: bool = True
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_change_model(self)

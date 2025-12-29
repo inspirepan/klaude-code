@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import os
 import sys
 from pathlib import Path
@@ -18,10 +19,19 @@ def set_terminal_title(title: str) -> None:
     """Set terminal window title using ANSI escape sequence."""
     # Never write terminal control sequences when stdout is not a TTY (pipes/CI/redirects).
     # This avoids corrupting machine-readable output (e.g., JSON streaming) and log captures.
-    if not sys.stdout.isatty():
+    #
+    # Use the original stdout to bypass prompt_toolkit's `patch_stdout()`. Writing OSC
+    # sequences to the patched stdout can cause them to appear as visible text.
+    stream = getattr(sys, "__stdout__", None) or sys.stdout
+    try:
+        if not stream.isatty():
+            return
+    except Exception:
         return
-    sys.stdout.write(f"\033]0;{title}\007")
-    sys.stdout.flush()
+
+    stream.write(f"\033]0;{title}\007")
+    with contextlib.suppress(Exception):
+        stream.flush()
 
 
 def update_terminal_title(model_name: str | None = None) -> None:

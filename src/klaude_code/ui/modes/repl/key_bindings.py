@@ -12,6 +12,7 @@ from collections.abc import Callable
 from typing import cast
 
 from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.filters import Always, Filter
 from prompt_toolkit.filters.app import has_completions
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
@@ -21,6 +22,9 @@ def create_key_bindings(
     capture_clipboard_tag: Callable[[], str | None],
     copy_to_clipboard: Callable[[str], None],
     at_token_pattern: re.Pattern[str],
+    *,
+    input_enabled: Filter | None = None,
+    open_model_picker: Callable[[], None] | None = None,
 ) -> KeyBindings:
     """Create REPL key bindings with injected dependencies.
 
@@ -33,6 +37,7 @@ def create_key_bindings(
         KeyBindings instance with all REPL handlers configured
     """
     kb = KeyBindings()
+    enabled = input_enabled if input_enabled is not None else Always()
 
     def _should_submit_instead_of_accepting_completion(buf: Buffer) -> bool:
         """Return True when Enter should submit even if completions are visible.
@@ -111,7 +116,7 @@ def create_key_bindings(
         buf.apply_completion(completion)
         return True
 
-    @kb.add("c-v")
+    @kb.add("c-v", filter=enabled)
     def _(event: KeyPressEvent) -> None:
         """Paste image from clipboard as [Image #N]."""
         tag = capture_clipboard_tag()
@@ -119,7 +124,7 @@ def create_key_bindings(
             with contextlib.suppress(Exception):
                 event.current_buffer.insert_text(tag)  # pyright: ignore[reportUnknownMemberType]
 
-    @kb.add("enter")
+    @kb.add("enter", filter=enabled)
     def _(event: KeyPressEvent) -> None:
         buf = event.current_buffer
         doc = buf.document  # type: ignore
@@ -150,29 +155,29 @@ def create_key_bindings(
         # No need to persist manifest anymore - iter_inputs will handle image extraction
         buf.validate_and_handle()  # type: ignore
 
-    @kb.add("tab", filter=has_completions)
+    @kb.add("tab", filter=enabled & has_completions)
     def _(event: KeyPressEvent) -> None:
         buf = event.current_buffer
         if _accept_current_completion(buf):
             event.app.invalidate()  # type: ignore[reportUnknownMemberType]
 
-    @kb.add("down", filter=has_completions)
+    @kb.add("down", filter=enabled & has_completions)
     def _(event: KeyPressEvent) -> None:
         buf = event.current_buffer
         _cycle_completion(buf, delta=1)
         event.app.invalidate()  # type: ignore[reportUnknownMemberType]
 
-    @kb.add("up", filter=has_completions)
+    @kb.add("up", filter=enabled & has_completions)
     def _(event: KeyPressEvent) -> None:
         buf = event.current_buffer
         _cycle_completion(buf, delta=-1)
         event.app.invalidate()  # type: ignore[reportUnknownMemberType]
 
-    @kb.add("c-j")
+    @kb.add("c-j", filter=enabled)
     def _(event: KeyPressEvent) -> None:
         event.current_buffer.insert_text("\n")  # type: ignore
 
-    @kb.add("c")
+    @kb.add("c", filter=enabled)
     def _(event: KeyPressEvent) -> None:
         """Copy selected text to system clipboard, or insert 'c' if no selection."""
         buf = event.current_buffer  # type: ignore
@@ -187,7 +192,7 @@ def create_key_bindings(
         else:
             buf.insert_text("c")  # type: ignore[reportUnknownMemberType]
 
-    @kb.add("backspace")
+    @kb.add("backspace", filter=enabled)
     def _(event: KeyPressEvent) -> None:
         """Ensure completions refresh on backspace when editing an @token.
 
@@ -218,7 +223,7 @@ def create_key_bindings(
         except (AttributeError, TypeError):
             pass
 
-    @kb.add("left")
+    @kb.add("left", filter=enabled)
     def _(event: KeyPressEvent) -> None:
         """Support wrapping to previous line when pressing left at column 0."""
         buf = event.current_buffer  # type: ignore
@@ -243,7 +248,7 @@ def create_key_bindings(
         except (AttributeError, IndexError, TypeError):
             pass
 
-    @kb.add("right")
+    @kb.add("right", filter=enabled)
     def _(event: KeyPressEvent) -> None:
         """Support wrapping to next line when pressing right at line end."""
         buf = event.current_buffer  # type: ignore
@@ -269,5 +274,12 @@ def create_key_bindings(
                 buf.cursor_right()  # type: ignore[reportUnknownMemberType]
         except (AttributeError, IndexError, TypeError):
             pass
+
+    @kb.add("c-l", filter=enabled, eager=True)
+    def _(event: KeyPressEvent) -> None:
+        del event
+        if open_model_picker is not None:
+            with contextlib.suppress(Exception):
+                open_model_picker()
 
     return kb

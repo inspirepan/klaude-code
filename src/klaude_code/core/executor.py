@@ -243,23 +243,33 @@ class ExecutorContext:
             config.main_model = operation.model_name
             await config.save()
 
-        default_note = " (saved as default)" if operation.save_as_default else ""
-        developer_item = model.DeveloperMessageItem(
-            content=f"Switched to: {llm_config.model}{default_note}",
-            command_output=model.CommandOutput(command_name=commands.CommandName.MODEL),
-        )
-        agent.session.append_history([developer_item])
-
-        await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
+        if operation.emit_switch_message:
+            default_note = " (saved as default)" if operation.save_as_default else ""
+            developer_item = model.DeveloperMessageItem(
+                content=f"Switched to: {llm_config.model}{default_note}",
+                command_output=model.CommandOutput(command_name=commands.CommandName.MODEL),
+            )
+            agent.session.append_history([developer_item])
+            await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
 
         if self._on_model_change is not None:
             self._on_model_change(llm_client.model_name)
 
         if should_auto_trigger_thinking(llm_config.model):
-            thinking_op = op.ChangeThinkingOperation(session_id=operation.session_id)
-            await thinking_op.execute(handler=self)
-            # WelcomeEvent is already handled by the thinking change
-        else:
+            if not operation.defer_thinking_selection:
+                thinking_op = op.ChangeThinkingOperation(session_id=operation.session_id)
+                await thinking_op.execute(handler=self)
+                # WelcomeEvent is already handled by the thinking change
+                return
+            if operation.emit_switch_message:
+                note = model.DeveloperMessageItem(
+                    content="(thinking selection deferred; run /thinking to configure)",
+                    command_output=model.CommandOutput(command_name=commands.CommandName.MODEL),
+                )
+                agent.session.append_history([note])
+                await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=note))
+
+        if operation.emit_welcome_event:
             await self.emit_event(events.WelcomeEvent(llm_config=llm_config, work_dir=str(agent.session.work_dir)))
 
     async def handle_change_thinking(self, operation: op.ChangeThinkingOperation) -> None:

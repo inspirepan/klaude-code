@@ -281,10 +281,39 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     elif components.theme == "dark":
         is_light_background = False
 
+    def _get_active_session_id() -> str | None:
+        """Get the current active session ID dynamically.
+
+        This is necessary because /clear command creates a new session with a different ID.
+        """
+
+        return components.executor.context.current_session_id()
+
+    async def _change_model_from_prompt(model_name: str) -> None:
+        sid = _get_active_session_id()
+        if not sid:
+            return
+        await components.executor.submit_and_wait(
+            op.ChangeModelOperation(
+                session_id=sid,
+                model_name=model_name,
+                save_as_default=False,
+                defer_thinking_selection=True,
+                emit_welcome_event=False,
+                emit_switch_message=False,
+            )
+        )
+
     input_provider: ui.InputProviderABC = ui.PromptToolkitInput(
         status_provider=_status_provider,
         pre_prompt=_stop_rich_bottom_ui,
         is_light_background=is_light_background,
+        get_current_model_config_name=lambda: (
+            components.executor.context.current_agent.session.model_config_name
+            if components.executor.context.current_agent is not None
+            else None
+        ),
+        on_change_model=_change_model_from_prompt,
     )
 
     # --- Custom Ctrl+C handler: double-press within 2s to exit, single press shows toast ---
@@ -329,13 +358,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             components.config.main_model,
             is_new_session=session_id is None,
         )
-
-        def _get_active_session_id() -> str | None:
-            """Get the current active session ID dynamically.
-
-            This is necessary because /clear command creates a new session with a different ID.
-            """
-            return components.executor.context.current_session_id()
 
         # Input
         await input_provider.start()
