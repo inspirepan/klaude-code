@@ -128,7 +128,7 @@ SELECT_STYLE = Style(
         ("pointer", "ansigreen"),
         ("highlighted", "ansigreen"),
         ("text", "ansibrightblack"),
-        ("question", ""),
+        ("question", "bold"),
     ]
 )
 
