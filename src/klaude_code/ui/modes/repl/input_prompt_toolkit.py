@@ -27,8 +27,15 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
 from prompt_toolkit.utils import get_cwidth
 
+from klaude_code.command.thinking_cmd import (
+    ANTHROPIC_LEVELS,
+    format_current_thinking,
+    get_levels_for_responses,
+    is_openrouter_model_with_reasoning_effort,
+)
 from klaude_code.config import load_config
 from klaude_code.config.config import ModelEntry
+from klaude_code.protocol import llm_param
 from klaude_code.protocol.model import UserInputPayload
 from klaude_code.ui.core.input import InputProviderABC
 from klaude_code.ui.modes.repl.clipboard import capture_clipboard_tag, copy_to_clipboard, extract_images_from_text
@@ -225,12 +232,16 @@ class PromptToolkitInput(InputProviderABC):
         is_light_background: bool | None = None,
         on_change_model: Callable[[str], Awaitable[None]] | None = None,
         get_current_model_config_name: Callable[[], str | None] | None = None,
+        on_change_thinking: Callable[[llm_param.Thinking], Awaitable[None]] | None = None,
+        get_current_llm_config: Callable[[], llm_param.LLMConfigParameter | None] | None = None,
     ):
         self._status_provider = status_provider
         self._pre_prompt = pre_prompt
         self._post_prompt = post_prompt
         self._on_change_model = on_change_model
         self._get_current_model_config_name = get_current_model_config_name
+        self._on_change_thinking = on_change_thinking
+        self._get_current_llm_config = get_current_llm_config
 
         self._toast_message: str | None = None
         self._toast_until: float = 0.0
@@ -243,6 +254,7 @@ class PromptToolkitInput(InputProviderABC):
 
         self._session = self._build_prompt_session(prompt)
         self._setup_model_picker()
+        self._setup_thinking_picker()
         self._apply_layout_customizations()
 
     def _build_prompt_session(self, prompt: str) -> PromptSession[str]:
@@ -252,9 +264,13 @@ class PromptToolkitInput(InputProviderABC):
         history_path.parent.mkdir(parents=True, exist_ok=True)
         history_path.touch(exist_ok=True)
 
-        # Model picker will be set up later; create placeholder condition
+        # Model and thinking pickers will be set up later; create placeholder condition
         self._model_picker: SelectOverlay[str] | None = None
-        input_enabled = Condition(lambda: self._model_picker is None or not self._model_picker.is_open)
+        self._thinking_picker: SelectOverlay[str] | None = None
+        input_enabled = Condition(
+            lambda: (self._model_picker is None or not self._model_picker.is_open)
+            and (self._thinking_picker is None or not self._thinking_picker.is_open)
+        )
 
         kb = create_key_bindings(
             capture_clipboard_tag=capture_clipboard_tag,
@@ -262,6 +278,7 @@ class PromptToolkitInput(InputProviderABC):
             at_token_pattern=AT_TOKEN_PATTERN,
             input_enabled=input_enabled,
             open_model_picker=self._open_model_picker,
+            open_thinking_picker=self._open_thinking_picker,
         )
 
         # Select completion selected color based on terminal background
@@ -340,6 +357,32 @@ class PromptToolkitInput(InputProviderABC):
             else:
                 self._session.app.layout.container = FloatContainer(content=root, floats=[overlay_float])
 
+    def _setup_thinking_picker(self) -> None:
+        """Initialize the thinking picker overlay and attach it to the layout."""
+        thinking_picker = SelectOverlay[str](
+            pointer="→",
+            use_search_filter=False,
+            list_height=6,
+            on_select=self._handle_thinking_selected,
+        )
+        self._thinking_picker = thinking_picker
+
+        # Merge overlay key bindings with existing session key bindings
+        existing_kb = self._session.key_bindings
+        if existing_kb is not None:
+            merged_kb = merge_key_bindings([existing_kb, thinking_picker.key_bindings])
+            self._session.key_bindings = merged_kb
+
+        # Attach overlay as a float above the prompt
+        with contextlib.suppress(Exception):
+            root = self._session.app.layout.container
+            overlay_float = Float(content=thinking_picker.container, bottom=1, left=0)
+
+            if isinstance(root, FloatContainer):
+                root.floats.append(overlay_float)
+            else:
+                self._session.app.layout.container = FloatContainer(content=root, floats=[overlay_float])
+
     def _apply_layout_customizations(self) -> None:
         """Apply layout customizations after session is created."""
         # Make the Escape key feel responsive
@@ -362,7 +405,7 @@ class PromptToolkitInput(InputProviderABC):
         self._session.default_buffer.on_completions_changed += self._select_first_completion_on_open  # pyright: ignore[reportUnknownMemberType]
 
     def _patch_prompt_height_for_model_picker(self) -> None:
-        if self._model_picker is None:
+        if self._model_picker is None and self._thinking_picker is None:
             return
 
         with contextlib.suppress(Exception):
@@ -374,7 +417,10 @@ class PromptToolkitInput(InputProviderABC):
             original_height = input_window.height
 
             def _height():  # type: ignore[no-untyped-def]
-                if self._model_picker is not None and self._model_picker.is_open:
+                picker_open = (self._model_picker is not None and self._model_picker.is_open) or (
+                    self._thinking_picker is not None and self._thinking_picker.is_open
+                )
+                if picker_open:
                     # Target 20 rows, but cap to the current terminal size.
                     # Leave a small buffer to avoid triggering "Window too small".
                     try:
@@ -478,6 +524,121 @@ class PromptToolkitInput(InputProviderABC):
         self._set_toast(f"model: {model_name}")
 
     # -------------------------------------------------------------------------
+    # Thinking picker
+    # -------------------------------------------------------------------------
+
+    def _build_thinking_picker_items(
+        self, config: llm_param.LLMConfigParameter
+    ) -> tuple[list[SelectItem[str]], str | None]:
+        protocol = config.protocol
+        model_name = config.model
+
+        items: list[SelectItem[str]] = []
+        current_thinking = config.thinking
+
+        if protocol in (llm_param.LLMClientProtocol.RESPONSES, llm_param.LLMClientProtocol.CODEX):
+            levels = get_levels_for_responses(model_name)
+            for level in levels:
+                items.append(
+                    SelectItem(title=[("class:text", level + "\n")], value=f"effort:{level}", search_text=level)
+                )
+            initial = None
+            if current_thinking and current_thinking.reasoning_effort:
+                initial = f"effort:{current_thinking.reasoning_effort}"
+            return items, initial
+
+        if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
+            for label, tokens in ANTHROPIC_LEVELS:
+                items.append(
+                    SelectItem(title=[("class:text", label + "\n")], value=f"budget:{tokens or 0}", search_text=label)
+                )
+            initial = None
+            if current_thinking:
+                if current_thinking.type == "disabled":
+                    initial = "budget:0"
+                elif current_thinking.budget_tokens:
+                    initial = f"budget:{current_thinking.budget_tokens}"
+            return items, initial
+
+        if protocol == llm_param.LLMClientProtocol.OPENROUTER:
+            if is_openrouter_model_with_reasoning_effort(model_name):
+                levels = get_levels_for_responses(model_name)
+                for level in levels:
+                    items.append(
+                        SelectItem(title=[("class:text", level + "\n")], value=f"effort:{level}", search_text=level)
+                    )
+                initial = None
+                if current_thinking and current_thinking.reasoning_effort:
+                    initial = f"effort:{current_thinking.reasoning_effort}"
+                return items, initial
+            for label, tokens in ANTHROPIC_LEVELS:
+                items.append(
+                    SelectItem(title=[("class:text", label + "\n")], value=f"budget:{tokens or 0}", search_text=label)
+                )
+            initial = None
+            if current_thinking:
+                if current_thinking.type == "disabled":
+                    initial = "budget:0"
+                elif current_thinking.budget_tokens:
+                    initial = f"budget:{current_thinking.budget_tokens}"
+            return items, initial
+
+        if protocol == llm_param.LLMClientProtocol.OPENAI:
+            for label, tokens in ANTHROPIC_LEVELS:
+                items.append(
+                    SelectItem(title=[("class:text", label + "\n")], value=f"budget:{tokens or 0}", search_text=label)
+                )
+            initial = None
+            if current_thinking:
+                if current_thinking.type == "disabled":
+                    initial = "budget:0"
+                elif current_thinking.budget_tokens:
+                    initial = f"budget:{current_thinking.budget_tokens}"
+            return items, initial
+
+        return [], None
+
+    def _open_thinking_picker(self) -> None:
+        if self._thinking_picker is None:
+            return
+        if self._get_current_llm_config is None:
+            return
+        config = self._get_current_llm_config()
+        if config is None:
+            return
+        items, initial = self._build_thinking_picker_items(config)
+        if not items:
+            return
+        current = format_current_thinking(config)
+        self._thinking_picker.set_content(
+            message=f"Select thinking level (current: {current}):", items=items, initial_value=initial
+        )
+        self._thinking_picker.open()
+
+    async def _handle_thinking_selected(self, value: str) -> None:
+        if self._on_change_thinking is None:
+            return
+
+        toast_label: str
+        if value.startswith("effort:"):
+            effort = value[7:]
+            new_thinking = llm_param.Thinking(reasoning_effort=effort)  # type: ignore[arg-type]
+            toast_label = effort
+        elif value.startswith("budget:"):
+            budget = int(value[7:])
+            if budget == 0:
+                new_thinking = llm_param.Thinking(type="disabled", budget_tokens=0)
+                toast_label = "off"
+            else:
+                new_thinking = llm_param.Thinking(type="enabled", budget_tokens=budget)
+                toast_label = f"{budget} tokens"
+        else:
+            return
+
+        await self._on_change_thinking(new_thinking)
+        self._set_toast(f"thinking: {toast_label}")
+
+    # -------------------------------------------------------------------------
     # Toast notifications
     # -------------------------------------------------------------------------
 
@@ -574,6 +735,10 @@ class PromptToolkitInput(InputProviderABC):
                 (symbol_style, " ctrl-l "),
                 (text_style, " "),
                 (text_style, "models"),
+                (text_style, "  "),
+                (symbol_style, " ctrl-t "),
+                (text_style, " "),
+                (text_style, "thinking"),
             ]
         )
 

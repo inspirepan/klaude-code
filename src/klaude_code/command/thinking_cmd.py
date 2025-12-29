@@ -4,7 +4,7 @@ from typing import Literal, cast
 from prompt_toolkit.styles import Style
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
-from klaude_code.protocol import commands, events, llm_param, model
+from klaude_code.protocol import commands, events, llm_param, model, op
 from klaude_code.ui.terminal.selector import SelectItem, select_one
 
 ReasoningEffort = Literal["high", "medium", "low", "minimal", "none", "xhigh"]
@@ -24,7 +24,7 @@ ANTHROPIC_LEVELS: list[tuple[str, int | None]] = [
 ]
 
 
-def _is_openrouter_model_with_reasoning_effort(model_name: str | None) -> bool:
+def is_openrouter_model_with_reasoning_effort(model_name: str | None) -> bool:
     """Check if the model is GPT series, Grok or Gemini 3."""
     if not model_name:
         return False
@@ -68,7 +68,7 @@ def should_auto_trigger_thinking(model_name: str | None) -> bool:
     return "gpt-5" in model_lower or "gemini-3" in model_lower or "opus" in model_lower
 
 
-def _get_levels_for_responses(model_name: str | None) -> list[str]:
+def get_levels_for_responses(model_name: str | None) -> list[str]:
     """Get thinking levels for responses protocol."""
     if _is_codex_max_model(model_name):
         return RESPONSES_CODEX_MAX_LEVELS
@@ -102,7 +102,7 @@ def format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
         return "not set"
 
     if protocol == llm_param.LLMClientProtocol.OPENROUTER:
-        if _is_openrouter_model_with_reasoning_effort(config.model):
+        if is_openrouter_model_with_reasoning_effort(config.model):
             if thinking.reasoning_effort:
                 return f"reasoning_effort={thinking.reasoning_effort}"
         else:
@@ -135,7 +135,7 @@ SELECT_STYLE = Style(
 
 def _select_responses_thinking_sync(model_name: str | None) -> llm_param.Thinking | None:
     """Select thinking level for responses/codex protocol (sync version)."""
-    levels = _get_levels_for_responses(model_name)
+    levels = get_levels_for_responses(model_name)
     items: list[SelectItem[str]] = [
         SelectItem(title=[("class:text", level + "\n")], value=level, search_text=level) for level in levels
     ]
@@ -195,7 +195,7 @@ async def select_thinking_for_protocol(config: llm_param.LLMConfigParameter) -> 
         return await asyncio.to_thread(_select_anthropic_thinking_sync)
 
     if protocol == llm_param.LLMClientProtocol.OPENROUTER:
-        if _is_openrouter_model_with_reasoning_effort(model_name):
+        if is_openrouter_model_with_reasoning_effort(model_name):
             return await asyncio.to_thread(_select_responses_thinking_sync, model_name)
         return await asyncio.to_thread(_select_anthropic_thinking_sync)
 
@@ -222,46 +222,30 @@ class ThinkingCommand(CommandABC):
 
     async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
         del user_input  # unused
-        if not agent.profile:
-            return self._no_change_result(agent, "No profile configured")
+        if agent.profile is None:
+            return CommandResult(events=[])
 
         config = agent.profile.llm_client.get_llm_config()
-        current = format_current_thinking(config)
-
         new_thinking = await select_thinking_for_protocol(config)
+
         if new_thinking is None:
-            return self._no_change_result(agent, "(no change)")
-
-        # Apply the new thinking configuration
-        config.thinking = new_thinking
-        agent.session.model_thinking = new_thinking
-        new_status = format_current_thinking(config)
+            return CommandResult(
+                events=[
+                    events.DeveloperMessageEvent(
+                        session_id=agent.session.id,
+                        item=model.DeveloperMessageItem(
+                            content="(no change)",
+                            command_output=model.CommandOutput(command_name=self.name),
+                        ),
+                    )
+                ]
+            )
 
         return CommandResult(
-            events=[
-                events.DeveloperMessageEvent(
+            operations=[
+                op.ChangeThinkingOperation(
                     session_id=agent.session.id,
-                    item=model.DeveloperMessageItem(
-                        content=f"Thinking changed: {current} -> {new_status}",
-                        command_output=model.CommandOutput(command_name=self.name),
-                    ),
-                ),
-                events.WelcomeEvent(
-                    work_dir=str(agent.session.work_dir),
-                    llm_config=config,
-                ),
-            ]
-        )
-
-    def _no_change_result(self, agent: "Agent", message: str) -> CommandResult:
-        return CommandResult(
-            events=[
-                events.DeveloperMessageEvent(
-                    session_id=agent.session.id,
-                    item=model.DeveloperMessageItem(
-                        content=message,
-                        command_output=model.CommandOutput(command_name=self.name),
-                    ),
+                    thinking=new_thinking,
                 )
             ]
         )

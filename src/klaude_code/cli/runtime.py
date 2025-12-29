@@ -15,7 +15,7 @@ from klaude_code.config import Config, load_config
 from klaude_code.core.agent import Agent, DefaultModelProfileProvider, VanillaModelProfileProvider
 from klaude_code.core.executor import Executor
 from klaude_code.core.manager import build_llm_clients
-from klaude_code.protocol import events, op
+from klaude_code.protocol import events, llm_param, op
 from klaude_code.protocol.model import UserInputPayload
 from klaude_code.session.session import Session, close_default_store
 from klaude_code.trace import DebugType, log, set_debug_logging
@@ -304,6 +304,25 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             )
         )
 
+    def _get_current_llm_config() -> llm_param.LLMConfigParameter | None:
+        agent = components.executor.context.current_agent
+        if agent is None:
+            return None
+        return agent.profile.llm_client.get_llm_config()
+
+    async def _change_thinking_from_prompt(thinking: llm_param.Thinking) -> None:
+        sid = _get_active_session_id()
+        if not sid:
+            return
+        await components.executor.submit_and_wait(
+            op.ChangeThinkingOperation(
+                session_id=sid,
+                thinking=thinking,
+                emit_welcome_event=False,
+                emit_switch_message=False,
+            )
+        )
+
     input_provider: ui.InputProviderABC = ui.PromptToolkitInput(
         status_provider=_status_provider,
         pre_prompt=_stop_rich_bottom_ui,
@@ -314,6 +333,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             else None
         ),
         on_change_model=_change_model_from_prompt,
+        get_current_llm_config=_get_current_llm_config,
+        on_change_thinking=_change_thinking_from_prompt,
     )
 
     # --- Custom Ctrl+C handler: double-press within 2s to exit, single press shows toast ---

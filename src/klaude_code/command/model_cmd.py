@@ -13,7 +13,7 @@ SELECT_STYLE = Style(
         ("pointer", "ansigreen"),
         ("highlighted", "ansigreen"),
         ("text", "ansibrightblack"),
-        ("question", ""),
+        ("question", "bold"),
     ]
 )
 
@@ -29,8 +29,6 @@ def _confirm_change_default_model_sync(selected_model: str) -> bool:
     ]
 
     try:
-        # Add a blank line between the model selector and this confirmation prompt.
-        print("")
         result = select_one(
             message=f"Save '{selected_model}' as default model?",
             items=items,

@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from klaude_code.protocol.llm_param import Thinking
 from klaude_code.protocol.model import UserInputPayload
 
 if TYPE_CHECKING:
@@ -92,10 +93,17 @@ class ChangeModelOperation(Operation):
 
 
 class ChangeThinkingOperation(Operation):
-    """Operation for changing the thinking/reasoning configuration."""
+    """Operation for changing the thinking/reasoning configuration.
+
+    If `thinking` is provided, it will be applied directly without user interaction.
+    If `thinking` is None, an interactive selector will be shown.
+    """
 
     type: OperationType = OperationType.CHANGE_THINKING
     session_id: str
+    thinking: Thinking | None = None
+    emit_welcome_event: bool = True
+    emit_switch_message: bool = True
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_change_thinking(self)

@@ -25,6 +25,7 @@ def create_key_bindings(
     *,
     input_enabled: Filter | None = None,
     open_model_picker: Callable[[], None] | None = None,
+    open_thinking_picker: Callable[[], None] | None = None,
 ) -> KeyBindings:
     """Create REPL key bindings with injected dependencies.
 
@@ -281,5 +282,12 @@ def create_key_bindings(
         if open_model_picker is not None:
             with contextlib.suppress(Exception):
                 open_model_picker()
+
+    @kb.add("c-t", filter=enabled, eager=True)
+    def _(event: KeyPressEvent) -> None:
+        del event
+        if open_thinking_picker is not None:
+            with contextlib.suppress(Exception):
+                open_thinking_picker()
 
     return kb
