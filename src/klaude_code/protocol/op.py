@@ -93,11 +93,7 @@ class ChangeModelOperation(Operation):
 
 
 class ChangeThinkingOperation(Operation):
-    """Operation for changing the thinking/reasoning configuration.
-
-    If `thinking` is provided, it will be applied directly without user interaction.
-    If `thinking` is None, an interactive selector will be shown.
-    """
+    """Operation for changing the thinking/reasoning configuration."""
 
     type: OperationType = OperationType.CHANGE_THINKING
     session_id: str

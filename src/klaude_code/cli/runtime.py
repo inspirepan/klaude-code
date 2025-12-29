@@ -3,6 +3,7 @@ import contextlib
 import sys
 from dataclasses import dataclass
 from typing import Any, Protocol
+from uuid import uuid4
 
 import typer
 from rich.text import Text
@@ -10,12 +11,13 @@ from rich.text import Text
 from klaude_code import ui
 from klaude_code.cli.main import update_terminal_title
 from klaude_code.cli.self_update import get_update_message
-from klaude_code.command import has_interactive_command
+from klaude_code.command import dispatch_command, get_command_info_list, has_interactive_command, is_slash_command_name
 from klaude_code.config import Config, load_config
 from klaude_code.core.agent import Agent, DefaultModelProfileProvider, VanillaModelProfileProvider
 from klaude_code.core.executor import Executor
 from klaude_code.core.manager import build_llm_clients
 from klaude_code.protocol import events, llm_param, op
+from klaude_code.protocol import model as protocol_model
 from klaude_code.protocol.model import UserInputPayload
 from klaude_code.session.session import Session, close_default_store
 from klaude_code.trace import DebugType, log, set_debug_logging
@@ -55,6 +57,79 @@ class AppComponents:
     display: ui.DisplayABC
     display_task: asyncio.Task[None]
     theme: str | None
+
+
+async def submit_user_input_payload(
+    *,
+    executor: Executor,
+    event_queue: asyncio.Queue[events.Event],
+    user_input: UserInputPayload,
+    session_id: str | None,
+) -> str | None:
+    """Parse/dispatch a user input payload and submit resulting operations.
+
+    The UI/CLI layer owns slash command parsing and any interactive prompts.
+    Core only executes concrete operations.
+
+    Returns a submission id that should be awaited, or None if there is nothing
+    to wait for (e.g. commands that only emit events).
+    """
+
+    sid = session_id or executor.context.current_session_id()
+    if sid is None:
+        raise RuntimeError("No active session")
+
+    agent = executor.context.current_agent
+    if agent is None or agent.session.id != sid:
+        await executor.submit_and_wait(op.InitAgentOperation(session_id=sid))
+        agent = executor.context.current_agent
+
+    if agent is None:
+        raise RuntimeError("Failed to initialize agent")
+
+    submission_id = uuid4().hex
+
+    await executor.context.emit_event(
+        events.UserMessageEvent(content=user_input.text, session_id=sid, images=user_input.images)
+    )
+
+    result = await dispatch_command(user_input, agent, submission_id=submission_id)
+    operations: list[op.Operation] = list(result.operations or [])
+
+    run_ops = [candidate for candidate in operations if isinstance(candidate, op.RunAgentOperation)]
+    if len(run_ops) > 1:
+        raise ValueError("Multiple RunAgentOperation results are not supported")
+
+    persisted_user_input = run_ops[0].input if run_ops else user_input
+
+    if result.persist_user_input:
+        agent.session.append_history(
+            [
+                protocol_model.UserMessageItem(
+                    content=persisted_user_input.text,
+                    images=persisted_user_input.images,
+                )
+            ]
+        )
+
+    if result.events:
+        for evt in result.events:
+            if result.persist_events and isinstance(evt, events.DeveloperMessageEvent):
+                agent.session.append_history([evt.item])
+            await executor.context.emit_event(evt)
+
+    submitted_ids: list[str] = []
+    for operation_item in operations:
+        submitted_ids.append(await executor.submit(operation_item))
+
+    if not submitted_ids:
+        # Ensure event-only commands are fully rendered before showing the next prompt.
+        await event_queue.join()
+        return None
+
+    if run_ops:
+        return run_ops[0].id
+    return submitted_ids[-1]
 
 
 async def initialize_app_components(init_config: AppInitConfig) -> AppComponents:
@@ -232,10 +307,15 @@ async def run_exec(init_config: AppInitConfig, input_content: str) -> None:
             is_new_session=True,
         )
 
-        # Submit the input content directly
-        await components.executor.submit_and_wait(
-            op.UserInputOperation(input=UserInputPayload(text=input_content), session_id=session_id)
+        wait_id = await submit_user_input_payload(
+            executor=components.executor,
+            event_queue=components.event_queue,
+            user_input=UserInputPayload(text=input_content),
+            session_id=session_id,
         )
+        if wait_id is not None:
+            await components.executor.wait_for(wait_id)
+            await components.event_queue.join()
 
     except KeyboardInterrupt:
         await _handle_keyboard_interrupt(components.executor)
@@ -323,6 +403,11 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             )
         )
 
+    # Inject command name checker into user_input renderer (for slash command highlighting)
+    from klaude_code.ui.renderers.user_input import set_command_name_checker
+
+    set_command_name_checker(is_slash_command_name)
+
     input_provider: ui.InputProviderABC = ui.PromptToolkitInput(
         status_provider=_status_provider,
         pre_prompt=_stop_rich_bottom_ui,
@@ -335,6 +420,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         on_change_model=_change_model_from_prompt,
         get_current_llm_config=_get_current_llm_config,
         on_change_thinking=_change_thinking_from_prompt,
+        command_info_provider=get_command_info_list,
     )
 
     # --- Custom Ctrl+C handler: double-press within 2s to exit, single press shows toast ---
@@ -388,30 +474,38 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 break
             elif user_input.text.strip() == "":
                 continue
-            # Submit user input operation - directly use the payload from iter_inputs
-            # Use dynamic session_id lookup to handle /clear creating new sessions
+            # Use dynamic session_id lookup to handle /clear creating new sessions.
+            # UI/CLI parses commands and submits concrete operations; core executes operations.
             active_session_id = _get_active_session_id()
-            submission_id = await components.executor.submit(
-                op.UserInputOperation(input=user_input, session_id=active_session_id)
-            )
-            # If it's an interactive command (e.g., /model), avoid starting the ESC monitor
-            # to prevent TTY conflicts with interactive prompt_toolkit UIs.
-            if has_interactive_command(user_input.text):
-                await components.executor.wait_for(submission_id)
-            else:
-                # Esc monitor for long-running, interruptible operations
-                async def _on_esc_interrupt() -> None:
-                    await components.executor.submit(op.InterruptOperation(target_session_id=_get_active_session_id()))
+            is_interactive = has_interactive_command(user_input.text)
 
-                stop_event, esc_task = start_esc_interrupt_monitor(_on_esc_interrupt)
-                # Wait for this specific task to complete before accepting next input
-                try:
-                    await components.executor.wait_for(submission_id)
-                finally:
-                    # Stop ESC monitor and wait for it to finish cleaning up TTY
-                    stop_event.set()
-                    with contextlib.suppress(Exception):
-                        await esc_task
+            wait_id = await submit_user_input_payload(
+                executor=components.executor,
+                event_queue=components.event_queue,
+                user_input=user_input,
+                session_id=active_session_id,
+            )
+
+            if wait_id is None:
+                continue
+
+            if is_interactive:
+                await components.executor.wait_for(wait_id)
+                continue
+
+            # Esc monitor for long-running, interruptible operations
+            async def _on_esc_interrupt() -> None:
+                await components.executor.submit(op.InterruptOperation(target_session_id=_get_active_session_id()))
+
+            stop_event, esc_task = start_esc_interrupt_monitor(_on_esc_interrupt)
+            # Wait for this specific task to complete before accepting next input
+            try:
+                await components.executor.wait_for(wait_id)
+            finally:
+                # Stop ESC monitor and wait for it to finish cleaning up TTY
+                stop_event.set()
+                with contextlib.suppress(Exception):
+                    await esc_task
 
     except KeyboardInterrupt:
         await _handle_keyboard_interrupt(components.executor)

@@ -1,7 +1,5 @@
 import time
-
-from klaude_code.trace import log, log_debug
-from klaude_code.ui.terminal.selector import SelectItem, select_one
+from dataclasses import dataclass
 
 from .session import Session
 
@@ -30,69 +28,43 @@ def _relative_time(ts: float) -> str:
         return f"{months} month{'s' if months != 1 else ''} ago"
 
 
-def resume_select_session() -> str | None:
+@dataclass(frozen=True, slots=True)
+class SessionSelectOption:
+    """Option data for session selection UI."""
+
+    session_id: str
+    first_user_message: str
+    messages_count: str
+    relative_time: str
+    model_name: str
+
+
+def build_session_select_options() -> list[SessionSelectOption]:
+    """Build session selection options data.
+
+    Returns:
+        List of SessionSelectOption, or empty list if no sessions exist.
+    """
     sessions = Session.list_sessions()
     if not sessions:
-        log("No sessions found for this project.")
-        return None
+        return []
 
-    try:
-        from prompt_toolkit.styles import Style
+    options: list[SessionSelectOption] = []
+    for s in sessions:
+        first_msg = s.first_user_message or "N/A"
+        first_msg = first_msg.strip().replace("\n", " ")
 
-        items: list[SelectItem[str]] = []
-        for s in sessions:
-            first_msg = s.first_user_message or "N/A"
-            first_msg = first_msg.strip().replace("\n", " ")
+        msg_count = "N/A" if s.messages_count == -1 else f"{s.messages_count} messages"
+        model = s.model_name or "N/A"
 
-            msg_count = "N/A" if s.messages_count == -1 else f"{s.messages_count} messages"
-            model = s.model_name or "N/A"
-
-            title = [
-                ("class:msg", f"{first_msg}\n"),
-                ("class:meta", f"   {msg_count} · {_relative_time(s.updated_at)} · {model} · {s.id}\n\n"),
-            ]
-            items.append(
-                SelectItem(
-                    title=title,
-                    value=str(s.id),
-                    search_text=f"{first_msg} {model} {s.id}",
-                )
+        options.append(
+            SessionSelectOption(
+                session_id=str(s.id),
+                first_user_message=first_msg,
+                messages_count=msg_count,
+                relative_time=_relative_time(s.updated_at),
+                model_name=model,
             )
-
-        return select_one(
-            message="Select a session to resume:",
-            items=items,
-            pointer="→",
-            style=Style(
-                [
-                    ("msg", ""),
-                    ("meta", "fg:ansibrightblack"),
-                    ("pointer", "bold fg:ansigreen"),
-                    ("highlighted", "fg:ansigreen"),
-                    ("search_prefix", "fg:ansibrightblack"),
-                    ("search_success", "noinherit fg:ansigreen"),
-                    ("search_none", "noinherit fg:ansired"),
-                    ("question", "bold"),
-                    ("text", ""),
-                ]
-            ),
         )
-    except Exception as e:
-        log_debug(f"Failed to use prompt_toolkit for session select, {e}")
 
-        for i, s in enumerate(sessions, 1):
-            first_msg = (s.first_user_message or "N/A").strip().replace("\n", " ")
-            if len(first_msg) > 60:
-                first_msg = first_msg[:59] + "…"
-            msg_count = "N/A" if s.messages_count == -1 else f"{s.messages_count} msgs"
-            model = s.model_name or "N/A"
-            print(f"{i}. {first_msg}")
-            print(f"   {_relative_time(s.updated_at)} · {msg_count} · {model}")
-        try:
-            raw = input("Select a session number: ").strip()
-            idx = int(raw)
-            if 1 <= idx <= len(sessions):
-                return str(sessions[idx - 1].id)
-        except (ValueError, EOFError):
-            return None
-    return None
+    return options

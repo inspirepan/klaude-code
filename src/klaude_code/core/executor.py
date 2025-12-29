@@ -13,18 +13,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from klaude_code.command import dispatch_command
-from klaude_code.command.thinking_cmd import (
-    format_current_thinking,
-    select_thinking_for_protocol,
-    should_auto_trigger_thinking,
-)
 from klaude_code.config import load_config
 from klaude_code.core.agent import Agent, DefaultModelProfileProvider, ModelProfileProvider
 from klaude_code.core.manager import LLMClients, SubAgentManager
 from klaude_code.core.tool import current_run_subtask_callback
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.protocol import commands, events, model, op
+from klaude_code.protocol.llm_param import Thinking
 from klaude_code.protocol.op_handler import OperationHandler
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.export import build_export_html, get_default_export_path
@@ -181,7 +176,11 @@ class ExecutorContext:
         await self._ensure_agent(operation.session_id)
 
     async def handle_user_input(self, operation: op.UserInputOperation) -> None:
-        """Handle a user input operation by dispatching it into operations."""
+        """Handle a user input operation.
+
+        Core should not parse slash commands. The UI/CLI layer is responsible for
+        turning raw user input into one or more operations.
+        """
 
         if operation.session_id is None:
             raise ValueError("session_id cannot be None")
@@ -190,33 +189,18 @@ class ExecutorContext:
         agent = await self._ensure_agent(session_id)
         user_input = operation.input
 
-        # Emit the original user input to UI (even if the persisted text differs).
         await self.emit_event(
             events.UserMessageEvent(content=user_input.text, session_id=session_id, images=user_input.images)
         )
+        agent.session.append_history([model.UserMessageItem(content=user_input.text, images=user_input.images)])
 
-        result = await dispatch_command(user_input, agent, submission_id=operation.id)
-        ops: list[op.Operation] = list(result.operations or [])
-
-        run_ops = [candidate for candidate in ops if isinstance(candidate, op.RunAgentOperation)]
-        if len(run_ops) > 1:
-            raise ValueError("Multiple RunAgentOperation results are not supported")
-
-        persisted_user_input = run_ops[0].input if run_ops else user_input
-
-        if result.persist_user_input:
-            agent.session.append_history(
-                [model.UserMessageItem(content=persisted_user_input.text, images=persisted_user_input.images)]
+        await self.handle_run_agent(
+            op.RunAgentOperation(
+                id=operation.id,
+                session_id=session_id,
+                input=user_input,
             )
-
-        if result.events:
-            for evt in result.events:
-                if result.persist_events and isinstance(evt, events.DeveloperMessageEvent):
-                    agent.session.append_history([evt.item])
-                await self.emit_event(evt)
-
-        for operation_item in ops:
-            await operation_item.execute(handler=self)
+        )
 
     async def handle_run_agent(self, operation: op.RunAgentOperation) -> None:
         agent = await self._ensure_agent(operation.session_id)
@@ -255,51 +239,39 @@ class ExecutorContext:
         if self._on_model_change is not None:
             self._on_model_change(llm_client.model_name)
 
-        if should_auto_trigger_thinking(llm_config.model):
-            if not operation.defer_thinking_selection:
-                thinking_op = op.ChangeThinkingOperation(session_id=operation.session_id)
-                await thinking_op.execute(handler=self)
-                # WelcomeEvent is already handled by the thinking change
-                return
-            if operation.emit_switch_message:
-                note = model.DeveloperMessageItem(
-                    content="(thinking selection deferred; run /thinking to configure)",
-                    command_output=model.CommandOutput(command_name=commands.CommandName.MODEL),
-                )
-                agent.session.append_history([note])
-                await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=note))
-
         if operation.emit_welcome_event:
             await self.emit_event(events.WelcomeEvent(llm_config=llm_config, work_dir=str(agent.session.work_dir)))
 
     async def handle_change_thinking(self, operation: op.ChangeThinkingOperation) -> None:
         """Handle a change thinking operation.
 
-        If operation.thinking is provided, apply it directly.
-        Otherwise, prompt user to select thinking level interactively.
+        Interactive thinking selection must happen in the UI/CLI layer. Core only
+        applies a concrete thinking configuration.
         """
         agent = await self._ensure_agent(operation.session_id)
 
         config = agent.profile.llm_client.get_llm_config()
-        current = format_current_thinking(config)
 
-        if operation.thinking is not None:
-            new_thinking = operation.thinking
-        else:
-            new_thinking = await select_thinking_for_protocol(config)
+        def _format_thinking_for_display(thinking: Thinking | None) -> str:
+            if thinking is None:
+                return "not configured"
+            if thinking.reasoning_effort:
+                return f"reasoning_effort={thinking.reasoning_effort}"
+            if thinking.type == "disabled":
+                return "off"
+            if thinking.type == "enabled":
+                if thinking.budget_tokens is None:
+                    return "enabled"
+                return f"enabled (budget_tokens={thinking.budget_tokens})"
+            return "not set"
 
-        if new_thinking is None:
-            if operation.emit_switch_message:
-                developer_item = model.DeveloperMessageItem(
-                    content="(thinking unchanged)",
-                    command_output=model.CommandOutput(command_name=commands.CommandName.THINKING),
-                )
-                await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
-            return
+        if operation.thinking is None:
+            raise ValueError("thinking must be provided; interactive selection belongs to UI")
 
-        config.thinking = new_thinking
-        agent.session.model_thinking = new_thinking
-        new_status = format_current_thinking(config)
+        current = _format_thinking_for_display(config.thinking)
+        config.thinking = operation.thinking
+        agent.session.model_thinking = operation.thinking
+        new_status = _format_thinking_for_display(config.thinking)
 
         if operation.emit_switch_message:
             developer_item = model.DeveloperMessageItem(

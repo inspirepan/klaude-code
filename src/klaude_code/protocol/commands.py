@@ -1,4 +1,15 @@
+from dataclasses import dataclass
 from enum import Enum
+
+
+@dataclass(frozen=True, slots=True)
+class CommandInfo:
+    """Lightweight command metadata for UI purposes (no logic)."""
+
+    name: str
+    summary: str
+    support_addition_params: bool = False
+    placeholder: str = ""
 
 
 class CommandName(str, Enum):

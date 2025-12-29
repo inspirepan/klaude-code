@@ -1,12 +1,29 @@
 import re
+from collections.abc import Callable
 
 from rich.console import Group, RenderableType
 from rich.text import Text
 
-from klaude_code.command import is_slash_command_name
 from klaude_code.skill import get_available_skills
 from klaude_code.ui.renderers.common import create_grid
 from klaude_code.ui.rich.theme import ThemeKey
+
+# Module-level command name checker. Set by cli/runtime.py on startup.
+_command_name_checker: Callable[[str], bool] | None = None
+
+
+def set_command_name_checker(checker: Callable[[str], bool]) -> None:
+    """Set the command name validation function (called from runtime layer)."""
+    global _command_name_checker
+    _command_name_checker = checker
+
+
+def is_slash_command_name(name: str) -> bool:
+    """Check if name is a valid slash command using the injected checker."""
+    if _command_name_checker is None:
+        return False
+    return _command_name_checker(name)
+
 
 # Match @-file patterns only when they appear at the beginning of the line
 # or immediately after whitespace, to avoid treating mid-word email-like

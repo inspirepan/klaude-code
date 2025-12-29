@@ -615,10 +615,10 @@ class TestLLMConfigParameterIntegration:
         assert llm_config.provider_routing.allow_fallbacks is True
 
 
-class TestSelectModelFromConfig:
-    def test_select_model_supports_case_insensitive_exact_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
+class TestMatchModelFromConfig:
+    def test_match_model_supports_case_insensitive_exact_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import klaude_code.config.select_model as select_model_module
-        from klaude_code.config.select_model import select_model_from_config
+        from klaude_code.config.select_model import match_model_from_config
 
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
@@ -634,11 +634,12 @@ class TestSelectModelFromConfig:
 
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 
-        assert select_model_from_config(preferred="GPT-5.2") == "gpt-5.2"
+        result = match_model_from_config(preferred="GPT-5.2")
+        assert result.matched_model == "gpt-5.2"
 
-    def test_select_model_supports_normalized_alias_against_model_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_match_model_supports_normalized_alias_against_model_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import klaude_code.config.select_model as select_model_module
-        from klaude_code.config.select_model import select_model_from_config
+        from klaude_code.config.select_model import match_model_from_config
 
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
@@ -654,11 +655,12 @@ class TestSelectModelFromConfig:
 
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 
-        assert select_model_from_config(preferred="gpt52") == "gpt-5.2"
+        result = match_model_from_config(preferred="gpt52")
+        assert result.matched_model == "gpt-5.2"
 
-    def test_select_model_supports_normalized_punctuation_variants(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_match_model_supports_normalized_punctuation_variants(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import klaude_code.config.select_model as select_model_module
-        from klaude_code.config.select_model import select_model_from_config
+        from klaude_code.config.select_model import match_model_from_config
 
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
@@ -674,11 +676,12 @@ class TestSelectModelFromConfig:
 
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 
-        assert select_model_from_config(preferred="gpt_5_2") == "gpt-5.2"
+        result = match_model_from_config(preferred="gpt_5_2")
+        assert result.matched_model == "gpt-5.2"
 
-    def test_select_model_supports_normalized_alias_against_model_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_match_model_supports_normalized_alias_against_model_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import klaude_code.config.select_model as select_model_module
-        from klaude_code.config.select_model import select_model_from_config
+        from klaude_code.config.select_model import match_model_from_config
 
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
@@ -694,11 +697,12 @@ class TestSelectModelFromConfig:
 
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 
-        assert select_model_from_config(preferred="gpt52") == "primary"
+        result = match_model_from_config(preferred="gpt52")
+        assert result.matched_model == "primary"
 
-    def test_select_model_supports_normalized_alias_with_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_match_model_supports_normalized_alias_with_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import klaude_code.config.select_model as select_model_module
-        from klaude_code.config.select_model import select_model_from_config
+        from klaude_code.config.select_model import match_model_from_config
 
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
@@ -714,11 +718,12 @@ class TestSelectModelFromConfig:
 
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 
-        assert select_model_from_config(preferred="openai/gpt52") == "primary"
+        result = match_model_from_config(preferred="openai/gpt52")
+        assert result.matched_model == "primary"
 
-    def test_select_model_uses_interactive_selector_on_ambiguity(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_match_model_returns_filtered_models_on_ambiguity(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import klaude_code.config.select_model as select_model_module
-        from klaude_code.config.select_model import select_model_from_config
+        from klaude_code.config.select_model import match_model_from_config
 
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
@@ -738,23 +743,10 @@ class TestSelectModelFromConfig:
 
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 
-        # This test exercises the interactive branch; simulate a TTY.
-        monkeypatch.setattr(select_model_module.sys.stdin, "isatty", lambda: True)
-        monkeypatch.setattr(select_model_module.sys.stdout, "isatty", lambda: True)
-
-        captured: dict[str, Any] = {}
-
-        def mock_select_one(*, message: str, items: list[Any], **kwargs: object) -> str:
-            captured["message"] = message
-            captured["items"] = items
-            captured["kwargs"] = kwargs
-            return model_b.model_name
-
-        monkeypatch.setattr("klaude_code.ui.terminal.selector.select_one", mock_select_one)
-
-        assert select_model_from_config(preferred="gpt52") == model_b.model_name
-        assert captured["message"] == "Select a model (filtered by 'gpt52'):"
-        assert len(captured["items"]) == 2
+        result = match_model_from_config(preferred="gpt52")
+        assert result.matched_model is None
+        assert result.filter_hint == "gpt52"
+        assert len(result.filtered_models) == 2
 
 
 # =============================================================================

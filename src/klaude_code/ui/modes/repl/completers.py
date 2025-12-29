@@ -19,7 +19,7 @@ import re
 import shutil
 import subprocess
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import NamedTuple
 
@@ -27,7 +27,7 @@ from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import FormattedText
 
-from klaude_code.command import CommandABC, get_commands
+from klaude_code.protocol.commands import CommandInfo
 from klaude_code.trace.log import DebugType, log_debug
 
 # Pattern to match @token for completion refresh (used by key bindings).
@@ -40,12 +40,18 @@ AT_TOKEN_PATTERN = re.compile(r'(^|\s)@(?P<frag>"[^"]*"|[^\s]*)$')
 SKILL_TOKEN_PATTERN = re.compile(r"^[$¥](?P<frag>\S*)$")
 
 
-def create_repl_completer() -> Completer:
+def create_repl_completer(
+    command_info_provider: Callable[[], list[CommandInfo]] | None = None,
+) -> Completer:
     """Create and return the combined REPL completer.
+
+    Args:
+        command_info_provider: Optional callable that returns command metadata.
+            If None, slash command completion is disabled.
 
     Returns a completer that handles both @ file paths and / slash commands.
     """
-    return _ComboCompleter()
+    return _ComboCompleter(command_info_provider=command_info_provider)
 
 
 class _CmdResult(NamedTuple):
@@ -66,6 +72,9 @@ class _SlashCommandCompleter(Completer):
 
     _SLASH_TOKEN_RE = re.compile(r"^/(?P<frag>\S*)$")
 
+    def __init__(self, command_info_provider: Callable[[], list[CommandInfo]] | None = None) -> None:
+        self._command_info_provider = command_info_provider
+
     def get_completions(
         self,
         document: Document,
@@ -73,6 +82,9 @@ class _SlashCommandCompleter(Completer):
     ) -> Iterable[Completion]:
         # Only complete on first line
         if document.cursor_position_row != 0:
+            return
+
+        if self._command_info_provider is None:
             return
 
         text_before = document.current_line_before_cursor
@@ -84,20 +96,20 @@ class _SlashCommandCompleter(Completer):
         token_start = len(text_before) - len(f"/{frag}")
         start_position = token_start - len(text_before)  # negative offset
 
-        # Get available commands
-        commands = get_commands()
+        # Get available commands from provider
+        command_infos = self._command_info_provider()
 
         # Filter commands that match the fragment (preserve registration order)
-        matched: list[tuple[str, CommandABC, str]] = []
-        for cmd_name, cmd_obj in commands.items():
-            if cmd_name.startswith(frag):
-                hint = f" [{cmd_obj.placeholder}]" if cmd_obj.support_addition_params else ""
-                matched.append((cmd_name, cmd_obj, hint))
+        matched: list[tuple[str, CommandInfo, str]] = []
+        for cmd_info in command_infos:
+            if cmd_info.name.startswith(frag):
+                hint = f" [{cmd_info.placeholder}]" if cmd_info.support_addition_params else ""
+                matched.append((cmd_info.name, cmd_info, hint))
 
         if not matched:
             return
 
-        for cmd_name, cmd_obj, hint in matched:
+        for cmd_name, cmd_info, hint in matched:
             completion_text = f"/{cmd_name} "
             # Use FormattedText to style the hint (placeholder) in bright black
             display = FormattedText([("", cmd_name), ("ansibrightblack", hint)]) if hint else cmd_name
@@ -105,7 +117,7 @@ class _SlashCommandCompleter(Completer):
                 text=completion_text,
                 start_position=start_position,
                 display=display,
-                display_meta=str(cmd_obj.summary),
+                display_meta=cmd_info.summary,
             )
 
     def is_slash_command_context(self, document: Document) -> bool:
@@ -200,9 +212,9 @@ class _SkillCompleter(Completer):
 class _ComboCompleter(Completer):
     """Combined completer that handles @ file paths, / slash commands, and $ skills."""
 
-    def __init__(self) -> None:
+    def __init__(self, command_info_provider: Callable[[], list[CommandInfo]] | None = None) -> None:
         self._at_completer = _AtFilesCompleter()
-        self._slash_completer = _SlashCommandCompleter()
+        self._slash_completer = _SlashCommandCompleter(command_info_provider=command_info_provider)
         self._skill_completer = _SkillCompleter()
 
     def get_completions(

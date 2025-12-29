@@ -11,8 +11,62 @@ from klaude_code.cli.config_cmd import register_config_commands
 from klaude_code.cli.debug import DEBUG_FILTER_HELP, open_log_file_in_editor, resolve_debug_settings
 from klaude_code.cli.self_update import register_self_update_commands, version_option_callback
 from klaude_code.cli.session_cmd import register_session_commands
-from klaude_code.session import Session, resume_select_session
+from klaude_code.session import Session, build_session_select_options
 from klaude_code.trace import DebugType, prepare_debug_log_file
+
+
+def select_session_interactive() -> str | None:
+    """Interactive session selection for CLI.
+
+    Returns:
+        Selected session ID, or None if no session selected or no sessions exist.
+    """
+    from klaude_code.trace import log
+
+    options = build_session_select_options()
+    if not options:
+        log("No sessions found for this project.")
+        return None
+
+    from prompt_toolkit.styles import Style
+
+    from klaude_code.ui.terminal.selector import SelectItem, select_one
+
+    items: list[SelectItem[str]] = []
+    for opt in options:
+        title = [
+            ("class:msg", f"{opt.first_user_message}\n"),
+            ("class:meta", f"   {opt.messages_count} · {opt.relative_time} · {opt.model_name} · {opt.session_id}\n\n"),
+        ]
+        items.append(
+            SelectItem(
+                title=title,
+                value=opt.session_id,
+                search_text=f"{opt.first_user_message} {opt.model_name} {opt.session_id}",
+            )
+        )
+
+    try:
+        return select_one(
+            message="Select a session to resume:",
+            items=items,
+            pointer="→",
+            style=Style(
+                [
+                    ("msg", ""),
+                    ("meta", "fg:ansibrightblack"),
+                    ("pointer", "bold fg:ansigreen"),
+                    ("highlighted", "fg:ansigreen"),
+                    ("search_prefix", "fg:ansibrightblack"),
+                    ("search_success", "noinherit fg:ansigreen"),
+                    ("search_none", "noinherit fg:ansired"),
+                    ("question", "bold"),
+                    ("text", ""),
+                ]
+            ),
+        )
+    except KeyboardInterrupt:
+        return None
 
 
 def set_terminal_title(title: str) -> None:
@@ -157,19 +211,19 @@ def exec_command(
         raise typer.Exit(1)
 
     from klaude_code.cli.runtime import AppInitConfig, run_exec
+    from klaude_code.command.model_select import select_model_interactive
     from klaude_code.config import load_config
-    from klaude_code.config.select_model import select_model_from_config
 
     chosen_model = model
     if model or select_model:
-        chosen_model = select_model_from_config(preferred=model)
+        chosen_model = select_model_interactive(preferred=model)
         if chosen_model is None:
             raise typer.Exit(1)
     else:
         # Check if main_model is configured; if not, trigger interactive selection
         config = load_config()
         if config.main_model is None:
-            chosen_model = select_model_from_config()
+            chosen_model = select_model_interactive()
             if chosen_model is None:
                 raise typer.Exit(1)
             # Save the selection as default
@@ -292,13 +346,13 @@ def main_callback(
             return
 
         from klaude_code.cli.runtime import AppInitConfig, run_interactive
-        from klaude_code.config.select_model import select_model_from_config
+        from klaude_code.command.model_select import select_model_interactive
 
         update_terminal_title()
 
         chosen_model = model
         if model or select_model:
-            chosen_model = select_model_from_config(preferred=model)
+            chosen_model = select_model_interactive(preferred=model)
             if chosen_model is None:
                 return
 
@@ -307,7 +361,7 @@ def main_callback(
         session_id: str | None = None
 
         if resume:
-            session_id = resume_select_session()
+            session_id = select_session_interactive()
             if session_id is None:
                 return
         # If user didn't pick, allow fallback to --continue
@@ -353,7 +407,7 @@ def main_callback(
 
             cfg = load_config()
             if cfg.main_model is None:
-                chosen_model = select_model_from_config()
+                chosen_model = select_model_interactive()
                 if chosen_model is None:
                     raise typer.Exit(1)
                 # Save the selection as default

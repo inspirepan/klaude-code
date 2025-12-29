@@ -3,7 +3,7 @@ import asyncio
 from prompt_toolkit.styles import Style
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
-from klaude_code.config.select_model import select_model_from_config
+from klaude_code.command.model_select import select_model_interactive
 from klaude_code.protocol import commands, events, model, op
 from klaude_code.ui.terminal.selector import SelectItem, select_one
 
@@ -66,7 +66,7 @@ class ModelCommand(CommandABC):
         return "model name"
 
     async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
-        selected_model = await asyncio.to_thread(select_model_from_config, preferred=user_input.text)
+        selected_model = await asyncio.to_thread(select_model_interactive, preferred=user_input.text)
 
         current_model = agent.profile.llm_client.model_name if agent.profile else None
         if selected_model is None or selected_model == current_model:

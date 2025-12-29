@@ -27,15 +27,16 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
 from prompt_toolkit.utils import get_cwidth
 
-from klaude_code.command.thinking_cmd import (
+from klaude_code.config import load_config
+from klaude_code.config.config import ModelEntry
+from klaude_code.config.thinking import (
     ANTHROPIC_LEVELS,
     format_current_thinking,
     get_levels_for_responses,
     is_openrouter_model_with_reasoning_effort,
 )
-from klaude_code.config import load_config
-from klaude_code.config.config import ModelEntry
 from klaude_code.protocol import llm_param
+from klaude_code.protocol.commands import CommandInfo
 from klaude_code.protocol.model import UserInputPayload
 from klaude_code.ui.core.input import InputProviderABC
 from klaude_code.ui.modes.repl.clipboard import capture_clipboard_tag, copy_to_clipboard, extract_images_from_text
@@ -234,6 +235,7 @@ class PromptToolkitInput(InputProviderABC):
         get_current_model_config_name: Callable[[], str | None] | None = None,
         on_change_thinking: Callable[[llm_param.Thinking], Awaitable[None]] | None = None,
         get_current_llm_config: Callable[[], llm_param.LLMConfigParameter | None] | None = None,
+        command_info_provider: Callable[[], list[CommandInfo]] | None = None,
     ):
         self._status_provider = status_provider
         self._pre_prompt = pre_prompt
@@ -242,6 +244,7 @@ class PromptToolkitInput(InputProviderABC):
         self._get_current_model_config_name = get_current_model_config_name
         self._on_change_thinking = on_change_thinking
         self._get_current_llm_config = get_current_llm_config
+        self._command_info_provider = command_info_provider
 
         self._toast_message: str | None = None
         self._toast_until: float = 0.0
@@ -296,7 +299,7 @@ class PromptToolkitInput(InputProviderABC):
             cursor=CursorShape.BLINKING_BEAM,
             prompt_continuation=[(INPUT_PROMPT_STYLE, "  ")],
             key_bindings=kb,
-            completer=ThreadedCompleter(create_repl_completer()),
+            completer=ThreadedCompleter(create_repl_completer(command_info_provider=self._command_info_provider)),
             complete_while_typing=True,
             erase_when_done=True,
             mouse_support=False,

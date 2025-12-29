@@ -105,6 +105,29 @@ def get_commands() -> dict[commands.CommandName | str, "CommandABC"]:
     return _COMMANDS.copy()
 
 
+def get_command_info_list() -> list[commands.CommandInfo]:
+    """Get lightweight command metadata for UI purposes.
+
+    Returns CommandInfo list in registration order (display order).
+    """
+    _ensure_commands_loaded()
+    return [
+        commands.CommandInfo(
+            name=_command_key_to_str(cmd.name),
+            summary=cmd.summary,
+            support_addition_params=cmd.support_addition_params,
+            placeholder=cmd.placeholder,
+        )
+        for cmd in _COMMANDS.values()
+    ]
+
+
+def get_command_names() -> frozenset[str]:
+    """Get all registered command names as a frozen set for fast lookup."""
+    _ensure_commands_loaded()
+    return frozenset(_command_key_to_str(key) for key in _COMMANDS)
+
+
 def is_slash_command_name(name: str) -> bool:
     _ensure_commands_loaded()
     return _resolve_command_key(name) is not None

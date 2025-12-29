@@ -1,6 +1,8 @@
 from .command_abc import CommandABC, CommandResult
 from .registry import (
     dispatch_command,
+    get_command_info_list,
+    get_command_names,
     get_commands,
     has_interactive_command,
     is_slash_command_name,
@@ -94,6 +96,8 @@ __all__ = [
     "CommandResult",
     "dispatch_command",
     "ensure_commands_loaded",
+    "get_command_info_list",
+    "get_command_names",
     "get_commands",
     "has_interactive_command",
     "is_slash_command_name",
