@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2025-12-29
+
+### Added
+
+- add ctrl-t thinking picker overlay in REPL prompt (`384d225f`)
+- add ctrl-l model picker overlay in REPL prompt (`ef7541f9`)
+- display sub-agent metadata individually and add tmux test signal (`b827c19f`)
+
+### Changed
+
+- extract shared thinking picker logic to config module (`cdf08fdb`)
+- elevate command layer above ui layer (`9fe0f3b9`)
+- apply bold style to question text (`3e27ab0e`)
+- change grey_yellow color to green tones (`d3acff25`)
+
+### Fixed
+
+- add number before model list; update /help command (`f09b1053`)
 ## [1.4.3] - 2025-12-28
 
 ### Changed
@@ -916,7 +934,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.4.3...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/inspirepan/klaude-code/compare/v1.4.3...v1.5.0
 [1.4.3]: https://github.com/inspirepan/klaude-code/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/inspirepan/klaude-code/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/inspirepan/klaude-code/compare/v1.4.0...v1.4.1
