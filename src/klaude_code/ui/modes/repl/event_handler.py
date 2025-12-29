@@ -15,7 +15,7 @@ from klaude_code.ui.renderers.thinking import THINKING_MESSAGE_MARK, normalize_t
 from klaude_code.ui.rich import status as r_status
 from klaude_code.ui.rich.markdown import MarkdownStream, ThinkingMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
-from klaude_code.ui.terminal.notifier import Notification, NotificationType, TerminalNotifier
+from klaude_code.ui.terminal.notifier import Notification, NotificationType, TerminalNotifier, emit_tmux_signal
 from klaude_code.ui.terminal.progress_bar import OSC94States, emit_osc94
 
 
@@ -509,6 +509,7 @@ class DisplayEventHandler:
             self.spinner_status.reset()
             self.renderer.spinner_stop()
             self.renderer.console.print(Rule(characters="─", style=ThemeKey.LINES))
+            emit_tmux_signal()  # Signal test harness if KLAUDE_TEST_SIGNAL is set
         await self.stage_manager.transition_to(Stage.WAITING)
         self._maybe_notify_task_finish(event)
 

@@ -148,18 +148,15 @@ def _render_task_metadata_block(
 
 
 def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
-    """Render task metadata including main agent and sub-agents, aggregated by model+provider."""
+    """Render task metadata including main agent and sub-agents."""
     renderables: list[RenderableType] = []
 
     renderables.append(
         _render_task_metadata_block(e.metadata.main_agent, is_sub_agent=False, show_context_and_time=True)
     )
 
-    # Aggregate by (model_name, provider), sorted by total_cost descending
-    sorted_items = model.TaskMetadata.aggregate_by_model(e.metadata.sub_agent_task_metadata)
-
-    # Render each aggregated model block
-    for meta in sorted_items:
+    # Render each sub-agent metadata block
+    for meta in e.metadata.sub_agent_task_metadata:
         renderables.append(_render_task_metadata_block(meta, is_sub_agent=True, show_context_and_time=False))
 
     return Group(*renderables)
