@@ -2,6 +2,10 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
 
 # Ensure imports from src/
 ROOT = Path(__file__).resolve().parents[1]
@@ -297,6 +301,66 @@ invalid line without +
         with self.assertRaises(DiffError) as cm:
             process_patch(patch_text, self.open_fn, self.write_fn, self.remove_fn)
         self.assertIn("Invalid Add File Line", str(cm.exception))
+
+
+# ============================================================================
+# Property-based tests for assemble_changes
+# ============================================================================
+
+
+@st.composite
+def file_contents(draw: st.DrawFn) -> dict[str, str | None]:
+    """Generate a dict of file paths to file contents."""
+    n_files = draw(st.integers(min_value=0, max_value=5))
+    files: dict[str, str | None] = {}
+    for i in range(n_files):
+        path = f"path/to/file{i}.txt"
+        # Use min_size=1 to avoid empty string edge case in assemble_changes
+        content = draw(st.text(st.characters(blacklist_categories=("Cs",)), min_size=1, max_size=200))
+        files[path] = content
+    return files
+
+
+@given(orig=file_contents(), dest=file_contents())
+@settings(max_examples=50, deadline=None)
+def test_apply_patch_assemble_changes_type_correctness(
+    orig: dict[str, str | None], dest: dict[str, str | None]
+) -> None:
+    """Property: assemble_changes produces correct action types for each path."""
+    from klaude_code.core.tool.file.apply_patch import ActionType, assemble_changes
+
+    commit = assemble_changes(orig, dest)
+
+    for path, change in commit.changes.items():
+        in_orig = path in orig and orig[path] is not None
+        in_dest = path in dest and dest[path] is not None
+
+        if in_orig and in_dest:
+            assert change.type == ActionType.UPDATE
+            assert change.old_content == orig[path]
+            assert change.new_content == dest[path]
+        elif in_dest and not in_orig:
+            assert change.type == ActionType.ADD
+            assert change.new_content == dest[path]
+        elif in_orig and not in_dest:
+            assert change.type == ActionType.DELETE
+            assert change.old_content == orig[path]
+
+
+@given(orig=file_contents(), dest=file_contents())
+@settings(max_examples=50, deadline=None)
+def test_apply_patch_assemble_changes_no_unchanged_files(
+    orig: dict[str, str | None], dest: dict[str, str | None]
+) -> None:
+    """Property: assemble_changes does not include unchanged files."""
+    from klaude_code.core.tool.file.apply_patch import assemble_changes
+
+    commit = assemble_changes(orig, dest)
+
+    for path in commit.changes:
+        # If path is in both, content must be different
+        if path in orig and path in dest:
+            assert orig[path] != dest[path]
 
 
 if __name__ == "__main__":

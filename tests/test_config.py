@@ -2,6 +2,9 @@
 
 import asyncio
 
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
 # Import config module directly without triggering __init__.py
 import importlib.util
 import sys
@@ -1157,3 +1160,46 @@ class TestOutOfBoxExperience:
         # Anthropic models should be available
         available = config.iter_model_entries(only_available=True)
         assert any(m.model_name == "sonnet" for m in available)
+
+# ============================================================================
+# Property-based tests for config module
+# ============================================================================
+
+
+@given(var_name=st.from_regex(r"[A-Za-z_][A-Za-z0-9_]{0,20}", fullmatch=True))
+@settings(max_examples=100, deadline=None)
+def test_parse_env_var_syntax_valid_format(var_name: str) -> None:
+    """Property: ${VAR} format is correctly parsed."""
+    from klaude_code.config.config import parse_env_var_syntax
+
+    value = f"${{{var_name}}}"
+    env_var, _ = parse_env_var_syntax(value)
+
+    assert env_var == var_name
+
+
+@given(text=st.text(min_size=0, max_size=100))
+@settings(max_examples=100, deadline=None)
+def test_parse_env_var_syntax_plain_string(text: str) -> None:
+    """Property: plain strings return (None, text)."""
+    from klaude_code.config.config import is_env_var_syntax, parse_env_var_syntax
+
+    # Skip if it accidentally matches the pattern
+    if is_env_var_syntax(text):
+        return
+
+    env_var, resolved = parse_env_var_syntax(text)
+
+    assert env_var is None
+    assert resolved == text
+
+
+@given(text=st.none() | st.text(min_size=0, max_size=100))
+@settings(max_examples=100, deadline=None)
+def test_parse_env_var_syntax_consistency(text: str | None) -> None:
+    """Property: is_env_var_syntax is consistent with parse_env_var_syntax."""
+    from klaude_code.config.config import is_env_var_syntax, parse_env_var_syntax
+
+    env_var, _ = parse_env_var_syntax(text)
+
+    assert is_env_var_syntax(text) == (env_var is not None)

@@ -9,6 +9,9 @@ import unittest
 from pathlib import Path
 from typing import Any
 
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
+
 # Ensure imports from src/
 ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = ROOT / "src"
@@ -635,6 +638,98 @@ class TestBashToolFileTracking(BaseTempDirTest):
         self.assertEqual(res.status, "success")
         self.assertNotIn(str(src), self.session.file_tracker)
         self.assertIn(str(dst), self.session.file_tracker)
+
+
+# ============================================================================
+# Property-based tests for EditTool
+# ============================================================================
+
+
+@st.composite
+def edit_scenarios(draw: st.DrawFn) -> tuple[str, str, str, bool]:
+    """Generate (content, old_string, new_string, replace_all) tuples."""
+    # Generate base content
+    base = draw(st.text(st.characters(blacklist_categories=("Cs",)), min_size=0, max_size=100))
+
+    # Sometimes make old_string a substring of content
+    if base and draw(st.booleans()):
+        start = draw(st.integers(min_value=0, max_value=max(0, len(base) - 1)))
+        end = draw(st.integers(min_value=start, max_value=len(base)))
+        old_string = base[start:end]
+    else:
+        old_string = draw(st.text(st.characters(blacklist_categories=("Cs",)), min_size=0, max_size=20))
+
+    new_string = draw(st.text(st.characters(blacklist_categories=("Cs",)), min_size=0, max_size=20))
+    replace_all = draw(st.booleans())
+
+    return base, old_string, new_string, replace_all
+
+
+@given(scenario=edit_scenarios())
+@settings(max_examples=100, deadline=None)
+def test_edit_tool_valid_detects_same_strings(scenario: tuple[str, str, str, bool]) -> None:
+    """Property: valid() returns error when old_string == new_string."""
+    from klaude_code.core.tool.file.edit_tool import EditTool
+
+    content, old_string, new_string, replace_all = scenario
+
+    result = EditTool.valid(content=content, old_string=old_string, new_string=new_string, replace_all=replace_all)
+
+    if old_string == new_string:
+        assert result is not None
+        assert "same" in result.lower()
+
+
+@given(scenario=edit_scenarios())
+@settings(max_examples=100, deadline=None)
+def test_edit_tool_valid_detects_missing_string(scenario: tuple[str, str, str, bool]) -> None:
+    """Property: valid() returns error when old_string not in content."""
+    from klaude_code.core.tool.file.edit_tool import EditTool
+
+    content, old_string, new_string, replace_all = scenario
+    assume(old_string != new_string)
+
+    result = EditTool.valid(content=content, old_string=old_string, new_string=new_string, replace_all=replace_all)
+
+    if old_string not in content:
+        assert result is not None
+        assert "not found" in result.lower()
+
+
+@given(scenario=edit_scenarios())
+@settings(max_examples=100, deadline=None)
+def test_edit_tool_execute_replace_all_removes_all(scenario: tuple[str, str, str, bool]) -> None:
+    """Property: execute with replace_all=True removes all occurrences."""
+    from klaude_code.core.tool.file.edit_tool import EditTool
+
+    content, old_string, new_string, _ = scenario
+    assume(old_string)  # Non-empty old_string
+    assume(old_string != new_string)
+    assume(old_string not in new_string)  # Avoid replacement creating new matches
+
+    result = EditTool.execute(content=content, old_string=old_string, new_string=new_string, replace_all=True)
+
+    assert old_string not in result
+
+
+@given(scenario=edit_scenarios())
+@settings(max_examples=100, deadline=None)
+def test_edit_tool_execute_single_replace_count(scenario: tuple[str, str, str, bool]) -> None:
+    """Property: execute with replace_all=False replaces exactly one occurrence."""
+    from klaude_code.core.tool.file.edit_tool import EditTool
+
+    content, old_string, new_string, _ = scenario
+    assume(old_string)  # Non-empty old_string
+    assume(old_string != new_string)
+    assume(old_string not in new_string)  # Avoid replacement creating new matches
+
+    original_count = content.count(old_string)
+    assume(original_count >= 1)
+
+    result = EditTool.execute(content=content, old_string=old_string, new_string=new_string, replace_all=False)
+
+    # Should have one less occurrence
+    assert result.count(old_string) == original_count - 1
 
 
 if __name__ == "__main__":

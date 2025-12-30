@@ -4,6 +4,9 @@
 import tempfile
 from pathlib import Path
 
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
 from klaude_code.core.tool.truncation import (
     SimpleTruncationStrategy,
     SmartTruncationStrategy,
@@ -241,3 +244,48 @@ class TestTruncationResult:
         assert result.saved_file_path == "/tmp/file.txt"
         assert result.original_length == 1000
         assert result.truncated_length == 500
+
+
+# ============================================================================
+# Property-based tests for SimpleTruncationStrategy
+# ============================================================================
+
+
+@given(
+    text=st.text(st.characters(blacklist_categories=("Cs",)), min_size=0, max_size=5000),
+    max_length=st.integers(min_value=10, max_value=1000),
+)
+@settings(max_examples=100, deadline=None)
+def test_simple_truncation_respects_length(text: str, max_length: int) -> None:
+    """Property: truncated output length is bounded."""
+    from klaude_code.core.tool.truncation import SimpleTruncationStrategy
+
+    strategy = SimpleTruncationStrategy(max_length=max_length)
+    result = strategy.truncate(text)
+
+    if len(text) <= max_length:
+        assert not result.was_truncated
+        assert result.output == text
+    else:
+        assert result.was_truncated
+        # Output starts with the truncated content
+        assert result.output.startswith(text[:max_length])
+        # truncated_length is correctly computed
+        assert result.truncated_length == len(text) - max_length
+
+
+@given(
+    text=st.text(st.characters(blacklist_categories=("Cs",)), min_size=0, max_size=1000),
+    max_length=st.integers(min_value=10, max_value=500),
+)
+@settings(max_examples=100, deadline=None)
+def test_simple_truncation_preserves_prefix(text: str, max_length: int) -> None:
+    """Property: truncated output starts with prefix of original."""
+    from klaude_code.core.tool.truncation import SimpleTruncationStrategy
+
+    strategy = SimpleTruncationStrategy(max_length=max_length)
+    result = strategy.truncate(text)
+
+    if len(text) > max_length:
+        assert result.output.startswith(text[:max_length])
+

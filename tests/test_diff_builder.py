@@ -1,3 +1,6 @@
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
 from klaude_code.core.tool.file.diff_builder import build_structured_diff
 from klaude_code.protocol import model
 
@@ -24,3 +27,38 @@ def test_char_level_spans_for_replacement():
 
     assert "world" in deleted
     assert "there" in inserted
+
+
+# ============================================================================
+# Property-based tests for diff_builder
+# ============================================================================
+
+
+@given(
+    before=st.text(st.characters(blacklist_categories=("Cs",)), min_size=0, max_size=500),
+    after=st.text(st.characters(blacklist_categories=("Cs",)), min_size=0, max_size=500),
+)
+@settings(max_examples=100, deadline=None)
+def test_diff_builder_stats_match_lines(before: str, after: str) -> None:
+    """Property: stats_add/stats_remove match actual add/remove line counts."""
+    diff = build_structured_diff(before, after, file_path="test.txt")
+
+    actual_add = sum(1 for line in diff.files[0].lines if line.kind == "add")
+    actual_remove = sum(1 for line in diff.files[0].lines if line.kind == "remove")
+
+    assert diff.files[0].stats_add == actual_add
+    assert diff.files[0].stats_remove == actual_remove
+
+
+@given(
+    text=st.text(st.characters(blacklist_categories=("Cs",)), min_size=0, max_size=500),
+)
+@settings(max_examples=50, deadline=None)
+def test_diff_builder_identical_no_changes(text: str) -> None:
+    """Property: identical before/after produces no add/remove lines."""
+    diff = build_structured_diff(text, text, file_path="test.txt")
+
+    assert diff.files[0].stats_add == 0
+    assert diff.files[0].stats_remove == 0
+
+

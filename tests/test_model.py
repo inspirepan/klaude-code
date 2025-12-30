@@ -1,6 +1,12 @@
-from typing import Any, cast
+from typing import Any, cast, TYPE_CHECKING
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from klaude_code.llm.anthropic.input import convert_history_to_input as anthropic_history
+
+if TYPE_CHECKING:
+    from klaude_code.protocol import model, llm_param
 from klaude_code.llm.input_common import GroupKind, group_response_items_gen
 from klaude_code.llm.openai_compatible.input import convert_history_to_input as openai_history
 from klaude_code.llm.openrouter.input import convert_history_to_input as openrouter_history
@@ -327,3 +333,70 @@ def test_anthropic_tool_group_includes_developer_images():
 if __name__ == "__main__":
     test_group_response_items_gen()
     print("All tests passed!")
+
+
+# ============================================================================
+# Property-based tests for Usage model
+# ============================================================================
+
+
+@st.composite
+def usage_instances(draw: st.DrawFn) -> "model.Usage":
+    """Generate Usage instances with valid token counts."""
+    from klaude_code.protocol.model import Usage
+
+    input_tokens = draw(st.integers(min_value=0, max_value=1_000_000))
+    cached_tokens = draw(st.integers(min_value=0, max_value=input_tokens))
+    output_tokens = draw(st.integers(min_value=0, max_value=1_000_000))
+    reasoning_tokens = draw(st.integers(min_value=0, max_value=output_tokens))
+
+    context_limit = draw(st.none() | st.integers(min_value=1, max_value=1_000_000))
+    max_tokens = draw(st.none() | st.integers(min_value=1, max_value=100_000))
+    context_size = draw(st.none() | st.integers(min_value=0, max_value=1_000_000))
+
+    input_cost = draw(st.none() | st.floats(min_value=0, max_value=100, allow_nan=False))
+    output_cost = draw(st.none() | st.floats(min_value=0, max_value=100, allow_nan=False))
+    cache_read_cost = draw(st.none() | st.floats(min_value=0, max_value=100, allow_nan=False))
+
+    return Usage(
+        input_tokens=input_tokens,
+        cached_tokens=cached_tokens,
+        output_tokens=output_tokens,
+        reasoning_tokens=reasoning_tokens,
+        context_limit=context_limit,
+        max_tokens=max_tokens,
+        context_size=context_size,
+        input_cost=input_cost,
+        output_cost=output_cost,
+        cache_read_cost=cache_read_cost,
+    )
+
+
+@given(usage=usage_instances())
+@settings(max_examples=100, deadline=None)
+def test_usage_total_tokens_computed_correctly(usage: "model.Usage") -> None:
+    """Property: total_tokens = input_tokens + output_tokens."""
+    assert usage.total_tokens == usage.input_tokens + usage.output_tokens
+
+
+@given(usage=usage_instances())
+@settings(max_examples=100, deadline=None)
+def test_usage_total_cost_computed_correctly(usage: "model.Usage") -> None:
+    """Property: total_cost = sum of non-None cost components."""
+    costs = [usage.input_cost, usage.output_cost, usage.cache_read_cost]
+    non_none = [c for c in costs if c is not None]
+
+    if non_none:
+        assert usage.total_cost is not None
+        assert abs(usage.total_cost - sum(non_none)) < 1e-9
+    else:
+        assert usage.total_cost is None
+
+
+@given(usage=usage_instances())
+@settings(max_examples=100, deadline=None)
+def test_usage_context_usage_percent_bounds(usage: "model.Usage") -> None:
+    """Property: context_usage_percent is None or non-negative."""
+    if usage.context_usage_percent is not None:
+        assert usage.context_usage_percent >= 0
+
