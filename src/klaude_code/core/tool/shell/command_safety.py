@@ -275,12 +275,10 @@ def _is_safe_argv(argv: list[str]) -> SafetyCheckResult:
             "tag",
             "clone",
             "worktree",
+            "push",
+            "pull",
+            "remote",
         }
-        # Block remote operations
-        blocked_git_cmds = {"push", "pull", "remote"}
-
-        if sub in blocked_git_cmds:
-            return SafetyCheckResult(False, f"git: Remote operation '{sub}' not allowed")
         if sub not in allowed_git_cmds:
             return SafetyCheckResult(False, f"git: Subcommand '{sub}' not in allow list")
         return SafetyCheckResult(True)
