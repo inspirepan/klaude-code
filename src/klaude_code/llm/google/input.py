@@ -80,7 +80,9 @@ def _tool_groups_to_content(groups: list[ToolGroup], model_name: str | None) -> 
 
         has_images = len(image_parts) > 0
         response_value = merged_text if has_text else "(see attached image)" if has_images else ""
-        response_payload = {"error": response_value} if group.tool_result.status == "error" else {"output": response_value}
+        response_payload = (
+            {"error": response_value} if group.tool_result.status == "error" else {"output": response_value}
+        )
 
         function_response = types.FunctionResponse(
             id=group.tool_result.call_id,
@@ -91,7 +93,9 @@ def _tool_groups_to_content(groups: list[ToolGroup], model_name: str | None) -> 
         response_parts.append(types.Part(function_response=function_response))
 
         if has_images and not supports_multimodal_function_response:
-            extra_image_contents.append(types.Content(role="user", parts=[types.Part(text="Tool result image:"), *image_parts]))
+            extra_image_contents.append(
+                types.Content(role="user", parts=[types.Part(text="Tool result image:"), *image_parts])
+            )
 
     contents: list[types.Content] = []
     if response_parts:

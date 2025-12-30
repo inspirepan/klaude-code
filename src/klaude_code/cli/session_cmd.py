@@ -22,8 +22,9 @@ def _session_confirm(sessions: list[Session.SessionMetaBrief], message: str) -> 
     log(f"Sessions to delete ({len(sessions)}):")
     for s in sessions:
         msg_count_display = "N/A" if s.messages_count == -1 else str(s.messages_count)
-        first_msg = (s.first_user_message or "").strip().replace("\n", " ")[:50]
-        if len(s.first_user_message or "") > 50:
+        first_msg_text = s.user_messages[0] if s.user_messages else ""
+        first_msg = first_msg_text.strip().replace("\n", " ")[:50]
+        if len(first_msg_text) > 50:
             first_msg += "..."
         log(f"  {_fmt(s.updated_at)}  {msg_count_display:>3} msgs  {first_msg}")
 

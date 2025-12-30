@@ -60,5 +60,3 @@ def test_diff_builder_identical_no_changes(text: str) -> None:
 
     assert diff.files[0].stats_add == 0
     assert diff.files[0].stats_remove == 0
-
-

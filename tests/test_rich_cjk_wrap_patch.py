@@ -64,6 +64,7 @@ def test_rich_cjk_wrap_patch_avoids_splitting_after_open_paren() -> None:
     rendered = _render(sample, width=width)
     assert "(Deep\n" not in rendered
 
+
 # ============================================================================
 # Property-based tests for cjk_wrap
 # ============================================================================

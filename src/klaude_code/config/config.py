@@ -91,14 +91,17 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
             return state is None or state.is_expired()
 
         if self.protocol == LLMClientProtocol.BEDROCK:
-            # Bedrock uses AWS credentials, not API key
-            # Check if using aws_profile or aws_access_key/aws_secret_key
+            # Bedrock uses AWS credentials, not API key. Region is always required.
             _, resolved_profile = parse_env_var_syntax(self.aws_profile)
+            _, resolved_region = parse_env_var_syntax(self.aws_region)
+
+            # When using profile, we still need region to initialize the client.
             if resolved_profile:
-                return False
+                return resolved_region is None
+
             _, resolved_access_key = parse_env_var_syntax(self.aws_access_key)
             _, resolved_secret_key = parse_env_var_syntax(self.aws_secret_key)
-            return resolved_access_key is None or resolved_secret_key is None
+            return resolved_region is None or resolved_access_key is None or resolved_secret_key is None
 
         return self.get_resolved_api_key() is None
 

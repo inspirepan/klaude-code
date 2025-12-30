@@ -288,4 +288,3 @@ def test_simple_truncation_preserves_prefix(text: str, max_length: int) -> None:
 
     if len(text) > max_length:
         assert result.output.startswith(text[:max_length])
-

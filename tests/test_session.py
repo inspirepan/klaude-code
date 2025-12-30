@@ -727,7 +727,8 @@ class TestSessionListAndClean:
             meta = sessions[0]
             assert meta.id == session.id
             assert meta.model_name == "gpt-4"
-            assert meta.first_user_message == "Test message"
+            assert len(meta.user_messages) == 1
+            assert meta.user_messages[0] == "Test message"
             assert meta.messages_count == 1
             await close_default_store()
 
@@ -918,7 +919,7 @@ class TestSessionMetaBrief:
             updated_at=1700001000.0,
             work_dir="/home/user/project",
             path="/home/user/.klaude/projects/test/sessions/test123.json",
-            first_user_message="Hello world",
+            user_messages=["Hello world"],
             messages_count=5,
             model_name="gpt-4",
         )
@@ -927,7 +928,7 @@ class TestSessionMetaBrief:
         assert meta.updated_at == 1700001000.0
         assert meta.work_dir == "/home/user/project"
         assert meta.path == "/home/user/.klaude/projects/test/sessions/test123.json"
-        assert meta.first_user_message == "Hello world"
+        assert meta.user_messages == ["Hello world"]
         assert meta.messages_count == 5
         assert meta.model_name == "gpt-4"
 
@@ -939,7 +940,7 @@ class TestSessionMetaBrief:
             work_dir="",
             path="",
         )
-        assert meta.first_user_message is None
+        assert meta.user_messages == []
         assert meta.messages_count == -1
         assert meta.model_name is None
 

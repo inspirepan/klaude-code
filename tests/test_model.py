@@ -399,4 +399,3 @@ def test_usage_context_usage_percent_bounds(usage: "model.Usage") -> None:
     """Property: context_usage_percent is None or non-negative."""
     if usage.context_usage_percent is not None:
         assert usage.context_usage_percent >= 0
-

@@ -925,8 +925,8 @@ class TestOutOfBoxExperience:
         # Should have BOTH user's custom model AND builtin models
         model_names = [m.model_name for m in anthropic_provider.model_list]
         assert "my-custom-claude" in model_names
-        assert "sonnet" in model_names
-        assert "opus" in model_names
+        assert "sonnet@ant" in model_names
+        assert "opus@ant" in model_names
 
     def test_user_config_overrides_builtin_model(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """User config with same model name should override builtin model."""
@@ -994,8 +994,8 @@ class TestOutOfBoxExperience:
 
         # But should still have builtin models
         model_names = [m.model_name for m in anthropic_provider.model_list]
-        assert "sonnet" in model_names
-        assert "opus" in model_names
+        assert "sonnet@ant" in model_names
+        assert "opus@ant" in model_names
 
     def test_user_config_adds_new_provider(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """User config with new provider should be added to builtin providers."""
@@ -1159,6 +1159,7 @@ class TestOutOfBoxExperience:
         # Anthropic models should be available
         available = config.iter_model_entries(only_available=True)
         assert any(m.model_name == "sonnet" for m in available)
+
 
 # ============================================================================
 # Property-based tests for config module

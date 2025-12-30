@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import itertools
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -208,16 +209,20 @@ def _chunk_text(text: str, cuts: list[int]) -> list[str]:
         norm.append(len(text))
 
     chunks: list[str] = []
-    for a, b in zip(norm, norm[1:], strict=False):
+    for a, b in itertools.pairwise(norm):
         chunks.append(text[a:b])
     return chunks
 
 
 _SAFE_TEXT_ALPHABET = st.sampled_from(
-    list("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-./:()[]{}'\"\\")
-    + ["\t", "\n", "\r"]
-    # Some common CJK characters to exercise width/wrapping behavior.
-    + list("中文测试你好世界")
+    [
+        *"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-./:()[]{}'\"\\",
+        "\t",
+        "\n",
+        "\r",
+        # Some common CJK characters to exercise width/wrapping behavior.
+        *"中文测试你好世界",
+    ]
 )
 
 
@@ -237,7 +242,11 @@ def _markdown_blocks(draw: st.DrawFn, *, max_blocks: int = 10) -> list[tuple[str
         elif kind == "list":
             # 1-5 list items separated by newlines.
             item_count = draw(st.integers(min_value=1, max_value=5))
-            items = draw(st.lists(st.text(_SAFE_TEXT_ALPHABET, min_size=0, max_size=25), min_size=item_count, max_size=item_count))
+            items = draw(
+                st.lists(
+                    st.text(_SAFE_TEXT_ALPHABET, min_size=0, max_size=25), min_size=item_count, max_size=item_count
+                )
+            )
             items = [it.replace("\n", " ").replace("\r", "").strip() for it in items]
             blocks.append(("list", "\n".join(items)))
         elif kind == "code":
