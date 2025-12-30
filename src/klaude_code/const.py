@@ -4,7 +4,19 @@ This module consolidates all magic numbers and configuration values
 that were previously scattered across the codebase.
 """
 
+import os
 from pathlib import Path
+
+
+def _get_int_env(name: str, default: int) -> int:
+    """Get an integer value from environment variable, or return default."""
+    val = os.environ.get(name)
+    if val is None:
+        return default
+    try:
+        return int(val)
+    except ValueError:
+        return default
 
 # =============================================================================
 # Agent Configuration
@@ -47,10 +59,12 @@ TODO_REMINDER_TOOL_CALL_THRESHOLD = 10
 READ_CHAR_LIMIT_PER_LINE = 2000
 
 # Maximum number of lines to read from a file
-READ_GLOBAL_LINE_CAP = 2000
+# Can be overridden via KLAUDE_READ_GLOBAL_LINE_CAP environment variable
+READ_GLOBAL_LINE_CAP = _get_int_env("KLAUDE_READ_GLOBAL_LINE_CAP", 2000)
 
 # Maximum total characters to read (truncates beyond this limit)
-READ_MAX_CHARS = 50000
+# Can be overridden via KLAUDE_READ_MAX_CHARS environment variable
+READ_MAX_CHARS = _get_int_env("KLAUDE_READ_MAX_CHARS", 50000)
 
 # Maximum image file size in bytes (4MB)
 READ_MAX_IMAGE_BYTES = 4 * 1024 * 1024

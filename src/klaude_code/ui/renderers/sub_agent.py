@@ -107,7 +107,7 @@ def render_sub_agent_result(
             Group(
                 NoInsetMarkdown(head_text, code_theme=code_theme, style=style or ""),
                 Text(
-                    f"\n… more {hidden_count} lines — use /export to view full output\n",
+                    f"\n( … more {hidden_count} lines — use /export to view full output )\n",
                     style=ThemeKey.TOOL_RESULT_TRUNCATED,
                 ),
                 NoInsetMarkdown(tail_text, code_theme=code_theme, style=style or ""),

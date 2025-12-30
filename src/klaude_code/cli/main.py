@@ -95,10 +95,20 @@ def read_input_content(cli_argument: str) -> str | None:
     return content
 
 
+ENV_HELP = """\
+Environment Variables:
+
+  KLAUDE_READ_GLOBAL_LINE_CAP  Max lines to read (default: 2000)
+
+  KLAUDE_READ_MAX_CHARS        Max total chars to read (default: 50000)
+"""
+
 app = typer.Typer(
     add_completion=False,
     pretty_exceptions_enable=False,
     no_args_is_help=False,
+    rich_markup_mode="rich",
+    epilog=ENV_HELP,
 )
 
 # Register subcommands from modules
