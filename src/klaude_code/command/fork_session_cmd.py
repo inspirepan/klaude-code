@@ -7,6 +7,7 @@ from prompt_toolkit.styles import Style
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, model
+from klaude_code.ui.modes.repl.clipboard import copy_to_clipboard
 from klaude_code.ui.terminal.selector import SelectItem, select_one
 
 FORK_SELECT_STYLE = Style(
@@ -215,6 +216,9 @@ class ForkSessionCommand(CommandABC):
             new_session = agent.session.fork()
             await new_session.wait_for_flush()
 
+            resume_cmd = f"klaude --resume-by-id {new_session.id}"
+            copy_to_clipboard(resume_cmd)
+
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
                 item=model.DeveloperMessageItem(
@@ -246,6 +250,9 @@ class ForkSessionCommand(CommandABC):
 
         # Build result message
         fork_description = "entire conversation" if selected is None else f"up to message index {selected}"
+
+        resume_cmd = f"klaude --resume-by-id {new_session.id}"
+        copy_to_clipboard(resume_cmd)
 
         event = events.DeveloperMessageEvent(
             session_id=agent.session.id,

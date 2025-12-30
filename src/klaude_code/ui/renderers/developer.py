@@ -167,7 +167,7 @@ def _render_fork_session_output(command_output: model.CommandOutput) -> Renderab
     session_id = command_output.ui_extra.session_id
     grid.add_column(style=ThemeKey.METADATA, overflow="fold")
 
-    grid.add_row(Text("Session forked. To continue in a new conversation:", style=ThemeKey.METADATA))
+    grid.add_row(Text("Session forked. Resume command copied to clipboard:", style=ThemeKey.METADATA))
     grid.add_row(Text(f"  klaude --resume-by-id {session_id}", style=ThemeKey.METADATA_BOLD))
 
     return Padding.indent(grid, level=2)
