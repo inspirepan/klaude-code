@@ -344,7 +344,7 @@ class Session(BaseModel):
         updated_at: float
         work_dir: str
         path: str
-        first_user_message: str | None = None
+        user_messages: list[str] = []
         messages_count: int = -1
         model_name: str | None = None
 
@@ -352,10 +352,11 @@ class Session(BaseModel):
     def list_sessions(cls) -> list[SessionMetaBrief]:
         store = get_default_store()
 
-        def _get_first_user_message(session_id: str) -> str | None:
+        def _get_user_messages(session_id: str) -> list[str]:
             events_path = store.paths.events_file(session_id)
             if not events_path.exists():
-                return None
+                return []
+            messages: list[str] = []
             try:
                 for line in events_path.read_text(encoding="utf-8").splitlines():
                     obj_raw = json.loads(line)
@@ -366,15 +367,14 @@ class Session(BaseModel):
                         continue
                     data_raw = obj.get("data")
                     if not isinstance(data_raw, dict):
-                        return None
+                        continue
                     data = cast(dict[str, Any], data_raw)
                     content = data.get("content")
                     if isinstance(content, str):
-                        return content
-                    return None
+                        messages.append(content)
             except (OSError, json.JSONDecodeError):
-                return None
-            return None
+                pass
+            return messages
 
         items: list[Session.SessionMetaBrief] = []
         for meta_path in store.iter_meta_files():
@@ -388,7 +388,7 @@ class Session(BaseModel):
             created = float(data.get("created_at", meta_path.stat().st_mtime))
             updated = float(data.get("updated_at", meta_path.stat().st_mtime))
             work_dir = str(data.get("work_dir", ""))
-            first_user_message = _get_first_user_message(sid)
+            user_messages = _get_user_messages(sid)
             messages_count = int(data.get("messages_count", -1))
             model_name = data.get("model_name") if isinstance(data.get("model_name"), str) else None
 
@@ -399,7 +399,7 @@ class Session(BaseModel):
                     updated_at=updated,
                     work_dir=work_dir,
                     path=str(meta_path),
-                    first_user_message=first_user_message,
+                    user_messages=user_messages,
                     messages_count=messages_count,
                     model_name=model_name,
                 )

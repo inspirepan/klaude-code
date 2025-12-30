@@ -3,11 +3,11 @@
 
 from typing import TYPE_CHECKING
 
-from hypothesis import assume, given, settings
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 if TYPE_CHECKING:
-    from klaude_code.protocol import model, llm_param
+    from klaude_code.protocol import llm_param, model
 
 
 # ============================================================================

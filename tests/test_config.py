@@ -2,9 +2,6 @@
 
 import asyncio
 
-from hypothesis import given, settings
-from hypothesis import strategies as st
-
 # Import config module directly without triggering __init__.py
 import importlib.util
 import sys
@@ -13,6 +10,8 @@ from typing import Any
 
 import pytest
 import yaml
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 # Avoid circular import by importing protocol first
 from klaude_code.protocol import llm_param

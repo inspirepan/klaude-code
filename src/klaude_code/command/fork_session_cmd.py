@@ -47,7 +47,7 @@ def _build_fork_points(conversation_history: list[model.ConversationItem]) -> li
     """Build list of fork points from conversation history.
 
     Fork points are:
-    - Each UserMessageItem position (except the first one, which would be empty)
+    - Each UserMessageItem position (for UI display, including first which would be empty session)
     - The end of the conversation (fork entire conversation)
     """
     fork_points: list[ForkPoint] = []
@@ -57,12 +57,8 @@ def _build_fork_points(conversation_history: list[model.ConversationItem]) -> li
         if isinstance(item, model.UserMessageItem):
             user_indices.append(i)
 
-    # For each UserMessageItem (except the first), create a fork point at that position
+    # For each UserMessageItem, create a fork point at that position
     for i, user_idx in enumerate(user_indices):
-        if i == 0:
-            # Skip the first user message, forking before it would be an empty session
-            continue
-
         user_item = conversation_history[user_idx]
         assert isinstance(user_item, model.UserMessageItem)
 
@@ -107,26 +103,32 @@ def _build_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[int | N
     items: list[SelectItem[int | None]] = []
 
     for i, fp in enumerate(fork_points):
+        is_first = i == 0
         is_last = i == len(fork_points) - 1
 
         # Build the title
         title_parts: list[tuple[str, str]] = []
 
-        # First line: separator
-        title_parts.append(("class:separator", "----- fork from here -----\n\n"))
+        # First line: separator (with special markers for first/last fork points)
+        if is_first and not is_last:
+            title_parts.append(("class:separator", "----- fork from here (empty session) -----\n\n"))
+        elif is_last:
+            title_parts.append(("class:separator", "----- fork from here (entire session) -----\n\n"))
+        else:
+            title_parts.append(("class:separator", "----- fork from here -----\n\n"))
 
         if not is_last:
             # Second line: user message
-            title_parts.append(("class:msg", f"   user:   {_truncate(fp.user_message, 70)}\n"))
+            title_parts.append(("class:msg", f"user:   {_truncate(fp.user_message, 70)}\n"))
 
             # Third line: tool call stats (if any)
             if fp.tool_call_stats:
                 tool_parts = [f"{name} × {count}" for name, count in fp.tool_call_stats.items()]
-                title_parts.append(("class:meta", f"   tools:  {', '.join(tool_parts)}\n"))
+                title_parts.append(("class:meta", f"tools:  {', '.join(tool_parts)}\n"))
 
             # Fourth line: last assistant message summary (if any)
             if fp.last_assistant_summary:
-                title_parts.append(("class:assistant", f"   ai:     {fp.last_assistant_summary}\n"))
+                title_parts.append(("class:assistant", f"ai:     {fp.last_assistant_summary}\n"))
 
         # Empty line at the end
         title_parts.append(("class:text", "\n"))

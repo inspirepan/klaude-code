@@ -4,7 +4,6 @@
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-
 # ============================================================================
 # Property-based tests for truncate_display
 # ============================================================================

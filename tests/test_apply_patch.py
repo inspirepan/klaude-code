@@ -2,9 +2,8 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from hypothesis import assume, given, settings
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 # Ensure imports from src/

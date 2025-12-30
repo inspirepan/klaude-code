@@ -98,6 +98,53 @@ def _restyle_title(title: list[tuple[str, str]], cls: str) -> list[tuple[str, st
     return restyled
 
 
+def _indent_multiline_tokens(
+    tokens: list[tuple[str, str]],
+    indent: str,
+    *,
+    indent_style: str = "class:text",
+) -> list[tuple[str, str]]:
+    """Indent continuation lines inside formatted tokens.
+
+    This is needed when an item's title contains embedded newlines. The selector
+    prefixes each *item* with the pointer padding, but continuation lines inside
+    a single item would otherwise start at column 0.
+    """
+    if not tokens or all("\n" not in text for _style, text in tokens):
+        return tokens
+
+    def _has_non_newline_text(s: str) -> bool:
+        return bool(s.replace("\n", ""))
+
+    has_text_after_token: list[bool] = [False] * len(tokens)
+    remaining = False
+    for i in range(len(tokens) - 1, -1, -1):
+        has_text_after_token[i] = remaining
+        remaining = remaining or _has_non_newline_text(tokens[i][1])
+
+    out: list[tuple[str, str]] = []
+    for token_index, (style, text) in enumerate(tokens):
+        if "\n" not in text:
+            out.append((style, text))
+            continue
+
+        parts = text.split("\n")
+        for part_index, part in enumerate(parts):
+            if part:
+                out.append((style, part))
+
+            # If this was a newline, re-add it.
+            if part_index < len(parts) - 1:
+                out.append((style, "\n"))
+
+                # Only indent when there is more text remaining within this item.
+                has_text_later_in_token = any(p for p in parts[part_index + 1 :])
+                if has_text_later_in_token or has_text_after_token[token_index]:
+                    out.append((indent_style, indent))
+
+    return out
+
+
 def _filter_items[T](
     items: list[SelectItem[T]],
     filter_text: str,
@@ -143,6 +190,8 @@ def _build_choices_tokens[T](
             title_tokens = _restyle_title(items[idx].title, "class:highlighted")
         else:
             title_tokens = items[idx].title
+
+        title_tokens = _indent_multiline_tokens(title_tokens, pointer_pad)
         tokens.extend(title_tokens)
 
     return tokens

@@ -11,62 +11,9 @@ from klaude_code.cli.config_cmd import register_config_commands
 from klaude_code.cli.debug import DEBUG_FILTER_HELP, open_log_file_in_editor, resolve_debug_settings
 from klaude_code.cli.self_update import register_self_update_commands, version_option_callback
 from klaude_code.cli.session_cmd import register_session_commands
-from klaude_code.session import Session, build_session_select_options
+from klaude_code.command.resume_cmd import select_session_sync
+from klaude_code.session import Session
 from klaude_code.trace import DebugType, prepare_debug_log_file
-
-
-def select_session_interactive() -> str | None:
-    """Interactive session selection for CLI.
-
-    Returns:
-        Selected session ID, or None if no session selected or no sessions exist.
-    """
-    from klaude_code.trace import log
-
-    options = build_session_select_options()
-    if not options:
-        log("No sessions found for this project.")
-        return None
-
-    from prompt_toolkit.styles import Style
-
-    from klaude_code.ui.terminal.selector import SelectItem, select_one
-
-    items: list[SelectItem[str]] = []
-    for opt in options:
-        title = [
-            ("class:msg", f"{opt.first_user_message}\n"),
-            ("class:meta", f"   {opt.messages_count} · {opt.relative_time} · {opt.model_name} · {opt.session_id}\n\n"),
-        ]
-        items.append(
-            SelectItem(
-                title=title,
-                value=opt.session_id,
-                search_text=f"{opt.first_user_message} {opt.model_name} {opt.session_id}",
-            )
-        )
-
-    try:
-        return select_one(
-            message="Select a session to resume:",
-            items=items,
-            pointer="→",
-            style=Style(
-                [
-                    ("msg", ""),
-                    ("meta", "fg:ansibrightblack"),
-                    ("pointer", "bold fg:ansigreen"),
-                    ("highlighted", "fg:ansigreen"),
-                    ("search_prefix", "fg:ansibrightblack"),
-                    ("search_success", "noinherit fg:ansigreen"),
-                    ("search_none", "noinherit fg:ansired"),
-                    ("question", "bold"),
-                    ("text", ""),
-                ]
-            ),
-        )
-    except KeyboardInterrupt:
-        return None
 
 
 def set_terminal_title(title: str) -> None:
@@ -361,7 +308,7 @@ def main_callback(
         session_id: str | None = None
 
         if resume:
-            session_id = select_session_interactive()
+            session_id = select_session_sync()
             if session_id is None:
                 return
         # If user didn't pick, allow fallback to --continue

@@ -1,4 +1,4 @@
-from typing import Any, cast, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -6,7 +6,7 @@ from hypothesis import strategies as st
 from klaude_code.llm.anthropic.input import convert_history_to_input as anthropic_history
 
 if TYPE_CHECKING:
-    from klaude_code.protocol import model, llm_param
+    from klaude_code.protocol import model
 from klaude_code.llm.input_common import GroupKind, group_response_items_gen
 from klaude_code.llm.openai_compatible.input import convert_history_to_input as openai_history
 from klaude_code.llm.openrouter.input import convert_history_to_input as openrouter_history

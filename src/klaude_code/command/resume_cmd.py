@@ -4,14 +4,14 @@ from prompt_toolkit.styles import Style
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, model, op
-from klaude_code.session.selector import build_session_select_options
+from klaude_code.session.selector import build_session_select_options, format_user_messages_display
 from klaude_code.trace import log
 from klaude_code.ui.terminal.selector import SelectItem, select_one
 
 SESSION_SELECT_STYLE = Style(
     [
-        ("msg", ""),
-        ("meta", "fg:ansibrightblack"),
+        ("msg", "fg:ansibrightblack"),
+        ("meta", ""),
         ("pointer", "bold fg:ansigreen"),
         ("highlighted", "fg:ansigreen"),
         ("search_prefix", "fg:ansibrightblack"),
@@ -23,7 +23,7 @@ SESSION_SELECT_STYLE = Style(
 )
 
 
-def _select_session_sync() -> str | None:
+def select_session_sync() -> str | None:
     """Interactive session selection (sync version for asyncio.to_thread)."""
     options = build_session_select_options()
     if not options:
@@ -31,16 +31,26 @@ def _select_session_sync() -> str | None:
         return None
 
     items: list[SelectItem[str]] = []
-    for opt in options:
-        title = [
-            ("class:msg", f"{opt.first_user_message}\n"),
-            ("class:meta", f"   {opt.messages_count} · {opt.relative_time} · {opt.model_name} · {opt.session_id}\n\n"),
-        ]
+    for idx, opt in enumerate(options, 1):
+        display_msgs = format_user_messages_display(opt.user_messages)
+        title: list[tuple[str, str]] = []
+        title.append(("fg:ansibrightblack", f"{idx:2}. "))
+        title.append(
+            ("class:meta", f"{opt.relative_time} · {opt.messages_count} · {opt.model_name} · {opt.session_id}\n")
+        )
+        for msg in display_msgs:
+            if msg == "⋮":
+                title.append(("class:msg", f"    {msg}\n"))
+            else:
+                title.append(("class:msg", f"    > {msg}\n"))
+        title.append(("", "\n"))
+
+        search_text = " ".join(opt.user_messages) + f" {opt.model_name} {opt.session_id}"
         items.append(
             SelectItem(
                 title=title,
                 value=opt.session_id,
-                search_text=f"{opt.first_user_message} {opt.model_name} {opt.session_id}",
+                search_text=search_text,
             )
         )
 
@@ -83,7 +93,7 @@ class ResumeCommand(CommandABC):
             )
             return CommandResult(events=[event], persist_user_input=False, persist_events=False)
 
-        selected_session_id = await asyncio.to_thread(_select_session_sync)
+        selected_session_id = await asyncio.to_thread(select_session_sync)
         if selected_session_id is None:
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
