@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from rich.cells import cell_len
 from rich.rule import Rule
 from rich.text import Text
 
@@ -265,11 +264,27 @@ class SpinnerStatusState:
 
         return result
 
-    def get_context_text(self) -> Text | None:
-        """Get context usage text for right-aligned display."""
-        if self._context_percent is None:
+    def get_right_text(self) -> r_status.DynamicText | None:
+        """Get right-aligned status text (elapsed time and optional context %)."""
+
+        elapsed_text = r_status.current_elapsed_text()
+        has_context = self._context_percent is not None
+
+        if elapsed_text is None and not has_context:
             return None
-        return Text(f"{self._context_percent:.1f}%", style=ThemeKey.METADATA_DIM)
+
+        def _render() -> Text:
+            parts: list[str] = []
+            if self._context_percent is not None:
+                parts.append(f"{self._context_percent:.1f}%")
+            current_elapsed = r_status.current_elapsed_text()
+            if current_elapsed is not None:
+                if parts:
+                    parts.append(" · ")
+                parts.append(current_elapsed)
+            return Text("".join(parts), style=ThemeKey.METADATA_DIM)
+
+        return r_status.DynamicText(_render)
 
 
 class DisplayEventHandler:
@@ -550,11 +565,10 @@ class DisplayEventHandler:
     def _update_spinner(self) -> None:
         """Update spinner text from current status state."""
         status_text = self.spinner_status.get_status()
-        context_text = self.spinner_status.get_context_text()
-        status_text = self._truncate_spinner_status_text(status_text, right_text=context_text)
+        right_text = self.spinner_status.get_right_text()
         self.renderer.spinner_update(
             status_text,
-            context_text,
+            right_text,
         )
 
     async def _flush_assistant_buffer(self, state: StreamState) -> None:
@@ -612,27 +626,3 @@ class DisplayEventHandler:
                 if len(todo.content) > 0:
                     status_text = todo.content
         return status_text.replace("\n", " ").strip()
-
-    def _truncate_spinner_status_text(self, status_text: Text, *, right_text: Text | None) -> Text:
-        """Truncate spinner status to a single line based on terminal width.
-
-        Rich wraps based on terminal cell width (CJK chars count as 2). Use
-        cell-aware truncation to prevent the status from wrapping into two lines.
-        """
-
-        terminal_width = self.renderer.console.size.width
-
-        # BreathingSpinner renders as a 2-column Table.grid(padding=1):
-        # 1 cell for glyph + 1 cell of padding between columns (collapsed).
-        spinner_prefix_cells = 2
-
-        hint_cells = cell_len(r_status.current_hint_text())
-        right_cells = cell_len(right_text.plain) if right_text is not None else 0
-
-        max_main_cells = terminal_width - spinner_prefix_cells - hint_cells - right_cells - 1
-        # rich.text.Text.truncate behaves unexpectedly for 0; clamp to at least 1.
-        max_main_cells = max(1, max_main_cells)
-
-        truncated = status_text.copy()
-        truncated.truncate(max_main_cells, overflow="ellipsis", pad=False)
-        return truncated

@@ -283,7 +283,7 @@ class REPLRenderer:
         self._spinner_visible = False
         self._refresh_bottom_live()
 
-    def spinner_update(self, status_text: str | Text, right_text: Text | None = None) -> None:
+    def spinner_update(self, status_text: str | Text, right_text: RenderableType | None = None) -> None:
         """Update the spinner status text with optional right-aligned text."""
         self._status_text = ShimmerStatusText(status_text, right_text)
         self._status_spinner.update(text=SingleLine(self._status_text), style=ThemeKey.STATUS_SPINNER)

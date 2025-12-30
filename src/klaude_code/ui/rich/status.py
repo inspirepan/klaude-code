@@ -4,10 +4,13 @@ import contextlib
 import math
 import random
 import time
+from collections.abc import Callable
 
 import rich.status as rich_status
+from rich.cells import cell_len
 from rich.color import Color
 from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
+from rich.measure import Measurement
 from rich.spinner import Spinner as RichSpinner
 from rich.style import Style
 from rich.table import Table
@@ -80,20 +83,63 @@ def _format_elapsed_compact(seconds: float) -> str:
 def current_hint_text(*, min_time_width: int = 0) -> str:
     """Return the full hint string shown on the status line.
 
-    Includes an optional elapsed time prefix (right-aligned, min width) and
-    the constant hint suffix.
+    The hint is the constant suffix shown after the main status text.
+
+    The elapsed task time is rendered on the right side of the status line
+    (near context usage), not inside the hint.
     """
+
+    # Keep the signature stable; min_time_width is intentionally ignored.
+    _ = min_time_width
+    return const.STATUS_HINT_TEXT
+
+
+def current_elapsed_text(*, min_time_width: int = 0) -> str | None:
+    """Return the current task elapsed time text (e.g. "11s", "1m02s")."""
 
     elapsed = _task_elapsed_seconds()
     if elapsed is None:
-        return const.STATUS_HINT_TEXT
+        return None
     time_text = _format_elapsed_compact(elapsed)
     if min_time_width > 0:
         time_text = time_text.rjust(min_time_width)
-    suffix = const.STATUS_HINT_TEXT.strip()
-    if suffix.startswith("(") and suffix.endswith(")"):
-        suffix = suffix[1:-1]
-    return f" ({time_text} · {suffix})"
+    return time_text
+
+
+class DynamicText:
+    """Renderable that materializes a Text instance at render time.
+
+    This is useful for status line elements that should refresh without
+    requiring explicit spinner_update calls (e.g. elapsed time).
+    """
+
+    def __init__(
+        self,
+        factory: Callable[[], Text],
+        *,
+        min_width_cells: int = 0,
+    ) -> None:
+        self._factory = factory
+        self.min_width_cells = min_width_cells
+
+    @property
+    def plain(self) -> str:
+        return self._factory().plain
+
+    def __rich_measure__(self, console: Console, options: ConsoleOptions) -> Measurement:
+        # Ensure Table/grid layout allocates a stable width for this renderable.
+        text = self._factory()
+        measured = Measurement.get(console, options, text)
+        min_width = max(measured.minimum, self.min_width_cells)
+        max_width = max(measured.maximum, self.min_width_cells)
+
+        limit = getattr(options, "max_width", options.size.width)
+        max_width = min(max_width, limit)
+        min_width = min(min_width, max_width)
+        return Measurement(min_width, max_width)
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        yield self._factory()
 
 
 def _shimmer_profile(main_text: str) -> list[tuple[str, float]]:
@@ -220,7 +266,7 @@ class ShimmerStatusText:
     def __init__(
         self,
         main_text: str | Text,
-        right_text: Text | None = None,
+        right_text: RenderableType | None = None,
         main_style: ThemeKey = ThemeKey.STATUS_TEXT,
     ) -> None:
         if isinstance(main_text, Text):
@@ -234,34 +280,49 @@ class ShimmerStatusText:
         self._right_text = right_text
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
-        left_text = self._render_left_text(console)
+        left_text = _StatusLeftText(main=self._main_text, hint_style=self._hint_style)
 
         if self._right_text is None:
             yield left_text
             return
 
-        # Use Table.grid to create left-right aligned layout
-        table = Table.grid(expand=True)
+        # Use Table.grid to create left-right aligned layout with a stable gap.
+        table = Table.grid(expand=True, padding=(0, 1, 0, 0), collapse_padding=True, pad_edge=False)
         table.add_column(justify="left", ratio=1)
         table.add_column(justify="right")
         table.add_row(left_text, self._right_text)
         yield table
 
-    def _render_left_text(self, console: Console) -> Text:
-        """Render the left part with shimmer effect on main text only."""
-        result = Text()
-        hint_style = console.get_style(str(self._hint_style))
 
-        # Apply shimmer only to main text
-        for index, (ch, intensity) in enumerate(_shimmer_profile(self._main_text.plain)):
-            base_style = self._main_text.get_style_at_offset(console, index)
+class _StatusLeftText:
+    def __init__(self, *, main: Text, hint_style: ThemeKey) -> None:
+        self._main = main
+        self._hint_style = hint_style
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        max_width = getattr(options, "max_width", options.size.width)
+
+        # Keep the hint visually attached to the status text, while truncating only
+        # the main status segment when space is tight.
+        hint_text = Text(current_hint_text().strip("\n"), style=console.get_style(str(self._hint_style)))
+        hint_cells = cell_len(hint_text.plain)
+
+        main_text = Text()
+        for index, (ch, intensity) in enumerate(_shimmer_profile(self._main.plain)):
+            base_style = self._main.get_style_at_offset(console, index)
             style = _shimmer_style(console, base_style, intensity)
-            result.append(ch, style=style)
+            main_text.append(ch, style=style)
 
-        # Append hint text without shimmer
-        result.append(current_hint_text().strip("\n"), style=hint_style)
+        # If the hint itself can't fit, fall back to truncating the combined text.
+        if max_width <= hint_cells:
+            combined = Text.assemble(main_text, hint_text)
+            combined.truncate(max(1, max_width), overflow="ellipsis", pad=False)
+            yield combined
+            return
 
-        return result
+        main_budget = max_width - hint_cells
+        main_text.truncate(max(1, main_budget), overflow="ellipsis", pad=False)
+        yield Text.assemble(main_text, hint_text)
 
 
 def spinner_name() -> str:
