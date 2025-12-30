@@ -1,3 +1,4 @@
+import importlib
 from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar
 
@@ -21,17 +22,19 @@ def _load_protocol(protocol: llm_param.LLMClientProtocol) -> None:
 
     # Import only the needed module to trigger @register decorator
     if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
-        from . import anthropic as _
+        importlib.import_module("klaude_code.llm.anthropic")
     elif protocol == llm_param.LLMClientProtocol.BEDROCK:
-        from . import bedrock as _
+        importlib.import_module("klaude_code.llm.bedrock")
     elif protocol == llm_param.LLMClientProtocol.CODEX:
-        from . import codex as _
+        importlib.import_module("klaude_code.llm.codex")
     elif protocol == llm_param.LLMClientProtocol.OPENAI:
-        from . import openai_compatible as _
+        importlib.import_module("klaude_code.llm.openai_compatible")
     elif protocol == llm_param.LLMClientProtocol.OPENROUTER:
-        from . import openrouter as _
+        importlib.import_module("klaude_code.llm.openrouter")
     elif protocol == llm_param.LLMClientProtocol.RESPONSES:
-        from . import responses as _  # noqa: F401
+        importlib.import_module("klaude_code.llm.responses")
+    elif protocol == llm_param.LLMClientProtocol.GOOGLE:
+        importlib.import_module("klaude_code.llm.google")
 
 
 def register(name: llm_param.LLMClientProtocol) -> Callable[[_T], _T]:

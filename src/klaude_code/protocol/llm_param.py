@@ -14,6 +14,7 @@ class LLMClientProtocol(Enum):
     ANTHROPIC = "anthropic"
     BEDROCK = "bedrock"
     CODEX = "codex"
+    GOOGLE = "google"
 
 
 class ToolSchema(BaseModel):

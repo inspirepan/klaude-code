@@ -193,6 +193,27 @@ provider_list:
         input: 0.44
         output: 1.74
         cache_read: 0.04
+
+- provider_name: google
+  protocol: google
+  api_key: ${GOOGLE_API_KEY}
+  model_list:
+  - model_name: gemini-pro@google
+    model_params:
+      model: gemini-3-pro-preview
+      context_limit: 1048576
+      cost:
+        input: 2.0
+        output: 12.0
+        cache_read: 0.2
+  - model_name: gemini-flash@google
+    model_params:
+      model: gemini-3-flash-preview
+      context_limit: 1048576
+      cost:
+        input: 0.5
+        output: 3.0
+        cache_read: 0.05
 - provider_name: bedrock
   protocol: bedrock
   aws_access_key: ${AWS_ACCESS_KEY_ID}

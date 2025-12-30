@@ -121,6 +121,13 @@ def format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
             return f"enabled (budget_tokens={thinking.budget_tokens})"
         return "not set"
 
+    if protocol == llm_param.LLMClientProtocol.GOOGLE:
+        if thinking.type == "disabled":
+            return "off"
+        if thinking.type == "enabled":
+            return f"enabled (budget_tokens={thinking.budget_tokens})"
+        return "not set"
+
     return "unknown protocol"
 
 
@@ -224,6 +231,13 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
         )
 
     if protocol == llm_param.LLMClientProtocol.OPENAI:
+        return ThinkingPickerData(
+            options=_build_budget_options(),
+            message="Select thinking level:",
+            current_value=_get_current_budget_value(thinking),
+        )
+
+    if protocol == llm_param.LLMClientProtocol.GOOGLE:
         return ThinkingPickerData(
             options=_build_budget_options(),
             message="Select thinking level:",

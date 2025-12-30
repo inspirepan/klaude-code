@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 # All supported API key environment variables
 SUPPORTED_API_KEY_ENVS = [
     "ANTHROPIC_API_KEY",
+    "GOOGLE_API_KEY",
     "OPENAI_API_KEY",
     "OPENROUTER_API_KEY",
     "DEEPSEEK_API_KEY",
