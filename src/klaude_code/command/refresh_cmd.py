@@ -23,7 +23,7 @@ class RefreshTerminalCommand(CommandABC):
 
         os.system("cls" if os.name == "nt" else "clear")
 
-        result = CommandResult(
+        return CommandResult(
             events=[
                 events.WelcomeEvent(
                     work_dir=str(agent.session.work_dir),
@@ -35,7 +35,7 @@ class RefreshTerminalCommand(CommandABC):
                     updated_at=agent.session.updated_at,
                     is_load=False,
                 ),
-            ]
+            ],
+            persist_user_input=False,
+            persist_events=False,
         )
-
-        return result
