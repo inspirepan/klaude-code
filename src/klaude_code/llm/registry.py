@@ -22,6 +22,8 @@ def _load_protocol(protocol: llm_param.LLMClientProtocol) -> None:
     # Import only the needed module to trigger @register decorator
     if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
         from . import anthropic as _
+    elif protocol == llm_param.LLMClientProtocol.BEDROCK:
+        from . import bedrock as _
     elif protocol == llm_param.LLMClientProtocol.CODEX:
         from . import codex as _
     elif protocol == llm_param.LLMClientProtocol.OPENAI:

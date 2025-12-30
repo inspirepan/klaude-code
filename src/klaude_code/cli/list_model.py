@@ -6,7 +6,7 @@ from rich.table import Table
 from rich.text import Text
 
 from klaude_code.config import Config
-from klaude_code.config.config import ModelConfig, ProviderConfig
+from klaude_code.config.config import ModelConfig, ProviderConfig, parse_env_var_syntax
 from klaude_code.protocol.llm_param import LLMClientProtocol
 from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 from klaude_code.ui.rich.theme import ThemeKey, get_theme
@@ -94,6 +94,29 @@ def format_api_key_display(provider: ProviderConfig) -> Text:
         return Text("N/A")
 
 
+def format_env_var_display(value: str | None) -> Text:
+    """Format environment variable display with warning if not set."""
+    env_var, resolved = parse_env_var_syntax(value)
+
+    if env_var:
+        # Using ${ENV_VAR} syntax
+        if resolved:
+            return Text.assemble(
+                (f"${{{env_var}}} = ", "dim"),
+                (mask_api_key(resolved), ""),
+            )
+        else:
+            return Text.assemble(
+                (f"${{{env_var}}} ", ""),
+                ("(not set)", ThemeKey.CONFIG_STATUS_ERROR),
+            )
+    elif value:
+        # Plain value
+        return Text(mask_api_key(value))
+    else:
+        return Text("N/A")
+
+
 def _get_model_params_display(model: ModelConfig) -> list[Text]:
     """Get display elements for model parameters."""
     params: list[Text] = []
@@ -161,6 +184,34 @@ def display_models_and_providers(config: Config):
                 Text("API Key:", style=ThemeKey.CONFIG_PARAM_LABEL),
                 format_api_key_display(provider),
             )
+
+        # AWS Bedrock parameters
+        if provider.protocol == LLMClientProtocol.BEDROCK:
+            if provider.aws_access_key:
+                provider_info.add_row(
+                    Text("AWS Key:", style=ThemeKey.CONFIG_PARAM_LABEL),
+                    format_env_var_display(provider.aws_access_key),
+                )
+            if provider.aws_secret_key:
+                provider_info.add_row(
+                    Text("AWS Secret:", style=ThemeKey.CONFIG_PARAM_LABEL),
+                    format_env_var_display(provider.aws_secret_key),
+                )
+            if provider.aws_region:
+                provider_info.add_row(
+                    Text("AWS Region:", style=ThemeKey.CONFIG_PARAM_LABEL),
+                    format_env_var_display(provider.aws_region),
+                )
+            if provider.aws_session_token:
+                provider_info.add_row(
+                    Text("AWS Token:", style=ThemeKey.CONFIG_PARAM_LABEL),
+                    format_env_var_display(provider.aws_session_token),
+                )
+            if provider.aws_profile:
+                provider_info.add_row(
+                    Text("AWS Profile:", style=ThemeKey.CONFIG_PARAM_LABEL),
+                    format_env_var_display(provider.aws_profile),
+                )
 
         # Check if provider has valid API key
         provider_available = not provider.is_api_key_missing()

@@ -77,6 +77,7 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
         """Check if the API key is missing (either not set or env var not found).
 
         For codex protocol, checks OAuth login status instead of API key.
+        For bedrock protocol, checks AWS credentials instead of API key.
         """
         from klaude_code.protocol.llm_param import LLMClientProtocol
 
@@ -88,6 +89,16 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
             state = token_manager.get_state()
             # Consider available if logged in and token not expired
             return state is None or state.is_expired()
+
+        if self.protocol == LLMClientProtocol.BEDROCK:
+            # Bedrock uses AWS credentials, not API key
+            # Check if using aws_profile or aws_access_key/aws_secret_key
+            _, resolved_profile = parse_env_var_syntax(self.aws_profile)
+            if resolved_profile:
+                return False
+            _, resolved_access_key = parse_env_var_syntax(self.aws_access_key)
+            _, resolved_secret_key = parse_env_var_syntax(self.aws_secret_key)
+            return resolved_access_key is None or resolved_secret_key is None
 
         return self.get_resolved_api_key() is None
 

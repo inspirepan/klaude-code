@@ -1,7 +1,7 @@
 import json
 import os
 from collections.abc import AsyncGenerator
-from typing import override
+from typing import Any, override
 
 import anthropic
 import httpx
@@ -58,6 +58,130 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
     return payload
 
 
+async def parse_anthropic_stream(
+    stream: Any,
+    param: llm_param.LLMCallParameter,
+    metadata_tracker: MetadataTracker,
+) -> AsyncGenerator[model.ConversationItem]:
+    """Parse Anthropic beta messages stream and yield conversation items.
+
+    This function is shared between AnthropicClient and BedrockClient.
+    """
+    accumulated_thinking: list[str] = []
+    accumulated_content: list[str] = []
+    response_id: str | None = None
+
+    current_tool_name: str | None = None
+    current_tool_call_id: str | None = None
+    current_tool_inputs: list[str] | None = None
+
+    input_token = 0
+    cached_token = 0
+
+    async for event in await stream:
+        log_debug(
+            f"[{event.type}]",
+            event.model_dump_json(exclude_none=True),
+            style="blue",
+            debug_type=DebugType.LLM_STREAM,
+        )
+        match event:
+            case BetaRawMessageStartEvent() as event:
+                response_id = event.message.id
+                cached_token = event.message.usage.cache_read_input_tokens or 0
+                input_token = event.message.usage.input_tokens
+                yield model.StartItem(response_id=response_id)
+            case BetaRawContentBlockDeltaEvent() as event:
+                match event.delta:
+                    case BetaThinkingDelta() as delta:
+                        if delta.thinking:
+                            metadata_tracker.record_token()
+                        accumulated_thinking.append(delta.thinking)
+                        yield model.ReasoningTextDelta(
+                            content=delta.thinking,
+                            response_id=response_id,
+                        )
+                    case BetaSignatureDelta() as delta:
+                        yield model.ReasoningEncryptedItem(
+                            encrypted_content=delta.signature,
+                            response_id=response_id,
+                            model=str(param.model),
+                        )
+                    case BetaTextDelta() as delta:
+                        if delta.text:
+                            metadata_tracker.record_token()
+                        accumulated_content.append(delta.text)
+                        yield model.AssistantMessageDelta(
+                            content=delta.text,
+                            response_id=response_id,
+                        )
+                    case BetaInputJSONDelta() as delta:
+                        if current_tool_inputs is not None:
+                            if delta.partial_json:
+                                metadata_tracker.record_token()
+                            current_tool_inputs.append(delta.partial_json)
+                    case _:
+                        pass
+            case BetaRawContentBlockStartEvent() as event:
+                match event.content_block:
+                    case BetaToolUseBlock() as block:
+                        metadata_tracker.record_token()
+                        yield model.ToolCallStartItem(
+                            response_id=response_id,
+                            call_id=block.id,
+                            name=block.name,
+                        )
+                        current_tool_name = block.name
+                        current_tool_call_id = block.id
+                        current_tool_inputs = []
+                    case _:
+                        pass
+            case BetaRawContentBlockStopEvent():
+                if len(accumulated_thinking) > 0:
+                    metadata_tracker.record_token()
+                    full_thinking = "".join(accumulated_thinking)
+                    yield model.ReasoningTextItem(
+                        content=full_thinking,
+                        response_id=response_id,
+                        model=str(param.model),
+                    )
+                    accumulated_thinking.clear()
+                if len(accumulated_content) > 0:
+                    metadata_tracker.record_token()
+                    yield model.AssistantMessageItem(
+                        content="".join(accumulated_content),
+                        response_id=response_id,
+                    )
+                    accumulated_content.clear()
+                if current_tool_name and current_tool_call_id:
+                    metadata_tracker.record_token()
+                    yield model.ToolCallItem(
+                        name=current_tool_name,
+                        call_id=current_tool_call_id,
+                        arguments="".join(current_tool_inputs) if current_tool_inputs else "",
+                        response_id=response_id,
+                    )
+                    current_tool_name = None
+                    current_tool_call_id = None
+                    current_tool_inputs = None
+            case BetaRawMessageDeltaEvent() as event:
+                metadata_tracker.set_usage(
+                    model.Usage(
+                        input_tokens=input_token + cached_token,
+                        output_tokens=event.usage.output_tokens,
+                        cached_tokens=cached_token,
+                        context_size=input_token + cached_token + event.usage.output_tokens,
+                        context_limit=param.context_limit,
+                        max_tokens=param.max_tokens,
+                    )
+                )
+                metadata_tracker.set_model_name(str(param.model))
+                metadata_tracker.set_response_id(response_id)
+                yield metadata_tracker.finalize()
+            case _:
+                pass
+
+
 @register(llm_param.LLMClientProtocol.ANTHROPIC)
 class AnthropicClient(LLMClientABC):
     def __init__(self, config: llm_param.LLMConfigParameter):
@@ -102,119 +226,8 @@ class AnthropicClient(LLMClientABC):
             extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
         )
 
-        accumulated_thinking: list[str] = []
-        accumulated_content: list[str] = []
-        response_id: str | None = None
-
-        current_tool_name: str | None = None
-        current_tool_call_id: str | None = None
-        current_tool_inputs: list[str] | None = None
-
-        input_token = 0
-        cached_token = 0
-
         try:
-            async for event in await stream:
-                log_debug(
-                    f"[{event.type}]",
-                    event.model_dump_json(exclude_none=True),
-                    style="blue",
-                    debug_type=DebugType.LLM_STREAM,
-                )
-                match event:
-                    case BetaRawMessageStartEvent() as event:
-                        response_id = event.message.id
-                        cached_token = event.message.usage.cache_read_input_tokens or 0
-                        input_token = event.message.usage.input_tokens
-                        yield model.StartItem(response_id=response_id)
-                    case BetaRawContentBlockDeltaEvent() as event:
-                        match event.delta:
-                            case BetaThinkingDelta() as delta:
-                                if delta.thinking:
-                                    metadata_tracker.record_token()
-                                accumulated_thinking.append(delta.thinking)
-                                yield model.ReasoningTextDelta(
-                                    content=delta.thinking,
-                                    response_id=response_id,
-                                )
-                            case BetaSignatureDelta() as delta:
-                                yield model.ReasoningEncryptedItem(
-                                    encrypted_content=delta.signature,
-                                    response_id=response_id,
-                                    model=str(param.model),
-                                )
-                            case BetaTextDelta() as delta:
-                                if delta.text:
-                                    metadata_tracker.record_token()
-                                accumulated_content.append(delta.text)
-                                yield model.AssistantMessageDelta(
-                                    content=delta.text,
-                                    response_id=response_id,
-                                )
-                            case BetaInputJSONDelta() as delta:
-                                if current_tool_inputs is not None:
-                                    if delta.partial_json:
-                                        metadata_tracker.record_token()
-                                    current_tool_inputs.append(delta.partial_json)
-                            case _:
-                                pass
-                    case BetaRawContentBlockStartEvent() as event:
-                        match event.content_block:
-                            case BetaToolUseBlock() as block:
-                                metadata_tracker.record_token()
-                                yield model.ToolCallStartItem(
-                                    response_id=response_id,
-                                    call_id=block.id,
-                                    name=block.name,
-                                )
-                                current_tool_name = block.name
-                                current_tool_call_id = block.id
-                                current_tool_inputs = []
-                            case _:
-                                pass
-                    case BetaRawContentBlockStopEvent() as event:
-                        if len(accumulated_thinking) > 0:
-                            metadata_tracker.record_token()
-                            full_thinking = "".join(accumulated_thinking)
-                            yield model.ReasoningTextItem(
-                                content=full_thinking,
-                                response_id=response_id,
-                                model=str(param.model),
-                            )
-                            accumulated_thinking.clear()
-                        if len(accumulated_content) > 0:
-                            metadata_tracker.record_token()
-                            yield model.AssistantMessageItem(
-                                content="".join(accumulated_content),
-                                response_id=response_id,
-                            )
-                            accumulated_content.clear()
-                        if current_tool_name and current_tool_call_id:
-                            metadata_tracker.record_token()
-                            yield model.ToolCallItem(
-                                name=current_tool_name,
-                                call_id=current_tool_call_id,
-                                arguments="".join(current_tool_inputs) if current_tool_inputs else "",
-                                response_id=response_id,
-                            )
-                            current_tool_name = None
-                            current_tool_call_id = None
-                            current_tool_inputs = None
-                    case BetaRawMessageDeltaEvent() as event:
-                        metadata_tracker.set_usage(
-                            model.Usage(
-                                input_tokens=input_token + cached_token,
-                                output_tokens=event.usage.output_tokens,
-                                cached_tokens=cached_token,
-                                context_size=input_token + cached_token + event.usage.output_tokens,
-                                context_limit=param.context_limit,
-                                max_tokens=param.max_tokens,
-                            )
-                        )
-                        metadata_tracker.set_model_name(str(param.model))
-                        metadata_tracker.set_response_id(response_id)
-                        yield metadata_tracker.finalize()
-                    case _:
-                        pass
+            async for item in parse_anthropic_stream(stream, param, metadata_tracker):
+                yield item
         except (APIError, httpx.HTTPError) as e:
             yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")

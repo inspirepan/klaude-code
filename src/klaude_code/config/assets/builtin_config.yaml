@@ -7,7 +7,7 @@ provider_list:
   protocol: anthropic
   api_key: ${ANTHROPIC_API_KEY}
   model_list:
-  - model_name: sonnet
+  - model_name: sonnet@ant
     model_params:
       model: claude-sonnet-4-5-20250929
       context_limit: 200000
@@ -18,7 +18,7 @@ provider_list:
         output: 15.0
         cache_read: 0.3
         cache_write: 3.75
-  - model_name: opus
+  - model_name: opus@ant
     model_params:
       model: claude-opus-4-5-20251101
       context_limit: 200000
@@ -193,7 +193,21 @@ provider_list:
         input: 0.44
         output: 1.74
         cache_read: 0.04
-
+- provider_name: bedrock
+  protocol: bedrock
+  aws_access_key: ${AWS_ACCESS_KEY_ID}
+  aws_secret_key: ${AWS_SECRET_ACCESS_KEY}
+  aws_region: ${AWS_REGION}
+  model_list:
+  - model_name: sonnet@bedrock
+    model_params:
+      model: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+      context_limit: 200000
+      cost:
+        input: 3.0
+        output: 15.0
+        cache_read: 0.3
+        cache_write: 3.75
 - provider_name: deepseek
   protocol: anthropic
   api_key: ${DEEPSEEK_API_KEY}

@@ -12,6 +12,7 @@ class LLMClientProtocol(Enum):
     RESPONSES = "responses"
     OPENROUTER = "openrouter"
     ANTHROPIC = "anthropic"
+    BEDROCK = "bedrock"
     CODEX = "codex"
 
 
@@ -91,8 +92,15 @@ class LLMConfigProviderParameter(BaseModel):
     protocol: LLMClientProtocol
     base_url: str | None = None
     api_key: str | None = None
+    # Azure OpenAI
     is_azure: bool = False
     azure_api_version: str | None = None
+    # AWS Bedrock configuration
+    aws_access_key: str | None = None
+    aws_secret_key: str | None = None
+    aws_region: str | None = None
+    aws_session_token: str | None = None
+    aws_profile: str | None = None
 
 
 class LLMConfigModelParameter(BaseModel):
