@@ -6,6 +6,7 @@ from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
 
+from klaude_code import const
 from klaude_code.protocol import events, model
 from klaude_code.trace import is_debug_enabled
 from klaude_code.ui.renderers.common import create_grid
@@ -95,10 +96,17 @@ def _render_task_metadata_block(
         # Context (only for main agent)
         if show_context_and_time and metadata.usage.context_usage_percent is not None:
             context_size = format_number(metadata.usage.context_size or 0)
+            # Calculate effective limit (same as Usage.context_usage_percent)
+            effective_limit = (metadata.usage.context_limit or 0) - (
+                metadata.usage.max_tokens or const.DEFAULT_MAX_TOKENS
+            )
+            effective_limit_str = format_number(effective_limit) if effective_limit > 0 else "?"
             parts.append(
                 Text.assemble(
                     ("context ", ThemeKey.METADATA_DIM),
                     (context_size, ThemeKey.METADATA),
+                    ("/", ThemeKey.METADATA_DIM),
+                    (effective_limit_str, ThemeKey.METADATA),
                     (f" ({metadata.usage.context_usage_percent:.1f}%)", ThemeKey.METADATA_DIM),
                 )
             )
