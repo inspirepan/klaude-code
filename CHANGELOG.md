@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2025-12-30
+
+### Added
+
+- support google gen ai protocol (`d0e40901`)
+- support aws bedrock protocol (`ebbe5564`)
+
+### Changed
+
+- add new features and CLI commands documentation (`47335593`)
+
+### Other
+
+- fix pytest and ruff check (`e6c575d4`)
 ## [1.6.0] - 2025-12-30
 
 ### Added
@@ -952,7 +966,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/inspirepan/klaude-code/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/inspirepan/klaude-code/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/inspirepan/klaude-code/compare/v1.4.3...v1.5.0
 [1.4.3]: https://github.com/inspirepan/klaude-code/compare/v1.4.2...v1.4.3
