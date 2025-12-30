@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2025-12-30
+
+### Added
+
+- show multiple user messages in session selection (`7d3bfbc5`)
+- add interactive fork point selection for /fork command (`3a16877f`)
+
+### Changed
+
+- update context style (`e036fdea`)
+- update status, move timecounter to right (`4e4aa5ec`)
+- add pbt tests (`7ac68fa7`)
+- disable persistence for refresh terminal command (`8cf5b0e3`)
+- add hypotheis test for md stream (`3bc7f27f`)
+
+### Fixed
+
+- change TPS calculation to use full request duration (`39defbdf`)
 ## [1.5.0] - 2025-12-29
 
 ### Added
@@ -934,7 +952,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/inspirepan/klaude-code/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/inspirepan/klaude-code/compare/v1.4.3...v1.5.0
 [1.4.3]: https://github.com/inspirepan/klaude-code/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/inspirepan/klaude-code/compare/v1.4.1...v1.4.2
