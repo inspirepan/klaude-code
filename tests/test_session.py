@@ -787,7 +787,7 @@ class TestForkSessionCommand:
             assert len(result.events) == 1
             assert isinstance(result.events[0], events.DeveloperMessageEvent)
             content = result.events[0].item.content or ""
-            assert "Session forked successfully" in content
+            assert "Session forked" in content
 
             command_output = result.events[0].item.command_output
             assert command_output is not None

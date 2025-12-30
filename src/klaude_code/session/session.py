@@ -197,11 +197,16 @@ class Session(BaseModel):
         )
         self._store.append_and_flush(session_id=self.id, items=items, meta=meta)
 
-    def fork(self, *, new_id: str | None = None) -> Session:
+    def fork(self, *, new_id: str | None = None, until_index: int | None = None) -> Session:
         """Create a new session as a fork of the current session.
 
         The forked session copies metadata and conversation history, but does not
         modify the current session.
+
+        Args:
+            new_id: Optional ID for the forked session.
+            until_index: If provided, only copy conversation history up to (but not including) this index.
+                         If None, copy all history.
         """
 
         forked = Session.create(id=new_id, work_dir=self.work_dir)
@@ -213,7 +218,8 @@ class Session(BaseModel):
         forked.file_tracker = {k: v.model_copy(deep=True) for k, v in self.file_tracker.items()}
         forked.todos = [todo.model_copy(deep=True) for todo in self.todos]
 
-        items = [it.model_copy(deep=True) for it in self.conversation_history]
+        history_to_copy = self.conversation_history[:until_index] if until_index is not None else self.conversation_history
+        items = [it.model_copy(deep=True) for it in history_to_copy]
         if items:
             forked.append_history(items)
 

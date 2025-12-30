@@ -161,10 +161,10 @@ def _format_cost(cost: float | None, currency: str = "USD") -> str:
 def _render_fork_session_output(command_output: model.CommandOutput) -> RenderableType:
     """Render fork session output with usage instructions."""
     if not isinstance(command_output.ui_extra, model.SessionIdUIExtra):
-        return Text("(no session id)", style=ThemeKey.METADATA)
+        return Padding.indent(Text("(no session id)", style=ThemeKey.METADATA), level=2)
 
-    session_id = command_output.ui_extra.session_id
     grid = Table.grid(padding=(0, 1))
+    session_id = command_output.ui_extra.session_id
     grid.add_column(style=ThemeKey.METADATA, overflow="fold")
 
     grid.add_row(Text("Session forked. To continue in a new conversation:", style=ThemeKey.METADATA))

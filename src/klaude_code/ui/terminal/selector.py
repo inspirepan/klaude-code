@@ -120,6 +120,8 @@ def _build_choices_tokens[T](
     visible_indices: list[int],
     pointed_at: int,
     pointer: str,
+    *,
+    highlight_pointed_item: bool = True,
 ) -> list[tuple[str, str]]:
     """Build formatted tokens for the choice list."""
     if not visible_indices:
@@ -137,7 +139,10 @@ def _build_choices_tokens[T](
         else:
             tokens.append(("class:text", pointer_pad))
 
-        title_tokens = _restyle_title(items[idx].title, "class:highlighted") if is_pointed else items[idx].title
+        if is_pointed and highlight_pointed_item:
+            title_tokens = _restyle_title(items[idx].title, "class:highlighted")
+        else:
+            title_tokens = items[idx].title
         tokens.extend(title_tokens)
 
     return tokens
@@ -226,6 +231,7 @@ def select_one[T](
     use_search_filter: bool = True,
     initial_value: T | None = None,
     search_placeholder: str = "type to search",
+    highlight_pointed_item: bool = True,
 ) -> T | None:
     """Terminal single-choice selector based on prompt_toolkit."""
     if not items:
@@ -250,7 +256,13 @@ def select_one[T](
         indices, _ = _filter_items(items, get_filter_text())
         if indices:
             pointed_at %= len(indices)
-        return _build_choices_tokens(items, indices, pointed_at, pointer)
+        return _build_choices_tokens(
+            items,
+            indices,
+            pointed_at,
+            pointer,
+            highlight_pointed_item=highlight_pointed_item,
+        )
 
     def on_search_changed(_buf: Buffer) -> None:
         nonlocal pointed_at
@@ -376,6 +388,7 @@ class SelectOverlay[T]:
         use_search_filter: bool = True,
         search_placeholder: str = "type to search",
         list_height: int = 8,
+        highlight_pointed_item: bool = True,
         on_select: Callable[[T], Coroutine[Any, Any, None] | None] | None = None,
         on_cancel: Callable[[], Coroutine[Any, Any, None] | None] | None = None,
     ) -> None:
@@ -383,6 +396,7 @@ class SelectOverlay[T]:
         self._use_search_filter = use_search_filter
         self._search_placeholder = search_placeholder
         self._list_height = max(1, list_height)
+        self._highlight_pointed_item = highlight_pointed_item
         self._on_select = on_select
         self._on_cancel = on_cancel
 
@@ -482,7 +496,13 @@ class SelectOverlay[T]:
             indices, _ = self._get_visible_indices()
             if indices:
                 self._pointed_at %= len(indices)
-            return _build_choices_tokens(self._items, indices, self._pointed_at, self._pointer)
+            return _build_choices_tokens(
+                self._items,
+                indices,
+                self._pointed_at,
+                self._pointer,
+                highlight_pointed_item=self._highlight_pointed_item,
+            )
 
         header_window = Window(
             FormattedTextControl(get_header_tokens),
