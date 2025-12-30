@@ -81,7 +81,7 @@ class MetadataTracker:
             ) * 1000
 
             if self._last_token_time is not None and self._metadata_item.usage.output_tokens > 0:
-                time_duration = self._last_token_time - self._first_token_time
+                time_duration = self._last_token_time - self._request_start_time
                 if time_duration >= 0.15:
                     self._metadata_item.usage.throughput_tps = self._metadata_item.usage.output_tokens / time_duration
 
