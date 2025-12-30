@@ -219,9 +219,9 @@ def display_models_and_providers(config: Config):
         # Models table for this provider
         models_table = Table.grid(padding=(0, 1), expand=True)
         models_table.add_column(width=2, no_wrap=True)  # Status
-        models_table.add_column(overflow="fold", ratio=1)  # Name
-        models_table.add_column(overflow="fold", ratio=2)  # Model
-        models_table.add_column(overflow="fold", ratio=3)  # Params
+        models_table.add_column(overflow="fold", ratio=2)  # Name
+        models_table.add_column(overflow="fold", ratio=3)  # Model
+        models_table.add_column(overflow="fold", ratio=4)  # Params
 
         # Add header
         models_table.add_row(

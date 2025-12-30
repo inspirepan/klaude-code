@@ -14,6 +14,10 @@ Minimal code agent CLI.
 - **Output truncation**: Large outputs saved to file system with snapshot links
 - **Skills**: Built-in + user + project Agent Skills (with implicit invocation by Skill tool or explicit invocation by typing `$`)
 - **Sessions**: Resumable with `--continue`
+- **Cost tracking**: Automatic API cost calculation and display (USD/CNY)
+- **Version update check**: Background PyPI version check with upgrade prompts
+- **Terminal title**: Shows current directory and model name
+- **Mermaid diagrams**: Interactive local HTML viewer with zoom, pan, and SVG export
 - **Extras**: Slash commands, sub-agents, image paste, terminal notifications, auto-theming
 
 ## Installation
@@ -57,6 +61,7 @@ klaude [--model <name>] [--select-model]
 - `--select-model`/`-s`: Open the interactive model selector at startup (shows all models unless `--model` is also provided).
 - `--continue`/`-c`: Resume the most recent session.
 - `--resume`/`-r`: Select a session to resume for this project.
+- `--resume-by-id <id>`: Resume a session by its ID directly.
 - `--vanilla`: Minimal mode with only basic tools (Bash, Read, Edit) and no system prompts.
 
 **Model selection behavior:**
@@ -231,12 +236,18 @@ klaude session clean-all
 
 Inside the interactive session (`klaude`), use these commands to streamline your workflow:
 
-- `/dev-doc [feature]` - Generate a comprehensive execution plan for a feature.
-- `/export` - Export last assistant message to a temp Markdown file.
-- `/init` - Bootstrap a new project structure or module.
 - `/model` - Switch the active LLM during the session.
+- `/thinking` - Configure model thinking/reasoning level.
 - `/clear` - Clear the current conversation context.
-- `/diff` - Show local git diff changes.
+- `/status` - Show session usage statistics (cost, tokens, model breakdown).
+- `/resume` - Select and resume a previous session.
+- `/fork-session` - Fork current session to a new session ID (supports interactive fork point selection).
+- `/export` - Export last assistant message to a temp Markdown file.
+- `/export-online` - Export and deploy session to surge.sh as a static webpage.
+- `/debug [filters]` - Toggle debug mode and configure debug filters.
+- `/init` - Bootstrap a new project structure or module.
+- `/dev-doc [feature]` - Generate a comprehensive execution plan for a feature.
+- `/terminal-setup` - Configure terminal for Shift+Enter support.
 - `/help` - List all available commands.
 
 
@@ -247,6 +258,8 @@ Inside the interactive session (`klaude`), use these commands to streamline your
 | `Enter`              | Submit input                                |
 | `Shift+Enter`        | Insert newline (requires `/terminal-setup`) |
 | `Ctrl+J`             | Insert newline                              |
+| `Ctrl+L`             | Open model picker overlay                   |
+| `Ctrl+T`             | Open thinking level picker overlay          |
 | `Ctrl+V`             | Paste image from clipboard                  |
 | `Left/Right`         | Move cursor (wraps across lines)            |
 | `Backspace`          | Delete character or selected text           |
@@ -270,4 +283,18 @@ echo "generate quicksort in python" | klaude exec --model gpt-5.1
 
 # Partial/ambiguous name opens the interactive selector (filtered)
 echo "generate quicksort in python" | klaude exec --model gpt
+
+# Stream all events as JSON lines (for programmatic processing)
+klaude exec "what is 2+2?" --stream-json
 ```
+
+### Sub-Agents
+
+The main agent can spawn specialized sub-agents for specific tasks:
+
+| Sub-Agent | Purpose |
+|-----------|---------|
+| **Explore** | Fast codebase exploration - find files, search code, answer questions about the codebase |
+| **Task** | Handle complex multi-step tasks autonomously |
+| **WebAgent** | Search the web, fetch pages, and analyze content |
+| **Oracle** | Advanced reasoning advisor for code reviews, architecture planning, and bug analysis |
