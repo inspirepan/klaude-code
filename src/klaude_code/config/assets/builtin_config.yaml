@@ -87,6 +87,30 @@ provider_list:
         input: 1.75
         output: 14.0
         cache_read: 0.17
+  - model_name: gpt-5.2-medium
+    model_params:
+      model: openai/gpt-5.2
+      max_tokens: 128000
+      context_limit: 400000
+      verbosity: high
+      thinking:
+        reasoning_effort: medium
+      cost:
+        input: 1.75
+        output: 14.0
+        cache_read: 0.17
+  - model_name: gpt-5.2-low
+    model_params:
+      model: openai/gpt-5.2
+      max_tokens: 128000
+      context_limit: 400000
+      verbosity: low
+      thinking:
+        reasoning_effort: low
+      cost:
+        input: 1.75
+        output: 14.0
+        cache_read: 0.17
   - model_name: gpt-5.2-fast
     model_params:
       model: openai/gpt-5.2
