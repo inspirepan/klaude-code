@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1] - 2025-12-31
+
+### Added
+
+- add gpt-5.2-medium gpt-5.2-low (`692f0670`)
+- cache user messages in meta and restore welcome event (`2024a251`)
+- add collapsible headings to sub-agent export results (`502d3a98`)
+- allow configuring read limits via environment variables (`e93edeb3`)
+
+### Changed
+
+- simplify mermaid configuration (`7d5e3c15`)
+- replace Geist Sans with Inter font (`aa30af80`)
+- apply sans-serif font to tool-name elements (`d6802d9b`)
+- improve custom model configuration documentation (`2d26be42`)
+- move 'Klaude Code' to end of HTML title (`ea5548e1`)
+
+### Fixed
+
+- add cross-platform support for _open_file (`7465ea24`)
+- add session_id to ErrorEvent for sub-agent color styling (`2a9befb7`)
+- fork session auto copy new command (`865a03eb`)
+- allow git push command (`21dc6e0a`)
 ## [1.7.0] - 2025-12-30
 
 ### Added
@@ -966,7 +989,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/inspirepan/klaude-code/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/inspirepan/klaude-code/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/inspirepan/klaude-code/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/inspirepan/klaude-code/compare/v1.4.3...v1.5.0
