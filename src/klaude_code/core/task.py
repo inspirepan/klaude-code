@@ -220,7 +220,9 @@ class TaskExecutor:
                         error_msg = f"Retrying {attempt + 1}/{const.MAX_FAILED_TURN_RETRIES} in {delay:.1f}s"
                         if last_error_message:
                             error_msg = f"{error_msg} - {last_error_message}"
-                        yield events.ErrorEvent(error_message=error_msg, can_retry=True)
+                        yield events.ErrorEvent(
+                            error_message=error_msg, can_retry=True, session_id=session_ctx.session_id
+                        )
                         await asyncio.sleep(delay)
                 finally:
                     self._current_turn = None
@@ -234,7 +236,7 @@ class TaskExecutor:
                 final_error = f"Turn failed after {const.MAX_FAILED_TURN_RETRIES} retries."
                 if last_error_message:
                     final_error = f"{last_error_message}\n{final_error}"
-                yield events.ErrorEvent(error_message=final_error, can_retry=False)
+                yield events.ErrorEvent(error_message=final_error, can_retry=False, session_id=session_ctx.session_id)
                 return
 
             if turn is None or turn.task_finished:
@@ -244,7 +246,7 @@ class TaskExecutor:
                         error_msg = "Sub-agent returned empty result, retrying..."
                     else:
                         error_msg = "Agent returned empty result, retrying..."
-                    yield events.ErrorEvent(error_message=error_msg, can_retry=True)
+                    yield events.ErrorEvent(error_message=error_msg, can_retry=True, session_id=session_ctx.session_id)
                     continue
                 break
 

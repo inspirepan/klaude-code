@@ -311,7 +311,7 @@ class Session(BaseModel):
                 case model.DeveloperMessageItem() as dm:
                     yield events.DeveloperMessageEvent(session_id=self.id, item=dm)
                 case model.StreamErrorItem() as se:
-                    yield events.ErrorEvent(error_message=se.error, can_retry=False)
+                    yield events.ErrorEvent(error_message=se.error, can_retry=False, session_id=self.id)
                 case _:
                     continue
             prev_item = it

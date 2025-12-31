@@ -16,6 +16,7 @@ class EndEvent(BaseModel):
 class ErrorEvent(BaseModel):
     error_message: str
     can_retry: bool = False
+    session_id: str | None = None
 
 
 class TaskStartEvent(BaseModel):
