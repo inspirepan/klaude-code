@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -427,14 +428,26 @@ class ExecutorContext:
         return build_export_html(agent.session, system_prompt, tool_schemas, model_name)
 
     def _open_file(self, path: Path) -> None:
+        # Select platform-appropriate command
+        if sys.platform == "darwin":
+            cmd = "open"
+        elif sys.platform == "win32":
+            cmd = "start"
+        else:
+            cmd = "xdg-open"
+
         try:
             # Detach stdin to prevent interference with prompt_toolkit's terminal state
-            subprocess.run(["open", str(path)], stdin=subprocess.DEVNULL, check=True)
+            if sys.platform == "win32":
+                # Windows 'start' requires shell=True
+                subprocess.run(f'start "" "{path}"', shell=True, stdin=subprocess.DEVNULL, check=True)
+            else:
+                subprocess.run([cmd, str(path)], stdin=subprocess.DEVNULL, check=True)
         except FileNotFoundError as exc:  # pragma: no cover
-            msg = "`open` command not found; please open the HTML manually."
+            msg = f"`{cmd}` command not found; please open the HTML manually."
             raise RuntimeError(msg) from exc
         except subprocess.CalledProcessError as exc:  # pragma: no cover
-            msg = f"Failed to open HTML with `open`: {exc}"
+            msg = f"Failed to open HTML with `{cmd}`: {exc}"
             raise RuntimeError(msg) from exc
 
     async def handle_interrupt(self, operation: op.InterruptOperation) -> None:
