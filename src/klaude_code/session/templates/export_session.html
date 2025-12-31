@@ -16,6 +16,14 @@
       href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono/700.css"
       rel="stylesheet"
     />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@fontsource/geist-sans@5.2.5/400.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@fontsource/geist-sans@5.2.5/700.min.css"
+      rel="stylesheet"
+    />
     <style>
       @font-face {
         font-family: 'TX-02';
@@ -44,9 +52,10 @@
         --success: #1a7f37;
         --error: #c62828;
         --fg-inline-code: #1f4fbf;
+        --font-sans: "Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
         --font-mono: "TX-02", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
         --font-markdown-mono: "TX-02", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-        --font-markdown: "TX-02", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+        --font-markdown: var(--font-sans);
         --font-weight-bold: 700;
         --font-size-xs: 12px;
         --font-size-sm: 13px;
@@ -70,7 +79,7 @@
       body {
         background-color: var(--bg-body);
         color: var(--text);
-        font-family: var(--font-mono);
+        font-family: var(--font-sans);
         line-height: 1.6;
         font-size: var(--font-size-lg);
         -webkit-font-smoothing: antialiased;
@@ -95,6 +104,7 @@
         margin-bottom: 16px;
         color: var(--text);
         display: inline-block;
+        font-family: var(--font-mono);
       }
 
       .meta-grid {
@@ -114,6 +124,7 @@
         font-weight: var(--font-weight-bold);
         text-transform: uppercase;
         color: var(--text-dim);
+        font-family: var(--font-mono);
       }
 
       .meta-value {
@@ -677,6 +688,66 @@
         display: block;
       }
 
+      .sub-agent-rendered h1 {
+        font-size: 1.5em;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 0.3em;
+        margin-bottom: 16px;
+      }
+
+      /* Collapsible Markdown Headings */
+      .markdown-body details {
+        margin-top: 1em;
+        margin-bottom: 1em;
+      }
+      .markdown-body details > summary {
+        cursor: pointer;
+        list-style: none; /* Modern browsers */
+        position: relative;
+        padding-left: 1.5em; /* Space for triangle */
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-top: 24px;
+        margin-bottom: 16px;
+      }
+      .markdown-body details > summary::-webkit-details-marker {
+        display: none;
+      }
+      /* Triangle indicator */
+      .markdown-body details > summary::before {
+        content: "▶";
+        position: absolute;
+        left: 0;
+        /* Center vertically relative to line-height */
+        top: 0.2em;
+        font-size: 0.8em;
+        color: var(--text-dim);
+        transition: transform 0.2s;
+        line-height: inherit;
+        flex-shrink: 0;
+      }
+      .markdown-body details[open] > summary::before {
+        transform: rotate(90deg);
+      }
+
+      /* Indent content to align with triangle */
+      .markdown-body details > *:not(summary) {
+        margin-left: 1.5em;
+      }
+
+      /* Reset margins for headings inside summary to avoid double spacing */
+      .markdown-body details > summary > h2,
+      .markdown-body details > summary > h3,
+      .markdown-body details > summary > h4,
+      .markdown-body details > summary > h5,
+      .markdown-body details > summary > h6 {
+        margin-top: 0;
+        margin-bottom: 0;
+        flex-grow: 1;
+        width: 100%;
+      }
+
       /* Markdown Elements */
       .markdown-body {
         font-family: var(--font-markdown);
@@ -700,6 +771,37 @@
         margin-bottom: 16px;
         font-weight: var(--font-weight-bold);
         line-height: 1.25;
+      }
+
+      .markdown-body h1 {
+        font-size: 1.75em;
+        background: #E8E6E1;
+        padding: 6px 12px;
+        border-radius: var(--radius-md);
+        display: inline-block;
+      }
+
+      .markdown-body h2 {
+        font-size: 1.35em;
+        padding-bottom: 0.2em;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .markdown-body h3 {
+        font-size: 1.15em;
+      }
+
+      .markdown-body h4 {
+        font-size: 1em;
+      }
+
+      .markdown-body h5 {
+        font-size: 0.9em;
+      }
+
+      .markdown-body h6 {
+        font-size: 0.85em;
+        color: var(--text-dim);
       }
 
       .markdown-body a {
@@ -1143,10 +1245,10 @@
       /* TOC Sidebar */
       .toc-sidebar {
         position: fixed;
-        top: 33vh;
+        top: 20vh;
         left: 20px;
         width: 220px;
-        bottom: 33vh;
+        bottom: 20vh;
         overflow-y: auto;
         padding-right: 12px;
         /* Vertical padding to offset mask */
@@ -1219,12 +1321,6 @@
       <div class="header">
         <h1>Klaude Code</h1>
         <div class="meta-grid">
-          <div class="meta-item">
-            <span class="meta-label">First Message</span>
-            <span class="meta-value" title="$first_user_message"
-              >$first_user_message</span
-            >
-          </div>
           <div class="meta-item">
             <span class="meta-label">Model</span>
             <span class="meta-value">$model_name</span>
@@ -1308,9 +1404,31 @@
       mermaid.initialize({
         startOnLoad: true,
         theme: "neutral",
-        fontFamily:
-          markdownMonoFont ||
-          'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace',
+        themeVariables: {
+          fontFamily:
+            markdownMonoFont ||
+            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace",
+          fontSize: "14px",
+          lineColor: "#5c6c7f",
+        },
+        flowchart: {
+          useMaxWidth: false,
+          htmlLabels: true,
+          curve: "basis",
+          nodeSpacing: 30,
+          rankSpacing: 40,
+          ranker: "tight-tree",
+          diagramPadding: 10,
+          wrappingWidth: 250,
+        },
+        sequence: { useMaxWidth: false },
+        gantt: { useMaxWidth: false },
+        journey: { useMaxWidth: false },
+        class: { useMaxWidth: false },
+        state: { useMaxWidth: false },
+        er: { useMaxWidth: false },
+        pie: { useMaxWidth: false },
+        securityLevel: "loose",
       });
     </script>
     <script>
@@ -1319,6 +1437,65 @@
         el.textContent = el.textContent.trim();
       });
 
+      // Process markdown for collapsible sections
+      // foldH2: if true, H2 headers start collapsed; otherwise all headers start open
+      function structureMarkdown(root, foldH2 = false) {
+        // Find all headings
+        const headers = Array.from(root.querySelectorAll("h1, h2, h3, h4, h5, h6"));
+        if (!headers.length) return;
+
+        const stack = [{ element: root, level: 0 }];
+        const children = Array.from(root.childNodes);
+        
+        root.innerHTML = '';
+
+        children.forEach(node => {
+          let level = 100; // Content level
+          if (node.tagName && /^H[1-6]$$/.test(node.tagName)) {
+            level = parseInt(node.tagName.substring(1));
+          }
+
+          if (level === 1) {
+            // H1: not collapsible, just append directly
+            while (stack.length > 1) {
+              stack.pop();
+            }
+            stack[0].element.appendChild(node);
+
+          } else if (level >= 2 && level < 100) {
+            // H2-H6: collapsible
+            // Close any open sections that are deeper or same level
+            while (stack.length > 1 && stack[stack.length - 1].level >= level) {
+              stack.pop();
+            }
+
+            // Create new section
+            const details = document.createElement('details');
+            const summary = document.createElement('summary');
+            
+            // Move header into summary
+            summary.appendChild(node);
+            details.appendChild(summary);
+
+            // Default open state: fold H2 only if foldH2 is true
+            if (!(foldH2 && level === 2)) {
+              details.setAttribute('open', '');
+            }
+
+            // Append this details to the current parent in stack
+            stack[stack.length - 1].element.appendChild(details);
+            
+            // Push to stack as the new current container
+            stack.push({ element: details, level: level });
+
+          } else {
+            // Content node (p, ul, text, etc)
+            // Append to current container
+            stack[stack.length - 1].element.appendChild(node);
+          }
+        });
+      }
+
       // Markdown rendering and Syntax Highlighting
       document.querySelectorAll(".markdown-content").forEach((el) => {
         const raw = el.dataset.raw;
@@ -1326,12 +1503,17 @@
           // 1. Render Markdown
           el.innerHTML = window.marked.parse(raw);
 
-          // 2. Apply Syntax Highlighting to generated code blocks
+          // 2. Apply Syntax Highlighting
           if (window.hljs) {
             el.querySelectorAll("pre code").forEach((block) => {
               hljs.highlightElement(block);
             });
           }
+
+          // 3. Make headings collapsible
+          // Sub-agent results: fold H2 by default; others: all open
+          const foldH2 = el.classList.contains("sub-agent-rendered");
+          structureMarkdown(el, foldH2);
         }
       });
 
@@ -1655,11 +1837,11 @@
               if (roleLabel) {
                 if (roleLabel.classList.contains("user")) {
                   userCount++;
-                  label = `USER $${userCount}`;
+                  label = `USER $$$${userCount}`;
                   idPrefix = "user";
                 } else if (roleLabel.classList.contains("assistant")) {
                   assistantCount++;
-                  label = `ASSISTANT $${assistantCount}`;
+                  label = `ASSISTANT $$$${assistantCount}`;
                   idPrefix = "assistant";
                 } else {
                   label = roleLabel.textContent.trim();
@@ -1670,6 +1852,30 @@
               if (toolName) {
                 label = toolName.textContent.trim();
                 idPrefix = "tool";
+
+                // Try to extract description for Sub Agents
+                try {
+                  const argsContent = child.querySelector(".tool-args-content");
+                  if (argsContent) {
+                    const argsText = argsContent.textContent.trim();
+                    if (argsText.startsWith("{")) {
+                      const args = JSON.parse(argsText);
+                      if (
+                        args &&
+                        typeof args.description === "string" &&
+                        args.description.trim()
+                      ) {
+                        let desc = args.description.trim();
+                        if (desc.length > 30) {
+                          desc = desc.substring(0, 30) + "...";
+                        }
+                        label = label + " - " + desc;
+                      }
+                    }
+                  }
+                } catch (e) {
+                  // Ignore JSON parse errors
+                }
               } else {
                 label = "Tool";
               }
@@ -1678,7 +1884,7 @@
             if (label) {
               child.id =
                 child.id ||
-                `$${idPrefix}-$${Math.random().toString(36).substr(2, 9)}`;
+                `$$$${idPrefix}-$$$${Math.random().toString(36).substr(2, 9)}`;
               sections.push({ id: child.id, label: label, el: child });
             }
           });

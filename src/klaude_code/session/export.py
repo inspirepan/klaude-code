@@ -308,13 +308,17 @@ def _try_render_todo_args(arguments: str, tool_name: str) -> str | None:
         return None
 
 
-def _render_sub_agent_result(content: str) -> str:
+def _render_sub_agent_result(content: str, description: str | None = None) -> str:
     # Try to format as JSON for better readability
     try:
         parsed = json.loads(content)
         formatted = "```json\n" + json.dumps(parsed, ensure_ascii=False, indent=2) + "\n```"
     except (json.JSONDecodeError, TypeError):
         formatted = content
+
+    if description:
+        formatted = f"# {description}\n\n{formatted}"
+
     encoded = _escape_html(formatted)
     return (
         f'<div class="sub-agent-result-container">'
@@ -628,7 +632,15 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
 
         if result.output and not should_hide_text:
             if is_sub_agent_tool(tool_call.name):
-                items_to_render.append(_render_sub_agent_result(result.output))
+                description = None
+                try:
+                    args = json.loads(tool_call.arguments)
+                    if isinstance(args, dict):
+                        typed_args = cast(dict[str, Any], args)
+                        description = cast(str | None, typed_args.get("description"))
+                except (json.JSONDecodeError, TypeError):
+                    pass
+                items_to_render.append(_render_sub_agent_result(result.output, description))
             else:
                 items_to_render.append(_render_text_block(result.output))
 

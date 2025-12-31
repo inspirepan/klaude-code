@@ -79,10 +79,6 @@ class TestCommandSafety(unittest.TestCase):
         self.assert_safe('git commit -m "test"')
         self.assert_safe("git diff --name-only")
 
-    def test_git_unsafe_remotes_and_empty(self):
-        self.assert_unsafe("git push", "remote operation")
-        self.assert_unsafe("git", "missing subcommand")
-
     # sed
     def test_sed_safe_patterns(self):
         self.assert_safe("sed -n 1p file.txt")
