@@ -62,6 +62,7 @@ class Session(BaseModel):
     need_todo_not_used_cooldown_counter: int = Field(exclude=True, default=0)
 
     _messages_count_cache: int | None = PrivateAttr(default=None)
+    _user_messages_cache: list[str] | None = PrivateAttr(default=None)
     _store: JsonlSessionStore = PrivateAttr(default_factory=get_default_store)
 
     @property
@@ -77,6 +78,20 @@ class Session(BaseModel):
 
     def _invalidate_messages_count_cache(self) -> None:
         self._messages_count_cache = None
+
+    @property
+    def user_messages(self) -> list[str]:
+        """All user message contents in this session.
+
+        This is used for session selection UI and search, and is also persisted
+        in meta.json to avoid scanning events.jsonl for every session.
+        """
+
+        if self._user_messages_cache is None:
+            self._user_messages_cache = [
+                it.content for it in self.conversation_history if isinstance(it, model.UserMessageItem) and it.content
+            ]
+        return self._user_messages_cache
 
     @staticmethod
     def _project_key() -> str:
@@ -178,6 +193,18 @@ class Session(BaseModel):
         self.conversation_history.extend(items)
         self._invalidate_messages_count_cache()
 
+        new_user_messages = [
+            it.content for it in items if isinstance(it, model.UserMessageItem) and it.content
+        ]
+        if new_user_messages:
+            if self._user_messages_cache is None:
+                # Build from full history once to ensure correctness when resuming older sessions.
+                self._user_messages_cache = [
+                    it.content for it in self.conversation_history if isinstance(it, model.UserMessageItem) and it.content
+                ]
+            else:
+                self._user_messages_cache.extend(new_user_messages)
+
         if self.created_at <= 0:
             self.created_at = time.time()
         self.updated_at = time.time()
@@ -188,6 +215,7 @@ class Session(BaseModel):
             sub_agent_state=self.sub_agent_state,
             file_tracker=self.file_tracker,
             todos=list(self.todos),
+            user_messages=self.user_messages,
             created_at=self.created_at,
             updated_at=self.updated_at,
             messages_count=self.messages_count,
@@ -378,6 +406,17 @@ class Session(BaseModel):
                 pass
             return messages
 
+        def _maybe_backfill_user_messages(*, meta_path: Path, meta: dict[str, Any], user_messages: list[str]) -> None:
+            if isinstance(meta.get("user_messages"), list):
+                return
+            meta["user_messages"] = user_messages
+            try:
+                tmp_path = meta_path.with_suffix(".json.tmp")
+                tmp_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+                tmp_path.replace(meta_path)
+            except OSError:
+                return
+
         items: list[Session.SessionMetaBrief] = []
         for meta_path in store.iter_meta_files():
             data = _read_json_dict(meta_path)
@@ -390,7 +429,15 @@ class Session(BaseModel):
             created = float(data.get("created_at", meta_path.stat().st_mtime))
             updated = float(data.get("updated_at", meta_path.stat().st_mtime))
             work_dir = str(data.get("work_dir", ""))
-            user_messages = _get_user_messages(sid)
+
+            user_messages_raw = data.get("user_messages")
+            if isinstance(user_messages_raw, list) and all(
+                isinstance(m, str) for m in cast(list[object], user_messages_raw)
+            ):
+                user_messages = cast(list[str], user_messages_raw)
+            else:
+                user_messages = _get_user_messages(sid)
+                _maybe_backfill_user_messages(meta_path=meta_path, meta=data, user_messages=user_messages)
             messages_count = int(data.get("messages_count", -1))
             model_name = data.get("model_name") if isinstance(data.get("model_name"), str) else None
 

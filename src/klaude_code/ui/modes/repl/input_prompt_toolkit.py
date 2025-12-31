@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import shutil
-import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 from typing import NamedTuple, override
@@ -244,9 +242,6 @@ class PromptToolkitInput(InputProviderABC):
         self._on_change_thinking = on_change_thinking
         self._get_current_llm_config = get_current_llm_config
         self._command_info_provider = command_info_provider
-
-        self._toast_message: str | None = None
-        self._toast_until: float = 0.0
 
         # Use provided value if available to avoid redundant TTY queries that may interfere
         # with prompt_toolkit's terminal state after interactive UIs have been used.
@@ -494,7 +489,6 @@ class PromptToolkitInput(InputProviderABC):
         if self._on_change_model is None:
             return
         await self._on_change_model(model_name)
-        self._set_toast(f"model: {model_name}")
 
     # -------------------------------------------------------------------------
     # Thinking picker
@@ -537,38 +531,7 @@ class PromptToolkitInput(InputProviderABC):
         new_thinking = parse_thinking_value(value)
         if new_thinking is None:
             return
-
-        # Build toast label
-        if value.startswith("effort:"):
-            toast_label = value[7:]
-        elif value.startswith("budget:"):
-            budget = int(value[7:])
-            toast_label = "off" if budget == 0 else f"{budget} tokens"
-        else:
-            toast_label = "updated"
-
         await self._on_change_thinking(new_thinking)
-        self._set_toast(f"thinking: {toast_label}")
-
-    # -------------------------------------------------------------------------
-    # Toast notifications
-    # -------------------------------------------------------------------------
-
-    def _set_toast(self, message: str, *, duration_sec: float = 2.0) -> None:
-        self._toast_message = message
-        self._toast_until = time.monotonic() + duration_sec
-        with contextlib.suppress(Exception):
-            self._session.app.invalidate()
-
-        async def _clear_later() -> None:
-            await asyncio.sleep(duration_sec)
-            self._toast_message = None
-            self._toast_until = 0.0
-            with contextlib.suppress(Exception):
-                self._session.app.invalidate()
-
-        with contextlib.suppress(Exception):
-            self._session.app.create_background_task(_clear_later())
 
     # -------------------------------------------------------------------------
     # Bottom toolbar
@@ -588,23 +551,17 @@ class PromptToolkitInput(InputProviderABC):
             except (AttributeError, RuntimeError):
                 update_message = None
 
-        toast: str | None = None
-        now = time.monotonic()
-        if self._toast_message is not None and now < self._toast_until:
-            toast = self._toast_message
-
         # If nothing to show, return a blank line to actively clear any previously
         # rendered content. (When `bottom_toolbar` is a callable, prompt_toolkit
         # will still reserve the toolbar line.)
-        if not toast and not update_message:
+        if not update_message:
             try:
                 terminal_width = shutil.get_terminal_size().columns
             except (OSError, ValueError):
                 terminal_width = 0
             return FormattedText([("", " " * max(0, terminal_width))])
 
-        parts = [p for p in [toast, update_message] if p]
-        left_text = " " + " · ".join(parts)
+        left_text = " " + update_message
         try:
             terminal_width = shutil.get_terminal_size().columns
             padding = " " * max(0, terminal_width - len(left_text))
@@ -667,7 +624,10 @@ class PromptToolkitInput(InputProviderABC):
                 with contextlib.suppress(Exception):
                     self._pre_prompt()
 
-            with patch_stdout():
+            # Keep ANSI escape sequences intact while prompt_toolkit is active.
+            # This allows Rich-rendered panels (e.g. WelcomeEvent) to display with
+            # proper styling instead of showing raw escape codes.
+            with patch_stdout(raw=True):
                 line: str = await self._session.prompt_async(
                     placeholder=self._render_input_placeholder(),
                     bottom_toolbar=self._get_bottom_toolbar,

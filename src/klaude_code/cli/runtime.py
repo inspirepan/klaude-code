@@ -379,7 +379,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 model_name=model_name,
                 save_as_default=False,
                 defer_thinking_selection=True,
-                emit_welcome_event=False,
+                emit_welcome_event=True,
                 emit_switch_message=False,
             )
         )
@@ -398,7 +398,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             op.ChangeThinkingOperation(
                 session_id=sid,
                 thinking=thinking,
-                emit_welcome_event=False,
+                emit_welcome_event=True,
                 emit_switch_message=False,
             )
         )

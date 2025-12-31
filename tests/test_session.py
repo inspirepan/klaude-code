@@ -734,6 +734,55 @@ class TestSessionListAndClean:
 
         arun(_test())
 
+    def test_list_sessions_backfills_user_messages_to_meta(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        from klaude_code.session.codec import encode_jsonl_line
+
+        session_id = "backfill_test"
+        paths = Session.paths()
+        session_dir = paths.session_dir(session_id)
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        events_path = paths.events_file(session_id)
+        events_path.write_text(
+            "".join(
+                [
+                    encode_jsonl_line(model.UserMessageItem(content="m1")),
+                    encode_jsonl_line(model.AssistantMessageItem(content="a1")),
+                    encode_jsonl_line(model.UserMessageItem(content="m2")),
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        meta_path = paths.meta_file(session_id)
+        meta_path.write_text(
+            json.dumps(
+                {
+                    "id": session_id,
+                    "work_dir": str(project_dir),
+                    "sub_agent_state": None,
+                    "created_at": time.time() - 10,
+                    "updated_at": time.time() - 5,
+                    "messages_count": 3,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        sessions = Session.list_sessions()
+        assert len(sessions) == 1
+        assert sessions[0].id == session_id
+        assert sessions[0].user_messages == ["m1", "m2"]
+
+        backfilled = json.loads(meta_path.read_text(encoding="utf-8"))
+        assert backfilled["user_messages"] == ["m1", "m2"]
+
 
 class TestForkSessionCommand:
     def test_fork_session_empty_does_not_create_session(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
