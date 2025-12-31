@@ -145,6 +145,19 @@ def _indent_multiline_tokens(
     return out
 
 
+def _normalize_search_key(value: str) -> str:
+    """Normalize a search key for loose matching.
+
+    This enables aliases like:
+    - gpt52 -> gpt-5.2
+    - gpt5.2 -> gpt-5.2
+
+    Strategy: case-fold + keep only alphanumeric characters.
+    """
+
+    return "".join(ch for ch in value.casefold() if ch.isalnum())
+
+
 def _filter_items[T](
     items: list[SelectItem[T]],
     filter_text: str,
@@ -155,8 +168,18 @@ def _filter_items[T](
     if not filter_text:
         return list(range(len(items))), True
 
-    needle = filter_text.lower()
-    matched = [i for i, it in enumerate(items) if needle in it.search_text.lower()]
+    needle = filter_text.casefold()
+    needle_norm = _normalize_search_key(filter_text)
+
+    def _is_match(it: SelectItem[T]) -> bool:
+        haystack = it.search_text.casefold()
+        if needle in haystack:
+            return True
+        if needle_norm:
+            return needle_norm in _normalize_search_key(it.search_text)
+        return False
+
+    matched = [i for i, it in enumerate(items) if _is_match(it)]
     if matched:
         return matched, True
     return list(range(len(items))), False

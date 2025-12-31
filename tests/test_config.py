@@ -751,6 +751,36 @@ class TestMatchModelFromConfig:
         assert len(result.filtered_models) == 2
 
 
+class TestTerminalSelectorFilter:
+    def test_type_to_search_supports_normalized_aliases(self) -> None:
+        # The interactive selector's "type to search" should behave like the config matcher:
+        # allow gpt52 to match gpt-5.2 (ignore punctuation).
+        from klaude_code.ui.terminal import selector as selector_module
+
+        items = [
+            selector_module.SelectItem(title=[("", "")], value="gpt-5.2", search_text="gpt-5.2"),
+            selector_module.SelectItem(title=[("", "")], value="gpt-4", search_text="gpt-4"),
+        ]
+
+        filter_items = selector_module._filter_items  # pyright: ignore[reportPrivateUsage]
+        visible_indices, matched = filter_items(items, "gpt52")
+        assert visible_indices == [0]
+        assert matched is True
+
+    def test_type_to_search_reports_no_match(self) -> None:
+        from klaude_code.ui.terminal import selector as selector_module
+
+        items = [
+            selector_module.SelectItem(title=[("", "")], value="gpt-5.2", search_text="gpt-5.2"),
+            selector_module.SelectItem(title=[("", "")], value="gpt-4", search_text="gpt-4"),
+        ]
+
+        filter_items = selector_module._filter_items  # pyright: ignore[reportPrivateUsage]
+        visible_indices, matched = filter_items(items, "does-not-exist")
+        assert visible_indices == [0, 1]
+        assert matched is False
+
+
 # =============================================================================
 # config_path Tests
 # =============================================================================
