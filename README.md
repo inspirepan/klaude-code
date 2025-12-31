@@ -125,20 +125,62 @@ klaude config
 
 ##### Adding Models to Built-in Providers
 
-You can add custom models to existing providers without redefining the entire provider:
+You can add custom models to existing built-in providers without redefining the entire provider. Just reference the `provider_name` and add your `model_list`:
 
 ```yaml
-# Just specify provider_name and your new models - no need for protocol/api_key
+# ~/.klaude/klaude-config.yaml
 provider_list:
-  - provider_name: openrouter
+  - provider_name: openrouter  # Reference existing built-in provider
     model_list:
-      - model_name: my-custom-model
+      - model_name: seed
         model_params:
-          model: some-provider/some-model-id
-          context_limit: 200000
+          model: bytedance-seed/seed-1.6  # Model ID from OpenRouter
+          context_limit: 262000
+          cost:
+            input: 0.25
+            output: 2
 ```
 
-Your models are merged with built-in models. To override a built-in model, use the same `model_name`.
+**How merging works:**
+- Your models are merged with the built-in models for that provider
+- You only need `provider_name` and `model_list` - protocol, api_key, etc. are inherited from the built-in config
+- To override a built-in model, use the same `model_name` (e.g., `sonnet` to customize the built-in sonnet)
+
+**More examples:**
+
+```yaml
+provider_list:
+  # Add multiple models to OpenRouter
+  - provider_name: openrouter
+    model_list:
+      - model_name: qwen-coder
+        model_params:
+          model: qwen/qwen-2.5-coder-32b-instruct
+          context_limit: 131072
+          cost:
+            input: 0.3
+            output: 0.9
+      - model_name: llama-405b
+        model_params:
+          model: meta-llama/llama-3.1-405b-instruct
+          context_limit: 131072
+          cost:
+            input: 0.8
+            output: 0.8
+
+  # Add models to Anthropic provider
+  - provider_name: anthropic
+    model_list:
+      - model_name: haiku@ant
+        model_params:
+          model: claude-3-5-haiku-20241022
+          context_limit: 200000
+          cost:
+            input: 1.0
+            output: 5.0
+```
+
+After adding models, run `klaude list` to verify they appear in the model list.
 
 ##### Overriding Provider Settings
 
@@ -209,6 +251,8 @@ provider_list:
 - `openai` - OpenAI-compatible API
 - `responses` - OpenAI Responses API (for o-series, GPT-5, Codex)
 - `openrouter` - OpenRouter API
+- `google` - Google Gemini API
+- `bedrock` - AWS Bedrock (uses AWS credentials instead of api_key)
 - `codex` - OpenAI Codex CLI (OAuth-based)
 
 List configured providers and models:

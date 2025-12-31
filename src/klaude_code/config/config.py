@@ -257,6 +257,11 @@ def get_example_config() -> UserConfig:
                             model="model-id-from-provider",
                             max_tokens=16000,
                             context_limit=200000,
+                            cost=llm_param.Cost(
+                                input=1,
+                                output=10,
+                                cache_read=0.1,
+                            ),
                         ),
                     ),
                 ],
