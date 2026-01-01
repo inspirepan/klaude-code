@@ -139,8 +139,8 @@ class StatusCommand(CommandABC):
 
         event = events.DeveloperMessageEvent(
             session_id=session.id,
-            item=model.DeveloperMessageItem(
-                content=format_status_content(aggregated),
+            item=model.DeveloperMessage(
+                parts=model.text_parts_from_str(format_status_content(aggregated)),
                 command_output=model.CommandOutput(
                     command_name=self.name,
                     ui_extra=model.SessionStatusUIExtra(

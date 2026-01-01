@@ -60,7 +60,7 @@ def get_assistant_image_output_dir(session_id: str | None) -> Path:
 
 def save_assistant_image(
     *, data_url: str, session_id: str | None, response_id: str | None, image_index: int
-) -> model.AssistantImage:
+) -> model.ImageFilePart:
     """Decode a data URL image and save it to the session image artifacts directory."""
 
     mime_type, decoded = parse_data_url_image(data_url)
@@ -79,7 +79,7 @@ def save_assistant_image(
     file_path = output_dir / f"img-{response_part}-{image_index}-{ts}{ext}"
     file_path.write_bytes(decoded)
 
-    return model.AssistantImage(
+    return model.ImageFilePart(
         file_path=str(file_path),
         mime_type=mime_type,
         byte_size=len(decoded),
@@ -87,7 +87,7 @@ def save_assistant_image(
     )
 
 
-def assistant_image_to_data_url(image: model.AssistantImage) -> str:
+def assistant_image_to_data_url(image: model.ImageFilePart) -> str:
     """Load an assistant image from disk and encode it as a base64 data URL.
 
     This is primarily used for multi-turn image editing, where providers require

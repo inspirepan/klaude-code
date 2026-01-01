@@ -1,14 +1,17 @@
+from collections.abc import Sequence
 from datetime import datetime
 from enum import Enum
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from klaude_code import const
 from klaude_code.protocol.commands import CommandName
 from klaude_code.protocol.tools import SubAgentType
 
 RoleType = Literal["system", "developer", "user", "assistant", "tool"]
+StopReason = Literal["stop", "length", "tool_use", "error", "aborted"]
+ToolStatus = Literal["success", "error", "aborted"]
 TodoStatusType = Literal["pending", "in_progress", "completed"]
 
 
@@ -32,6 +35,11 @@ class Usage(BaseModel):
     output_cost: float | None = None  # Cost for output tokens (including reasoning)
     cache_read_cost: float | None = None  # Cost for cached tokens
     currency: str = "USD"  # Currency for cost display (USD or CNY)
+    response_id: str | None = None
+    model_name: str = ""
+    provider: str | None = None  # OpenRouter's provider name
+    task_duration_s: float | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
 
     @computed_field
     @property
@@ -193,7 +201,6 @@ class AtPatternParseResult(BaseModel):
     result: str
     tool_args: str
     operation: Literal["Read", "List"]
-    images: list["ImageURLPart"] | None = None
     mentioned_in: str | None = None  # Parent file that referenced this file
 
 
@@ -215,113 +222,13 @@ class SubAgentState(BaseModel):
 """
 Models for LLM API input and response items.
 
-A typical sequence of response items is:
-- [StartItem]
-- [ReasoningTextItem | ReasoningEncryptedItem]
-- [AssistantMessageDelta | AssistantImageDelta] × n
-- [AssistantMessageItem]
-- [ToolCallItem] × n
-- [ResponseMetadataItem]
-- Done
-
-A conversation history input contains:
-- [UserMessageItem]
-- [ReasoningTextItem | ReasoningEncryptedItem]
-- [AssistantMessageItem]
-- [ToolCallItem]
-- [ToolResultItem]
-- [InterruptItem]
-- [DeveloperMessageItem]
-
-When adding a new item, please also modify the following:
-- session/codec.py (ConversationItem registry derived from ConversationItem union)
+History is persisted as HistoryEvent (messages + error/task metadata).
+Streaming-only items are emitted at runtime but never persisted.
 """
 
 
 class StartItem(BaseModel):
     response_id: str
-    created_at: datetime = Field(default_factory=datetime.now)
-
-
-class InterruptItem(BaseModel):
-    created_at: datetime = Field(default_factory=datetime.now)
-
-
-class SystemMessageItem(BaseModel):
-    id: str | None = None
-    role: RoleType = "system"
-    content: str | None = None
-    created_at: datetime = Field(default_factory=datetime.now)
-
-
-class DeveloperMessageItem(BaseModel):
-    id: str | None = None
-    role: RoleType = "developer"
-    content: str | None = None  # For LLM input
-    images: list["ImageURLPart"] | None = None
-    created_at: datetime = Field(default_factory=datetime.now)
-
-    # Special fields for reminders UI
-    memory_paths: list[str] | None = None
-    memory_mentioned: dict[str, list[str]] | None = None  # memory_path -> list of @ patterns mentioned in it
-    external_file_changes: list[str] | None = None
-    todo_use: bool | None = None
-    at_files: list[AtPatternParseResult] | None = None
-    command_output: CommandOutput | None = None
-    user_image_count: int | None = None
-    skill_name: str | None = None  # Skill name activated via $skill syntax
-
-
-class ImageURLPart(BaseModel):
-    class ImageURL(BaseModel):
-        url: str
-        id: str | None = None
-
-    image_url: ImageURL
-
-
-class UserInputPayload(BaseModel):
-    """Structured payload for user input containing text and optional images.
-
-    This is the unified data structure for user input across the entire
-    UI -> CLI -> Executor -> Agent -> Task chain.
-    """
-
-    text: str
-    images: list["ImageURLPart"] | None = None
-
-
-class UserMessageItem(BaseModel):
-    id: str | None = None
-    role: RoleType = "user"
-    content: str | None = None
-    images: list[ImageURLPart] | None = None
-    created_at: datetime = Field(default_factory=datetime.now)
-
-
-class AssistantMessageItem(BaseModel):
-    id: str | None = None
-    role: RoleType = "assistant"
-    content: str | None = None
-    images: list["AssistantImage"] | None = None
-    response_id: str | None = None
-    created_at: datetime = Field(default_factory=datetime.now)
-
-
-class ReasoningTextItem(BaseModel):
-    id: str | None = None
-    response_id: str | None = None
-    content: str
-    model: str | None = None
-    created_at: datetime = Field(default_factory=datetime.now)
-
-
-class ReasoningEncryptedItem(BaseModel):
-    id: str | None = None
-    response_id: str | None = None
-    encrypted_content: str  # OpenAI encrypted content or Anthropic thinking signature
-    format: str | None = None
-    model: str | None
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -338,45 +245,9 @@ class ToolCallStartItem(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
-class ToolCallItem(BaseModel):
-    id: str | None = None
-    response_id: str | None = None
-    call_id: str
-    name: str
-    arguments: str
-    created_at: datetime = Field(default_factory=datetime.now)
-
-
-class ToolResultItem(BaseModel):
-    call_id: str = ""  # This field will auto set by tool registry's run_tool
-    output: str | None = None
-    status: Literal["success", "error"]
-    tool_name: str | None = None  # This field will auto set by tool registry's run_tool
-    ui_extra: ToolResultUIExtra | None = None  # Extra data for UI display, e.g. diff render
-    images: list[ImageURLPart] | None = None
-    side_effects: list[ToolSideEffect] | None = None
-    task_metadata: "TaskMetadata | None" = None  # Sub-agent task metadata for propagation to main agent
-    created_at: datetime = Field(default_factory=datetime.now)
-
-
 class AssistantMessageDelta(BaseModel):
     response_id: str | None = None
     content: str
-    created_at: datetime = Field(default_factory=datetime.now)
-
-
-class AssistantImage(BaseModel):
-    """A saved assistant-generated image.
-
-    Notes:
-    - We persist only the file path (and small metadata) to avoid storing huge
-      base64 payloads in conversation history.
-    """
-
-    file_path: str
-    mime_type: str | None = None
-    byte_size: int | None = None
-    sha256: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -388,7 +259,7 @@ class AssistantImageDelta(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
-class ReasoningTextDelta(BaseModel):
+class ThinkingTextDelta(BaseModel):
     response_id: str | None = None
     content: str
     created_at: datetime = Field(default_factory=datetime.now)
@@ -396,17 +267,6 @@ class ReasoningTextDelta(BaseModel):
 
 class StreamErrorItem(BaseModel):
     error: str
-    created_at: datetime = Field(default_factory=datetime.now)
-
-
-class ResponseMetadataItem(BaseModel):
-    """Metadata for a single LLM response (turn-level)."""
-
-    response_id: str | None = None
-    usage: Usage | None = None
-    model_name: str = ""
-    provider: str | None = None  # OpenRouter's provider name
-    task_duration_s: float | None = None
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -486,31 +346,152 @@ class TaskMetadataItem(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
-MessageItem = (
-    UserMessageItem
-    | AssistantMessageItem
-    | SystemMessageItem
-    | DeveloperMessageItem
-    | ReasoningTextItem
-    | ReasoningEncryptedItem
-    | ToolCallItem
-    | ToolResultItem
-)
+class TextPart(BaseModel):
+    type: Literal["text"] = "text"
+    text: str
 
 
-StreamItem = AssistantMessageDelta | AssistantImageDelta | ReasoningTextDelta
+class ImageURLPart(BaseModel):
+    type: Literal["image_url"] = "image_url"
+    url: str
+    id: str | None = None
 
-ConversationItem = (
-    StartItem
-    | InterruptItem
-    | StreamErrorItem
-    | StreamItem
-    | MessageItem
-    | ResponseMetadataItem
-    | TaskMetadataItem
-    | ToolCallStartItem
-)
+
+class ImageFilePart(BaseModel):
+    type: Literal["image_file"] = "image_file"
+    file_path: str
+    mime_type: str | None = None
+    byte_size: int | None = None
+    sha256: str | None = None
+
+
+class ThinkingTextPart(BaseModel):
+    type: Literal["thinking_text"] = "thinking_text"
+    id: str | None = None
+    text: str
+    model_id: str | None = None
+
+
+class ThinkingSignaturePart(BaseModel):
+    type: Literal["thinking_signature"] = "thinking_signature"
+    id: str | None = None
+    signature: str
+    model_id: str | None = None
+    format: str | None = None
+
+
+class ToolCallPart(BaseModel):
+    type: Literal["tool_call"] = "tool_call"
+    call_id: str
+    tool_name: str
+    arguments_json: str
+
+
+Part = Annotated[
+    TextPart | ImageURLPart | ImageFilePart | ThinkingTextPart | ThinkingSignaturePart | ToolCallPart,
+    Field(discriminator="type"),
+]
+
+
+def _empty_parts() -> list[Part]:
+    return []
+
+
+class MessageBase(BaseModel):
+    id: str | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    response_id: str | None = None
+
+
+class SystemMessage(MessageBase):
+    role: Literal["system"] = "system"
+    parts: list[TextPart]
+
+
+class DeveloperMessage(MessageBase):
+    role: Literal["developer"] = "developer"
+    parts: list[Part]
+
+    # Special fields for reminders UI
+    memory_paths: list[str] | None = None
+    memory_mentioned: dict[str, list[str]] | None = None  # memory_path -> list of @ patterns mentioned in it
+    external_file_changes: list[str] | None = None
+    todo_use: bool | None = None
+    at_files: list[AtPatternParseResult] | None = None
+    command_output: CommandOutput | None = None
+    user_image_count: int | None = None
+    skill_name: str | None = None  # Skill name activated via $skill syntax
+
+
+class UserMessage(MessageBase):
+    role: Literal["user"] = "user"
+    parts: list[Part]
+
+
+class AssistantMessage(MessageBase):
+    role: Literal["assistant"] = "assistant"
+    parts: list[Part]
+    usage: Usage | None = None
+    stop_reason: StopReason | None = None
+
+
+class ToolResultMessage(MessageBase):
+    role: Literal["tool"] = "tool"
+    call_id: str = ""
+    tool_name: str = ""
+    status: ToolStatus
+    output_text: str
+    parts: list[Part] = Field(default_factory=_empty_parts)
+    ui_extra: ToolResultUIExtra | None = None
+    side_effects: list[ToolSideEffect] | None = None
+    task_metadata: "TaskMetadata | None" = None  # Sub-agent task metadata for propagation to main agent
+
+    @field_validator("parts")
+    @classmethod
+    def _ensure_non_text_parts(cls, parts: list[Part]) -> list[Part]:
+        if any(isinstance(part, TextPart) for part in parts):
+            raise ValueError("ToolResultMessage.parts must not include text parts")
+        return parts
+
+
+Message = SystemMessage | DeveloperMessage | UserMessage | AssistantMessage | ToolResultMessage
+
+HistoryEvent = Message | StreamErrorItem | TaskMetadataItem
+
+StreamItem = AssistantMessageDelta | AssistantImageDelta | ThinkingTextDelta | ToolCallStartItem | StartItem | Usage
+
+LLMStreamItem = HistoryEvent | StreamItem
+
+
+class UserInputPayload(BaseModel):
+    """Structured payload for user input containing text and optional images.
+
+    This is the unified data structure for user input across the entire
+    UI -> CLI -> Executor -> Agent -> Task chain.
+    """
+
+    text: str
+    images: list[ImageURLPart] | None = None
 
 
 def todo_list_str(todos: list[TodoItem]) -> str:
     return "[" + "\n".join(f"[{todo.status}] {todo.content}" for todo in todos) + "]\n"
+
+
+def text_parts_from_str(text: str | None) -> list[Part]:
+    if not text:
+        return []
+    return [TextPart(text=text)]
+
+
+def parts_from_text_and_images(text: str | None, images: list[ImageURLPart] | None) -> list[Part]:
+    parts: list[Part] = []
+    if text:
+        parts.append(TextPart(text=text))
+    if images:
+        parts.extend(images)
+    return parts
+
+
+def join_text_parts(parts: Sequence[Part]) -> str:
+    return "".join(part.text for part in parts if isinstance(part, TextPart))

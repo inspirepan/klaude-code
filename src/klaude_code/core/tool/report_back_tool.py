@@ -72,13 +72,13 @@ class ReportBackTool:
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultMessage:
         """Execute the report_back tool.
 
         The actual handling of report_back results is done by TurnExecutor.
         This method just returns a success status to maintain the tool call flow.
         """
-        return model.ToolResultItem(
+        return model.ToolResultMessage(
             status="success",
-            output="Result reported successfully. Task will end.",
+            output_text="Result reported successfully. Task will end.",
         )

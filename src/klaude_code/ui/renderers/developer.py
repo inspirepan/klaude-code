@@ -124,17 +124,18 @@ def render_command_output(e: events.DeveloperMessageEvent) -> RenderableType:
     if not e.item.command_output:
         return Text("")
 
+    content = model.join_text_parts(e.item.parts)
     match e.item.command_output.command_name:
         case commands.CommandName.HELP:
-            return Padding.indent(Text.from_markup(e.item.content or ""), level=2)
+            return Padding.indent(Text.from_markup(content or ""), level=2)
         case commands.CommandName.STATUS:
             return _render_status_output(e.item.command_output)
         case commands.CommandName.RELEASE_NOTES:
-            return Padding.indent(NoInsetMarkdown(e.item.content or ""), level=2)
+            return Padding.indent(NoInsetMarkdown(content or ""), level=2)
         case commands.CommandName.FORK_SESSION:
             return _render_fork_session_output(e.item.command_output)
         case _:
-            content = e.item.content or "(no content)"
+            content = content or "(no content)"
             style = ThemeKey.TOOL_RESULT if not e.item.command_output.is_error else ThemeKey.ERROR
             return Padding.indent(truncate_display(content, base_style=style), level=2)
 

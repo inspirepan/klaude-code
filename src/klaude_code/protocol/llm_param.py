@@ -4,7 +4,7 @@ from typing import Any, Literal
 from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaValue
 
-from klaude_code.protocol.model import ConversationItem
+from klaude_code.protocol.model import Message
 
 
 class LLMClientProtocol(Enum):
@@ -162,7 +162,7 @@ class LLMCallParameter(LLMConfigModelParameter):
     """
 
     # Agent
-    input: list[ConversationItem]
+    input: list[Message]
     system: str | None = None
     tools: list[ToolSchema] | None = None
     session_id: str | None = None

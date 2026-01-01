@@ -41,8 +41,8 @@ Available slash commands:"""
 
         event = events.DeveloperMessageEvent(
             session_id=agent.session.id,
-            item=model.DeveloperMessageItem(
-                content="\n".join(lines),
+            item=model.DeveloperMessage(
+                parts=model.text_parts_from_str("\n".join(lines)),
                 command_output=model.CommandOutput(command_name=self.name),
             ),
         )

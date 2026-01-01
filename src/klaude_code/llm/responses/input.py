@@ -6,29 +6,43 @@ from typing import Any
 
 from openai.types import responses
 
+from klaude_code.llm.input_common import DeveloperAttachment, attach_developer_messages, merge_reminder_text
 from klaude_code.protocol import llm_param, model
 
 
 def _build_user_content_parts(
-    user: model.UserMessageItem,
+    user: model.UserMessage,
+    attachment: DeveloperAttachment,
 ) -> list[responses.ResponseInputContentParam]:
     parts: list[responses.ResponseInputContentParam] = []
-    if user.content is not None:
-        parts.append({"type": "input_text", "text": user.content})
-    for image in user.images or []:
-        parts.append({"type": "input_image", "detail": "auto", "image_url": image.image_url.url})
+    for part in user.parts:
+        if isinstance(part, model.TextPart):
+            parts.append({"type": "input_text", "text": part.text})
+        elif isinstance(part, model.ImageURLPart):
+            parts.append({"type": "input_image", "detail": "auto", "image_url": part.url})
+    if attachment.text:
+        parts.append({"type": "input_text", "text": attachment.text})
+    for image in attachment.images:
+        parts.append({"type": "input_image", "detail": "auto", "image_url": image.url})
     if not parts:
         parts.append({"type": "input_text", "text": ""})
     return parts
 
 
-def _build_tool_result_item(tool: model.ToolResultItem) -> responses.ResponseInputItemParam:
+def _build_tool_result_item(
+    tool: model.ToolResultMessage,
+    attachment: DeveloperAttachment,
+) -> responses.ResponseInputItemParam:
     content_parts: list[responses.ResponseInputContentParam] = []
-    text_output = tool.output or "<system-reminder>Tool ran without output or errors</system-reminder>"
+    text_output = merge_reminder_text(
+        tool.output_text or "<system-reminder>Tool ran without output or errors</system-reminder>",
+        attachment.text,
+    )
     if text_output:
         content_parts.append({"type": "input_text", "text": text_output})
-    for image in tool.images or []:
-        content_parts.append({"type": "input_image", "detail": "auto", "image_url": image.image_url.url})
+    images = [part for part in tool.parts if isinstance(part, model.ImageURLPart)] + attachment.images
+    for image in images:
+        content_parts.append({"type": "input_image", "detail": "auto", "image_url": image.url})
 
     item: dict[str, Any] = {
         "type": "function_call_output",
@@ -39,103 +53,103 @@ def _build_tool_result_item(tool: model.ToolResultItem) -> responses.ResponseInp
 
 
 def convert_history_to_input(
-    history: list[model.ConversationItem],
+    history: list[model.Message],
     model_name: str | None = None,
 ) -> responses.ResponseInputParam:
-    """
-    Convert a list of conversation items to a list of response input params.
-
-    Args:
-        history: List of conversation items.
-        model_name: Model name. Used to verify that signatures are valid for the same model.
-    """
+    """Convert a list of messages to response input params."""
     items: list[responses.ResponseInputItemParam] = []
 
-    pending_reasoning_text: str | None = None
     degraded_thinking_texts: list[str] = []
 
-    for item in history:
-        match item:
-            case model.ReasoningTextItem() as item:
-                # For now, we only store the text. We wait for the encrypted item to output both.
-                # If no encrypted item follows (e.g. incomplete stream?), this text might be lost
-                # or we can choose to output it if the next item is NOT reasoning?
-                # For now, based on instructions, we pair them.
-                if model_name != item.model:
-                    # Cross-model: collect thinking text for degradation
-                    if item.content:
-                        degraded_thinking_texts.append(item.content)
-                    continue
-                pending_reasoning_text = item.content
-
-            case model.ReasoningEncryptedItem() as item:
-                if item.encrypted_content and len(item.encrypted_content) > 0 and model_name == item.model:
-                    items.append(convert_reasoning_inputs(pending_reasoning_text, item))
-                # Reset pending text after consumption
-                pending_reasoning_text = None
-
-            case model.ToolCallItem() as t:
-                items.append(
-                    {
-                        "type": "function_call",
-                        "name": t.name,
-                        "arguments": t.arguments,
-                        "call_id": t.call_id,
-                        "id": t.id,
-                    }
-                )
-            case model.ToolResultItem() as t:
-                items.append(_build_tool_result_item(t))
-            case model.AssistantMessageItem() as a:
-                items.append(
-                    {
-                        "type": "message",
-                        "role": "assistant",
-                        "id": a.id,
-                        "content": [
-                            {
-                                "type": "output_text",
-                                "text": a.content,
-                            }
-                        ],
-                    }
-                )
-            case model.UserMessageItem() as u:
+    for message, attachment in attach_developer_messages(history):
+        match message:
+            case model.SystemMessage():
+                system_text = "\n".join(part.text for part in message.parts)
+                if system_text:
+                    items.append(
+                        {
+                            "type": "message",
+                            "role": "system",
+                            "content": [
+                                {
+                                    "type": "input_text",
+                                    "text": system_text,
+                                }
+                            ],
+                        }
+                    )
+            case model.UserMessage():
                 items.append(
                     {
                         "type": "message",
                         "role": "user",
-                        "id": u.id,
-                        "content": _build_user_content_parts(u),
+                        "id": message.id,
+                        "content": _build_user_content_parts(message, attachment),
                     }
                 )
-            case model.DeveloperMessageItem() as d:
-                dev_parts: list[responses.ResponseInputContentParam] = []
-                if d.content is not None:
-                    dev_parts.append({"type": "input_text", "text": d.content})
-                for image in d.images or []:
-                    dev_parts.append(
+            case model.ToolResultMessage():
+                items.append(_build_tool_result_item(message, attachment))
+            case model.AssistantMessage():
+                assistant_text_parts: list[responses.ResponseInputContentParam] = []
+                pending_thinking_text: str | None = None
+                pending_signature: str | None = None
+
+                def flush_text(*, _message_id: str = message.id) -> None:
+                    nonlocal assistant_text_parts
+                    if not assistant_text_parts:
+                        return
+                    items.append(
                         {
-                            "type": "input_image",
-                            "detail": "auto",
-                            "image_url": image.image_url.url,
+                            "type": "message",
+                            "role": "assistant",
+                            "id": _message_id,
+                            "content": assistant_text_parts,
                         }
                     )
-                if not dev_parts:
-                    dev_parts.append({"type": "input_text", "text": ""})
-                items.append(
-                    {
-                        "type": "message",
-                        "role": "user",  # GPT-5 series do not support image in "developer" role, so we set it to "user"
-                        "id": d.id,
-                        "content": dev_parts,
-                    }
-                )
+                    assistant_text_parts = []
+
+                def emit_reasoning() -> None:
+                    nonlocal pending_thinking_text, pending_signature
+                    if pending_thinking_text is None:
+                        return
+                    items.append(convert_reasoning_inputs(pending_thinking_text, pending_signature))
+                    pending_thinking_text = None
+                    pending_signature = None
+
+                for part in message.parts:
+                    if isinstance(part, model.ThinkingTextPart):
+                        if part.model_id and model_name and part.model_id != model_name:
+                            degraded_thinking_texts.append(part.text)
+                            continue
+                        emit_reasoning()
+                        pending_thinking_text = part.text
+                        continue
+                    if isinstance(part, model.ThinkingSignaturePart):
+                        if part.model_id and model_name and part.model_id != model_name:
+                            continue
+                        pending_signature = part.signature
+                        continue
+
+                    emit_reasoning()
+                    if isinstance(part, model.TextPart):
+                        assistant_text_parts.append({"type": "output_text", "text": part.text})
+                    elif isinstance(part, model.ToolCallPart):
+                        flush_text()
+                        items.append(
+                            {
+                                "type": "function_call",
+                                "name": part.tool_name,
+                                "arguments": part.arguments_json,
+                                "call_id": part.call_id,
+                                "id": part.call_id,
+                            }
+                        )
+
+                emit_reasoning()
+                flush_text()
             case _:
-                # Other items may be Metadata
                 continue
 
-    # Cross-model: degrade thinking to plain text with <thinking> tags
     if degraded_thinking_texts:
         degraded_item: responses.ResponseInputItemParam = {
             "type": "message",
@@ -152,21 +166,16 @@ def convert_history_to_input(
     return items
 
 
-def convert_reasoning_inputs(
-    text_content: str | None, encrypted_item: model.ReasoningEncryptedItem
-) -> responses.ResponseInputItemParam:
-    result = {"type": "reasoning", "content": None}
-
+def convert_reasoning_inputs(text_content: str | None, signature: str | None) -> responses.ResponseInputItemParam:
+    result: dict[str, Any] = {"type": "reasoning", "content": None}
     result["summary"] = [
         {
             "type": "summary_text",
             "text": text_content or "",
         }
     ]
-    if encrypted_item.encrypted_content:
-        result["encrypted_content"] = encrypted_item.encrypted_content
-    if encrypted_item.id is not None:
-        result["id"] = encrypted_item.id
+    if signature:
+        result["encrypted_content"] = signature
     return result
 
 

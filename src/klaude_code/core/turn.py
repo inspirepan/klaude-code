@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from klaude_code.core.task import SessionContext
 
 from klaude_code.core.tool.tool_runner import (
+    ToolCallRequest,
     ToolExecutionCallStarted,
     ToolExecutionResult,
     ToolExecutionTodoChange,
@@ -44,9 +45,8 @@ class TurnExecutionContext:
 class TurnResult:
     """Aggregated state produced while executing a turn."""
 
-    reasoning_items: list[model.ReasoningTextItem | model.ReasoningEncryptedItem]
-    assistant_message: model.AssistantMessageItem | None
-    tool_calls: list[model.ToolCallItem]
+    assistant_message: model.AssistantMessage | None
+    tool_calls: list[ToolCallRequest]
     stream_error: model.StreamErrorItem | None
     report_back_result: str | None = field(default=None)
 
@@ -63,23 +63,26 @@ def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEv
                     session_id=session_id,
                     response_id=tool_call.response_id,
                     tool_call_id=tool_call.call_id,
-                    tool_name=tool_call.name,
-                    arguments=tool_call.arguments,
+                    tool_name=tool_call.tool_name,
+                    arguments=tool_call.arguments_json,
                 )
             )
         case ToolExecutionResult(tool_call=tool_call, tool_result=tool_result):
+            status = "success" if tool_result.status == "success" else "error"
             ui_events.append(
                 events.ToolResultEvent(
                     session_id=session_id,
                     response_id=tool_call.response_id,
                     tool_call_id=tool_call.call_id,
-                    tool_name=tool_call.name,
-                    result=tool_result.output or "",
+                    tool_name=tool_call.tool_name,
+                    result=tool_result.output_text,
                     ui_extra=tool_result.ui_extra,
-                    status=tool_result.status,
+                    status=status,
                     task_metadata=tool_result.task_metadata,
                 )
             )
+            if tool_result.status == "aborted":
+                ui_events.append(events.InterruptEvent(session_id=session_id))
         case ToolExecutionTodoChange(todos=todos):
             ui_events.append(
                 events.TodoChangeEvent(
@@ -132,8 +135,8 @@ class TurnExecutor:
             return self._turn_result.report_back_result
         if self._turn_result is not None and self._turn_result.assistant_message is not None:
             assistant_message = self._turn_result.assistant_message
-            text = assistant_message.content or ""
-            images = assistant_message.images or []
+            text = model.join_text_parts(assistant_message.parts)
+            images = [part for part in assistant_message.parts if isinstance(part, model.ImageFilePart)]
             if images:
                 image_lines = "\n".join(f"- {img.file_path}" for img in images if img.file_path)
                 if image_lines:
@@ -171,7 +174,6 @@ class TurnExecutor:
         yield events.TurnStartEvent(session_id=session_ctx.session_id)
 
         self._turn_result = TurnResult(
-            reasoning_items=[],
             assistant_message=None,
             tool_calls=[],
             stream_error=None,
@@ -199,8 +201,8 @@ class TurnExecutor:
     def _detect_report_back(self, turn_result: TurnResult) -> None:
         """Detect report_back tool call and store its arguments as JSON string."""
         for tool_call in turn_result.tool_calls:
-            if tool_call.name == tools.REPORT_BACK:
-                turn_result.report_back_result = tool_call.arguments
+            if tool_call.tool_name == tools.REPORT_BACK:
+                turn_result.report_back_result = tool_call.arguments_json
                 break
 
     async def _consume_llm_stream(self, turn_result: TurnResult) -> AsyncGenerator[events.Event]:
@@ -208,8 +210,16 @@ class TurnExecutor:
 
         ctx = self._context
         session_ctx = ctx.session_ctx
+        message_types = (
+            model.SystemMessage,
+            model.DeveloperMessage,
+            model.UserMessage,
+            model.AssistantMessage,
+            model.ToolResultMessage,
+        )
+        messages = [item for item in session_ctx.get_conversation_history() if isinstance(item, message_types)]
         call_param = llm_param.LLMCallParameter(
-            input=session_ctx.get_conversation_history(),
+            input=messages,
             system=ctx.system_prompt,
             tools=ctx.tools,
             session_id=session_ctx.session_id,
@@ -232,6 +242,8 @@ class TurnExecutor:
             if image_config.model_dump(exclude_none=True):
                 call_param.image_config = image_config
 
+        metadata_emitted = False
+
         async for response_item in ctx.llm_client.call(call_param):
             log_debug(
                 f"[{response_item.__class__.__name__}]",
@@ -242,16 +254,7 @@ class TurnExecutor:
             match response_item:
                 case model.StartItem():
                     continue
-                case model.ReasoningTextItem() as item:
-                    turn_result.reasoning_items.append(item)
-                    yield events.ThinkingEvent(
-                        content=item.content,
-                        response_id=item.response_id,
-                        session_id=session_ctx.session_id,
-                    )
-                case model.ReasoningEncryptedItem() as item:
-                    turn_result.reasoning_items.append(item)
-                case model.ReasoningTextDelta() as item:
+                case model.ThinkingTextDelta() as item:
                     yield events.ThinkingDeltaEvent(
                         content=item.content,
                         response_id=item.response_id,
@@ -272,14 +275,46 @@ class TurnExecutor:
                         response_id=item.response_id,
                         session_id=session_ctx.session_id,
                     )
-                case model.AssistantMessageItem() as item:
+                case model.AssistantMessage() as item:
+                    if item.response_id is None and self._assistant_response_id:
+                        item.response_id = self._assistant_response_id
                     turn_result.assistant_message = item
+                    for part in item.parts:
+                        if isinstance(part, model.ToolCallPart):
+                            turn_result.tool_calls.append(
+                                ToolCallRequest(
+                                    response_id=item.response_id,
+                                    call_id=part.call_id,
+                                    tool_name=part.tool_name,
+                                    arguments_json=part.arguments_json,
+                                )
+                            )
                     yield events.AssistantMessageEvent(
-                        content=item.content or "",
+                        content=model.join_text_parts(item.parts),
                         response_id=item.response_id,
                         session_id=session_ctx.session_id,
                     )
-                case model.ResponseMetadataItem() as item:
+                    if item.stop_reason == "aborted":
+                        yield events.InterruptEvent(session_id=session_ctx.session_id)
+                    if item.usage and not metadata_emitted:
+                        metadata_emitted = True
+                        metadata = item.usage
+                        if metadata.response_id is None:
+                            metadata.response_id = item.response_id
+                        if not metadata.model_name:
+                            metadata.model_name = ctx.llm_client.model_name
+                        if metadata.provider is None:
+                            metadata.provider = ctx.llm_client.get_llm_config().provider_name or None
+                        yield events.ResponseMetadataEvent(
+                            session_id=session_ctx.session_id,
+                            metadata=metadata,
+                        )
+                case model.Usage() as item:
+                    if not item.model_name:
+                        item.model_name = ctx.llm_client.model_name
+                    if item.provider is None:
+                        item.provider = ctx.llm_client.get_llm_config().provider_name or None
+                    metadata_emitted = True
                     yield events.ResponseMetadataEvent(
                         session_id=session_ctx.session_id,
                         metadata=item,
@@ -300,24 +335,18 @@ class TurnExecutor:
                         tool_name=item.name,
                         arguments="",
                     )
-                case model.ToolCallItem() as item:
-                    turn_result.tool_calls.append(item)
                 case _:
                     continue
 
     def _append_success_history(self, turn_result: TurnResult) -> None:
         """Persist successful turn artifacts to conversation history."""
         session_ctx = self._context.session_ctx
-        if turn_result.reasoning_items:
-            session_ctx.append_history(turn_result.reasoning_items)
         if turn_result.assistant_message:
             session_ctx.append_history([turn_result.assistant_message])
-        if turn_result.tool_calls:
-            session_ctx.append_history(turn_result.tool_calls)
         self._assistant_delta_buffer.clear()
         self._assistant_response_id = None
 
-    async def _run_tool_executor(self, tool_calls: list[model.ToolCallItem]) -> AsyncGenerator[events.Event]:
+    async def _run_tool_executor(self, tool_calls: list[ToolCallRequest]) -> AsyncGenerator[events.Event]:
         """Run tools for the turn and translate executor events to UI events."""
 
         ctx = self._context
@@ -350,9 +379,10 @@ class TurnExecutor:
         partial_text = "".join(self._assistant_delta_buffer) + "<system interrupted by user>"
         if not partial_text:
             return
-        message_item = model.AssistantMessageItem(
-            content=partial_text,
+        message = model.AssistantMessage(
+            parts=model.text_parts_from_str(partial_text),
             response_id=self._assistant_response_id,
+            stop_reason="aborted",
         )
-        self._context.session_ctx.append_history([message_item])
+        self._context.session_ctx.append_history([message])
         self._assistant_delta_buffer.clear()

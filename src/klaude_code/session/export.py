@@ -61,6 +61,21 @@ def _render_image_html(file_path: str, max_width: int = _IMAGE_MAX_DISPLAY_WIDTH
     return f'<div class="assistant-image-missing" style="color: var(--text-dim); font-style: italic;">Image not found: {_escape_html(short_path)}</div>'
 
 
+def _render_image_url_html(url: str, max_width: int = _IMAGE_MAX_DISPLAY_WIDTH) -> str:
+    """Render an image URL as HTML img tag."""
+    short_url = _escape_html(_shorten_path(url))
+    caption = ""
+    if not url.startswith("data:"):
+        caption = f'<div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">{short_url}</div>'
+    return (
+        f'<div class="assistant-image" style="margin: 8px 0;">'
+        f'<img src="{_escape_html(url)}" alt="Image" '
+        f'style="max-width: {max_width}px; border-radius: 4px; border: 1px solid var(--border);" />'
+        f"{caption}"
+        f"</div>"
+    )
+
+
 def _sanitize_filename(text: str) -> str:
     """Sanitize text for use in filename."""
     sanitized = re.sub(r"[^\w\s\u4e00-\u9fff-]", "", text)
@@ -89,11 +104,13 @@ def _format_msg_timestamp(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def get_first_user_message(history: list[model.ConversationItem]) -> str:
+def get_first_user_message(history: list[model.HistoryEvent]) -> str:
     """Extract the first user message content from conversation history."""
     for item in history:
-        if isinstance(item, model.UserMessageItem) and item.content:
-            content = item.content.strip()
+        if isinstance(item, model.UserMessage):
+            content = model.join_text_parts(item.parts).strip()
+            if not content:
+                continue
             first_line = content.split("\n")[0]
             return first_line[:100] if len(first_line) > 100 else first_line
     return "export"
@@ -288,14 +305,19 @@ def _render_assistant_message(
     index: int,
     content: str,
     timestamp: datetime,
-    images: list[model.AssistantImage] | None = None,
+    images: list[model.ImageFilePart | model.ImageURLPart] | None = None,
 ) -> str:
     encoded = _escape_html(content)
     ts_str = _format_msg_timestamp(timestamp)
 
     images_html = ""
     if images:
-        images_parts = [_render_image_html(img.file_path) for img in images]
+        images_parts: list[str] = []
+        for img in images:
+            if isinstance(img, model.ImageFilePart):
+                images_parts.append(_render_image_html(img.file_path))
+            else:
+                images_parts.append(_render_image_url_html(img.url))
         images_html = "".join(images_parts)
 
     return (
@@ -317,6 +339,29 @@ def _render_assistant_message(
         f"</div>"
         f"</div>"
     )
+
+
+def _extract_image_parts(parts: list[model.Part]) -> list[model.ImageFilePart | model.ImageURLPart]:
+    images: list[model.ImageFilePart | model.ImageURLPart] = []
+    for part in parts:
+        if isinstance(part, (model.ImageFilePart, model.ImageURLPart)):
+            images.append(part)
+    return images
+
+
+def _render_image_parts(images: list[model.ImageFilePart | model.ImageURLPart]) -> str:
+    rendered: list[str] = []
+    for img in images:
+        if isinstance(img, model.ImageFilePart):
+            rendered.append(_render_image_html(img.file_path))
+        else:
+            rendered.append(_render_image_url_html(img.url))
+    return "".join(rendered)
+
+
+def _render_thinking_block(text: str) -> str:
+    encoded = _escape_html(text.strip())
+    return f'<div class="thinking-block markdown-body markdown-content" data-raw="{encoded}"></div>'
 
 
 def _try_render_todo_args(arguments: str, tool_name: str) -> str | None:
@@ -573,7 +618,7 @@ def _build_add_only_diff(text: str, file_path: str) -> model.DiffUIExtra:
 
 
 def _get_mermaid_link_html(
-    ui_extra: model.ToolResultUIExtra | None, tool_call: model.ToolCallItem | None = None
+    ui_extra: model.ToolResultUIExtra | None, tool_call: model.ToolCallPart | None = None
 ) -> str | None:
     code = ""
     link: str | None = None
@@ -584,9 +629,9 @@ def _get_mermaid_link_html(
         link = ui_extra.link
         line_count = ui_extra.line_count
 
-    if not code and tool_call and tool_call.name == "Mermaid":
+    if not code and tool_call and tool_call.tool_name == "Mermaid":
         try:
-            args = json.loads(tool_call.arguments)
+            args = json.loads(tool_call.arguments_json)
             code = args.get("code", "")
         except (json.JSONDecodeError, TypeError):
             code = ""
@@ -640,22 +685,26 @@ def _get_mermaid_link_html(
     return toolbar_html
 
 
-def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultItem | None) -> str:
+def _format_tool_call(
+    tool_call: model.ToolCallPart,
+    result: model.ToolResultMessage | None,
+    timestamp: datetime,
+) -> str:
     args_html = None
     is_todo_list = False
-    ts_str = _format_msg_timestamp(tool_call.created_at)
+    ts_str = _format_msg_timestamp(timestamp)
 
-    if tool_call.name in ("TodoWrite", "update_plan"):
-        args_html = _try_render_todo_args(tool_call.arguments, tool_call.name)
+    if tool_call.tool_name in ("TodoWrite", "update_plan"):
+        args_html = _try_render_todo_args(tool_call.arguments_json, tool_call.tool_name)
         if args_html:
             is_todo_list = True
 
     if args_html is None:
         try:
-            parsed = json.loads(tool_call.arguments)
+            parsed = json.loads(tool_call.arguments_json)
             args_text = json.dumps(parsed, ensure_ascii=False, indent=2)
         except (json.JSONDecodeError, TypeError):
-            args_text = tool_call.arguments
+            args_text = tool_call.arguments_json
 
         args_html = _escape_html(args_text or "")
 
@@ -668,12 +717,12 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
     else:
         # Always collapse Mermaid, Edit, Write tools by default
         always_collapse_tools = {"Mermaid", "Edit", "Write"}
-        force_collapse = tool_call.name in always_collapse_tools
+        force_collapse = tool_call.tool_name in always_collapse_tools
 
         # Collapse Memory tool for write operations
-        if tool_call.name == "Memory":
+        if tool_call.tool_name == "Memory":
             try:
-                parsed_args = json.loads(tool_call.arguments)
+                parsed_args = json.loads(tool_call.arguments_json)
                 if parsed_args.get("command") in {"create", "str_replace", "insert"}:
                     force_collapse = True
             except (json.JSONDecodeError, TypeError):
@@ -691,7 +740,7 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
     html_parts = [
         '<div class="tool-call">',
         '<div class="tool-header">',
-        f'<span class="tool-name">{_escape_html(tool_call.name)}</span>',
+        f'<span class="tool-name">{_escape_html(tool_call.tool_name)}</span>',
         '<div class="tool-header-right">',
         f'<span class="tool-id">{_escape_html(tool_call.call_id)}</span>',
         f'<span class="timestamp">{ts_str}</span>',
@@ -707,15 +756,15 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
         mermaid_source = mermaid_extra if mermaid_extra else result.ui_extra
         mermaid_html = _get_mermaid_link_html(mermaid_source, tool_call)
 
-        should_hide_text = tool_call.name in ("TodoWrite", "update_plan") and result.status != "error"
+        should_hide_text = tool_call.tool_name in ("TodoWrite", "update_plan") and result.status != "error"
 
         if (
-            tool_call.name == "Edit"
+            tool_call.tool_name == "Edit"
             and not any(isinstance(x, model.DiffUIExtra) for x in extras)
             and result.status != "error"
         ):
             try:
-                args_data = json.loads(tool_call.arguments)
+                args_data = json.loads(tool_call.arguments_json)
                 file_path = args_data.get("file_path", "Unknown file")
                 old_string = args_data.get("old_string", "")
                 new_string = args_data.get("new_string", "")
@@ -726,19 +775,26 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
 
         items_to_render: list[str] = []
 
-        if result.output and not should_hide_text:
-            if is_sub_agent_tool(tool_call.name):
+        image_parts = _extract_image_parts(result.parts)
+        for img in image_parts:
+            if isinstance(img, model.ImageFilePart):
+                items_to_render.append(_render_image_html(img.file_path))
+            else:
+                items_to_render.append(_render_image_url_html(img.url))
+
+        if result.output_text and not should_hide_text:
+            if is_sub_agent_tool(tool_call.tool_name):
                 description = None
                 try:
-                    args = json.loads(tool_call.arguments)
+                    args = json.loads(tool_call.arguments_json)
                     if isinstance(args, dict):
                         typed_args = cast(dict[str, Any], args)
                         description = cast(str | None, typed_args.get("description"))
                 except (json.JSONDecodeError, TypeError):
                     pass
-                items_to_render.append(_render_sub_agent_result(result.output, description))
+                items_to_render.append(_render_sub_agent_result(result.output_text, description))
             else:
-                items_to_render.append(_render_text_block(result.output))
+                items_to_render.append(_render_text_block(result.output_text))
 
         for extra in extras:
             if isinstance(extra, model.DiffUIExtra):
@@ -749,11 +805,11 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
         if mermaid_html:
             items_to_render.append(mermaid_html)
 
-        if not items_to_render and not result.output and not should_hide_text:
+        if not items_to_render and not result.output_text and not should_hide_text:
             items_to_render.append('<div style="color: var(--text-dim); font-style: italic;">(empty output)</div>')
 
         if items_to_render:
-            status_class = result.status if result.status in ("success", "error") else "success"
+            status_class = "success" if result.status == "success" else "error"
             html_parts.append(f'<div class="tool-result {status_class}">')
             html_parts.extend(items_to_render)
             html_parts.append("</div>")
@@ -765,8 +821,8 @@ def _format_tool_call(tool_call: model.ToolCallItem, result: model.ToolResultIte
 
 
 def _build_messages_html(
-    history: list[model.ConversationItem],
-    tool_results: dict[str, model.ToolResultItem],
+    history: list[model.HistoryEvent],
+    tool_results: dict[str, model.ToolResultMessage],
     *,
     seen_session_ids: set[str] | None = None,
     nesting_level: int = 0,
@@ -777,43 +833,74 @@ def _build_messages_html(
     blocks: list[str] = []
     assistant_counter = 0
 
-    renderable_items = [
-        item
-        for item in history
-        if not isinstance(item, (model.ToolResultItem, model.ReasoningEncryptedItem, model.AssistantImageDelta))
-    ]
+    renderable_items = [item for item in history if not isinstance(item, model.ToolResultMessage)]
 
     for i, item in enumerate(renderable_items):
-        if isinstance(item, model.UserMessageItem):
-            text = _escape_html(item.content or "")
+        if isinstance(item, model.UserMessage):
+            text = model.join_text_parts(item.parts)
+            images = _extract_image_parts(item.parts)
+            images_html = _render_image_parts(images)
             ts_str = _format_msg_timestamp(item.created_at)
+            body_parts: list[str] = []
+            if images_html:
+                body_parts.append(images_html)
+            if text:
+                body_parts.append(f'<div style="white-space: pre-wrap;">{_escape_html(text)}</div>')
+            if not body_parts:
+                body_parts.append('<div style="color: var(--text-dim); font-style: italic;">(empty)</div>')
             blocks.append(
                 f'<div class="message-group">'
                 f'<div class="role-label user">'
                 f"User"
                 f'<span class="timestamp">{ts_str}</span>'
                 f"</div>"
-                f'<div class="message-content user" style="white-space: pre-wrap;">{text}</div>'
+                f'<div class="message-content user">{"".join(body_parts)}</div>'
                 f"</div>"
             )
-        elif isinstance(item, model.ReasoningTextItem):
-            text = _escape_html(item.content.strip())
-            blocks.append(f'<div class="thinking-block markdown-body markdown-content" data-raw="{text}"></div>')
-        elif isinstance(item, model.AssistantMessageItem):
+        elif isinstance(item, model.AssistantMessage):
             assistant_counter += 1
+            thinking_text = "".join(part.text for part in item.parts if isinstance(part, model.ThinkingTextPart))
+            if thinking_text:
+                blocks.append(_render_thinking_block(thinking_text))
+
+            assistant_images = _extract_image_parts(item.parts)
             blocks.append(
-                _render_assistant_message(assistant_counter, item.content or "", item.created_at, item.images)
+                _render_assistant_message(
+                    assistant_counter,
+                    model.join_text_parts(item.parts),
+                    item.created_at,
+                    assistant_images,
+                )
             )
+
+            for part in item.parts:
+                if isinstance(part, model.ToolCallPart):
+                    result = tool_results.get(part.call_id)
+                    blocks.append(_format_tool_call(part, result, item.created_at))
+                    if result is not None:
+                        sub_agent_html = _render_sub_agent_session(result, seen_session_ids, nesting_level)
+                        if sub_agent_html:
+                            blocks.append(sub_agent_html)
         elif isinstance(item, model.TaskMetadataItem):
             blocks.append(_render_metadata_item(item))
-        elif isinstance(item, model.DeveloperMessageItem):
-            content = _escape_html(item.content or "")
+        elif isinstance(item, model.DeveloperMessage):
+            content = model.join_text_parts(item.parts)
+            images = _extract_image_parts(item.parts)
+            images_html = _render_image_parts(images)
             ts_str = _format_msg_timestamp(item.created_at)
 
             next_item = renderable_items[i + 1] if i + 1 < len(renderable_items) else None
             extra_class = ""
-            if isinstance(next_item, (model.UserMessageItem, model.AssistantMessageItem)):
+            if isinstance(next_item, (model.UserMessage, model.AssistantMessage)):
                 extra_class = " gap-below"
+
+            detail_body = ""
+            if images_html:
+                detail_body += images_html
+            if content:
+                detail_body += f'<div style="white-space: pre-wrap;">{_escape_html(content)}</div>'
+            if not detail_body:
+                detail_body = '<div style="color: var(--text-dim); font-style: italic;">(empty)</div>'
 
             blocks.append(
                 f'<details class="developer-message{extra_class}">'
@@ -821,25 +908,29 @@ def _build_messages_html(
                 f"Developer"
                 f'<span class="timestamp">{ts_str}</span>'
                 f"</summary>"
-                f'<div class="details-content" style="white-space: pre-wrap;">{content}</div>'
+                f'<div class="details-content">{detail_body}</div>'
                 f"</details>"
             )
-
-        elif isinstance(item, model.ToolCallItem):
-            result = tool_results.get(item.call_id)
-            blocks.append(_format_tool_call(item, result))
-
-            # Recursively render sub-agent session history
-            if result is not None:
-                sub_agent_html = _render_sub_agent_session(result, seen_session_ids, nesting_level)
-                if sub_agent_html:
-                    blocks.append(sub_agent_html)
+        elif isinstance(item, model.SystemMessage):
+            content = model.join_text_parts(item.parts)
+            if not content:
+                continue
+            ts_str = _format_msg_timestamp(item.created_at)
+            blocks.append(
+                f'<details class="developer-message">'
+                f"<summary>"
+                f"System"
+                f'<span class="timestamp">{ts_str}</span>'
+                f"</summary>"
+                f'<div class="details-content" style="white-space: pre-wrap;">{_escape_html(content)}</div>'
+                f"</details>"
+            )
 
     return "\n".join(blocks)
 
 
 def _render_sub_agent_session(
-    tool_result: model.ToolResultItem,
+    tool_result: model.ToolResultMessage,
     seen_session_ids: set[str],
     nesting_level: int,
 ) -> str | None:
@@ -862,7 +953,7 @@ def _render_sub_agent_session(
         return None
 
     sub_history = sub_session.conversation_history
-    sub_tool_results = {item.call_id: item for item in sub_history if isinstance(item, model.ToolResultItem)}
+    sub_tool_results = {item.call_id: item for item in sub_history if isinstance(item, model.ToolResultMessage)}
 
     sub_html = _build_messages_html(
         sub_history,
@@ -902,7 +993,7 @@ def build_export_html(
         Complete HTML document as a string.
     """
     history = session.conversation_history
-    tool_results = {item.call_id: item for item in history if isinstance(item, model.ToolResultItem)}
+    tool_results = {item.call_id: item for item in history if isinstance(item, model.ToolResultMessage)}
     messages_html = _build_messages_html(history, tool_results)
     if not messages_html:
         messages_html = '<div class="text-dim p-4 italic">No messages recorded for this session yet.</div>'
@@ -911,7 +1002,9 @@ def build_export_html(
     session_id = session.id
     session_updated = _format_timestamp(session.updated_at)
     work_dir = _shorten_path(str(session.work_dir))
-    total_messages = len([item for item in history if not isinstance(item, model.ToolResultItem)])
+    total_messages = len(
+        [item for item in history if isinstance(item, model.Message) and not isinstance(item, model.ToolResultMessage)]
+    )
     footer_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     first_user_message = get_first_user_message(history)
 

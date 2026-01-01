@@ -93,23 +93,23 @@ class WebSearchTool(ToolABC):
         max_results: int = DEFAULT_MAX_RESULTS
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultMessage:
         try:
             args = WebSearchTool.WebSearchArguments.model_validate_json(arguments)
         except ValueError as e:
-            return model.ToolResultItem(
+            return model.ToolResultMessage(
                 status="error",
-                output=f"Invalid arguments: {e}",
+                output_text=f"Invalid arguments: {e}",
             )
         return await cls.call_with_args(args)
 
     @classmethod
-    async def call_with_args(cls, args: WebSearchArguments) -> model.ToolResultItem:
+    async def call_with_args(cls, args: WebSearchArguments) -> model.ToolResultMessage:
         query = args.query.strip()
         if not query:
-            return model.ToolResultItem(
+            return model.ToolResultMessage(
                 status="error",
-                output="Query cannot be empty",
+                output_text="Query cannot be empty",
             )
 
         max_results = min(max(args.max_results, 1), MAX_RESULTS_LIMIT)
@@ -118,13 +118,13 @@ class WebSearchTool(ToolABC):
             results = await asyncio.to_thread(_search_duckduckgo, query, max_results)
             formatted = _format_results(results)
 
-            return model.ToolResultItem(
+            return model.ToolResultMessage(
                 status="success",
-                output=formatted,
+                output_text=formatted,
             )
 
         except Exception as e:
-            return model.ToolResultItem(
+            return model.ToolResultMessage(
                 status="error",
-                output=f"Search failed: {e}",
+                output_text=f"Search failed: {e}",
             )

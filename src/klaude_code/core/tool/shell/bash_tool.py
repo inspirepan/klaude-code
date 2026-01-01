@@ -71,24 +71,24 @@ class BashTool(ToolABC):
         timeout_ms: int = const.BASH_DEFAULT_TIMEOUT_MS
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultMessage:
         try:
             args = BashTool.BashArguments.model_validate_json(arguments)
         except ValueError as e:
-            return model.ToolResultItem(
+            return model.ToolResultMessage(
                 status="error",
-                output=f"Invalid arguments: {e}",
+                output_text=f"Invalid arguments: {e}",
             )
         return await cls.call_with_args(args)
 
     @classmethod
-    async def call_with_args(cls, args: BashArguments) -> model.ToolResultItem:
+    async def call_with_args(cls, args: BashArguments) -> model.ToolResultMessage:
         # Safety check: only execute commands proven as "known safe"
         result = is_safe_command(args.command)
         if not result.is_safe:
-            return model.ToolResultItem(
+            return model.ToolResultMessage(
                 status="error",
-                output=f"Command rejected: {result.error_msg}",
+                output_text=f"Command rejected: {result.error_msg}",
             )
 
         # Run the command using bash -lc so shell semantics work (pipes, &&, etc.)
@@ -311,9 +311,9 @@ class BashTool(ToolABC):
             except TimeoutError:
                 with contextlib.suppress(Exception):
                     await _terminate_process(proc)
-                return model.ToolResultItem(
+                return model.ToolResultMessage(
                     status="error",
-                    output=f"Timeout after {args.timeout_ms} ms running: {args.command}",
+                    output_text=f"Timeout after {args.timeout_ms} ms running: {args.command}",
                 )
             except asyncio.CancelledError:
                 # Ensure subprocess is stopped and propagate cancellation.
@@ -332,11 +332,11 @@ class BashTool(ToolABC):
                     output = (output + ("\n" if output else "")) + f"[stderr]\n{stderr}"
 
                 _best_effort_update_file_tracker(args.command)
-                return model.ToolResultItem(
+                return model.ToolResultMessage(
                     status="success",
                     # Preserve leading whitespace for tools like `nl -ba`.
                     # Only trim trailing newlines to avoid adding an extra blank line in the UI.
-                    output=output.rstrip("\n"),
+                    output_text=output.rstrip("\n"),
                 )
             else:
                 combined = ""
@@ -346,21 +346,21 @@ class BashTool(ToolABC):
                     combined += f"[stderr]\n{stderr}"
                 if not combined:
                     combined = f"Command exited with code {rc}"
-                return model.ToolResultItem(
+                return model.ToolResultMessage(
                     status="error",
                     # Preserve leading whitespace; only trim trailing newlines.
-                    output=combined.rstrip("\n"),
+                    output_text=combined.rstrip("\n"),
                 )
         except FileNotFoundError:
-            return model.ToolResultItem(
+            return model.ToolResultMessage(
                 status="error",
-                output="bash not found on system path",
+                output_text="bash not found on system path",
             )
         except asyncio.CancelledError:
             # Propagate cooperative cancellation so outer layers can handle interrupts correctly.
             raise
         except OSError as e:  # safeguard: catch remaining OS-level errors (permissions, resources, etc.)
-            return model.ToolResultItem(
+            return model.ToolResultMessage(
                 status="error",
-                output=f"Execution error: {e}",
+                output_text=f"Execution error: {e}",
             )

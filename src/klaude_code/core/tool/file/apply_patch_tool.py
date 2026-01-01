@@ -18,16 +18,16 @@ from klaude_code.protocol import llm_param, model, tools
 
 class ApplyPatchHandler:
     @classmethod
-    async def handle_apply_patch(cls, patch_text: str) -> model.ToolResultItem:
+    async def handle_apply_patch(cls, patch_text: str) -> model.ToolResultMessage:
         try:
             output, ui_extra = await asyncio.to_thread(cls._apply_patch_in_thread, patch_text)
         except apply_patch_module.DiffError as error:
-            return model.ToolResultItem(status="error", output=str(error))
+            return model.ToolResultMessage(status="error", output_text=str(error))
         except Exception as error:  # pragma: no cover  # unexpected errors bubbled to tool result
-            return model.ToolResultItem(status="error", output=f"Execution error: {error}")
-        return model.ToolResultItem(
+            return model.ToolResultMessage(status="error", output_text=f"Execution error: {error}")
+        return model.ToolResultMessage(
             status="success",
-            output=output,
+            output_text=output,
             ui_extra=ui_extra,
         )
 
@@ -172,13 +172,13 @@ class ApplyPatchTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultMessage:
         try:
             args = cls.ApplyPatchArguments.model_validate_json(arguments)
         except ValueError as exc:
-            return model.ToolResultItem(status="error", output=f"Invalid arguments: {exc}")
+            return model.ToolResultMessage(status="error", output_text=f"Invalid arguments: {exc}")
         return await cls.call_with_args(args)
 
     @classmethod
-    async def call_with_args(cls, args: ApplyPatchArguments) -> model.ToolResultItem:
+    async def call_with_args(cls, args: ApplyPatchArguments) -> model.ToolResultMessage:
         return await ApplyPatchHandler.handle_apply_patch(args.patch)

@@ -9,7 +9,7 @@ from klaude_code.core.reminders import Reminder, load_agent_reminders
 from klaude_code.core.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.core.tool import build_todo_context, get_registry, load_agent_tools
 from klaude_code.llm import LLMClientABC
-from klaude_code.protocol import events, llm_param, model, tools
+from klaude_code.protocol import events, llm_param, tools
 from klaude_code.protocol.model import UserInputPayload
 from klaude_code.session import Session
 from klaude_code.trace import DebugType, log_debug
@@ -82,21 +82,12 @@ class Agent:
             self.session.model_name = profile.llm_client.model_name
 
     def cancel(self) -> Iterable[events.Event]:
-        """Handle agent cancellation and persist an interrupt marker and tool cancellations.
-
-        - Appends an `InterruptItem` into the session history so interruptions are reflected
-          in persisted conversation logs.
-        - For any tool calls that are pending or in-progress in the current task, delegate to
-          the active TaskExecutor to append synthetic ToolResultItem entries with error status
-          to indicate cancellation.
-        """
+        """Handle agent cancellation and tool cancellations."""
         # First, cancel any running task so it stops emitting events.
         if self._current_task is not None:
             yield from self._current_task.cancel()
             self._current_task = None
 
-        # Record an interrupt marker in the session history
-        self.session.append_history([model.InterruptItem()])
         log_debug(
             f"Session {self.session.id} interrupted",
             style="yellow",

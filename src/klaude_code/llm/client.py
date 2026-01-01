@@ -15,9 +15,9 @@ class LLMClientABC(ABC):
         pass
 
     @abstractmethod
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.LLMStreamItem]:
         raise NotImplementedError
-        yield cast(model.ConversationItem, None)
+        yield cast(model.LLMStreamItem, None)
 
     def get_llm_config(self) -> llm_param.LLMConfigParameter:
         return self._config

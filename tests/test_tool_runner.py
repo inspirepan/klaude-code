@@ -14,6 +14,7 @@ import pytest
 from klaude_code.core.tool.shell.bash_tool import BashTool
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.core.tool.tool_runner import (
+    ToolCallRequest,
     ToolExecutionCallStarted,
     ToolExecutionResult,
     ToolExecutionTodoChange,
@@ -41,8 +42,8 @@ class MockSuccessTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultItem:
-        return model.ToolResultItem(status="success", output="Success!")
+    async def call(cls, arguments: str) -> model.ToolResultMessage:
+        return model.ToolResultMessage(status="success", output_text="Success!")
 
 
 class MockErrorTool(ToolABC):
@@ -58,7 +59,7 @@ class MockErrorTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultMessage:
         raise ValueError("Something went wrong")
 
 
@@ -75,12 +76,12 @@ class MockTodoChangeTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultMessage:
         todos = [model.TodoItem(content="Test todo", status="pending")]
         ui_extra = model.TodoListUIExtra(todo_list=model.TodoUIExtra(todos=todos, new_completed=[]))
-        return model.ToolResultItem(
+        return model.ToolResultMessage(
             status="success",
-            output="Todo updated",
+            output_text="Todo updated",
             ui_extra=ui_extra,
             side_effects=[model.ToolSideEffect.TODO_CHANGE],
         )
@@ -103,8 +104,8 @@ class MockConcurrentTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultItem:
-        return model.ToolResultItem(status="success", output="Concurrent!")
+    async def call(cls, arguments: str) -> model.ToolResultMessage:
+        return model.ToolResultMessage(status="success", output_text="Concurrent!")
 
 
 class TestRunTool:
@@ -120,43 +121,46 @@ class TestRunTool:
 
     def test_successful_tool_call(self, registry: dict[str, type[ToolABC]]):
         """Test successful tool execution."""
-        tool_call = model.ToolCallItem(
+        tool_call = ToolCallRequest(
+            response_id=None,
             call_id="test_123",
-            name="MockSuccess",
-            arguments="{}",
+            tool_name="MockSuccess",
+            arguments_json="{}",
         )
         result = arun(run_tool(tool_call, registry))
 
         assert result.status == "success"
-        assert result.output == "Success!"
+        assert result.output_text == "Success!"
         assert result.call_id == "test_123"
         assert result.tool_name == "MockSuccess"
 
     def test_tool_not_found(self, registry: dict[str, type[ToolABC]]):
         """Test calling non-existent tool."""
-        tool_call = model.ToolCallItem(
+        tool_call = ToolCallRequest(
+            response_id=None,
             call_id="test_123",
-            name="NonExistent",
-            arguments="{}",
+            tool_name="NonExistent",
+            arguments_json="{}",
         )
         result = arun(run_tool(tool_call, registry))
 
         assert result.status == "error"
-        assert result.output is not None and "not exists" in result.output
+        assert result.output_text is not None and "not exists" in result.output_text
         assert result.tool_name == "NonExistent"
 
     def test_tool_exception_handling(self, registry: dict[str, type[ToolABC]]):
         """Test tool that raises exception."""
-        tool_call = model.ToolCallItem(
+        tool_call = ToolCallRequest(
+            response_id=None,
             call_id="test_123",
-            name="MockError",
-            arguments="{}",
+            tool_name="MockError",
+            arguments_json="{}",
         )
         result = arun(run_tool(tool_call, registry))
 
         assert result.status == "error"
-        assert result.output is not None and "ValueError" in result.output
-        assert "Something went wrong" in result.output
+        assert result.output_text is not None and "ValueError" in result.output_text
+        assert "Something went wrong" in result.output_text
 
 
 class TestToolExecutor:
@@ -170,22 +174,23 @@ class TestToolExecutor:
         }
 
     @pytest.fixture
-    def history(self) -> list[model.ConversationItem]:
+    def history(self) -> list[model.HistoryEvent]:
         return []
 
     @pytest.fixture
-    def executor(self, registry: dict[str, type[ToolABC]], history: list[model.ConversationItem]) -> ToolExecutor:
-        def append_history(items: Sequence[model.ConversationItem]) -> None:
+    def executor(self, registry: dict[str, type[ToolABC]], history: list[model.HistoryEvent]) -> ToolExecutor:
+        def append_history(items: Sequence[model.HistoryEvent]) -> None:
             history.extend(items)
 
         return ToolExecutor(registry=registry, append_history=append_history)
 
     def test_run_single_tool(self, executor: ToolExecutor):
         """Test running a single tool call."""
-        tool_call = model.ToolCallItem(
+        tool_call = ToolCallRequest(
+            response_id=None,
             call_id="test_123",
-            name="MockSuccess",
-            arguments="{}",
+            tool_name="MockSuccess",
+            arguments_json="{}",
         )
 
         async def collect_events() -> list[ToolExecutionCallStarted | ToolExecutionResult | ToolExecutionTodoChange]:
@@ -206,8 +211,8 @@ class TestToolExecutor:
     def test_run_multiple_tools_sequentially(self, executor: ToolExecutor):
         """Test running multiple regular tools sequentially."""
         tool_calls = [
-            model.ToolCallItem(call_id="test_1", name="MockSuccess", arguments="{}"),
-            model.ToolCallItem(call_id="test_2", name="MockSuccess", arguments="{}"),
+            ToolCallRequest(response_id=None, call_id="test_1", tool_name="MockSuccess", arguments_json="{}"),
+            ToolCallRequest(response_id=None, call_id="test_2", tool_name="MockSuccess", arguments_json="{}"),
         ]
 
         async def collect_events() -> list[ToolExecutionCallStarted | ToolExecutionResult | ToolExecutionTodoChange]:
@@ -227,10 +232,11 @@ class TestToolExecutor:
 
     def test_todo_change_side_effect(self, executor: ToolExecutor):
         """Test tool emitting todo change side effect."""
-        tool_call = model.ToolCallItem(
+        tool_call = ToolCallRequest(
+            response_id=None,
             call_id="test_123",
-            name="MockTodoChange",
-            arguments="{}",
+            tool_name="MockTodoChange",
+            arguments_json="{}",
         )
 
         async def collect_events() -> list[ToolExecutionCallStarted | ToolExecutionResult | ToolExecutionTodoChange]:
@@ -250,27 +256,29 @@ class TestToolExecutor:
     def test_cancel_unfinished_tools(self, executor: ToolExecutor):
         """Test cancelling unfinished tool calls."""
         # Manually add unfinished calls
-        tool_call = model.ToolCallItem(
+        tool_call = ToolCallRequest(
+            response_id=None,
             call_id="test_123",
-            name="MockSuccess",
-            arguments="{}",
+            tool_name="MockSuccess",
+            arguments_json="{}",
         )
         executor._unfinished_calls["test_123"] = tool_call
 
         events = list(executor.cancel())
 
-        # Should have call started and result (error) events
+        # Should have call started and result (aborted) events
         assert len(events) == 2
         assert isinstance(events[0], ToolExecutionCallStarted)
         assert isinstance(events[1], ToolExecutionResult)
-        assert events[1].tool_result.status == "error"
+        assert events[1].tool_result.status == "aborted"
 
     def test_cancel_already_emitted_call(self, executor: ToolExecutor):
         """Test cancelling call that was already emitted."""
-        tool_call = model.ToolCallItem(
+        tool_call = ToolCallRequest(
+            response_id=None,
             call_id="test_123",
-            name="MockSuccess",
-            arguments="{}",
+            tool_name="MockSuccess",
+            arguments_json="{}",
         )
         executor._unfinished_calls["test_123"] = tool_call
         executor._call_event_emitted.add("test_123")
@@ -293,8 +301,8 @@ class TestToolExecutorPartition:
     def test_partition_sequential_tools_only(self):
         """Test partitioning with only sequential tools."""
         tool_calls = [
-            model.ToolCallItem(call_id="1", name="Read", arguments="{}"),
-            model.ToolCallItem(call_id="2", name="Bash", arguments="{}"),
+            ToolCallRequest(response_id=None, call_id="1", tool_name="Read", arguments_json="{}"),
+            ToolCallRequest(response_id=None, call_id="2", tool_name="Bash", arguments_json="{}"),
         ]
         executor = ToolExecutor(
             registry={"Read": MockSuccessTool, "Bash": MockSuccessTool},
@@ -308,8 +316,8 @@ class TestToolExecutorPartition:
     def test_partition_concurrent_tools_only(self):
         """Test partitioning with only concurrent tools."""
         tool_calls = [
-            model.ToolCallItem(call_id="1", name="Task", arguments="{}"),
-            model.ToolCallItem(call_id="2", name="Explore", arguments="{}"),
+            ToolCallRequest(response_id=None, call_id="1", tool_name="Task", arguments_json="{}"),
+            ToolCallRequest(response_id=None, call_id="2", tool_name="Explore", arguments_json="{}"),
         ]
         executor = ToolExecutor(
             registry={"Task": MockConcurrentTool, "Explore": MockConcurrentTool},
@@ -323,9 +331,9 @@ class TestToolExecutorPartition:
     def test_partition_mixed_tools(self):
         """Test partitioning with mixed tool types."""
         tool_calls = [
-            model.ToolCallItem(call_id="1", name="Read", arguments="{}"),
-            model.ToolCallItem(call_id="2", name="Task", arguments="{}"),
-            model.ToolCallItem(call_id="3", name="Bash", arguments="{}"),
+            ToolCallRequest(response_id=None, call_id="1", tool_name="Read", arguments_json="{}"),
+            ToolCallRequest(response_id=None, call_id="2", tool_name="Task", arguments_json="{}"),
+            ToolCallRequest(response_id=None, call_id="3", tool_name="Bash", arguments_json="{}"),
         ]
         executor = ToolExecutor(
             registry={"Read": MockSuccessTool, "Bash": MockSuccessTool, "Task": MockConcurrentTool},
@@ -335,17 +343,17 @@ class TestToolExecutorPartition:
 
         assert len(sequential) == 2
         assert len(concurrent) == 1
-        assert sequential[0].name == "Read"
-        assert sequential[1].name == "Bash"
-        assert concurrent[0].name == "Task"
+        assert sequential[0].tool_name == "Read"
+        assert sequential[1].tool_name == "Bash"
+        assert concurrent[0].tool_name == "Task"
 
     def test_partition_web_tools_as_concurrent(self):
         """Test that web tools are partitioned as concurrent."""
         tool_calls = [
-            model.ToolCallItem(call_id="1", name="Read", arguments="{}"),
-            model.ToolCallItem(call_id="2", name="WebSearch", arguments="{}"),
-            model.ToolCallItem(call_id="3", name="WebFetch", arguments="{}"),
-            model.ToolCallItem(call_id="4", name="Task", arguments="{}"),
+            ToolCallRequest(response_id=None, call_id="1", tool_name="Read", arguments_json="{}"),
+            ToolCallRequest(response_id=None, call_id="2", tool_name="WebSearch", arguments_json="{}"),
+            ToolCallRequest(response_id=None, call_id="3", tool_name="WebFetch", arguments_json="{}"),
+            ToolCallRequest(response_id=None, call_id="4", tool_name="Task", arguments_json="{}"),
         ]
         executor = ToolExecutor(
             registry={
@@ -360,8 +368,8 @@ class TestToolExecutorPartition:
 
         assert len(sequential) == 1
         assert len(concurrent) == 3
-        assert sequential[0].name == "Read"
-        assert {c.name for c in concurrent} == {"WebSearch", "WebFetch", "Task"}
+        assert sequential[0].tool_name == "Read"
+        assert {c.tool_name for c in concurrent} == {"WebSearch", "WebFetch", "Task"}
 
 
 class TestToolExecutorEvents:
@@ -369,15 +377,15 @@ class TestToolExecutorEvents:
 
     def test_tool_execution_call_started(self):
         """Test ToolExecutionCallStarted dataclass."""
-        tool_call = model.ToolCallItem(call_id="123", name="Test", arguments="{}")
+        tool_call = ToolCallRequest(response_id=None, call_id="123", tool_name="Test", arguments_json="{}")
         event = ToolExecutionCallStarted(tool_call=tool_call)
         assert event.tool_call.call_id == "123"
-        assert event.tool_call.name == "Test"
+        assert event.tool_call.tool_name == "Test"
 
     def test_tool_execution_result(self):
         """Test ToolExecutionResult dataclass."""
-        tool_call = model.ToolCallItem(call_id="123", name="Test", arguments="{}")
-        tool_result = model.ToolResultItem(status="success", output="Done")
+        tool_call = ToolCallRequest(response_id=None, call_id="123", tool_name="Test", arguments_json="{}")
+        tool_result = model.ToolResultMessage(status="success", output_text="Done")
         event = ToolExecutionResult(tool_call=tool_call, tool_result=tool_result)
         assert event.tool_call.call_id == "123"
         assert event.tool_result.status == "success"
@@ -405,7 +413,7 @@ class TestBuildToolSideEffectEvents:
 
     def test_no_side_effects(self, executor: ToolExecutor):
         """Test result with no side effects."""
-        result = model.ToolResultItem(status="success", output="Done")
+        result = model.ToolResultMessage(status="success", output_text="Done")
         events = executor._build_tool_side_effect_events(result)
         assert events == []
 
@@ -413,9 +421,9 @@ class TestBuildToolSideEffectEvents:
         """Test todo change side effect generates event."""
         todos = [model.TodoItem(content="Task", status="pending")]
         ui_extra = model.TodoListUIExtra(todo_list=model.TodoUIExtra(todos=todos, new_completed=[]))
-        result = model.ToolResultItem(
+        result = model.ToolResultMessage(
             status="success",
-            output="Done",
+            output_text="Done",
             ui_extra=ui_extra,
             side_effects=[model.ToolSideEffect.TODO_CHANGE],
         )
@@ -427,9 +435,9 @@ class TestBuildToolSideEffectEvents:
 
     def test_todo_change_without_ui_extra(self, executor: ToolExecutor):
         """Test todo change side effect without proper ui_extra is ignored."""
-        result = model.ToolResultItem(
+        result = model.ToolResultMessage(
             status="success",
-            output="Done",
+            output_text="Done",
             side_effects=[model.ToolSideEffect.TODO_CHANGE],
         )
         events = executor._build_tool_side_effect_events(result)

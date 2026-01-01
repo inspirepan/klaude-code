@@ -163,14 +163,12 @@ class REPLRenderer:
                     case events.AssistantMessageEvent() as e:
                         if is_sub_agent:
                             continue
+                        if e.thinking_text:
+                            self.display_thinking(e.thinking_text)
                         renderable = r_assistant.render_assistant_message(e.content, code_theme=self.themes.code_theme)
                         if renderable is not None:
                             self.print(renderable)
                             self.print()
-                    case events.ThinkingEvent() as e:
-                        if is_sub_agent:
-                            continue
-                        self.display_thinking(e.content)
                     case events.DeveloperMessageEvent() as e:
                         self.display_developer_message(e)
                         self.display_command_output(e)

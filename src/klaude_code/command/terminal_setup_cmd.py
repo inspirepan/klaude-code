@@ -227,8 +227,8 @@ class TerminalSetupCommand(CommandABC):
             events=[
                 events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=model.DeveloperMessageItem(
-                        content=message,
+                    item=model.DeveloperMessage(
+                        parts=model.text_parts_from_str(message),
                         command_output=model.CommandOutput(command_name=self.name, is_error=False),
                     ),
                 )
@@ -241,8 +241,8 @@ class TerminalSetupCommand(CommandABC):
             events=[
                 events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=model.DeveloperMessageItem(
-                        content=message,
+                    item=model.DeveloperMessage(
+                        parts=model.text_parts_from_str(message),
                         command_output=model.CommandOutput(command_name=self.name, is_error=True),
                     ),
                 )

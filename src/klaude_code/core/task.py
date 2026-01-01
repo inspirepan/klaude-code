@@ -33,38 +33,37 @@ class MetadataAccumulator:
         self._first_token_latency_count: int = 0
         self._turn_count: int = 0
 
-    def add(self, turn_metadata: model.ResponseMetadataItem) -> None:
-        """Merge a turn's metadata into the accumulated state."""
+    def add(self, turn_usage: model.Usage) -> None:
+        """Merge a turn's usage into the accumulated state."""
         self._turn_count += 1
-        usage = turn_metadata.usage
+        usage = turn_usage
 
-        if usage is not None:
-            if self._main_agent.usage is None:
-                self._main_agent.usage = model.Usage()
-            acc_usage = self._main_agent.usage
+        if self._main_agent.usage is None:
+            self._main_agent.usage = model.Usage()
+        acc_usage = self._main_agent.usage
 
-            model.TaskMetadata.merge_usage(acc_usage, usage)
-            acc_usage.currency = usage.currency
+        model.TaskMetadata.merge_usage(acc_usage, usage)
+        acc_usage.currency = usage.currency
 
-            if usage.context_size is not None:
-                acc_usage.context_size = usage.context_size
-            if usage.context_limit is not None:
-                acc_usage.context_limit = usage.context_limit
+        if usage.context_size is not None:
+            acc_usage.context_size = usage.context_size
+        if usage.context_limit is not None:
+            acc_usage.context_limit = usage.context_limit
 
-            if usage.first_token_latency_ms is not None:
-                self._first_token_latency_sum += usage.first_token_latency_ms
-                self._first_token_latency_count += 1
+        if usage.first_token_latency_ms is not None:
+            self._first_token_latency_sum += usage.first_token_latency_ms
+            self._first_token_latency_count += 1
 
-            if usage.throughput_tps is not None:
-                current_output = usage.output_tokens
-                if current_output > 0:
-                    self._throughput_weighted_sum += usage.throughput_tps * current_output
-                    self._throughput_tracked_tokens += current_output
+        if usage.throughput_tps is not None:
+            current_output = usage.output_tokens
+            if current_output > 0:
+                self._throughput_weighted_sum += usage.throughput_tps * current_output
+                self._throughput_tracked_tokens += current_output
 
-        if turn_metadata.provider is not None:
-            self._main_agent.provider = turn_metadata.provider
-        if turn_metadata.model_name:
-            self._main_agent.model_name = turn_metadata.model_name
+        if usage.provider is not None:
+            self._main_agent.provider = usage.provider
+        if usage.model_name:
+            self._main_agent.model_name = usage.model_name
 
     def add_sub_agent_metadata(self, sub_agent_metadata: model.TaskMetadata) -> None:
         """Add sub-agent task metadata to the accumulated state."""
@@ -98,8 +97,8 @@ class SessionContext:
     """
 
     session_id: str
-    get_conversation_history: Callable[[], list[model.ConversationItem]]
-    append_history: Callable[[Sequence[model.ConversationItem]], None]
+    get_conversation_history: Callable[[], list[model.HistoryEvent]]
+    append_history: Callable[[Sequence[model.HistoryEvent]], None]
     file_tracker: FileTracker
     todo_context: TodoContext
 
@@ -197,13 +196,12 @@ class TaskExecutor:
                             case events.ResponseMetadataEvent() as e:
                                 metadata_accumulator.add(e.metadata)
                                 # Emit context usage event if available
-                                if e.metadata.usage is not None:
-                                    context_percent = e.metadata.usage.context_usage_percent
-                                    if context_percent is not None:
-                                        yield events.ContextUsageEvent(
-                                            session_id=session_ctx.session_id,
-                                            context_percent=context_percent,
-                                        )
+                                context_percent = e.metadata.context_usage_percent
+                                if context_percent is not None:
+                                    yield events.ContextUsageEvent(
+                                        session_id=session_ctx.session_id,
+                                        context_percent=context_percent,
+                                    )
                             case events.ToolResultEvent() as e:
                                 # Collect sub-agent task metadata from tool results
                                 if e.task_metadata is not None:

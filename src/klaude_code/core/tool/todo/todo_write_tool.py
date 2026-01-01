@@ -77,21 +77,21 @@ class TodoWriteTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultMessage:
         try:
             args = TodoWriteArguments.model_validate_json(arguments)
         except ValueError as e:
-            return model.ToolResultItem(
+            return model.ToolResultMessage(
                 status="error",
-                output=f"Invalid arguments: {e}",
+                output_text=f"Invalid arguments: {e}",
             )
 
         # Get current todo context to store todos
         todo_context = get_current_todo_context()
         if todo_context is None:
-            return model.ToolResultItem(
+            return model.ToolResultMessage(
                 status="error",
-                output="No active session found",
+                output_text="No active session found",
             )
 
         # Get current todos before updating (for comparison)
@@ -113,9 +113,9 @@ Your todo list has changed. DO NOT mention this explicitly to the user. Here are
 {model.todo_list_str(args.todos)}. Continue on with the tasks at hand if applicable.
 </system-reminder>"""
 
-        return model.ToolResultItem(
+        return model.ToolResultMessage(
             status="success",
-            output=response,
+            output_text=response,
             ui_extra=model.TodoListUIExtra(todo_list=ui_extra),
             side_effects=[model.ToolSideEffect.TODO_CHANGE],
         )

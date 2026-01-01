@@ -124,7 +124,11 @@ Only the content passed to `report_back` will be returned to user.\
             task_metadata: model.TaskMetadata | None = None
             sub_agent_input = model.UserInputPayload(text=state.sub_agent_prompt, images=None)
             child_session.append_history(
-                [model.UserMessageItem(content=sub_agent_input.text, images=sub_agent_input.images)]
+                [
+                    model.UserMessage(
+                        parts=model.parts_from_text_and_images(sub_agent_input.text, sub_agent_input.images)
+                    )
+                ]
             )
             async for event in child_agent.run_task(sub_agent_input):
                 # Capture TaskFinishEvent content for return

@@ -48,7 +48,7 @@ class TestApplyPatchToolMarkdown(BaseTempDirTest):
         result = arun(ApplyPatchTool.call(payload))
 
         self.assertEqual(result.status, "success")
-        self.assertEqual(result.output, "Done!")
+        self.assertEqual(result.output_text, "Done!")
         # When adding markdown, apply_patch returns a MultiUIExtra containing markdown preview.
         # It should NOT include a diff ui block for the markdown add.
         self.assertIsInstance(result.ui_extra, model.MultiUIExtra)

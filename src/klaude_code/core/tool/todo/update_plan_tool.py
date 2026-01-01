@@ -79,15 +79,15 @@ class UpdatePlanTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultMessage:
         try:
             args = UpdatePlanArguments.model_validate_json(arguments)
         except ValueError as exc:
-            return model.ToolResultItem(status="error", output=f"Invalid arguments: {exc}")
+            return model.ToolResultMessage(status="error", output_text=f"Invalid arguments: {exc}")
 
         todo_context = get_current_todo_context()
         if todo_context is None:
-            return model.ToolResultItem(status="error", output="No active session found")
+            return model.ToolResultMessage(status="error", output_text="No active session found")
 
         new_todos = [model.TodoItem(content=item.step, status=item.status) for item in args.plan]
         old_todos = todo_context.get_todos()
@@ -96,9 +96,9 @@ class UpdatePlanTool(ToolABC):
 
         ui_extra = model.TodoUIExtra(todos=new_todos, new_completed=new_completed)
 
-        return model.ToolResultItem(
+        return model.ToolResultMessage(
             status="success",
-            output="Plan updated",
+            output_text="Plan updated",
             ui_extra=model.TodoListUIExtra(todo_list=ui_extra),
             side_effects=[model.ToolSideEffect.TODO_CHANGE],
         )

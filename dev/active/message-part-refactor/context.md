@@ -103,7 +103,6 @@ Derived output (during replay):
 
 - `events.UserMessageEvent` from each `UserMessage`.
 - `events.DeveloperMessageEvent` from each `DeveloperMessage`.
-- `events.ThinkingEvent` from `AssistantMessage` by concatenating all `ThinkingTextPart.text` in-order.
 - `events.AssistantMessageEvent` from `AssistantMessage` by concatenating all `TextPart.text` in-order.
 - `events.AssistantImageDeltaEvent` from each `ImageFilePart` (replay should display saved images).
 - `events.ToolCallEvent` from each `ToolCallPart` (arguments are `arguments_json`).

@@ -64,14 +64,14 @@ class TestMoveTool(BaseTempDirTest):
         )
 
         self.assertEqual(res.status, "success")
-        self.assertIn("Moved 3 lines", res.output)
-        self.assertIn("Source file context (after move):", res.output)
-        self.assertIn("Target file context (after insert):", res.output)
-        self.assertIn("-------- cut here --------", res.output)
-        self.assertIn("-------- inserted --------", res.output)
-        self.assertIn("line2", res.output)
-        self.assertIn("line3", res.output)
-        self.assertIn("line4", res.output)
+        self.assertIn("Moved 3 lines", res.output_text)
+        self.assertIn("Source file context (after move):", res.output_text)
+        self.assertIn("Target file context (after insert):", res.output_text)
+        self.assertIn("-------- cut here --------", res.output_text)
+        self.assertIn("-------- inserted --------", res.output_text)
+        self.assertIn("line2", res.output_text)
+        self.assertIn("line3", res.output_text)
+        self.assertIn("line4", res.output_text)
 
         # Verify source file
         with open(source, encoding="utf-8") as f:
@@ -145,11 +145,11 @@ class TestMoveTool(BaseTempDirTest):
         )
 
         self.assertEqual(res.status, "success")
-        self.assertIn("Moved 2 lines within", res.output)
-        self.assertIn("Source context (after cut):", res.output)
-        self.assertIn("Insert context:", res.output)
-        self.assertIn("-------- cut here --------", res.output)
-        self.assertIn("-------- inserted --------", res.output)
+        self.assertIn("Moved 2 lines within", res.output_text)
+        self.assertIn("Source context (after cut):", res.output_text)
+        self.assertIn("Insert context:", res.output_text)
+        self.assertIn("-------- cut here --------", res.output_text)
+        self.assertIn("-------- inserted --------", res.output_text)
 
         with open(file_path, encoding="utf-8") as f:
             # After removing 1,2 we have 3,4,5; then insert 1,2 at position 3 (was 5)
@@ -207,7 +207,7 @@ class TestMoveTool(BaseTempDirTest):
         )
 
         self.assertEqual(res.status, "error")
-        self.assertIn("Source file has not been read yet", res.output)
+        self.assertIn("Source file has not been read yet", res.output_text)
 
     def test_move_requires_read_target(self) -> None:
         """Existing target file must be read first."""
@@ -237,7 +237,7 @@ class TestMoveTool(BaseTempDirTest):
         )
 
         self.assertEqual(res.status, "error")
-        self.assertIn("Target file has not been read yet", res.output)
+        self.assertIn("Target file has not been read yet", res.output_text)
 
     def test_move_start_greater_than_end(self) -> None:
         """Start line must be <= end line."""
@@ -263,7 +263,7 @@ class TestMoveTool(BaseTempDirTest):
         )
 
         self.assertEqual(res.status, "error")
-        self.assertIn("start_line must be <= end_line", res.output)
+        self.assertIn("start_line must be <= end_line", res.output_text)
 
     def test_move_line_out_of_bounds(self) -> None:
         """Line numbers must not exceed file length."""
@@ -289,7 +289,7 @@ class TestMoveTool(BaseTempDirTest):
         )
 
         self.assertEqual(res.status, "error")
-        self.assertIn("end_line 10 exceeds file length 2", res.output)
+        self.assertIn("end_line 10 exceeds file length 2", res.output_text)
 
     def test_move_new_file_requires_insert_line_1(self) -> None:
         """Creating new file requires insert_line=1."""
@@ -316,7 +316,7 @@ class TestMoveTool(BaseTempDirTest):
         )
 
         self.assertEqual(res.status, "error")
-        self.assertIn("Use insert_line=1 to create new file", res.output)
+        self.assertIn("Use insert_line=1 to create new file", res.output_text)
 
     def test_move_source_not_exist(self) -> None:
         """Source file must exist."""
@@ -335,7 +335,7 @@ class TestMoveTool(BaseTempDirTest):
         )
 
         self.assertEqual(res.status, "error")
-        self.assertIn("Source file does not exist", res.output)
+        self.assertIn("Source file does not exist", res.output_text)
 
     def test_move_directory_error(self) -> None:
         """Cannot move from or to directories."""
@@ -356,7 +356,7 @@ class TestMoveTool(BaseTempDirTest):
         )
 
         self.assertEqual(res.status, "error")
-        self.assertIn("Source path is a directory", res.output)
+        self.assertIn("Source path is a directory", res.output_text)
 
     def test_move_same_file_insert_within_move_range(self) -> None:
         """Cannot insert within the move range for same-file move."""
@@ -382,7 +382,7 @@ class TestMoveTool(BaseTempDirTest):
         )
 
         self.assertEqual(res.status, "error")
-        self.assertIn("insert_line cannot be within the cut range", res.output)
+        self.assertIn("insert_line cannot be within the cut range", res.output_text)
 
     def test_move_updates_file_tracker(self) -> None:
         """File tracker should be updated after move."""

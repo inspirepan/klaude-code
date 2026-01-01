@@ -187,8 +187,10 @@ async def dispatch_command(user_input: model.UserInputPayload, agent: Agent, *, 
             events=[
                 events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=model.DeveloperMessageItem(
-                        content=f"Command {command_identifier} error: [{e.__class__.__name__}] {e!s}",
+                    item=model.DeveloperMessage(
+                        parts=model.text_parts_from_str(
+                            f"Command {command_identifier} error: [{e.__class__.__name__}] {e!s}"
+                        ),
                         command_output=command_output,
                     ),
                 )

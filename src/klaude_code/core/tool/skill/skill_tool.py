@@ -55,23 +55,23 @@ class SkillTool(ToolABC):
         command: str
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultMessage:
         """Load and return full skill content."""
         try:
             args = cls.SkillArguments.model_validate_json(arguments)
         except ValueError as e:
-            return model.ToolResultItem(
+            return model.ToolResultMessage(
                 status="error",
-                output=f"Invalid arguments: {e}",
+                output_text=f"Invalid arguments: {e}",
             )
 
         skill = get_skill(args.command)
 
         if not skill:
             available = ", ".join(list_skill_names())
-            return model.ToolResultItem(
+            return model.ToolResultMessage(
                 status="error",
-                output=f"Skill '{args.command}' does not exist. Available skills: {available}",
+                output_text=f"Skill '{args.command}' does not exist. Available skills: {available}",
             )
 
         # Get base directory from skill_path
@@ -84,4 +84,4 @@ class SkillTool(ToolABC):
 Base directory for this skill: {base_dir}
 
 {skill.to_prompt()}"""
-        return model.ToolResultItem(status="success", output=result)
+        return model.ToolResultMessage(status="success", output_text=result)

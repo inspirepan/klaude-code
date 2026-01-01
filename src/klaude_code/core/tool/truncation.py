@@ -4,10 +4,22 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 from urllib.parse import urlparse
 
 from klaude_code import const
-from klaude_code.protocol import model, tools
+from klaude_code.protocol import tools
+
+
+class ToolCallLike(Protocol):
+    @property
+    def tool_name(self) -> str: ...
+
+    @property
+    def call_id(self) -> str: ...
+
+    @property
+    def arguments_json(self) -> str: ...
 
 
 @dataclass
@@ -47,7 +59,7 @@ class TruncationStrategy(ABC):
     """Abstract base class for tool output truncation strategies."""
 
     @abstractmethod
-    def truncate(self, output: str, tool_call: model.ToolCallItem | None = None) -> TruncationResult:
+    def truncate(self, output: str, tool_call: ToolCallLike | None = None) -> TruncationResult:
         """Truncate the output according to the strategy."""
         ...
 
@@ -58,7 +70,7 @@ class SimpleTruncationStrategy(TruncationStrategy):
     def __init__(self, max_length: int = const.TOOL_OUTPUT_MAX_LENGTH):
         self.max_length = max_length
 
-    def truncate(self, output: str, tool_call: model.ToolCallItem | None = None) -> TruncationResult:
+    def truncate(self, output: str, tool_call: ToolCallLike | None = None) -> TruncationResult:
         if len(output) > self.max_length:
             truncated_length = len(output) - self.max_length
             truncated_output = output[: self.max_length] + f"... (truncated {truncated_length} characters)"
@@ -86,11 +98,11 @@ class SmartTruncationStrategy(TruncationStrategy):
         self.tail_chars = tail_chars
         self.truncation_dir = Path(truncation_dir)
 
-    def _get_file_identifier(self, tool_call: model.ToolCallItem | None) -> str:
+    def _get_file_identifier(self, tool_call: ToolCallLike | None) -> str:
         """Get a file identifier based on tool call. For WebFetch, use URL; otherwise use call_id."""
-        if tool_call and tool_call.name == tools.WEB_FETCH:
+        if tool_call and tool_call.tool_name == tools.WEB_FETCH:
             try:
-                args = json.loads(tool_call.arguments)
+                args = json.loads(tool_call.arguments_json)
                 url = args.get("url", "")
                 if url:
                     return _extract_url_filename(url)
@@ -101,12 +113,12 @@ class SmartTruncationStrategy(TruncationStrategy):
             return tool_call.call_id.replace("/", "_")
         return "unknown"
 
-    def _save_to_file(self, output: str, tool_call: model.ToolCallItem | None) -> str | None:
+    def _save_to_file(self, output: str, tool_call: ToolCallLike | None) -> str | None:
         """Save full output to file. Returns file path or None on failure."""
         try:
             self.truncation_dir.mkdir(parents=True, exist_ok=True)
             timestamp = int(time.time())
-            tool_name = (tool_call.name if tool_call else "unknown").replace("/", "_")
+            tool_name = (tool_call.tool_name if tool_call else "unknown").replace("/", "_")
             identifier = self._get_file_identifier(tool_call)
             filename = f"{tool_name}-{identifier}-{timestamp}.txt"
             file_path = self.truncation_dir / filename
@@ -115,8 +127,8 @@ class SmartTruncationStrategy(TruncationStrategy):
         except OSError:
             return None
 
-    def truncate(self, output: str, tool_call: model.ToolCallItem | None = None) -> TruncationResult:
-        if tool_call and tool_call.name == tools.READ:
+    def truncate(self, output: str, tool_call: ToolCallLike | None = None) -> TruncationResult:
+        if tool_call and tool_call.tool_name == tools.READ:
             # Do not truncate Read tool outputs
             return TruncationResult(output=output, was_truncated=False, original_length=len(output))
 
@@ -180,6 +192,6 @@ def set_truncation_strategy(strategy: TruncationStrategy) -> None:
     _default_strategy = strategy
 
 
-def truncate_tool_output(output: str, tool_call: model.ToolCallItem | None = None) -> TruncationResult:
+def truncate_tool_output(output: str, tool_call: ToolCallLike | None = None) -> TruncationResult:
     """Truncate tool output using the current strategy."""
     return get_truncation_strategy().truncate(output, tool_call)

@@ -80,7 +80,7 @@ def test_at_file_reader_reminder_and_developer_render_chain(tmp_path: Path, monk
 
     # Set up a session whose last user message uses the @"..." syntax
     session = Session(work_dir=tmp_path)
-    user_message = model.UserMessageItem(content=f'Please review @"{file_path}"')
+    user_message = model.UserMessage(parts=model.text_parts_from_str(f'Please review @"{file_path}"'))
     session.conversation_history.append(user_message)
 
     # Run reminder to parse and read the file

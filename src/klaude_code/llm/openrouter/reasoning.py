@@ -42,7 +42,7 @@ class ReasoningStreamHandler(ReasoningHandlerABC):
         if not reasoning_details:
             return ReasoningDeltaResult(handled=False, outputs=[])
 
-        outputs: list[str | model.ConversationItem] = []
+        outputs: list[str | model.Part] = []
         for item in reasoning_details:
             try:
                 reasoning_detail = ReasoningDetail.model_validate(item)
@@ -56,16 +56,16 @@ class ReasoningStreamHandler(ReasoningHandlerABC):
 
         return ReasoningDeltaResult(handled=True, outputs=outputs)
 
-    def on_detail(self, detail: ReasoningDetail) -> list[model.ConversationItem]:
-        """Process a single reasoning detail and return streamable items."""
-        items: list[model.ConversationItem] = []
+    def on_detail(self, detail: ReasoningDetail) -> list[model.Part]:
+        """Process a single reasoning detail and return streamable parts."""
+        items: list[model.Part] = []
 
         if detail.type == "reasoning.encrypted":
             self._reasoning_id = detail.id
             # Flush accumulated text before encrypted content
             items.extend(self._flush_text())
-            if encrypted_item := self._build_encrypted_item(detail.data, detail):
-                items.append(encrypted_item)
+            if signature_part := self._build_signature_part(detail.data, detail):
+                items.append(signature_part)
             return items
 
         if detail.type in ("reasoning.text", "reasoning.summary"):
@@ -77,42 +77,40 @@ class ReasoningStreamHandler(ReasoningHandlerABC):
             # Flush on signature (encrypted content)
             if detail.signature:
                 items.extend(self._flush_text())
-                if encrypted_item := self._build_encrypted_item(detail.signature, detail):
-                    items.append(encrypted_item)
+                if signature_part := self._build_signature_part(detail.signature, detail):
+                    items.append(signature_part)
 
         return items
 
-    def flush(self) -> list[model.ConversationItem]:
+    def flush(self) -> list[model.Part]:
         """Flush buffered reasoning text on finalize."""
         return self._flush_text()
 
-    def _flush_text(self) -> list[model.ConversationItem]:
-        """Flush accumulated reasoning text as a single item."""
+    def _flush_text(self) -> list[model.Part]:
+        """Flush accumulated reasoning text as a single part."""
         if not self._accumulated_reasoning:
             return []
-        item = self._build_text_item("".join(self._accumulated_reasoning))
+        item = self._build_text_part("".join(self._accumulated_reasoning))
         self._accumulated_reasoning = []
         return [item]
 
-    def _build_text_item(self, content: str) -> model.ReasoningTextItem:
-        return model.ReasoningTextItem(
+    def _build_text_part(self, content: str) -> model.ThinkingTextPart:
+        return model.ThinkingTextPart(
             id=self._reasoning_id,
-            content=content,
-            response_id=self._response_id,
-            model=self._param_model,
+            text=content,
+            model_id=self._param_model,
         )
 
-    def _build_encrypted_item(
+    def _build_signature_part(
         self,
         content: str | None,
         detail: ReasoningDetail,
-    ) -> model.ReasoningEncryptedItem | None:
+    ) -> model.ThinkingSignaturePart | None:
         if not content:
             return None
-        return model.ReasoningEncryptedItem(
+        return model.ThinkingSignaturePart(
             id=detail.id,
-            encrypted_content=content,
+            signature=content,
             format=detail.format,
-            response_id=self._response_id,
-            model=self._param_model,
+            model_id=self._param_model,
         )

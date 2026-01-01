@@ -316,8 +316,6 @@ class DisplayEventHandler:
                 self._on_developer_message(e)
             case events.TurnStartEvent() as e:
                 self._on_turn_start(e)
-            case events.ThinkingEvent() as e:
-                await self._on_thinking(e)
             case events.ThinkingDeltaEvent() as e:
                 await self._on_thinking_delta(e)
             case events.AssistantMessageDeltaEvent() as e:
@@ -387,21 +385,6 @@ class DisplayEventHandler:
         self.spinner_status.set_reasoning_status(None)
         self._update_spinner()
 
-    async def _on_thinking(self, event: events.ThinkingEvent) -> None:
-        if self.renderer.is_sub_agent_session(event.session_id):
-            return
-        # If streaming was active, finalize it
-        if self.thinking_stream.is_active:
-            await self._finish_thinking_stream()
-        else:
-            # Non-streaming path (history replay or models without delta support)
-            reasoning_status = extract_last_bold_header(normalize_thinking_content(event.content))
-            if reasoning_status:
-                self.spinner_status.set_reasoning_status(reasoning_status)
-                self._update_spinner()
-            await self.stage_manager.enter_thinking_stage()
-            self.renderer.display_thinking(event.content)
-
     async def _on_thinking_delta(self, event: events.ThinkingDeltaEvent) -> None:
         if self.renderer.is_sub_agent_session(event.session_id):
             return
@@ -441,6 +424,8 @@ class DisplayEventHandler:
             self.spinner_status.set_composing(True)
             self._update_spinner()
             return
+        elif self.thinking_stream.is_active:
+            await self._finish_thinking_stream()
         if len(event.content.strip()) == 0 and self.stage_manager.current_stage != Stage.ASSISTANT:
             return
         first_delta = not self.assistant_stream.is_active
@@ -474,8 +459,6 @@ class DisplayEventHandler:
             mdstream = self.assistant_stream.mdstream
             assert mdstream is not None
             mdstream.update(event.content.strip(), final=True)
-        else:
-            self.renderer.display_assistant_message(event.content)
         self.assistant_stream.finish()
         self.spinner_status.set_composing(False)
         self._update_spinner()

@@ -14,7 +14,7 @@ from klaude_code.protocol import model, tools
 from klaude_code.session import Session
 from klaude_code.skill import get_skill
 
-type Reminder = Callable[[Session], Awaitable[model.DeveloperMessageItem | None]]
+type Reminder = Callable[[Session], Awaitable[model.DeveloperMessage | None]]
 
 
 # Match @ preceded by whitespace, start of line, or → (ReadTool line number arrow)
@@ -28,13 +28,13 @@ def get_last_new_user_input(session: Session) -> str | None:
     """Get last user input & developer message (CLAUDE.md) from conversation history. if there's a tool result after user input, return None"""
     result: list[str] = []
     for item in reversed(session.conversation_history):
-        if isinstance(item, model.ToolResultItem):
+        if isinstance(item, model.ToolResultMessage):
             return None
-        if isinstance(item, model.UserMessageItem):
-            result.append(item.content or "")
+        if isinstance(item, model.UserMessage):
+            result.append(model.join_text_parts(item.parts))
             break
-        if isinstance(item, model.DeveloperMessageItem):
-            result.append(item.content or "")
+        if isinstance(item, model.DeveloperMessage):
+            result.append(model.join_text_parts(item.parts))
     return "\n\n".join(result)
 
 
@@ -62,16 +62,16 @@ def get_at_patterns_with_source(session: Session) -> list[AtPatternSource]:
     patterns: list[AtPatternSource] = []
 
     for item in reversed(session.conversation_history):
-        if isinstance(item, model.ToolResultItem):
+        if isinstance(item, model.ToolResultMessage):
             break
 
-        if isinstance(item, model.UserMessageItem):
-            content = item.content or ""
+        if isinstance(item, model.UserMessage):
+            content = model.join_text_parts(item.parts)
             for path_str in _extract_at_patterns(content):
                 patterns.append(AtPatternSource(pattern=path_str, mentioned_in=None))
             break
 
-        if isinstance(item, model.DeveloperMessageItem) and item.memory_mentioned:
+        if isinstance(item, model.DeveloperMessage) and item.memory_mentioned:
             for memory_path, mentioned_patterns in item.memory_mentioned.items():
                 for pattern in mentioned_patterns:
                     patterns.append(AtPatternSource(pattern=pattern, mentioned_in=memory_path))
@@ -81,10 +81,10 @@ def get_at_patterns_with_source(session: Session) -> list[AtPatternSource]:
 def get_skill_from_user_input(session: Session) -> str | None:
     """Get $skill reference from the first line of last user input."""
     for item in reversed(session.conversation_history):
-        if isinstance(item, model.ToolResultItem):
+        if isinstance(item, model.ToolResultMessage):
             return None
-        if isinstance(item, model.UserMessageItem):
-            content = item.content or ""
+        if isinstance(item, model.UserMessage):
+            content = model.join_text_parts(item.parts)
             first_line = content.split("\n", 1)[0]
             m = SKILL_PATTERN.match(first_line)
             if m:
@@ -134,20 +134,20 @@ async def _load_at_file_recursive(
                 return
             args = ReadTool.ReadArguments(file_path=path_str)
             tool_result = await ReadTool.call_with_args(args)
+            images = [part for part in tool_result.parts if isinstance(part, model.ImageURLPart)]
             at_files[path_str] = model.AtPatternParseResult(
                 path=path_str,
                 tool_name=tools.READ,
-                result=tool_result.output or "",
+                result=tool_result.output_text,
                 tool_args=args.model_dump_json(exclude_none=True),
                 operation="Read",
-                images=tool_result.images,
                 mentioned_in=mentioned_in,
             )
-            if tool_result.images:
-                collected_images.extend(tool_result.images)
+            if images:
+                collected_images.extend(images)
 
             # Recursively parse @ references from ReadTool output
-            output = tool_result.output or ""
+            output = tool_result.output_text
             if "@" in output:
                 for match in AT_FILE_PATTERN.finditer(output):
                     nested = match.group("quoted") or match.group("plain")
@@ -168,7 +168,7 @@ async def _load_at_file_recursive(
             at_files[path_str] = model.AtPatternParseResult(
                 path=path_str + "/",
                 tool_name=tools.BASH,
-                result=tool_result.output or "",
+                result=tool_result.output_text,
                 tool_args=args.model_dump_json(exclude_none=True),
                 operation="List",
             )
@@ -178,7 +178,7 @@ async def _load_at_file_recursive(
 
 async def at_file_reader_reminder(
     session: Session,
-) -> model.DeveloperMessageItem | None:
+) -> model.DeveloperMessage | None:
     """Parse @foo/bar to read, with recursive loading of nested @ references"""
     at_pattern_sources = get_at_patterns_with_source(session)
     if not at_pattern_sources:
@@ -210,14 +210,16 @@ Result of calling the {result.tool_name} tool:
             for result in at_files.values()
         ]
     )
-    return model.DeveloperMessageItem(
-        content=f"""<system-reminder>{at_files_str}\n</system-reminder>""",
+    return model.DeveloperMessage(
+        parts=model.parts_from_text_and_images(
+            f"""<system-reminder>{at_files_str}\n</system-reminder>""",
+            collected_images or None,
+        ),
         at_files=list(at_files.values()),
-        images=collected_images or None,
     )
 
 
-async def empty_todo_reminder(session: Session) -> model.DeveloperMessageItem | None:
+async def empty_todo_reminder(session: Session) -> model.DeveloperMessage | None:
     """Remind agent to use TodoWrite tool when todos are empty/all completed.
 
     Behavior:
@@ -234,8 +236,10 @@ async def empty_todo_reminder(session: Session) -> model.DeveloperMessageItem | 
 
     if session.need_todo_empty_cooldown_counter == 0:
         session.need_todo_empty_cooldown_counter = 3
-        return model.DeveloperMessageItem(
-            content="""<system-reminder>This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.</system-reminder>"""
+        return model.DeveloperMessage(
+            parts=model.text_parts_from_str(
+                "<system-reminder>This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.</system-reminder>"
+            )
         )
 
     if session.need_todo_empty_cooldown_counter > 0:
@@ -245,7 +249,7 @@ async def empty_todo_reminder(session: Session) -> model.DeveloperMessageItem | 
 
 async def todo_not_used_recently_reminder(
     session: Session,
-) -> model.DeveloperMessageItem | None:
+) -> model.DeveloperMessage | None:
     """Remind agent to use TodoWrite tool if it hasn't been used recently (>=10 other tool calls), with cooldown.
 
     Cooldown behavior:
@@ -264,12 +268,19 @@ async def todo_not_used_recently_reminder(
     # Count non-todo tool calls since the last TodoWrite
     other_tool_call_count_before_last_todo = 0
     for item in reversed(session.conversation_history):
-        if isinstance(item, model.ToolCallItem):
-            if item.name in (tools.TODO_WRITE, tools.UPDATE_PLAN):
+        if not isinstance(item, model.AssistantMessage):
+            continue
+        for part in reversed(item.parts):
+            if not isinstance(part, model.ToolCallPart):
+                continue
+            if part.tool_name in (tools.TODO_WRITE, tools.UPDATE_PLAN):
+                other_tool_call_count_before_last_todo = 0
                 break
             other_tool_call_count_before_last_todo += 1
             if other_tool_call_count_before_last_todo >= const.TODO_REMINDER_TOOL_CALL_THRESHOLD:
                 break
+        if other_tool_call_count_before_last_todo == 0:
+            break
 
     not_used_recently = other_tool_call_count_before_last_todo >= const.TODO_REMINDER_TOOL_CALL_THRESHOLD
 
@@ -278,14 +289,16 @@ async def todo_not_used_recently_reminder(
 
     if session.need_todo_not_used_cooldown_counter == 0:
         session.need_todo_not_used_cooldown_counter = 3
-        return model.DeveloperMessageItem(
-            content=f"""<system-reminder>
+        return model.DeveloperMessage(
+            parts=model.text_parts_from_str(
+                f"""<system-reminder>
 The TodoWrite tool hasn't been used recently. If you're working on tasks that would benefit from tracking progress, consider using the TodoWrite tool to track progress. Also consider cleaning up the todo list if has become stale and no longer matches what you are working on. Only use it if it's relevant to the current work. This is just a gentle reminder - ignore if not applicable.
 
 
 Here are the existing contents of your todo list:
 
-{model.todo_list_str(session.todos)}</system-reminder>""",
+{model.todo_list_str(session.todos)}</system-reminder>"""
+            ),
             todo_use=True,
         )
 
@@ -296,7 +309,7 @@ Here are the existing contents of your todo list:
 
 async def file_changed_externally_reminder(
     session: Session,
-) -> model.DeveloperMessageItem | None:
+) -> model.DeveloperMessage | None:
     """Remind agent about user/linter' changes to the files in FileTracker, provding the newest content of the file."""
     changed_files: list[tuple[str, str, list[model.ImageURLPart] | None]] = []
     collected_images: list[model.ImageURLPart] = []
@@ -320,9 +333,10 @@ async def file_changed_externally_reminder(
                             ReadTool.ReadArguments(file_path=path)
                         )  # This tool will update file tracker
                         if tool_result.status == "success":
-                            changed_files.append((path, tool_result.output or "", tool_result.images))
-                            if tool_result.images:
-                                collected_images.extend(tool_result.images)
+                            images = [part for part in tool_result.parts if isinstance(part, model.ImageURLPart)]
+                            changed_files.append((path, tool_result.output_text, images or None))
+                            if images:
+                                collected_images.extend(images)
                     finally:
                         reset_tool_context(context_token)
             except (
@@ -341,10 +355,12 @@ async def file_changed_externally_reminder(
                 for file_path, file_content, _ in changed_files
             ]
         )
-        return model.DeveloperMessageItem(
-            content=f"""<system-reminder>{changed_files_str}""",
+        return model.DeveloperMessage(
+            parts=model.parts_from_text_and_images(
+                f"""<system-reminder>{changed_files_str}""",
+                collected_images or None,
+            ),
             external_file_changes=[file_path for file_path, _, _ in changed_files],
-            images=collected_images or None,
         )
 
     return None
@@ -393,26 +409,28 @@ class Memory(BaseModel):
 def get_last_user_message_image_count(session: Session) -> int:
     """Get image count from the last user message in conversation history."""
     for item in reversed(session.conversation_history):
-        if isinstance(item, model.ToolResultItem):
+        if isinstance(item, model.ToolResultMessage):
             return 0
-        if isinstance(item, model.UserMessageItem):
-            return len(item.images) if item.images else 0
+        if isinstance(item, model.UserMessage):
+            return len([part for part in item.parts if isinstance(part, model.ImageURLPart)])
     return 0
 
 
-async def image_reminder(session: Session) -> model.DeveloperMessageItem | None:
+async def image_reminder(session: Session) -> model.DeveloperMessage | None:
     """Remind agent about images attached by user in the last message."""
     image_count = get_last_user_message_image_count(session)
     if image_count == 0:
         return None
 
-    return model.DeveloperMessageItem(
-        content=f"<system-reminder>User attached {image_count} image{'s' if image_count > 1 else ''} in their message. Make sure to analyze and reference these images as needed.</system-reminder>",
+    return model.DeveloperMessage(
+        parts=model.text_parts_from_str(
+            f"<system-reminder>User attached {image_count} image{'s' if image_count > 1 else ''} in their message. Make sure to analyze and reference these images as needed.</system-reminder>"
+        ),
         user_image_count=image_count,
     )
 
 
-async def skill_reminder(session: Session) -> model.DeveloperMessageItem | None:
+async def skill_reminder(session: Session) -> model.DeveloperMessage | None:
     """Load skill content when user references a skill with $skill syntax."""
     skill_name = get_skill_from_user_input(session)
     if not skill_name:
@@ -436,8 +454,8 @@ async def skill_reminder(session: Session) -> model.DeveloperMessageItem | None:
 </skill>
 </system-reminder>"""
 
-    return model.DeveloperMessageItem(
-        content=content,
+    return model.DeveloperMessage(
+        parts=model.text_parts_from_str(content),
         skill_name=skill.name,
     )
 
@@ -461,7 +479,7 @@ def _mark_memory_loaded(session: Session, path: str) -> None:
     session.file_tracker[path] = model.FileStatus(mtime=mtime, content_sha256=content_sha256, is_memory=True)
 
 
-async def memory_reminder(session: Session) -> model.DeveloperMessageItem | None:
+async def memory_reminder(session: Session) -> model.DeveloperMessage | None:
     """CLAUDE.md AGENTS.md"""
     memory_paths = get_memory_paths()
     memories: list[Memory] = []
@@ -485,8 +503,9 @@ async def memory_reminder(session: Session) -> model.DeveloperMessageItem | None
             if patterns:
                 memory_mentioned[memory.path] = patterns
 
-        return model.DeveloperMessageItem(
-            content=f"""<system-reminder>As you answer the user's questions, you can use the following context:
+        return model.DeveloperMessage(
+            parts=model.text_parts_from_str(
+                f"""<system-reminder>As you answer the user's questions, you can use the following context:
 
 # claudeMd
 Codebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.
@@ -499,7 +518,8 @@ ALWAYS prefer editing an existing file to creating a new one.
 NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
 
 IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.
-</system-reminder>""",
+</system-reminder>"""
+            ),
             memory_paths=[memory.path for memory in memories],
             memory_mentioned=memory_mentioned or None,
         )
@@ -511,7 +531,7 @@ MEMORY_FILE_NAMES = ["CLAUDE.md", "AGENTS.md", "AGENT.md"]
 
 async def last_path_memory_reminder(
     session: Session,
-) -> model.DeveloperMessageItem | None:
+) -> model.DeveloperMessage | None:
     """Load CLAUDE.md/AGENTS.md from directories containing files in file_tracker.
 
     Uses session.file_tracker to detect accessed paths (works for both tool calls
@@ -579,9 +599,11 @@ async def last_path_memory_reminder(
             if patterns:
                 memory_mentioned[memory.path] = patterns
 
-        return model.DeveloperMessageItem(
-            content=f"""<system-reminder>{memories_str}
-</system-reminder>""",
+        return model.DeveloperMessage(
+            parts=model.text_parts_from_str(
+                f"""<system-reminder>{memories_str}
+</system-reminder>"""
+            ),
             memory_paths=[memory.path for memory in memories],
             memory_mentioned=memory_mentioned or None,
         )

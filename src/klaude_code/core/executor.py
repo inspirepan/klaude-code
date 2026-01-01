@@ -193,7 +193,9 @@ class ExecutorContext:
         await self.emit_event(
             events.UserMessageEvent(content=user_input.text, session_id=session_id, images=user_input.images)
         )
-        agent.session.append_history([model.UserMessageItem(content=user_input.text, images=user_input.images)])
+        agent.session.append_history(
+            [model.UserMessage(parts=model.parts_from_text_and_images(user_input.text, user_input.images))]
+        )
 
         await self.handle_run_agent(
             op.RunAgentOperation(
@@ -230,8 +232,8 @@ class ExecutorContext:
 
         if operation.emit_switch_message:
             default_note = " (saved as default)" if operation.save_as_default else ""
-            developer_item = model.DeveloperMessageItem(
-                content=f"Switched to: {llm_config.model}{default_note}",
+            developer_item = model.DeveloperMessage(
+                parts=model.text_parts_from_str(f"Switched to: {llm_config.model}{default_note}"),
                 command_output=model.CommandOutput(command_name=commands.CommandName.MODEL),
             )
             agent.session.append_history([developer_item])
@@ -275,8 +277,8 @@ class ExecutorContext:
         new_status = _format_thinking_for_display(config.thinking)
 
         if operation.emit_switch_message:
-            developer_item = model.DeveloperMessageItem(
-                content=f"Thinking changed: {current} -> {new_status}",
+            developer_item = model.DeveloperMessage(
+                parts=model.text_parts_from_str(f"Thinking changed: {current} -> {new_status}"),
                 command_output=model.CommandOutput(command_name=commands.CommandName.THINKING),
             )
             agent.session.append_history([developer_item])
@@ -293,8 +295,8 @@ class ExecutorContext:
         new_session.model_thinking = agent.session.model_thinking
         agent.session = new_session
 
-        developer_item = model.DeveloperMessageItem(
-            content="started new conversation",
+        developer_item = model.DeveloperMessage(
+            parts=model.text_parts_from_str("started new conversation"),
             command_output=model.CommandOutput(command_name=commands.CommandName.CLEAR),
         )
         await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
@@ -344,8 +346,8 @@ class ExecutorContext:
             await asyncio.to_thread(output_path.parent.mkdir, parents=True, exist_ok=True)
             await asyncio.to_thread(output_path.write_text, html_doc, "utf-8")
             await asyncio.to_thread(self._open_file, output_path)
-            developer_item = model.DeveloperMessageItem(
-                content=f"Session exported and opened: {output_path}",
+            developer_item = model.DeveloperMessage(
+                parts=model.text_parts_from_str(f"Session exported and opened: {output_path}"),
                 command_output=model.CommandOutput(command_name=commands.CommandName.EXPORT),
             )
             agent.session.append_history([developer_item])
@@ -353,8 +355,8 @@ class ExecutorContext:
         except Exception as exc:  # pragma: no cover
             import traceback
 
-            developer_item = model.DeveloperMessageItem(
-                content=f"Failed to export session: {exc}\n{traceback.format_exc()}",
+            developer_item = model.DeveloperMessage(
+                parts=model.text_parts_from_str(f"Failed to export session: {exc}\n{traceback.format_exc()}"),
                 command_output=model.CommandOutput(command_name=commands.CommandName.EXPORT, is_error=True),
             )
             agent.session.append_history([developer_item])

@@ -50,12 +50,6 @@ class TurnToolCallStartEvent(BaseModel):
     arguments: str
 
 
-class ThinkingEvent(BaseModel):
-    session_id: str
-    response_id: str | None = None
-    content: str
-
-
 class ThinkingDeltaEvent(BaseModel):
     session_id: str
     response_id: str | None = None
@@ -78,13 +72,14 @@ class AssistantMessageEvent(BaseModel):
     response_id: str | None = None
     session_id: str
     content: str
+    thinking_text: str | None = None
 
 
 class DeveloperMessageEvent(BaseModel):
     """DeveloperMessages are reminders in user messages or tool results, see: core/reminders.py"""
 
     session_id: str
-    item: model.DeveloperMessageItem
+    item: model.DeveloperMessage
 
 
 class ToolCallEvent(BaseModel):
@@ -110,7 +105,7 @@ class ResponseMetadataEvent(BaseModel):
     """Internal event for turn-level metadata. Not exposed to UI directly."""
 
     session_id: str
-    metadata: model.ResponseMetadataItem
+    metadata: model.Usage
 
 
 class TaskMetadataEvent(BaseModel):
@@ -148,8 +143,7 @@ class ContextUsageEvent(BaseModel):
 
 
 HistoryItemEvent = (
-    ThinkingEvent
-    | TaskStartEvent
+    TaskStartEvent
     | TaskFinishEvent
     | TurnStartEvent  # This event is used for UI to print new empty line
     | AssistantImageDeltaEvent
@@ -174,7 +168,6 @@ class ReplayHistoryEvent(BaseModel):
 Event = (
     TaskStartEvent
     | TaskFinishEvent
-    | ThinkingEvent
     | ThinkingDeltaEvent
     | AssistantMessageDeltaEvent
     | AssistantImageDeltaEvent

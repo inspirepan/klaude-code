@@ -46,18 +46,18 @@ class WriteTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultMessage:
         try:
             args = WriteArguments.model_validate_json(arguments)
         except ValueError as e:  # pragma: no cover - defensive
-            return model.ToolResultItem(status="error", output=f"Invalid arguments: {e}")
+            return model.ToolResultMessage(status="error", output_text=f"Invalid arguments: {e}")
 
         file_path = os.path.abspath(args.file_path)
 
         if is_directory(file_path):
-            return model.ToolResultItem(
+            return model.ToolResultMessage(
                 status="error",
-                output="<tool_use_error>Illegal operation on a directory. write</tool_use_error>",
+                output_text="<tool_use_error>Illegal operation on a directory. write</tool_use_error>",
             )
 
         file_tracker = get_current_file_tracker()
@@ -67,9 +67,9 @@ class WriteTool(ToolABC):
         if exists:
             tracked_status = file_tracker.get(file_path) if file_tracker is not None else None
             if tracked_status is None:
-                return model.ToolResultItem(
+                return model.ToolResultMessage(
                     status="error",
-                    output=("File has not been read yet. Read it first before writing to it."),
+                    output_text=("File has not been read yet. Read it first before writing to it."),
                 )
 
         # Capture previous content (if any) for diff generation and external-change detection.
@@ -87,9 +87,9 @@ class WriteTool(ToolABC):
             if before_read_ok and tracked_status is not None and tracked_status.content_sha256 is not None:
                 current_sha256 = hash_text_sha256(before)
                 if current_sha256 != tracked_status.content_sha256:
-                    return model.ToolResultItem(
+                    return model.ToolResultMessage(
                         status="error",
-                        output=(
+                        output_text=(
                             "File has been modified externally. Either by user or a linter. "
                             "Read it first before writing to it."
                         ),
@@ -101,9 +101,9 @@ class WriteTool(ToolABC):
                 except OSError:
                     current_mtime = tracked_status.mtime
                 if current_mtime != tracked_status.mtime:
-                    return model.ToolResultItem(
+                    return model.ToolResultMessage(
                         status="error",
-                        output=(
+                        output_text=(
                             "File has been modified externally. Either by user or a linter. "
                             "Read it first before writing to it."
                         ),
@@ -112,7 +112,7 @@ class WriteTool(ToolABC):
         try:
             await asyncio.to_thread(write_text, file_path, args.content)
         except (OSError, UnicodeError) as e:  # pragma: no cover
-            return model.ToolResultItem(status="error", output=f"<tool_use_error>{e}</tool_use_error>")
+            return model.ToolResultMessage(status="error", output_text=f"<tool_use_error>{e}</tool_use_error>")
 
         if file_tracker is not None:
             with contextlib.suppress(Exception):
@@ -133,4 +133,4 @@ class WriteTool(ToolABC):
             ui_extra = build_structured_diff(before, args.content, file_path=file_path)
 
         message = f"File {'overwritten' if exists else 'created'} successfully at: {file_path}"
-        return model.ToolResultItem(status="success", output=message, ui_extra=ui_extra)
+        return model.ToolResultMessage(status="success", output_text=message, ui_extra=ui_extra)

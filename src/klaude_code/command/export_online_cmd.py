@@ -40,8 +40,8 @@ class ExportOnlineCommand(CommandABC):
         if not surge_cmd:
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=model.DeveloperMessageItem(
-                    content="surge.sh CLI not found. Install with: npm install -g surge",
+                item=model.DeveloperMessage(
+                    parts=model.text_parts_from_str("surge.sh CLI not found. Install with: npm install -g surge"),
                     command_output=model.CommandOutput(command_name=self.name, is_error=True),
                 ),
             )
@@ -57,8 +57,8 @@ class ExportOnlineCommand(CommandABC):
                 login_cmd = " ".join([*surge_cmd, "login"])
                 event = events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=model.DeveloperMessageItem(
-                        content=f"Not logged in to surge.sh. Please run: {login_cmd}",
+                    item=model.DeveloperMessage(
+                        parts=model.text_parts_from_str(f"Not logged in to surge.sh. Please run: {login_cmd}"),
                         command_output=model.CommandOutput(command_name=self.name, is_error=True),
                     ),
                 )
@@ -71,8 +71,8 @@ class ExportOnlineCommand(CommandABC):
 
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=model.DeveloperMessageItem(
-                    content=f"Session deployed to: {url}",
+                item=model.DeveloperMessage(
+                    parts=model.text_parts_from_str(f"Session deployed to: {url}"),
                     command_output=model.CommandOutput(command_name=self.name),
                 ),
             )
@@ -82,8 +82,8 @@ class ExportOnlineCommand(CommandABC):
 
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=model.DeveloperMessageItem(
-                    content=f"Failed to deploy session: {exc}\n{traceback.format_exc()}",
+                item=model.DeveloperMessage(
+                    parts=model.text_parts_from_str(f"Failed to deploy session: {exc}\n{traceback.format_exc()}"),
                     command_output=model.CommandOutput(command_name=self.name, is_error=True),
                 ),
             )

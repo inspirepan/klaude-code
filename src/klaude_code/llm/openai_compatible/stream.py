@@ -4,7 +4,7 @@ This module provides reusable primitives for OpenAI-compatible providers:
 
 - ``StreamStateManager``: accumulates assistant content and tool calls.
 - ``ReasoningHandlerABC``: provider-specific reasoning extraction + buffering.
-- ``parse_chat_completions_stream``: shared stream loop that emits ConversationItems.
+- ``parse_chat_completions_stream``: shared stream loop that emits stream/history items.
 
 OpenRouter uses the same OpenAI Chat Completions API surface but differs in
 how reasoning is represented (``reasoning_details`` vs ``reasoning_content``).
@@ -43,65 +43,55 @@ class StreamStateManager:
         self,
         param_model: str,
         response_id: str | None = None,
-        reasoning_flusher: Callable[[], list[model.ConversationItem]] | None = None,
+        reasoning_flusher: Callable[[], list[model.Part]] | None = None,
     ):
         self.param_model = param_model
         self.response_id = response_id
         self.stage: StreamStage = "waiting"
-        self.accumulated_reasoning: list[str] = []
         self.accumulated_content: list[str] = []
-        self.accumulated_images: list[model.AssistantImage] = []
+        self.accumulated_images: list[model.ImageFilePart] = []
         self.accumulated_tool_calls: ToolCallAccumulatorABC = BasicToolCallAccumulator()
         self.emitted_tool_start_indices: set[int] = set()
         self._reasoning_flusher = reasoning_flusher
+        self.parts: list[model.Part] = []
+        self.stop_reason: model.StopReason | None = None
 
     def set_response_id(self, response_id: str) -> None:
         """Set the response ID once received from the stream."""
         self.response_id = response_id
         self.accumulated_tool_calls.response_id = response_id  # pyright: ignore[reportAttributeAccessIssue]
 
-    def flush_reasoning(self) -> list[model.ConversationItem]:
-        """Flush accumulated reasoning content and return items."""
+    def flush_reasoning(self) -> None:
+        """Flush accumulated reasoning content into parts."""
         if self._reasoning_flusher is not None:
-            return self._reasoning_flusher()
-        if not self.accumulated_reasoning:
-            return []
-        item = model.ReasoningTextItem(
-            content="".join(self.accumulated_reasoning),
-            response_id=self.response_id,
-            model=self.param_model,
-        )
-        self.accumulated_reasoning = []
-        return [item]
+            self.parts.extend(self._reasoning_flusher())
 
-    def flush_assistant(self) -> list[model.ConversationItem]:
-        """Flush accumulated assistant content and return items."""
+    def flush_assistant(self) -> None:
+        """Flush accumulated assistant content into parts."""
         if not self.accumulated_content and not self.accumulated_images:
-            return []
-        item = model.AssistantMessageItem(
-            content="".join(self.accumulated_content),
-            images=list(self.accumulated_images) if self.accumulated_images else None,
-            response_id=self.response_id,
-        )
+            return
+        if self.accumulated_content:
+            self.parts.append(model.TextPart(text="".join(self.accumulated_content)))
+        if self.accumulated_images:
+            self.parts.extend(self.accumulated_images)
         self.accumulated_content = []
         self.accumulated_images = []
-        return [item]
+        return
 
-    def flush_tool_calls(self) -> list[model.ToolCallItem]:
-        """Flush accumulated tool calls and return items."""
-        items: list[model.ToolCallItem] = self.accumulated_tool_calls.get()
+    def flush_tool_calls(self) -> None:
+        """Flush accumulated tool calls into parts."""
+        items = self.accumulated_tool_calls.get()
         if items:
+            self.parts.extend(items)
             self.accumulated_tool_calls.chunks_by_step = []  # pyright: ignore[reportAttributeAccessIssue]
-        return items
 
-    def flush_all(self) -> list[model.ConversationItem]:
+    def flush_all(self) -> list[model.Part]:
         """Flush all accumulated content in order: reasoning, assistant, tool calls."""
-        items: list[model.ConversationItem] = []
-        items.extend(self.flush_reasoning())
-        items.extend(self.flush_assistant())
+        self.flush_reasoning()
+        self.flush_assistant()
         if self.stage == "tool":
-            items.extend(self.flush_tool_calls())
-        return items
+            self.flush_tool_calls()
+        return list(self.parts)
 
 
 @dataclass(slots=True)
@@ -109,7 +99,7 @@ class ReasoningDeltaResult:
     """Result of processing a single provider delta for reasoning signals."""
 
     handled: bool
-    outputs: list[str | model.ConversationItem]
+    outputs: list[str | model.Part]
 
 
 class ReasoningHandlerABC(ABC):
@@ -124,7 +114,7 @@ class ReasoningHandlerABC(ABC):
         """Process a single delta and return ordered reasoning outputs."""
 
     @abstractmethod
-    def flush(self) -> list[model.ConversationItem]:
+    def flush(self) -> list[model.Part]:
         """Flush buffered reasoning content (usually at stage transition/finalize)."""
 
 
@@ -152,16 +142,27 @@ class DefaultReasoningHandler(ReasoningHandlerABC):
         self._accumulated.append(text)
         return ReasoningDeltaResult(handled=True, outputs=[text])
 
-    def flush(self) -> list[model.ConversationItem]:
+    def flush(self) -> list[model.Part]:
         if not self._accumulated:
             return []
-        item = model.ReasoningTextItem(
-            content="".join(self._accumulated),
-            response_id=self._response_id,
-            model=self._param_model,
+        item = model.ThinkingTextPart(
+            text="".join(self._accumulated),
+            model_id=self._param_model,
         )
         self._accumulated = []
         return [item]
+
+
+def _map_finish_reason(reason: str) -> model.StopReason | None:
+    mapping: dict[str, model.StopReason] = {
+        "stop": "stop",
+        "length": "length",
+        "tool_calls": "tool_use",
+        "content_filter": "error",
+        "error": "error",
+        "cancelled": "aborted",
+    }
+    return mapping.get(reason)
 
 
 async def parse_chat_completions_stream(
@@ -171,8 +172,8 @@ async def parse_chat_completions_stream(
     metadata_tracker: MetadataTracker,
     reasoning_handler: ReasoningHandlerABC,
     on_event: Callable[[object], None] | None = None,
-) -> AsyncGenerator[model.ConversationItem]:
-    """Parse OpenAI Chat Completions stream into ConversationItems.
+) -> AsyncGenerator[model.LLMStreamItem]:
+    """Parse OpenAI Chat Completions stream into stream items.
 
     This is shared by OpenAI-compatible and OpenRouter clients.
     """
@@ -230,6 +231,10 @@ async def parse_chat_completions_stream(
             if delta is None:
                 continue
 
+            finish_reason = getattr(choice0, "finish_reason", None)
+            if isinstance(finish_reason, str):
+                state.stop_reason = _map_finish_reason(finish_reason)
+
             # Reasoning
             reasoning_result = reasoning_handler.on_delta(delta)
             if reasoning_result.handled:
@@ -239,9 +244,9 @@ async def parse_chat_completions_stream(
                         if not output:
                             continue
                         metadata_tracker.record_token()
-                        yield model.ReasoningTextDelta(content=output, response_id=state.response_id)
+                        yield model.ThinkingTextDelta(content=output, response_id=state.response_id)
                     else:
-                        yield output
+                        state.parts.append(output)
 
             # Assistant
             images = getattr(delta, "images", None)
@@ -249,11 +254,9 @@ async def parse_chat_completions_stream(
                 images_list = cast(list[object], images)
                 metadata_tracker.record_token()
                 if state.stage == "reasoning":
-                    for item in state.flush_reasoning():
-                        yield item
+                    state.flush_reasoning()
                 elif state.stage == "tool":
-                    for item in state.flush_tool_calls():
-                        yield item
+                    state.flush_tool_calls()
                 state.stage = "assistant"
                 for image_obj in images_list:
                     url = _extract_image_url(image_obj)
@@ -278,11 +281,9 @@ async def parse_chat_completions_stream(
             if (content := getattr(delta, "content", None)) and (state.stage == "assistant" or str(content).strip()):
                 metadata_tracker.record_token()
                 if state.stage == "reasoning":
-                    for item in state.flush_reasoning():
-                        yield item
+                    state.flush_reasoning()
                 elif state.stage == "tool":
-                    for item in state.flush_tool_calls():
-                        yield item
+                    state.flush_tool_calls()
                 state.stage = "assistant"
                 state.accumulated_content.append(str(content))
                 yield model.AssistantMessageDelta(
@@ -294,11 +295,9 @@ async def parse_chat_completions_stream(
             if (tool_calls := getattr(delta, "tool_calls", None)) and len(tool_calls) > 0:
                 metadata_tracker.record_token()
                 if state.stage == "reasoning":
-                    for item in state.flush_reasoning():
-                        yield item
+                    state.flush_reasoning()
                 elif state.stage == "assistant":
-                    for item in state.flush_assistant():
-                        yield item
+                    state.flush_assistant()
                 state.stage = "tool"
                 for tc in tool_calls:
                     if tc.index not in state.emitted_tool_start_indices and tc.function and tc.function.name:
@@ -312,11 +311,16 @@ async def parse_chat_completions_stream(
     except (openai.OpenAIError, httpx.HTTPError) as e:
         yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
 
-    flushed_items = state.flush_all()
-    if flushed_items:
+    parts = state.flush_all()
+    if parts:
         metadata_tracker.record_token()
-    for item in flushed_items:
-        yield item
-
     metadata_tracker.set_response_id(state.response_id)
-    yield metadata_tracker.finalize()
+    metadata = metadata_tracker.finalize()
+    if parts:
+        yield model.AssistantMessage(
+            parts=parts,
+            response_id=state.response_id,
+            usage=metadata,
+            stop_reason=state.stop_reason,
+        )
+    yield metadata

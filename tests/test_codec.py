@@ -12,73 +12,71 @@ if TYPE_CHECKING:
 
 
 # ============================================================================
-# Strategy generators for conversation items
+# Strategy generators for history items
 # ============================================================================
 
 
 @st.composite
-def user_message_items(draw: st.DrawFn) -> "model.UserMessageItem":
-    """Generate UserMessageItem instances."""
-    from klaude_code.protocol.model import UserMessageItem
+def user_message_items(draw: st.DrawFn) -> "model.UserMessage":
+    """Generate UserMessage instances."""
+    from klaude_code.protocol.model import UserMessage, text_parts_from_str
 
-    return UserMessageItem(
+    text = draw(st.none() | st.text(min_size=0, max_size=100))
+    return UserMessage(
         id=draw(st.none() | st.text(min_size=1, max_size=20)),
-        content=draw(st.none() | st.text(min_size=0, max_size=100)),
+        parts=text_parts_from_str(text),
         created_at=datetime.now(),
     )
 
 
 @st.composite
-def assistant_message_items(draw: st.DrawFn) -> "model.AssistantMessageItem":
-    """Generate AssistantMessageItem instances."""
-    from klaude_code.protocol.model import AssistantMessageItem
+def assistant_message_items(draw: st.DrawFn) -> "model.AssistantMessage":
+    """Generate AssistantMessage instances."""
+    from klaude_code.protocol.model import AssistantMessage, text_parts_from_str
 
-    return AssistantMessageItem(
+    text = draw(st.none() | st.text(min_size=0, max_size=100))
+    return AssistantMessage(
         id=draw(st.none() | st.text(min_size=1, max_size=20)),
-        content=draw(st.none() | st.text(min_size=0, max_size=100)),
+        parts=text_parts_from_str(text),
         response_id=draw(st.none() | st.text(min_size=1, max_size=20)),
         created_at=datetime.now(),
     )
 
 
 @st.composite
-def tool_call_items(draw: st.DrawFn) -> "model.ToolCallItem":
-    """Generate ToolCallItem instances."""
-    from klaude_code.protocol.model import ToolCallItem
+def tool_result_messages(draw: st.DrawFn) -> "model.ToolResultMessage":
+    """Generate ToolResultMessage instances."""
+    from klaude_code.protocol.model import ToolResultMessage
 
-    return ToolCallItem(
-        id=draw(st.none() | st.text(min_size=1, max_size=20)),
+    return ToolResultMessage(
         call_id=draw(st.text(min_size=1, max_size=20)),
-        name=draw(st.text(min_size=1, max_size=20)),
-        arguments=draw(st.text(min_size=0, max_size=100)),
+        tool_name=draw(st.text(min_size=1, max_size=20)),
+        status=draw(st.sampled_from(["success", "error", "aborted"])),
+        output_text=draw(st.text(min_size=0, max_size=100)),
         created_at=datetime.now(),
     )
 
 
-@st.composite
-def start_items(draw: st.DrawFn) -> "model.StartItem":
-    """Generate StartItem instances."""
-    from klaude_code.protocol.model import StartItem
+def stream_error_items() -> st.SearchStrategy["model.StreamErrorItem"]:
+    """Generate StreamErrorItem instances."""
+    from klaude_code.protocol.model import StreamErrorItem
 
-    return StartItem(
-        response_id=draw(st.text(min_size=1, max_size=20)),
-        created_at=datetime.now(),
-    )
+    return st.builds(StreamErrorItem, error=st.text(min_size=1, max_size=100), created_at=st.just(datetime.now()))
 
 
-def interrupt_items() -> st.SearchStrategy["model.InterruptItem"]:
-    """Generate InterruptItem instances."""
-    from klaude_code.protocol.model import InterruptItem
+def task_metadata_items() -> st.SearchStrategy["model.TaskMetadataItem"]:
+    """Generate TaskMetadataItem instances."""
+    from klaude_code.protocol.model import TaskMetadataItem
 
-    return st.builds(InterruptItem, created_at=st.just(datetime.now()))
+    return st.builds(TaskMetadataItem, created_at=st.just(datetime.now()))
 
 
-conversation_items = st.one_of(
+history_items = st.one_of(
     user_message_items(),
     assistant_message_items(),
-    tool_call_items(),
-    start_items(),
-    interrupt_items(),
+    tool_result_messages(),
+    stream_error_items(),
+    task_metadata_items(),
 )
 
 
@@ -87,9 +85,9 @@ conversation_items = st.one_of(
 # ============================================================================
 
 
-@given(item=conversation_items)
+@given(item=history_items)
 @settings(max_examples=100, deadline=None)
-def test_codec_encode_decode_roundtrip(item: "model.ConversationItem") -> None:
+def test_codec_encode_decode_roundtrip(item: "model.HistoryEvent") -> None:
     """Property: decode(encode(item)) == item (for content fields)."""
     from klaude_code.session.codec import decode_conversation_item, encode_conversation_item
 
@@ -102,9 +100,9 @@ def test_codec_encode_decode_roundtrip(item: "model.ConversationItem") -> None:
     assert decoded.model_dump(exclude={"created_at"}) == item.model_dump(exclude={"created_at"})
 
 
-@given(item=conversation_items)
+@given(item=history_items)
 @settings(max_examples=100, deadline=None)
-def test_codec_jsonl_roundtrip(item: "model.ConversationItem") -> None:
+def test_codec_jsonl_roundtrip(item: "model.HistoryEvent") -> None:
     """Property: jsonl decode(encode(item)) == item."""
     from klaude_code.session.codec import decode_jsonl_line, encode_jsonl_line
 

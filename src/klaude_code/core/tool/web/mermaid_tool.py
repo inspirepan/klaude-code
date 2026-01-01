@@ -41,17 +41,17 @@ class MermaidTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultMessage:
         try:
             args = cls.MermaidArguments.model_validate_json(arguments)
         except Exception as exc:  # pragma: no cover - defensive
-            return model.ToolResultItem(status="error", output=f"Invalid arguments: {exc}")
+            return model.ToolResultMessage(status="error", output_text=f"Invalid arguments: {exc}")
 
         link = cls._build_link(args.code)
         line_count = cls._count_lines(args.code)
         ui_extra = model.MermaidLinkUIExtra(code=args.code, link=link, line_count=line_count)
         output = f"Mermaid diagram rendered successfully ({line_count} lines)."
-        return model.ToolResultItem(status="success", output=output, ui_extra=ui_extra)
+        return model.ToolResultMessage(status="success", output_text=output, ui_extra=ui_extra)
 
     @staticmethod
     def _build_link(code: str) -> str:

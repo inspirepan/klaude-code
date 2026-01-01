@@ -9,7 +9,15 @@ from klaude_code.core.tool.truncation import truncate_tool_output
 from klaude_code.protocol import model, tools
 
 
-async def run_tool(tool_call: model.ToolCallItem, registry: dict[str, type[ToolABC]]) -> model.ToolResultItem:
+@dataclass(frozen=True)
+class ToolCallRequest:
+    response_id: str | None
+    call_id: str
+    tool_name: str
+    arguments_json: str
+
+
+async def run_tool(tool_call: ToolCallRequest, registry: dict[str, type[ToolABC]]) -> model.ToolResultMessage:
     """Execute a tool call and return the result.
 
     Args:
@@ -20,26 +28,26 @@ async def run_tool(tool_call: model.ToolCallItem, registry: dict[str, type[ToolA
         The result of the tool execution.
     """
     # Special handling for report_back tool (not registered in global registry)
-    if tool_call.name == tools.REPORT_BACK:
-        tool_result = await ReportBackTool.call(tool_call.arguments)
+    if tool_call.tool_name == tools.REPORT_BACK:
+        tool_result = await ReportBackTool.call(tool_call.arguments_json)
         tool_result.call_id = tool_call.call_id
-        tool_result.tool_name = tool_call.name
+        tool_result.tool_name = tool_call.tool_name
         return tool_result
 
-    if tool_call.name not in registry:
-        return model.ToolResultItem(
+    if tool_call.tool_name not in registry:
+        return model.ToolResultMessage(
             call_id=tool_call.call_id,
-            output=f"Tool {tool_call.name} not exists",
+            output_text=f"Tool {tool_call.tool_name} not exists",
             status="error",
-            tool_name=tool_call.name,
+            tool_name=tool_call.tool_name,
         )
     try:
-        tool_result = await registry[tool_call.name].call(tool_call.arguments)
+        tool_result = await registry[tool_call.tool_name].call(tool_call.arguments_json)
         tool_result.call_id = tool_call.call_id
-        tool_result.tool_name = tool_call.name
-        if tool_result.output:
-            truncation_result = truncate_tool_output(tool_result.output, tool_call)
-            tool_result.output = truncation_result.output
+        tool_result.tool_name = tool_call.tool_name
+        if tool_result.output_text:
+            truncation_result = truncate_tool_output(tool_result.output_text, tool_call)
+            tool_result.output_text = truncation_result.output
             if truncation_result.was_truncated and truncation_result.saved_file_path:
                 tool_result.ui_extra = model.TruncationUIExtra(
                     saved_file_path=truncation_result.saved_file_path,
@@ -51,11 +59,11 @@ async def run_tool(tool_call: model.ToolCallItem, registry: dict[str, type[ToolA
         # Propagate cooperative cancellation so outer layers can handle interrupts correctly.
         raise
     except Exception as e:
-        return model.ToolResultItem(
+        return model.ToolResultMessage(
             call_id=tool_call.call_id,
-            output=f"Tool {tool_call.name} execution error: {e.__class__.__name__} {e}",
+            output_text=f"Tool {tool_call.tool_name} execution error: {e.__class__.__name__} {e}",
             status="error",
-            tool_name=tool_call.name,
+            tool_name=tool_call.tool_name,
         )
 
 
@@ -63,15 +71,15 @@ async def run_tool(tool_call: model.ToolCallItem, registry: dict[str, type[ToolA
 class ToolExecutionCallStarted:
     """Represents the start of a tool call execution."""
 
-    tool_call: model.ToolCallItem
+    tool_call: ToolCallRequest
 
 
 @dataclass
 class ToolExecutionResult:
     """Represents the completion of a tool call with its result."""
 
-    tool_call: model.ToolCallItem
-    tool_result: model.ToolResultItem
+    tool_call: ToolCallRequest
+    tool_result: model.ToolResultMessage
 
 
 @dataclass
@@ -98,16 +106,16 @@ class ToolExecutor:
         self,
         *,
         registry: dict[str, type[ToolABC]],
-        append_history: Callable[[Sequence[model.ConversationItem]], None],
+        append_history: Callable[[Sequence[model.HistoryEvent]], None],
     ) -> None:
         self._registry = registry
         self._append_history = append_history
 
-        self._unfinished_calls: dict[str, model.ToolCallItem] = {}
+        self._unfinished_calls: dict[str, ToolCallRequest] = {}
         self._call_event_emitted: set[str] = set()
         self._concurrent_tasks: set[asyncio.Task[list[ToolExecutorEvent]]] = set()
 
-    async def run_tools(self, tool_calls: list[model.ToolCallItem]) -> AsyncGenerator[ToolExecutorEvent]:
+    async def run_tools(self, tool_calls: list[ToolCallRequest]) -> AsyncGenerator[ToolExecutorEvent]:
         """Run the given tool calls and yield execution events.
 
         Tool calls are partitioned into regular tools and sub-agent tools. Regular tools
@@ -168,7 +176,7 @@ class ToolExecutor:
         - For each unfinished tool call, yields a ToolExecutionCallStarted (if not
           already emitted for this turn) followed by a ToolExecutionResult with
           error status and a standard cancellation output. The corresponding
-          ToolResultItem is appended to history via `append_history`.
+          ToolResultMessage is appended to history via `append_history`.
         """
 
         events_to_yield: list[ToolExecutorEvent] = []
@@ -183,11 +191,11 @@ class ToolExecutor:
             return events_to_yield
 
         for call_id, tool_call in list(self._unfinished_calls.items()):
-            cancel_result = model.ToolResultItem(
+            cancel_result = model.ToolResultMessage(
                 call_id=tool_call.call_id,
-                output=const.CANCEL_OUTPUT,
-                status="error",
-                tool_name=tool_call.name,
+                output_text=const.CANCEL_OUTPUT,
+                status="aborted",
+                tool_name=tool_call.tool_name,
                 ui_extra=None,
             )
 
@@ -212,12 +220,12 @@ class ToolExecutor:
 
     def _partition_tool_calls(
         self,
-        tool_calls: list[model.ToolCallItem],
-    ) -> tuple[list[model.ToolCallItem], list[model.ToolCallItem]]:
-        sequential_tool_calls: list[model.ToolCallItem] = []
-        concurrent_tool_calls: list[model.ToolCallItem] = []
+        tool_calls: list[ToolCallRequest],
+    ) -> tuple[list[ToolCallRequest], list[ToolCallRequest]]:
+        sequential_tool_calls: list[ToolCallRequest] = []
+        concurrent_tool_calls: list[ToolCallRequest] = []
         for tool_call in tool_calls:
-            tool_cls = self._registry.get(tool_call.name)
+            tool_cls = self._registry.get(tool_call.tool_name)
             policy = (
                 tool_cls.metadata().concurrency_policy if tool_cls is not None else ToolConcurrencyPolicy.SEQUENTIAL
             )
@@ -227,11 +235,11 @@ class ToolExecutor:
                 sequential_tool_calls.append(tool_call)
         return sequential_tool_calls, concurrent_tool_calls
 
-    def _build_tool_call_started(self, tool_call: model.ToolCallItem) -> ToolExecutionCallStarted:
+    def _build_tool_call_started(self, tool_call: ToolCallRequest) -> ToolExecutionCallStarted:
         return ToolExecutionCallStarted(tool_call=tool_call)
 
-    async def _run_single_tool_call(self, tool_call: model.ToolCallItem) -> list[ToolExecutorEvent]:
-        tool_result: model.ToolResultItem = await run_tool(tool_call, self._registry)
+    async def _run_single_tool_call(self, tool_call: ToolCallRequest) -> list[ToolExecutorEvent]:
+        tool_result: model.ToolResultMessage = await run_tool(tool_call, self._registry)
 
         self._append_history([tool_result])
 
@@ -242,7 +250,7 @@ class ToolExecutor:
         extra_events = self._build_tool_side_effect_events(tool_result)
         return [result_event, *extra_events]
 
-    def _build_tool_side_effect_events(self, tool_result: model.ToolResultItem) -> list[ToolExecutorEvent]:
+    def _build_tool_side_effect_events(self, tool_result: model.ToolResultMessage) -> list[ToolExecutorEvent]:
         side_effects = tool_result.side_effects
         if not side_effects:
             return []

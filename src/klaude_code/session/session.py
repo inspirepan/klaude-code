@@ -48,7 +48,7 @@ async def close_default_store() -> None:
 class Session(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     work_dir: Path
-    conversation_history: list[model.ConversationItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    conversation_history: list[model.HistoryEvent] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     sub_agent_state: model.SubAgentState | None = None
     file_tracker: dict[str, model.FileStatus] = Field(default_factory=dict)
     todos: list[model.TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
@@ -72,7 +72,7 @@ class Session(BaseModel):
             self._messages_count_cache = sum(
                 1
                 for it in self.conversation_history
-                if isinstance(it, (model.UserMessageItem, model.AssistantMessageItem, model.ToolResultItem))
+                if isinstance(it, (model.UserMessage, model.AssistantMessage, model.ToolResultMessage))
             )
         return self._messages_count_cache
 
@@ -89,7 +89,9 @@ class Session(BaseModel):
 
         if self._user_messages_cache is None:
             self._user_messages_cache = [
-                it.content for it in self.conversation_history if isinstance(it, model.UserMessageItem) and it.content
+                model.join_text_parts(it.parts)
+                for it in self.conversation_history
+                if isinstance(it, model.UserMessage) and model.join_text_parts(it.parts)
             ]
         return self._user_messages_cache
 
@@ -186,21 +188,25 @@ class Session(BaseModel):
         session.conversation_history = store.load_history(id)
         return session
 
-    def append_history(self, items: Sequence[model.ConversationItem]) -> None:
+    def append_history(self, items: Sequence[model.HistoryEvent]) -> None:
         if not items:
             return
 
         self.conversation_history.extend(items)
         self._invalidate_messages_count_cache()
 
-        new_user_messages = [it.content for it in items if isinstance(it, model.UserMessageItem) and it.content]
+        new_user_messages = [
+            model.join_text_parts(it.parts)
+            for it in items
+            if isinstance(it, model.UserMessage) and model.join_text_parts(it.parts)
+        ]
         if new_user_messages:
             if self._user_messages_cache is None:
                 # Build from full history once to ensure correctness when resuming older sessions.
                 self._user_messages_cache = [
-                    it.content
+                    model.join_text_parts(it.parts)
                     for it in self.conversation_history
-                    if isinstance(it, model.UserMessageItem) and it.content
+                    if isinstance(it, model.UserMessage) and model.join_text_parts(it.parts)
                 ]
             else:
                 self._user_messages_cache.extend(new_user_messages)
@@ -279,19 +285,16 @@ class Session(BaseModel):
                 latest_id = sid
         return latest_id
 
-    def need_turn_start(self, prev_item: model.ConversationItem | None, item: model.ConversationItem) -> bool:
-        if not isinstance(
-            item,
-            model.ReasoningTextItem | model.AssistantMessageItem | model.ToolCallItem,
-        ):
+    def need_turn_start(self, prev_item: model.HistoryEvent | None, item: model.HistoryEvent) -> bool:
+        if not isinstance(item, model.AssistantMessage):
             return False
         if prev_item is None:
             return True
-        return isinstance(prev_item, model.UserMessageItem | model.ToolResultItem | model.DeveloperMessageItem)
+        return isinstance(prev_item, (model.UserMessage, model.ToolResultMessage, model.DeveloperMessage))
 
     def get_history_item(self) -> Iterable[events.HistoryItemEvent]:
         seen_sub_agent_sessions: set[str] = set()
-        prev_item: model.ConversationItem | None = None
+        prev_item: model.HistoryEvent | None = None
         last_assistant_content: str = ""
         report_back_result: str | None = None
         yield events.TaskStartEvent(session_id=self.id, sub_agent_state=self.sub_agent_state)
@@ -299,9 +302,9 @@ class Session(BaseModel):
             if self.need_turn_start(prev_item, it):
                 yield events.TurnStartEvent(session_id=self.id)
             match it:
-                case model.AssistantMessageItem() as am:
-                    content = am.content or ""
-                    images = am.images or []
+                case model.AssistantMessage() as am:
+                    content = model.join_text_parts(am.parts)
+                    images = [part for part in am.parts if isinstance(part, model.ImageFilePart)]
                     if images:
                         image_lines = "\n".join(f"- {img.file_path}" for img in images if img.file_path)
                         if image_lines:
@@ -314,53 +317,62 @@ class Session(BaseModel):
                             last_assistant_content = content
                     else:
                         last_assistant_content = content
-                    if am.images:
-                        for image in am.images:
-                            yield events.AssistantImageDeltaEvent(
-                                file_path=image.file_path,
-                                response_id=am.response_id,
-                                session_id=self.id,
-                            )
+                    thinking_text = "".join(part.text for part in am.parts if isinstance(part, model.ThinkingTextPart))
+                    for image in images:
+                        yield events.AssistantImageDeltaEvent(
+                            file_path=image.file_path,
+                            response_id=am.response_id,
+                            session_id=self.id,
+                        )
                     yield events.AssistantMessageEvent(
+                        thinking_text=thinking_text,
                         content=content,
                         response_id=am.response_id,
                         session_id=self.id,
                     )
-                case model.ToolCallItem() as tc:
-                    if tc.name == tools.REPORT_BACK:
-                        report_back_result = tc.arguments
-                    yield events.ToolCallEvent(
-                        tool_call_id=tc.call_id,
-                        tool_name=tc.name,
-                        arguments=tc.arguments,
-                        response_id=tc.response_id,
-                        session_id=self.id,
-                    )
-                case model.ToolResultItem() as tr:
+                    for part in am.parts:
+                        if not isinstance(part, model.ToolCallPart):
+                            continue
+                        if part.tool_name == tools.REPORT_BACK:
+                            report_back_result = part.arguments_json
+                        yield events.ToolCallEvent(
+                            tool_call_id=part.call_id,
+                            tool_name=part.tool_name,
+                            arguments=part.arguments_json,
+                            response_id=am.response_id,
+                            session_id=self.id,
+                        )
+                    if am.stop_reason == "aborted":
+                        yield events.InterruptEvent(session_id=self.id)
+                case model.ToolResultMessage() as tr:
+                    status = "success" if tr.status == "success" else "error"
                     yield events.ToolResultEvent(
                         tool_call_id=tr.call_id,
                         tool_name=str(tr.tool_name),
-                        result=tr.output or "",
+                        result=tr.output_text,
                         ui_extra=tr.ui_extra,
                         session_id=self.id,
-                        status=tr.status,
+                        status=status,
                         task_metadata=tr.task_metadata,
                     )
                     yield from self._iter_sub_agent_history(tr, seen_sub_agent_sessions)
-                case model.UserMessageItem() as um:
-                    yield events.UserMessageEvent(content=um.content or "", session_id=self.id, images=um.images)
-                case model.ReasoningTextItem() as ri:
-                    yield events.ThinkingEvent(content=ri.content, session_id=self.id)
+                    if tr.status == "aborted":
+                        yield events.InterruptEvent(session_id=self.id)
+                case model.UserMessage() as um:
+                    images = [part for part in um.parts if isinstance(part, model.ImageURLPart)]
+                    yield events.UserMessageEvent(
+                        content=model.join_text_parts(um.parts),
+                        session_id=self.id,
+                        images=images or None,
+                    )
                 case model.TaskMetadataItem() as mt:
                     yield events.TaskMetadataEvent(session_id=self.id, metadata=mt)
-                case model.InterruptItem():
-                    yield events.InterruptEvent(session_id=self.id)
-                case model.DeveloperMessageItem() as dm:
+                case model.DeveloperMessage() as dm:
                     yield events.DeveloperMessageEvent(session_id=self.id, item=dm)
                 case model.StreamErrorItem() as se:
                     yield events.ErrorEvent(error_message=se.error, can_retry=False, session_id=self.id)
-                case _:
-                    continue
+                case model.SystemMessage():
+                    pass
             prev_item = it
 
         has_structured_output = report_back_result is not None
@@ -370,7 +382,7 @@ class Session(BaseModel):
         )
 
     def _iter_sub_agent_history(
-        self, tool_result: model.ToolResultItem, seen_sub_agent_sessions: set[str]
+        self, tool_result: model.ToolResultMessage, seen_sub_agent_sessions: set[str]
     ) -> Iterable[events.HistoryItemEvent]:
         ui_extra = tool_result.ui_extra
         if not isinstance(ui_extra, model.SessionIdUIExtra):
@@ -412,14 +424,18 @@ class Session(BaseModel):
                     if not isinstance(obj_raw, dict):
                         continue
                     obj = cast(dict[str, Any], obj_raw)
-                    if obj.get("type") != "UserMessageItem":
+                    if obj.get("type") != "UserMessage":
                         continue
                     data_raw = obj.get("data")
                     if not isinstance(data_raw, dict):
                         continue
                     data = cast(dict[str, Any], data_raw)
-                    content = data.get("content")
-                    if isinstance(content, str):
+                    try:
+                        message = model.UserMessage.model_validate(data)
+                    except ValidationError:
+                        continue
+                    content = model.join_text_parts(message.parts)
+                    if content:
                         messages.append(content)
             except (OSError, json.JSONDecodeError):
                 pass

@@ -1,6 +1,6 @@
 import json
 from collections.abc import AsyncGenerator
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, Literal, override
 
 import httpx
 import openai
@@ -59,9 +59,57 @@ async def parse_responses_stream(
     stream: "AsyncStream[ResponseStreamEvent]",
     param: llm_param.LLMCallParameter,
     metadata_tracker: MetadataTracker,
-) -> AsyncGenerator[model.ConversationItem]:
-    """Parse OpenAI Responses API stream events into ConversationItems."""
+) -> AsyncGenerator[model.LLMStreamItem]:
+    """Parse OpenAI Responses API stream events into stream items."""
     response_id: str | None = None
+    stage: Literal["waiting", "thinking", "assistant", "tool"] = "waiting"
+
+    accumulated_thinking: list[str] = []
+    accumulated_text: list[str] = []
+    pending_signature: str | None = None
+    assistant_parts: list[model.Part] = []
+    stop_reason: model.StopReason | None = None
+
+    def flush_thinking() -> None:
+        nonlocal pending_signature
+        if accumulated_thinking:
+            assistant_parts.append(
+                model.ThinkingTextPart(
+                    text="".join(accumulated_thinking),
+                    model_id=str(param.model),
+                )
+            )
+            accumulated_thinking.clear()
+        if pending_signature:
+            assistant_parts.append(
+                model.ThinkingSignaturePart(
+                    signature=pending_signature,
+                    model_id=str(param.model),
+                    format="openai_reasoning",
+                )
+            )
+            pending_signature = None
+
+    def flush_text() -> None:
+        if not accumulated_text:
+            return
+        assistant_parts.append(model.TextPart(text="".join(accumulated_text)))
+        accumulated_text.clear()
+
+    def map_stop_reason(status: str | None, reason: str | None) -> model.StopReason | None:
+        if reason:
+            normalized = reason.strip().lower()
+            if normalized in {"max_output_tokens", "length", "max_tokens"}:
+                return "length"
+            if normalized in {"content_filter", "safety"}:
+                return "error"
+            if normalized in {"cancelled", "canceled", "aborted"}:
+                return "aborted"
+        if status == "completed":
+            return "stop"
+        if status in {"failed", "error"}:
+            return "error"
+        return None
 
     try:
         async for event in stream:
@@ -78,21 +126,22 @@ async def parse_responses_stream(
                 case responses.ResponseReasoningSummaryTextDeltaEvent() as event:
                     if event.delta:
                         metadata_tracker.record_token()
-                        yield model.ReasoningTextDelta(
-                            content=event.delta,
-                            response_id=response_id,
-                        )
+                        if stage == "assistant":
+                            flush_text()
+                        stage = "thinking"
+                        accumulated_thinking.append(event.delta)
+                        yield model.ThinkingTextDelta(content=event.delta, response_id=response_id)
                 case responses.ResponseReasoningSummaryTextDoneEvent() as event:
-                    if event.text:
-                        yield model.ReasoningTextItem(
-                            content=event.text,
-                            response_id=response_id,
-                            model=str(param.model),
-                        )
+                    if event.text and not accumulated_thinking:
+                        accumulated_thinking.append(event.text)
                 case responses.ResponseTextDeltaEvent() as event:
                     if event.delta:
                         metadata_tracker.record_token()
-                    yield model.AssistantMessageDelta(content=event.delta, response_id=response_id)
+                        if stage == "thinking":
+                            flush_thinking()
+                        stage = "assistant"
+                        accumulated_text.append(event.delta)
+                        yield model.AssistantMessageDelta(content=event.delta, response_id=response_id)
                 case responses.ResponseOutputItemAddedEvent() as event:
                     if isinstance(event.item, responses.ResponseFunctionToolCall):
                         metadata_tracker.record_token()
@@ -105,34 +154,31 @@ async def parse_responses_stream(
                     match event.item:
                         case responses.ResponseReasoningItem() as item:
                             if item.encrypted_content:
-                                metadata_tracker.record_token()
-                                yield model.ReasoningEncryptedItem(
-                                    id=item.id,
-                                    encrypted_content=item.encrypted_content,
-                                    response_id=response_id,
-                                    model=str(param.model),
-                                )
+                                pending_signature = item.encrypted_content
                         case responses.ResponseOutputMessage() as item:
-                            metadata_tracker.record_token()
-                            yield model.AssistantMessageItem(
-                                content="\n".join(
+                            if not accumulated_text:
+                                text_content = "\n".join(
                                     [
                                         part.text
                                         for part in item.content
                                         if isinstance(part, responses.ResponseOutputText)
                                     ]
-                                ),
-                                id=item.id,
-                                response_id=response_id,
-                            )
+                                )
+                                if text_content:
+                                    accumulated_text.append(text_content)
                         case responses.ResponseFunctionToolCall() as item:
                             metadata_tracker.record_token()
-                            yield model.ToolCallItem(
-                                name=item.name,
-                                arguments=item.arguments.strip(),
-                                call_id=item.call_id,
-                                id=item.id,
-                                response_id=response_id,
+                            if stage == "thinking":
+                                flush_thinking()
+                            if stage == "assistant":
+                                flush_text()
+                            stage = "tool"
+                            assistant_parts.append(
+                                model.ToolCallPart(
+                                    call_id=item.call_id,
+                                    tool_name=item.name,
+                                    arguments_json=item.arguments.strip(),
+                                )
                             )
                         case _:
                             pass
@@ -154,7 +200,7 @@ async def parse_responses_stream(
                         )
                     metadata_tracker.set_model_name(str(param.model))
                     metadata_tracker.set_response_id(response_id)
-                    yield metadata_tracker.finalize()
+                    stop_reason = map_stop_reason(event.response.status, error_reason)
                     if event.response.status != "completed":
                         error_message = f"LLM response finished with status '{event.response.status}'"
                         if error_reason:
@@ -175,6 +221,19 @@ async def parse_responses_stream(
                     )
     except (openai.OpenAIError, httpx.HTTPError) as e:
         yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+
+    flush_thinking()
+    flush_text()
+    metadata_tracker.set_response_id(response_id)
+    metadata = metadata_tracker.finalize()
+    if assistant_parts:
+        yield model.AssistantMessage(
+            parts=assistant_parts,
+            response_id=response_id,
+            usage=metadata,
+            stop_reason=stop_reason,
+        )
+    yield metadata
 
 
 @register(llm_param.LLMClientProtocol.RESPONSES)
@@ -204,7 +263,7 @@ class ResponsesClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.LLMStreamItem]:
         param = apply_config_defaults(param, self.get_llm_config())
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)

@@ -88,8 +88,10 @@ class ResumeCommand(CommandABC):
         if agent.session.messages_count > 0:
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=model.DeveloperMessageItem(
-                    content="Cannot resume: current session already has messages. Use `klaude -r` to start a new instance with session selection.",
+                item=model.DeveloperMessage(
+                    parts=model.text_parts_from_str(
+                        "Cannot resume: current session already has messages. Use `klaude -r` to start a new instance with session selection."
+                    ),
                     command_output=model.CommandOutput(command_name=self.name, is_error=True),
                 ),
             )
@@ -99,8 +101,8 @@ class ResumeCommand(CommandABC):
         if selected_session_id is None:
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=model.DeveloperMessageItem(
-                    content="(no session selected)",
+                item=model.DeveloperMessage(
+                    parts=model.text_parts_from_str("(no session selected)"),
                     command_output=model.CommandOutput(command_name=self.name),
                 ),
             )

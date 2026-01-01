@@ -35,12 +35,8 @@ class MetadataTracker:
         self._request_start_time: float = time.time()
         self._first_token_time: float | None = None
         self._last_token_time: float | None = None
-        self._metadata_item = model.ResponseMetadataItem()
+        self._usage = model.Usage()
         self._cost_config = cost_config
-
-    @property
-    def metadata_item(self) -> model.ResponseMetadataItem:
-        return self._metadata_item
 
     @property
     def first_token_time(self) -> float | None:
@@ -59,37 +55,45 @@ class MetadataTracker:
 
     def set_usage(self, usage: model.Usage) -> None:
         """Set the usage information."""
-        self._metadata_item.usage = usage
+        preserved = {
+            "response_id": self._usage.response_id,
+            "model_name": self._usage.model_name,
+            "provider": self._usage.provider,
+            "task_duration_s": self._usage.task_duration_s,
+            "created_at": self._usage.created_at,
+        }
+        self._usage = usage.model_copy(update=preserved)
 
     def set_model_name(self, model_name: str) -> None:
         """Set the model name."""
-        self._metadata_item.model_name = model_name
+        self._usage.model_name = model_name
 
     def set_provider(self, provider: str) -> None:
         """Set the provider name."""
-        self._metadata_item.provider = provider
+        self._usage.provider = provider
 
     def set_response_id(self, response_id: str | None) -> None:
         """Set the response ID."""
-        self._metadata_item.response_id = response_id
+        self._usage.response_id = response_id
 
-    def finalize(self) -> model.ResponseMetadataItem:
-        """Finalize and return the metadata item with calculated performance metrics."""
-        if self._metadata_item.usage and self._first_token_time is not None:
-            self._metadata_item.usage.first_token_latency_ms = (
-                self._first_token_time - self._request_start_time
-            ) * 1000
+    def finalize(self) -> model.Usage:
+        """Finalize and return the usage item with calculated performance metrics."""
+        if self._first_token_time is not None:
+            self._usage.first_token_latency_ms = (self._first_token_time - self._request_start_time) * 1000
 
-            if self._last_token_time is not None and self._metadata_item.usage.output_tokens > 0:
+            if self._last_token_time is not None and self._usage.output_tokens > 0:
                 time_duration = self._last_token_time - self._request_start_time
                 if time_duration >= 0.15:
-                    self._metadata_item.usage.throughput_tps = self._metadata_item.usage.output_tokens / time_duration
+                    self._usage.throughput_tps = self._usage.output_tokens / time_duration
 
         # Calculate cost if config is available
-        if self._metadata_item.usage:
-            calculate_cost(self._metadata_item.usage, self._cost_config)
+        calculate_cost(self._usage, self._cost_config)
 
-        return self._metadata_item
+        return self._usage
+
+    @property
+    def usage(self) -> model.Usage:
+        return self._usage
 
 
 def convert_usage(

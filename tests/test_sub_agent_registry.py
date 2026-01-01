@@ -7,7 +7,7 @@ import pytest
 import klaude_code.core.tool as core_tool
 from klaude_code.core.tool import ToolABC, load_agent_tools
 from klaude_code.core.tool.tool_abc import ToolConcurrencyPolicy, ToolMetadata
-from klaude_code.core.tool.tool_runner import ToolExecutor
+from klaude_code.core.tool.tool_runner import ToolCallRequest, ToolExecutor
 from klaude_code.protocol import llm_param, model
 from klaude_code.protocol.sub_agent import sub_agent_tool_names
 
@@ -54,7 +54,7 @@ class _SlowSubAgentTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultMessage:
         assert cls.started is not None
         cls.started.set()
         try:
@@ -64,15 +64,13 @@ class _SlowSubAgentTool(ToolABC):
             # Re-raise so outer layers can observe cooperative cancellation.
             raise
 
-        return model.ToolResultItem(
-            call_id="tc1",
-            output="should not complete",
+        return model.ToolResultMessage(
+            output_text="should not complete",
             status="success",
-            tool_name="Explore",
         )
 
 
-def _consume_tool_executor(executor: ToolExecutor, tool_calls: list[model.ToolCallItem]) -> asyncio.Task[None]:
+def _consume_tool_executor(executor: ToolExecutor, tool_calls: list[ToolCallRequest]) -> asyncio.Task[None]:
     async def _runner() -> None:
         async for _ in executor.run_tools(tool_calls):
             pass
@@ -90,11 +88,11 @@ def test_sub_agent_tool_cancellation_propagates_cancelled_error() -> None:
             append_history=lambda items: None,  # type: ignore[arg-type]
         )
 
-        tool_call = model.ToolCallItem(
-            call_id="tc1",
-            name="Explore",
-            arguments="{}",
+        tool_call = ToolCallRequest(
             response_id="resp1",
+            call_id="tc1",
+            tool_name="Explore",
+            arguments_json="{}",
         )
 
         task = _consume_tool_executor(executor, [tool_call])

@@ -122,7 +122,7 @@ def _encode_image_file(file_path: str) -> ImageURLPart | None:
             encoded = b64encode(f.read()).decode("ascii")
         # Clipboard images are always saved as PNG
         data_url = f"data:image/png;base64,{encoded}"
-        return ImageURLPart(image_url=ImageURLPart.ImageURL(url=data_url, id=None))
+        return ImageURLPart(url=data_url, id=None)
     except OSError:
         return None
 

@@ -47,7 +47,7 @@ class TestApplyPatchTool(BaseTempDirTest):
         result = arun(ApplyPatchTool.call(payload))
 
         self.assertEqual(result.status, "success")
-        self.assertEqual(result.output, "Done!")
+        self.assertEqual(result.output_text, "Done!")
         self.assertIsInstance(result.ui_extra, DiffUIExtra)
         assert isinstance(result.ui_extra, DiffUIExtra)
         self.assertEqual(result.ui_extra.files[0].file_path, "sample.txt")
@@ -75,7 +75,7 @@ class TestApplyPatchTool(BaseTempDirTest):
         result = arun(ApplyPatchTool.call(payload))
 
         self.assertEqual(result.status, "success")
-        self.assertEqual(result.output, "Done!")
+        self.assertEqual(result.output_text, "Done!")
         self.assertIsInstance(result.ui_extra, DiffUIExtra)
         assert isinstance(result.ui_extra, DiffUIExtra)
         self.assertEqual(result.ui_extra.files[0].file_path, "data.txt")
@@ -100,7 +100,7 @@ class TestApplyPatchTool(BaseTempDirTest):
         result = arun(ApplyPatchTool.call(payload))
 
         self.assertEqual(result.status, "success")
-        self.assertEqual(result.output, "Done!")
+        self.assertEqual(result.output_text, "Done!")
         self.assertTrue(Path(absolute_path).exists())
         self.assertEqual(Path(absolute_path).read_text(), "hello")
 

@@ -28,7 +28,7 @@ class ToolCallAccumulatorABC(ABC):
         pass
 
     @abstractmethod
-    def get(self) -> list[model.ToolCallItem]:
+    def get(self) -> list[model.ToolCallPart]:
         pass
 
 
@@ -69,8 +69,8 @@ class BasicToolCallAccumulator(ToolCallAccumulatorABC, BaseModel):
     def add(self, chunks: list[ChoiceDeltaToolCall]) -> None:
         self.chunks_by_step.append(chunks)
 
-    def get(self) -> list[model.ToolCallItem]:
-        result: list[model.ToolCallItem] = []
+    def get(self) -> list[model.ToolCallPart]:
+        result: list[model.ToolCallPart] = []
         current_index = -1
         for current_step in self.chunks_by_step:
             if len(current_step) == 0:
@@ -79,18 +79,16 @@ class BasicToolCallAccumulator(ToolCallAccumulatorABC, BaseModel):
             if first_chunk.index != current_index:
                 current_index = first_chunk.index
                 result.append(
-                    model.ToolCallItem(
-                        id=first_chunk.id,
-                        name="",
-                        arguments="",
+                    model.ToolCallPart(
                         call_id=first_chunk.id or "",
-                        response_id=self.response_id,
+                        tool_name="",
+                        arguments_json="",
                     )
                 )
             if first_chunk.function is None:
                 continue
             if first_chunk.function.name:
-                result[-1].name = normalize_tool_name(first_chunk.function.name)
+                result[-1].tool_name = normalize_tool_name(first_chunk.function.name)
             if first_chunk.function.arguments:
-                result[-1].arguments += first_chunk.function.arguments
+                result[-1].arguments_json += first_chunk.function.arguments
         return result

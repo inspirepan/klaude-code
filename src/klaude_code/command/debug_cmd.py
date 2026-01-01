@@ -70,8 +70,8 @@ class DebugCommand(CommandABC):
             events=[
                 events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=model.DeveloperMessageItem(
-                        content=content,
+                    item=model.DeveloperMessage(
+                        parts=model.text_parts_from_str(content),
                         command_output=model.CommandOutput(command_name=self.name),
                     ),
                 )

@@ -31,6 +31,21 @@ from klaude_code.trace import DebugType, log_debug
 _IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."
 
 
+def _map_anthropic_stop_reason(reason: str) -> model.StopReason | None:
+    mapping: dict[str, model.StopReason] = {
+        "end_turn": "stop",
+        "stop_sequence": "stop",
+        "max_tokens": "length",
+        "tool_use": "tool_use",
+        "content_filter": "error",
+        "error": "error",
+        "cancelled": "aborted",
+        "canceled": "aborted",
+        "aborted": "aborted",
+    }
+    return mapping.get(reason)
+
+
 def build_payload(
     param: llm_param.LLMCallParameter,
     *,
@@ -44,7 +59,8 @@ def build_payload(
     """
     messages = convert_history_to_input(param.input, param.model)
     tools = convert_tool_schema(param.tools)
-    system = convert_system_to_input(param.system)
+    system_messages = [msg for msg in param.input if isinstance(msg, model.SystemMessage)]
+    system = convert_system_to_input(param.system, system_messages)
 
     # Add identity block at the beginning of the system prompt
     identity_block: BetaTextBlockParam = {
@@ -87,14 +103,14 @@ async def parse_anthropic_stream(
     stream: Any,
     param: llm_param.LLMCallParameter,
     metadata_tracker: MetadataTracker,
-) -> AsyncGenerator[model.ConversationItem]:
-    """Parse Anthropic beta messages stream and yield conversation items.
-
-    This function is shared between AnthropicClient and BedrockClient.
-    """
+) -> AsyncGenerator[model.LLMStreamItem]:
+    """Parse Anthropic beta messages stream and yield stream items."""
     accumulated_thinking: list[str] = []
     accumulated_content: list[str] = []
+    parts: list[model.Part] = []
     response_id: str | None = None
+    stop_reason: model.StopReason | None = None
+    pending_signature: str | None = None
 
     current_tool_name: str | None = None
     current_tool_call_id: str | None = None
@@ -122,16 +138,12 @@ async def parse_anthropic_stream(
                         if delta.thinking:
                             metadata_tracker.record_token()
                         accumulated_thinking.append(delta.thinking)
-                        yield model.ReasoningTextDelta(
+                        yield model.ThinkingTextDelta(
                             content=delta.thinking,
                             response_id=response_id,
                         )
                     case BetaSignatureDelta() as delta:
-                        yield model.ReasoningEncryptedItem(
-                            encrypted_content=delta.signature,
-                            response_id=response_id,
-                            model=str(param.model),
-                        )
+                        pending_signature = delta.signature
                     case BetaTextDelta() as delta:
                         if delta.text:
                             metadata_tracker.record_token()
@@ -162,29 +174,32 @@ async def parse_anthropic_stream(
                     case _:
                         pass
             case BetaRawContentBlockStopEvent():
-                if len(accumulated_thinking) > 0:
+                if accumulated_thinking:
                     metadata_tracker.record_token()
                     full_thinking = "".join(accumulated_thinking)
-                    yield model.ReasoningTextItem(
-                        content=full_thinking,
-                        response_id=response_id,
-                        model=str(param.model),
-                    )
+                    parts.append(model.ThinkingTextPart(text=full_thinking, model_id=str(param.model)))
+                    if pending_signature:
+                        parts.append(
+                            model.ThinkingSignaturePart(
+                                signature=pending_signature,
+                                model_id=str(param.model),
+                                format="anthropic",
+                            )
+                        )
                     accumulated_thinking.clear()
-                if len(accumulated_content) > 0:
+                    pending_signature = None
+                if accumulated_content:
                     metadata_tracker.record_token()
-                    yield model.AssistantMessageItem(
-                        content="".join(accumulated_content),
-                        response_id=response_id,
-                    )
+                    parts.append(model.TextPart(text="".join(accumulated_content)))
                     accumulated_content.clear()
                 if current_tool_name and current_tool_call_id:
                     metadata_tracker.record_token()
-                    yield model.ToolCallItem(
-                        name=current_tool_name,
-                        call_id=current_tool_call_id,
-                        arguments="".join(current_tool_inputs) if current_tool_inputs else "",
-                        response_id=response_id,
+                    parts.append(
+                        model.ToolCallPart(
+                            call_id=current_tool_call_id,
+                            tool_name=current_tool_name,
+                            arguments_json="".join(current_tool_inputs) if current_tool_inputs else "",
+                        )
                     )
                     current_tool_name = None
                     current_tool_call_id = None
@@ -202,9 +217,21 @@ async def parse_anthropic_stream(
                 )
                 metadata_tracker.set_model_name(str(param.model))
                 metadata_tracker.set_response_id(response_id)
-                yield metadata_tracker.finalize()
+                raw_stop_reason = getattr(event, "stop_reason", None)
+                if isinstance(raw_stop_reason, str):
+                    stop_reason = _map_anthropic_stop_reason(raw_stop_reason)
             case _:
                 pass
+
+    metadata = metadata_tracker.finalize()
+    if parts:
+        yield model.AssistantMessage(
+            parts=parts,
+            response_id=response_id,
+            usage=metadata,
+            stop_reason=stop_reason,
+        )
+    yield metadata
 
 
 @register(llm_param.LLMClientProtocol.ANTHROPIC)
@@ -233,7 +260,7 @@ class AnthropicClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.LLMStreamItem]:
         param = apply_config_defaults(param, self.get_llm_config())
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)

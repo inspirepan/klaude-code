@@ -106,7 +106,7 @@ class TestSubAgentToolCall:
         result = arun(tool_class.call("not valid json"))
 
         assert result.status == "error"
-        assert result.output is not None and "Invalid JSON" in result.output
+        assert result.output_text is not None and "Invalid JSON" in result.output_text
 
     def test_call_without_runner(self):
         """Test call when no subtask runner is available."""
@@ -119,7 +119,7 @@ class TestSubAgentToolCall:
         result = arun(tool_class.call('{"prompt": "test"}'))
 
         assert result.status == "error"
-        assert result.output is not None and "No subtask runner" in result.output
+        assert result.output_text is not None and "No subtask runner" in result.output_text
 
     def test_call_appends_agent_id_when_session_returned(self):
         """Tool result should include agentId footer when session_id is present."""
@@ -148,8 +148,8 @@ class TestSubAgentToolCall:
             current_run_subtask_callback.reset(token)
 
         assert result.status == "success"
-        assert result.output is not None
-        assert "agentId: abc123def456" in result.output
+        assert result.output_text is not None
+        assert "agentId: abc123def456" in result.output_text
 
 
 class TestSubAgentProfile:

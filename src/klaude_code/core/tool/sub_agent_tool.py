@@ -52,17 +52,17 @@ class SubAgentTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultMessage:
         profile = cls._profile
 
         try:
             args = json.loads(arguments)
         except json.JSONDecodeError as e:
-            return model.ToolResultItem(status="error", output=f"Invalid JSON arguments: {e}")
+            return model.ToolResultMessage(status="error", output_text=f"Invalid JSON arguments: {e}")
 
         runner = current_run_subtask_callback.get()
         if runner is None:
-            return model.ToolResultItem(status="error", output="No subtask runner available in this context")
+            return model.ToolResultMessage(status="error", output_text="No subtask runner available in this context")
 
         # Build the prompt using the profile's prompt builder
         prompt = profile.prompt_builder(args)
@@ -74,14 +74,14 @@ class SubAgentTool(ToolABC):
             try:
                 resume_session_id = Session.resolve_sub_agent_session_id(resume_raw)
             except ValueError as exc:
-                return model.ToolResultItem(status="error", output=str(exc))
+                return model.ToolResultMessage(status="error", output_text=str(exc))
 
             claims = current_sub_agent_resume_claims.get()
             if claims is not None:
                 if resume_session_id in claims:
-                    return model.ToolResultItem(
+                    return model.ToolResultMessage(
                         status="error",
-                        output=(
+                        output_text=(
                             "Duplicate sub-agent resume in the same response: "
                             f"resume='{resume_raw.strip()}' (resolved='{resume_session_id[:7]}...'). "
                             "Merge into a single call or resume in a later turn."
@@ -113,7 +113,7 @@ class SubAgentTool(ToolABC):
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            return model.ToolResultItem(status="error", output=f"Failed to run subtask: {e}")
+            return model.ToolResultMessage(status="error", output_text=f"Failed to run subtask: {e}")
 
         task_result = result.task_result or ""
         if result.session_id and "agentId:" not in task_result:
@@ -123,9 +123,9 @@ class SubAgentTool(ToolABC):
                 + f"agentId: {result.session_id} (for resuming to continue this agent's work if needed)"
             )
 
-        return model.ToolResultItem(
+        return model.ToolResultMessage(
             status="success" if not result.error else "error",
-            output=task_result,
+            output_text=task_result,
             ui_extra=model.SessionIdUIExtra(session_id=result.session_id),
             task_metadata=result.task_metadata,
         )

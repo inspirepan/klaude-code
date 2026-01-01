@@ -24,7 +24,7 @@ def _flatten_union(tp: object) -> list[object]:
 
 def _build_type_registry() -> dict[str, type[BaseModel]]:
     registry: dict[str, type[BaseModel]] = {}
-    for tp in _flatten_union(model.ConversationItem):
+    for tp in _flatten_union(model.HistoryEvent):
         if not _is_basemodel_subclass(tp):
             continue
         registry[tp.__name__] = tp
@@ -34,11 +34,11 @@ def _build_type_registry() -> dict[str, type[BaseModel]]:
 _CONVERSATION_ITEM_TYPES: dict[str, type[BaseModel]] = _build_type_registry()
 
 
-def encode_conversation_item(item: model.ConversationItem) -> dict[str, Any]:
+def encode_conversation_item(item: model.HistoryEvent) -> dict[str, Any]:
     return {"type": item.__class__.__name__, "data": item.model_dump(mode="json")}
 
 
-def decode_conversation_item(obj: dict[str, Any]) -> model.ConversationItem | None:
+def decode_conversation_item(obj: dict[str, Any]) -> model.HistoryEvent | None:
     t = obj.get("type")
     data = obj.get("data", {})
     if not isinstance(t, str) or not isinstance(data, dict):
@@ -54,11 +54,11 @@ def decode_conversation_item(obj: dict[str, Any]) -> model.ConversationItem | No
     return item  # type: ignore[return-value]
 
 
-def encode_jsonl_line(item: model.ConversationItem) -> str:
+def encode_jsonl_line(item: model.HistoryEvent) -> str:
     return json.dumps(encode_conversation_item(item), ensure_ascii=False) + "\n"
 
 
-def decode_jsonl_line(line: str) -> model.ConversationItem | None:
+def decode_jsonl_line(line: str) -> model.HistoryEvent | None:
     line = line.strip()
     if not line:
         return None

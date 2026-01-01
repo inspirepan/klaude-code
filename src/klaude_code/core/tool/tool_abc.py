@@ -27,7 +27,7 @@ class ToolABC(ABC):
 
     @classmethod
     @abstractmethod
-    async def call(cls, arguments: str) -> model.ToolResultItem:
+    async def call(cls, arguments: str) -> model.ToolResultMessage:
         raise NotImplementedError
 
 

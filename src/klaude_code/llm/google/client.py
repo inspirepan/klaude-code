@@ -5,7 +5,7 @@
 
 import json
 from collections.abc import AsyncGenerator, AsyncIterator
-from typing import Any, cast, override
+from typing import Any, Literal, cast, override
 from uuid import uuid4
 
 import httpx
@@ -114,25 +114,75 @@ def _merge_partial_args(dst: dict[str, Any], partial_args: list[Any] | None) -> 
         dst[key] = _partial_arg_value(partial)
 
 
+def _map_finish_reason(reason: str) -> model.StopReason | None:
+    normalized = reason.strip().lower()
+    mapping: dict[str, model.StopReason] = {
+        "stop": "stop",
+        "end_turn": "stop",
+        "max_tokens": "length",
+        "length": "length",
+        "tool_use": "tool_use",
+        "safety": "error",
+        "recitation": "error",
+        "other": "error",
+        "content_filter": "error",
+        "blocked": "error",
+        "blocklist": "error",
+        "cancelled": "aborted",
+        "canceled": "aborted",
+        "aborted": "aborted",
+    }
+    return mapping.get(normalized)
+
+
 async def parse_google_stream(
     stream: AsyncIterator[Any],
     param: llm_param.LLMCallParameter,
     metadata_tracker: MetadataTracker,
-) -> AsyncGenerator[model.ConversationItem]:
+) -> AsyncGenerator[model.LLMStreamItem]:
     response_id: str | None = None
     started = False
+    stage: Literal["waiting", "thinking", "assistant", "tool"] = "waiting"
 
     accumulated_text: list[str] = []
     accumulated_thoughts: list[str] = []
     thought_signature: str | None = None
+    assistant_parts: list[model.Part] = []
 
     # Track tool calls where args arrive as partial updates.
     partial_args_by_call: dict[str, dict[str, Any]] = {}
     started_tool_calls: dict[str, str] = {}  # call_id -> name
     started_tool_items: set[str] = set()
-    emitted_tool_items: set[str] = set()
+    completed_tool_items: set[str] = set()
 
     last_usage_metadata: UsageMetadata | None = None
+    stop_reason: model.StopReason | None = None
+
+    def flush_thinking() -> None:
+        nonlocal thought_signature
+        if accumulated_thoughts:
+            assistant_parts.append(
+                model.ThinkingTextPart(
+                    text="".join(accumulated_thoughts),
+                    model_id=str(param.model),
+                )
+            )
+            accumulated_thoughts.clear()
+        if thought_signature:
+            assistant_parts.append(
+                model.ThinkingSignaturePart(
+                    signature=thought_signature,
+                    model_id=str(param.model),
+                    format="google_thought_signature",
+                )
+            )
+            thought_signature = None
+
+    def flush_text() -> None:
+        if not accumulated_text:
+            return
+        assistant_parts.append(model.TextPart(text="".join(accumulated_text)))
+        accumulated_text.clear()
 
     async for chunk in stream:
         log_debug(
@@ -153,21 +203,36 @@ async def parse_google_stream(
 
         candidates = getattr(chunk, "candidates", None) or []
         candidate0 = candidates[0] if candidates else None
+        finish_reason = getattr(candidate0, "finish_reason", None) if candidate0 else None
+        if finish_reason is not None:
+            if isinstance(finish_reason, str):
+                reason_value = finish_reason
+            else:
+                reason_value = getattr(finish_reason, "name", None) or str(finish_reason)
+            stop_reason = _map_finish_reason(reason_value)
         content = getattr(candidate0, "content", None) if candidate0 else None
-        parts = getattr(content, "parts", None) if content else None
-        if not parts:
+        content_parts = getattr(content, "parts", None) if content else None
+        if not content_parts:
             continue
 
-        for part in parts:
+        for part in content_parts:
             if getattr(part, "text", None) is not None:
-                metadata_tracker.record_token()
                 text = part.text
+                if not text:
+                    continue
+                metadata_tracker.record_token()
                 if getattr(part, "thought", False) is True:
+                    if stage == "assistant":
+                        flush_text()
+                    stage = "thinking"
                     accumulated_thoughts.append(text)
                     if getattr(part, "thought_signature", None):
                         thought_signature = part.thought_signature
-                    yield model.ReasoningTextDelta(content=text, response_id=response_id)
+                    yield model.ThinkingTextDelta(content=text, response_id=response_id)
                 else:
+                    if stage == "thinking":
+                        flush_thinking()
+                    stage = "assistant"
                     accumulated_text.append(text)
                     yield model.AssistantMessageDelta(content=text, response_id=response_id)
 
@@ -186,13 +251,19 @@ async def parse_google_stream(
 
             args_obj = getattr(function_call, "args", None)
             if args_obj is not None:
-                emitted_tool_items.add(call_id)
-                yield model.ToolCallItem(
-                    response_id=response_id,
-                    call_id=call_id,
-                    name=name,
-                    arguments=json.dumps(args_obj, ensure_ascii=False),
+                if stage == "thinking":
+                    flush_thinking()
+                if stage == "assistant":
+                    flush_text()
+                stage = "tool"
+                assistant_parts.append(
+                    model.ToolCallPart(
+                        call_id=call_id,
+                        tool_name=name,
+                        arguments_json=json.dumps(args_obj, ensure_ascii=False),
+                    )
                 )
+                completed_tool_items.add(call_id)
                 continue
 
             partial_args = getattr(function_call, "partial_args", None)
@@ -201,53 +272,51 @@ async def parse_google_stream(
                 _merge_partial_args(acc, partial_args)
 
             will_continue = getattr(function_call, "will_continue", None)
-            if will_continue is False and call_id in partial_args_by_call and call_id not in emitted_tool_items:
-                emitted_tool_items.add(call_id)
-                yield model.ToolCallItem(
-                    response_id=response_id,
-                    call_id=call_id,
-                    name=name,
-                    arguments=json.dumps(partial_args_by_call[call_id], ensure_ascii=False),
+            if will_continue is False and call_id in partial_args_by_call and call_id not in completed_tool_items:
+                if stage == "thinking":
+                    flush_thinking()
+                if stage == "assistant":
+                    flush_text()
+                stage = "tool"
+                assistant_parts.append(
+                    model.ToolCallPart(
+                        call_id=call_id,
+                        tool_name=name,
+                        arguments_json=json.dumps(partial_args_by_call[call_id], ensure_ascii=False),
+                    )
                 )
+                completed_tool_items.add(call_id)
 
     # Flush any pending tool calls that never produced args.
     for call_id, name in started_tool_calls.items():
-        if call_id in emitted_tool_items:
+        if call_id in completed_tool_items:
             continue
         args = partial_args_by_call.get(call_id, {})
-        emitted_tool_items.add(call_id)
-        yield model.ToolCallItem(
-            response_id=response_id,
-            call_id=call_id,
-            name=name,
-            arguments=json.dumps(args, ensure_ascii=False),
-        )
-
-    if accumulated_thoughts:
-        metadata_tracker.record_token()
-        yield model.ReasoningTextItem(
-            content="".join(accumulated_thoughts),
-            response_id=response_id,
-            model=str(param.model),
-        )
-        if thought_signature:
-            yield model.ReasoningEncryptedItem(
-                encrypted_content=thought_signature,
-                response_id=response_id,
-                model=str(param.model),
-                format="google_thought_signature",
+        assistant_parts.append(
+            model.ToolCallPart(
+                call_id=call_id,
+                tool_name=name,
+                arguments_json=json.dumps(args, ensure_ascii=False),
             )
+        )
 
-    if accumulated_text:
-        metadata_tracker.record_token()
-        yield model.AssistantMessageItem(content="".join(accumulated_text), response_id=response_id)
+    flush_thinking()
+    flush_text()
 
     usage = _usage_from_metadata(last_usage_metadata, context_limit=param.context_limit, max_tokens=param.max_tokens)
     if usage is not None:
         metadata_tracker.set_usage(usage)
     metadata_tracker.set_model_name(str(param.model))
     metadata_tracker.set_response_id(response_id)
-    yield metadata_tracker.finalize()
+    metadata = metadata_tracker.finalize()
+    if assistant_parts:
+        yield model.AssistantMessage(
+            parts=assistant_parts,
+            response_id=response_id,
+            usage=metadata,
+            stop_reason=stop_reason,
+        )
+    yield metadata
 
 
 @register(llm_param.LLMClientProtocol.GOOGLE)
@@ -270,7 +339,7 @@ class GoogleClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.ConversationItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.LLMStreamItem]:
         param = apply_config_defaults(param, self.get_llm_config())
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 

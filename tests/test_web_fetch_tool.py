@@ -132,14 +132,14 @@ class TestWebFetchTool:
         args = WebFetchTool.WebFetchArguments(url="example.com").model_dump_json()
         result = asyncio.run(WebFetchTool.call(args))
         assert result.status == "error"
-        assert result.output is not None
-        assert "http://" in result.output or "https://" in result.output
+        assert result.output_text is not None
+        assert "http://" in result.output_text or "https://" in result.output_text
 
     def test_invalid_arguments(self) -> None:
         result = asyncio.run(WebFetchTool.call("not valid json"))
         assert result.status == "error"
-        assert result.output is not None
-        assert "Invalid arguments" in result.output
+        assert result.output_text is not None
+        assert "Invalid arguments" in result.output_text
 
 
 @pytest.mark.network
@@ -152,10 +152,10 @@ class TestWebFetchToolNetwork:
         result = asyncio.run(WebFetchTool.call(args))
 
         assert result.status == "success"
-        assert result.output is not None
-        assert len(result.output) > 0
+        assert result.output_text is not None
+        assert len(result.output_text) > 0
         # The page should contain content about hooks
-        output_lower = result.output.lower()
+        output_lower = result.output_text.lower()
         assert "hook" in output_lower or "claude" in output_lower
 
     def test_fetch_nonexistent_domain(self) -> None:
@@ -173,9 +173,9 @@ class TestWebFetchToolNetwork:
         result = asyncio.run(WebFetchTool.call(args))
 
         assert result.status == "success"
-        assert result.output is not None
-        assert "PDF file saved to:" in result.output
-        assert ".pdf" in result.output
+        assert result.output_text is not None
+        assert "PDF file saved to:" in result.output_text
+        assert ".pdf" in result.output_text
 
     # def test_fetch_404_page(self) -> None:
     #     """Test fetching a page that returns 404."""

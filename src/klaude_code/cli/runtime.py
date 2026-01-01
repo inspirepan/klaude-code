@@ -105,9 +105,11 @@ async def submit_user_input_payload(
     if result.persist_user_input:
         agent.session.append_history(
             [
-                protocol_model.UserMessageItem(
-                    content=persisted_user_input.text,
-                    images=persisted_user_input.images,
+                protocol_model.UserMessage(
+                    parts=protocol_model.parts_from_text_and_images(
+                        persisted_user_input.text,
+                        persisted_user_input.images,
+                    )
                 )
             ]
         )

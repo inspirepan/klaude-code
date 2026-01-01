@@ -74,8 +74,8 @@ class ModelCommand(CommandABC):
                 events=[
                     events.DeveloperMessageEvent(
                         session_id=agent.session.id,
-                        item=model.DeveloperMessageItem(
-                            content="(no change)",
+                        item=model.DeveloperMessage(
+                            parts=model.text_parts_from_str("(no change)"),
                             command_output=model.CommandOutput(command_name=self.name),
                         ),
                     )
