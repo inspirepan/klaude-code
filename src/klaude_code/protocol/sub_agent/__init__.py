@@ -37,7 +37,7 @@ class SubAgentProfile:
     """
 
     # Identity - single name used for type, tool_name, config_key, and prompt_key
-    name: str  # e.g., "Task", "Oracle", "Explore"
+    name: str  # e.g., "Task", "Explore", "WebAgent"
 
     # Tool schema
     description: str  # Tool description shown to the main agent
@@ -112,6 +112,5 @@ def sub_agent_tool_names(enabled_only: bool = False, model_name: str | None = No
 
 # Import sub-agent modules to trigger registration
 from klaude_code.protocol.sub_agent import explore as explore  # noqa: E402
-from klaude_code.protocol.sub_agent import oracle as oracle  # noqa: E402
 from klaude_code.protocol.sub_agent import task as task  # noqa: E402
 from klaude_code.protocol.sub_agent import web as web  # noqa: E402

@@ -243,7 +243,7 @@ def get_example_config() -> UserConfig:
     """Generate example config for user reference (will be commented out)."""
     return UserConfig(
         main_model="opus",
-        sub_agent_models={"explore": "haiku", "oracle": "gpt-5.2", "webagent": "sonnet", "task": "sonnet"},
+        sub_agent_models={"explore": "haiku", "webagent": "sonnet", "task": "sonnet"},
         provider_list=[
             UserProviderConfig(
                 provider_name="my-provider",

@@ -219,7 +219,6 @@ provider_list:
 main_model: opus
 
 sub_agent_models:
-  oracle: gpt-4.1
   explore: sonnet
   task: opus
   webagent: sonnet
@@ -353,4 +352,3 @@ The main agent can spawn specialized sub-agents for specific tasks:
 | **Explore** | Fast codebase exploration - find files, search code, answer questions about the codebase |
 | **Task** | Handle complex multi-step tasks autonomously |
 | **WebAgent** | Search the web, fetch pages, and analyze content |
-| **Oracle** | Advanced reasoning advisor for code reviews, architecture planning, and bug analysis |
