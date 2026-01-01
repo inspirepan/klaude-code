@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-01-01
+
+### Added
+
+- support anthropic claude oauth login (`aa3cedf8`)
+- add weekday to date display in cost summary table (`64cf51f9`)
+
+### Changed
+
+- update list-model style (`2453ad4e`)
+- replace jj-describe with unified commit command (`103747dd`)
+- remove Oracle sub-agent (`829504c7`)
 ## [1.8.0] - 2026-01-01
 
 ### Added
@@ -995,7 +1007,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/inspirepan/klaude-code/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/inspirepan/klaude-code/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/inspirepan/klaude-code/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/inspirepan/klaude-code/compare/v1.6.0...v1.7.0
