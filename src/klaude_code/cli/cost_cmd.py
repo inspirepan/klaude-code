@@ -178,6 +178,7 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
         title="Usage Statistics",
         show_header=True,
         header_style="bold",
+        border_style="bright_black dim",
         padding=(0, 1, 0, 2),
         box=ASCII_HORIZONAL,
     )

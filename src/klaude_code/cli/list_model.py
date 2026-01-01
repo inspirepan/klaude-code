@@ -1,7 +1,7 @@
 import datetime
 
+from rich.box import HORIZONTALS
 from rich.console import Console, Group
-from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
@@ -9,111 +9,127 @@ from klaude_code.config import Config
 from klaude_code.config.config import ModelConfig, ProviderConfig, parse_env_var_syntax
 from klaude_code.protocol.llm_param import LLMClientProtocol
 from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
+from klaude_code.ui.rich.quote import Quote
 from klaude_code.ui.rich.theme import ThemeKey, get_theme
+from klaude_code.ui.utils.common import format_model_params
 
 
-def _get_codex_status_elements() -> list[Text]:
-    """Get Codex OAuth login status as Text elements for panel display."""
+def _get_codex_status_rows() -> list[tuple[Text, Text]]:
+    """Get Codex OAuth login status as (label, value) tuples for table display."""
     from klaude_code.auth.codex.token_manager import CodexTokenManager
 
-    elements: list[Text] = []
+    rows: list[tuple[Text, Text]] = []
     token_manager = CodexTokenManager()
     state = token_manager.get_state()
 
     if state is None:
-        elements.append(
-            Text.assemble(
-                ("Status: ", "bold"),
-                ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
-                (" (run 'klaude login codex' to authenticate)", "dim"),
+        rows.append(
+            (
+                Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
+                Text.assemble(
+                    ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
+                    (" (run 'klaude login codex' to authenticate)", "dim"),
+                ),
             )
         )
     elif state.is_expired():
-        elements.append(
-            Text.assemble(
-                ("Status: ", "bold"),
-                ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
-                (" (run 'klaude login codex' to re-authenticate)", "dim"),
+        rows.append(
+            (
+                Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
+                Text.assemble(
+                    ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
+                    (" (run 'klaude login codex' to re-authenticate)", "dim"),
+                ),
             )
         )
     else:
         expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
-        elements.append(
-            Text.assemble(
-                ("Status: ", "bold"),
-                ("Logged in", ThemeKey.CONFIG_STATUS_OK),
-                (f" (account: {state.account_id[:8]}..., expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})", "dim"),
+        rows.append(
+            (
+                Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
+                Text.assemble(
+                    ("Logged in", ThemeKey.CONFIG_STATUS_OK),
+                    (
+                        f" (account: {state.account_id[:8]}..., expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})",
+                        "dim",
+                    ),
+                ),
             )
         )
 
-    elements.append(
-        Text.assemble(
-            ("Visit ", "dim"),
-            (
+    rows.append(
+        (
+            Text("Usage", style="dim"),
+            Text(
                 "https://chatgpt.com/codex/settings/usage",
-                "blue underline link https://chatgpt.com/codex/settings/usage",
+                style="blue link https://chatgpt.com/codex/settings/usage",
             ),
-            (" for up-to-date information on rate limits and credits", "dim"),
         )
     )
-    return elements
+    return rows
 
 
-def _get_claude_status_elements() -> list[Text]:
-    """Get Claude OAuth login status as Text elements for panel display."""
+def _get_claude_status_rows() -> list[tuple[Text, Text]]:
+    """Get Claude OAuth login status as (label, value) tuples for table display."""
     from klaude_code.auth.claude.token_manager import ClaudeTokenManager
 
-    elements: list[Text] = []
+    rows: list[tuple[Text, Text]] = []
     token_manager = ClaudeTokenManager()
     state = token_manager.get_state()
 
     if state is None:
-        elements.append(
-            Text.assemble(
-                ("Status: ", "bold"),
-                ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
-                (" (run 'klaude login claude' to authenticate)", "dim"),
+        rows.append(
+            (
+                Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
+                Text.assemble(
+                    ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
+                    (" (run 'klaude login claude' to authenticate)", "dim"),
+                ),
             )
         )
     elif state.is_expired():
-        elements.append(
-            Text.assemble(
-                ("Status: ", "bold"),
-                ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
-                (" (will refresh automatically on use; run 'klaude login claude' if refresh fails)", "dim"),
+        rows.append(
+            (
+                Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
+                Text.assemble(
+                    ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
+                    (" (will refresh automatically on use; run 'klaude login claude' if refresh fails)", "dim"),
+                ),
             )
         )
     else:
         expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
-        elements.append(
-            Text.assemble(
-                ("Status: ", "bold"),
-                ("Logged in", ThemeKey.CONFIG_STATUS_OK),
-                (f" (expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})", "dim"),
+        rows.append(
+            (
+                Text("Status", style=ThemeKey.CONFIG_PARAM_LABEL),
+                Text.assemble(
+                    ("Logged in", ThemeKey.CONFIG_STATUS_OK),
+                    (f" (expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})", "dim"),
+                ),
             )
         )
 
-    elements.append(
-        Text.assemble(
-            ("Manage your Claude account at ", "dim"),
-            (
+    rows.append(
+        (
+            Text("Usage", style="dim"),
+            Text(
                 "https://claude.ai/settings/usage",
-                "blue underline link https://claude.ai/settings/usage",
+                style="blue link https://claude.ai/settings/usage",
             ),
         )
     )
-    return elements
+    return rows
 
 
 def mask_api_key(api_key: str | None) -> str:
     """Mask API key to show only first 6 and last 6 characters with *** in between"""
-    if not api_key or api_key == "N/A":
-        return "N/A"
+    if not api_key:
+        return ""
 
     if len(api_key) <= 12:
         return api_key
 
-    return f"{api_key[:6]} … {api_key[-6:]}"
+    return f"{api_key[:6]}…{api_key[-6:]}"
 
 
 def format_api_key_display(provider: ProviderConfig) -> Text:
@@ -137,7 +153,7 @@ def format_api_key_display(provider: ProviderConfig) -> Text:
         # Plain API key
         return Text(mask_api_key(provider.api_key))
     else:
-        return Text("N/A")
+        return Text("")
 
 
 def format_env_var_display(value: str | None) -> Text:
@@ -160,199 +176,180 @@ def format_env_var_display(value: str | None) -> Text:
         # Plain value
         return Text(mask_api_key(value))
     else:
-        return Text("N/A")
+        return Text("")
 
 
 def _get_model_params_display(model: ModelConfig) -> list[Text]:
     """Get display elements for model parameters."""
-    params: list[Text] = []
-    if model.model_params.thinking:
-        if model.model_params.thinking.reasoning_effort is not None:
-            params.append(
-                Text.assemble(
-                    ("reason-effort", ThemeKey.CONFIG_PARAM_LABEL),
-                    ": ",
-                    model.model_params.thinking.reasoning_effort,
-                )
-            )
-        if model.model_params.thinking.reasoning_summary is not None:
-            params.append(
-                Text.assemble(
-                    ("reason-summary", ThemeKey.CONFIG_PARAM_LABEL),
-                    ": ",
-                    model.model_params.thinking.reasoning_summary,
-                )
-            )
-        if model.model_params.thinking.budget_tokens is not None:
-            params.append(
-                Text.assemble(
-                    ("thinking-budget-tokens", ThemeKey.CONFIG_PARAM_LABEL),
-                    ": ",
-                    str(model.model_params.thinking.budget_tokens),
-                )
-            )
-    if model.model_params.provider_routing:
-        params.append(
-            Text.assemble(
-                ("provider-routing", ThemeKey.CONFIG_PARAM_LABEL),
-                ": ",
-                model.model_params.provider_routing.model_dump_json(exclude_none=True),
-            )
+    param_strings = format_model_params(model.model_params)
+    if param_strings:
+        return [Text(s) for s in param_strings]
+    return [Text("")]
+
+
+def _build_provider_info_panel(provider: ProviderConfig, available: bool) -> Quote:
+    """Build a Quote containing provider name and information using a two-column grid."""
+    # Provider name as title
+    if available:
+        title = Text(provider.provider_name, style=ThemeKey.CONFIG_PROVIDER)
+    else:
+        title = Text.assemble(
+            (provider.provider_name, ThemeKey.CONFIG_PROVIDER),
+            (" (Unavailable)", ThemeKey.CONFIG_STATUS_ERROR),
         )
-    if len(params) == 0:
-        params.append(Text("N/A", style=ThemeKey.CONFIG_PARAM_LABEL))
-    return params
+
+    # Build info table with two columns
+    info_table = Table.grid(padding=(0, 2))
+    info_table.add_column("Label", style=ThemeKey.CONFIG_PARAM_LABEL)
+    info_table.add_column("Value")
+
+    # Protocol
+    info_table.add_row(Text("Protocol"), Text(provider.protocol.value))
+
+    # Base URL (if set)
+    if provider.base_url:
+        info_table.add_row(Text("Base URL"), Text(provider.base_url))
+
+    # API key (if set)
+    if provider.api_key:
+        info_table.add_row(Text("API key"), format_api_key_display(provider))
+
+    # AWS Bedrock parameters
+    if provider.protocol == LLMClientProtocol.BEDROCK:
+        if provider.aws_access_key:
+            info_table.add_row(Text("AWS key"), format_env_var_display(provider.aws_access_key))
+        if provider.aws_secret_key:
+            info_table.add_row(Text("AWS secret"), format_env_var_display(provider.aws_secret_key))
+        if provider.aws_region:
+            info_table.add_row(Text("AWS region"), format_env_var_display(provider.aws_region))
+        if provider.aws_session_token:
+            info_table.add_row(Text("AWS token"), format_env_var_display(provider.aws_session_token))
+        if provider.aws_profile:
+            info_table.add_row(Text("AWS profile"), format_env_var_display(provider.aws_profile))
+
+    # OAuth status rows
+    if provider.protocol == LLMClientProtocol.CODEX_OAUTH:
+        for label, value in _get_codex_status_rows():
+            info_table.add_row(label, value)
+    if provider.protocol == LLMClientProtocol.CLAUDE_OAUTH:
+        for label, value in _get_claude_status_rows():
+            info_table.add_row(label, value)
+
+    return Quote(
+        Group(title, info_table),
+        style=ThemeKey.LINES,
+        prefix="┃ ",
+    )
 
 
-def display_models_and_providers(config: Config):
+def _build_models_table(
+    provider: ProviderConfig, main_model: str | None, sub_agent_models: dict[str, str] | None = None
+) -> Table:
+    """Build a table for models under a provider."""
+    provider_available = not provider.is_api_key_missing()
+
+    # Build reverse mapping: model_name -> list of agent roles using it
+    model_to_agents: dict[str, list[str]] = {}
+    if sub_agent_models:
+        for agent_role, model_name in sub_agent_models.items():
+            if model_name not in model_to_agents:
+                model_to_agents[model_name] = []
+            model_to_agents[model_name].append(agent_role)
+
+    models_table = Table.grid(
+        padding=(0, 2),
+    )
+    models_table.add_column("Model Name", min_width=12)
+    models_table.add_column("Model ID", min_width=20, style=ThemeKey.CONFIG_MODEL_ID)
+    models_table.add_column("Params", style="dim")
+
+    model_count = len(provider.model_list)
+    for i, model in enumerate(provider.model_list):
+        is_last = i == model_count - 1
+        prefix = " └─ " if is_last else " ├─ "
+
+        if not provider_available:
+            name = Text.assemble((prefix, ThemeKey.LINES), (model.model_name, "dim"))
+            model_id = Text(model.model_params.model or "", style="dim")
+            params = Text("(unavailable)", style="dim")
+        else:
+            # Build role tags for this model
+            roles: list[str] = []
+            if model.model_name == main_model:
+                roles.append("default")
+            if model.model_name in model_to_agents:
+                roles.extend(role.lower() for role in model_to_agents[model.model_name])
+
+            if roles:
+                name = Text.assemble(
+                    (prefix, ThemeKey.LINES),
+                    (model.model_name, ThemeKey.CONFIG_STATUS_PRIMARY),
+                    (f" ({', '.join(roles)})", "dim"),
+                )
+            else:
+                name = Text.assemble((prefix, ThemeKey.LINES), (model.model_name, ThemeKey.CONFIG_ITEM_NAME))
+            model_id = Text(model.model_params.model or "")
+            params = Text(" · ").join(_get_model_params_display(model))
+
+        models_table.add_row(name, model_id, params)
+
+    return models_table
+
+
+def _display_agent_models_table(config: Config, console: Console) -> None:
+    """Display model assignments as a table."""
+    console.print(Text(" Agent Models:", style=ThemeKey.CONFIG_TABLE_HEADER))
+    agent_table = Table(
+        box=HORIZONTALS,
+        show_header=True,
+        header_style=ThemeKey.CONFIG_TABLE_HEADER,
+        padding=(0, 2),
+        border_style=ThemeKey.LINES,
+    )
+    agent_table.add_column("Role", style="bold", min_width=10)
+    agent_table.add_column("Model", style=ThemeKey.CONFIG_STATUS_PRIMARY)
+
+    # Default model
+    if config.main_model:
+        agent_table.add_row("Default", config.main_model)
+    else:
+        agent_table.add_row("Default", Text("(not set)", style=ThemeKey.CONFIG_STATUS_ERROR))
+
+    # Sub-agent models
+    for profile in iter_sub_agent_profiles():
+        sub_model_name = config.sub_agent_models.get(profile.name)
+        if sub_model_name:
+            agent_table.add_row(profile.name, sub_model_name)
+
+    console.print(agent_table)
+
+
+def display_models_and_providers(config: Config, *, show_all: bool = False):
     """Display models and providers configuration using rich formatting"""
     themes = get_theme(config.theme)
     console = Console(theme=themes.app_theme)
 
-    # Display each provider as a separate panel
-    for provider in config.provider_list:
-        # Provider info section
-        provider_info = Table.grid(padding=(0, 1))
-        provider_info.add_column(width=12)
-        provider_info.add_column()
+    # Display model assignments as a table
+    _display_agent_models_table(config, console)
+    console.print()
 
-        provider_info.add_row(
-            Text("Protocol:", style=ThemeKey.CONFIG_PARAM_LABEL),
-            Text(provider.protocol.value),
-        )
-        if provider.base_url:
-            provider_info.add_row(
-                Text("Base URL:", style=ThemeKey.CONFIG_PARAM_LABEL),
-                Text(provider.base_url or "N/A"),
-            )
-        if provider.api_key:
-            provider_info.add_row(
-                Text("API Key:", style=ThemeKey.CONFIG_PARAM_LABEL),
-                format_api_key_display(provider),
-            )
+    # Sort providers: available (api_key set) first, unavailable (api_key not set) last
+    sorted_providers = sorted(config.provider_list, key=lambda p: (p.is_api_key_missing(), p.provider_name))
 
-        # AWS Bedrock parameters
-        if provider.protocol == LLMClientProtocol.BEDROCK:
-            if provider.aws_access_key:
-                provider_info.add_row(
-                    Text("AWS Key:", style=ThemeKey.CONFIG_PARAM_LABEL),
-                    format_env_var_display(provider.aws_access_key),
-                )
-            if provider.aws_secret_key:
-                provider_info.add_row(
-                    Text("AWS Secret:", style=ThemeKey.CONFIG_PARAM_LABEL),
-                    format_env_var_display(provider.aws_secret_key),
-                )
-            if provider.aws_region:
-                provider_info.add_row(
-                    Text("AWS Region:", style=ThemeKey.CONFIG_PARAM_LABEL),
-                    format_env_var_display(provider.aws_region),
-                )
-            if provider.aws_session_token:
-                provider_info.add_row(
-                    Text("AWS Token:", style=ThemeKey.CONFIG_PARAM_LABEL),
-                    format_env_var_display(provider.aws_session_token),
-                )
-            if provider.aws_profile:
-                provider_info.add_row(
-                    Text("AWS Profile:", style=ThemeKey.CONFIG_PARAM_LABEL),
-                    format_env_var_display(provider.aws_profile),
-                )
+    # Filter out unavailable providers unless show_all is True
+    if not show_all:
+        sorted_providers = [p for p in sorted_providers if not p.is_api_key_missing()]
 
-        # Check if provider has valid API key
+    # Display each provider with its models table
+    for provider in sorted_providers:
         provider_available = not provider.is_api_key_missing()
 
-        # Models table for this provider
-        models_table = Table.grid(padding=(0, 1), expand=True)
-        models_table.add_column(width=2, no_wrap=True)  # Status
-        models_table.add_column(overflow="fold", ratio=2)  # Name
-        models_table.add_column(overflow="fold", ratio=3)  # Model
-        models_table.add_column(overflow="fold", ratio=4)  # Params
-
-        # Add header
-        models_table.add_row(
-            Text("", style="bold"),
-            Text("Name", style=ThemeKey.CONFIG_TABLE_HEADER),
-            Text("Model", style=ThemeKey.CONFIG_TABLE_HEADER),
-            Text("Params", style=ThemeKey.CONFIG_TABLE_HEADER),
-        )
-
-        # Add models for this provider
-        for model in provider.model_list:
-            if not provider_available:
-                # Provider API key not set - show as unavailable
-                status = Text("-", style="dim")
-                name = Text(model.model_name, style="dim")
-                model_id = Text(model.model_params.model or "N/A", style="dim")
-                params = [Text("(unavailable)", style="dim")]
-            elif model.model_name == config.main_model:
-                status = Text("★", style=ThemeKey.CONFIG_STATUS_PRIMARY)
-                name = Text(model.model_name, style=ThemeKey.CONFIG_STATUS_PRIMARY)
-                model_id = Text(model.model_params.model or "N/A", style="")
-                params = _get_model_params_display(model)
-            else:
-                status = Text("✔", style=ThemeKey.CONFIG_STATUS_OK)
-                name = Text(model.model_name, style=ThemeKey.CONFIG_ITEM_NAME)
-                model_id = Text(model.model_params.model or "N/A", style="")
-                params = _get_model_params_display(model)
-
-            models_table.add_row(status, name, model_id, Group(*params))
-
-        # Create panel content with provider info and models
-        panel_elements = [
-            provider_info,
-            Text(""),  # Spacer
-            Text("Models:", style=ThemeKey.CONFIG_TABLE_HEADER),
-            models_table,
-        ]
-
-        # Add Codex status if this is a codex provider
-        if provider.protocol == LLMClientProtocol.CODEX_OAUTH:
-            panel_elements.append(Text(""))  # Spacer
-            panel_elements.extend(_get_codex_status_elements())
-
-        # Add Claude status if this is a claude provider
-        if provider.protocol == LLMClientProtocol.CLAUDE_OAUTH:
-            panel_elements.append(Text(""))  # Spacer
-            panel_elements.extend(_get_claude_status_elements())
-
-        panel_content = Group(*panel_elements)
-
-        panel = Panel(
-            panel_content,
-            title=Text(f"Provider: {provider.provider_name}", style=ThemeKey.CONFIG_PROVIDER),
-            border_style=ThemeKey.CONFIG_PANEL_BORDER,
-            padding=(0, 1),
-            title_align="left",
-        )
-
-        console.print(panel)
+        # Provider info panel
+        provider_panel = _build_provider_info_panel(provider, provider_available)
+        console.print(provider_panel)
         console.print()
 
-    # Display main model info
-    console.print()
-    if config.main_model:
-        console.print(
-            Text.assemble(
-                ("Default Model: ", "bold"),
-                (config.main_model, ThemeKey.CONFIG_STATUS_PRIMARY),
-            )
-        )
-    else:
-        console.print(
-            Text.assemble(
-                ("Default Model: ", "bold"),
-                ("(not set)", ThemeKey.CONFIG_STATUS_ERROR),
-            )
-        )
-
-    for profile in iter_sub_agent_profiles():
-        sub_model_name = config.sub_agent_models.get(profile.name)
-        if not sub_model_name:
-            continue
-        console.print(
-            Text.assemble(
-                (f"{profile.name} Model: ", "bold"),
-                (sub_model_name, ThemeKey.CONFIG_STATUS_PRIMARY),
-            )
-        )
+        # Models table for this provider
+        models_table = _build_models_table(provider, config.main_model, config.sub_agent_models)
+        console.print(models_table)
+        console.print("\n")

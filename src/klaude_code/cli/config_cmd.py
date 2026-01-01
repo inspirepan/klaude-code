@@ -10,7 +10,9 @@ from klaude_code.config import config_path, create_example_config, example_confi
 from klaude_code.trace import log
 
 
-def list_models() -> None:
+def list_models(
+    show_all: bool = typer.Option(False, "--all", "-a", help="Show all providers including unavailable ones"),
+) -> None:
     """List all models and providers configuration"""
     from klaude_code.cli.list_model import display_models_and_providers
     from klaude_code.ui.terminal.color import is_light_terminal_background
@@ -25,7 +27,7 @@ def list_models() -> None:
         elif detected is False:
             config.theme = "dark"
 
-    display_models_and_providers(config)
+    display_models_and_providers(config, show_all=show_all)
 
 
 def edit_config() -> None:

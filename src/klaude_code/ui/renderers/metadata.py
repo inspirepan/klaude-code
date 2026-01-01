@@ -11,7 +11,7 @@ from klaude_code.protocol import events, model
 from klaude_code.trace import is_debug_enabled
 from klaude_code.ui.renderers.common import create_grid
 from klaude_code.ui.rich.theme import ThemeKey
-from klaude_code.ui.utils.common import format_number
+from klaude_code.ui.utils.common import format_model_params, format_number
 
 
 def _get_version() -> str:
@@ -184,38 +184,18 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
         (e.llm_config.provider_name, ThemeKey.WELCOME_INFO),
     )
 
-    # Collect all config items to display
-    config_items: list[tuple[str, str]] = []
-
-    if e.llm_config.thinking is not None:
-        if e.llm_config.thinking.reasoning_effort:
-            config_items.append(("reasoning-effort", e.llm_config.thinking.reasoning_effort))
-        if e.llm_config.thinking.reasoning_summary:
-            config_items.append(("reasoning-summary", e.llm_config.thinking.reasoning_summary))
-        if e.llm_config.thinking.budget_tokens:
-            config_items.append(("thinking-budget", str(e.llm_config.thinking.budget_tokens)))
-
-    if e.llm_config.verbosity:
-        config_items.append(("verbosity", str(e.llm_config.verbosity)))
-
-    if pr := e.llm_config.provider_routing:
-        if pr.sort:
-            config_items.append(("provider-sort", str(pr.sort)))
-        if pr.only:
-            config_items.append(("provider-only", ">".join(pr.only)))
-        if pr.order:
-            config_items.append(("provider-order", ">".join(pr.order)))
+    # Use format_model_params for consistent formatting
+    param_strings = format_model_params(e.llm_config)
 
     # Render config items with tree-style prefixes
-    for i, (key, value) in enumerate(config_items):
-        is_last = i == len(config_items) - 1
+    for i, param_str in enumerate(param_strings):
+        is_last = i == len(param_strings) - 1
         prefix = "└─ " if is_last else "├─ "
         panel_content.append_text(
             Text.assemble(
                 ("\n", ThemeKey.WELCOME_INFO),
                 (prefix, ThemeKey.LINES),
-                (f"{key}: ", ThemeKey.WELCOME_INFO),
-                (value, ThemeKey.WELCOME_INFO),
+                (param_str, ThemeKey.WELCOME_INFO),
             )
         )
 
