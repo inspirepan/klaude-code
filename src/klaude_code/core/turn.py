@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from klaude_code.core.tool import ToolABC, tool_context
+from klaude_code.core.tool.tool_context import current_sub_agent_resume_claims
 
 if TYPE_CHECKING:
     from klaude_code.core.task import SessionContext
@@ -322,6 +323,7 @@ class TurnExecutor:
         ctx = self._context
         session_ctx = ctx.session_ctx
         with tool_context(session_ctx.file_tracker, session_ctx.todo_context):
+            resume_claims_token = current_sub_agent_resume_claims.set(set())
             executor = ToolExecutor(
                 registry=ctx.tool_registry,
                 append_history=session_ctx.append_history,
@@ -333,6 +335,7 @@ class TurnExecutor:
                         yield ui_event
             finally:
                 self._tool_executor = None
+                current_sub_agent_resume_claims.reset(resume_claims_token)
 
     def _persist_partial_assistant_on_cancel(self) -> None:
         """Persist streamed assistant text when a turn is interrupted.

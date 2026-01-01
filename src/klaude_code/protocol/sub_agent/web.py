@@ -29,11 +29,21 @@ What you receive:
 - With `output_format`, you receive structured JSON matching your schema
 - The response is the agent's analysis, not raw web content
 - Web content is saved to local files (paths included in Sources) - read them directly if you need full content\
+
+- Agents can be resumed using the `resume` parameter by passing the agent ID from a previous invocation. When resumed, the agent
+continues with its full previous context preserved. When NOT resuming, each invocation starts fresh and you should provide a detailed
+task description with all necessary context.
+- When the agent is done, it will return a single message back to you along with its agent ID. You can use this ID to resume the agent
+later if needed for follow-up work.
 """
 
 WEB_AGENT_PARAMETERS = {
     "type": "object",
     "properties": {
+        "resume": {
+            "type": "string",
+            "description": "Optional agent ID to resume from. If provided, the agent will continue from the previous execution transcript.",
+        },
         "description": {
             "type": "string",
             "description": "A short (3-5 word) description of the task",

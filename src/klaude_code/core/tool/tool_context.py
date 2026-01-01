@@ -119,3 +119,13 @@ def get_current_todo_context() -> TodoContext | None:
 current_run_subtask_callback: ContextVar[Callable[[model.SubAgentState], Awaitable[SubAgentResult]] | None] = (
     ContextVar("current_run_subtask_callback", default=None)
 )
+
+
+# Tracks sub-agent resume claims for the current turn.
+#
+# This is used to reject multiple sub-agent tool calls in the same LLM response
+# that attempt to resume the same agent ID.
+current_sub_agent_resume_claims: ContextVar[set[str] | None] = ContextVar(
+    "current_sub_agent_resume_claims",
+    default=None,
+)

@@ -24,11 +24,21 @@ Usage notes:
 Structured output:
 - Provide an `output_format` (JSON Schema) parameter for structured data back from the agent
 - Example: `output_format={"type": "object", "properties": {"files": {"type": "array", "items": {"type": "string"}, "description": "List of file paths that match the search criteria, e.g. ['src/main.py', 'src/utils/helper.py']"}}, "required": ["files"]}`\
+
+- Agents can be resumed using the `resume` parameter by passing the agent ID from a previous invocation. When resumed, the agent
+continues with its full previous context preserved. When NOT resuming, each invocation starts fresh and you should provide a detailed
+task description with all necessary context.
+- When the agent is done, it will return a single message back to you along with its agent ID. You can use this ID to resume the agent
+later if needed for follow-up work.
 """
 
 TASK_PARAMETERS = {
     "type": "object",
     "properties": {
+        "resume": {
+            "type": "string",
+            "description": "Optional agent ID to resume from. If provided, the agent will continue from the previous execution transcript.",
+        },
         "description": {
             "type": "string",
             "description": "A short (3-5 word) description of the task",

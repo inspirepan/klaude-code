@@ -46,8 +46,14 @@ def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) ->
         f" {e.sub_agent_desc} ",
         style=Style(color=style.color if style else None, bold=True, reverse=True),
     )
+    resume_note = Text("")
+    if e.resume:
+        resume_note = Text(
+            f" resume:{e.resume[:7]} ",
+            style=Style(color=style.color if style else None, dim=True),
+        )
     elements: list[RenderableType] = [
-        Text.assemble((e.sub_agent_type, ThemeKey.TOOL_NAME), " ", desc),
+        Text.assemble((e.sub_agent_type, ThemeKey.TOOL_NAME), " ", desc, resume_note),
         Text(e.sub_agent_prompt, style=style or ""),
     ]
     if e.output_schema:
@@ -132,6 +138,7 @@ def build_sub_agent_state_from_tool_call(e: events.ToolCallEvent) -> model.SubAg
     description = profile.name
     prompt = ""
     output_schema: dict[str, Any] | None = None
+    resume: str | None = None
     if e.arguments:
         try:
             payload: dict[str, object] = json.loads(e.arguments)
@@ -143,6 +150,9 @@ def build_sub_agent_state_from_tool_call(e: events.ToolCallEvent) -> model.SubAg
         prompt_value = payload.get("prompt") or payload.get("task")
         if isinstance(prompt_value, str):
             prompt = prompt_value.strip()
+        resume_value = payload.get("resume")
+        if isinstance(resume_value, str) and resume_value.strip():
+            resume = resume_value.strip()
         # Extract output_schema if profile supports it
         if profile.output_schema_arg:
             schema_value = payload.get(profile.output_schema_arg)
@@ -152,5 +162,6 @@ def build_sub_agent_state_from_tool_call(e: events.ToolCallEvent) -> model.SubAg
         sub_agent_type=profile.name,
         sub_agent_desc=description,
         sub_agent_prompt=prompt,
+        resume=resume,
         output_schema=output_schema,
     )

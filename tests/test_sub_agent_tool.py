@@ -121,6 +121,36 @@ class TestSubAgentToolCall:
         assert result.status == "error"
         assert result.output is not None and "No subtask runner" in result.output
 
+    def test_call_appends_agent_id_when_session_returned(self):
+        """Tool result should include agentId footer when session_id is present."""
+
+        async def _runner(state: Any) -> Any:
+            class _Result:
+                task_result = "hello"
+                session_id = "abc123def456"
+                error = False
+                task_metadata = None
+
+            return _Result()
+
+        from klaude_code.core.tool.tool_context import current_run_subtask_callback
+
+        profile = SubAgentProfile(
+            name="TestAgent",
+            description="Test",
+            parameters={"type": "object", "properties": {"prompt": {"type": "string"}}},
+        )
+        tool_class = SubAgentTool.for_profile(profile)
+        token = current_run_subtask_callback.set(_runner)  # type: ignore[arg-type]
+        try:
+            result = arun(tool_class.call('{"prompt": "test"}'))
+        finally:
+            current_run_subtask_callback.reset(token)
+
+        assert result.status == "success"
+        assert result.output is not None
+        assert "agentId: abc123def456" in result.output
+
 
 class TestSubAgentProfile:
     """Test SubAgentProfile dataclass."""
