@@ -4,7 +4,7 @@ import json
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, cast
 
 from pydantic import BaseModel
 
@@ -24,10 +24,7 @@ class BaseAuthState(BaseModel):
         return time.time() + buffer_seconds >= self.expires_at
 
 
-T = TypeVar("T", bound=BaseAuthState)
-
-
-class BaseTokenManager(ABC, Generic[T]):
+class BaseTokenManager[T: BaseAuthState](ABC):
     """Base class for OAuth token management."""
 
     def __init__(self, auth_file: Path | None = None):

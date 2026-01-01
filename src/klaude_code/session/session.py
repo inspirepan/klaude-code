@@ -67,12 +67,12 @@ class Session(BaseModel):
 
     @property
     def messages_count(self) -> int:
-        """Count of user, assistant messages, and tool calls in conversation history."""
+        """Count of user, assistant messages, and tool results in conversation history."""
         if self._messages_count_cache is None:
             self._messages_count_cache = sum(
                 1
                 for it in self.conversation_history
-                if isinstance(it, (model.UserMessageItem, model.AssistantMessageItem, model.ToolCallItem))
+                if isinstance(it, (model.UserMessageItem, model.AssistantMessageItem, model.ToolResultItem))
             )
         return self._messages_count_cache
 

@@ -464,7 +464,7 @@ class TestSession:
             model.UserMessageItem(content="Bye"),
         ]
         # Should count only User and Assistant messages
-        assert session.messages_count == 4
+        assert session.messages_count == 3
 
     def test_messages_count_cached(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)

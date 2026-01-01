@@ -298,6 +298,12 @@ class ExecutorContext:
             command_output=model.CommandOutput(command_name=commands.CommandName.CLEAR),
         )
         await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
+        await self.emit_event(
+            events.WelcomeEvent(
+                work_dir=str(agent.session.work_dir),
+                llm_config=self.llm_clients.main.get_llm_config(),
+            )
+        )
 
     async def handle_resume_session(self, operation: op.ResumeSessionOperation) -> None:
         target_session = Session.load(operation.target_session_id)

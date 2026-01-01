@@ -88,12 +88,30 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
 
 
 def _restyle_title(title: list[tuple[str, str]], cls: str) -> list[tuple[str, str]]:
-    """Re-apply a style class while keeping text attributes like bold/italic."""
-    keep_attrs = {"bold", "italic", "underline", "reverse", "blink", "strike"}
+    """Re-apply a style class while keeping existing style tokens.
+
+    This is used to highlight the currently-pointed item. We want to:
+    - preserve explicit colors (e.g. `fg:ansibrightblack`) defined by callers
+    - preserve existing classes (e.g. `class:msg`, `class:meta`) so their
+      non-color attributes remain in effect
+    - preserve text attributes like bold/italic/dim
+    """
+
+    keep_attrs = {"bold", "italic", "underline", "reverse", "blink", "strike", "dim"}
     restyled: list[tuple[str, str]] = []
     for old_style, text in title:
-        attrs = [tok for tok in old_style.split() if tok in keep_attrs]
-        style = f"{cls} {' '.join(attrs)}".strip()
+        tokens = old_style.split()
+        attrs = [tok for tok in tokens if tok in keep_attrs]
+        style_tokens = [tok for tok in tokens if tok not in keep_attrs]
+
+        if cls in style_tokens:
+            style_tokens = [tok for tok in style_tokens if tok != cls]
+
+        # Place the highlight class first, so existing per-token styles (classes
+        # or explicit fg/bg) keep their precedence. This prevents highlight from
+        # accidentally overriding caller-defined colors.
+        combined = [cls, *style_tokens, *attrs]
+        style = " ".join(tok for tok in combined if tok)
         restyled.append((style, text))
     return restyled
 

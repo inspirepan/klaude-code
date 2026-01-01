@@ -1,31 +1,14 @@
-import time
 from dataclasses import dataclass
 
 from .session import Session
 
 
-def _relative_time(ts: float) -> str:
-    """Format timestamp as relative time like '5 days ago'."""
-    now = time.time()
-    diff = now - ts
+def _format_time(ts: float) -> str:
+    """Format timestamp as absolute time like '01-01 14:30'."""
+    from datetime import datetime
 
-    if diff < 60:
-        return "just now"
-    elif diff < 3600:
-        mins = int(diff / 60)
-        return f"{mins} minute{'s' if mins != 1 else ''} ago"
-    elif diff < 86400:
-        hours = int(diff / 3600)
-        return f"{hours} hour{'s' if hours != 1 else ''} ago"
-    elif diff < 604800:
-        days = int(diff / 86400)
-        return f"{days} day{'s' if days != 1 else ''} ago"
-    elif diff < 2592000:
-        weeks = int(diff / 604800)
-        return f"{weeks} week{'s' if weeks != 1 else ''} ago"
-    else:
-        months = int(diff / 2592000)
-        return f"{months} month{'s' if months != 1 else ''} ago"
+    dt = datetime.fromtimestamp(ts)
+    return dt.strftime("%m-%d %H:%M")
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,7 +73,7 @@ def build_session_select_options() -> list[SessionSelectOption]:
                 session_id=str(s.id),
                 user_messages=user_messages,
                 messages_count=msg_count,
-                relative_time=_relative_time(s.updated_at),
+                relative_time=_format_time(s.updated_at),
                 model_name=model,
             )
         )
