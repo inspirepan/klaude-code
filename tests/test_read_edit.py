@@ -228,7 +228,9 @@ class TestReminders(BaseTempDirTest):
 
         _ = arun(ReadTool.call(json.dumps({"file_path": file_path})))
 
-        self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{file_path}")))
+        self.session.conversation_history.append(
+            message.UserMessage(parts=message.text_parts_from_str(f"@{file_path}"))
+        )
 
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNone(reminder)
@@ -247,7 +249,9 @@ class TestReminders(BaseTempDirTest):
         new_mtime_ns = orig_mtime_ns + 2_000_000_000
         os.utime(file_path, ns=(new_mtime_ns, new_mtime_ns))
 
-        self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{file_path}")))
+        self.session.conversation_history.append(
+            message.UserMessage(parts=message.text_parts_from_str(f"@{file_path}"))
+        )
 
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNone(reminder)
@@ -278,7 +282,9 @@ class TestReminders(BaseTempDirTest):
         with open(main_path, "w", encoding="utf-8") as f:
             f.write(f"main content\n@{sub_path}\n")
 
-        self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{main_path}")))
+        self.session.conversation_history.append(
+            message.UserMessage(parts=message.text_parts_from_str(f"@{main_path}"))
+        )
 
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNotNone(reminder)
@@ -330,7 +336,9 @@ class TestReminders(BaseTempDirTest):
         with open(child_path, "w", encoding="utf-8") as f:
             f.write("child content\n@../sibling.txt\n")
 
-        self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{child_path}")))
+        self.session.conversation_history.append(
+            message.UserMessage(parts=message.text_parts_from_str(f"@{child_path}"))
+        )
 
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNotNone(reminder)

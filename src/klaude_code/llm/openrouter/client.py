@@ -102,7 +102,7 @@ class OpenRouterClient(LLMClientABC):
             payload, extra_body, extra_headers = build_payload(param)
         except (ValueError, OSError) as e:
             yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
-            yield metadata_tracker.finalize()
+            yield message.AssistantMessage(parts=[], response_id=None, usage=metadata_tracker.finalize())
             return
 
         log_debug(
@@ -119,7 +119,7 @@ class OpenRouterClient(LLMClientABC):
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
             yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
-            yield metadata_tracker.finalize()
+            yield message.AssistantMessage(parts=[], response_id=None, usage=metadata_tracker.finalize())
             return
 
         reasoning_handler = ReasoningStreamHandler(

@@ -205,7 +205,6 @@ async def parse_chat_completions_stream(
             if not state.response_id and (event_id := getattr(event, "id", None)):
                 state.set_response_id(str(event_id))
                 reasoning_handler.set_response_id(str(event_id))
-                yield message.StartItem(response_id=str(event_id))
 
             if (event_usage := getattr(event, "usage", None)) is not None:
                 metadata_tracker.set_usage(convert_usage(event_usage, param.context_limit, param.max_tokens))
@@ -276,7 +275,9 @@ async def parse_chat_completions_stream(
                         yield message.StreamErrorItem(error=str(exc))
                         return
                     state.accumulated_images.append(assistant_image)
-                    yield message.AssistantImageDelta(response_id=state.response_id, file_path=assistant_image.file_path)
+                    yield message.AssistantImageDelta(
+                        response_id=state.response_id, file_path=assistant_image.file_path
+                    )
 
             if (content := getattr(delta, "content", None)) and (state.stage == "assistant" or str(content).strip()):
                 metadata_tracker.record_token()
@@ -316,11 +317,9 @@ async def parse_chat_completions_stream(
         metadata_tracker.record_token()
     metadata_tracker.set_response_id(state.response_id)
     metadata = metadata_tracker.finalize()
-    if parts:
-        yield message.AssistantMessage(
-            parts=parts,
-            response_id=state.response_id,
-            usage=metadata,
-            stop_reason=state.stop_reason,
-        )
-    yield metadata
+    yield message.AssistantMessage(
+        parts=parts,
+        response_id=state.response_id,
+        usage=metadata,
+        stop_reason=state.stop_reason,
+    )

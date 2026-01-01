@@ -122,7 +122,6 @@ async def parse_responses_stream(
             match event:
                 case responses.ResponseCreatedEvent() as event:
                     response_id = event.response.id
-                    yield message.StartItem(response_id=response_id)
                 case responses.ResponseReasoningSummaryTextDeltaEvent() as event:
                     if event.delta:
                         metadata_tracker.record_token()
@@ -226,14 +225,12 @@ async def parse_responses_stream(
     flush_text()
     metadata_tracker.set_response_id(response_id)
     metadata = metadata_tracker.finalize()
-    if assistant_parts:
-        yield message.AssistantMessage(
-            parts=assistant_parts,
-            response_id=response_id,
-            usage=metadata,
-            stop_reason=stop_reason,
-        )
-    yield metadata
+    yield message.AssistantMessage(
+        parts=assistant_parts,
+        response_id=response_id,
+        usage=metadata,
+        stop_reason=stop_reason,
+    )
 
 
 @register(llm_param.LLMClientProtocol.RESPONSES)

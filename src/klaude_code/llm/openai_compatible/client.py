@@ -81,7 +81,7 @@ class OpenAICompatibleClient(LLMClientABC):
             payload, extra_body = build_payload(param)
         except (ValueError, OSError) as e:
             yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
-            yield metadata_tracker.finalize()
+            yield message.AssistantMessage(parts=[], response_id=None, usage=metadata_tracker.finalize())
             return
         extra_headers: dict[str, str] = {"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)}
 
@@ -99,7 +99,7 @@ class OpenAICompatibleClient(LLMClientABC):
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
             yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
-            yield metadata_tracker.finalize()
+            yield message.AssistantMessage(parts=[], response_id=None, usage=metadata_tracker.finalize())
             return
 
         reasoning_handler = DefaultReasoningHandler(

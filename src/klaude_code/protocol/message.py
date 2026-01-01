@@ -26,11 +26,6 @@ from klaude_code.protocol.model import (
 # Stream items
 
 
-class StartItem(BaseModel):
-    response_id: str
-    created_at: datetime = Field(default_factory=datetime.now)
-
-
 class ToolCallStartItem(BaseModel):
     """Transient streaming signal when LLM starts a tool call.
 
@@ -187,7 +182,7 @@ Message = SystemMessage | DeveloperMessage | UserMessage | AssistantMessage | To
 
 HistoryEvent = Message | StreamErrorItem | TaskMetadataItem
 
-StreamItem = AssistantMessageDelta | AssistantImageDelta | ThinkingTextDelta | ToolCallStartItem | StartItem | Usage
+StreamItem = AssistantMessageDelta | AssistantImageDelta | ThinkingTextDelta | ToolCallStartItem
 
 LLMStreamItem = HistoryEvent | StreamItem
 

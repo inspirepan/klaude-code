@@ -252,8 +252,6 @@ class TurnExecutor:
                 debug_type=DebugType.RESPONSE,
             )
             match response_item:
-                case message.StartItem():
-                    continue
                 case message.ThinkingTextDelta() as item:
                     yield events.ThinkingDeltaEvent(
                         content=item.content,
@@ -309,16 +307,6 @@ class TurnExecutor:
                             session_id=session_ctx.session_id,
                             metadata=metadata,
                         )
-                case model.Usage() as item:
-                    if not item.model_name:
-                        item.model_name = ctx.llm_client.model_name
-                    if item.provider is None:
-                        item.provider = ctx.llm_client.get_llm_config().provider_name or None
-                    metadata_emitted = True
-                    yield events.ResponseMetadataEvent(
-                        session_id=session_ctx.session_id,
-                        metadata=item,
-                    )
                 case message.StreamErrorItem() as item:
                     turn_result.stream_error = item
                     log_debug(

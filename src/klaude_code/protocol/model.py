@@ -296,4 +296,3 @@ class TaskMetadataItem(BaseModel):
 
 def todo_list_str(todos: list[TodoItem]) -> str:
     return "[" + "\n".join(f"[{todo.status}] {todo.content}" for todo in todos) + "]\n"
-

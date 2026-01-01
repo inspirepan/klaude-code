@@ -131,7 +131,6 @@ async def parse_anthropic_stream(
                 response_id = event.message.id
                 cached_token = event.message.usage.cache_read_input_tokens or 0
                 input_token = event.message.usage.input_tokens
-                yield message.StartItem(response_id=response_id)
             case BetaRawContentBlockDeltaEvent() as event:
                 match event.delta:
                     case BetaThinkingDelta() as delta:
@@ -224,14 +223,12 @@ async def parse_anthropic_stream(
                 pass
 
     metadata = metadata_tracker.finalize()
-    if parts:
-        yield message.AssistantMessage(
-            parts=parts,
-            response_id=response_id,
-            usage=metadata,
-            stop_reason=stop_reason,
-        )
-    yield metadata
+    yield message.AssistantMessage(
+        parts=parts,
+        response_id=response_id,
+        usage=metadata,
+        stop_reason=stop_reason,
+    )
 
 
 @register(llm_param.LLMClientProtocol.ANTHROPIC)

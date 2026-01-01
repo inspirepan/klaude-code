@@ -141,7 +141,6 @@ async def parse_google_stream(
     metadata_tracker: MetadataTracker,
 ) -> AsyncGenerator[message.LLMStreamItem]:
     response_id: str | None = None
-    started = False
     stage: Literal["waiting", "thinking", "assistant", "tool"] = "waiting"
 
     accumulated_text: list[str] = []
@@ -193,10 +192,6 @@ async def parse_google_stream(
 
         if response_id is None:
             response_id = getattr(chunk, "response_id", None) or uuid4().hex
-        assert response_id is not None
-        if not started:
-            started = True
-            yield message.StartItem(response_id=response_id)
 
         if getattr(chunk, "usage_metadata", None) is not None:
             last_usage_metadata = chunk.usage_metadata
@@ -309,14 +304,12 @@ async def parse_google_stream(
     metadata_tracker.set_model_name(str(param.model))
     metadata_tracker.set_response_id(response_id)
     metadata = metadata_tracker.finalize()
-    if assistant_parts:
-        yield message.AssistantMessage(
-            parts=assistant_parts,
-            response_id=response_id,
-            usage=metadata,
-            stop_reason=stop_reason,
-        )
-    yield metadata
+    yield message.AssistantMessage(
+        parts=assistant_parts,
+        response_id=response_id,
+        usage=metadata,
+        stop_reason=stop_reason,
+    )
 
 
 @register(llm_param.LLMClientProtocol.GOOGLE)
@@ -367,7 +360,7 @@ class GoogleClient(LLMClientABC):
             )
         except (APIError, ClientError, ServerError, httpx.HTTPError) as e:
             yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
-            yield metadata_tracker.finalize()
+            yield message.AssistantMessage(parts=[], response_id=None, usage=metadata_tracker.finalize())
             return
 
         try:
@@ -375,4 +368,4 @@ class GoogleClient(LLMClientABC):
                 yield item
         except (APIError, ClientError, ServerError, httpx.HTTPError) as e:
             yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
-            yield metadata_tracker.finalize()
+            yield message.AssistantMessage(parts=[], response_id=None, usage=metadata_tracker.finalize())

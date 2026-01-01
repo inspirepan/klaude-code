@@ -460,11 +460,11 @@ class DisplayEventHandler:
             mdstream = self.assistant_stream.mdstream
             assert mdstream is not None
             mdstream.update(event.content.strip(), final=True)
+            self.renderer.print()
         self.assistant_stream.finish()
         self.spinner_status.set_composing(False)
         self._update_spinner()
         await self.stage_manager.transition_to(Stage.WAITING)
-        self.renderer.print()
         self.renderer.spinner_start()
 
     async def _on_assistant_image_delta(self, event: events.AssistantImageDeltaEvent) -> None:
