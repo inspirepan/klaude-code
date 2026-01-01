@@ -8,6 +8,7 @@
 
 from openai.types import chat
 
+from klaude_code.llm.image import assistant_image_to_data_url
 from klaude_code.llm.input_common import AssistantGroup, ToolGroup, UserGroup, parse_message_groups
 from klaude_code.llm.openai_compatible.input import tool_group_to_openai_message, user_group_to_openai_message
 from klaude_code.protocol import model
@@ -27,6 +28,16 @@ def is_gemini_model(model_name: str | None) -> bool:
 
 def _assistant_group_to_message(group: AssistantGroup, model_name: str | None) -> chat.ChatCompletionMessageParam:
     assistant_message: dict[str, object] = {"role": "assistant"}
+
+    if group.images:
+        assistant_message["images"] = [
+            {
+                "image_url": {
+                    "url": assistant_image_to_data_url(image),
+                }
+            }
+            for image in group.images
+        ]
 
     if group.tool_calls:
         assistant_message["tool_calls"] = [

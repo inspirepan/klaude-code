@@ -48,6 +48,7 @@ class AssistantGroup:
     """Aggregated assistant message group."""
 
     text_content: str | None = None
+    images: list[model.AssistantImage] = field(default_factory=lambda: [])
     tool_calls: list[model.ToolCallItem] = field(default_factory=lambda: [])
     reasoning_items: list[model.ReasoningTextItem | model.ReasoningEncryptedItem] = field(default_factory=lambda: [])
 
@@ -177,6 +178,8 @@ def parse_message_groups(history: list[model.ConversationItem]) -> list[MessageG
                                     group.text_content = item.content
                                 else:
                                     group.text_content += item.content
+                            if item.images:
+                                group.images.extend(item.images)
                         case model.ToolCallItem():
                             group.tool_calls.append(item)
                         case model.ReasoningTextItem():

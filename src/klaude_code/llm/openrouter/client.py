@@ -98,7 +98,12 @@ class OpenRouterClient(LLMClientABC):
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
-        payload, extra_body, extra_headers = build_payload(param)
+        try:
+            payload, extra_body, extra_headers = build_payload(param)
+        except (ValueError, OSError) as e:
+            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+            yield metadata_tracker.finalize()
+            return
 
         log_debug(
             json.dumps({**payload, **extra_body}, ensure_ascii=False, default=str),

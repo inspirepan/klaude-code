@@ -77,7 +77,12 @@ class OpenAICompatibleClient(LLMClientABC):
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
-        payload, extra_body = build_payload(param)
+        try:
+            payload, extra_body = build_payload(param)
+        except (ValueError, OSError) as e:
+            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+            yield metadata_tracker.finalize()
+            return
         extra_headers: dict[str, str] = {"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)}
 
         log_debug(

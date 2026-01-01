@@ -1,3 +1,6 @@
+import tempfile
+from base64 import b64decode
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from hypothesis import given, settings
@@ -262,6 +265,46 @@ def test_openrouter_history_includes_image_url_parts():
     assert second_part["type"] == "image_url"
     image_url = _ensure_dict(second_part["image_url"])
     assert image_url["url"] == SAMPLE_DATA_URL
+
+
+def test_openrouter_history_includes_assistant_images_for_multi_turn_editing():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        img_path = Path(tmpdir) / "assistant.png"
+        img_bytes = b64decode(SAMPLE_IMAGE_BASE64)
+        img_path.write_bytes(img_bytes)
+
+        assistant_image = model.AssistantImage(file_path=str(img_path), mime_type="image/png")
+        history: list[model.ConversationItem] = [
+            model.AssistantMessageItem(content="Here", images=[assistant_image]),
+        ]
+
+        messages = openrouter_history(history, system=None, model_name=None)
+        first = _ensure_dict(messages[0])
+        assert first["role"] == "assistant"
+        images = _ensure_list(first["images"])
+        first_image = _ensure_dict(images[0])
+        image_url = _ensure_dict(first_image["image_url"])
+        assert image_url["url"] == SAMPLE_DATA_URL
+
+
+def test_openai_compatible_history_includes_assistant_images_for_multi_turn_editing():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        img_path = Path(tmpdir) / "assistant.png"
+        img_bytes = b64decode(SAMPLE_IMAGE_BASE64)
+        img_path.write_bytes(img_bytes)
+
+        assistant_image = model.AssistantImage(file_path=str(img_path), mime_type="image/png")
+        history: list[model.ConversationItem] = [
+            model.AssistantMessageItem(content="Here", images=[assistant_image]),
+        ]
+
+        messages = openai_history(history, system=None, model_name=None)
+        first = _ensure_dict(messages[0])
+        assert first["role"] == "assistant"
+        images = _ensure_list(first["images"])
+        first_image = _ensure_dict(images[0])
+        image_url = _ensure_dict(first_image["image_url"])
+        assert image_url["url"] == SAMPLE_DATA_URL
 
 
 def test_responses_history_includes_image_inputs():

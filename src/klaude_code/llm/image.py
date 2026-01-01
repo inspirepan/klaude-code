@@ -7,8 +7,9 @@ across different LLM providers and protocols (OpenAI, Anthropic, etc.).
 from __future__ import annotations
 
 import hashlib
+import mimetypes
 import time
-from base64 import b64decode
+from base64 import b64decode, b64encode
 from binascii import Error as BinasciiError
 from pathlib import Path
 
@@ -84,3 +85,27 @@ def save_assistant_image(
         byte_size=len(decoded),
         sha256=hashlib.sha256(decoded).hexdigest(),
     )
+
+
+def assistant_image_to_data_url(image: model.AssistantImage) -> str:
+    """Load an assistant image from disk and encode it as a base64 data URL.
+
+    This is primarily used for multi-turn image editing, where providers require
+    sending the previous assistant message (including images) back to the model.
+    """
+
+    file_path = Path(image.file_path)
+    decoded = file_path.read_bytes()
+
+    if len(decoded) > const.IMAGE_OUTPUT_MAX_BYTES:
+        decoded_mb = len(decoded) / (1024 * 1024)
+        limit_mb = const.IMAGE_OUTPUT_MAX_BYTES / (1024 * 1024)
+        raise ValueError(f"Assistant image size ({decoded_mb:.2f}MB) exceeds limit ({limit_mb:.2f}MB)")
+
+    mime_type = image.mime_type
+    if not mime_type:
+        guessed, _ = mimetypes.guess_type(str(file_path))
+        mime_type = guessed or "application/octet-stream"
+
+    encoded = b64encode(decoded).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"

@@ -6,6 +6,7 @@
 from openai.types import chat
 from openai.types.chat import ChatCompletionContentPartParam
 
+from klaude_code.llm.image import assistant_image_to_data_url
 from klaude_code.llm.input_common import AssistantGroup, ToolGroup, UserGroup, merge_reminder_text, parse_message_groups
 from klaude_code.protocol import llm_param, model
 
@@ -39,6 +40,16 @@ def _assistant_group_to_message(
     group: AssistantGroup,
 ) -> chat.ChatCompletionMessageParam:
     assistant_message: dict[str, object] = {"role": "assistant"}
+
+    if group.images:
+        assistant_message["images"] = [
+            {
+                "image_url": {
+                    "url": assistant_image_to_data_url(image),
+                }
+            }
+            for image in group.images
+        ]
 
     if group.text_content:
         assistant_message["content"] = group.text_content
