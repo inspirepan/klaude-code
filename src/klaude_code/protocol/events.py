@@ -68,6 +68,12 @@ class AssistantMessageDeltaEvent(BaseModel):
     content: str
 
 
+class AssistantImageDeltaEvent(BaseModel):
+    session_id: str
+    response_id: str | None = None
+    file_path: str
+
+
 class AssistantMessageEvent(BaseModel):
     response_id: str | None = None
     session_id: str
@@ -146,6 +152,7 @@ HistoryItemEvent = (
     | TaskStartEvent
     | TaskFinishEvent
     | TurnStartEvent  # This event is used for UI to print new empty line
+    | AssistantImageDeltaEvent
     | AssistantMessageEvent
     | ToolCallEvent
     | ToolResultEvent
@@ -170,6 +177,7 @@ Event = (
     | ThinkingEvent
     | ThinkingDeltaEvent
     | AssistantMessageDeltaEvent
+    | AssistantImageDeltaEvent
     | AssistantMessageEvent
     | ToolCallEvent
     | ToolResultEvent

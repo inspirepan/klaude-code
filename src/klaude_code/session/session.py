@@ -301,7 +301,26 @@ class Session(BaseModel):
             match it:
                 case model.AssistantMessageItem() as am:
                     content = am.content or ""
-                    last_assistant_content = content
+                    images = am.images or []
+                    if images:
+                        image_lines = "\n".join(f"- {img.file_path}" for img in images if img.file_path)
+                        if image_lines:
+                            last_assistant_content = (
+                                f"{content}\n\nSaved images:\n{image_lines}"
+                                if content.strip()
+                                else f"Saved images:\n{image_lines}"
+                            )
+                        else:
+                            last_assistant_content = content
+                    else:
+                        last_assistant_content = content
+                    if am.images:
+                        for image in am.images:
+                            yield events.AssistantImageDeltaEvent(
+                                file_path=image.file_path,
+                                response_id=am.response_id,
+                                session_id=self.id,
+                            )
                     yield events.AssistantMessageEvent(
                         content=content,
                         response_id=am.response_id,

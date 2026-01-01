@@ -187,6 +187,14 @@ provider_list:
         input: 0.5
         output: 3.0
         cache_read: 0.05
+
+  - model_name: nano-banana-pro@or
+    model_params:
+      model: google/gemini-3-pro-image-preview
+      context_limit: 1048576
+      modalities:
+      - image
+      - text
   - model_name: grok
     model_params:
       model: x-ai/grok-4.1-fast
@@ -334,3 +342,6 @@ provider_list:
         reasoning_effort: medium
       context_limit: 400000
       max_tokens: 128000
+
+sub_agent_models:
+  ImageGen: nano-banana-pro@or

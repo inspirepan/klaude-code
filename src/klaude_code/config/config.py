@@ -8,7 +8,11 @@ from typing import Any, cast
 import yaml
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
-from klaude_code.config.builtin_config import SUPPORTED_API_KEY_ENVS, get_builtin_provider_configs
+from klaude_code.config.builtin_config import (
+    SUPPORTED_API_KEY_ENVS,
+    get_builtin_provider_configs,
+    get_builtin_sub_agent_models,
+)
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 from klaude_code.trace import log
@@ -294,7 +298,8 @@ def _get_builtin_config() -> Config:
     # Re-validate to ensure compatibility with current ProviderConfig class
     # (needed for tests that may monkeypatch the class)
     providers = [ProviderConfig.model_validate(p.model_dump()) for p in get_builtin_provider_configs()]
-    return Config(provider_list=providers)
+    sub_agent_models = get_builtin_sub_agent_models()
+    return Config(provider_list=providers, sub_agent_models=sub_agent_models)
 
 
 def _merge_provider(builtin: ProviderConfig, user: UserProviderConfig) -> ProviderConfig:

@@ -112,5 +112,6 @@ def sub_agent_tool_names(enabled_only: bool = False, model_name: str | None = No
 
 # Import sub-agent modules to trigger registration
 from klaude_code.protocol.sub_agent import explore as explore  # noqa: E402
+from klaude_code.protocol.sub_agent import image_gen as image_gen  # noqa: E402
 from klaude_code.protocol.sub_agent import task as task  # noqa: E402
 from klaude_code.protocol.sub_agent import web as web  # noqa: E402

@@ -39,6 +39,18 @@ class Thinking(BaseModel):
     budget_tokens: int | None = None
 
 
+class ImageConfig(BaseModel):
+    """Image generation config (OpenRouter-compatible fields).
+
+    This is intentionally small and extensible. Additional vendor/model
+    parameters can be stored in `extra`.
+    """
+
+    aspect_ratio: str | None = None
+    image_size: Literal["1K", "2K", "4K"] | None = None
+    extra: dict[str, Any] | None = None
+
+
 class Cost(BaseModel):
     """Cost configuration per million tokens."""
 
@@ -113,6 +125,11 @@ class LLMConfigModelParameter(BaseModel):
 
     # OpenAI GPT-5
     verbosity: Literal["low", "medium", "high"] | None = None
+
+    # Multimodal output control (OpenRouter image generation)
+    modalities: list[Literal["text", "image"]] | None = None
+
+    image_config: ImageConfig | None = None
 
     # Unified Thinking & Reasoning
     thinking: Thinking | None = None

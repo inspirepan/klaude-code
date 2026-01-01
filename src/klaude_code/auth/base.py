@@ -8,7 +8,6 @@ from typing import Any, cast
 
 from pydantic import BaseModel
 
-
 KLAUDE_AUTH_FILE = Path.home() / ".klaude" / "klaude-auth.json"
 
 

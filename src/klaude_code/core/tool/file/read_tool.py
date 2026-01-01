@@ -249,10 +249,11 @@ class ReadTool(ToolABC):
         if is_image_file:
             if size_bytes > const.READ_MAX_IMAGE_BYTES:
                 size_mb = size_bytes / (1024 * 1024)
+                limit_mb = const.READ_MAX_IMAGE_BYTES / (1024 * 1024)
                 return model.ToolResultItem(
                     status="error",
                     output=(
-                        f"<tool_use_error>Image size ({size_mb:.2f}MB) exceeds maximum supported size (4.00MB) for inline transfer.</tool_use_error>"
+                        f"<tool_use_error>Image size ({size_mb:.2f}MB) exceeds maximum supported size ({limit_mb:.2f}MB) for inline transfer.</tool_use_error>"
                     ),
                 )
             try:

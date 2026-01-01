@@ -36,6 +36,7 @@ class TurnExecutionContext:
     system_prompt: str | None
     tools: list[llm_param.ToolSchema]
     tool_registry: dict[str, type[ToolABC]]
+    sub_agent_state: model.SubAgentState | None = None
 
 
 @dataclass
@@ -129,7 +130,16 @@ class TurnExecutor:
         if self._turn_result is not None and self._turn_result.report_back_result is not None:
             return self._turn_result.report_back_result
         if self._turn_result is not None and self._turn_result.assistant_message is not None:
-            return self._turn_result.assistant_message.content or ""
+            assistant_message = self._turn_result.assistant_message
+            text = assistant_message.content or ""
+            images = assistant_message.images or []
+            if images:
+                image_lines = "\n".join(f"- {img.file_path}" for img in images if img.file_path)
+                if image_lines:
+                    if text.strip():
+                        return f"{text}\n\nSaved images:\n{image_lines}"
+                    return f"Saved images:\n{image_lines}"
+            return text
         return ""
 
     @property
@@ -197,14 +207,31 @@ class TurnExecutor:
 
         ctx = self._context
         session_ctx = ctx.session_ctx
-        async for response_item in ctx.llm_client.call(
-            llm_param.LLMCallParameter(
-                input=session_ctx.get_conversation_history(),
-                system=ctx.system_prompt,
-                tools=ctx.tools,
-                session_id=session_ctx.session_id,
-            )
-        ):
+        call_param = llm_param.LLMCallParameter(
+            input=session_ctx.get_conversation_history(),
+            system=ctx.system_prompt,
+            tools=ctx.tools,
+            session_id=session_ctx.session_id,
+        )
+
+        # ImageGen per-call overrides (tool-level `generation` parameters)
+        if ctx.sub_agent_state is not None and ctx.sub_agent_state.sub_agent_type == "ImageGen":
+            call_param.modalities = ["image", "text"]
+            generation = ctx.sub_agent_state.generation or {}
+            image_config = llm_param.ImageConfig()
+            aspect_ratio = generation.get("aspect_ratio")
+            if isinstance(aspect_ratio, str) and aspect_ratio.strip():
+                image_config.aspect_ratio = aspect_ratio.strip()
+            image_size = generation.get("image_size")
+            if image_size in {"1K", "2K", "4K"}:
+                image_config.image_size = image_size
+            extra = generation.get("extra")
+            if isinstance(extra, dict) and extra:
+                image_config.extra = extra
+            if image_config.model_dump(exclude_none=True):
+                call_param.image_config = image_config
+
+        async for response_item in ctx.llm_client.call(call_param):
             log_debug(
                 f"[{response_item.__class__.__name__}]",
                 response_item.model_dump_json(exclude_none=True),
@@ -235,6 +262,12 @@ class TurnExecutor:
                     self._assistant_delta_buffer.append(item.content)
                     yield events.AssistantMessageDeltaEvent(
                         content=item.content,
+                        response_id=item.response_id,
+                        session_id=session_ctx.session_id,
+                    )
+                case model.AssistantImageDelta() as item:
+                    yield events.AssistantImageDeltaEvent(
+                        file_path=item.file_path,
                         response_id=item.response_id,
                         session_id=session_ctx.session_id,
                     )

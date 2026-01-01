@@ -218,6 +218,11 @@ def apply_config_defaults(param: "LLMCallParameter", config: "LLMConfigParameter
     if param.provider_routing is None:
         param.provider_routing = config.provider_routing
 
+    if param.modalities is None:
+        param.modalities = config.modalities
+    if param.image_config is None:
+        param.image_config = config.image_config
+
     if param.model is None:
         raise ValueError("Model is required")
     if param.max_tokens is None:

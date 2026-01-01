@@ -31,6 +31,10 @@ class ProjectPaths:
     def session_dir(self, session_id: str) -> Path:
         return self.sessions_dir / session_id
 
+    def images_dir(self, session_id: str) -> Path:
+        """Return the directory for storing session-scoped image artifacts."""
+        return self.session_dir(session_id) / "images"
+
     def events_file(self, session_id: str) -> Path:
         return self.session_dir(session_id) / "events.jsonl"
 

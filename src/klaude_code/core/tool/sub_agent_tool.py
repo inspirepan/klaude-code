@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.core.tool.tool_context import current_run_subtask_callback
@@ -67,6 +67,11 @@ class SubAgentTool(ToolABC):
         prompt = profile.prompt_builder(args)
         description = args.get("description", "")
 
+        generation = args.get("generation")
+        generation_dict: dict[str, Any] | None = (
+            cast(dict[str, Any], generation) if isinstance(generation, dict) else None
+        )
+
         # Extract output_schema if configured
         output_schema = None
         if profile.output_schema_arg:
@@ -79,6 +84,7 @@ class SubAgentTool(ToolABC):
                     sub_agent_desc=description,
                     sub_agent_prompt=prompt,
                     output_schema=output_schema,
+                    generation=generation_dict,
                 )
             )
         except asyncio.CancelledError:

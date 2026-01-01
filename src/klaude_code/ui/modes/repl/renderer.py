@@ -4,6 +4,7 @@ import contextlib
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from rich.console import Console, Group, RenderableType
@@ -158,6 +159,8 @@ class REPLRenderer:
                         self.display_task_start(e)
                     case events.TurnStartEvent():
                         self.print()
+                    case events.AssistantImageDeltaEvent() as e:
+                        self.display_image(e.file_path)
                     case events.AssistantMessageEvent() as e:
                         if is_sub_agent:
                             continue
@@ -236,6 +239,29 @@ class REPLRenderer:
         if renderable is not None:
             self.print(renderable)
             self.print()
+
+    def display_image(self, file_path: str, height: int = 20) -> None:
+        """Display an image in the terminal.
+
+        Args:
+            file_path: Path to the image file.
+            height: Height in terminal lines for displaying the image.
+        """
+        path = Path(file_path)
+        if not path.exists():
+            self.print(f"Image not found: {file_path}", style=ThemeKey.ERROR)
+            return
+
+        try:
+            from term_image.image import KittyImage  # type: ignore[import-untyped]
+
+            KittyImage.forced_support = True  # type: ignore[reportUnknownMemberType]
+            img = KittyImage.from_file(path)  # type: ignore[reportUnknownMemberType]
+            img.height = height  # type: ignore[reportUnknownMemberType]
+            print(img)  # type: ignore[reportUnknownArgumentType]
+        except Exception:
+            # Fallback if term_image fails (e.g., terminal doesn't support inline images)
+            self.print(f"Saved image: {file_path}", style=ThemeKey.METADATA_DIM)
 
     def display_task_metadata(self, event: events.TaskMetadataEvent) -> None:
         with self.session_print_context(event.session_id):

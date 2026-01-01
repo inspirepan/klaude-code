@@ -374,3 +374,4 @@ The main agent can spawn specialized sub-agents for specific tasks:
 | **Explore** | Fast codebase exploration - find files, search code, answer questions about the codebase |
 | **Task** | Handle complex multi-step tasks autonomously |
 | **WebAgent** | Search the web, fetch pages, and analyze content |
+| **ImageGen** | Generate images from text prompts via OpenRouter Nano Banana Pro |

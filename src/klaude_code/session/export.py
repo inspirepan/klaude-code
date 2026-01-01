@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import base64
 import html
 import importlib.resources
 import json
+import mimetypes
 import re
 from datetime import datetime
 from pathlib import Path
@@ -19,6 +21,44 @@ if TYPE_CHECKING:
 
 _TOOL_OUTPUT_PREVIEW_LINES: Final[int] = 12
 _MAX_FILENAME_MESSAGE_LEN: Final[int] = 50
+_IMAGE_MAX_DISPLAY_WIDTH: Final[int] = 600
+
+
+def _image_to_data_url(file_path: str) -> str | None:
+    """Read an image file and convert it to a base64 data URL.
+
+    Returns None if the file doesn't exist or can't be read.
+    """
+    path = Path(file_path)
+    if not path.exists():
+        return None
+
+    mime_type, _ = mimetypes.guess_type(str(path))
+    if not mime_type or not mime_type.startswith("image/"):
+        mime_type = "image/png"
+
+    try:
+        data = path.read_bytes()
+        b64 = base64.b64encode(data).decode("ascii")
+        return f"data:{mime_type};base64,{b64}"
+    except OSError:
+        return None
+
+
+def _render_image_html(file_path: str, max_width: int = _IMAGE_MAX_DISPLAY_WIDTH) -> str:
+    """Render an image as HTML img tag with base64 data URL."""
+    data_url = _image_to_data_url(file_path)
+    if data_url:
+        short_path = _shorten_path(file_path)
+        return (
+            f'<div class="assistant-image" style="margin: 8px 0;">'
+            f'<img src="{data_url}" alt="Generated image" '
+            f'style="max-width: {max_width}px; border-radius: 4px; border: 1px solid var(--border);" />'
+            f'<div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">{_escape_html(short_path)}</div>'
+            f"</div>"
+        )
+    short_path = _shorten_path(file_path)
+    return f'<div class="assistant-image-missing" style="color: var(--text-dim); font-style: italic;">Image not found: {_escape_html(short_path)}</div>'
 
 
 def _sanitize_filename(text: str) -> str:
@@ -244,9 +284,20 @@ def _render_metadata_item(item: model.TaskMetadataItem) -> str:
     return f'<div class="response-metadata">{"".join(lines)}</div>'
 
 
-def _render_assistant_message(index: int, content: str, timestamp: datetime) -> str:
+def _render_assistant_message(
+    index: int,
+    content: str,
+    timestamp: datetime,
+    images: list[model.AssistantImage] | None = None,
+) -> str:
     encoded = _escape_html(content)
     ts_str = _format_msg_timestamp(timestamp)
+
+    images_html = ""
+    if images:
+        images_parts = [_render_image_html(img.file_path) for img in images]
+        images_html = "".join(images_parts)
+
     return (
         f'<div class="message-group assistant-message-group">'
         f'<div class="message-header">'
@@ -258,6 +309,7 @@ def _render_assistant_message(index: int, content: str, timestamp: datetime) -> 
         f"</div>"
         f"</div>"
         f'<div class="message-content assistant-message">'
+        f"{images_html}"
         f'<div class="assistant-rendered markdown-content markdown-body" data-raw="{encoded}">'
         f'<noscript><pre style="white-space: pre-wrap;">{encoded}</pre></noscript>'
         f"</div>"
@@ -308,20 +360,64 @@ def _try_render_todo_args(arguments: str, tool_name: str) -> str | None:
         return None
 
 
+def _extract_saved_images(content: str) -> tuple[str, list[str]]:
+    """Extract image paths from 'Saved images:' section in content.
+
+    Returns:
+        Tuple of (remaining_text, list_of_image_paths).
+    """
+    image_paths: list[str] = []
+    lines = content.splitlines()
+    result_lines: list[str] = []
+    in_saved_images = False
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "Saved images:":
+            in_saved_images = True
+            continue
+        if in_saved_images:
+            if stripped.startswith("- "):
+                path = stripped[2:].strip()
+                if path:
+                    image_paths.append(path)
+                continue
+            # End of saved images section (non-list line)
+            in_saved_images = False
+        result_lines.append(line)
+
+    return "\n".join(result_lines).strip(), image_paths
+
+
 def _render_sub_agent_result(content: str, description: str | None = None) -> str:
-    # Try to format as JSON for better readability
+    # Extract saved images from content
+    text_content, image_paths = _extract_saved_images(content)
+
+    # Render images first
+    images_html = ""
+    if image_paths:
+        images_parts = [_render_image_html(path) for path in image_paths]
+        images_html = "".join(images_parts)
+
+    # Try to format remaining text as JSON for better readability
     try:
-        parsed = json.loads(content)
+        parsed = json.loads(text_content)
         formatted = "```json\n" + json.dumps(parsed, ensure_ascii=False, indent=2) + "\n```"
     except (json.JSONDecodeError, TypeError):
-        formatted = content
+        formatted = text_content
 
     if description:
         formatted = f"# {description}\n\n{formatted}"
 
     encoded = _escape_html(formatted)
+
+    # If we have images but no text, just show images
+    if images_html and not formatted.strip():
+        return f'<div class="sub-agent-result-container">{images_html}</div>'
+
     return (
         f'<div class="sub-agent-result-container">'
+        f"{images_html}"
         f'<div class="sub-agent-toolbar">'
         f'<button type="button" class="raw-toggle" aria-pressed="false" title="Toggle raw text view">Raw</button>'
         f'<button type="button" class="copy-raw-btn" title="Copy raw content">Copy</button>'
@@ -682,7 +778,9 @@ def _build_messages_html(
     assistant_counter = 0
 
     renderable_items = [
-        item for item in history if not isinstance(item, (model.ToolResultItem, model.ReasoningEncryptedItem))
+        item
+        for item in history
+        if not isinstance(item, (model.ToolResultItem, model.ReasoningEncryptedItem, model.AssistantImageDelta))
     ]
 
     for i, item in enumerate(renderable_items):
@@ -703,7 +801,9 @@ def _build_messages_html(
             blocks.append(f'<div class="thinking-block markdown-body markdown-content" data-raw="{text}"></div>')
         elif isinstance(item, model.AssistantMessageItem):
             assistant_counter += 1
-            blocks.append(_render_assistant_message(assistant_counter, item.content or "", item.created_at))
+            blocks.append(
+                _render_assistant_message(assistant_counter, item.content or "", item.created_at, item.images)
+            )
         elif isinstance(item, model.TaskMetadataItem):
             blocks.append(_render_metadata_item(item))
         elif isinstance(item, model.DeveloperMessageItem):

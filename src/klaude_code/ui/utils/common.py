@@ -119,6 +119,15 @@ def format_model_params(model_params: "LLMConfigModelParameter") -> list[str]:
     if model_params.provider_routing:
         parts.append(f"provider routing {_format_provider_routing(model_params.provider_routing)}")
 
+    if model_params.modalities:
+        parts.append(f"modalities {','.join(model_params.modalities)}")
+
+    if model_params.image_config:
+        if model_params.image_config.aspect_ratio:
+            parts.append(f"image aspect {model_params.image_config.aspect_ratio}")
+        if model_params.image_config.image_size:
+            parts.append(f"image size {model_params.image_config.image_size}")
+
     return parts
 
 

@@ -208,6 +208,7 @@ class SubAgentState(BaseModel):
     sub_agent_desc: str
     sub_agent_prompt: str
     output_schema: dict[str, Any] | None = None
+    generation: dict[str, Any] | None = None
 
 
 """
@@ -216,7 +217,7 @@ Models for LLM API input and response items.
 A typical sequence of response items is:
 - [StartItem]
 - [ReasoningTextItem | ReasoningEncryptedItem]
-- [AssistantMessageDelta] × n
+- [AssistantMessageDelta | AssistantImageDelta] × n
 - [AssistantMessageItem]
 - [ToolCallItem] × n
 - [ResponseMetadataItem]
@@ -301,6 +302,7 @@ class AssistantMessageItem(BaseModel):
     id: str | None = None
     role: RoleType = "assistant"
     content: str | None = None
+    images: list["AssistantImage"] | None = None
     response_id: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
 
@@ -359,6 +361,29 @@ class ToolResultItem(BaseModel):
 class AssistantMessageDelta(BaseModel):
     response_id: str | None = None
     content: str
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class AssistantImage(BaseModel):
+    """A saved assistant-generated image.
+
+    Notes:
+    - We persist only the file path (and small metadata) to avoid storing huge
+      base64 payloads in conversation history.
+    """
+
+    file_path: str
+    mime_type: str | None = None
+    byte_size: int | None = None
+    sha256: str | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class AssistantImageDelta(BaseModel):
+    """Streaming signal indicating an image has been saved to disk."""
+
+    response_id: str | None = None
+    file_path: str
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -472,7 +497,7 @@ MessageItem = (
 )
 
 
-StreamItem = AssistantMessageDelta | ReasoningTextDelta
+StreamItem = AssistantMessageDelta | AssistantImageDelta | ReasoningTextDelta
 
 ConversationItem = (
     StartItem

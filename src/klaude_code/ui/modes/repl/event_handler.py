@@ -322,6 +322,8 @@ class DisplayEventHandler:
                 await self._on_thinking_delta(e)
             case events.AssistantMessageDeltaEvent() as e:
                 await self._on_assistant_delta(e)
+            case events.AssistantImageDeltaEvent() as e:
+                await self._on_assistant_image_delta(e)
             case events.AssistantMessageEvent() as e:
                 await self._on_assistant_message(e)
             case events.TurnToolCallStartEvent() as e:
@@ -480,6 +482,10 @@ class DisplayEventHandler:
         await self.stage_manager.transition_to(Stage.WAITING)
         self.renderer.print()
         self.renderer.spinner_start()
+
+    async def _on_assistant_image_delta(self, event: events.AssistantImageDeltaEvent) -> None:
+        await self.stage_manager.transition_to(Stage.ASSISTANT)
+        self.renderer.display_image(event.file_path)
 
     def _on_tool_call_start(self, event: events.TurnToolCallStartEvent) -> None:
         from klaude_code.ui.renderers.tools import get_tool_active_form

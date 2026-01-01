@@ -178,6 +178,7 @@ class TaskExecutor:
                 system_prompt=profile.system_prompt,
                 tools=profile.tools,
                 tool_registry=ctx.tool_registry,
+                sub_agent_state=ctx.sub_agent_state,
             )
 
             turn: TurnExecutor | None = None

@@ -1,0 +1,1 @@
+You are an image generation agent. Generate images based on the user's prompt.

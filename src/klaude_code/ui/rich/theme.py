@@ -200,7 +200,6 @@ class ThemeKey(str, Enum):
     CONFIG_MODEL_ID = "config.model.id"
     CONFIG_PARAM_LABEL = "config.param.label"
 
-
     def __str__(self) -> str:
         return self.value
 

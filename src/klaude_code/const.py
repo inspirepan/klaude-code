@@ -67,8 +67,13 @@ READ_GLOBAL_LINE_CAP = _get_int_env("KLAUDE_READ_GLOBAL_LINE_CAP", 2000)
 # Can be overridden via KLAUDE_READ_MAX_CHARS environment variable
 READ_MAX_CHARS = _get_int_env("KLAUDE_READ_MAX_CHARS", 50000)
 
-# Maximum image file size in bytes (4MB)
-READ_MAX_IMAGE_BYTES = 4 * 1024 * 1024
+# Maximum image file size in bytes for inline transfer (defaults to 4MB)
+# Can be overridden via KLAUDE_READ_MAX_IMAGE_BYTES environment variable
+READ_MAX_IMAGE_BYTES = _get_int_env("KLAUDE_READ_MAX_IMAGE_BYTES", 4 * 1024 * 1024)
+
+# Maximum decoded size in bytes for assistant-generated images (defaults to 64MB)
+# Can be overridden via KLAUDE_IMAGE_OUTPUT_MAX_BYTES environment variable
+IMAGE_OUTPUT_MAX_BYTES = _get_int_env("KLAUDE_IMAGE_OUTPUT_MAX_BYTES", 64 * 1024 * 1024)
 
 # -- Bash Tool --
 # Default timeout for bash commands (milliseconds)
