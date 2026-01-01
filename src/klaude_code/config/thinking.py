@@ -91,12 +91,12 @@ def format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
 
     protocol = config.protocol
 
-    if protocol in (llm_param.LLMClientProtocol.RESPONSES, llm_param.LLMClientProtocol.CODEX):
+    if protocol in (llm_param.LLMClientProtocol.RESPONSES, llm_param.LLMClientProtocol.CODEX_OAUTH):
         if thinking.reasoning_effort:
             return f"reasoning_effort={thinking.reasoning_effort}"
         return "not set"
 
-    if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
+    if protocol in (llm_param.LLMClientProtocol.ANTHROPIC, llm_param.LLMClientProtocol.CLAUDE_OAUTH):
         if thinking.type == "disabled":
             return "off"
         if thinking.type == "enabled":
@@ -201,7 +201,7 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
     model_name = config.model
     thinking = config.thinking
 
-    if protocol in (llm_param.LLMClientProtocol.RESPONSES, llm_param.LLMClientProtocol.CODEX):
+    if protocol in (llm_param.LLMClientProtocol.RESPONSES, llm_param.LLMClientProtocol.CODEX_OAUTH):
         levels = get_levels_for_responses(model_name)
         return ThinkingPickerData(
             options=_build_effort_options(levels),
@@ -209,7 +209,7 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
             current_value=_get_current_effort_value(thinking),
         )
 
-    if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
+    if protocol in (llm_param.LLMClientProtocol.ANTHROPIC, llm_param.LLMClientProtocol.CLAUDE_OAUTH):
         return ThinkingPickerData(
             options=_build_budget_options(),
             message="Select thinking level:",

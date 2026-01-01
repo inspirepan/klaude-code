@@ -12,8 +12,9 @@ class LLMClientProtocol(Enum):
     RESPONSES = "responses"
     OPENROUTER = "openrouter"
     ANTHROPIC = "anthropic"
+    CLAUDE_OAUTH = "claude_oauth"
     BEDROCK = "bedrock"
-    CODEX = "codex"
+    CODEX_OAUTH = "codex_oauth"
     GOOGLE = "google"
 
 

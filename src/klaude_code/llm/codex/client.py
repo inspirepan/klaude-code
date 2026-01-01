@@ -67,7 +67,7 @@ CODEX_HEADERS = {
 }
 
 
-@register(llm_param.LLMClientProtocol.CODEX)
+@register(llm_param.LLMClientProtocol.CODEX_OAUTH)
 class CodexClient(LLMClientABC):
     """LLM client for Codex API using ChatGPT subscription."""
 

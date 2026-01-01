@@ -161,6 +161,44 @@ class TestConfig:
         assert llm_config.protocol == llm_param.LLMClientProtocol.OPENAI
         assert llm_config.api_key == "test-api-key"
 
+    def test_get_model_config_codex_without_api_key(self) -> None:
+        """Codex protocol should not require api_key to resolve model config."""
+        provider = ProviderConfig(
+            provider_name="codex",
+            protocol=llm_param.LLMClientProtocol.CODEX_OAUTH,
+            api_key=None,
+            model_list=[
+                ModelConfig(
+                    model_name="gpt-5.2-codex",
+                    model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-codex"),
+                )
+            ],
+        )
+        config = Config(provider_list=[provider], main_model="gpt-5.2-codex")
+
+        llm_config = config.get_model_config("gpt-5.2-codex")
+        assert llm_config.protocol == llm_param.LLMClientProtocol.CODEX_OAUTH
+        assert llm_config.api_key is None
+
+    def test_get_model_config_claude_without_api_key(self) -> None:
+        """CLAUDE protocol should not require api_key to resolve model config."""
+        provider = ProviderConfig(
+            provider_name="claude",
+            protocol=llm_param.LLMClientProtocol.CLAUDE_OAUTH,
+            api_key=None,
+            model_list=[
+                ModelConfig(
+                    model_name="sonnet@claude",
+                    model_params=llm_param.LLMConfigModelParameter(model="claude-sonnet-4-5-20250929"),
+                )
+            ],
+        )
+        config = Config(provider_list=[provider], main_model="sonnet@claude")
+
+        llm_config = config.get_model_config("sonnet@claude")
+        assert llm_config.protocol == llm_param.LLMClientProtocol.CLAUDE_OAUTH
+        assert llm_config.api_key is None
+
     def test_get_model_config_unknown_model(self, sample_config: Config) -> None:
         """Test getting config for unknown model raises error."""
         with pytest.raises(ValueError, match="Unknown model: nonexistent-model"):

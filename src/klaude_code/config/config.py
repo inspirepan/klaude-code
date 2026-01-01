@@ -81,14 +81,23 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
         """
         from klaude_code.protocol.llm_param import LLMClientProtocol
 
-        if self.protocol == LLMClientProtocol.CODEX:
+        if self.protocol == LLMClientProtocol.CODEX_OAUTH:
             # Codex uses OAuth authentication, not API key
             from klaude_code.auth.codex.token_manager import CodexTokenManager
 
             token_manager = CodexTokenManager()
             state = token_manager.get_state()
-            # Consider available if logged in and token not expired
-            return state is None or state.is_expired()
+            # Consider available if logged in. Token refresh happens on-demand.
+            return state is None
+
+        if self.protocol == LLMClientProtocol.CLAUDE_OAUTH:
+            # Claude uses OAuth authentication, not API key
+            from klaude_code.auth.claude.token_manager import ClaudeTokenManager
+
+            token_manager = ClaudeTokenManager()
+            state = token_manager.get_state()
+            # Consider available if logged in. Token refresh happens on-demand.
+            return state is None
 
         if self.protocol == LLMClientProtocol.BEDROCK:
             # Bedrock uses AWS credentials, not API key. Region is always required.
@@ -182,7 +191,17 @@ class Config(BaseModel):
         for provider in self.provider_list:
             # Resolve ${ENV_VAR} syntax for api_key
             api_key = provider.get_resolved_api_key()
-            if not api_key:
+
+            # Some protocols do not use API keys for authentication.
+            if (
+                provider.protocol
+                not in {
+                    llm_param.LLMClientProtocol.CODEX_OAUTH,
+                    llm_param.LLMClientProtocol.CLAUDE_OAUTH,
+                    llm_param.LLMClientProtocol.BEDROCK,
+                }
+                and not api_key
+            ):
                 continue
             for model in provider.model_list:
                 if model.model_name == model_name:

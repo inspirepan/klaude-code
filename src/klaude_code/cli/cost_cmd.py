@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from rich.box import Box
 import typer
+from rich.box import Box
 from rich.console import Console
 from rich.table import Table
 

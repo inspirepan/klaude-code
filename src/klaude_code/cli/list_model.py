@@ -59,6 +59,52 @@ def _get_codex_status_elements() -> list[Text]:
     return elements
 
 
+def _get_claude_status_elements() -> list[Text]:
+    """Get Claude OAuth login status as Text elements for panel display."""
+    from klaude_code.auth.claude.token_manager import ClaudeTokenManager
+
+    elements: list[Text] = []
+    token_manager = ClaudeTokenManager()
+    state = token_manager.get_state()
+
+    if state is None:
+        elements.append(
+            Text.assemble(
+                ("Status: ", "bold"),
+                ("Not logged in", ThemeKey.CONFIG_STATUS_ERROR),
+                (" (run 'klaude login claude' to authenticate)", "dim"),
+            )
+        )
+    elif state.is_expired():
+        elements.append(
+            Text.assemble(
+                ("Status: ", "bold"),
+                ("Token expired", ThemeKey.CONFIG_STATUS_ERROR),
+                (" (will refresh automatically on use; run 'klaude login claude' if refresh fails)", "dim"),
+            )
+        )
+    else:
+        expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
+        elements.append(
+            Text.assemble(
+                ("Status: ", "bold"),
+                ("Logged in", ThemeKey.CONFIG_STATUS_OK),
+                (f" (expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})", "dim"),
+            )
+        )
+
+    elements.append(
+        Text.assemble(
+            ("Manage your Claude account at ", "dim"),
+            (
+                "https://claude.ai/settings/usage",
+                "blue underline link https://claude.ai/settings/usage",
+            ),
+        )
+    )
+    return elements
+
+
 def mask_api_key(api_key: str | None) -> str:
     """Mask API key to show only first 6 and last 6 characters with *** in between"""
     if not api_key or api_key == "N/A":
@@ -261,9 +307,14 @@ def display_models_and_providers(config: Config):
         ]
 
         # Add Codex status if this is a codex provider
-        if provider.protocol == LLMClientProtocol.CODEX:
+        if provider.protocol == LLMClientProtocol.CODEX_OAUTH:
             panel_elements.append(Text(""))  # Spacer
             panel_elements.extend(_get_codex_status_elements())
+
+        # Add Claude status if this is a claude provider
+        if provider.protocol == LLMClientProtocol.CLAUDE_OAUTH:
+            panel_elements.append(Text(""))  # Spacer
+            panel_elements.extend(_get_claude_status_elements())
 
         panel_content = Group(*panel_elements)
 

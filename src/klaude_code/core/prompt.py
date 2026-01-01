@@ -101,7 +101,7 @@ def load_system_prompt(
         file_key = _get_file_key(model_name, protocol)
         base_prompt = _load_base_prompt(file_key)
 
-    if protocol == llm_param.LLMClientProtocol.CODEX:
+    if protocol == llm_param.LLMClientProtocol.CODEX_OAUTH:
         # Do not append environment info for Codex protocol
         return base_prompt
 

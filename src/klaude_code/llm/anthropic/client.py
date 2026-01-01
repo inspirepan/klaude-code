@@ -6,6 +6,7 @@ from typing import Any, override
 import anthropic
 import httpx
 from anthropic import APIError
+from anthropic.types.beta import BetaTextBlockParam
 from anthropic.types.beta.beta_input_json_delta import BetaInputJSONDelta
 from anthropic.types.beta.beta_raw_content_block_delta_event import BetaRawContentBlockDeltaEvent
 from anthropic.types.beta.beta_raw_content_block_start_event import BetaRawContentBlockStartEvent
@@ -27,12 +28,36 @@ from klaude_code.llm.usage import MetadataTracker
 from klaude_code.protocol import llm_param, model
 from klaude_code.trace import DebugType, log_debug
 
+_IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."
 
-def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStreaming:
-    """Build Anthropic API request parameters."""
+
+def build_payload(
+    param: llm_param.LLMCallParameter,
+    *,
+    extra_betas: list[str] | None = None,
+) -> MessageCreateParamsStreaming:
+    """Build Anthropic API request parameters.
+
+    Args:
+        param: LLM call parameters.
+        extra_betas: Additional beta flags to prepend to the betas list.
+    """
     messages = convert_history_to_input(param.input, param.model)
     tools = convert_tool_schema(param.tools)
     system = convert_system_to_input(param.system)
+
+    # Add identity block at the beginning of the system prompt
+    identity_block: BetaTextBlockParam = {
+        "type": "text",
+        "text": _IDENTITY,
+        "cache_control": {"type": "ephemeral"},
+    }
+    system = [identity_block, *system]
+
+    betas = ["interleaved-thinking-2025-05-14"]
+    if extra_betas:
+        # Prepend extra betas, avoiding duplicates
+        betas = [b for b in extra_betas if b not in betas] + betas
 
     payload: MessageCreateParamsStreaming = {
         "model": str(param.model),
@@ -46,7 +71,7 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
         "messages": messages,
         "system": system,
         "tools": tools,
-        "betas": ["interleaved-thinking-2025-05-14", "context-1m-2025-08-07"],
+        "betas": betas,
     }
 
     if param.thinking and param.thinking.type == "enabled":

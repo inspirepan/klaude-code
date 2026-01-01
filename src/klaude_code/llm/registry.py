@@ -23,9 +23,11 @@ def _load_protocol(protocol: llm_param.LLMClientProtocol) -> None:
     # Import only the needed module to trigger @register decorator
     if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
         importlib.import_module("klaude_code.llm.anthropic")
+    elif protocol == llm_param.LLMClientProtocol.CLAUDE_OAUTH:
+        importlib.import_module("klaude_code.llm.claude")
     elif protocol == llm_param.LLMClientProtocol.BEDROCK:
         importlib.import_module("klaude_code.llm.bedrock")
-    elif protocol == llm_param.LLMClientProtocol.CODEX:
+    elif protocol == llm_param.LLMClientProtocol.CODEX_OAUTH:
         importlib.import_module("klaude_code.llm.codex")
     elif protocol == llm_param.LLMClientProtocol.OPENAI:
         importlib.import_module("klaude_code.llm.openai_compatible")

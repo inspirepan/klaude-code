@@ -99,11 +99,12 @@ On first run, you'll be prompted to select a model. Your choice is saved as `mai
 | Provider    | Env Variable          | Models                                                                        |
 |-------------|-----------------------|-------------------------------------------------------------------------------|
 | anthropic   | `ANTHROPIC_API_KEY`   | sonnet, opus                                                                  |
+| claude      | N/A (OAuth)           | sonnet@claude, opus@claude (requires Claude Pro/Max subscription)             |
 | openai      | `OPENAI_API_KEY`      | gpt-5.2                                                                       |
 | openrouter  | `OPENROUTER_API_KEY`  | gpt-5.2, gpt-5.2-fast, gpt-5.1-codex-max, sonnet, opus, haiku, kimi, gemini-* |
 | deepseek    | `DEEPSEEK_API_KEY`    | deepseek                                                                      |
 | moonshot    | `MOONSHOT_API_KEY`    | kimi@moonshot                                                                 |
-| codex       | N/A (OAuth)           | gpt-5.2-codex                                                                 |
+| codex       | N/A (OAuth)           | gpt-5.2-codex (requires ChatGPT Pro subscription)                             |
 
 List all configured providers and models:
 
@@ -112,6 +113,26 @@ klaude list
 ```
 
 Models from providers without a valid API key are shown as dimmed/unavailable.
+
+#### OAuth Login
+
+For subscription-based providers (Claude Pro/Max, ChatGPT Pro), use the login command:
+
+```bash
+# Interactive provider selection
+klaude login
+
+# Or specify provider directly
+klaude login claude   # Claude Pro/Max subscription
+klaude login codex    # ChatGPT Pro subscription
+```
+
+To logout:
+
+```bash
+klaude logout claude
+klaude logout codex
+```
 
 #### Custom Configuration
 
@@ -247,12 +268,13 @@ provider_list:
 ##### Supported Protocols
 
 - `anthropic` - Anthropic Claude API
+- `claude_oauth` - Claude OAuth (for Claude Pro/Max subscribers)
 - `openai` - OpenAI-compatible API
 - `responses` - OpenAI Responses API (for o-series, GPT-5, Codex)
 - `openrouter` - OpenRouter API
 - `google` - Google Gemini API
 - `bedrock` - AWS Bedrock (uses AWS credentials instead of api_key)
-- `codex` - OpenAI Codex CLI (OAuth-based)
+- `codex_oauth` - OpenAI Codex CLI (OAuth-based, for ChatGPT Pro subscribers)
 
 List configured providers and models:
 

@@ -259,7 +259,6 @@ provider_list:
   base_url: https://api.deepseek.com/anthropic
   model_list:
   - model_name: deepseek
-    provider: deepseek
     model_params:
       model: deepseek-reasoner
       context_limit: 128000
@@ -290,11 +289,45 @@ provider_list:
         cache_read: 1.0
         currency: CNY
 
+- provider_name: claude-max
+  protocol: claude_oauth
+  model_list:
+  - model_name: sonnet@claude-max
+    model_params:
+      model: claude-sonnet-4-5-20250929
+      context_limit: 200000
+      cost:
+        input: 3.0
+        output: 15.0
+        cache_read: 0.3
+        cache_write: 3.75
+  - model_name: opus@claude-max
+    model_params:
+      model: claude-opus-4-5-20251101
+      context_limit: 200000
+      verbosity: high
+      thinking:
+        type: enabled
+        budget_tokens: 2048
+      cost:
+        input: 5.0
+        output: 25.0
+        cache_read: 0.5
+        cache_write: 6.25
+  - model_name: haiku@claude-max
+    model_params:
+      model: claude-haiku-4-5-20251001
+      context_limit: 200000
+      cost:
+        input: 1.0
+        output: 5.0
+        cache_read: 0.1
+        cache_write: 1.25
+
 - provider_name: codex
-  protocol: codex
+  protocol: codex_oauth
   model_list:
   - model_name: gpt-5.2-codex
-    provider: codex
     model_params:
       model: gpt-5.2-codex
       thinking:

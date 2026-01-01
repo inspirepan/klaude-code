@@ -193,14 +193,14 @@ class Session(BaseModel):
         self.conversation_history.extend(items)
         self._invalidate_messages_count_cache()
 
-        new_user_messages = [
-            it.content for it in items if isinstance(it, model.UserMessageItem) and it.content
-        ]
+        new_user_messages = [it.content for it in items if isinstance(it, model.UserMessageItem) and it.content]
         if new_user_messages:
             if self._user_messages_cache is None:
                 # Build from full history once to ensure correctness when resuming older sessions.
                 self._user_messages_cache = [
-                    it.content for it in self.conversation_history if isinstance(it, model.UserMessageItem) and it.content
+                    it.content
+                    for it in self.conversation_history
+                    if isinstance(it, model.UserMessageItem) and it.content
                 ]
             else:
                 self._user_messages_cache.extend(new_user_messages)
