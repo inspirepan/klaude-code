@@ -8,6 +8,7 @@ import typer
 
 from klaude_code.cli.auth_cmd import register_auth_commands
 from klaude_code.cli.config_cmd import register_config_commands
+from klaude_code.cli.cost_cmd import register_cost_commands
 from klaude_code.cli.debug import DEBUG_FILTER_HELP, open_log_file_in_editor, resolve_debug_settings
 from klaude_code.cli.self_update import register_self_update_commands, version_option_callback
 from klaude_code.cli.session_cmd import register_session_commands
@@ -115,6 +116,7 @@ app = typer.Typer(
 register_session_commands(app)
 register_auth_commands(app)
 register_config_commands(app)
+register_cost_commands(app)
 
 register_self_update_commands(app)
 

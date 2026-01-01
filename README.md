@@ -276,6 +276,18 @@ klaude session clean --min 10
 klaude session clean-all
 ```
 
+### Cost Tracking
+
+View aggregated usage statistics across all sessions:
+
+```bash
+# Show all historical usage data
+klaude cost
+
+# Show usage for the last 7 days only
+klaude cost --days 7
+```
+
 ### Slash Commands
 
 Inside the interactive session (`klaude`), use these commands to streamline your workflow:

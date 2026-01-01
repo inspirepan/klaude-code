@@ -64,7 +64,7 @@ def accumulate_session_usage(session: Session) -> AggregatedUsage:
     return AggregatedUsage(total=total, by_model=by_model, task_count=task_count)
 
 
-def _format_tokens(tokens: int) -> str:
+def format_tokens(tokens: int) -> str:
     """Format token count with K/M suffix for readability."""
     if tokens >= 1_000_000:
         return f"{tokens / 1_000_000:.2f}M"
@@ -73,7 +73,7 @@ def _format_tokens(tokens: int) -> str:
     return str(tokens)
 
 
-def _format_cost(cost: float | None, currency: str = "USD") -> str:
+def format_cost(cost: float | None, currency: str = "USD") -> str:
     """Format cost with currency symbol."""
     if cost is None:
         return "-"
@@ -93,13 +93,13 @@ def _format_model_usage_line(meta: model.TaskMetadata) -> str:
     if not usage:
         return f"      {model_label}: no usage data"
 
-    cost_str = _format_cost(usage.total_cost, usage.currency)
+    cost_str = format_cost(usage.total_cost, usage.currency)
     return (
         f"      {model_label}: "
-        f"{_format_tokens(usage.input_tokens)} input, "
-        f"{_format_tokens(usage.output_tokens)} output, "
-        f"{_format_tokens(usage.cached_tokens)} cache read, "
-        f"{_format_tokens(usage.reasoning_tokens)} thinking, "
+        f"{format_tokens(usage.input_tokens)} input, "
+        f"{format_tokens(usage.output_tokens)} output, "
+        f"{format_tokens(usage.cached_tokens)} cache read, "
+        f"{format_tokens(usage.reasoning_tokens)} thinking, "
         f"({cost_str})"
     )
 
@@ -109,7 +109,7 @@ def format_status_content(aggregated: AggregatedUsage) -> str:
     lines: list[str] = []
 
     # Total cost line
-    total_cost_str = _format_cost(aggregated.total.total_cost, aggregated.total.currency)
+    total_cost_str = format_cost(aggregated.total.total_cost, aggregated.total.currency)
     lines.append(f"Total cost: {total_cost_str}")
 
     # Per-model breakdown
