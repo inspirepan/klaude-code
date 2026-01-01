@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-01-01
+
+### Added
+
+- add cost command for aggregated usage statistics (`d55e393f`)
+- add alias support for terminal selector search (`ac52c7be`)
 ## [1.7.1] - 2025-12-31
 
 ### Added
@@ -989,7 +995,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.7.1...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/inspirepan/klaude-code/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/inspirepan/klaude-code/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/inspirepan/klaude-code/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/inspirepan/klaude-code/compare/v1.5.0...v1.6.0
