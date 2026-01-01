@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 from klaude_code.llm.openai_compatible.stream import ReasoningDeltaResult, ReasoningHandlerABC
-from klaude_code.protocol import model
+from klaude_code.protocol import message
 from klaude_code.trace import log
 
 
@@ -42,7 +42,7 @@ class ReasoningStreamHandler(ReasoningHandlerABC):
         if not reasoning_details:
             return ReasoningDeltaResult(handled=False, outputs=[])
 
-        outputs: list[str | model.Part] = []
+        outputs: list[str | message.Part] = []
         for item in reasoning_details:
             try:
                 reasoning_detail = ReasoningDetail.model_validate(item)
@@ -56,9 +56,9 @@ class ReasoningStreamHandler(ReasoningHandlerABC):
 
         return ReasoningDeltaResult(handled=True, outputs=outputs)
 
-    def on_detail(self, detail: ReasoningDetail) -> list[model.Part]:
+    def on_detail(self, detail: ReasoningDetail) -> list[message.Part]:
         """Process a single reasoning detail and return streamable parts."""
-        items: list[model.Part] = []
+        items: list[message.Part] = []
 
         if detail.type == "reasoning.encrypted":
             self._reasoning_id = detail.id
@@ -82,11 +82,11 @@ class ReasoningStreamHandler(ReasoningHandlerABC):
 
         return items
 
-    def flush(self) -> list[model.Part]:
+    def flush(self) -> list[message.Part]:
         """Flush buffered reasoning text on finalize."""
         return self._flush_text()
 
-    def _flush_text(self) -> list[model.Part]:
+    def _flush_text(self) -> list[message.Part]:
         """Flush accumulated reasoning text as a single part."""
         if not self._accumulated_reasoning:
             return []
@@ -94,8 +94,8 @@ class ReasoningStreamHandler(ReasoningHandlerABC):
         self._accumulated_reasoning = []
         return [item]
 
-    def _build_text_part(self, content: str) -> model.ThinkingTextPart:
-        return model.ThinkingTextPart(
+    def _build_text_part(self, content: str) -> message.ThinkingTextPart:
+        return message.ThinkingTextPart(
             id=self._reasoning_id,
             text=content,
             model_id=self._param_model,
@@ -105,10 +105,10 @@ class ReasoningStreamHandler(ReasoningHandlerABC):
         self,
         content: str | None,
         detail: ReasoningDetail,
-    ) -> model.ThinkingSignaturePart | None:
+    ) -> message.ThinkingSignaturePart | None:
         if not content:
             return None
-        return model.ThinkingSignaturePart(
+        return message.ThinkingSignaturePart(
             id=detail.id,
             signature=content,
             format=detail.format,

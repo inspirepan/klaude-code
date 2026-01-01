@@ -3,7 +3,7 @@ import asyncio
 from prompt_toolkit.styles import Style
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
-from klaude_code.protocol import commands, events, model, op
+from klaude_code.protocol import commands, events, message, model, op
 from klaude_code.session.selector import build_session_select_options, format_user_messages_display
 from klaude_code.trace import log
 from klaude_code.ui.terminal.selector import SelectItem, select_one
@@ -82,14 +82,14 @@ class ResumeCommand(CommandABC):
     def is_interactive(self) -> bool:
         return True
 
-    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input  # unused
 
         if agent.session.messages_count > 0:
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=model.DeveloperMessage(
-                    parts=model.text_parts_from_str(
+                item=message.DeveloperMessage(
+                    parts=message.text_parts_from_str(
                         "Cannot resume: current session already has messages. Use `klaude -r` to start a new instance with session selection."
                     ),
                     command_output=model.CommandOutput(command_name=self.name, is_error=True),
@@ -101,8 +101,8 @@ class ResumeCommand(CommandABC):
         if selected_session_id is None:
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=model.DeveloperMessage(
-                    parts=model.text_parts_from_str("(no session selected)"),
+                item=message.DeveloperMessage(
+                    parts=message.text_parts_from_str("(no session selected)"),
                     command_output=model.CommandOutput(command_name=self.name),
                 ),
             )

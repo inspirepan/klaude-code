@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from typing import ParamSpec, TypeVar, cast
 
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message
 
 
 class LLMClientABC(ABC):
@@ -15,9 +15,9 @@ class LLMClientABC(ABC):
         pass
 
     @abstractmethod
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.LLMStreamItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[message.LLMStreamItem]:
         raise NotImplementedError
-        yield cast(model.LLMStreamItem, None)
+        yield cast(message.LLMStreamItem, None)
 
     def get_llm_config(self) -> llm_param.LLMConfigParameter:
         return self._config

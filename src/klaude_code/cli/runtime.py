@@ -17,8 +17,8 @@ from klaude_code.core.agent import Agent, DefaultModelProfileProvider, VanillaMo
 from klaude_code.core.executor import Executor
 from klaude_code.core.manager import build_llm_clients
 from klaude_code.protocol import events, llm_param, op
-from klaude_code.protocol import model as protocol_model
-from klaude_code.protocol.model import UserInputPayload
+from klaude_code.protocol import message as protocol_message
+from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session.session import Session, close_default_store
 from klaude_code.trace import DebugType, log, set_debug_logging
 from klaude_code.ui.modes.repl import build_repl_status_snapshot
@@ -105,8 +105,8 @@ async def submit_user_input_payload(
     if result.persist_user_input:
         agent.session.append_history(
             [
-                protocol_model.UserMessage(
-                    parts=protocol_model.parts_from_text_and_images(
+                protocol_message.UserMessage(
+                    parts=protocol_message.parts_from_text_and_images(
                         persisted_user_input.text,
                         persisted_user_input.images,
                     )

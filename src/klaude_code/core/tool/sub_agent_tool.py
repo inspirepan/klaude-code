@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.core.tool.tool_context import current_run_subtask_callback, current_sub_agent_resume_claims
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message, model
 from klaude_code.session.session import Session
 
 if TYPE_CHECKING:
@@ -52,17 +52,17 @@ class SubAgentTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
         profile = cls._profile
 
         try:
             args = json.loads(arguments)
         except json.JSONDecodeError as e:
-            return model.ToolResultMessage(status="error", output_text=f"Invalid JSON arguments: {e}")
+            return message.ToolResultMessage(status="error", output_text=f"Invalid JSON arguments: {e}")
 
         runner = current_run_subtask_callback.get()
         if runner is None:
-            return model.ToolResultMessage(status="error", output_text="No subtask runner available in this context")
+            return message.ToolResultMessage(status="error", output_text="No subtask runner available in this context")
 
         # Build the prompt using the profile's prompt builder
         prompt = profile.prompt_builder(args)
@@ -74,12 +74,12 @@ class SubAgentTool(ToolABC):
             try:
                 resume_session_id = Session.resolve_sub_agent_session_id(resume_raw)
             except ValueError as exc:
-                return model.ToolResultMessage(status="error", output_text=str(exc))
+                return message.ToolResultMessage(status="error", output_text=str(exc))
 
             claims = current_sub_agent_resume_claims.get()
             if claims is not None:
                 if resume_session_id in claims:
-                    return model.ToolResultMessage(
+                    return message.ToolResultMessage(
                         status="error",
                         output_text=(
                             "Duplicate sub-agent resume in the same response: "
@@ -113,7 +113,7 @@ class SubAgentTool(ToolABC):
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            return model.ToolResultMessage(status="error", output_text=f"Failed to run subtask: {e}")
+            return message.ToolResultMessage(status="error", output_text=f"Failed to run subtask: {e}")
 
         task_result = result.task_result or ""
         if result.session_id and "agentId:" not in task_result:
@@ -123,7 +123,7 @@ class SubAgentTool(ToolABC):
                 + f"agentId: {result.session_id} (for resuming to continue this agent's work if needed)"
             )
 
-        return model.ToolResultMessage(
+        return message.ToolResultMessage(
             status="success" if not result.error else "error",
             output_text=task_result,
             ui_extra=model.SessionIdUIExtra(session_id=result.session_id),

@@ -19,7 +19,7 @@ from klaude_code.core.agent import Agent, DefaultModelProfileProvider, ModelProf
 from klaude_code.core.manager import LLMClients, SubAgentManager
 from klaude_code.core.tool import current_run_subtask_callback
 from klaude_code.llm.registry import create_llm_client
-from klaude_code.protocol import commands, events, model, op
+from klaude_code.protocol import commands, events, message, model, op
 from klaude_code.protocol.llm_param import Thinking
 from klaude_code.protocol.op_handler import OperationHandler
 from klaude_code.protocol.sub_agent import SubAgentResult
@@ -194,7 +194,7 @@ class ExecutorContext:
             events.UserMessageEvent(content=user_input.text, session_id=session_id, images=user_input.images)
         )
         agent.session.append_history(
-            [model.UserMessage(parts=model.parts_from_text_and_images(user_input.text, user_input.images))]
+            [message.UserMessage(parts=message.parts_from_text_and_images(user_input.text, user_input.images))]
         )
 
         await self.handle_run_agent(
@@ -232,8 +232,8 @@ class ExecutorContext:
 
         if operation.emit_switch_message:
             default_note = " (saved as default)" if operation.save_as_default else ""
-            developer_item = model.DeveloperMessage(
-                parts=model.text_parts_from_str(f"Switched to: {llm_config.model}{default_note}"),
+            developer_item = message.DeveloperMessage(
+                parts=message.text_parts_from_str(f"Switched to: {llm_config.model}{default_note}"),
                 command_output=model.CommandOutput(command_name=commands.CommandName.MODEL),
             )
             agent.session.append_history([developer_item])
@@ -277,8 +277,8 @@ class ExecutorContext:
         new_status = _format_thinking_for_display(config.thinking)
 
         if operation.emit_switch_message:
-            developer_item = model.DeveloperMessage(
-                parts=model.text_parts_from_str(f"Thinking changed: {current} -> {new_status}"),
+            developer_item = message.DeveloperMessage(
+                parts=message.text_parts_from_str(f"Thinking changed: {current} -> {new_status}"),
                 command_output=model.CommandOutput(command_name=commands.CommandName.THINKING),
             )
             agent.session.append_history([developer_item])
@@ -295,8 +295,8 @@ class ExecutorContext:
         new_session.model_thinking = agent.session.model_thinking
         agent.session = new_session
 
-        developer_item = model.DeveloperMessage(
-            parts=model.text_parts_from_str("started new conversation"),
+        developer_item = message.DeveloperMessage(
+            parts=message.text_parts_from_str("started new conversation"),
             command_output=model.CommandOutput(command_name=commands.CommandName.CLEAR),
         )
         await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
@@ -346,8 +346,8 @@ class ExecutorContext:
             await asyncio.to_thread(output_path.parent.mkdir, parents=True, exist_ok=True)
             await asyncio.to_thread(output_path.write_text, html_doc, "utf-8")
             await asyncio.to_thread(self._open_file, output_path)
-            developer_item = model.DeveloperMessage(
-                parts=model.text_parts_from_str(f"Session exported and opened: {output_path}"),
+            developer_item = message.DeveloperMessage(
+                parts=message.text_parts_from_str(f"Session exported and opened: {output_path}"),
                 command_output=model.CommandOutput(command_name=commands.CommandName.EXPORT),
             )
             agent.session.append_history([developer_item])
@@ -355,8 +355,8 @@ class ExecutorContext:
         except Exception as exc:  # pragma: no cover
             import traceback
 
-            developer_item = model.DeveloperMessage(
-                parts=model.text_parts_from_str(f"Failed to export session: {exc}\n{traceback.format_exc()}"),
+            developer_item = message.DeveloperMessage(
+                parts=message.text_parts_from_str(f"Failed to export session: {exc}\n{traceback.format_exc()}"),
                 command_output=model.CommandOutput(command_name=commands.CommandName.EXPORT, is_error=True),
             )
             agent.session.append_history([developer_item])
@@ -365,7 +365,7 @@ class ExecutorContext:
     async def _run_agent_task(
         self,
         agent: Agent,
-        user_input: model.UserInputPayload,
+        user_input: message.UserInputPayload,
         task_id: str,
         session_id: str,
     ) -> None:

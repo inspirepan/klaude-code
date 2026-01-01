@@ -15,7 +15,7 @@ from klaude_code.core.tool.file._utils import file_exists, is_directory
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_param, model, tools
+from klaude_code.protocol import llm_param, message, model, tools
 
 _IMAGE_MIME_TYPES: dict[str, str] = {
     ".png": "image/png",
@@ -178,11 +178,11 @@ class ReadTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
         try:
             args = ReadTool.ReadArguments.model_validate_json(arguments)
         except Exception as e:  # pragma: no cover - defensive
-            return model.ToolResultMessage(status="error", output_text=f"Invalid arguments: {e}")
+            return message.ToolResultMessage(status="error", output_text=f"Invalid arguments: {e}")
         return await cls.call_with_args(args)
 
     @classmethod
@@ -194,24 +194,24 @@ class ReadTool(ToolABC):
         )
 
     @classmethod
-    async def call_with_args(cls, args: ReadTool.ReadArguments) -> model.ToolResultMessage:
+    async def call_with_args(cls, args: ReadTool.ReadArguments) -> message.ToolResultMessage:
         file_path = os.path.abspath(args.file_path)
         char_per_line, line_cap, max_chars = cls._effective_limits()
 
         if is_directory(file_path):
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text="<tool_use_error>Illegal operation on a directory. read</tool_use_error>",
             )
         if not file_exists(file_path):
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text="<tool_use_error>File does not exist.</tool_use_error>",
             )
 
         # Check for PDF files
         if Path(file_path).suffix.lower() == ".pdf":
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=(
                     "<tool_use_error>PDF files are not supported by this tool.\n"
@@ -233,7 +233,7 @@ class ReadTool(ToolABC):
         is_image_file = _is_supported_image_file(file_path)
         # Check for binary files (skip for images which are handled separately)
         if not is_image_file and _is_binary_file(file_path):
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=(
                     "<tool_use_error>This appears to be a binary file and cannot be read as text. "
@@ -250,7 +250,7 @@ class ReadTool(ToolABC):
             if size_bytes > const.READ_MAX_IMAGE_BYTES:
                 size_mb = size_bytes / (1024 * 1024)
                 limit_mb = const.READ_MAX_IMAGE_BYTES / (1024 * 1024)
-                return model.ToolResultMessage(
+                return message.ToolResultMessage(
                     status="error",
                     output_text=(
                         f"<tool_use_error>Image size ({size_mb:.2f}MB) exceeds maximum supported size ({limit_mb:.2f}MB) for inline transfer.</tool_use_error>"
@@ -262,7 +262,7 @@ class ReadTool(ToolABC):
                     image_bytes = image_file.read()
                 data_url = f"data:{mime_type};base64,{b64encode(image_bytes).decode('ascii')}"
             except Exception as exc:
-                return model.ToolResultMessage(
+                return message.ToolResultMessage(
                     status="error",
                     output_text=f"<tool_use_error>Failed to read image file: {exc}</tool_use_error>",
                 )
@@ -270,8 +270,8 @@ class ReadTool(ToolABC):
             _track_file_access(file_path, content_sha256=hashlib.sha256(image_bytes).hexdigest())
             size_kb = size_bytes / 1024.0 if size_bytes else 0.0
             output_text = f"[image] {Path(file_path).name} ({size_kb:.1f}KB)"
-            image_part = model.ImageURLPart(url=data_url, id=None)
-            return model.ToolResultMessage(status="success", output_text=output_text, parts=[image_part])
+            image_part = message.ImageURLPart(url=data_url, id=None)
+            return message.ToolResultMessage(status="success", output_text=output_text, parts=[image_part])
 
         offset = 1 if args.offset is None or args.offset < 1 else int(args.offset)
         limit = None if args.limit is None else int(args.limit)
@@ -292,12 +292,12 @@ class ReadTool(ToolABC):
             )
 
         except FileNotFoundError:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text="<tool_use_error>File does not exist.</tool_use_error>",
             )
         except IsADirectoryError:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text="<tool_use_error>Illegal operation on a directory. read</tool_use_error>",
             )
@@ -305,7 +305,7 @@ class ReadTool(ToolABC):
         if offset > max(read_result.total_lines, 0):
             warn = f"<system-reminder>Warning: the file exists but is shorter than the provided offset ({offset}). The file has {read_result.total_lines} lines.</system-reminder>"
             _track_file_access(file_path, content_sha256=read_result.content_sha256)
-            return model.ToolResultMessage(status="success", output_text=warn)
+            return message.ToolResultMessage(status="success", output_text=warn)
 
         lines_out: list[str] = [_format_numbered_line(no, content) for no, content in read_result.selected_lines]
 
@@ -324,4 +324,4 @@ class ReadTool(ToolABC):
         read_result_str = "\n".join(lines_out)
         _track_file_access(file_path, content_sha256=read_result.content_sha256)
 
-        return model.ToolResultMessage(status="success", output_text=read_result_str)
+        return message.ToolResultMessage(status="success", output_text=read_result_str)

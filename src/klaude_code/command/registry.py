@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from klaude_code.command.command_abc import Agent, CommandResult
 from klaude_code.command.prompt_command import PromptCommand
-from klaude_code.protocol import commands, events, model, op
+from klaude_code.protocol import commands, events, message, model, op
 from klaude_code.trace import log_debug
 
 if TYPE_CHECKING:
@@ -133,7 +133,7 @@ def is_slash_command_name(name: str) -> bool:
     return _resolve_command_key(name) is not None
 
 
-async def dispatch_command(user_input: model.UserInputPayload, agent: Agent, *, submission_id: str) -> CommandResult:
+async def dispatch_command(user_input: message.UserInputPayload, agent: Agent, *, submission_id: str) -> CommandResult:
     _ensure_commands_loaded()
     # Detect command name
     raw = user_input.text
@@ -168,7 +168,7 @@ async def dispatch_command(user_input: model.UserInputPayload, agent: Agent, *, 
     command_identifier: commands.CommandName | str = command.name
 
     try:
-        user_input_for_command = model.UserInputPayload(text=rest, images=user_input.images)
+        user_input_for_command = message.UserInputPayload(text=rest, images=user_input.images)
         result = await command.run(agent, user_input_for_command)
         ops = list(result.operations or [])
         for operation in ops:
@@ -187,8 +187,8 @@ async def dispatch_command(user_input: model.UserInputPayload, agent: Agent, *, 
             events=[
                 events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=model.DeveloperMessage(
-                        parts=model.text_parts_from_str(
+                    item=message.DeveloperMessage(
+                        parts=message.text_parts_from_str(
                             f"Command {command_identifier} error: [{e.__class__.__name__}] {e!s}"
                         ),
                         command_output=command_output,

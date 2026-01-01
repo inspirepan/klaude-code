@@ -11,7 +11,7 @@ import pytest
 
 from klaude_code.command import registry
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
-from klaude_code.protocol import commands, model, op
+from klaude_code.protocol import commands, message, op
 
 
 def arun(coro: Any) -> Any:
@@ -38,13 +38,13 @@ class _DummyCommand(CommandABC):
     def is_interactive(self) -> bool:
         return self._interactive
 
-    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del agent  # unused
         return CommandResult(
             operations=[
                 op.RunAgentOperation(
                     session_id="dummy",
-                    input=model.UserInputPayload(
+                    input=message.UserInputPayload(
                         text=f"{self._action_text}:{user_input.text}", images=user_input.images
                     ),
                 )
@@ -80,7 +80,7 @@ def test_dispatch_prefix_prefers_base_command_when_other_is_extension(
 
     result = arun(
         registry.dispatch_command(
-            model.UserInputPayload(text="/exp foo"), cast(Agent, _DummyAgent()), submission_id="s1"
+            message.UserInputPayload(text="/exp foo"), cast(Agent, _DummyAgent()), submission_id="s1"
         )
     )
     assert result.operations is not None
@@ -99,7 +99,7 @@ def test_dispatch_prefix_can_target_extension_command(
 
     result = arun(
         registry.dispatch_command(
-            model.UserInputPayload(text="/export-o bar"), cast(Agent, _DummyAgent()), submission_id="s1"
+            message.UserInputPayload(text="/export-o bar"), cast(Agent, _DummyAgent()), submission_id="s1"
         )
     )
     assert result.operations is not None
@@ -128,7 +128,7 @@ def test_dispatch_ambiguous_prefix_falls_back_to_agent(
 
     result = arun(
         registry.dispatch_command(
-            model.UserInputPayload(text="/ex something"), cast(Agent, _DummyAgent()), submission_id="s1"
+            message.UserInputPayload(text="/ex something"), cast(Agent, _DummyAgent()), submission_id="s1"
         )
     )
     assert result.operations is not None

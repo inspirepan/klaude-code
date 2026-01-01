@@ -12,7 +12,7 @@ from klaude_code.llm.openai_compatible.input import convert_history_to_input, co
 from klaude_code.llm.openai_compatible.stream import DefaultReasoningHandler, parse_chat_completions_stream
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message
 from klaude_code.trace import DebugType, log_debug
 
 
@@ -72,7 +72,7 @@ class OpenAICompatibleClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.LLMStreamItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[message.LLMStreamItem]:
         param = apply_config_defaults(param, self.get_llm_config())
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
@@ -80,7 +80,7 @@ class OpenAICompatibleClient(LLMClientABC):
         try:
             payload, extra_body = build_payload(param)
         except (ValueError, OSError) as e:
-            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+            yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
             yield metadata_tracker.finalize()
             return
         extra_headers: dict[str, str] = {"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)}
@@ -98,7 +98,7 @@ class OpenAICompatibleClient(LLMClientABC):
                 extra_headers=extra_headers,
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
-            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+            yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
             yield metadata_tracker.finalize()
             return
 

@@ -13,7 +13,7 @@ from klaude_code.core.tool.file.diff_builder import build_structured_diff
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_param, model, tools
+from klaude_code.protocol import llm_param, message, model, tools
 
 
 @register(tools.EDIT)
@@ -85,23 +85,23 @@ class EditTool(ToolABC):
         return content.replace(old_string, new_string, 1)
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
         try:
             args = EditTool.EditArguments.model_validate_json(arguments)
         except ValueError as e:  # pragma: no cover - defensive
-            return model.ToolResultMessage(status="error", output_text=f"Invalid arguments: {e}")
+            return message.ToolResultMessage(status="error", output_text=f"Invalid arguments: {e}")
 
         file_path = os.path.abspath(args.file_path)
 
         # Common file errors
         if is_directory(file_path):
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text="<tool_use_error>Illegal operation on a directory. edit</tool_use_error>",
             )
 
         if args.old_string == "":
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=(
                     "<tool_use_error>old_string must not be empty for Edit. "
@@ -114,14 +114,14 @@ class EditTool(ToolABC):
         tracked_status: model.FileStatus | None = None
         if not file_exists(file_path):
             # We require reading before editing
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=("File has not been read yet. Read it first before writing to it."),
             )
         if file_tracker is not None:
             tracked_status = file_tracker.get(file_path)
             if tracked_status is None:
-                return model.ToolResultMessage(
+                return message.ToolResultMessage(
                     status="error",
                     output_text=("File has not been read yet. Read it first before writing to it."),
                 )
@@ -130,7 +130,7 @@ class EditTool(ToolABC):
         try:
             before = await asyncio.to_thread(read_text, file_path)
         except FileNotFoundError:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text="File has not been read yet. Read it first before writing to it.",
             )
@@ -140,7 +140,7 @@ class EditTool(ToolABC):
             if tracked_status.content_sha256 is not None:
                 current_sha256 = hash_text_sha256(before)
                 if current_sha256 != tracked_status.content_sha256:
-                    return model.ToolResultMessage(
+                    return message.ToolResultMessage(
                         status="error",
                         output_text=(
                             "File has been modified externally. Either by user or a linter. Read it first before writing to it."
@@ -153,7 +153,7 @@ class EditTool(ToolABC):
                 except OSError:
                     current_mtime = tracked_status.mtime
                 if current_mtime != tracked_status.mtime:
-                    return model.ToolResultMessage(
+                    return message.ToolResultMessage(
                         status="error",
                         output_text=(
                             "File has been modified externally. Either by user or a linter. Read it first before writing to it."
@@ -167,7 +167,7 @@ class EditTool(ToolABC):
             replace_all=args.replace_all,
         )
         if err is not None:
-            return model.ToolResultMessage(status="error", output_text=err)
+            return message.ToolResultMessage(status="error", output_text=err)
 
         after = cls.execute(
             content=before,
@@ -178,7 +178,7 @@ class EditTool(ToolABC):
 
         # If nothing changed due to replacement semantics (should not happen after valid), guard anyway
         if before == after:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=(
                     "<tool_use_error>No changes to make: old_string and new_string are exactly the same.</tool_use_error>"
@@ -189,7 +189,7 @@ class EditTool(ToolABC):
         try:
             await asyncio.to_thread(write_text, file_path, after)
         except (OSError, UnicodeError) as e:  # pragma: no cover
-            return model.ToolResultMessage(status="error", output_text=f"<tool_use_error>{e}</tool_use_error>")
+            return message.ToolResultMessage(status="error", output_text=f"<tool_use_error>{e}</tool_use_error>")
 
         # Prepare UI extra: unified diff with 3 context lines
         diff_lines = list(
@@ -217,7 +217,7 @@ class EditTool(ToolABC):
         # Build output message
         if args.replace_all:
             msg = f"The file {file_path} has been updated. All occurrences of '{args.old_string}' were successfully replaced with '{args.new_string}'."
-            return model.ToolResultMessage(status="success", output_text=msg, ui_extra=ui_extra)
+            return message.ToolResultMessage(status="success", output_text=msg, ui_extra=ui_extra)
 
         # For single replacement, show a snippet consisting of context + added lines only
         # Parse the diff to collect target line numbers in the 'after' file
@@ -258,4 +258,4 @@ class EditTool(ToolABC):
             f"The file {file_path} has been updated. Here's the result of running `cat -n` on a snippet of the edited file:\n"
             f"{snippet}"
         )
-        return model.ToolResultMessage(status="success", output_text=output, ui_extra=ui_extra)
+        return message.ToolResultMessage(status="success", output_text=output, ui_extra=ui_extra)

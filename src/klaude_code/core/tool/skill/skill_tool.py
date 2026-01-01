@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_param, model, tools
+from klaude_code.protocol import llm_param, message, tools
 from klaude_code.skill import get_available_skills, get_skill, list_skill_names
 
 
@@ -55,12 +55,12 @@ class SkillTool(ToolABC):
         command: str
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
         """Load and return full skill content."""
         try:
             args = cls.SkillArguments.model_validate_json(arguments)
         except ValueError as e:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=f"Invalid arguments: {e}",
             )
@@ -69,7 +69,7 @@ class SkillTool(ToolABC):
 
         if not skill:
             available = ", ".join(list_skill_names())
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=f"Skill '{args.command}' does not exist. Available skills: {available}",
             )
@@ -84,4 +84,4 @@ class SkillTool(ToolABC):
 Base directory for this skill: {base_dir}
 
 {skill.to_prompt()}"""
-        return model.ToolResultMessage(status="success", output_text=result)
+        return message.ToolResultMessage(status="success", output_text=result)

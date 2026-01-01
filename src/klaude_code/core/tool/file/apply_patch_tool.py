@@ -13,19 +13,19 @@ from klaude_code.core.tool.file.diff_builder import build_structured_file_diff
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_param, model, tools
+from klaude_code.protocol import llm_param, message, model, tools
 
 
 class ApplyPatchHandler:
     @classmethod
-    async def handle_apply_patch(cls, patch_text: str) -> model.ToolResultMessage:
+    async def handle_apply_patch(cls, patch_text: str) -> message.ToolResultMessage:
         try:
             output, ui_extra = await asyncio.to_thread(cls._apply_patch_in_thread, patch_text)
         except apply_patch_module.DiffError as error:
-            return model.ToolResultMessage(status="error", output_text=str(error))
+            return message.ToolResultMessage(status="error", output_text=str(error))
         except Exception as error:  # pragma: no cover  # unexpected errors bubbled to tool result
-            return model.ToolResultMessage(status="error", output_text=f"Execution error: {error}")
-        return model.ToolResultMessage(
+            return message.ToolResultMessage(status="error", output_text=f"Execution error: {error}")
+        return message.ToolResultMessage(
             status="success",
             output_text=output,
             ui_extra=ui_extra,
@@ -172,13 +172,13 @@ class ApplyPatchTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
         try:
             args = cls.ApplyPatchArguments.model_validate_json(arguments)
         except ValueError as exc:
-            return model.ToolResultMessage(status="error", output_text=f"Invalid arguments: {exc}")
+            return message.ToolResultMessage(status="error", output_text=f"Invalid arguments: {exc}")
         return await cls.call_with_args(args)
 
     @classmethod
-    async def call_with_args(cls, args: ApplyPatchArguments) -> model.ToolResultMessage:
+    async def call_with_args(cls, args: ApplyPatchArguments) -> message.ToolResultMessage:
         return await ApplyPatchHandler.handle_apply_patch(args.patch)

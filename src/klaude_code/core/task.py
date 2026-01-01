@@ -10,7 +10,7 @@ from klaude_code import const
 from klaude_code.core.reminders import Reminder
 from klaude_code.core.tool import FileTracker, TodoContext, ToolABC
 from klaude_code.core.turn import TurnError, TurnExecutionContext, TurnExecutor
-from klaude_code.protocol import events, model
+from klaude_code.protocol import events, message, model
 from klaude_code.trace import DebugType, log_debug
 
 if TYPE_CHECKING:
@@ -97,8 +97,8 @@ class SessionContext:
     """
 
     session_id: str
-    get_conversation_history: Callable[[], list[model.HistoryEvent]]
-    append_history: Callable[[Sequence[model.HistoryEvent]], None]
+    get_conversation_history: Callable[[], list[message.HistoryEvent]]
+    append_history: Callable[[Sequence[message.HistoryEvent]], None]
     file_tracker: FileTracker
     todo_context: TodoContext
 
@@ -149,7 +149,7 @@ class TaskExecutor:
 
         return ui_events
 
-    async def run(self, user_input: model.UserInputPayload) -> AsyncGenerator[events.Event]:
+    async def run(self, user_input: message.UserInputPayload) -> AsyncGenerator[events.Event]:
         """Execute the task, yielding events as they occur."""
         ctx = self._context
         session_ctx = ctx.session_ctx

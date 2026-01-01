@@ -9,7 +9,7 @@ from typing import Any, cast
 
 from pydantic import BaseModel, Field, PrivateAttr, ValidationError
 
-from klaude_code.protocol import events, llm_param, model, tools
+from klaude_code.protocol import events, llm_param, message, model, tools
 from klaude_code.session.store import JsonlSessionStore, ProjectPaths, build_meta_snapshot
 
 _DEFAULT_STORES: dict[str, JsonlSessionStore] = {}
@@ -48,7 +48,7 @@ async def close_default_store() -> None:
 class Session(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     work_dir: Path
-    conversation_history: list[model.HistoryEvent] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    conversation_history: list[message.HistoryEvent] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     sub_agent_state: model.SubAgentState | None = None
     file_tracker: dict[str, model.FileStatus] = Field(default_factory=dict)
     todos: list[model.TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
@@ -72,7 +72,7 @@ class Session(BaseModel):
             self._messages_count_cache = sum(
                 1
                 for it in self.conversation_history
-                if isinstance(it, (model.UserMessage, model.AssistantMessage, model.ToolResultMessage))
+                if isinstance(it, (message.UserMessage, message.AssistantMessage, message.ToolResultMessage))
             )
         return self._messages_count_cache
 
@@ -89,9 +89,9 @@ class Session(BaseModel):
 
         if self._user_messages_cache is None:
             self._user_messages_cache = [
-                model.join_text_parts(it.parts)
+                message.join_text_parts(it.parts)
                 for it in self.conversation_history
-                if isinstance(it, model.UserMessage) and model.join_text_parts(it.parts)
+                if isinstance(it, message.UserMessage) and message.join_text_parts(it.parts)
             ]
         return self._user_messages_cache
 
@@ -188,7 +188,7 @@ class Session(BaseModel):
         session.conversation_history = store.load_history(id)
         return session
 
-    def append_history(self, items: Sequence[model.HistoryEvent]) -> None:
+    def append_history(self, items: Sequence[message.HistoryEvent]) -> None:
         if not items:
             return
 
@@ -196,17 +196,17 @@ class Session(BaseModel):
         self._invalidate_messages_count_cache()
 
         new_user_messages = [
-            model.join_text_parts(it.parts)
+            message.join_text_parts(it.parts)
             for it in items
-            if isinstance(it, model.UserMessage) and model.join_text_parts(it.parts)
+            if isinstance(it, message.UserMessage) and message.join_text_parts(it.parts)
         ]
         if new_user_messages:
             if self._user_messages_cache is None:
                 # Build from full history once to ensure correctness when resuming older sessions.
                 self._user_messages_cache = [
-                    model.join_text_parts(it.parts)
+                    message.join_text_parts(it.parts)
                     for it in self.conversation_history
-                    if isinstance(it, model.UserMessage) and model.join_text_parts(it.parts)
+                    if isinstance(it, message.UserMessage) and message.join_text_parts(it.parts)
                 ]
             else:
                 self._user_messages_cache.extend(new_user_messages)
@@ -285,16 +285,16 @@ class Session(BaseModel):
                 latest_id = sid
         return latest_id
 
-    def need_turn_start(self, prev_item: model.HistoryEvent | None, item: model.HistoryEvent) -> bool:
-        if not isinstance(item, model.AssistantMessage):
+    def need_turn_start(self, prev_item: message.HistoryEvent | None, item: message.HistoryEvent) -> bool:
+        if not isinstance(item, message.AssistantMessage):
             return False
         if prev_item is None:
             return True
-        return isinstance(prev_item, (model.UserMessage, model.ToolResultMessage, model.DeveloperMessage))
+        return isinstance(prev_item, (message.UserMessage, message.ToolResultMessage, message.DeveloperMessage))
 
     def get_history_item(self) -> Iterable[events.HistoryItemEvent]:
         seen_sub_agent_sessions: set[str] = set()
-        prev_item: model.HistoryEvent | None = None
+        prev_item: message.HistoryEvent | None = None
         last_assistant_content: str = ""
         report_back_result: str | None = None
         yield events.TaskStartEvent(session_id=self.id, sub_agent_state=self.sub_agent_state)
@@ -302,9 +302,9 @@ class Session(BaseModel):
             if self.need_turn_start(prev_item, it):
                 yield events.TurnStartEvent(session_id=self.id)
             match it:
-                case model.AssistantMessage() as am:
-                    content = model.join_text_parts(am.parts)
-                    images = [part for part in am.parts if isinstance(part, model.ImageFilePart)]
+                case message.AssistantMessage() as am:
+                    content = message.join_text_parts(am.parts)
+                    images = [part for part in am.parts if isinstance(part, message.ImageFilePart)]
                     if images:
                         image_lines = "\n".join(f"- {img.file_path}" for img in images if img.file_path)
                         if image_lines:
@@ -317,7 +317,9 @@ class Session(BaseModel):
                             last_assistant_content = content
                     else:
                         last_assistant_content = content
-                    thinking_text = "".join(part.text for part in am.parts if isinstance(part, model.ThinkingTextPart))
+                    thinking_text = "".join(
+                        part.text for part in am.parts if isinstance(part, message.ThinkingTextPart)
+                    )
                     for image in images:
                         yield events.AssistantImageDeltaEvent(
                             file_path=image.file_path,
@@ -331,7 +333,7 @@ class Session(BaseModel):
                         session_id=self.id,
                     )
                     for part in am.parts:
-                        if not isinstance(part, model.ToolCallPart):
+                        if not isinstance(part, message.ToolCallPart):
                             continue
                         if part.tool_name == tools.REPORT_BACK:
                             report_back_result = part.arguments_json
@@ -344,7 +346,7 @@ class Session(BaseModel):
                         )
                     if am.stop_reason == "aborted":
                         yield events.InterruptEvent(session_id=self.id)
-                case model.ToolResultMessage() as tr:
+                case message.ToolResultMessage() as tr:
                     status = "success" if tr.status == "success" else "error"
                     yield events.ToolResultEvent(
                         tool_call_id=tr.call_id,
@@ -358,20 +360,20 @@ class Session(BaseModel):
                     yield from self._iter_sub_agent_history(tr, seen_sub_agent_sessions)
                     if tr.status == "aborted":
                         yield events.InterruptEvent(session_id=self.id)
-                case model.UserMessage() as um:
-                    images = [part for part in um.parts if isinstance(part, model.ImageURLPart)]
+                case message.UserMessage() as um:
+                    images = [part for part in um.parts if isinstance(part, message.ImageURLPart)]
                     yield events.UserMessageEvent(
-                        content=model.join_text_parts(um.parts),
+                        content=message.join_text_parts(um.parts),
                         session_id=self.id,
                         images=images or None,
                     )
                 case model.TaskMetadataItem() as mt:
                     yield events.TaskMetadataEvent(session_id=self.id, metadata=mt)
-                case model.DeveloperMessage() as dm:
+                case message.DeveloperMessage() as dm:
                     yield events.DeveloperMessageEvent(session_id=self.id, item=dm)
-                case model.StreamErrorItem() as se:
+                case message.StreamErrorItem() as se:
                     yield events.ErrorEvent(error_message=se.error, can_retry=False, session_id=self.id)
-                case model.SystemMessage():
+                case message.SystemMessage():
                     pass
             prev_item = it
 
@@ -382,7 +384,7 @@ class Session(BaseModel):
         )
 
     def _iter_sub_agent_history(
-        self, tool_result: model.ToolResultMessage, seen_sub_agent_sessions: set[str]
+        self, tool_result: message.ToolResultMessage, seen_sub_agent_sessions: set[str]
     ) -> Iterable[events.HistoryItemEvent]:
         ui_extra = tool_result.ui_extra
         if not isinstance(ui_extra, model.SessionIdUIExtra):
@@ -431,10 +433,10 @@ class Session(BaseModel):
                         continue
                     data = cast(dict[str, Any], data_raw)
                     try:
-                        message = model.UserMessage.model_validate(data)
+                        user_msg = message.UserMessage.model_validate(data)
                     except ValidationError:
                         continue
-                    content = model.join_text_parts(message.parts)
+                    content = message.join_text_parts(user_msg.parts)
                     if content:
                         messages.append(content)
             except (OSError, json.JSONDecodeError):

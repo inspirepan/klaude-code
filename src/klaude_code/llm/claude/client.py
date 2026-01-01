@@ -14,7 +14,7 @@ from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message
 from klaude_code.trace import DebugType, log_debug
 
 _CLAUDE_OAUTH_REQUIRED_BETAS: tuple[str, ...] = (
@@ -63,7 +63,7 @@ class ClaudeClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.LLMStreamItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[message.LLMStreamItem]:
         self._ensure_valid_token()
         param = apply_config_defaults(param, self.get_llm_config())
 
@@ -92,4 +92,4 @@ class ClaudeClient(LLMClientABC):
             async for item in parse_anthropic_stream(stream, param, metadata_tracker):
                 yield item
         except (APIError, httpx.HTTPError) as e:
-            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+            yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")

@@ -8,7 +8,7 @@ import klaude_code.core.tool as core_tool
 from klaude_code.core.tool import ToolABC, load_agent_tools
 from klaude_code.core.tool.tool_abc import ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.core.tool.tool_runner import ToolCallRequest, ToolExecutor
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.sub_agent import sub_agent_tool_names
 
 
@@ -54,7 +54,7 @@ class _SlowSubAgentTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
         assert cls.started is not None
         cls.started.set()
         try:
@@ -64,7 +64,7 @@ class _SlowSubAgentTool(ToolABC):
             # Re-raise so outer layers can observe cooperative cancellation.
             raise
 
-        return model.ToolResultMessage(
+        return message.ToolResultMessage(
             output_text="should not complete",
             status="success",
         )

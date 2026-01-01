@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message, model
 from klaude_code.session.codec import decode_jsonl_line, encode_jsonl_line
 
 
@@ -139,7 +139,7 @@ class JsonlSessionStore:
             return None
         return cast(dict[str, Any], raw) if isinstance(raw, dict) else None
 
-    def load_history(self, session_id: str) -> list[model.HistoryEvent]:
+    def load_history(self, session_id: str) -> list[message.HistoryEvent]:
         events_path = self._paths.events_file(session_id)
         if not events_path.exists():
             return []
@@ -147,7 +147,7 @@ class JsonlSessionStore:
             lines = events_path.read_text(encoding="utf-8").splitlines()
         except OSError:
             return []
-        items: list[model.HistoryEvent] = []
+        items: list[message.HistoryEvent] = []
         for line in lines:
             item = decode_jsonl_line(line)
             if item is None:
@@ -155,7 +155,7 @@ class JsonlSessionStore:
             items.append(item)
         return items
 
-    def append_and_flush(self, *, session_id: str, items: Sequence[model.HistoryEvent], meta: dict[str, Any]) -> None:
+    def append_and_flush(self, *, session_id: str, items: Sequence[message.HistoryEvent], meta: dict[str, Any]) -> None:
         if not items:
             return
         loop = asyncio.get_running_loop()

@@ -4,7 +4,7 @@ from prompt_toolkit.styles import Style
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.config.thinking import get_thinking_picker_data, parse_thinking_value
-from klaude_code.protocol import commands, events, llm_param, model, op
+from klaude_code.protocol import commands, events, llm_param, message, model, op
 from klaude_code.ui.terminal.selector import SelectItem, select_one
 
 SELECT_STYLE = Style(
@@ -67,7 +67,7 @@ class ThinkingCommand(CommandABC):
     def is_interactive(self) -> bool:
         return True
 
-    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input  # unused
         if agent.profile is None:
             return CommandResult(events=[])
@@ -80,8 +80,8 @@ class ThinkingCommand(CommandABC):
                 events=[
                     events.DeveloperMessageEvent(
                         session_id=agent.session.id,
-                        item=model.DeveloperMessage(
-                            parts=model.text_parts_from_str("(no change)"),
+                        item=message.DeveloperMessage(
+                            parts=message.text_parts_from_str("(no change)"),
                             command_output=model.CommandOutput(command_name=self.name),
                         ),
                     )

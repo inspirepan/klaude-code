@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from klaude_code import const
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_param, model, tools
+from klaude_code.protocol import llm_param, message, tools
 
 DEFAULT_TIMEOUT_SEC = 30
 DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; KlaudeCode/1.0)"
@@ -210,23 +210,23 @@ class WebFetchTool(ToolABC):
         url: str
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
         try:
             args = WebFetchTool.WebFetchArguments.model_validate_json(arguments)
         except ValueError as e:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=f"Invalid arguments: {e}",
             )
         return await cls.call_with_args(args)
 
     @classmethod
-    async def call_with_args(cls, args: WebFetchArguments) -> model.ToolResultMessage:
+    async def call_with_args(cls, args: WebFetchArguments) -> message.ToolResultMessage:
         url = args.url
 
         # Basic URL validation
         if not url.startswith(("http://", "https://")):
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=f"Invalid URL: must start with http:// or https:// (url={url})",
             )
@@ -238,11 +238,11 @@ class WebFetchTool(ToolABC):
             if content_type == "application/pdf" or _is_pdf_url(url):
                 saved_path = _save_binary_content(url, data, ".pdf")
                 if saved_path:
-                    return model.ToolResultMessage(
+                    return message.ToolResultMessage(
                         status="success",
                         output_text=f"PDF file saved to: {saved_path}\n\nTo read the PDF content, use the Read tool on this file path.",
                     )
-                return model.ToolResultMessage(
+                return message.ToolResultMessage(
                     status="error",
                     output_text=f"Failed to save PDF file (url={url})",
                 )
@@ -257,28 +257,28 @@ class WebFetchTool(ToolABC):
             # Build output with file path info
             output = f"<file_saved>{saved_path}</file_saved>\n\n{processed}" if saved_path else processed
 
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="success",
                 output_text=output,
             )
 
         except urllib.error.HTTPError as e:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=f"HTTP error {e.code}: {e.reason} (url={url})",
             )
         except urllib.error.URLError as e:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=f"URL error: {e.reason} (url={url})",
             )
         except TimeoutError:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=f"Request timed out after {DEFAULT_TIMEOUT_SEC} seconds (url={url})",
             )
         except Exception as e:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=f"Failed to fetch URL: {e} (url={url})",
             )

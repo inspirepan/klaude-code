@@ -7,18 +7,18 @@ from typing import Any
 from openai.types import responses
 
 from klaude_code.llm.input_common import DeveloperAttachment, attach_developer_messages, merge_reminder_text
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message
 
 
 def _build_user_content_parts(
-    user: model.UserMessage,
+    user: message.UserMessage,
     attachment: DeveloperAttachment,
 ) -> list[responses.ResponseInputContentParam]:
     parts: list[responses.ResponseInputContentParam] = []
     for part in user.parts:
-        if isinstance(part, model.TextPart):
+        if isinstance(part, message.TextPart):
             parts.append({"type": "input_text", "text": part.text})
-        elif isinstance(part, model.ImageURLPart):
+        elif isinstance(part, message.ImageURLPart):
             parts.append({"type": "input_image", "detail": "auto", "image_url": part.url})
     if attachment.text:
         parts.append({"type": "input_text", "text": attachment.text})
@@ -30,7 +30,7 @@ def _build_user_content_parts(
 
 
 def _build_tool_result_item(
-    tool: model.ToolResultMessage,
+    tool: message.ToolResultMessage,
     attachment: DeveloperAttachment,
 ) -> responses.ResponseInputItemParam:
     content_parts: list[responses.ResponseInputContentParam] = []
@@ -40,7 +40,7 @@ def _build_tool_result_item(
     )
     if text_output:
         content_parts.append({"type": "input_text", "text": text_output})
-    images = [part for part in tool.parts if isinstance(part, model.ImageURLPart)] + attachment.images
+    images = [part for part in tool.parts if isinstance(part, message.ImageURLPart)] + attachment.images
     for image in images:
         content_parts.append({"type": "input_image", "detail": "auto", "image_url": image.url})
 
@@ -53,7 +53,7 @@ def _build_tool_result_item(
 
 
 def convert_history_to_input(
-    history: list[model.Message],
+    history: list[message.Message],
     model_name: str | None = None,
 ) -> responses.ResponseInputParam:
     """Convert a list of messages to response input params."""
@@ -61,10 +61,10 @@ def convert_history_to_input(
 
     degraded_thinking_texts: list[str] = []
 
-    for message, attachment in attach_developer_messages(history):
-        match message:
-            case model.SystemMessage():
-                system_text = "\n".join(part.text for part in message.parts)
+    for msg, attachment in attach_developer_messages(history):
+        match msg:
+            case message.SystemMessage():
+                system_text = "\n".join(part.text for part in msg.parts)
                 if system_text:
                     items.append(
                         {
@@ -78,23 +78,23 @@ def convert_history_to_input(
                             ],
                         }
                     )
-            case model.UserMessage():
+            case message.UserMessage():
                 items.append(
                     {
                         "type": "message",
                         "role": "user",
-                        "id": message.id,
-                        "content": _build_user_content_parts(message, attachment),
+                        "id": msg.id,
+                        "content": _build_user_content_parts(msg, attachment),
                     }
                 )
-            case model.ToolResultMessage():
-                items.append(_build_tool_result_item(message, attachment))
-            case model.AssistantMessage():
+            case message.ToolResultMessage():
+                items.append(_build_tool_result_item(msg, attachment))
+            case message.AssistantMessage():
                 assistant_text_parts: list[responses.ResponseInputContentParam] = []
                 pending_thinking_text: str | None = None
                 pending_signature: str | None = None
 
-                def flush_text(*, _message_id: str = message.id) -> None:
+                def flush_text(*, _message_id: str = msg.id) -> None:
                     nonlocal assistant_text_parts
                     if not assistant_text_parts:
                         return
@@ -116,24 +116,24 @@ def convert_history_to_input(
                     pending_thinking_text = None
                     pending_signature = None
 
-                for part in message.parts:
-                    if isinstance(part, model.ThinkingTextPart):
+                for part in msg.parts:
+                    if isinstance(part, message.ThinkingTextPart):
                         if part.model_id and model_name and part.model_id != model_name:
                             degraded_thinking_texts.append(part.text)
                             continue
                         emit_reasoning()
                         pending_thinking_text = part.text
                         continue
-                    if isinstance(part, model.ThinkingSignaturePart):
+                    if isinstance(part, message.ThinkingSignaturePart):
                         if part.model_id and model_name and part.model_id != model_name:
                             continue
                         pending_signature = part.signature
                         continue
 
                     emit_reasoning()
-                    if isinstance(part, model.TextPart):
+                    if isinstance(part, message.TextPart):
                         assistant_text_parts.append({"type": "output_text", "text": part.text})
-                    elif isinstance(part, model.ToolCallPart):
+                    elif isinstance(part, message.ToolCallPart):
                         flush_text()
                         items.append(
                             {

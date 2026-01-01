@@ -21,7 +21,7 @@ from klaude_code.core.tool.tool_runner import (
     ToolExecutor,
     run_tool,
 )
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message, model
 
 
 def arun(coro: Any) -> Any:
@@ -42,8 +42,8 @@ class MockSuccessTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
-        return model.ToolResultMessage(status="success", output_text="Success!")
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
+        return message.ToolResultMessage(status="success", output_text="Success!")
 
 
 class MockErrorTool(ToolABC):
@@ -59,7 +59,7 @@ class MockErrorTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
         raise ValueError("Something went wrong")
 
 
@@ -76,10 +76,10 @@ class MockTodoChangeTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
         todos = [model.TodoItem(content="Test todo", status="pending")]
         ui_extra = model.TodoListUIExtra(todo_list=model.TodoUIExtra(todos=todos, new_completed=[]))
-        return model.ToolResultMessage(
+        return message.ToolResultMessage(
             status="success",
             output_text="Todo updated",
             ui_extra=ui_extra,
@@ -104,8 +104,8 @@ class MockConcurrentTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
-        return model.ToolResultMessage(status="success", output_text="Concurrent!")
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
+        return message.ToolResultMessage(status="success", output_text="Concurrent!")
 
 
 class TestRunTool:
@@ -174,12 +174,12 @@ class TestToolExecutor:
         }
 
     @pytest.fixture
-    def history(self) -> list[model.HistoryEvent]:
+    def history(self) -> list[message.HistoryEvent]:
         return []
 
     @pytest.fixture
-    def executor(self, registry: dict[str, type[ToolABC]], history: list[model.HistoryEvent]) -> ToolExecutor:
-        def append_history(items: Sequence[model.HistoryEvent]) -> None:
+    def executor(self, registry: dict[str, type[ToolABC]], history: list[message.HistoryEvent]) -> ToolExecutor:
+        def append_history(items: Sequence[message.HistoryEvent]) -> None:
             history.extend(items)
 
         return ToolExecutor(registry=registry, append_history=append_history)
@@ -385,7 +385,7 @@ class TestToolExecutorEvents:
     def test_tool_execution_result(self):
         """Test ToolExecutionResult dataclass."""
         tool_call = ToolCallRequest(response_id=None, call_id="123", tool_name="Test", arguments_json="{}")
-        tool_result = model.ToolResultMessage(status="success", output_text="Done")
+        tool_result = message.ToolResultMessage(status="success", output_text="Done")
         event = ToolExecutionResult(tool_call=tool_call, tool_result=tool_result)
         assert event.tool_call.call_id == "123"
         assert event.tool_result.status == "success"
@@ -413,7 +413,7 @@ class TestBuildToolSideEffectEvents:
 
     def test_no_side_effects(self, executor: ToolExecutor):
         """Test result with no side effects."""
-        result = model.ToolResultMessage(status="success", output_text="Done")
+        result = message.ToolResultMessage(status="success", output_text="Done")
         events = executor._build_tool_side_effect_events(result)
         assert events == []
 
@@ -421,7 +421,7 @@ class TestBuildToolSideEffectEvents:
         """Test todo change side effect generates event."""
         todos = [model.TodoItem(content="Task", status="pending")]
         ui_extra = model.TodoListUIExtra(todo_list=model.TodoUIExtra(todos=todos, new_completed=[]))
-        result = model.ToolResultMessage(
+        result = message.ToolResultMessage(
             status="success",
             output_text="Done",
             ui_extra=ui_extra,
@@ -435,7 +435,7 @@ class TestBuildToolSideEffectEvents:
 
     def test_todo_change_without_ui_extra(self, executor: ToolExecutor):
         """Test todo change side effect without proper ui_extra is ignored."""
-        result = model.ToolResultMessage(
+        result = message.ToolResultMessage(
             status="success",
             output_text="Done",
             side_effects=[model.ToolSideEffect.TODO_CHANGE],

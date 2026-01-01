@@ -17,7 +17,7 @@ from anthropic.types.beta.beta_tool_param import BetaToolParam
 from anthropic.types.beta.beta_url_image_source_param import BetaURLImageSourceParam
 
 from klaude_code.llm.input_common import DeveloperAttachment, attach_developer_messages, merge_reminder_text
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message
 
 AllowedMediaType = Literal["image/png", "image/jpeg", "image/gif", "image/webp"]
 _INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (
@@ -28,7 +28,7 @@ _INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (
 )
 
 
-def _image_part_to_block(image: model.ImageURLPart) -> BetaImageBlockParam:
+def _image_part_to_block(image: message.ImageURLPart) -> BetaImageBlockParam:
     url = image.url
     if url.startswith("data:"):
         header_and_media = url.split(",", 1)
@@ -62,14 +62,14 @@ def _image_part_to_block(image: model.ImageURLPart) -> BetaImageBlockParam:
 
 
 def _user_message_to_message(
-    message: model.UserMessage,
+    msg: message.UserMessage,
     attachment: DeveloperAttachment,
 ) -> BetaMessageParam:
     blocks: list[BetaTextBlockParam | BetaImageBlockParam] = []
-    for part in message.parts:
-        if isinstance(part, model.TextPart):
+    for part in msg.parts:
+        if isinstance(part, message.TextPart):
             blocks.append({"type": "text", "text": part.text})
-        elif isinstance(part, model.ImageURLPart):
+        elif isinstance(part, message.ImageURLPart):
             blocks.append(_image_part_to_block(part))
     if attachment.text:
         blocks.append({"type": "text", "text": attachment.text})
@@ -81,24 +81,24 @@ def _user_message_to_message(
 
 
 def _tool_message_to_block(
-    message: model.ToolResultMessage,
+    msg: message.ToolResultMessage,
     attachment: DeveloperAttachment,
 ) -> dict[str, object]:
     """Convert a single tool result message to a tool_result block."""
     tool_content: list[BetaTextBlockParam | BetaImageBlockParam] = []
     merged_text = merge_reminder_text(
-        message.output_text or "<system-reminder>Tool ran without output or errors</system-reminder>",
+        msg.output_text or "<system-reminder>Tool ran without output or errors</system-reminder>",
         attachment.text,
     )
     tool_content.append({"type": "text", "text": merged_text})
-    for image in [part for part in message.parts if isinstance(part, model.ImageURLPart)]:
+    for image in [part for part in msg.parts if isinstance(part, message.ImageURLPart)]:
         tool_content.append(_image_part_to_block(image))
     for image in attachment.images:
         tool_content.append(_image_part_to_block(image))
     return {
         "type": "tool_result",
-        "tool_use_id": message.call_id,
-        "is_error": message.status != "success",
+        "tool_use_id": msg.call_id,
+        "is_error": msg.status != "success",
         "content": tool_content,
     }
 
@@ -111,7 +111,7 @@ def _tool_blocks_to_message(blocks: list[dict[str, object]]) -> BetaMessageParam
     }
 
 
-def _assistant_message_to_message(message: model.AssistantMessage, model_name: str | None) -> BetaMessageParam:
+def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str | None) -> BetaMessageParam:
     content: list[dict[str, object]] = []
     current_thinking_content: str | None = None
     degraded_thinking_texts: list[str] = []
@@ -123,14 +123,14 @@ def _assistant_message_to_message(message: model.AssistantMessage, model_name: s
         content.append({"type": "thinking", "thinking": current_thinking_content})
         current_thinking_content = None
 
-    for part in message.parts:
-        if isinstance(part, model.ThinkingTextPart):
+    for part in msg.parts:
+        if isinstance(part, message.ThinkingTextPart):
             if part.model_id and model_name and part.model_id != model_name:
                 degraded_thinking_texts.append(part.text)
                 continue
             current_thinking_content = part.text
             continue
-        if isinstance(part, model.ThinkingSignaturePart):
+        if isinstance(part, message.ThinkingSignaturePart):
             if part.model_id and model_name and part.model_id != model_name:
                 continue
             if current_thinking_content is not None and part.signature:
@@ -145,9 +145,9 @@ def _assistant_message_to_message(message: model.AssistantMessage, model_name: s
             continue
 
         _flush_thinking()
-        if isinstance(part, model.TextPart):
+        if isinstance(part, message.TextPart):
             content.append({"type": "text", "text": part.text})
-        elif isinstance(part, model.ToolCallPart):
+        elif isinstance(part, message.ToolCallPart):
             content.append(
                 {
                     "type": "tool_use",
@@ -177,7 +177,7 @@ def _add_cache_control(messages: list[BetaMessageParam]) -> None:
 
 
 def convert_history_to_input(
-    history: list[model.Message],
+    history: list[message.Message],
     model_name: str | None,
 ) -> list[BetaMessageParam]:
     """Convert a list of messages to beta message params."""
@@ -190,17 +190,17 @@ def convert_history_to_input(
             messages.append(_tool_blocks_to_message(pending_tool_blocks))
             pending_tool_blocks = []
 
-    for message, attachment in attach_developer_messages(history):
-        match message:
-            case model.ToolResultMessage():
-                pending_tool_blocks.append(_tool_message_to_block(message, attachment))
-            case model.UserMessage():
+    for msg, attachment in attach_developer_messages(history):
+        match msg:
+            case message.ToolResultMessage():
+                pending_tool_blocks.append(_tool_message_to_block(msg, attachment))
+            case message.UserMessage():
                 flush_tool_blocks()
-                messages.append(_user_message_to_message(message, attachment))
-            case model.AssistantMessage():
+                messages.append(_user_message_to_message(msg, attachment))
+            case message.AssistantMessage():
                 flush_tool_blocks()
-                messages.append(_assistant_message_to_message(message, model_name))
-            case model.SystemMessage():
+                messages.append(_assistant_message_to_message(msg, model_name))
+            case message.SystemMessage():
                 continue
             case _:
                 continue
@@ -211,14 +211,14 @@ def convert_history_to_input(
 
 
 def convert_system_to_input(
-    system: str | None, system_messages: list[model.SystemMessage] | None = None
+    system: str | None, system_messages: list[message.SystemMessage] | None = None
 ) -> list[BetaTextBlockParam]:
     parts: list[str] = []
     if system:
         parts.append(system)
     if system_messages:
-        for message in system_messages:
-            parts.append("\n".join(part.text for part in message.parts))
+        for msg in system_messages:
+            parts.append("\n".join(part.text for part in msg.parts))
     if not parts:
         return []
     return [{"type": "text", "text": "\n".join(parts), "cache_control": {"type": "ephemeral"}}]

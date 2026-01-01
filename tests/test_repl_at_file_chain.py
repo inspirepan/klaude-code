@@ -5,7 +5,7 @@ import pytest
 from prompt_toolkit.document import Document
 
 from klaude_code.core.reminders import at_file_reader_reminder
-from klaude_code.protocol import events, model
+from klaude_code.protocol import events, message
 from klaude_code.session.session import Session
 from klaude_code.ui.modes.repl.completers import create_repl_completer
 from klaude_code.ui.renderers.developer import render_developer_message
@@ -80,7 +80,7 @@ def test_at_file_reader_reminder_and_developer_render_chain(tmp_path: Path, monk
 
     # Set up a session whose last user message uses the @"..." syntax
     session = Session(work_dir=tmp_path)
-    user_message = model.UserMessage(parts=model.text_parts_from_str(f'Please review @"{file_path}"'))
+    user_message = message.UserMessage(parts=message.text_parts_from_str(f'Please review @"{file_path}"'))
     session.conversation_history.append(user_message)
 
     # Run reminder to parse and read the file

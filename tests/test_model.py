@@ -9,21 +9,21 @@ from hypothesis import strategies as st
 from klaude_code.llm.anthropic.input import convert_history_to_input as anthropic_history
 
 if TYPE_CHECKING:
-    from klaude_code.protocol import model
+    from klaude_code.protocol import message, model
 from klaude_code.llm.openai_compatible.input import convert_history_to_input as openai_history
 from klaude_code.llm.openrouter.input import convert_history_to_input as openrouter_history
 from klaude_code.llm.responses.input import convert_history_to_input as responses_history
-from klaude_code.protocol import model
+from klaude_code.protocol import message, model
 
 SAMPLE_IMAGE_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
 SAMPLE_DATA_URL = f"data:image/png;base64,{SAMPLE_IMAGE_BASE64}"
 
 
-def _make_image_part() -> model.ImageURLPart:
-    return model.ImageURLPart(url=SAMPLE_DATA_URL, id=None)
+def _make_image_part() -> message.ImageURLPart:
+    return message.ImageURLPart(url=SAMPLE_DATA_URL, id=None)
 
 
-def _parts(*parts: model.Part) -> list[model.Part]:
+def _parts(*parts: message.Part) -> list[message.Part]:
     return list(parts)
 
 
@@ -39,9 +39,9 @@ def _ensure_list(value: object) -> list[Any]:
 
 def test_anthropic_history_includes_image_blocks():
     image_part = _make_image_part()
-    history: list[model.Message] = [
-        model.UserMessage(parts=_parts(model.TextPart(text="See"), image_part)),
-        model.ToolResultMessage(
+    history: list[message.Message] = [
+        message.UserMessage(parts=_parts(message.TextPart(text="See"), image_part)),
+        message.ToolResultMessage(
             call_id="tool-1",
             tool_name="Read",
             status="success",
@@ -74,9 +74,9 @@ def test_anthropic_history_includes_image_blocks():
 
 def test_openai_compatible_history_includes_image_url_parts():
     image_part = _make_image_part()
-    history: list[model.Message] = [
-        model.UserMessage(parts=_parts(model.TextPart(text="See"), image_part)),
-        model.ToolResultMessage(
+    history: list[message.Message] = [
+        message.UserMessage(parts=_parts(message.TextPart(text="See"), image_part)),
+        message.ToolResultMessage(
             call_id="tool-1",
             tool_name="Read",
             status="success",
@@ -107,9 +107,9 @@ def test_openai_compatible_history_includes_image_url_parts():
 
 def test_openrouter_history_includes_image_url_parts():
     image_part = _make_image_part()
-    history: list[model.Message] = [
-        model.UserMessage(parts=_parts(model.TextPart(text="See"), image_part)),
-        model.ToolResultMessage(
+    history: list[message.Message] = [
+        message.UserMessage(parts=_parts(message.TextPart(text="See"), image_part)),
+        message.ToolResultMessage(
             call_id="tool-1",
             tool_name="Read",
             status="success",
@@ -135,9 +135,9 @@ def test_openrouter_history_includes_assistant_images_for_multi_turn_editing():
         img_bytes = b64decode(SAMPLE_IMAGE_BASE64)
         img_path.write_bytes(img_bytes)
 
-        assistant_image = model.ImageFilePart(file_path=str(img_path), mime_type="image/png")
-        history: list[model.Message] = [
-            model.AssistantMessage(parts=_parts(model.TextPart(text="Here"), assistant_image)),
+        assistant_image = message.ImageFilePart(file_path=str(img_path), mime_type="image/png")
+        history: list[message.Message] = [
+            message.AssistantMessage(parts=_parts(message.TextPart(text="Here"), assistant_image)),
         ]
 
         messages = openrouter_history(history, system=None, model_name=None)
@@ -155,9 +155,9 @@ def test_openai_compatible_history_includes_assistant_images_for_multi_turn_edit
         img_bytes = b64decode(SAMPLE_IMAGE_BASE64)
         img_path.write_bytes(img_bytes)
 
-        assistant_image = model.ImageFilePart(file_path=str(img_path), mime_type="image/png")
-        history: list[model.Message] = [
-            model.AssistantMessage(parts=_parts(model.TextPart(text="Here"), assistant_image)),
+        assistant_image = message.ImageFilePart(file_path=str(img_path), mime_type="image/png")
+        history: list[message.Message] = [
+            message.AssistantMessage(parts=_parts(message.TextPart(text="Here"), assistant_image)),
         ]
 
         messages = openai_history(history, system=None, model_name=None)
@@ -171,9 +171,9 @@ def test_openai_compatible_history_includes_assistant_images_for_multi_turn_edit
 
 def test_responses_history_includes_image_inputs():
     image_part = _make_image_part()
-    history: list[model.Message] = [
-        model.UserMessage(parts=_parts(model.TextPart(text="See"), image_part)),
-        model.ToolResultMessage(
+    history: list[message.Message] = [
+        message.UserMessage(parts=_parts(message.TextPart(text="See"), image_part)),
+        message.ToolResultMessage(
             call_id="tool-1",
             tool_name="Read",
             status="success",
@@ -203,9 +203,9 @@ def test_responses_history_includes_image_inputs():
 
 def test_developer_message_images_propagate_to_user_group():
     image_part = _make_image_part()
-    history: list[model.Message] = [
-        model.UserMessage(parts=_parts(model.TextPart(text="See"))),
-        model.DeveloperMessage(parts=_parts(model.TextPart(text="Reminder"), image_part)),
+    history: list[message.Message] = [
+        message.UserMessage(parts=_parts(message.TextPart(text="See"))),
+        message.DeveloperMessage(parts=_parts(message.TextPart(text="Reminder"), image_part)),
     ]
 
     anthropic_messages = anthropic_history(history, model_name=None)
@@ -229,14 +229,14 @@ def test_developer_message_images_propagate_to_user_group():
 
 def test_anthropic_tool_group_includes_developer_images():
     image_part = _make_image_part()
-    history: list[model.Message] = [
-        model.ToolResultMessage(
+    history: list[message.Message] = [
+        message.ToolResultMessage(
             call_id="tool-1",
             tool_name="Read",
             status="success",
             output_text="done",
         ),
-        model.DeveloperMessage(parts=_parts(model.TextPart(text="Reminder"), image_part)),
+        message.DeveloperMessage(parts=_parts(message.TextPart(text="Reminder"), image_part)),
     ]
 
     messages = anthropic_history(history, model_name=None)

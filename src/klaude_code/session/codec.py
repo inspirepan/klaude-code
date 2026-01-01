@@ -5,7 +5,7 @@ from typing import Any, TypeGuard, cast, get_args
 
 from pydantic import BaseModel
 
-from klaude_code.protocol import model
+from klaude_code.protocol import message
 
 
 def _is_basemodel_subclass(tp: object) -> TypeGuard[type[BaseModel]]:
@@ -24,7 +24,7 @@ def _flatten_union(tp: object) -> list[object]:
 
 def _build_type_registry() -> dict[str, type[BaseModel]]:
     registry: dict[str, type[BaseModel]] = {}
-    for tp in _flatten_union(model.HistoryEvent):
+    for tp in _flatten_union(message.HistoryEvent):
         if not _is_basemodel_subclass(tp):
             continue
         registry[tp.__name__] = tp
@@ -34,11 +34,11 @@ def _build_type_registry() -> dict[str, type[BaseModel]]:
 _CONVERSATION_ITEM_TYPES: dict[str, type[BaseModel]] = _build_type_registry()
 
 
-def encode_conversation_item(item: model.HistoryEvent) -> dict[str, Any]:
+def encode_conversation_item(item: message.HistoryEvent) -> dict[str, Any]:
     return {"type": item.__class__.__name__, "data": item.model_dump(mode="json")}
 
 
-def decode_conversation_item(obj: dict[str, Any]) -> model.HistoryEvent | None:
+def decode_conversation_item(obj: dict[str, Any]) -> message.HistoryEvent | None:
     t = obj.get("type")
     data = obj.get("data", {})
     if not isinstance(t, str) or not isinstance(data, dict):
@@ -54,11 +54,11 @@ def decode_conversation_item(obj: dict[str, Any]) -> model.HistoryEvent | None:
     return item  # type: ignore[return-value]
 
 
-def encode_jsonl_line(item: model.HistoryEvent) -> str:
+def encode_jsonl_line(item: message.HistoryEvent) -> str:
     return json.dumps(encode_conversation_item(item), ensure_ascii=False) + "\n"
 
 
-def decode_jsonl_line(line: str) -> model.HistoryEvent | None:
+def decode_jsonl_line(line: str) -> message.HistoryEvent | None:
     line = line.strip()
     if not line:
         return None

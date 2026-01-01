@@ -14,7 +14,7 @@ from klaude_code.llm.openrouter.input import convert_history_to_input, is_claude
 from klaude_code.llm.openrouter.reasoning import ReasoningStreamHandler
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message
 from klaude_code.trace import DebugType, is_debug_enabled, log_debug
 
 
@@ -93,7 +93,7 @@ class OpenRouterClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.LLMStreamItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[message.LLMStreamItem]:
         param = apply_config_defaults(param, self.get_llm_config())
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
@@ -101,7 +101,7 @@ class OpenRouterClient(LLMClientABC):
         try:
             payload, extra_body, extra_headers = build_payload(param)
         except (ValueError, OSError) as e:
-            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+            yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
             yield metadata_tracker.finalize()
             return
 
@@ -118,7 +118,7 @@ class OpenRouterClient(LLMClientABC):
                 extra_headers=extra_headers,
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
-            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+            yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
             yield metadata_tracker.finalize()
             return
 

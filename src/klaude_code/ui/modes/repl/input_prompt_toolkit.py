@@ -34,7 +34,7 @@ from klaude_code.config.thinking import (
 )
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.commands import CommandInfo
-from klaude_code.protocol.model import UserInputPayload
+from klaude_code.protocol.message import UserInputPayload
 from klaude_code.ui.core.input import InputProviderABC
 from klaude_code.ui.modes.repl.clipboard import capture_clipboard_tag, copy_to_clipboard, extract_images_from_text
 from klaude_code.ui.modes.repl.completers import AT_TOKEN_PATTERN, create_repl_completer

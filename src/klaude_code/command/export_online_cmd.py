@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.text import Text
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
-from klaude_code.protocol import commands, events, model
+from klaude_code.protocol import commands, events, message, model
 from klaude_code.session.export import build_export_html
 
 
@@ -33,15 +33,15 @@ class ExportOnlineCommand(CommandABC):
     def is_interactive(self) -> bool:
         return False
 
-    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input  # unused
         # Check if npx or surge is available
         surge_cmd = self._get_surge_command()
         if not surge_cmd:
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=model.DeveloperMessage(
-                    parts=model.text_parts_from_str("surge.sh CLI not found. Install with: npm install -g surge"),
+                item=message.DeveloperMessage(
+                    parts=message.text_parts_from_str("surge.sh CLI not found. Install with: npm install -g surge"),
                     command_output=model.CommandOutput(command_name=self.name, is_error=True),
                 ),
             )
@@ -57,8 +57,8 @@ class ExportOnlineCommand(CommandABC):
                 login_cmd = " ".join([*surge_cmd, "login"])
                 event = events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=model.DeveloperMessage(
-                        parts=model.text_parts_from_str(f"Not logged in to surge.sh. Please run: {login_cmd}"),
+                    item=message.DeveloperMessage(
+                        parts=message.text_parts_from_str(f"Not logged in to surge.sh. Please run: {login_cmd}"),
                         command_output=model.CommandOutput(command_name=self.name, is_error=True),
                     ),
                 )
@@ -71,8 +71,8 @@ class ExportOnlineCommand(CommandABC):
 
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=model.DeveloperMessage(
-                    parts=model.text_parts_from_str(f"Session deployed to: {url}"),
+                item=message.DeveloperMessage(
+                    parts=message.text_parts_from_str(f"Session deployed to: {url}"),
                     command_output=model.CommandOutput(command_name=self.name),
                 ),
             )
@@ -82,8 +82,8 @@ class ExportOnlineCommand(CommandABC):
 
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=model.DeveloperMessage(
-                    parts=model.text_parts_from_str(f"Failed to deploy session: {exc}\n{traceback.format_exc()}"),
+                item=message.DeveloperMessage(
+                    parts=message.text_parts_from_str(f"Failed to deploy session: {exc}\n{traceback.format_exc()}"),
                     command_output=model.CommandOutput(command_name=self.name, is_error=True),
                 ),
             )

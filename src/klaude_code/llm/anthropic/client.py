@@ -25,7 +25,7 @@ from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message, model
 from klaude_code.trace import DebugType, log_debug
 
 _IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."
@@ -59,7 +59,7 @@ def build_payload(
     """
     messages = convert_history_to_input(param.input, param.model)
     tools = convert_tool_schema(param.tools)
-    system_messages = [msg for msg in param.input if isinstance(msg, model.SystemMessage)]
+    system_messages = [msg for msg in param.input if isinstance(msg, message.SystemMessage)]
     system = convert_system_to_input(param.system, system_messages)
 
     # Add identity block at the beginning of the system prompt
@@ -103,11 +103,11 @@ async def parse_anthropic_stream(
     stream: Any,
     param: llm_param.LLMCallParameter,
     metadata_tracker: MetadataTracker,
-) -> AsyncGenerator[model.LLMStreamItem]:
+) -> AsyncGenerator[message.LLMStreamItem]:
     """Parse Anthropic beta messages stream and yield stream items."""
     accumulated_thinking: list[str] = []
     accumulated_content: list[str] = []
-    parts: list[model.Part] = []
+    parts: list[message.Part] = []
     response_id: str | None = None
     stop_reason: model.StopReason | None = None
     pending_signature: str | None = None
@@ -131,14 +131,14 @@ async def parse_anthropic_stream(
                 response_id = event.message.id
                 cached_token = event.message.usage.cache_read_input_tokens or 0
                 input_token = event.message.usage.input_tokens
-                yield model.StartItem(response_id=response_id)
+                yield message.StartItem(response_id=response_id)
             case BetaRawContentBlockDeltaEvent() as event:
                 match event.delta:
                     case BetaThinkingDelta() as delta:
                         if delta.thinking:
                             metadata_tracker.record_token()
                         accumulated_thinking.append(delta.thinking)
-                        yield model.ThinkingTextDelta(
+                        yield message.ThinkingTextDelta(
                             content=delta.thinking,
                             response_id=response_id,
                         )
@@ -148,7 +148,7 @@ async def parse_anthropic_stream(
                         if delta.text:
                             metadata_tracker.record_token()
                         accumulated_content.append(delta.text)
-                        yield model.AssistantMessageDelta(
+                        yield message.AssistantMessageDelta(
                             content=delta.text,
                             response_id=response_id,
                         )
@@ -163,7 +163,7 @@ async def parse_anthropic_stream(
                 match event.content_block:
                     case BetaToolUseBlock() as block:
                         metadata_tracker.record_token()
-                        yield model.ToolCallStartItem(
+                        yield message.ToolCallStartItem(
                             response_id=response_id,
                             call_id=block.id,
                             name=block.name,
@@ -177,10 +177,10 @@ async def parse_anthropic_stream(
                 if accumulated_thinking:
                     metadata_tracker.record_token()
                     full_thinking = "".join(accumulated_thinking)
-                    parts.append(model.ThinkingTextPart(text=full_thinking, model_id=str(param.model)))
+                    parts.append(message.ThinkingTextPart(text=full_thinking, model_id=str(param.model)))
                     if pending_signature:
                         parts.append(
-                            model.ThinkingSignaturePart(
+                            message.ThinkingSignaturePart(
                                 signature=pending_signature,
                                 model_id=str(param.model),
                                 format="anthropic",
@@ -190,12 +190,12 @@ async def parse_anthropic_stream(
                     pending_signature = None
                 if accumulated_content:
                     metadata_tracker.record_token()
-                    parts.append(model.TextPart(text="".join(accumulated_content)))
+                    parts.append(message.TextPart(text="".join(accumulated_content)))
                     accumulated_content.clear()
                 if current_tool_name and current_tool_call_id:
                     metadata_tracker.record_token()
                     parts.append(
-                        model.ToolCallPart(
+                        message.ToolCallPart(
                             call_id=current_tool_call_id,
                             tool_name=current_tool_name,
                             arguments_json="".join(current_tool_inputs) if current_tool_inputs else "",
@@ -225,7 +225,7 @@ async def parse_anthropic_stream(
 
     metadata = metadata_tracker.finalize()
     if parts:
-        yield model.AssistantMessage(
+        yield message.AssistantMessage(
             parts=parts,
             response_id=response_id,
             usage=metadata,
@@ -260,7 +260,7 @@ class AnthropicClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.LLMStreamItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[message.LLMStreamItem]:
         param = apply_config_defaults(param, self.get_llm_config())
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
@@ -282,4 +282,4 @@ class AnthropicClient(LLMClientABC):
             async for item in parse_anthropic_stream(stream, param, metadata_tracker):
                 yield item
         except (APIError, httpx.HTTPError) as e:
-            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+            yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")

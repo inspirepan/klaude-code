@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
-from klaude_code.protocol import commands, events, model
+from klaude_code.protocol import commands, events, message, model
 
 
 def _read_changelog() -> str:
@@ -68,15 +68,15 @@ class ReleaseNotesCommand(CommandABC):
     def summary(self) -> str:
         return "Show the latest release notes"
 
-    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input  # unused
         changelog = _read_changelog()
         content = _extract_releases(changelog, count=10)
 
         event = events.DeveloperMessageEvent(
             session_id=agent.session.id,
-            item=model.DeveloperMessage(
-                parts=model.text_parts_from_str(content),
+            item=message.DeveloperMessage(
+                parts=message.text_parts_from_str(content),
                 command_output=model.CommandOutput(command_name=self.name),
             ),
         )

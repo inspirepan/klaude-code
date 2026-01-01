@@ -19,7 +19,7 @@ from klaude_code.core.tool.tool_runner import (
     ToolExecutorEvent,
 )
 from klaude_code.llm import LLMClientABC
-from klaude_code.protocol import events, llm_param, model, tools
+from klaude_code.protocol import events, llm_param, message, model, tools
 from klaude_code.trace import DebugType, log_debug
 
 
@@ -45,9 +45,9 @@ class TurnExecutionContext:
 class TurnResult:
     """Aggregated state produced while executing a turn."""
 
-    assistant_message: model.AssistantMessage | None
+    assistant_message: message.AssistantMessage | None
     tool_calls: list[ToolCallRequest]
-    stream_error: model.StreamErrorItem | None
+    stream_error: message.StreamErrorItem | None
     report_back_result: str | None = field(default=None)
 
 
@@ -135,8 +135,8 @@ class TurnExecutor:
             return self._turn_result.report_back_result
         if self._turn_result is not None and self._turn_result.assistant_message is not None:
             assistant_message = self._turn_result.assistant_message
-            text = model.join_text_parts(assistant_message.parts)
-            images = [part for part in assistant_message.parts if isinstance(part, model.ImageFilePart)]
+            text = message.join_text_parts(assistant_message.parts)
+            images = [part for part in assistant_message.parts if isinstance(part, message.ImageFilePart)]
             if images:
                 image_lines = "\n".join(f"- {img.file_path}" for img in images if img.file_path)
                 if image_lines:
@@ -211,11 +211,11 @@ class TurnExecutor:
         ctx = self._context
         session_ctx = ctx.session_ctx
         message_types = (
-            model.SystemMessage,
-            model.DeveloperMessage,
-            model.UserMessage,
-            model.AssistantMessage,
-            model.ToolResultMessage,
+            message.SystemMessage,
+            message.DeveloperMessage,
+            message.UserMessage,
+            message.AssistantMessage,
+            message.ToolResultMessage,
         )
         messages = [item for item in session_ctx.get_conversation_history() if isinstance(item, message_types)]
         call_param = llm_param.LLMCallParameter(
@@ -252,15 +252,15 @@ class TurnExecutor:
                 debug_type=DebugType.RESPONSE,
             )
             match response_item:
-                case model.StartItem():
+                case message.StartItem():
                     continue
-                case model.ThinkingTextDelta() as item:
+                case message.ThinkingTextDelta() as item:
                     yield events.ThinkingDeltaEvent(
                         content=item.content,
                         response_id=item.response_id,
                         session_id=session_ctx.session_id,
                     )
-                case model.AssistantMessageDelta() as item:
+                case message.AssistantMessageDelta() as item:
                     if item.response_id:
                         self._assistant_response_id = item.response_id
                     self._assistant_delta_buffer.append(item.content)
@@ -269,18 +269,18 @@ class TurnExecutor:
                         response_id=item.response_id,
                         session_id=session_ctx.session_id,
                     )
-                case model.AssistantImageDelta() as item:
+                case message.AssistantImageDelta() as item:
                     yield events.AssistantImageDeltaEvent(
                         file_path=item.file_path,
                         response_id=item.response_id,
                         session_id=session_ctx.session_id,
                     )
-                case model.AssistantMessage() as item:
+                case message.AssistantMessage() as item:
                     if item.response_id is None and self._assistant_response_id:
                         item.response_id = self._assistant_response_id
                     turn_result.assistant_message = item
                     for part in item.parts:
-                        if isinstance(part, model.ToolCallPart):
+                        if isinstance(part, message.ToolCallPart):
                             turn_result.tool_calls.append(
                                 ToolCallRequest(
                                     response_id=item.response_id,
@@ -290,7 +290,7 @@ class TurnExecutor:
                                 )
                             )
                     yield events.AssistantMessageEvent(
-                        content=model.join_text_parts(item.parts),
+                        content=message.join_text_parts(item.parts),
                         response_id=item.response_id,
                         session_id=session_ctx.session_id,
                     )
@@ -319,7 +319,7 @@ class TurnExecutor:
                         session_id=session_ctx.session_id,
                         metadata=item,
                     )
-                case model.StreamErrorItem() as item:
+                case message.StreamErrorItem() as item:
                     turn_result.stream_error = item
                     log_debug(
                         "[StreamError]",
@@ -327,7 +327,7 @@ class TurnExecutor:
                         style="red",
                         debug_type=DebugType.RESPONSE,
                     )
-                case model.ToolCallStartItem() as item:
+                case message.ToolCallStartItem() as item:
                     yield events.TurnToolCallStartEvent(
                         session_id=session_ctx.session_id,
                         response_id=item.response_id,
@@ -379,10 +379,10 @@ class TurnExecutor:
         partial_text = "".join(self._assistant_delta_buffer) + "<system interrupted by user>"
         if not partial_text:
             return
-        message = model.AssistantMessage(
-            parts=model.text_parts_from_str(partial_text),
+        partial_message = message.AssistantMessage(
+            parts=message.text_parts_from_str(partial_text),
             response_id=self._assistant_response_id,
             stop_reason="aborted",
         )
-        self._context.session_ctx.append_history([message])
+        self._context.session_ctx.append_history([partial_message])
         self._assistant_delta_buffer.clear()

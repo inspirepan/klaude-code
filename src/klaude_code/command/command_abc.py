@@ -4,7 +4,7 @@ from typing import Protocol
 from pydantic import BaseModel
 
 from klaude_code.llm import LLMClientABC
-from klaude_code.protocol import commands, llm_param, model, op
+from klaude_code.protocol import commands, llm_param, message, op
 from klaude_code.protocol import events as protocol_events
 from klaude_code.session.session import Session
 
@@ -78,7 +78,7 @@ class CommandABC(ABC):
         return "additional instructions"
 
     @abstractmethod
-    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         """
         Execute the command.
 

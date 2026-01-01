@@ -3,7 +3,7 @@ from importlib.resources import files
 import yaml
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
-from klaude_code.protocol import commands, model, op
+from klaude_code.protocol import commands, message, op
 from klaude_code.trace import log_debug
 
 
@@ -55,7 +55,7 @@ class PromptCommand(CommandABC):
     def support_addition_params(self) -> bool:
         return True
 
-    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         self._ensure_loaded()
         template_content = self._content or ""
         user_input_text = user_input.text.strip() or "<none>"
@@ -71,7 +71,7 @@ class PromptCommand(CommandABC):
             operations=[
                 op.RunAgentOperation(
                     session_id=agent.session.id,
-                    input=model.UserInputPayload(text=final_prompt, images=user_input.images),
+                    input=message.UserInputPayload(text=final_prompt, images=user_input.images),
                 )
             ]
         )

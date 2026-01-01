@@ -10,7 +10,7 @@ from openai.types import chat
 
 from klaude_code.llm.image import assistant_image_to_data_url
 from klaude_code.llm.input_common import DeveloperAttachment, attach_developer_messages, merge_reminder_text
-from klaude_code.protocol import model
+from klaude_code.protocol import message
 
 
 def is_claude_model(model_name: str | None) -> bool:
@@ -25,19 +25,19 @@ def is_gemini_model(model_name: str | None) -> bool:
     return model_name is not None and model_name.startswith("google/gemini")
 
 
-def _text_parts(parts: list[model.Part]) -> str:
-    return "".join(part.text for part in parts if isinstance(part, model.TextPart))
+def _text_parts(parts: list[message.Part]) -> str:
+    return "".join(part.text for part in parts if isinstance(part, message.TextPart))
 
 
 def _user_message_to_openrouter(
-    message: model.UserMessage,
+    msg: message.UserMessage,
     attachment: DeveloperAttachment,
 ) -> chat.ChatCompletionMessageParam:
     parts: list[dict[str, object]] = []
-    for part in message.parts:
-        if isinstance(part, model.TextPart):
+    for part in msg.parts:
+        if isinstance(part, message.TextPart):
             parts.append({"type": "text", "text": part.text})
-        elif isinstance(part, model.ImageURLPart):
+        elif isinstance(part, message.ImageURLPart):
             parts.append({"type": "image_url", "image_url": {"url": part.url}})
     if attachment.text:
         parts.append({"type": "text", "text": attachment.text})
@@ -49,26 +49,26 @@ def _user_message_to_openrouter(
 
 
 def _tool_message_to_openrouter(
-    message: model.ToolResultMessage,
+    msg: message.ToolResultMessage,
     attachment: DeveloperAttachment,
 ) -> chat.ChatCompletionMessageParam:
     merged_text = merge_reminder_text(
-        message.output_text or "<system-reminder>Tool ran without output or errors</system-reminder>",
+        msg.output_text or "<system-reminder>Tool ran without output or errors</system-reminder>",
         attachment.text,
     )
     return {
         "role": "tool",
         "content": [{"type": "text", "text": merged_text}],
-        "tool_call_id": message.call_id,
+        "tool_call_id": msg.call_id,
     }
 
 
 def _assistant_message_to_openrouter(
-    message: model.AssistantMessage, model_name: str | None
+    msg: message.AssistantMessage, model_name: str | None
 ) -> chat.ChatCompletionMessageParam:
     assistant_message: dict[str, object] = {"role": "assistant"}
 
-    images = [part for part in message.parts if isinstance(part, model.ImageFilePart)]
+    images = [part for part in msg.parts if isinstance(part, message.ImageFilePart)]
     if images:
         assistant_message["images"] = [
             {
@@ -79,7 +79,7 @@ def _assistant_message_to_openrouter(
             for image in images
         ]
 
-    tool_calls = [part for part in message.parts if isinstance(part, model.ToolCallPart)]
+    tool_calls = [part for part in msg.parts if isinstance(part, message.ToolCallPart)]
     if tool_calls:
         assistant_message["tool_calls"] = [
             {
@@ -95,8 +95,8 @@ def _assistant_message_to_openrouter(
 
     reasoning_details: list[dict[str, object]] = []
     degraded_thinking_texts: list[str] = []
-    for part in message.parts:
-        if isinstance(part, model.ThinkingTextPart):
+    for part in msg.parts:
+        if isinstance(part, message.ThinkingTextPart):
             if part.model_id and model_name and part.model_id != model_name:
                 degraded_thinking_texts.append(part.text)
                 continue
@@ -108,7 +108,7 @@ def _assistant_message_to_openrouter(
                     "index": len(reasoning_details),
                 }
             )
-        elif isinstance(part, model.ThinkingSignaturePart):
+        elif isinstance(part, message.ThinkingSignaturePart):
             if part.model_id and model_name and part.model_id != model_name:
                 continue
             if part.signature:
@@ -127,7 +127,7 @@ def _assistant_message_to_openrouter(
     content_parts: list[str] = []
     if degraded_thinking_texts:
         content_parts.append("<thinking>\n" + "\n".join(degraded_thinking_texts) + "\n</thinking>")
-    text_content = _text_parts(message.parts)
+    text_content = _text_parts(msg.parts)
     if text_content:
         content_parts.append(text_content)
     if content_parts:
@@ -151,7 +151,7 @@ def _add_cache_control(messages: list[chat.ChatCompletionMessageParam], use_cach
 
 
 def convert_history_to_input(
-    history: list[model.Message],
+    history: list[message.Message],
     system: str | None = None,
     model_name: str | None = None,
 ) -> list[chat.ChatCompletionMessageParam]:
@@ -175,10 +175,10 @@ def convert_history_to_input(
         else ([{"role": "system", "content": system}] if system else [])
     )
 
-    for message, attachment in attach_developer_messages(history):
-        match message:
-            case model.SystemMessage():
-                system_text = "\n".join(part.text for part in message.parts)
+    for msg, attachment in attach_developer_messages(history):
+        match msg:
+            case message.SystemMessage():
+                system_text = "\n".join(part.text for part in msg.parts)
                 if system_text:
                     if use_cache_control:
                         messages.append(
@@ -195,12 +195,12 @@ def convert_history_to_input(
                         )
                     else:
                         messages.append({"role": "system", "content": system_text})
-            case model.UserMessage():
-                messages.append(_user_message_to_openrouter(message, attachment))
-            case model.ToolResultMessage():
-                messages.append(_tool_message_to_openrouter(message, attachment))
-            case model.AssistantMessage():
-                messages.append(_assistant_message_to_openrouter(message, model_name))
+            case message.UserMessage():
+                messages.append(_user_message_to_openrouter(msg, attachment))
+            case message.ToolResultMessage():
+                messages.append(_tool_message_to_openrouter(msg, attachment))
+            case message.AssistantMessage():
+                messages.append(_assistant_message_to_openrouter(msg, model_name))
             case _:
                 continue
 

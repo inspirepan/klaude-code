@@ -2,7 +2,7 @@
 
 from typing import Any, ClassVar, cast
 
-from klaude_code.protocol import llm_param, model, tools
+from klaude_code.protocol import llm_param, message, tools
 
 
 def _normalize_schema_types(schema: dict[str, Any]) -> dict[str, Any]:
@@ -72,13 +72,13 @@ class ReportBackTool:
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
         """Execute the report_back tool.
 
         The actual handling of report_back results is done by TurnExecutor.
         This method just returns a success status to maintain the tool call flow.
         """
-        return model.ToolResultMessage(
+        return message.ToolResultMessage(
             status="success",
             output_text="Result reported successfully. Task will end.",
         )

@@ -27,7 +27,7 @@ from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from klaude_code.llm.image import save_assistant_image
 from klaude_code.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
 from klaude_code.llm.usage import MetadataTracker, convert_usage
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message, model
 
 StreamStage = Literal["waiting", "reasoning", "assistant", "tool"]
 
@@ -43,17 +43,17 @@ class StreamStateManager:
         self,
         param_model: str,
         response_id: str | None = None,
-        reasoning_flusher: Callable[[], list[model.Part]] | None = None,
+        reasoning_flusher: Callable[[], list[message.Part]] | None = None,
     ):
         self.param_model = param_model
         self.response_id = response_id
         self.stage: StreamStage = "waiting"
         self.accumulated_content: list[str] = []
-        self.accumulated_images: list[model.ImageFilePart] = []
+        self.accumulated_images: list[message.ImageFilePart] = []
         self.accumulated_tool_calls: ToolCallAccumulatorABC = BasicToolCallAccumulator()
         self.emitted_tool_start_indices: set[int] = set()
         self._reasoning_flusher = reasoning_flusher
-        self.parts: list[model.Part] = []
+        self.parts: list[message.Part] = []
         self.stop_reason: model.StopReason | None = None
 
     def set_response_id(self, response_id: str) -> None:
@@ -71,7 +71,7 @@ class StreamStateManager:
         if not self.accumulated_content and not self.accumulated_images:
             return
         if self.accumulated_content:
-            self.parts.append(model.TextPart(text="".join(self.accumulated_content)))
+            self.parts.append(message.TextPart(text="".join(self.accumulated_content)))
         if self.accumulated_images:
             self.parts.extend(self.accumulated_images)
         self.accumulated_content = []
@@ -85,7 +85,7 @@ class StreamStateManager:
             self.parts.extend(items)
             self.accumulated_tool_calls.chunks_by_step = []  # pyright: ignore[reportAttributeAccessIssue]
 
-    def flush_all(self) -> list[model.Part]:
+    def flush_all(self) -> list[message.Part]:
         """Flush all accumulated content in order: reasoning, assistant, tool calls."""
         self.flush_reasoning()
         self.flush_assistant()
@@ -99,7 +99,7 @@ class ReasoningDeltaResult:
     """Result of processing a single provider delta for reasoning signals."""
 
     handled: bool
-    outputs: list[str | model.Part]
+    outputs: list[str | message.Part]
 
 
 class ReasoningHandlerABC(ABC):
@@ -114,7 +114,7 @@ class ReasoningHandlerABC(ABC):
         """Process a single delta and return ordered reasoning outputs."""
 
     @abstractmethod
-    def flush(self) -> list[model.Part]:
+    def flush(self) -> list[message.Part]:
         """Flush buffered reasoning content (usually at stage transition/finalize)."""
 
 
@@ -142,10 +142,10 @@ class DefaultReasoningHandler(ReasoningHandlerABC):
         self._accumulated.append(text)
         return ReasoningDeltaResult(handled=True, outputs=[text])
 
-    def flush(self) -> list[model.Part]:
+    def flush(self) -> list[message.Part]:
         if not self._accumulated:
             return []
-        item = model.ThinkingTextPart(
+        item = message.ThinkingTextPart(
             text="".join(self._accumulated),
             model_id=self._param_model,
         )
@@ -172,7 +172,7 @@ async def parse_chat_completions_stream(
     metadata_tracker: MetadataTracker,
     reasoning_handler: ReasoningHandlerABC,
     on_event: Callable[[object], None] | None = None,
-) -> AsyncGenerator[model.LLMStreamItem]:
+) -> AsyncGenerator[message.LLMStreamItem]:
     """Parse OpenAI Chat Completions stream into stream items.
 
     This is shared by OpenAI-compatible and OpenRouter clients.
@@ -205,7 +205,7 @@ async def parse_chat_completions_stream(
             if not state.response_id and (event_id := getattr(event, "id", None)):
                 state.set_response_id(str(event_id))
                 reasoning_handler.set_response_id(str(event_id))
-                yield model.StartItem(response_id=str(event_id))
+                yield message.StartItem(response_id=str(event_id))
 
             if (event_usage := getattr(event, "usage", None)) is not None:
                 metadata_tracker.set_usage(convert_usage(event_usage, param.context_limit, param.max_tokens))
@@ -244,7 +244,7 @@ async def parse_chat_completions_stream(
                         if not output:
                             continue
                         metadata_tracker.record_token()
-                        yield model.ThinkingTextDelta(content=output, response_id=state.response_id)
+                        yield message.ThinkingTextDelta(content=output, response_id=state.response_id)
                     else:
                         state.parts.append(output)
 
@@ -273,10 +273,10 @@ async def parse_chat_completions_stream(
                             image_index=len(state.accumulated_images),
                         )
                     except ValueError as exc:
-                        yield model.StreamErrorItem(error=str(exc))
+                        yield message.StreamErrorItem(error=str(exc))
                         return
                     state.accumulated_images.append(assistant_image)
-                    yield model.AssistantImageDelta(response_id=state.response_id, file_path=assistant_image.file_path)
+                    yield message.AssistantImageDelta(response_id=state.response_id, file_path=assistant_image.file_path)
 
             if (content := getattr(delta, "content", None)) and (state.stage == "assistant" or str(content).strip()):
                 metadata_tracker.record_token()
@@ -286,7 +286,7 @@ async def parse_chat_completions_stream(
                     state.flush_tool_calls()
                 state.stage = "assistant"
                 state.accumulated_content.append(str(content))
-                yield model.AssistantMessageDelta(
+                yield message.AssistantMessageDelta(
                     content=str(content),
                     response_id=state.response_id,
                 )
@@ -302,14 +302,14 @@ async def parse_chat_completions_stream(
                 for tc in tool_calls:
                     if tc.index not in state.emitted_tool_start_indices and tc.function and tc.function.name:
                         state.emitted_tool_start_indices.add(tc.index)
-                        yield model.ToolCallStartItem(
+                        yield message.ToolCallStartItem(
                             response_id=state.response_id,
                             call_id=tc.id or "",
                             name=tc.function.name,
                         )
                 state.accumulated_tool_calls.add(tool_calls)
     except (openai.OpenAIError, httpx.HTTPError) as e:
-        yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+        yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
 
     parts = state.flush_all()
     if parts:
@@ -317,7 +317,7 @@ async def parse_chat_completions_stream(
     metadata_tracker.set_response_id(state.response_id)
     metadata = metadata_tracker.finalize()
     if parts:
-        yield model.AssistantMessage(
+        yield message.AssistantMessage(
             parts=parts,
             response_id=state.response_id,
             usage=metadata,

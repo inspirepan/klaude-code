@@ -13,7 +13,7 @@ from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
 from klaude_code.llm.usage import MetadataTracker
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message, model
 from klaude_code.trace import DebugType, log_debug
 
 if TYPE_CHECKING:
@@ -59,7 +59,7 @@ async def parse_responses_stream(
     stream: "AsyncStream[ResponseStreamEvent]",
     param: llm_param.LLMCallParameter,
     metadata_tracker: MetadataTracker,
-) -> AsyncGenerator[model.LLMStreamItem]:
+) -> AsyncGenerator[message.LLMStreamItem]:
     """Parse OpenAI Responses API stream events into stream items."""
     response_id: str | None = None
     stage: Literal["waiting", "thinking", "assistant", "tool"] = "waiting"
@@ -67,14 +67,14 @@ async def parse_responses_stream(
     accumulated_thinking: list[str] = []
     accumulated_text: list[str] = []
     pending_signature: str | None = None
-    assistant_parts: list[model.Part] = []
+    assistant_parts: list[message.Part] = []
     stop_reason: model.StopReason | None = None
 
     def flush_thinking() -> None:
         nonlocal pending_signature
         if accumulated_thinking:
             assistant_parts.append(
-                model.ThinkingTextPart(
+                message.ThinkingTextPart(
                     text="".join(accumulated_thinking),
                     model_id=str(param.model),
                 )
@@ -82,7 +82,7 @@ async def parse_responses_stream(
             accumulated_thinking.clear()
         if pending_signature:
             assistant_parts.append(
-                model.ThinkingSignaturePart(
+                message.ThinkingSignaturePart(
                     signature=pending_signature,
                     model_id=str(param.model),
                     format="openai_reasoning",
@@ -93,7 +93,7 @@ async def parse_responses_stream(
     def flush_text() -> None:
         if not accumulated_text:
             return
-        assistant_parts.append(model.TextPart(text="".join(accumulated_text)))
+        assistant_parts.append(message.TextPart(text="".join(accumulated_text)))
         accumulated_text.clear()
 
     def map_stop_reason(status: str | None, reason: str | None) -> model.StopReason | None:
@@ -122,7 +122,7 @@ async def parse_responses_stream(
             match event:
                 case responses.ResponseCreatedEvent() as event:
                     response_id = event.response.id
-                    yield model.StartItem(response_id=response_id)
+                    yield message.StartItem(response_id=response_id)
                 case responses.ResponseReasoningSummaryTextDeltaEvent() as event:
                     if event.delta:
                         metadata_tracker.record_token()
@@ -130,7 +130,7 @@ async def parse_responses_stream(
                             flush_text()
                         stage = "thinking"
                         accumulated_thinking.append(event.delta)
-                        yield model.ThinkingTextDelta(content=event.delta, response_id=response_id)
+                        yield message.ThinkingTextDelta(content=event.delta, response_id=response_id)
                 case responses.ResponseReasoningSummaryTextDoneEvent() as event:
                     if event.text and not accumulated_thinking:
                         accumulated_thinking.append(event.text)
@@ -141,11 +141,11 @@ async def parse_responses_stream(
                             flush_thinking()
                         stage = "assistant"
                         accumulated_text.append(event.delta)
-                        yield model.AssistantMessageDelta(content=event.delta, response_id=response_id)
+                        yield message.AssistantMessageDelta(content=event.delta, response_id=response_id)
                 case responses.ResponseOutputItemAddedEvent() as event:
                     if isinstance(event.item, responses.ResponseFunctionToolCall):
                         metadata_tracker.record_token()
-                        yield model.ToolCallStartItem(
+                        yield message.ToolCallStartItem(
                             response_id=response_id,
                             call_id=event.item.call_id,
                             name=event.item.name,
@@ -174,7 +174,7 @@ async def parse_responses_stream(
                                 flush_text()
                             stage = "tool"
                             assistant_parts.append(
-                                model.ToolCallPart(
+                                message.ToolCallPart(
                                     call_id=item.call_id,
                                     tool_name=item.name,
                                     arguments_json=item.arguments.strip(),
@@ -211,7 +211,7 @@ async def parse_responses_stream(
                             style="red",
                             debug_type=DebugType.LLM_STREAM,
                         )
-                        yield model.StreamErrorItem(error=error_message)
+                        yield message.StreamErrorItem(error=error_message)
                 case _:
                     log_debug(
                         "[Unhandled stream event]",
@@ -220,14 +220,14 @@ async def parse_responses_stream(
                         debug_type=DebugType.LLM_STREAM,
                     )
     except (openai.OpenAIError, httpx.HTTPError) as e:
-        yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+        yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
 
     flush_thinking()
     flush_text()
     metadata_tracker.set_response_id(response_id)
     metadata = metadata_tracker.finalize()
     if assistant_parts:
-        yield model.AssistantMessage(
+        yield message.AssistantMessage(
             parts=assistant_parts,
             response_id=response_id,
             usage=metadata,
@@ -263,7 +263,7 @@ class ResponsesClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.LLMStreamItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[message.LLMStreamItem]:
         param = apply_config_defaults(param, self.get_llm_config())
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
@@ -281,7 +281,7 @@ class ResponsesClient(LLMClientABC):
                 extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
-            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+            yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
             return
 
         async for item in parse_responses_stream(stream, param, metadata_tracker):

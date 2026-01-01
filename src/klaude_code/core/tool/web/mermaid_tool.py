@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_param, model, tools
+from klaude_code.protocol import llm_param, message, model, tools
 
 _MERMAID_LIVE_PREFIX = "https://mermaid.live/view#pako:"
 
@@ -41,17 +41,17 @@ class MermaidTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
         try:
             args = cls.MermaidArguments.model_validate_json(arguments)
         except Exception as exc:  # pragma: no cover - defensive
-            return model.ToolResultMessage(status="error", output_text=f"Invalid arguments: {exc}")
+            return message.ToolResultMessage(status="error", output_text=f"Invalid arguments: {exc}")
 
         link = cls._build_link(args.code)
         line_count = cls._count_lines(args.code)
         ui_extra = model.MermaidLinkUIExtra(code=args.code, link=link, line_count=line_count)
         output = f"Mermaid diagram rendered successfully ({line_count} lines)."
-        return model.ToolResultMessage(status="success", output_text=output, ui_extra=ui_extra)
+        return message.ToolResultMessage(status="success", output_text=output, ui_extra=ui_extra)
 
     @staticmethod
     def _build_link(code: str) -> str:

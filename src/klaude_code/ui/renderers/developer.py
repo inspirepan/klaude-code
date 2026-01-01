@@ -3,7 +3,7 @@ from rich.padding import Padding
 from rich.table import Table
 from rich.text import Text
 
-from klaude_code.protocol import commands, events, model
+from klaude_code.protocol import commands, events, message, model
 from klaude_code.ui.renderers.common import create_grid, truncate_display
 from klaude_code.ui.renderers.tools import render_path
 from klaude_code.ui.rich.markdown import NoInsetMarkdown
@@ -124,7 +124,7 @@ def render_command_output(e: events.DeveloperMessageEvent) -> RenderableType:
     if not e.item.command_output:
         return Text("")
 
-    content = model.join_text_parts(e.item.parts)
+    content = message.join_text_parts(e.item.parts)
     match e.item.command_output.command_name:
         case commands.CommandName.HELP:
             return Padding.indent(Text.from_markup(content or ""), level=2)

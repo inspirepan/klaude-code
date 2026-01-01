@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_todo_context
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_param, model, tools
+from klaude_code.protocol import llm_param, message, model, tools
 
 
 def get_new_completed_todos(old_todos: list[model.TodoItem], new_todos: list[model.TodoItem]) -> list[str]:
@@ -77,11 +77,11 @@ class TodoWriteTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
         try:
             args = TodoWriteArguments.model_validate_json(arguments)
         except ValueError as e:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=f"Invalid arguments: {e}",
             )
@@ -89,7 +89,7 @@ class TodoWriteTool(ToolABC):
         # Get current todo context to store todos
         todo_context = get_current_todo_context()
         if todo_context is None:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text="No active session found",
             )
@@ -113,7 +113,7 @@ Your todo list has changed. DO NOT mention this explicitly to the user. Here are
 {model.todo_list_str(args.todos)}. Continue on with the tasks at hand if applicable.
 </system-reminder>"""
 
-        return model.ToolResultMessage(
+        return message.ToolResultMessage(
             status="success",
             output_text=response,
             ui_extra=model.TodoListUIExtra(todo_list=ui_extra),

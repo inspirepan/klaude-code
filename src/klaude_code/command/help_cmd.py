@@ -1,5 +1,5 @@
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
-from klaude_code.protocol import commands, events, model
+from klaude_code.protocol import commands, events, message, model
 
 
 class HelpCommand(CommandABC):
@@ -13,7 +13,7 @@ class HelpCommand(CommandABC):
     def summary(self) -> str:
         return "Show help and available commands"
 
-    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input  # unused
         lines: list[str] = [
             """
@@ -41,8 +41,8 @@ Available slash commands:"""
 
         event = events.DeveloperMessageEvent(
             session_id=agent.session.id,
-            item=model.DeveloperMessage(
-                parts=model.text_parts_from_str("\n".join(lines)),
+            item=message.DeveloperMessage(
+                parts=message.text_parts_from_str("\n".join(lines)),
                 command_output=model.CommandOutput(command_name=self.name),
             ),
         )

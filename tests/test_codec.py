@@ -8,7 +8,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 if TYPE_CHECKING:
-    from klaude_code.protocol import model
+    from klaude_code.protocol import message, model
 
 
 # ============================================================================
@@ -17,9 +17,9 @@ if TYPE_CHECKING:
 
 
 @st.composite
-def user_message_items(draw: st.DrawFn) -> "model.UserMessage":
+def user_message_items(draw: st.DrawFn) -> "message.UserMessage":
     """Generate UserMessage instances."""
-    from klaude_code.protocol.model import UserMessage, text_parts_from_str
+    from klaude_code.protocol.message import UserMessage, text_parts_from_str
 
     text = draw(st.none() | st.text(min_size=0, max_size=100))
     return UserMessage(
@@ -30,9 +30,9 @@ def user_message_items(draw: st.DrawFn) -> "model.UserMessage":
 
 
 @st.composite
-def assistant_message_items(draw: st.DrawFn) -> "model.AssistantMessage":
+def assistant_message_items(draw: st.DrawFn) -> "message.AssistantMessage":
     """Generate AssistantMessage instances."""
-    from klaude_code.protocol.model import AssistantMessage, text_parts_from_str
+    from klaude_code.protocol.message import AssistantMessage, text_parts_from_str
 
     text = draw(st.none() | st.text(min_size=0, max_size=100))
     return AssistantMessage(
@@ -44,9 +44,9 @@ def assistant_message_items(draw: st.DrawFn) -> "model.AssistantMessage":
 
 
 @st.composite
-def tool_result_messages(draw: st.DrawFn) -> "model.ToolResultMessage":
+def tool_result_messages(draw: st.DrawFn) -> "message.ToolResultMessage":
     """Generate ToolResultMessage instances."""
-    from klaude_code.protocol.model import ToolResultMessage
+    from klaude_code.protocol.message import ToolResultMessage
 
     return ToolResultMessage(
         call_id=draw(st.text(min_size=1, max_size=20)),
@@ -57,9 +57,9 @@ def tool_result_messages(draw: st.DrawFn) -> "model.ToolResultMessage":
     )
 
 
-def stream_error_items() -> st.SearchStrategy["model.StreamErrorItem"]:
+def stream_error_items() -> st.SearchStrategy["message.StreamErrorItem"]:
     """Generate StreamErrorItem instances."""
-    from klaude_code.protocol.model import StreamErrorItem
+    from klaude_code.protocol.message import StreamErrorItem
 
     return st.builds(StreamErrorItem, error=st.text(min_size=1, max_size=100), created_at=st.just(datetime.now()))
 
@@ -87,7 +87,7 @@ history_items = st.one_of(
 
 @given(item=history_items)
 @settings(max_examples=100, deadline=None)
-def test_codec_encode_decode_roundtrip(item: "model.HistoryEvent") -> None:
+def test_codec_encode_decode_roundtrip(item: "message.HistoryEvent") -> None:
     """Property: decode(encode(item)) == item (for content fields)."""
     from klaude_code.session.codec import decode_conversation_item, encode_conversation_item
 
@@ -102,7 +102,7 @@ def test_codec_encode_decode_roundtrip(item: "model.HistoryEvent") -> None:
 
 @given(item=history_items)
 @settings(max_examples=100, deadline=None)
-def test_codec_jsonl_roundtrip(item: "model.HistoryEvent") -> None:
+def test_codec_jsonl_roundtrip(item: "message.HistoryEvent") -> None:
     """Property: jsonl decode(encode(item)) == item."""
     from klaude_code.session.codec import decode_jsonl_line, encode_jsonl_line
 

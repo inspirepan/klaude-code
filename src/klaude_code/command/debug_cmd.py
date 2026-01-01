@@ -1,5 +1,5 @@
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
-from klaude_code.protocol import commands, events, model
+from klaude_code.protocol import commands, events, message, model
 from klaude_code.trace import DebugType, get_current_log_file, is_debug_enabled, set_debug_logging
 
 
@@ -45,7 +45,7 @@ class DebugCommand(CommandABC):
     def placeholder(self) -> str:
         return "filter types"
 
-    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         raw = user_input.text.strip()
 
         # /debug (no args) - enable debug
@@ -70,8 +70,8 @@ class DebugCommand(CommandABC):
             events=[
                 events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=model.DeveloperMessage(
-                        parts=model.text_parts_from_str(content),
+                    item=message.DeveloperMessage(
+                        parts=message.text_parts_from_str(content),
                         command_output=model.CommandOutput(command_name=self.name),
                     ),
                 )

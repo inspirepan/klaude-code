@@ -11,7 +11,7 @@ from typing import Any
 from google.genai import types
 
 from klaude_code.llm.input_common import DeveloperAttachment, attach_developer_messages, merge_reminder_text
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message
 
 
 def _data_url_to_blob(url: str) -> types.Blob:
@@ -37,7 +37,7 @@ def _data_url_to_blob(url: str) -> types.Blob:
     return types.Blob(data=decoded, mime_type=media_type)
 
 
-def _image_part_to_part(image: model.ImageURLPart) -> types.Part:
+def _image_part_to_part(image: message.ImageURLPart) -> types.Part:
     url = image.url
     if url.startswith("data:"):
         return types.Part(inline_data=_data_url_to_blob(url))
@@ -45,12 +45,12 @@ def _image_part_to_part(image: model.ImageURLPart) -> types.Part:
     return types.Part(file_data=types.FileData(file_uri=url))
 
 
-def _user_message_to_content(message: model.UserMessage, attachment: DeveloperAttachment) -> types.Content:
+def _user_message_to_content(msg: message.UserMessage, attachment: DeveloperAttachment) -> types.Content:
     parts: list[types.Part] = []
-    for part in message.parts:
-        if isinstance(part, model.TextPart):
+    for part in msg.parts:
+        if isinstance(part, message.TextPart):
             parts.append(types.Part(text=part.text))
-        elif isinstance(part, model.ImageURLPart):
+        elif isinstance(part, message.ImageURLPart):
             parts.append(_image_part_to_part(part))
     if attachment.text:
         parts.append(types.Part(text=attachment.text))
@@ -62,21 +62,21 @@ def _user_message_to_content(message: model.UserMessage, attachment: DeveloperAt
 
 
 def _tool_messages_to_contents(
-    messages: list[tuple[model.ToolResultMessage, DeveloperAttachment]], model_name: str | None
+    msgs: list[tuple[message.ToolResultMessage, DeveloperAttachment]], model_name: str | None
 ) -> list[types.Content]:
     supports_multimodal_function_response = bool(model_name and "gemini-3" in model_name.lower())
 
     response_parts: list[types.Part] = []
     extra_image_contents: list[types.Content] = []
 
-    for message, attachment in messages:
+    for msg, attachment in msgs:
         merged_text = merge_reminder_text(
-            message.output_text or "<system-reminder>Tool ran without output or errors</system-reminder>",
+            msg.output_text or "<system-reminder>Tool ran without output or errors</system-reminder>",
             attachment.text,
         )
         has_text = merged_text.strip() != ""
 
-        images = [part for part in message.parts if isinstance(part, model.ImageURLPart)] + attachment.images
+        images = [part for part in msg.parts if isinstance(part, message.ImageURLPart)] + attachment.images
         image_parts: list[types.Part] = []
         for image in images:
             try:
@@ -86,11 +86,11 @@ def _tool_messages_to_contents(
 
         has_images = len(image_parts) > 0
         response_value = merged_text if has_text else "(see attached image)" if has_images else ""
-        response_payload = {"error": response_value} if message.status != "success" else {"output": response_value}
+        response_payload = {"error": response_value} if msg.status != "success" else {"output": response_value}
 
         function_response = types.FunctionResponse(
-            id=message.call_id,
-            name=message.tool_name,
+            id=msg.call_id,
+            name=msg.tool_name,
             response=response_payload,
             parts=image_parts if (has_images and supports_multimodal_function_response) else None,
         )
@@ -108,7 +108,7 @@ def _tool_messages_to_contents(
     return contents
 
 
-def _assistant_message_to_content(message: model.AssistantMessage, model_name: str | None) -> types.Content | None:
+def _assistant_message_to_content(msg: message.AssistantMessage, model_name: str | None) -> types.Content | None:
     parts: list[types.Part] = []
 
     degraded_thinking_texts: list[str] = []
@@ -129,14 +129,14 @@ def _assistant_message_to_content(message: model.AssistantMessage, model_name: s
         pending_thought_text = None
         pending_thought_signature = None
 
-    for part in message.parts:
-        if isinstance(part, model.ThinkingTextPart):
+    for part in msg.parts:
+        if isinstance(part, message.ThinkingTextPart):
             if part.model_id and model_name and part.model_id != model_name:
                 degraded_thinking_texts.append(part.text)
                 continue
             pending_thought_text = part.text
             continue
-        if isinstance(part, model.ThinkingSignaturePart):
+        if isinstance(part, message.ThinkingSignaturePart):
             if part.model_id and model_name and part.model_id != model_name:
                 continue
             if part.signature and (part.format or "").startswith("google"):
@@ -144,9 +144,9 @@ def _assistant_message_to_content(message: model.AssistantMessage, model_name: s
             continue
 
         flush_thought()
-        if isinstance(part, model.TextPart):
+        if isinstance(part, message.TextPart):
             parts.append(types.Part(text=part.text))
-        elif isinstance(part, model.ToolCallPart):
+        elif isinstance(part, message.ToolCallPart):
             args: dict[str, Any]
             if part.arguments_json:
                 try:
@@ -168,11 +168,11 @@ def _assistant_message_to_content(message: model.AssistantMessage, model_name: s
 
 
 def convert_history_to_contents(
-    history: list[model.Message],
+    history: list[message.Message],
     model_name: str | None,
 ) -> list[types.Content]:
     contents: list[types.Content] = []
-    pending_tool_messages: list[tuple[model.ToolResultMessage, DeveloperAttachment]] = []
+    pending_tool_messages: list[tuple[message.ToolResultMessage, DeveloperAttachment]] = []
 
     def flush_tool_messages() -> None:
         nonlocal pending_tool_messages
@@ -180,19 +180,19 @@ def convert_history_to_contents(
             contents.extend(_tool_messages_to_contents(pending_tool_messages, model_name=model_name))
             pending_tool_messages = []
 
-    for message, attachment in attach_developer_messages(history):
-        match message:
-            case model.ToolResultMessage():
-                pending_tool_messages.append((message, attachment))
-            case model.UserMessage():
+    for msg, attachment in attach_developer_messages(history):
+        match msg:
+            case message.ToolResultMessage():
+                pending_tool_messages.append((msg, attachment))
+            case message.UserMessage():
                 flush_tool_messages()
-                contents.append(_user_message_to_content(message, attachment))
-            case model.AssistantMessage():
+                contents.append(_user_message_to_content(msg, attachment))
+            case message.AssistantMessage():
                 flush_tool_messages()
-                content = _assistant_message_to_content(message, model_name=model_name)
+                content = _assistant_message_to_content(msg, model_name=model_name)
                 if content is not None:
                     contents.append(content)
-            case model.SystemMessage():
+            case message.SystemMessage():
                 continue
             case _:
                 continue

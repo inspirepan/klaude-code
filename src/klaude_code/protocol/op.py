@@ -14,7 +14,7 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 from klaude_code.protocol.llm_param import Thinking
-from klaude_code.protocol.model import UserInputPayload
+from klaude_code.protocol.message import UserInputPayload
 
 if TYPE_CHECKING:
     from klaude_code.protocol.op_handler import OperationHandler

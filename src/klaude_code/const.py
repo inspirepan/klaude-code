@@ -101,7 +101,7 @@ TOOL_OUTPUT_TRUNCATION_DIR = "/tmp/klaude"
 DIFF_PREFIX_WIDTH = 4
 
 # Maximum lines to show in diff output
-MAX_DIFF_LINES = 1000
+MAX_DIFF_LINES = 500
 
 # Maximum length for invalid tool call display
 INVALID_TOOL_CALL_MAX_LENGTH = 500
@@ -110,10 +110,10 @@ INVALID_TOOL_CALL_MAX_LENGTH = 500
 TRUNCATE_DISPLAY_MAX_LINE_LENGTH = 1000
 
 # Maximum lines for truncated display output
-TRUNCATE_DISPLAY_MAX_LINES = 8
+TRUNCATE_DISPLAY_MAX_LINES = 6
 
 # Maximum lines for sub-agent result display
-SUB_AGENT_RESULT_MAX_LINES = 50
+SUB_AGENT_RESULT_MAX_LINES = 20
 
 
 # UI refresh rate (frames per second) for debounced content streaming

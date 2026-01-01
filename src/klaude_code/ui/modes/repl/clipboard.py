@@ -19,7 +19,7 @@ from pathlib import Path
 
 from PIL import Image, ImageGrab
 
-from klaude_code.protocol.model import ImageURLPart
+from klaude_code.protocol.message import ImageURLPart
 
 # Directory for storing clipboard images
 CLIPBOARD_IMAGES_DIR = Path.home() / ".klaude" / "clipboard" / "images"

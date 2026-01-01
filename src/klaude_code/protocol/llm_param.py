@@ -4,7 +4,7 @@ from typing import Any, Literal
 from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaValue
 
-from klaude_code.protocol.model import Message
+from klaude_code.protocol.message import Message
 
 
 class LLMClientProtocol(Enum):

@@ -18,7 +18,7 @@ from klaude_code.llm.registry import register
 from klaude_code.llm.responses.client import parse_responses_stream
 from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
 from klaude_code.llm.usage import MetadataTracker
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message
 from klaude_code.trace import DebugType, log_debug
 
 
@@ -114,7 +114,7 @@ class CodexClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.LLMStreamItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[message.LLMStreamItem]:
         # Ensure token is valid before API call
         self._ensure_valid_token()
 
@@ -142,7 +142,7 @@ class CodexClient(LLMClientABC):
                 extra_headers=extra_headers,
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
-            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+            yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
             return
 
         async for item in parse_responses_stream(stream, param, metadata_tracker):

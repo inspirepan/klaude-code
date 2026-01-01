@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
 from pydantic import BaseModel, Field
 
-from klaude_code.protocol import model
+from klaude_code.protocol import message
 from klaude_code.trace.log import log_debug
 
 
@@ -28,7 +28,7 @@ class ToolCallAccumulatorABC(ABC):
         pass
 
     @abstractmethod
-    def get(self) -> list[model.ToolCallPart]:
+    def get(self) -> list[message.ToolCallPart]:
         pass
 
 
@@ -69,8 +69,8 @@ class BasicToolCallAccumulator(ToolCallAccumulatorABC, BaseModel):
     def add(self, chunks: list[ChoiceDeltaToolCall]) -> None:
         self.chunks_by_step.append(chunks)
 
-    def get(self) -> list[model.ToolCallPart]:
-        result: list[model.ToolCallPart] = []
+    def get(self) -> list[message.ToolCallPart]:
+        result: list[message.ToolCallPart] = []
         current_index = -1
         for current_step in self.chunks_by_step:
             if len(current_step) == 0:
@@ -79,7 +79,7 @@ class BasicToolCallAccumulator(ToolCallAccumulatorABC, BaseModel):
             if first_chunk.index != current_index:
                 current_index = first_chunk.index
                 result.append(
-                    model.ToolCallPart(
+                    message.ToolCallPart(
                         call_id=first_chunk.id or "",
                         tool_name="",
                         arguments_json="",

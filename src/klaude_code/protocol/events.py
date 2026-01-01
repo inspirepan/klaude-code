@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message, model
 
 """
 Event is how Agent Executor and UI Display communicate.
@@ -79,7 +79,7 @@ class DeveloperMessageEvent(BaseModel):
     """DeveloperMessages are reminders in user messages or tool results, see: core/reminders.py"""
 
     session_id: str
-    item: model.DeveloperMessage
+    item: message.DeveloperMessage
 
 
 class ToolCallEvent(BaseModel):
@@ -118,7 +118,7 @@ class TaskMetadataEvent(BaseModel):
 class UserMessageEvent(BaseModel):
     session_id: str
     content: str
-    images: list[model.ImageURLPart] | None = None
+    images: list[message.ImageURLPart] | None = None
 
 
 class WelcomeEvent(BaseModel):

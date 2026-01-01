@@ -27,7 +27,7 @@ from klaude_code.core.tool import (  # noqa: E402
     reset_tool_context,
     set_tool_context_from_session,
 )
-from klaude_code.protocol import model  # noqa: E402
+from klaude_code.protocol import message  # noqa: E402
 from klaude_code.session.session import Session  # noqa: E402
 
 _TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
@@ -160,7 +160,7 @@ class TestReminders(BaseTempDirTest):
             image_file.write(base64.b64decode(_TINY_PNG_BASE64))
 
         self.session.conversation_history.append(
-            model.UserMessage(parts=model.text_parts_from_str(f"Please review @{file_path}"))
+            message.UserMessage(parts=message.text_parts_from_str(f"Please review @{file_path}"))
         )
 
         reminder = arun(at_file_reader_reminder(self.session))
@@ -168,7 +168,7 @@ class TestReminders(BaseTempDirTest):
         assert reminder is not None
 
         # Images are now in parts
-        image_parts = [p for p in reminder.parts if isinstance(p, model.ImageURLPart)]
+        image_parts = [p for p in reminder.parts if isinstance(p, message.ImageURLPart)]
         self.assertTrue(len(image_parts) > 0)
         self.assertTrue(image_parts[0].url.startswith("data:image/png;base64,"))
 
@@ -186,7 +186,7 @@ class TestReminders(BaseTempDirTest):
 
         # Use quoted @-pattern so that spaces are preserved
         self.session.conversation_history.append(
-            model.UserMessage(parts=model.text_parts_from_str(f'Please review @"{file_path}"'))
+            message.UserMessage(parts=message.text_parts_from_str(f'Please review @"{file_path}"'))
         )
 
         reminder = arun(at_file_reader_reminder(self.session))
@@ -207,7 +207,7 @@ class TestReminders(BaseTempDirTest):
 
         # Reference the file using @ with the same casing
         self.session.conversation_history.append(
-            model.UserMessage(parts=model.text_parts_from_str(f"Please review @{file_path}"))
+            message.UserMessage(parts=message.text_parts_from_str(f"Please review @{file_path}"))
         )
 
         reminder = arun(at_file_reader_reminder(self.session))
@@ -228,7 +228,7 @@ class TestReminders(BaseTempDirTest):
 
         _ = arun(ReadTool.call(json.dumps({"file_path": file_path})))
 
-        self.session.conversation_history.append(model.UserMessage(parts=model.text_parts_from_str(f"@{file_path}")))
+        self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{file_path}")))
 
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNone(reminder)
@@ -247,7 +247,7 @@ class TestReminders(BaseTempDirTest):
         new_mtime_ns = orig_mtime_ns + 2_000_000_000
         os.utime(file_path, ns=(new_mtime_ns, new_mtime_ns))
 
-        self.session.conversation_history.append(model.UserMessage(parts=model.text_parts_from_str(f"@{file_path}")))
+        self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{file_path}")))
 
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNone(reminder)
@@ -258,7 +258,7 @@ class TestReminders(BaseTempDirTest):
             f.write("should not be read\n")
 
         self.session.conversation_history.append(
-            model.UserMessage(parts=model.text_parts_from_str("Contact me via foo@bar.com for details."))
+            message.UserMessage(parts=message.text_parts_from_str("Contact me via foo@bar.com for details."))
         )
 
         reminder = arun(at_file_reader_reminder(self.session))
@@ -278,7 +278,7 @@ class TestReminders(BaseTempDirTest):
         with open(main_path, "w", encoding="utf-8") as f:
             f.write(f"main content\n@{sub_path}\n")
 
-        self.session.conversation_history.append(model.UserMessage(parts=model.text_parts_from_str(f"@{main_path}")))
+        self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{main_path}")))
 
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNotNone(reminder)
@@ -306,7 +306,7 @@ class TestReminders(BaseTempDirTest):
         with open(b_path, "w", encoding="utf-8") as f:
             f.write(f"file b\n@{a_path}\n")
 
-        self.session.conversation_history.append(model.UserMessage(parts=model.text_parts_from_str(f"@{a_path}")))
+        self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{a_path}")))
 
         # Should not hang or error due to cycle
         reminder = arun(at_file_reader_reminder(self.session))
@@ -330,7 +330,7 @@ class TestReminders(BaseTempDirTest):
         with open(child_path, "w", encoding="utf-8") as f:
             f.write("child content\n@../sibling.txt\n")
 
-        self.session.conversation_history.append(model.UserMessage(parts=model.text_parts_from_str(f"@{child_path}")))
+        self.session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str(f"@{child_path}")))
 
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNotNone(reminder)

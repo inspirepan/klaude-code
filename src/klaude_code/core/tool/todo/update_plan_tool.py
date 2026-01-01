@@ -9,7 +9,7 @@ from pydantic import BaseModel, field_validator
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_todo_context
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_param, model, tools
+from klaude_code.protocol import llm_param, message, model, tools
 
 from .todo_write_tool import get_new_completed_todos
 
@@ -79,15 +79,15 @@ class UpdatePlanTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
         try:
             args = UpdatePlanArguments.model_validate_json(arguments)
         except ValueError as exc:
-            return model.ToolResultMessage(status="error", output_text=f"Invalid arguments: {exc}")
+            return message.ToolResultMessage(status="error", output_text=f"Invalid arguments: {exc}")
 
         todo_context = get_current_todo_context()
         if todo_context is None:
-            return model.ToolResultMessage(status="error", output_text="No active session found")
+            return message.ToolResultMessage(status="error", output_text="No active session found")
 
         new_todos = [model.TodoItem(content=item.step, status=item.status) for item in args.plan]
         old_todos = todo_context.get_todos()
@@ -96,7 +96,7 @@ class UpdatePlanTool(ToolABC):
 
         ui_extra = model.TodoUIExtra(todos=new_todos, new_completed=new_completed)
 
-        return model.ToolResultMessage(
+        return message.ToolResultMessage(
             status="success",
             output_text="Plan updated",
             ui_extra=model.TodoListUIExtra(todo_list=ui_extra),

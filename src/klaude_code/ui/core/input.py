@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 
-from klaude_code.protocol.model import UserInputPayload
+from klaude_code.protocol.message import UserInputPayload
 
 
 class InputProviderABC(ABC):

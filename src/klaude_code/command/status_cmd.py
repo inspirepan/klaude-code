@@ -1,5 +1,5 @@
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
-from klaude_code.protocol import commands, events, model
+from klaude_code.protocol import commands, events, message, model
 from klaude_code.session.session import Session
 
 
@@ -132,15 +132,15 @@ class StatusCommand(CommandABC):
     def summary(self) -> str:
         return "Show session usage statistics"
 
-    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input  # unused
         session = agent.session
         aggregated = accumulate_session_usage(session)
 
         event = events.DeveloperMessageEvent(
             session_id=session.id,
-            item=model.DeveloperMessage(
-                parts=model.text_parts_from_str(format_status_content(aggregated)),
+            item=message.DeveloperMessage(
+                parts=message.text_parts_from_str(format_status_content(aggregated)),
                 command_output=model.CommandOutput(
                     command_name=self.name,
                     ui_extra=model.SessionStatusUIExtra(

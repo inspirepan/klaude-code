@@ -6,7 +6,7 @@ from typing import Literal
 from prompt_toolkit.styles import Style
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
-from klaude_code.protocol import commands, events, model
+from klaude_code.protocol import commands, events, message, model
 from klaude_code.ui.modes.repl.clipboard import copy_to_clipboard
 from klaude_code.ui.terminal.selector import SelectItem, select_one
 
@@ -44,7 +44,7 @@ def _truncate(text: str, max_len: int = 60) -> str:
     return text[: max_len - 3] + "..."
 
 
-def _build_fork_points(conversation_history: list[model.HistoryEvent]) -> list[ForkPoint]:
+def _build_fork_points(conversation_history: list[message.HistoryEvent]) -> list[ForkPoint]:
     """Build list of fork points from conversation history.
 
     Fork points are:
@@ -55,13 +55,13 @@ def _build_fork_points(conversation_history: list[model.HistoryEvent]) -> list[F
     user_indices: list[int] = []
 
     for i, item in enumerate(conversation_history):
-        if isinstance(item, model.UserMessage):
+        if isinstance(item, message.UserMessage):
             user_indices.append(i)
 
     # For each UserMessage, create a fork point at that position
     for i, user_idx in enumerate(user_indices):
         user_item = conversation_history[user_idx]
-        assert isinstance(user_item, model.UserMessage)
+        assert isinstance(user_item, message.UserMessage)
 
         # Find the end of this "task" (next UserMessage or end of history)
         next_user_idx = user_indices[i + 1] if i + 1 < len(user_indices) else len(conversation_history)
@@ -71,15 +71,15 @@ def _build_fork_points(conversation_history: list[model.HistoryEvent]) -> list[F
         last_assistant_content = ""
         for j in range(user_idx, next_user_idx):
             item = conversation_history[j]
-            if isinstance(item, model.AssistantMessage):
+            if isinstance(item, message.AssistantMessage):
                 for part in item.parts:
-                    if isinstance(part, model.ToolCallPart):
+                    if isinstance(part, message.ToolCallPart):
                         tool_stats[part.tool_name] = tool_stats.get(part.tool_name, 0) + 1
-                text = model.join_text_parts(item.parts)
+                text = message.join_text_parts(item.parts)
                 if text:
                     last_assistant_content = text
 
-        user_text = model.join_text_parts(user_item.parts)
+        user_text = message.join_text_parts(user_item.parts)
         fork_points.append(
             ForkPoint(
                 history_index=user_idx,
@@ -199,14 +199,14 @@ class ForkSessionCommand(CommandABC):
     def is_interactive(self) -> bool:
         return True
 
-    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input  # unused
 
         if agent.session.messages_count == 0:
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=model.DeveloperMessage(
-                    parts=model.text_parts_from_str("(no messages to fork)"),
+                item=message.DeveloperMessage(
+                    parts=message.text_parts_from_str("(no messages to fork)"),
                     command_output=model.CommandOutput(command_name=self.name),
                 ),
             )
@@ -225,8 +225,8 @@ class ForkSessionCommand(CommandABC):
 
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=model.DeveloperMessage(
-                    parts=model.text_parts_from_str(f"Session forked successfully. New session id: {new_session.id}"),
+                item=message.DeveloperMessage(
+                    parts=message.text_parts_from_str(f"Session forked successfully. New session id: {new_session.id}"),
                     command_output=model.CommandOutput(
                         command_name=self.name,
                         ui_extra=model.SessionIdUIExtra(session_id=new_session.id),
@@ -241,8 +241,8 @@ class ForkSessionCommand(CommandABC):
         if selected == "cancelled":
             event = events.DeveloperMessageEvent(
                 session_id=agent.session.id,
-                item=model.DeveloperMessage(
-                    parts=model.text_parts_from_str("(fork cancelled)"),
+                item=message.DeveloperMessage(
+                    parts=message.text_parts_from_str("(fork cancelled)"),
                     command_output=model.CommandOutput(command_name=self.name),
                 ),
             )
@@ -260,8 +260,8 @@ class ForkSessionCommand(CommandABC):
 
         event = events.DeveloperMessageEvent(
             session_id=agent.session.id,
-            item=model.DeveloperMessage(
-                parts=model.text_parts_from_str(
+            item=message.DeveloperMessage(
+                parts=message.text_parts_from_str(
                     f"Session forked ({fork_description}). New session id: {new_session.id}"
                 ),
                 command_output=model.CommandOutput(

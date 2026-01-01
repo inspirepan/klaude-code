@@ -11,7 +11,7 @@ from typing import NoReturn
 import pytest
 from typer.testing import CliRunner
 
-from klaude_code.protocol import events, llm_param, model
+from klaude_code.protocol import events, llm_param, message, model
 from klaude_code.protocol.llm_param import ToolSchema
 from klaude_code.session import export
 from klaude_code.session.session import Session, close_default_store
@@ -161,9 +161,9 @@ class TestGetFirstUserMessage:
     """Tests for get_first_user_message function."""
 
     def test_finds_first_user_message(self):
-        history: list[model.HistoryEvent] = [
-            model.AssistantMessage(parts=model.text_parts_from_str("Hello")),
-            model.UserMessage(parts=model.text_parts_from_str("User message here")),
+        history: list[message.HistoryEvent] = [
+            message.AssistantMessage(parts=message.text_parts_from_str("Hello")),
+            message.UserMessage(parts=message.text_parts_from_str("User message here")),
         ]
         result = export.get_first_user_message(history)
         assert result == "User message here"
@@ -173,30 +173,30 @@ class TestGetFirstUserMessage:
         assert result == "export"
 
     def test_no_user_message_returns_export(self):
-        history: list[model.HistoryEvent] = [
-            model.AssistantMessage(parts=model.text_parts_from_str("Hello")),
+        history: list[message.HistoryEvent] = [
+            message.AssistantMessage(parts=message.text_parts_from_str("Hello")),
         ]
         result = export.get_first_user_message(history)
         assert result == "export"
 
     def test_truncates_long_first_line(self):
         long_message = "x" * 150
-        history: list[model.HistoryEvent] = [
-            model.UserMessage(parts=model.text_parts_from_str(long_message)),
+        history: list[message.HistoryEvent] = [
+            message.UserMessage(parts=message.text_parts_from_str(long_message)),
         ]
         result = export.get_first_user_message(history)
         assert len(result) == 100
 
     def test_returns_only_first_line(self):
-        history: list[model.HistoryEvent] = [
-            model.UserMessage(parts=model.text_parts_from_str("First line\nSecond line\nThird line")),
+        history: list[message.HistoryEvent] = [
+            message.UserMessage(parts=message.text_parts_from_str("First line\nSecond line\nThird line")),
         ]
         result = export.get_first_user_message(history)
         assert result == "First line"
 
     def test_strips_whitespace(self):
-        history: list[model.HistoryEvent] = [
-            model.UserMessage(parts=model.text_parts_from_str("  Hello world  ")),
+        history: list[message.HistoryEvent] = [
+            message.UserMessage(parts=message.text_parts_from_str("  Hello world  ")),
         ]
         result = export.get_first_user_message(history)
         assert result == "Hello world"
@@ -457,16 +457,16 @@ class TestSession:
 
     def test_messages_count_with_history(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)
-        history: list[model.HistoryEvent] = [
-            model.UserMessage(parts=model.text_parts_from_str("Hello")),
-            model.AssistantMessage(parts=model.text_parts_from_str("Hi")),
-            model.ToolResultMessage(
+        history: list[message.HistoryEvent] = [
+            message.UserMessage(parts=message.text_parts_from_str("Hello")),
+            message.AssistantMessage(parts=message.text_parts_from_str("Hi")),
+            message.ToolResultMessage(
                 call_id="1",
                 tool_name="test",
                 status="success",
                 output_text="done",
             ),
-            model.UserMessage(parts=model.text_parts_from_str("Bye")),
+            message.UserMessage(parts=message.text_parts_from_str("Bye")),
         ]
         session.conversation_history = history
         # Counts user, assistant, and tool result messages
@@ -474,9 +474,9 @@ class TestSession:
 
     def test_messages_count_cached(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)
-        history: list[model.HistoryEvent] = [
-            model.UserMessage(parts=model.text_parts_from_str("Hello")),
-            model.AssistantMessage(parts=model.text_parts_from_str("Hi")),
+        history: list[message.HistoryEvent] = [
+            message.UserMessage(parts=message.text_parts_from_str("Hello")),
+            message.AssistantMessage(parts=message.text_parts_from_str("Hi")),
         ]
         session.conversation_history = history
         # First access calculates and caches
@@ -488,14 +488,14 @@ class TestSession:
 
     def test_invalidate_messages_count_cache(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)
-        history: list[model.HistoryEvent] = [
-            model.UserMessage(parts=model.text_parts_from_str("Hello")),
+        history: list[message.HistoryEvent] = [
+            message.UserMessage(parts=message.text_parts_from_str("Hello")),
         ]
         session.conversation_history = history
         assert session.messages_count == 1
         session._invalidate_messages_count_cache()
         # Add more messages manually
-        session.conversation_history.append(model.UserMessage(parts=model.text_parts_from_str("World")))
+        session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("World")))
         assert session.messages_count == 2
 
 
@@ -531,31 +531,31 @@ class TestSessionNeedTurnStart:
 
     def test_turn_start_for_assistant_after_user(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)
-        prev = model.UserMessage(parts=model.text_parts_from_str("Hi"))
-        item = model.AssistantMessage(parts=model.text_parts_from_str("Hello"))
+        prev = message.UserMessage(parts=message.text_parts_from_str("Hi"))
+        item = message.AssistantMessage(parts=message.text_parts_from_str("Hello"))
         assert session.need_turn_start(prev, item) is True
 
     def test_turn_start_for_assistant_after_tool_result(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)
-        prev = model.ToolResultMessage(call_id="1", tool_name="Read", status="success", output_text="done")
-        item = model.AssistantMessage(parts=model.text_parts_from_str("Thinking..."))
+        prev = message.ToolResultMessage(call_id="1", tool_name="Read", status="success", output_text="done")
+        item = message.AssistantMessage(parts=message.text_parts_from_str("Thinking..."))
         assert session.need_turn_start(prev, item) is True
 
     def test_no_turn_start_for_user_message(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)
-        prev = model.AssistantMessage(parts=model.text_parts_from_str("Hello"))
-        item = model.UserMessage(parts=model.text_parts_from_str("Hi"))
+        prev = message.AssistantMessage(parts=message.text_parts_from_str("Hello"))
+        item = message.UserMessage(parts=message.text_parts_from_str("Hi"))
         assert session.need_turn_start(prev, item) is False
 
     def test_turn_start_when_prev_none(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)
-        item = model.AssistantMessage(parts=model.text_parts_from_str("Hello"))
+        item = message.AssistantMessage(parts=message.text_parts_from_str("Hello"))
         assert session.need_turn_start(None, item) is True
 
     def test_no_turn_start_for_consecutive_assistant(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)
-        prev = model.AssistantMessage(parts=model.text_parts_from_str("Hello"))
-        item = model.AssistantMessage(parts=model.text_parts_from_str("Follow-up"))
+        prev = message.AssistantMessage(parts=message.text_parts_from_str("Hello"))
+        item = message.AssistantMessage(parts=message.text_parts_from_str("Follow-up"))
         assert session.need_turn_start(prev, item) is False
 
 
@@ -577,7 +577,7 @@ class TestSessionPersistence:
             )
             session.todos = [model.TodoItem(content="Task 1", status="pending")]
             session.file_tracker = {"/path/to/file": model.FileStatus(mtime=1234567890.0)}
-            session.append_history([model.UserMessage(parts=model.text_parts_from_str("persist"))])
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("persist"))])
             await session.wait_for_flush()
 
             loaded = Session.load(session.id)
@@ -603,8 +603,8 @@ class TestSessionPersistence:
             session = Session(work_dir=project_dir, model_name="test-model", model_config_name="test-config-model")
             session.append_history(
                 [
-                    model.UserMessage(parts=model.text_parts_from_str("Hello")),
-                    model.AssistantMessage(parts=model.text_parts_from_str("Hi")),
+                    message.UserMessage(parts=message.text_parts_from_str("Hello")),
+                    message.AssistantMessage(parts=message.text_parts_from_str("Hi")),
                 ]
             )
             await session.wait_for_flush()
@@ -636,8 +636,8 @@ class TestSessionPersistence:
         async def _test() -> None:
             session = Session(work_dir=project_dir)
             items = [
-                model.UserMessage(parts=model.text_parts_from_str("Hello")),
-                model.AssistantMessage(parts=model.text_parts_from_str("Hi there")),
+                message.UserMessage(parts=message.text_parts_from_str("Hello")),
+                message.AssistantMessage(parts=message.text_parts_from_str("Hi there")),
             ]
             session.append_history(items)
             await session.wait_for_flush()
@@ -663,9 +663,9 @@ class TestSessionPersistence:
             sub_session = Session.create(id="sub-session")
             sub_session.append_history(
                 [
-                    model.AssistantMessage(
+                    message.AssistantMessage(
                         parts=[
-                            model.ToolCallPart(
+                            message.ToolCallPart(
                                 call_id="sub-call",
                                 tool_name="Bash",
                                 arguments_json="{}",
@@ -679,16 +679,16 @@ class TestSessionPersistence:
             main_session = Session.create(id="main-session")
             main_session.append_history(
                 [
-                    model.AssistantMessage(
+                    message.AssistantMessage(
                         parts=[
-                            model.ToolCallPart(
+                            message.ToolCallPart(
                                 call_id="parent-call",
                                 tool_name="Task",
                                 arguments_json="{}",
                             )
                         ]
                     ),
-                    model.ToolResultMessage(
+                    message.ToolResultMessage(
                         call_id="parent-call",
                         tool_name="Task",
                         output_text="Delegated to sub-agent",
@@ -747,7 +747,7 @@ class TestSessionListAndClean:
 
         async def _test() -> None:
             session = Session(work_dir=project_dir, model_name="gpt-4")
-            session.append_history([model.UserMessage(parts=model.text_parts_from_str("Test message"))])
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("Test message"))])
             await session.wait_for_flush()
 
             sessions = Session.list_sessions()
@@ -778,9 +778,9 @@ class TestSessionListAndClean:
         events_path.write_text(
             "".join(
                 [
-                    encode_jsonl_line(model.UserMessage(parts=model.text_parts_from_str("m1"))),
-                    encode_jsonl_line(model.AssistantMessage(parts=model.text_parts_from_str("a1"))),
-                    encode_jsonl_line(model.UserMessage(parts=model.text_parts_from_str("m2"))),
+                    encode_jsonl_line(message.UserMessage(parts=message.text_parts_from_str("m1"))),
+                    encode_jsonl_line(message.AssistantMessage(parts=message.text_parts_from_str("a1"))),
+                    encode_jsonl_line(message.UserMessage(parts=message.text_parts_from_str("m2"))),
                 ]
             ),
             encoding="utf-8",
@@ -824,12 +824,12 @@ class TestForkSessionCommand:
             session = Session(work_dir=project_dir)
             cmd = ForkSessionCommand()
             agent = _ForkSessionDummyAgent(session)
-            result = await cmd.run(agent, model.UserInputPayload(text=""))
+            result = await cmd.run(agent, message.UserInputPayload(text=""))
 
             assert result.events is not None
             assert len(result.events) == 1
             assert isinstance(result.events[0], events.DeveloperMessageEvent)
-            assert model.join_text_parts(result.events[0].item.parts) == "(no messages to fork)"
+            assert message.join_text_parts(result.events[0].item.parts) == "(no messages to fork)"
             assert Session.list_sessions() == []
             await close_default_store()
 
@@ -851,20 +851,20 @@ class TestForkSessionCommand:
             session.todos.append(model.TodoItem(content="t1", status="pending"))
             session.append_history(
                 [
-                    model.UserMessage(parts=model.text_parts_from_str("Hello")),
-                    model.AssistantMessage(parts=model.text_parts_from_str("Hi")),
+                    message.UserMessage(parts=message.text_parts_from_str("Hello")),
+                    message.AssistantMessage(parts=message.text_parts_from_str("Hi")),
                 ]
             )
             await session.wait_for_flush()
 
             cmd = ForkSessionCommand()
             agent = _ForkSessionDummyAgent(session)
-            result = await cmd.run(agent, model.UserInputPayload(text=""))
+            result = await cmd.run(agent, message.UserInputPayload(text=""))
 
             assert result.events is not None
             assert len(result.events) == 1
             assert isinstance(result.events[0], events.DeveloperMessageEvent)
-            content = model.join_text_parts(result.events[0].item.parts)
+            content = message.join_text_parts(result.events[0].item.parts)
             assert "Session forked" in content
 
             command_output = result.events[0].item.command_output
@@ -883,10 +883,10 @@ class TestForkSessionCommand:
             assert forked.file_tracker.keys() == session.file_tracker.keys()
             assert len(forked.todos) == len(session.todos)
             assert len(forked.conversation_history) == len(session.conversation_history)
-            assert isinstance(forked.conversation_history[0], model.UserMessage)
-            assert isinstance(forked.conversation_history[1], model.AssistantMessage)
-            assert model.join_text_parts(forked.conversation_history[0].parts) == "Hello"
-            assert model.join_text_parts(forked.conversation_history[1].parts) == "Hi"
+            assert isinstance(forked.conversation_history[0], message.UserMessage)
+            assert isinstance(forked.conversation_history[1], message.AssistantMessage)
+            assert message.join_text_parts(forked.conversation_history[0].parts) == "Hello"
+            assert message.join_text_parts(forked.conversation_history[1].parts) == "Hi"
 
             await close_default_store()
 
@@ -900,12 +900,12 @@ class TestForkSessionCommand:
         async def _test() -> None:
             session1 = Session(work_dir=project_dir)
             session1.created_at = time.time() - 100
-            session1.append_history([model.UserMessage(parts=model.text_parts_from_str("First"))])
+            session1.append_history([message.UserMessage(parts=message.text_parts_from_str("First"))])
             await session1.wait_for_flush()
 
             session2 = Session(work_dir=project_dir)
             session2.created_at = time.time()
-            session2.append_history([model.UserMessage(parts=model.text_parts_from_str("Second"))])
+            session2.append_history([message.UserMessage(parts=message.text_parts_from_str("Second"))])
             await session2.wait_for_flush()
 
             sessions = Session.list_sessions()
@@ -926,7 +926,7 @@ class TestForkSessionCommand:
 
         async def _test() -> None:
             session = Session(work_dir=project_dir)
-            session.append_history([model.UserMessage(parts=model.text_parts_from_str("hello"))])
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("hello"))])
             await session.wait_for_flush()
             assert Session.most_recent_session_id() == session.id
             await close_default_store()
@@ -940,17 +940,17 @@ class TestForkSessionCommand:
 
         async def _test() -> None:
             small_session = Session(work_dir=project_dir)
-            small_session.append_history([model.UserMessage(parts=model.text_parts_from_str("Only one"))])
+            small_session.append_history([message.UserMessage(parts=message.text_parts_from_str("Only one"))])
             await small_session.wait_for_flush()
 
             large_session = Session(work_dir=project_dir)
             large_session.append_history(
                 [
-                    model.UserMessage(parts=model.text_parts_from_str("1")),
-                    model.AssistantMessage(parts=model.text_parts_from_str("2")),
-                    model.UserMessage(parts=model.text_parts_from_str("3")),
-                    model.AssistantMessage(parts=model.text_parts_from_str("4")),
-                    model.UserMessage(parts=model.text_parts_from_str("5")),
+                    message.UserMessage(parts=message.text_parts_from_str("1")),
+                    message.AssistantMessage(parts=message.text_parts_from_str("2")),
+                    message.UserMessage(parts=message.text_parts_from_str("3")),
+                    message.AssistantMessage(parts=message.text_parts_from_str("4")),
+                    message.UserMessage(parts=message.text_parts_from_str("5")),
                 ]
             )
             await large_session.wait_for_flush()
@@ -974,7 +974,7 @@ class TestForkSessionCommand:
         async def _test() -> None:
             for i in range(3):
                 session = Session(work_dir=project_dir)
-                session.append_history([model.UserMessage(parts=model.text_parts_from_str(f"Message {i}"))])
+                session.append_history([message.UserMessage(parts=message.text_parts_from_str(f"Message {i}"))])
                 await session.wait_for_flush()
 
             assert len(Session.list_sessions()) == 3
@@ -1033,7 +1033,7 @@ class TestSessionExists:
 
         async def _test() -> None:
             session = Session(work_dir=project_dir)
-            session.append_history([model.UserMessage(parts=model.text_parts_from_str("hello"))])
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("hello"))])
             await session.wait_for_flush()
 
             assert Session.exists(session.id) is True

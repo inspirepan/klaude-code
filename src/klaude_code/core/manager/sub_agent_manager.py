@@ -13,7 +13,7 @@ import json
 from klaude_code.core.agent import Agent, AgentProfile, ModelProfileProvider
 from klaude_code.core.manager.llm_clients import LLMClients
 from klaude_code.core.tool import ReportBackTool
-from klaude_code.protocol import events, model
+from klaude_code.protocol import events, message, model
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.session import Session
 from klaude_code.trace import DebugType, log_debug
@@ -122,11 +122,11 @@ Only the content passed to `report_back` will be returned to user.\
             # Not emit the subtask's user input since task tool call is already rendered
             result: str = ""
             task_metadata: model.TaskMetadata | None = None
-            sub_agent_input = model.UserInputPayload(text=state.sub_agent_prompt, images=None)
+            sub_agent_input = message.UserInputPayload(text=state.sub_agent_prompt, images=None)
             child_session.append_history(
                 [
-                    model.UserMessage(
-                        parts=model.parts_from_text_and_images(sub_agent_input.text, sub_agent_input.images)
+                    message.UserMessage(
+                        parts=message.parts_from_text_and_images(sub_agent_input.text, sub_agent_input.images)
                     )
                 ]
             )

@@ -12,7 +12,7 @@ from klaude_code.core.tool.file.diff_builder import build_structured_diff
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_param, model, tools
+from klaude_code.protocol import llm_param, message, model, tools
 
 
 class MoveArguments(BaseModel):
@@ -156,11 +156,11 @@ class MoveTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
         try:
             args = MoveArguments.model_validate_json(arguments)
         except ValueError as e:
-            return model.ToolResultMessage(status="error", output_text=f"Invalid arguments: {e}")
+            return message.ToolResultMessage(status="error", output_text=f"Invalid arguments: {e}")
 
         source_path = os.path.abspath(args.source_file_path)
         target_path = os.path.abspath(args.target_file_path)
@@ -168,19 +168,19 @@ class MoveTool(ToolABC):
 
         # Validate paths
         if is_directory(source_path):
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text="<tool_use_error>Source path is a directory, not a file.</tool_use_error>",
             )
         if is_directory(target_path):
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text="<tool_use_error>Target path is a directory, not a file.</tool_use_error>",
             )
 
         # Validate line range
         if args.start_line > args.end_line:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text="<tool_use_error>start_line must be <= end_line.</tool_use_error>",
             )
@@ -191,7 +191,7 @@ class MoveTool(ToolABC):
         target_exists = file_exists(target_path)
 
         if not source_exists:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text="<tool_use_error>Source file does not exist.</tool_use_error>",
             )
@@ -202,14 +202,14 @@ class MoveTool(ToolABC):
         if file_tracker is not None:
             source_status = file_tracker.get(source_path)
             if source_status is None:
-                return model.ToolResultMessage(
+                return message.ToolResultMessage(
                     status="error",
                     output_text="Source file has not been read yet. Read it first.",
                 )
             if target_exists:
                 target_status = file_tracker.get(target_path)
                 if target_status is None:
-                    return model.ToolResultMessage(
+                    return message.ToolResultMessage(
                         status="error",
                         output_text="Target file has not been read yet. Read it first before writing to it.",
                     )
@@ -218,7 +218,7 @@ class MoveTool(ToolABC):
         try:
             source_content = await asyncio.to_thread(read_text, source_path)
         except OSError as e:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error", output_text=f"<tool_use_error>Failed to read source: {e}</tool_use_error>"
             )
 
@@ -226,7 +226,7 @@ class MoveTool(ToolABC):
         if source_status is not None and source_status.content_sha256 is not None:
             current_sha256 = hash_text_sha256(source_content)
             if current_sha256 != source_status.content_sha256:
-                return model.ToolResultMessage(
+                return message.ToolResultMessage(
                     status="error",
                     output_text="Source file has been modified externally. Read it first before editing.",
                 )
@@ -235,12 +235,12 @@ class MoveTool(ToolABC):
 
         # Validate line numbers against actual file
         if args.start_line > len(source_lines):
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=f"<tool_use_error>start_line {args.start_line} exceeds file length {len(source_lines)}.</tool_use_error>",
             )
         if args.end_line > len(source_lines):
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=f"<tool_use_error>end_line {args.end_line} exceeds file length {len(source_lines)}.</tool_use_error>",
             )
@@ -254,7 +254,7 @@ class MoveTool(ToolABC):
             try:
                 target_before = await asyncio.to_thread(read_text, target_path)
             except OSError as e:
-                return model.ToolResultMessage(
+                return message.ToolResultMessage(
                     status="error", output_text=f"<tool_use_error>Failed to read target: {e}</tool_use_error>"
                 )
 
@@ -262,14 +262,14 @@ class MoveTool(ToolABC):
             if target_status is not None and target_status.content_sha256 is not None:
                 current_sha256 = hash_text_sha256(target_before)
                 if current_sha256 != target_status.content_sha256:
-                    return model.ToolResultMessage(
+                    return message.ToolResultMessage(
                         status="error",
                         output_text="Target file has been modified externally. Read it first before writing to it.",
                     )
 
         # For new target file, only allow insert_line = 1
         if not target_exists and args.insert_line != 1:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text="<tool_use_error>Target file does not exist. Use insert_line=1 to create new file.</tool_use_error>",
             )
@@ -288,14 +288,14 @@ class MoveTool(ToolABC):
                 adjusted_insert -= args.end_line - args.start_line + 1
             elif args.insert_line > args.start_line:
                 # Insert position is within the cut region - error
-                return model.ToolResultMessage(
+                return message.ToolResultMessage(
                     status="error",
                     output_text="<tool_use_error>insert_line cannot be within the cut range for same-file move.</tool_use_error>",
                 )
 
             # Validate adjusted insert line
             if adjusted_insert > len(new_lines) + 1:
-                return model.ToolResultMessage(
+                return message.ToolResultMessage(
                     status="error",
                     output_text=f"<tool_use_error>insert_line {args.insert_line} is out of bounds after cut.</tool_use_error>",
                 )
@@ -309,7 +309,7 @@ class MoveTool(ToolABC):
             try:
                 await asyncio.to_thread(write_text, source_path, source_after)
             except OSError as e:
-                return model.ToolResultMessage(
+                return message.ToolResultMessage(
                     status="error", output_text=f"<tool_use_error>Failed to write: {e}</tool_use_error>"
                 )
 
@@ -340,7 +340,7 @@ class MoveTool(ToolABC):
                 f"Source context (after cut):\n{cut_context}\n\n"
                 f"Insert context:\n{insert_context}"
             )
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="success",
                 output_text=output,
                 ui_extra=ui_extra,
@@ -356,7 +356,7 @@ class MoveTool(ToolABC):
 
             # Validate insert_line for existing target
             if target_exists and args.insert_line > len(target_lines) + 1:
-                return model.ToolResultMessage(
+                return message.ToolResultMessage(
                     status="error",
                     output_text=f"<tool_use_error>insert_line {args.insert_line} exceeds target file length + 1.</tool_use_error>",
                 )
@@ -373,7 +373,7 @@ class MoveTool(ToolABC):
                 await asyncio.to_thread(write_text, source_path, source_after)
                 await asyncio.to_thread(write_text, target_path, target_after)
             except OSError as e:
-                return model.ToolResultMessage(
+                return message.ToolResultMessage(
                     status="error", output_text=f"<tool_use_error>Failed to write: {e}</tool_use_error>"
                 )
 
@@ -428,7 +428,7 @@ class MoveTool(ToolABC):
                 f"Source file context (after move):\n{source_context}\n\n"
                 f"Target file context (after insert):\n{target_context}"
             )
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="success",
                 output_text=output,
                 ui_extra=ui_extra,

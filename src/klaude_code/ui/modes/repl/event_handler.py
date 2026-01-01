@@ -424,7 +424,7 @@ class DisplayEventHandler:
             self.spinner_status.set_composing(True)
             self._update_spinner()
             return
-        elif self.thinking_stream.is_active:
+        else:
             await self._finish_thinking_stream()
         if len(event.content.strip()) == 0 and self.stage_manager.current_stage != Stage.ASSISTANT:
             return
@@ -454,6 +454,7 @@ class DisplayEventHandler:
     async def _on_assistant_message(self, event: events.AssistantMessageEvent) -> None:
         if self.renderer.is_sub_agent_session(event.session_id):
             return
+        await self._finish_thinking_stream()
         await self.stage_manager.transition_to(Stage.ASSISTANT)
         if self.assistant_stream.is_active:
             mdstream = self.assistant_stream.mdstream

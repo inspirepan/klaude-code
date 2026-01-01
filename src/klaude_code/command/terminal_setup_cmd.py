@@ -3,7 +3,7 @@ import subprocess
 from pathlib import Path
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
-from klaude_code.protocol import commands, events, model
+from klaude_code.protocol import commands, events, message, model
 
 
 class TerminalSetupCommand(CommandABC):
@@ -21,7 +21,7 @@ class TerminalSetupCommand(CommandABC):
     def is_interactive(self) -> bool:
         return False
 
-    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input  # unused
         term_program = os.environ.get("TERM_PROGRAM", "").lower()
 
@@ -221,28 +221,28 @@ class TerminalSetupCommand(CommandABC):
 
         return message
 
-    def _create_success_result(self, agent: "Agent", message: str) -> CommandResult:
+    def _create_success_result(self, agent: "Agent", msg: str) -> CommandResult:
         """Create success result"""
         return CommandResult(
             events=[
                 events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=model.DeveloperMessage(
-                        parts=model.text_parts_from_str(message),
+                    item=message.DeveloperMessage(
+                        parts=message.text_parts_from_str(msg),
                         command_output=model.CommandOutput(command_name=self.name, is_error=False),
                     ),
                 )
             ]
         )
 
-    def _create_error_result(self, agent: "Agent", message: str) -> CommandResult:
+    def _create_error_result(self, agent: "Agent", msg: str) -> CommandResult:
         """Create error result"""
         return CommandResult(
             events=[
                 events.DeveloperMessageEvent(
                     session_id=agent.session.id,
-                    item=model.DeveloperMessage(
-                        parts=model.text_parts_from_str(message),
+                    item=message.DeveloperMessage(
+                        parts=message.text_parts_from_str(msg),
                         command_output=model.CommandOutput(command_name=self.name, is_error=True),
                     ),
                 )

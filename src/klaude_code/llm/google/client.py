@@ -26,7 +26,7 @@ from klaude_code.llm.google.input import convert_history_to_contents, convert_to
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message, model
 from klaude_code.trace import DebugType, log_debug
 
 
@@ -139,7 +139,7 @@ async def parse_google_stream(
     stream: AsyncIterator[Any],
     param: llm_param.LLMCallParameter,
     metadata_tracker: MetadataTracker,
-) -> AsyncGenerator[model.LLMStreamItem]:
+) -> AsyncGenerator[message.LLMStreamItem]:
     response_id: str | None = None
     started = False
     stage: Literal["waiting", "thinking", "assistant", "tool"] = "waiting"
@@ -147,7 +147,7 @@ async def parse_google_stream(
     accumulated_text: list[str] = []
     accumulated_thoughts: list[str] = []
     thought_signature: str | None = None
-    assistant_parts: list[model.Part] = []
+    assistant_parts: list[message.Part] = []
 
     # Track tool calls where args arrive as partial updates.
     partial_args_by_call: dict[str, dict[str, Any]] = {}
@@ -162,7 +162,7 @@ async def parse_google_stream(
         nonlocal thought_signature
         if accumulated_thoughts:
             assistant_parts.append(
-                model.ThinkingTextPart(
+                message.ThinkingTextPart(
                     text="".join(accumulated_thoughts),
                     model_id=str(param.model),
                 )
@@ -170,7 +170,7 @@ async def parse_google_stream(
             accumulated_thoughts.clear()
         if thought_signature:
             assistant_parts.append(
-                model.ThinkingSignaturePart(
+                message.ThinkingSignaturePart(
                     signature=thought_signature,
                     model_id=str(param.model),
                     format="google_thought_signature",
@@ -181,7 +181,7 @@ async def parse_google_stream(
     def flush_text() -> None:
         if not accumulated_text:
             return
-        assistant_parts.append(model.TextPart(text="".join(accumulated_text)))
+        assistant_parts.append(message.TextPart(text="".join(accumulated_text)))
         accumulated_text.clear()
 
     async for chunk in stream:
@@ -196,7 +196,7 @@ async def parse_google_stream(
         assert response_id is not None
         if not started:
             started = True
-            yield model.StartItem(response_id=response_id)
+            yield message.StartItem(response_id=response_id)
 
         if getattr(chunk, "usage_metadata", None) is not None:
             last_usage_metadata = chunk.usage_metadata
@@ -228,13 +228,13 @@ async def parse_google_stream(
                     accumulated_thoughts.append(text)
                     if getattr(part, "thought_signature", None):
                         thought_signature = part.thought_signature
-                    yield model.ThinkingTextDelta(content=text, response_id=response_id)
+                    yield message.ThinkingTextDelta(content=text, response_id=response_id)
                 else:
                     if stage == "thinking":
                         flush_thinking()
                     stage = "assistant"
                     accumulated_text.append(text)
-                    yield model.AssistantMessageDelta(content=text, response_id=response_id)
+                    yield message.AssistantMessageDelta(content=text, response_id=response_id)
 
             function_call = getattr(part, "function_call", None)
             if function_call is None:
@@ -247,7 +247,7 @@ async def parse_google_stream(
 
             if call_id not in started_tool_items:
                 started_tool_items.add(call_id)
-                yield model.ToolCallStartItem(response_id=response_id, call_id=call_id, name=name)
+                yield message.ToolCallStartItem(response_id=response_id, call_id=call_id, name=name)
 
             args_obj = getattr(function_call, "args", None)
             if args_obj is not None:
@@ -257,7 +257,7 @@ async def parse_google_stream(
                     flush_text()
                 stage = "tool"
                 assistant_parts.append(
-                    model.ToolCallPart(
+                    message.ToolCallPart(
                         call_id=call_id,
                         tool_name=name,
                         arguments_json=json.dumps(args_obj, ensure_ascii=False),
@@ -279,7 +279,7 @@ async def parse_google_stream(
                     flush_text()
                 stage = "tool"
                 assistant_parts.append(
-                    model.ToolCallPart(
+                    message.ToolCallPart(
                         call_id=call_id,
                         tool_name=name,
                         arguments_json=json.dumps(partial_args_by_call[call_id], ensure_ascii=False),
@@ -293,7 +293,7 @@ async def parse_google_stream(
             continue
         args = partial_args_by_call.get(call_id, {})
         assistant_parts.append(
-            model.ToolCallPart(
+            message.ToolCallPart(
                 call_id=call_id,
                 tool_name=name,
                 arguments_json=json.dumps(args, ensure_ascii=False),
@@ -310,7 +310,7 @@ async def parse_google_stream(
     metadata_tracker.set_response_id(response_id)
     metadata = metadata_tracker.finalize()
     if assistant_parts:
-        yield model.AssistantMessage(
+        yield message.AssistantMessage(
             parts=assistant_parts,
             response_id=response_id,
             usage=metadata,
@@ -339,7 +339,7 @@ class GoogleClient(LLMClientABC):
         return cls(config)
 
     @override
-    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[model.LLMStreamItem]:
+    async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[message.LLMStreamItem]:
         param = apply_config_defaults(param, self.get_llm_config())
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
@@ -366,7 +366,7 @@ class GoogleClient(LLMClientABC):
                 config=config,
             )
         except (APIError, ClientError, ServerError, httpx.HTTPError) as e:
-            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+            yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
             yield metadata_tracker.finalize()
             return
 
@@ -374,5 +374,5 @@ class GoogleClient(LLMClientABC):
             async for item in parse_google_stream(stream, param=param, metadata_tracker=metadata_tracker):
                 yield item
         except (APIError, ClientError, ServerError, httpx.HTTPError) as e:
-            yield model.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+            yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
             yield metadata_tracker.finalize()

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-from klaude_code.protocol import llm_param, model
+from klaude_code.protocol import llm_param, message
 
 
 def load_desc(path: Path, substitutions: dict[str, str] | None = None) -> str:
@@ -27,7 +27,7 @@ class ToolABC(ABC):
 
     @classmethod
     @abstractmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
         raise NotImplementedError
 
 

@@ -4,7 +4,7 @@ from prompt_toolkit.styles import Style
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.command.model_select import select_model_interactive
-from klaude_code.protocol import commands, events, model, op
+from klaude_code.protocol import commands, events, message, model, op
 from klaude_code.ui.terminal.selector import SelectItem, select_one
 
 SELECT_STYLE = Style(
@@ -65,7 +65,7 @@ class ModelCommand(CommandABC):
     def placeholder(self) -> str:
         return "model name"
 
-    async def run(self, agent: Agent, user_input: model.UserInputPayload) -> CommandResult:
+    async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         selected_model = await asyncio.to_thread(select_model_interactive, preferred=user_input.text)
 
         current_model = agent.profile.llm_client.model_name if agent.profile else None
@@ -74,8 +74,8 @@ class ModelCommand(CommandABC):
                 events=[
                     events.DeveloperMessageEvent(
                         session_id=agent.session.id,
-                        item=model.DeveloperMessage(
-                            parts=model.text_parts_from_str("(no change)"),
+                        item=message.DeveloperMessage(
+                            parts=message.text_parts_from_str("(no change)"),
                             command_output=model.CommandOutput(command_name=self.name),
                         ),
                     )

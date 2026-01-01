@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
 from klaude_code.core.tool.tool_registry import register
-from klaude_code.protocol import llm_param, model, tools
+from klaude_code.protocol import llm_param, message, tools
 
 DEFAULT_MAX_RESULTS = 10
 MAX_RESULTS_LIMIT = 20
@@ -93,21 +93,21 @@ class WebSearchTool(ToolABC):
         max_results: int = DEFAULT_MAX_RESULTS
 
     @classmethod
-    async def call(cls, arguments: str) -> model.ToolResultMessage:
+    async def call(cls, arguments: str) -> message.ToolResultMessage:
         try:
             args = WebSearchTool.WebSearchArguments.model_validate_json(arguments)
         except ValueError as e:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=f"Invalid arguments: {e}",
             )
         return await cls.call_with_args(args)
 
     @classmethod
-    async def call_with_args(cls, args: WebSearchArguments) -> model.ToolResultMessage:
+    async def call_with_args(cls, args: WebSearchArguments) -> message.ToolResultMessage:
         query = args.query.strip()
         if not query:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text="Query cannot be empty",
             )
@@ -118,13 +118,13 @@ class WebSearchTool(ToolABC):
             results = await asyncio.to_thread(_search_duckduckgo, query, max_results)
             formatted = _format_results(results)
 
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="success",
                 output_text=formatted,
             )
 
         except Exception as e:
-            return model.ToolResultMessage(
+            return message.ToolResultMessage(
                 status="error",
                 output_text=f"Search failed: {e}",
             )

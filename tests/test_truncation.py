@@ -16,7 +16,7 @@ from klaude_code.core.tool.truncation import (
     set_truncation_strategy,
     truncate_tool_output,
 )
-from klaude_code.protocol import model, tools
+from klaude_code.protocol import message, tools
 
 
 class TestExtractUrlFilename:
@@ -101,7 +101,7 @@ class TestSmartTruncationStrategy:
     def test_read_tool_not_truncated(self):
         """Test Read tool output is never truncated."""
         strategy = SmartTruncationStrategy(max_length=10, head_chars=5, tail_chars=5)
-        tool_call = model.ToolCallPart(call_id="test_id", tool_name=tools.READ, arguments_json="{}")
+        tool_call = message.ToolCallPart(call_id="test_id", tool_name=tools.READ, arguments_json="{}")
         long_text = "a" * 100
         result = strategy.truncate(long_text, tool_call)
         assert result.was_truncated is False
@@ -135,7 +135,7 @@ class TestSmartTruncationStrategy:
                 truncation_dir=tmpdir,
             )
             text = "a" * 200
-            tool_call = model.ToolCallPart(call_id="test_call_123", tool_name="TestTool", arguments_json="{}")
+            tool_call = message.ToolCallPart(call_id="test_call_123", tool_name="TestTool", arguments_json="{}")
             result = strategy.truncate(text, tool_call)
 
             assert result.was_truncated is True
@@ -154,7 +154,7 @@ class TestSmartTruncationStrategy:
                 tail_chars=10,
                 truncation_dir=tmpdir,
             )
-            tool_call = model.ToolCallPart(
+            tool_call = message.ToolCallPart(
                 call_id="fetch_123",
                 tool_name=tools.WEB_FETCH,
                 arguments_json='{"url": "https://example.com/page"}',
@@ -169,7 +169,7 @@ class TestSmartTruncationStrategy:
     def test_get_file_identifier_fallback(self):
         """Test file identifier falls back to call_id."""
         strategy = SmartTruncationStrategy()
-        tool_call = model.ToolCallPart(call_id="my_call_id", tool_name="SomeTool", arguments_json="{}")
+        tool_call = message.ToolCallPart(call_id="my_call_id", tool_name="SomeTool", arguments_json="{}")
         identifier = strategy._get_file_identifier(tool_call)
         assert identifier == "my_call_id"
 

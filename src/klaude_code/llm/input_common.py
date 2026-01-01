@@ -7,33 +7,33 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from klaude_code.protocol.llm_param import LLMCallParameter, LLMConfigParameter
 
-from klaude_code.protocol import model
+from klaude_code.protocol import message
 
 
-def _empty_image_parts() -> list[model.ImageURLPart]:
+def _empty_image_parts() -> list[message.ImageURLPart]:
     return []
 
 
 @dataclass
 class DeveloperAttachment:
     text: str = ""
-    images: list[model.ImageURLPart] = field(default_factory=_empty_image_parts)
+    images: list[message.ImageURLPart] = field(default_factory=_empty_image_parts)
 
 
-def _extract_developer_content(message: model.DeveloperMessage) -> tuple[str, list[model.ImageURLPart]]:
+def _extract_developer_content(msg: message.DeveloperMessage) -> tuple[str, list[message.ImageURLPart]]:
     text_parts: list[str] = []
-    images: list[model.ImageURLPart] = []
-    for part in message.parts:
-        if isinstance(part, model.TextPart):
+    images: list[message.ImageURLPart] = []
+    for part in msg.parts:
+        if isinstance(part, message.TextPart):
             text_parts.append(part.text + "\n")
-        elif isinstance(part, model.ImageURLPart):
+        elif isinstance(part, message.ImageURLPart):
             images.append(part)
     return "".join(text_parts), images
 
 
 def attach_developer_messages(
-    messages: Iterable[model.Message],
-) -> list[tuple[model.Message, DeveloperAttachment]]:
+    messages: Iterable[message.Message],
+) -> list[tuple[message.Message, DeveloperAttachment]]:
     """Attach developer messages to the most recent user/tool message.
 
     Developer messages are removed from the output list and their text/images are
@@ -44,10 +44,10 @@ def attach_developer_messages(
     last_user_tool_idx: int | None = None
 
     for idx, msg in enumerate(message_list):
-        if isinstance(msg, (model.UserMessage, model.ToolResultMessage)):
+        if isinstance(msg, (message.UserMessage, message.ToolResultMessage)):
             last_user_tool_idx = idx
             continue
-        if isinstance(msg, model.DeveloperMessage):
+        if isinstance(msg, message.DeveloperMessage):
             if last_user_tool_idx is None:
                 continue
             dev_text, dev_images = _extract_developer_content(msg)
@@ -55,9 +55,9 @@ def attach_developer_messages(
             attachment.text += dev_text
             attachment.images.extend(dev_images)
 
-    result: list[tuple[model.Message, DeveloperAttachment]] = []
+    result: list[tuple[message.Message, DeveloperAttachment]] = []
     for idx, msg in enumerate(message_list):
-        if isinstance(msg, model.DeveloperMessage):
+        if isinstance(msg, message.DeveloperMessage):
             continue
         result.append((msg, attachments[idx]))
 
