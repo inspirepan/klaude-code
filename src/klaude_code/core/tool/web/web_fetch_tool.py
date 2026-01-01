@@ -113,18 +113,38 @@ def _extract_url_filename(url: str) -> str:
     return name[:80] if len(name) > 80 else name
 
 
-def _save_web_content(url: str, content: str) -> str | None:
+def _save_web_content(url: str, content: str, extension: str = ".md") -> str | None:
     """Save web content to file. Returns file path or None on failure."""
     try:
         WEB_FETCH_SAVE_DIR.mkdir(parents=True, exist_ok=True)
         timestamp = int(time.time())
         identifier = _extract_url_filename(url)
-        filename = f"{identifier}-{timestamp}.md"
+        filename = f"{identifier}-{timestamp}{extension}"
         file_path = WEB_FETCH_SAVE_DIR / filename
         file_path.write_text(content, encoding="utf-8")
         return str(file_path)
     except OSError:
         return None
+
+
+def _save_binary_content(url: str, data: bytes, extension: str = ".bin") -> str | None:
+    """Save binary content to file. Returns file path or None on failure."""
+    try:
+        WEB_FETCH_SAVE_DIR.mkdir(parents=True, exist_ok=True)
+        timestamp = int(time.time())
+        identifier = _extract_url_filename(url)
+        filename = f"{identifier}-{timestamp}{extension}"
+        file_path = WEB_FETCH_SAVE_DIR / filename
+        file_path.write_bytes(data)
+        return str(file_path)
+    except OSError:
+        return None
+
+
+def _is_pdf_url(url: str) -> bool:
+    """Check if URL points to a PDF file."""
+    parsed = urlparse(url)
+    return parsed.path.lower().endswith(".pdf") or "/pdf/" in parsed.path.lower()
 
 
 def _process_content(content_type: str, text: str) -> str:
@@ -139,12 +159,12 @@ def _process_content(content_type: str, text: str) -> str:
         return text
 
 
-def _fetch_url(url: str, timeout: int = DEFAULT_TIMEOUT_SEC) -> tuple[str, str]:
+def _fetch_url(url: str, timeout: int = DEFAULT_TIMEOUT_SEC) -> tuple[str, bytes, str | None]:
     """
     Fetch URL content synchronously.
 
     Returns:
-        Tuple of (content_type, response_text)
+        Tuple of (content_type, raw_data, charset)
 
     Raises:
         Various exceptions on failure
@@ -159,8 +179,7 @@ def _fetch_url(url: str, timeout: int = DEFAULT_TIMEOUT_SEC) -> tuple[str, str]:
     with urllib.request.urlopen(request, timeout=timeout) as response:
         content_type, charset = _extract_content_type_and_charset(response)
         data = response.read()
-        text = _decode_content(data, charset)
-        return content_type, text
+        return content_type, data, charset
 
 
 @register(tools.WEB_FETCH)
@@ -213,7 +232,23 @@ class WebFetchTool(ToolABC):
             )
 
         try:
-            content_type, text = await asyncio.to_thread(_fetch_url, url)
+            content_type, data, charset = await asyncio.to_thread(_fetch_url, url)
+
+            # Handle PDF files
+            if content_type == "application/pdf" or _is_pdf_url(url):
+                saved_path = _save_binary_content(url, data, ".pdf")
+                if saved_path:
+                    return model.ToolResultItem(
+                        status="success",
+                        output=f"PDF file saved to: {saved_path}\n\nTo read the PDF content, use the Read tool on this file path.",
+                    )
+                return model.ToolResultItem(
+                    status="error",
+                    output=f"Failed to save PDF file (url={url})",
+                )
+
+            # Handle text content
+            text = _decode_content(data, charset)
             processed = _process_content(content_type, text)
 
             # Always save content to file

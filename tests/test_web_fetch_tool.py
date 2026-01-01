@@ -11,6 +11,7 @@ from klaude_code.core.tool.web.web_fetch_tool import (
     _decode_content,  # pyright: ignore[reportPrivateUsage]
     _extract_content_type_and_charset,  # pyright: ignore[reportPrivateUsage]
     _format_json,  # pyright: ignore[reportPrivateUsage]
+    _is_pdf_url,  # pyright: ignore[reportPrivateUsage]
     _process_content,  # pyright: ignore[reportPrivateUsage]
 )
 
@@ -103,6 +104,20 @@ class TestHelperFunctions:
         # trafilatura may return empty for minimal HTML, just check it doesn't crash
         assert isinstance(result, str)
 
+    def test_is_pdf_url_with_extension(self) -> None:
+        assert _is_pdf_url("https://example.com/paper.pdf") is True
+        assert _is_pdf_url("https://example.com/paper.PDF") is True
+        assert _is_pdf_url("https://example.com/dir/file.pdf?query=1") is True
+
+    def test_is_pdf_url_with_pdf_path(self) -> None:
+        # arxiv style URLs
+        assert _is_pdf_url("https://arxiv.org/pdf/2512.24880") is True
+        assert _is_pdf_url("https://arxiv.org/pdf/2512.24880v1") is True
+
+    def test_is_pdf_url_negative(self) -> None:
+        assert _is_pdf_url("https://example.com/page.html") is False
+        assert _is_pdf_url("https://example.com/api/pdf_info") is False
+
 
 class TestWebFetchTool:
     """Test WebFetchTool class."""
@@ -151,6 +166,16 @@ class TestWebFetchToolNetwork:
         result = asyncio.run(WebFetchTool.call(args))
 
         assert result.status == "error"
+
+    def test_fetch_pdf_url(self) -> None:
+        """Test fetching a PDF file (arxiv)."""
+        args = WebFetchTool.WebFetchArguments(url="https://arxiv.org/pdf/2312.00752").model_dump_json()
+        result = asyncio.run(WebFetchTool.call(args))
+
+        assert result.status == "success"
+        assert result.output is not None
+        assert "PDF file saved to:" in result.output
+        assert ".pdf" in result.output
 
     # def test_fetch_404_page(self) -> None:
     #     """Test fetching a page that returns 404."""
