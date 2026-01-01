@@ -117,11 +117,11 @@ def _assistant_message_to_content(msg: message.AssistantMessage, model_name: str
 
     def flush_thought() -> None:
         nonlocal pending_thought_text, pending_thought_signature
-        if pending_thought_text is None:
+        if pending_thought_text is None and pending_thought_signature is None:
             return
         parts.append(
             types.Part(
-                text=pending_thought_text,
+                text=pending_thought_text or "",
                 thought=True,
                 thought_signature=pending_thought_signature,
             )

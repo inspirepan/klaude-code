@@ -133,11 +133,11 @@ def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str
         if isinstance(part, message.ThinkingSignaturePart):
             if part.model_id and model_name and part.model_id != model_name:
                 continue
-            if current_thinking_content is not None and part.signature:
+            if part.signature:
                 content.append(
                     {
                         "type": "thinking",
-                        "thinking": current_thinking_content,
+                        "thinking": current_thinking_content or "",
                         "signature": part.signature,
                     }
                 )

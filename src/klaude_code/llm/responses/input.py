@@ -110,7 +110,7 @@ def convert_history_to_input(
 
                 def emit_reasoning() -> None:
                     nonlocal pending_thinking_text, pending_signature
-                    if pending_thinking_text is None:
+                    if pending_thinking_text is None and pending_signature is None:
                         return
                     items.append(convert_reasoning_inputs(pending_thinking_text, pending_signature))
                     pending_thinking_text = None
@@ -141,7 +141,7 @@ def convert_history_to_input(
                                 "name": part.tool_name,
                                 "arguments": part.arguments_json,
                                 "call_id": part.call_id,
-                                "id": part.call_id,
+                                "id": part.id,
                             }
                         )
 

@@ -104,6 +104,7 @@ class ThinkingSignaturePart(BaseModel):
 class ToolCallPart(BaseModel):
     type: Literal["tool_call"] = "tool_call"
     call_id: str
+    id: str | None = None  # Responses API: fc_xxx, different from call_id
     tool_name: str
     arguments_json: str
 

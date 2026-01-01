@@ -167,14 +167,13 @@ async def parse_responses_stream(
                                     accumulated_text.append(text_content)
                         case responses.ResponseFunctionToolCall() as item:
                             metadata_tracker.record_token()
-                            if stage == "thinking":
-                                flush_thinking()
-                            if stage == "assistant":
-                                flush_text()
+                            flush_thinking()
+                            flush_text()
                             stage = "tool"
                             assistant_parts.append(
                                 message.ToolCallPart(
                                     call_id=item.call_id,
+                                    id=item.id,
                                     tool_name=item.name,
                                     arguments_json=item.arguments.strip(),
                                 )

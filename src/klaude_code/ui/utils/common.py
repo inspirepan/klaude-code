@@ -109,7 +109,7 @@ def format_model_params(model_params: "LLMConfigModelParameter") -> list[str]:
         if model_params.thinking.reasoning_effort:
             parts.append(f"reasoning {model_params.thinking.reasoning_effort}")
         if model_params.thinking.reasoning_summary:
-            parts.append(f"reason-summary {model_params.thinking.reasoning_summary}")
+            parts.append(f"summary {model_params.thinking.reasoning_summary}")
         if model_params.thinking.budget_tokens:
             parts.append(f"thinking budget {model_params.thinking.budget_tokens}")
 
