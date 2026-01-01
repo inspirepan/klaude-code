@@ -39,7 +39,7 @@ class ToolCallStartItem(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
-class AssistantMessageDelta(BaseModel):
+class AssistantTextDelta(BaseModel):
     response_id: str | None = None
     content: str
     created_at: datetime = Field(default_factory=datetime.now)
@@ -183,7 +183,7 @@ Message = SystemMessage | DeveloperMessage | UserMessage | AssistantMessage | To
 
 HistoryEvent = Message | StreamErrorItem | TaskMetadataItem
 
-StreamItem = AssistantMessageDelta | AssistantImageDelta | ThinkingTextDelta | ToolCallStartItem
+StreamItem = AssistantTextDelta | AssistantImageDelta | ThinkingTextDelta | ToolCallStartItem
 
 LLMStreamItem = HistoryEvent | StreamItem
 

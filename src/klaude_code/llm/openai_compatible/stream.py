@@ -287,7 +287,7 @@ async def parse_chat_completions_stream(
                     state.flush_tool_calls()
                 state.stage = "assistant"
                 state.accumulated_content.append(str(content))
-                yield message.AssistantMessageDelta(
+                yield message.AssistantTextDelta(
                     content=str(content),
                     response_id=state.response_id,
                 )

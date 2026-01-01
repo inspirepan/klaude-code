@@ -140,7 +140,7 @@ async def parse_responses_stream(
                             flush_thinking()
                         stage = "assistant"
                         accumulated_text.append(event.delta)
-                        yield message.AssistantMessageDelta(content=event.delta, response_id=response_id)
+                        yield message.AssistantTextDelta(content=event.delta, response_id=response_id)
                 case responses.ResponseOutputItemAddedEvent() as event:
                     if isinstance(event.item, responses.ResponseFunctionToolCall):
                         metadata_tracker.record_token()

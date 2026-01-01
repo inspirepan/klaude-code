@@ -229,7 +229,7 @@ async def parse_google_stream(
                         flush_thinking()
                     stage = "assistant"
                     accumulated_text.append(text)
-                    yield message.AssistantMessageDelta(content=text, response_id=response_id)
+                    yield message.AssistantTextDelta(content=text, response_id=response_id)
 
             function_call = getattr(part, "function_call", None)
             if function_call is None:

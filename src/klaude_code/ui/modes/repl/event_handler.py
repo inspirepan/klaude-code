@@ -318,7 +318,7 @@ class DisplayEventHandler:
                 self._on_turn_start(e)
             case events.ThinkingDeltaEvent() as e:
                 await self._on_thinking_delta(e)
-            case events.AssistantMessageDeltaEvent() as e:
+            case events.AssistantTextDeltaEvent() as e:
                 await self._on_assistant_delta(e)
             case events.AssistantImageDeltaEvent() as e:
                 await self._on_assistant_image_delta(e)
@@ -419,7 +419,7 @@ class DisplayEventHandler:
         await self.stage_manager.enter_thinking_stage()
         await self._flush_thinking_buffer(self.thinking_stream)
 
-    async def _on_assistant_delta(self, event: events.AssistantMessageDeltaEvent) -> None:
+    async def _on_assistant_delta(self, event: events.AssistantTextDeltaEvent) -> None:
         if self.renderer.is_sub_agent_session(event.session_id):
             self.spinner_status.set_composing(True)
             self._update_spinner()

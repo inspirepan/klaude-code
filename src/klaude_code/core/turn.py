@@ -258,11 +258,11 @@ class TurnExecutor:
                         response_id=item.response_id,
                         session_id=session_ctx.session_id,
                     )
-                case message.AssistantMessageDelta() as item:
+                case message.AssistantTextDelta() as item:
                     if item.response_id:
                         self._assistant_response_id = item.response_id
                     self._assistant_delta_buffer.append(item.content)
-                    yield events.AssistantMessageDeltaEvent(
+                    yield events.AssistantTextDeltaEvent(
                         content=item.content,
                         response_id=item.response_id,
                         session_id=session_ctx.session_id,

@@ -147,7 +147,7 @@ async def parse_anthropic_stream(
                         if delta.text:
                             metadata_tracker.record_token()
                         accumulated_content.append(delta.text)
-                        yield message.AssistantMessageDelta(
+                        yield message.AssistantTextDelta(
                             content=delta.text,
                             response_id=response_id,
                         )
