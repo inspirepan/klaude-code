@@ -440,7 +440,7 @@ def _render_mermaid_viewer_link(
         except ValueError:
             file_url = f"file://{viewer_path.as_posix()}"
 
-    rendered = Text.assemble(("saved in:", ThemeKey.TOOL_RESULT), " ")
+    rendered = Text.assemble(("View diagram in ", ThemeKey.TOOL_RESULT), " ")
     start = len(rendered)
     rendered.append(display_path, ThemeKey.TOOL_RESULT_MERMAID)
     end = len(rendered)
@@ -504,7 +504,8 @@ def render_web_search_tool_call(arguments: str) -> RenderableType:
     return grid
 
 
-def render_mermaid_tool_result(tr: events.ToolResultEvent) -> RenderableType:
+def render_mermaid_tool_result(tr: events.ToolResultEvent, *, session_id: str | None = None) -> RenderableType:
+    from klaude_code.ui.rich.terminal_image import TerminalImage
     from klaude_code.ui.terminal import supports_osc8_hyperlinks
 
     link_info = _extract_mermaid_link(tr.ui_extra)
@@ -513,6 +514,16 @@ def render_mermaid_tool_result(tr: events.ToolResultEvent) -> RenderableType:
 
     use_osc8 = supports_osc8_hyperlinks()
     viewer = _render_mermaid_viewer_link(tr, link_info, use_osc8=use_osc8)
+
+    # Download and display PNG image
+    image_path = r_mermaid_viewer.download_mermaid_png(
+        link=link_info.link,
+        tool_call_id=tr.tool_call_id,
+        session_id=session_id,
+    )
+    if image_path is not None:
+        return Padding.indent(Group(TerminalImage(image_path), viewer), level=2)
+
     return Padding.indent(viewer, level=2)
 
 
@@ -655,7 +666,9 @@ def render_markdown_doc(md_ui: model.MarkdownDocUIExtra, *, code_theme: str) -> 
     )
 
 
-def render_tool_result(e: events.ToolResultEvent, *, code_theme: str = "monokai") -> RenderableType | None:
+def render_tool_result(
+    e: events.ToolResultEvent, *, code_theme: str = "monokai", session_id: str | None = None
+) -> RenderableType | None:
     """Unified entry point for rendering tool results.
 
     Returns a Rich Renderable or None if the tool result should not be rendered.
@@ -716,7 +729,7 @@ def render_tool_result(e: events.ToolResultEvent, *, code_theme: str = "monokai"
         case tools.TODO_WRITE | tools.UPDATE_PLAN:
             return render_todo(e)
         case tools.MERMAID:
-            return render_mermaid_tool_result(e)
+            return render_mermaid_tool_result(e, session_id=session_id)
         case tools.BASH:
             if e.result.startswith("diff --git"):
                 return r_diffs.render_diff_panel(e.result, show_file_name=True)

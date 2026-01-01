@@ -12,14 +12,9 @@ how reasoning is represented (``reasoning_details`` vs ``reasoning_content``).
 
 from __future__ import annotations
 
-import hashlib
-import time
 from abc import ABC, abstractmethod
-from base64 import b64decode
-from binascii import Error as BinasciiError
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Literal, cast
 
 import httpx
@@ -29,82 +24,12 @@ import pydantic
 from openai import AsyncStream
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
-from klaude_code import const
+from klaude_code.llm.image import save_assistant_image
 from klaude_code.llm.openai_compatible.tool_call_accumulator import BasicToolCallAccumulator, ToolCallAccumulatorABC
 from klaude_code.llm.usage import MetadataTracker, convert_usage
 from klaude_code.protocol import llm_param, model
-from klaude_code.session.session import Session
 
 StreamStage = Literal["waiting", "reasoning", "assistant", "tool"]
-
-
-_IMAGE_EXT_BY_MIME: dict[str, str] = {
-    "image/png": ".png",
-    "image/jpeg": ".jpg",
-    "image/jpg": ".jpg",
-    "image/webp": ".webp",
-    "image/gif": ".gif",
-}
-
-
-def _parse_data_url_image(url: str) -> tuple[str, bytes]:
-    """Parse a base64 data URL and return (mime_type, decoded_bytes)."""
-
-    header_and_media = url.split(",", 1)
-    if len(header_and_media) != 2:
-        raise ValueError("Invalid data URL for image: missing comma separator")
-    header, base64_data = header_and_media
-    if not header.startswith("data:"):
-        raise ValueError("Invalid data URL for image: missing data: prefix")
-    if ";base64" not in header:
-        raise ValueError("Invalid data URL for image: missing base64 marker")
-
-    mime_type = header[5:].split(";", 1)[0]
-    base64_payload = base64_data.strip()
-    if base64_payload == "":
-        raise ValueError("Inline image data is empty")
-
-    try:
-        decoded = b64decode(base64_payload, validate=True)
-    except (BinasciiError, ValueError) as exc:
-        raise ValueError("Inline image data is not valid base64") from exc
-
-    return mime_type, decoded
-
-
-def _assistant_image_output_dir(session_id: str | None) -> Path:
-    if session_id:
-        return Session.paths().images_dir(session_id)
-    return Path(const.TOOL_OUTPUT_TRUNCATION_DIR) / "images"
-
-
-def _save_assistant_image(
-    *, data_url: str, session_id: str | None, response_id: str | None, image_index: int
-) -> model.AssistantImage:
-    """Decode a data URL image and save it to the session image artifacts directory."""
-
-    mime_type, decoded = _parse_data_url_image(data_url)
-
-    if len(decoded) > const.IMAGE_OUTPUT_MAX_BYTES:
-        decoded_mb = len(decoded) / (1024 * 1024)
-        limit_mb = const.IMAGE_OUTPUT_MAX_BYTES / (1024 * 1024)
-        raise ValueError(f"Image output size ({decoded_mb:.2f}MB) exceeds limit ({limit_mb:.2f}MB)")
-
-    output_dir = _assistant_image_output_dir(session_id)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    ext = _IMAGE_EXT_BY_MIME.get(mime_type, ".bin")
-    response_part = (response_id or "unknown").replace("/", "_")
-    ts = time.time_ns()
-    file_path = output_dir / f"img-{response_part}-{image_index}-{ts}{ext}"
-    file_path.write_bytes(decoded)
-
-    return model.AssistantImage(
-        file_path=str(file_path),
-        mime_type=mime_type,
-        byte_size=len(decoded),
-        sha256=hashlib.sha256(decoded).hexdigest(),
-    )
 
 
 class StreamStateManager:
@@ -338,7 +263,7 @@ async def parse_chat_completions_stream(
                         # Only data URLs are supported for now.
                         continue
                     try:
-                        assistant_image = _save_assistant_image(
+                        assistant_image = save_assistant_image(
                             data_url=url,
                             session_id=param.session_id,
                             response_id=state.response_id,

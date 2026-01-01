@@ -5,11 +5,54 @@ import importlib.resources
 from functools import lru_cache
 from pathlib import Path
 
+import httpx
+
 from klaude_code import const
+from klaude_code.llm.image import get_assistant_image_output_dir
+
+_MERMAID_INK_PREFIX = "https://mermaid.ink/img/pako:"
 
 
 def artifacts_dir() -> Path:
     return Path(const.TOOL_OUTPUT_TRUNCATION_DIR) / "mermaid"
+
+
+def _extract_pako_from_link(link: str) -> str | None:
+    """Extract pako encoded string from mermaid.live link."""
+    # link format: https://mermaid.live/view#pako:xxxx
+    if "#pako:" not in link:
+        return None
+    return link.split("#pako:", 1)[1]
+
+
+def download_mermaid_png(
+    *,
+    link: str,
+    tool_call_id: str,
+    session_id: str | None = None,
+) -> Path | None:
+    """Download PNG image from mermaid.ink and save locally."""
+    pako = _extract_pako_from_link(link)
+    if not pako:
+        return None
+
+    safe_id = tool_call_id.replace("/", "_")
+    output_dir = get_assistant_image_output_dir(session_id)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    image_path = output_dir / f"mermaid-{safe_id}.png"
+
+    if image_path.exists():
+        return image_path
+
+    png_url = f"{_MERMAID_INK_PREFIX}{pako}"
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.get(png_url)
+            resp.raise_for_status()
+            image_path.write_bytes(resp.content)
+        return image_path
+    except Exception:
+        return None
 
 
 @lru_cache(maxsize=1)

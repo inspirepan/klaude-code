@@ -4,7 +4,6 @@ import contextlib
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from rich.console import Console, Group, RenderableType
@@ -131,7 +130,7 @@ class REPLRenderer:
     def display_tool_call_result(self, e: events.ToolResultEvent) -> None:
         if r_tools.is_sub_agent_tool(e.tool_name):
             return
-        renderable = r_tools.render_tool_result(e, code_theme=self.themes.code_theme)
+        renderable = r_tools.render_tool_result(e, code_theme=self.themes.code_theme, session_id=e.session_id)
         if renderable is not None:
             self.print(renderable)
 
@@ -240,28 +239,16 @@ class REPLRenderer:
             self.print(renderable)
             self.print()
 
-    def display_image(self, file_path: str, height: int = 20) -> None:
+    def display_image(self, file_path: str, height: int = 40) -> None:
         """Display an image in the terminal.
 
         Args:
             file_path: Path to the image file.
             height: Height in terminal lines for displaying the image.
         """
-        path = Path(file_path)
-        if not path.exists():
-            self.print(f"Image not found: {file_path}", style=ThemeKey.ERROR)
-            return
+        from klaude_code.ui.rich.terminal_image import TerminalImage
 
-        try:
-            from term_image.image import KittyImage  # type: ignore[import-untyped]
-
-            KittyImage.forced_support = True  # type: ignore[reportUnknownMemberType]
-            img = KittyImage.from_file(path)  # type: ignore[reportUnknownMemberType]
-            img.height = height  # type: ignore[reportUnknownMemberType]
-            print(img)  # type: ignore[reportUnknownArgumentType]
-        except Exception:
-            # Fallback if term_image fails (e.g., terminal doesn't support inline images)
-            self.print(f"Saved image: {file_path}", style=ThemeKey.METADATA_DIM)
+        self.print(TerminalImage(file_path, height=height))
 
     def display_task_metadata(self, event: events.TaskMetadataEvent) -> None:
         with self.session_print_context(event.session_id):
