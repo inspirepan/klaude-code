@@ -163,13 +163,13 @@ def format_cost_dual(cost_usd: float, cost_cny: float) -> tuple[str, str]:
 
 
 def format_date_display(date_str: str) -> str:
-    """Format date string YYYY-MM-DD to 'YYYY M-D' for table display."""
-    parts = date_str.split("-")
-    if len(parts) == 3:
-        month = int(parts[1])
-        day = int(parts[2])
-        return f"{parts[0]} {month}-{day}"
-    return date_str
+    """Format date string YYYY-MM-DD to 'YYYY M-D WEEKDAY' for table display."""
+    try:
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        weekday = dt.strftime("%a").upper()
+        return f"{dt.year} {dt.month}-{dt.day} {weekday}"
+    except (ValueError, TypeError):
+        return date_str
 
 
 def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
@@ -267,10 +267,14 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
     sorted_global_models = [s.model_name for s in sorted(global_by_model.values(), key=sort_by_cost)]
     first_total_row = True
     for model_name in sorted_global_models:
+        # Add empty row before first model to align with Total date range
+        if first_total_row:
+            table.add_row(total_label, "", "", "", "", "", "", "")
+            first_total_row = False
         stats = global_by_model[model_name]
         usd_str, cny_str = format_cost_dual(stats.cost_usd, stats.cost_cny)
         table.add_row(
-            total_label if first_total_row else "",
+            "",
             f"- {model_name}",
             format_tokens(stats.input_tokens),
             format_tokens(stats.output_tokens),
