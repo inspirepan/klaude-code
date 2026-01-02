@@ -84,7 +84,7 @@ class ChangeModelOperation(Operation):
     # This is useful for in-prompt model switching where extra output is noisy.
     emit_welcome_event: bool = True
 
-    # When False, do not emit the "Switched to: ..." developer message.
+    # When False, do not emit the "Switched to: …" developer message.
     # This is useful for in-prompt model switching where extra output is noisy.
     emit_switch_message: bool = True
 

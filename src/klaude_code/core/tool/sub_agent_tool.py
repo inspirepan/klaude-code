@@ -83,7 +83,7 @@ class SubAgentTool(ToolABC):
                         status="error",
                         output_text=(
                             "Duplicate sub-agent resume in the same response: "
-                            f"resume='{resume_raw.strip()}' (resolved='{resume_session_id[:7]}...'). "
+                            f"resume='{resume_raw.strip()}' (resolved='{resume_session_id[:7]}…'). "
                             "Merge into a single call or resume in a later turn."
                         ),
                     )

@@ -1,5 +1,5 @@
 """
-Use OSC 9;4;... to control progress bar in terminal like Ghostty
+Use OSC 9;4;… to control progress bar in terminal like Ghostty
 States:
   0/hidden
   1/normal
@@ -71,17 +71,17 @@ if __name__ == "__main__":
     # Clear progress bar
     emit_osc94(OSC94States.HIDDEN)
 
-    print("Waiting...")
+    print("Waiting…")
     # Indeterminate
     emit_osc94(OSC94States.INDETERMINATE)
 
     time.sleep(2)
-    print("Error...")
+    print("Error…")
     # Error
     emit_osc94(OSC94States.ERROR)
 
     time.sleep(2)
-    print("Warning...")
+    print("Warning…")
     # Warning
     emit_osc94(OSC94States.WARNING)
     time.sleep(2)

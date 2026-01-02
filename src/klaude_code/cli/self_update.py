@@ -228,7 +228,7 @@ def update_command(
         log(f"To update, install uv and run `uv tool upgrade {PACKAGE_NAME}`.")
         raise typer.Exit(1)
 
-    log(f"Running `uv tool upgrade {PACKAGE_NAME}`...")
+    log(f"Running `uv tool upgrade {PACKAGE_NAME}`…")
     result = subprocess.run(["uv", "tool", "upgrade", PACKAGE_NAME], check=False)
     if result.returncode != 0:
         log((f"Error: update failed (exit code {result.returncode}).", "red"))

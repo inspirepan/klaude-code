@@ -159,7 +159,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
             continue
 
         # Only handle unified diff hunk lines; ignore other metadata like
-        # "diff --git" or "index ..." which would otherwise skew counters.
+        # "diff --git" or "index …" which would otherwise skew counters.
         if not line or line[:1] not in {" ", "+", "-"}:
             continue
 

@@ -50,7 +50,7 @@ class ExportOnlineCommand(CommandABC):
         try:
             console = Console()
             # Check login status inside status context since npx surge whoami can be slow
-            with console.status(Text("Checking surge.sh login status...", style="dim"), spinner_style="dim"):
+            with console.status(Text("Checking surge.sh login status…", style="dim"), spinner_style="dim"):
                 logged_in = self._is_surge_logged_in(surge_cmd)
 
             if not logged_in:
@@ -64,7 +64,7 @@ class ExportOnlineCommand(CommandABC):
                 )
                 return CommandResult(events=[event])
 
-            with console.status(Text("Deploying to surge.sh...", style="dim"), spinner_style="dim"):
+            with console.status(Text("Deploying to surge.sh…", style="dim"), spinner_style="dim"):
                 html_doc = self._build_html(agent)
                 domain = self._generate_domain()
                 url = self._deploy_to_surge(surge_cmd, html_doc, domain)

@@ -198,7 +198,7 @@ def create_key_bindings(
         """Ensure completions refresh on backspace when editing an @token.
 
         We delete the character before cursor (default behavior), then explicitly
-        trigger completion refresh if the caret is still within an @... token.
+        trigger completion refresh if the caret is still within an @… token.
         """
         buf = event.current_buffer  # type: ignore
         # Handle selection: cut selection if present, otherwise delete one character

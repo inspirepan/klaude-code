@@ -65,7 +65,7 @@ def truncate_middle(
             out.append(line[:max_line_length])
             out.append_text(
                 Text(
-                    f" … (more {extra_chars} characters in this line)",
+                    f"… (more {extra_chars} characters in this line)",
                     style=ThemeKey.TOOL_RESULT_TRUNCATED,
                 )
             )
@@ -114,7 +114,7 @@ def truncate_head(
                 out.append(line[:max_line_length])
                 out.append_text(
                     Text(
-                        f" ... (more {len(line) - max_line_length} characters)",
+                        f" … (more {len(line) - max_line_length} characters)",
                         style=truncated_style or ThemeKey.TOOL_RESULT_TRUNCATED,
                     )
                 )
@@ -130,7 +130,7 @@ def truncate_head(
             out.append(line[:max_line_length])
             out.append_text(
                 Text(
-                    f" ... (more {len(line) - max_line_length} characters)",
+                    f" … (more {len(line) - max_line_length} characters)",
                     style=truncated_style or ThemeKey.TOOL_RESULT_TRUNCATED,
                 )
             )
@@ -139,6 +139,6 @@ def truncate_head(
         out.append("\n")
 
     remaining = len(lines) - max_lines
-    out.append_text(Text(f"... more {remaining} lines", style=truncated_style or ThemeKey.TOOL_RESULT_TRUNCATED))
+    out.append_text(Text(f"… more {remaining} lines", style=truncated_style or ThemeKey.TOOL_RESULT_TRUNCATED))
 
     return out

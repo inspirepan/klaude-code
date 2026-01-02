@@ -66,7 +66,7 @@ class _SlashCommandCompleter(Completer):
     """Complete slash commands at the beginning of the first line.
 
     Behavior:
-    - Only triggers when cursor is on first line and text matches /...
+    - Only triggers when cursor is on first line and text matches /…
     - Shows available slash commands with descriptions
     - Inserts trailing space after completion
     """
@@ -133,7 +133,7 @@ class _SkillCompleter(Completer):
     """Complete skill names at the beginning of the first line.
 
     Behavior:
-    - Only triggers when cursor is on first line and text matches $ or ¥...
+    - Only triggers when cursor is on first line and text matches $ or ¥…
     - Shows available skills with descriptions
     - Inserts trailing space after completion
     """
@@ -241,7 +241,7 @@ class _AtFilesCompleter(Completer):
     """Complete @path segments using fd or ripgrep.
 
     Behavior:
-    - Only triggers when the cursor is after an "@..." token (until whitespace).
+    - Only triggers when the cursor is after an "@…" token (until whitespace).
     - Completes paths relative to the current working directory.
     - Uses `fd` when available (files and directories), falls back to `rg --files` (files only).
     - Debounces external commands and caches results to avoid excessive spawning.
@@ -294,7 +294,7 @@ class _AtFilesCompleter(Completer):
             return []  # type: ignore[reportUnknownVariableType]
 
         frag = m.group("frag")  # raw text after '@' and before cursor (may be quoted)
-        # Normalize fragment for search: support optional quoting syntax @"...".
+        # Normalize fragment for search: support optional quoting syntax @"…".
         is_quoted = frag.startswith('"')
         search_frag = frag
         if is_quoted:

@@ -21,7 +21,7 @@ from klaude_code.ui.terminal.progress_bar import OSC94States, emit_osc94
 
 
 def extract_last_bold_header(text: str) -> str | None:
-    """Extract the latest complete bold header ("**...**") from text.
+    """Extract the latest complete bold header ("**…**") from text.
 
     We treat a bold segment as a "header" only if it appears at the beginning
     of a line (ignoring leading whitespace). This avoids picking up incidental
@@ -212,7 +212,7 @@ class SpinnerStatusState:
     - context_percent: Context usage percentage, updated during task execution
 
     Display logic:
-    - If activity: show base + activity (if base exists) or activity + "..."
+    - If activity: show base + activity (if base exists) or activity + "…"
     - Elif base_status: show base_status
     - Else: show "Thinking …"
     - Context percent is appended at the end if available

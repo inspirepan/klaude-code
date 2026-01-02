@@ -96,7 +96,7 @@ def _read_segment(options: ReadOptions) -> ReadSegmentResult:
                 truncated_chars = original_len - options.char_limit_per_line
                 content = (
                     content[: options.char_limit_per_line]
-                    + f" ... (more {truncated_chars} characters in this line are truncated)"
+                    + f" … (more {truncated_chars} characters in this line are truncated)"
                 )
             line_chars = len(content) + 1
             selected_chars += line_chars
@@ -316,12 +316,12 @@ class ReadTool(ToolABC):
         # Show truncation info with reason
         if read_result.remaining_due_to_char_limit > 0:
             lines_out.append(
-                f"... ({read_result.remaining_due_to_char_limit} more lines truncated due to {max_chars} char limit, "
+                f"… ({read_result.remaining_due_to_char_limit} more lines truncated due to {max_chars} char limit, "
                 f"file has {read_result.total_lines} lines total, use offset/limit to read other parts)"
             )
         elif read_result.remaining_selected_beyond_cap > 0:
             lines_out.append(
-                f"... ({read_result.remaining_selected_beyond_cap} more lines truncated due to {line_cap} line limit, "
+                f"… ({read_result.remaining_selected_beyond_cap} more lines truncated due to {line_cap} line limit, "
                 f"file has {read_result.total_lines} lines total, use offset/limit to read other parts)"
             )
 

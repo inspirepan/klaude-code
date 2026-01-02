@@ -286,7 +286,7 @@ def main_callback(
             raise typer.Exit(2)
 
         # In non-interactive environments, default to exec-mode behavior.
-        # This allows: echo "..." | klaude
+        # This allows: echo "…" | klaude
         if not sys.stdin.isatty() or not sys.stdout.isatty():
             if continue_ or resume or resume_by_id is not None:
                 log(("Error: --continue/--resume options require a TTY", "red"))

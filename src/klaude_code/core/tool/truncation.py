@@ -79,7 +79,7 @@ class SimpleTruncationStrategy(TruncationStrategy):
     def truncate(self, output: str, tool_call: ToolCallLike | None = None) -> TruncationResult:
         if len(output) > self.max_length:
             truncated_length = len(output) - self.max_length
-            truncated_output = output[: self.max_length] + f"... (truncated {truncated_length} characters)"
+            truncated_output = output[: self.max_length] + f"… (truncated {truncated_length} characters)"
             return TruncationResult(
                 output=truncated_output,
                 was_truncated=True,
@@ -171,7 +171,7 @@ class SmartTruncationStrategy(TruncationStrategy):
 
         truncated_output = (
             f"{header}{head_content}\n\n"
-            f"<system-reminder>... {truncated_length} characters omitted ...</system-reminder>\n\n"
+            f"<system-reminder>… {truncated_length} characters omitted …</system-reminder>\n\n"
             f"{tail_content}"
         )
 

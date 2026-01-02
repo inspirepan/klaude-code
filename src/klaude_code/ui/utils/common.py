@@ -101,7 +101,7 @@ def format_model_params(model_params: "LLMConfigModelParameter") -> list[str]:
     - "reasoning medium"
     - "thinking budget 10000"
     - "verbosity 2"
-    - "provider-routing: {...}"
+    - "provider-routing: {…}"
     """
     parts: list[str] = []
 

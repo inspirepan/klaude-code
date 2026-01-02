@@ -41,7 +41,7 @@ def _truncate(text: str, max_len: int = 60) -> str:
     text = text.replace("\n", " ").strip()
     if len(text) <= max_len:
         return text
-    return text[: max_len - 3] + "..."
+    return text[: max_len - 1] + "…"
 
 
 def _build_fork_points(conversation_history: list[message.HistoryEvent]) -> list[ForkPoint]:

@@ -56,20 +56,20 @@ def login_command(
                 state = token_manager.get_state()
                 if state and not state.is_expired():
                     log(("You are already logged in to Codex.", "green"))
-                    log(f"  Account ID: {state.account_id[:8]}...")
+                    log(f"  Account ID: {state.account_id[:8]}…")
                     expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
                     log(f"  Expires: {expires_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
                     if not typer.confirm("Do you want to re-login?"):
                         return
 
-            log("Starting Codex OAuth login flow...")
+            log("Starting Codex OAuth login flow…")
             log("A browser window will open for authentication.")
 
             try:
                 oauth = CodexOAuth(token_manager)
                 state = oauth.login()
                 log(("Login successful!", "green"))
-                log(f"  Account ID: {state.account_id[:8]}...")
+                log(f"  Account ID: {state.account_id[:8]}…")
                 expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
                 log(f"  Expires: {expires_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
             except Exception as e:
@@ -90,7 +90,7 @@ def login_command(
                     if not typer.confirm("Do you want to re-login?"):
                         return
 
-            log("Starting Claude OAuth login flow...")
+            log("Starting Claude OAuth login flow…")
             log("A browser window will open for authentication.")
             log("After login, paste the authorization code in the terminal.")
 

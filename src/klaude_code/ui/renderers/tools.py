@@ -424,7 +424,7 @@ def _truncate_url(url: str, max_length: int = URL_TRUNCATE_MAX_LENGTH) -> str:
     if len(display_url) <= max_length:
         return display_url
     # Truncate with ellipsis
-    return display_url[: max_length - 3] + "..."
+    return display_url[: max_length - 1] + "…"
 
 
 def _render_mermaid_viewer_link(
@@ -499,7 +499,7 @@ def render_web_search_tool_call(arguments: str) -> RenderableType:
     if query:
         # Truncate long queries
         display_query = (
-            query if len(query) <= QUERY_DISPLAY_TRUNCATE_LENGTH else query[: QUERY_DISPLAY_TRUNCATE_LENGTH - 3] + "..."
+            query if len(query) <= QUERY_DISPLAY_TRUNCATE_LENGTH else query[: QUERY_DISPLAY_TRUNCATE_LENGTH - 1] + "…"
         )
         summary.append(display_query, ThemeKey.TOOL_PARAM)
     else:

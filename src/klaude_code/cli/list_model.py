@@ -50,7 +50,7 @@ def _get_codex_status_rows() -> list[tuple[Text, Text]]:
                 Text.assemble(
                     ("Logged in", ThemeKey.CONFIG_STATUS_OK),
                     (
-                        f" (account: {state.account_id[:8]}..., expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})",
+                        f" (account: {state.account_id[:8]}…, expires: {expires_dt.strftime('%Y-%m-%d %H:%M UTC')})",
                         "dim",
                     ),
                 ),

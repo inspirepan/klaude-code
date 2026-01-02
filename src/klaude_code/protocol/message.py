@@ -30,7 +30,7 @@ class ToolCallStartItem(BaseModel):
     """Transient streaming signal when LLM starts a tool call.
 
     This is NOT persisted to conversation history. Used only for
-    real-time UI feedback (e.g., "Calling Bash ...").
+    real-time UI feedback (e.g., "Calling Bash …").
     """
 
     response_id: str | None = None
