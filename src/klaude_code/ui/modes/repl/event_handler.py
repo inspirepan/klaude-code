@@ -624,11 +624,8 @@ class DisplayEventHandler:
     def _extract_active_form_text(self, todo_event: events.TodoChangeEvent) -> str | None:
         status_text: str | None = None
         for todo in todo_event.todos:
-            if todo.status == "in_progress":
-                if len(todo.active_form) > 0:
-                    status_text = todo.active_form
-                if len(todo.content) > 0:
-                    status_text = todo.content
+            if todo.status == "in_progress" and len(todo.content) > 0:
+                status_text = todo.content
 
         if status_text is None:
             return None
