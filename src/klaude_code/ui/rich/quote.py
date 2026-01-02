@@ -1,8 +1,11 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any, Self
 
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.segment import Segment
 from rich.style import Style
+
+if TYPE_CHECKING:
+    from rich.console import RenderableType
 
 
 class Quote:
@@ -30,5 +33,77 @@ class Quote:
 
         for line in lines:
             yield prefix_segment
+            yield from line
+            yield new_line
+
+
+class TreeQuote:
+    """Wrapper to add a tree-style prefix to any content."""
+
+    def __init__(
+        self,
+        content: Any,
+        *,
+        prefix_first: str | None = None,
+        prefix_middle: str = "│ ",
+        prefix_last: str = "└ ",
+        style: str | Style = "magenta",
+        style_first: str | Style | None = None,
+    ):
+        self.content = content
+        self.prefix_first = prefix_first
+        self.prefix_middle = prefix_middle
+        self.prefix_last = prefix_last
+        self.style = style
+        self.style_first = style_first
+
+    @classmethod
+    def for_tool_call(cls, content: "RenderableType", *, mark: str, style: str, style_first: str) -> Self:
+        """Create a tree quote for tool call display.
+
+        The mark appears on the first line, with continuation lines using "│ ".
+        """
+        return cls(
+            content,
+            prefix_first=f"{mark} ",
+            prefix_middle="│ ",
+            prefix_last="│ ",
+            style=style,
+            style_first=style_first,
+        )
+
+    @classmethod
+    def for_tool_result(
+        cls, content: "RenderableType", *, is_last: bool, style: str = "tool.result.tree_prefix"
+    ) -> Self:
+        """Create a tree quote for tool result display.
+
+        Uses "└ " for the last result in a turn, "│ " otherwise.
+        """
+        return cls(content, prefix_last="└ " if is_last else "│ ", style=style)
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        # Reduce width to leave space for prefix
+        prefix_width = max(
+            len(self.prefix_middle),
+            len(self.prefix_last),
+            len(self.prefix_first) if self.prefix_first is not None else 0,
+        )
+        render_options = options.update(width=options.max_width - prefix_width)
+
+        quote_style = console.get_style(self.style) if isinstance(self.style, str) else self.style
+        first_style = console.get_style(self.style_first) if isinstance(self.style_first, str) else self.style_first
+
+        new_line = Segment("\n")
+        lines = console.render_lines(self.content, render_options)
+        line_count = len(lines)
+
+        for idx, line in enumerate(lines):
+            if idx == 0 and self.prefix_first is not None:
+                yield Segment(self.prefix_first, first_style or quote_style)
+            else:
+                is_last = idx == line_count - 1
+                prefix = self.prefix_last if is_last else self.prefix_middle
+                yield Segment(prefix, quote_style)
             yield from line
             yield new_line

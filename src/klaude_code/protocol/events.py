@@ -99,6 +99,9 @@ class ToolResultEvent(BaseModel):
     ui_extra: model.ToolResultUIExtra | None = None
     status: Literal["success", "error"]
     task_metadata: model.TaskMetadata | None = None  # Sub-agent task metadata
+    # Whether this tool result is the last one emitted in the current turn.
+    # Used by UI renderers to close tree-style prefixes.
+    is_last_in_turn: bool = True
 
 
 class ResponseMetadataEvent(BaseModel):

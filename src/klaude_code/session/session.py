@@ -297,8 +297,10 @@ class Session(BaseModel):
         prev_item: message.HistoryEvent | None = None
         last_assistant_content: str = ""
         report_back_result: str | None = None
+        history = self.conversation_history
+        history_len = len(history)
         yield events.TaskStartEvent(session_id=self.id, sub_agent_state=self.sub_agent_state)
-        for it in self.conversation_history:
+        for idx, it in enumerate(history):
             if self.need_turn_start(prev_item, it):
                 yield events.TurnStartEvent(session_id=self.id)
             match it:
@@ -337,6 +339,9 @@ class Session(BaseModel):
                         yield events.InterruptEvent(session_id=self.id)
                 case message.ToolResultMessage() as tr:
                     status = "success" if tr.status == "success" else "error"
+                    # Check if this is the last tool result in the current turn
+                    next_item = history[idx + 1] if idx + 1 < history_len else None
+                    is_last_in_turn = not isinstance(next_item, message.ToolResultMessage)
                     yield events.ToolResultEvent(
                         tool_call_id=tr.call_id,
                         tool_name=str(tr.tool_name),
@@ -345,6 +350,7 @@ class Session(BaseModel):
                         session_id=self.id,
                         status=status,
                         task_metadata=tr.task_metadata,
+                        is_last_in_turn=is_last_in_turn,
                     )
                     yield from self._iter_sub_agent_history(tr, seen_sub_agent_sessions)
                     if tr.status == "aborted":

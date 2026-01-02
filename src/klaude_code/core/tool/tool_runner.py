@@ -81,6 +81,9 @@ class ToolExecutionResult:
 
     tool_call: ToolCallRequest
     tool_result: message.ToolResultMessage
+    # Whether this is the last ToolExecutionResult emitted in the current turn.
+    # Used by UI to decide whether to close the tree prefix.
+    is_last_in_turn: bool = False
 
 
 @dataclass
@@ -130,8 +133,15 @@ class ToolExecutor:
 
         sequential_tool_calls, concurrent_tool_calls = self._partition_tool_calls(tool_calls)
 
+        def _mark_last_in_turn(events_to_mark: list[ToolExecutorEvent], *, is_last_in_turn: bool) -> None:
+            if not events_to_mark:
+                return
+            first = events_to_mark[0]
+            if isinstance(first, ToolExecutionResult):
+                first.is_last_in_turn = is_last_in_turn
+
         # Run sequential tools one by one.
-        for tool_call in sequential_tool_calls:
+        for idx, tool_call in enumerate(sequential_tool_calls):
             tool_call_event = self._build_tool_call_started(tool_call)
             self._call_event_emitted.add(tool_call.call_id)
             yield tool_call_event
@@ -141,6 +151,9 @@ class ToolExecutor:
             except asyncio.CancelledError:
                 # Propagate cooperative cancellation so the agent task can be stopped.
                 raise
+
+            is_last_in_turn = idx == len(sequential_tool_calls) - 1 and not concurrent_tool_calls
+            _mark_last_in_turn(result_events, is_last_in_turn=is_last_in_turn)
 
             for exec_event in result_events:
                 yield exec_event
@@ -157,6 +170,7 @@ class ToolExecutor:
                 self._register_concurrent_task(task)
                 execution_tasks.append(task)
 
+            remaining = len(execution_tasks)
             for task in asyncio.as_completed(execution_tasks):
                 # Do not swallow asyncio.CancelledError here:
                 # - If the user interrupts the main agent, the executor cancels the
@@ -167,6 +181,9 @@ class ToolExecutor:
                 #   CancelledError raised here should still bubble up so the
                 #   calling agent can stop cleanly, matching pre-refactor behavior.
                 result_events = await task
+
+                remaining -= 1
+                _mark_last_in_turn(result_events, is_last_in_turn=remaining == 0)
 
                 for exec_event in result_events:
                     yield exec_event
@@ -192,7 +209,8 @@ class ToolExecutor:
         if not self._unfinished_calls:
             return events_to_yield
 
-        for call_id, tool_call in list(self._unfinished_calls.items()):
+        unfinished = list(self._unfinished_calls.items())
+        for idx, (call_id, tool_call) in enumerate(unfinished):
             session_id = self._sub_agent_session_ids.get(call_id)
             cancel_result = message.ToolResultMessage(
                 call_id=tool_call.call_id,
@@ -206,7 +224,13 @@ class ToolExecutor:
                 events_to_yield.append(ToolExecutionCallStarted(tool_call=tool_call))
                 self._call_event_emitted.add(call_id)
 
-            events_to_yield.append(ToolExecutionResult(tool_call=tool_call, tool_result=cancel_result))
+            events_to_yield.append(
+                ToolExecutionResult(
+                    tool_call=tool_call,
+                    tool_result=cancel_result,
+                    is_last_in_turn=idx == len(unfinished) - 1,
+                )
+            )
 
             self._append_history([cancel_result])
             self._unfinished_calls.pop(call_id, None)

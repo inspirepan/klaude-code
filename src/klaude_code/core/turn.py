@@ -68,7 +68,7 @@ def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEv
                     arguments=tool_call.arguments_json,
                 )
             )
-        case ToolExecutionResult(tool_call=tool_call, tool_result=tool_result):
+        case ToolExecutionResult(tool_call=tool_call, tool_result=tool_result, is_last_in_turn=is_last_in_turn):
             status = "success" if tool_result.status == "success" else "error"
             ui_events.append(
                 events.ToolResultEvent(
@@ -80,6 +80,7 @@ def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEv
                     ui_extra=tool_result.ui_extra,
                     status=status,
                     task_metadata=tool_result.task_metadata,
+                    is_last_in_turn=is_last_in_turn,
                 )
             )
             if tool_result.status == "aborted":

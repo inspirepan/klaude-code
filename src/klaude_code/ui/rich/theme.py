@@ -124,6 +124,7 @@ class ThemeKey(str, Enum):
     # ERROR
     ERROR = "error"
     ERROR_BOLD = "error.bold"
+    ERROR_DIM = "error.dim"
     INTERRUPT = "interrupt"
     # METADATA
     METADATA = "metadata"
@@ -154,6 +155,7 @@ class ThemeKey(str, Enum):
     TOOL_PARAM = "tool.param"
     TOOL_PARAM_BOLD = "tool.param.bold"
     TOOL_RESULT = "tool.result"
+    TOOL_RESULT_TREE_PREFIX = "tool.result.tree_prefix"
     TOOL_RESULT_TRUNCATED = "tool.result.truncated"
     TOOL_RESULT_BOLD = "tool.result.bold"
     TOOL_MARK = "tool.mark"
@@ -217,6 +219,7 @@ class Themes:
 
 def get_theme(theme: str | None = None) -> Themes:
     palette = LIGHT_PALETTE if theme == "light" else DARK_PALETTE
+
     return Themes(
         app_theme=Theme(
             styles={
@@ -235,6 +238,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 # ERROR
                 ThemeKey.ERROR.value: palette.red,
                 ThemeKey.ERROR_BOLD.value: "bold " + palette.red,
+                ThemeKey.ERROR_DIM.value: "dim " + palette.red,
                 ThemeKey.INTERRUPT.value: "reverse bold " + palette.red,
                 # USER_INPUT
                 ThemeKey.USER_INPUT.value: palette.magenta,
@@ -264,6 +268,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_PARAM.value: palette.green,
                 ThemeKey.TOOL_PARAM_BOLD.value: "bold " + palette.green,
                 ThemeKey.TOOL_RESULT.value: palette.grey_green,
+                ThemeKey.TOOL_RESULT_TREE_PREFIX.value: palette.grey_green + " dim",
                 ThemeKey.TOOL_RESULT_BOLD.value: "bold " + palette.grey_green,
                 ThemeKey.TOOL_RESULT_TRUNCATED.value: palette.yellow,
                 ThemeKey.TOOL_MARK.value: "bold",
