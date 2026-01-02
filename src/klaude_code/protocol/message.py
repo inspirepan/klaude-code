@@ -222,3 +222,29 @@ def parts_from_text_and_images(text: str | None, images: list[ImageURLPart] | No
 
 def join_text_parts(parts: Sequence[Part]) -> str:
     return "".join(part.text for part in parts if isinstance(part, TextPart))
+
+
+def format_saved_images(images: Sequence[ImageFilePart], text: str = "") -> str:
+    """Format saved image paths with optional text prefix.
+
+    Args:
+        images: List of ImageFilePart with file paths to format.
+        text: Optional text content to prepend.
+
+    Returns:
+        Formatted string with image paths. Single image uses "Saved image at xxx",
+        multiple images use list format.
+    """
+    valid_paths = [img.file_path for img in images if img.file_path]
+    if not valid_paths:
+        return text
+
+    if len(valid_paths) == 1:
+        image_text = f"Saved image at {valid_paths[0]}"
+    else:
+        image_lines = "\n".join(f"- {path}" for path in valid_paths)
+        image_text = f"Saved images:\n{image_lines}"
+
+    if text.strip():
+        return f"{text}\n\n{image_text}"
+    return image_text

@@ -138,13 +138,7 @@ class TurnExecutor:
             assistant_message = self._turn_result.assistant_message
             text = message.join_text_parts(assistant_message.parts)
             images = [part for part in assistant_message.parts if isinstance(part, message.ImageFilePart)]
-            if images:
-                image_lines = "\n".join(f"- {img.file_path}" for img in images if img.file_path)
-                if image_lines:
-                    if text.strip():
-                        return f"{text}\n\nSaved images:\n{image_lines}"
-                    return f"Saved images:\n{image_lines}"
-            return text
+            return message.format_saved_images(images, text)
         return ""
 
     @property

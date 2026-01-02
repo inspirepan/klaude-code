@@ -305,18 +305,7 @@ class Session(BaseModel):
                 case message.AssistantMessage() as am:
                     content = message.join_text_parts(am.parts)
                     images = [part for part in am.parts if isinstance(part, message.ImageFilePart)]
-                    if images:
-                        image_lines = "\n".join(f"- {img.file_path}" for img in images if img.file_path)
-                        if image_lines:
-                            last_assistant_content = (
-                                f"{content}\n\nSaved images:\n{image_lines}"
-                                if content.strip()
-                                else f"Saved images:\n{image_lines}"
-                            )
-                        else:
-                            last_assistant_content = content
-                    else:
-                        last_assistant_content = content
+                    last_assistant_content = message.format_saved_images(images, content)
                     thinking_text = "".join(
                         part.text for part in am.parts if isinstance(part, message.ThinkingTextPart)
                     )
