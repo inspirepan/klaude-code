@@ -56,9 +56,9 @@ def create_key_bindings(
         try:
             app = get_app()
             window = app.layout.current_window
-            if window is None or window.render_info is None:
-                return False
             ri = window.render_info
+            if ri is None:
+                return False
 
             current_visible_y = int(ri.cursor_position.y)
             target_visible_y = current_visible_y + delta_visible_y
@@ -77,15 +77,16 @@ def create_key_bindings(
         buf = event.current_buffer
         try:
             window = event.app.layout.current_window
-            if window is None or window.render_info is None:
-                return
             ri = window.render_info
+            if ri is None:
+                return
 
             rowcol_to_yx = getattr(ri, "_rowcol_to_yx", None)
             x_offset = getattr(ri, "_x_offset", None)
             y_offset = getattr(ri, "_y_offset", None)
             if not isinstance(rowcol_to_yx, dict) or not isinstance(x_offset, int) or not isinstance(y_offset, int):
                 return
+            rowcol_to_yx_typed = cast(dict[tuple[int, int], tuple[int, int]], rowcol_to_yx)
 
             current_visible_y = int(ri.cursor_position.y)
             target_visible_y = current_visible_y + delta_visible_y
@@ -106,7 +107,7 @@ def create_key_bindings(
 
             def _segment_start_abs_x(row: int, abs_y: int) -> int | None:
                 xs: list[int] = []
-                for (r, _col), (y, x) in rowcol_to_yx.items():
+                for (r, _col), (y, x) in rowcol_to_yx_typed.items():
                     if r == row and y == abs_y:
                         xs.append(x)
                 return min(xs) if xs else None
@@ -120,7 +121,7 @@ def create_key_bindings(
             desired_abs_x = target_start_x + offset_in_segment_cells
 
             candidates: list[tuple[int, int]] = []
-            for (r, col), (y, x) in rowcol_to_yx.items():
+            for (r, col), (y, x) in rowcol_to_yx_typed.items():
                 if r == target_row and y == target_abs_y:
                     candidates.append((col, x))
             if not candidates:
@@ -141,7 +142,10 @@ def create_key_bindings(
             target_source_col = chosen_display_col
             if callable(get_processed_line):
                 processed_line = get_processed_line(target_row)
-                target_source_col = int(processed_line.display_to_source(chosen_display_col))
+                display_to_source = getattr(processed_line, "display_to_source", None)
+                if callable(display_to_source):
+                    display_to_source_fn = cast(Callable[[int], int], display_to_source)
+                    target_source_col = display_to_source_fn(chosen_display_col)
 
             doc = buf.document  # type: ignore[reportUnknownMemberType]
             new_index = doc.translate_row_col_to_index(target_row, target_source_col)  # type: ignore[reportUnknownMemberType]

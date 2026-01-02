@@ -23,7 +23,6 @@ if TYPE_CHECKING:
 class OperationType(Enum):
     """Enumeration of supported operation types."""
 
-    USER_INPUT = "user_input"
     RUN_AGENT = "run_agent"
     CHANGE_MODEL = "change_model"
     CHANGE_THINKING = "change_thinking"
@@ -44,18 +43,6 @@ class Operation(BaseModel):
     async def execute(self, handler: OperationHandler) -> None:
         """Execute this operation using the given handler."""
         raise NotImplementedError("Subclasses must implement execute()")
-
-
-class UserInputOperation(Operation):
-    """Operation for handling user input (text and optional images) that should be processed by an agent."""
-
-    type: OperationType = OperationType.USER_INPUT
-    input: UserInputPayload
-    session_id: str | None = None
-
-    async def execute(self, handler: OperationHandler) -> None:
-        """Execute user input by running it through an agent."""
-        await handler.handle_user_input(self)
 
 
 class RunAgentOperation(Operation):

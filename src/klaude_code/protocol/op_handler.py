@@ -18,16 +18,11 @@ if TYPE_CHECKING:
         InterruptOperation,
         ResumeSessionOperation,
         RunAgentOperation,
-        UserInputOperation,
     )
 
 
 class OperationHandler(Protocol):
     """Protocol defining the interface for handling operations."""
-
-    async def handle_user_input(self, operation: UserInputOperation) -> None:
-        """Handle a user input operation."""
-        ...
 
     async def handle_run_agent(self, operation: RunAgentOperation) -> None:
         """Handle a run agent operation."""

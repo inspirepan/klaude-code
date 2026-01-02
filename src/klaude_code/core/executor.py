@@ -176,35 +176,6 @@ class ExecutorContext:
         """Initialize an agent for a session and replay history to UI."""
         await self._ensure_agent(operation.session_id)
 
-    async def handle_user_input(self, operation: op.UserInputOperation) -> None:
-        """Handle a user input operation.
-
-        Core should not parse slash commands. The UI/CLI layer is responsible for
-        turning raw user input into one or more operations.
-        """
-
-        if operation.session_id is None:
-            raise ValueError("session_id cannot be None")
-
-        session_id = operation.session_id
-        agent = await self._ensure_agent(session_id)
-        user_input = operation.input
-
-        await self.emit_event(
-            events.UserMessageEvent(content=user_input.text, session_id=session_id, images=user_input.images)
-        )
-        agent.session.append_history(
-            [message.UserMessage(parts=message.parts_from_text_and_images(user_input.text, user_input.images))]
-        )
-
-        await self.handle_run_agent(
-            op.RunAgentOperation(
-                id=operation.id,
-                session_id=session_id,
-                input=user_input,
-            )
-        )
-
     async def handle_run_agent(self, operation: op.RunAgentOperation) -> None:
         agent = await self._ensure_agent(operation.session_id)
         existing_active = self.task_manager.get(operation.id)
