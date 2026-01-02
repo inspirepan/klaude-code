@@ -6,7 +6,7 @@ description: Commit current git changes
 
 ### Step 1: Detect version control system
 
-Check if `jj` is available in the current environment.
+Check if `jj` is available in the current environment. (check in your <env> tag)
 
 ### Step 2A: If jj is available
 

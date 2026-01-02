@@ -165,6 +165,29 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     for meta in e.metadata.sub_agent_task_metadata:
         renderables.append(_render_task_metadata_block(meta, is_sub_agent=True, show_context_and_time=False))
 
+    # Add total cost line when there are sub-agents
+    if e.metadata.sub_agent_task_metadata:
+        total_cost = 0.0
+        currency = "USD"
+        # Sum up costs from main agent and all sub-agents
+        if e.metadata.main_agent.usage and e.metadata.main_agent.usage.total_cost:
+            total_cost += e.metadata.main_agent.usage.total_cost
+            currency = e.metadata.main_agent.usage.currency
+        for meta in e.metadata.sub_agent_task_metadata:
+            if meta.usage and meta.usage.total_cost:
+                total_cost += meta.usage.total_cost
+
+        currency_symbol = "¥" if currency == "CNY" else "$"
+        total_line = Text.assemble(
+            ("Σ ", ThemeKey.METADATA_DIM),
+            ("total ", ThemeKey.METADATA_DIM),
+            (currency_symbol, ThemeKey.METADATA_DIM),
+            (f"{total_cost:.4f}", ThemeKey.METADATA_BOLD),
+        )
+        grid = create_grid()
+        grid.add_row(Text(" ", style=ThemeKey.METADATA_DIM), total_line)
+        renderables.append(Padding(grid, (0, 0, 0, 2)))
+
     return Group(*renderables)
 
 
