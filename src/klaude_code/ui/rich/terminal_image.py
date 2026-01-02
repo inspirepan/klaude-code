@@ -33,11 +33,13 @@ class TerminalImage(ConsoleRenderable, RichCast):
                 img.height = self.height  # type: ignore[reportUnknownMemberType]
             # Write directly to the console's file to bypass Rich's processing
             # which would corrupt Kitty graphics protocol escape sequences
-            console.file.write("\x1b[1A\x1b[2K")  # Clear status bar residue from previous line
-            console.file.write("\n")
+            # NOTE: Use CR/LF to ensure the image always starts at column 1.
+            # When a Live status line is visible, the cursor can be left at the
+            # end of the line; a lone "\n" would keep that column and cause the
+            # first image row to render only in the far-right cell.
+            console.file.write("\x1b[1A\r\x1b[2K\r\n")  # Clear status bar residue from previous line
             console.file.write(str(img))
-            console.file.write("\n")
-            console.file.write("\n")
+            console.file.write("\r\n\r\n")
             console.file.flush()
             # Yield empty text to satisfy the generator requirement
             yield Text("")

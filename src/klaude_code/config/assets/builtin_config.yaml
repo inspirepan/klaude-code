@@ -187,7 +187,6 @@ provider_list:
         input: 0.5
         output: 3.0
         cache_read: 0.05
-
   - model_name: nano-banana-pro@or
     model_params:
       model: google/gemini-3-pro-image-preview
@@ -195,6 +194,11 @@ provider_list:
       modalities:
       - image
       - text
+      cost:
+        input: 2
+        output: 12
+        cache_read: 0.2
+        image: 120
   - model_name: grok
     model_params:
       model: x-ai/grok-4.1-fast
@@ -246,6 +250,7 @@ provider_list:
         input: 0.5
         output: 3.0
         cache_read: 0.05
+
 - provider_name: bedrock
   protocol: bedrock
   aws_access_key: ${AWS_ACCESS_KEY_ID}

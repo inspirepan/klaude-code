@@ -82,6 +82,13 @@ def _render_task_metadata_block(
                     (format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA),
                 )
             )
+        if metadata.usage.image_tokens > 0:
+            token_parts.append(
+                Text.assemble(
+                    ("image ", ThemeKey.METADATA_DIM),
+                    (format_number(metadata.usage.image_tokens), ThemeKey.METADATA),
+                )
+            )
         parts.append(Text(" · ").join(token_parts))
 
     # Cost

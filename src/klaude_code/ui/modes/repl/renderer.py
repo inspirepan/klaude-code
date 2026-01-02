@@ -255,7 +255,28 @@ class REPLRenderer:
         """
         from klaude_code.ui.rich.terminal_image import TerminalImage
 
-        self.print(TerminalImage(file_path, height=height))
+        # TerminalImage writes directly to stdout to preserve Kitty graphics
+        # escape sequences. Suspend the Live status bar while emitting the image
+        # to avoid interleaving refreshes with raw terminal output.
+        had_live = self._bottom_live is not None
+        was_spinner_visible = self._spinner_visible
+        has_stream = MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._stream_renderable is not None
+        resume_live = had_live and (was_spinner_visible or has_stream)
+
+        if self._bottom_live is not None:
+            with contextlib.suppress(Exception):
+                self._bottom_live.stop()
+            self._bottom_live = None
+
+        try:
+            self.print(TerminalImage(file_path, height=height))
+        finally:
+            if resume_live:
+                if was_spinner_visible:
+                    self.spinner_start()
+                else:
+                    self._ensure_bottom_live_started()
+                    self._refresh_bottom_live()
 
     def display_task_metadata(self, event: events.TaskMetadataEvent) -> None:
         with self.session_print_context(event.session_id):

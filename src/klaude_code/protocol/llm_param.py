@@ -58,6 +58,7 @@ class Cost(BaseModel):
     output: float  # Output token price per million tokens
     cache_read: float = 0.0  # Cache read price per million tokens
     cache_write: float = 0.0  # Cache write price per million tokens (ignored in calculation for now)
+    image: float = 0.0  # Image generation token price per million tokens
     currency: Literal["USD", "CNY"] = "USD"  # Currency for cost display
 
 

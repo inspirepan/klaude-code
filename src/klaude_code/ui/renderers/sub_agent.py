@@ -55,7 +55,7 @@ def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) ->
         )
     elements: list[RenderableType] = [
         Text.assemble((e.sub_agent_type, ThemeKey.TOOL_NAME), " ", desc, resume_note),
-        truncate_head(e.sub_agent_prompt, base_style=style or "", truncated_style=ThemeKey.STATUS_HINT),
+        truncate_head(e.sub_agent_prompt, base_style=style or "", truncated_style=ThemeKey.STATUS_HINT, max_lines=10),
     ]
     if e.output_schema:
         elements.append(Text("\nExpected Output Format JSON:", style=style or ""))

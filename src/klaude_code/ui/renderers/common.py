@@ -4,10 +4,10 @@ from rich.text import Text
 
 from klaude_code.const import (
     MIN_HIDDEN_LINES_FOR_INDICATOR,
-    TRUNCATE_HEAD_MAX_LINES,
     TAB_EXPAND_WIDTH,
     TRUNCATE_DISPLAY_MAX_LINE_LENGTH,
     TRUNCATE_DISPLAY_MAX_LINES,
+    TRUNCATE_HEAD_MAX_LINES,
 )
 from klaude_code.ui.rich.theme import ThemeKey
 
