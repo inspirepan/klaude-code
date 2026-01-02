@@ -492,8 +492,8 @@ class _AtFilesCompleter(Completer):
                 1 if is_hidden else 0,
                 1 if has_test else 0,
                 0 if base_pos != -1 else 1,  # basename match first
-                base_match_quality,           # more precise basename match wins
-                depth,                        # then shallower paths
+                base_match_quality,  # more precise basename match wins
+                depth,  # then shallower paths
                 base_pos if base_pos != -1 else 10_000,
                 path_pos,
                 len(p),

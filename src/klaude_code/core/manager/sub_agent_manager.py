@@ -133,10 +133,10 @@ Only the content passed to `report_back` will be returned to user.\
             async for event in child_agent.run_task(sub_agent_input):
                 # Capture TaskFinishEvent content for return
                 if isinstance(event, events.TaskFinishEvent):
-                    result = event.task_result
+                    result = _append_agent_id(event.task_result, child_session.id)
                     event = events.TaskFinishEvent(
                         session_id=event.session_id,
-                        task_result=_append_agent_id(event.task_result, child_session.id),
+                        task_result=result,
                         has_structured_output=event.has_structured_output,
                     )
                 # Capture TaskMetadataEvent for metadata propagation

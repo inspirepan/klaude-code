@@ -161,6 +161,7 @@ class ThemeKey(str, Enum):
     TOOL_REJECTED = "tool.rejected"
     TOOL_TIMEOUT = "tool.timeout"
     TOOL_RESULT_MERMAID = "tool.result.mermaid"
+    SUB_AGENT_FOOTER = "sub_agent.footer"
     # BASH SYNTAX
     BASH_COMMAND = "bash.command"
     BASH_ARGUMENT = "bash.argument"
@@ -270,6 +271,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_REJECTED.value: palette.red + " bold reverse",
                 ThemeKey.TOOL_TIMEOUT.value: palette.yellow,
                 ThemeKey.TOOL_RESULT_MERMAID: palette.blue + " underline",
+                ThemeKey.SUB_AGENT_FOOTER.value: "dim " + palette.grey2,
                 # BASH SYNTAX
                 ThemeKey.BASH_COMMAND.value: "bold " + palette.green,
                 ThemeKey.BASH_ARGUMENT.value: palette.green,

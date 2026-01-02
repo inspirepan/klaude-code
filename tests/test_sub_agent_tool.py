@@ -121,8 +121,8 @@ class TestSubAgentToolCall:
         assert result.status == "error"
         assert result.output_text is not None and "No subtask runner" in result.output_text
 
-    def test_call_appends_agent_id_when_session_returned(self):
-        """Tool result should include agentId footer when session_id is present."""
+    def test_call_returns_session_id_in_ui_extra(self):
+        """Tool result should include session_id in ui_extra when session_id is present."""
 
         async def _runner(state: Any) -> Any:
             class _Result:
@@ -148,8 +148,9 @@ class TestSubAgentToolCall:
             current_run_subtask_callback.reset(token)
 
         assert result.status == "success"
-        assert result.output_text is not None
-        assert "agentId: abc123def456" in result.output_text
+        assert result.output_text == "hello"
+        assert result.ui_extra is not None
+        assert result.ui_extra.session_id == "abc123def456"
 
 
 class TestSubAgentProfile:

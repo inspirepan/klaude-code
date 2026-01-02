@@ -863,15 +863,17 @@ def _build_messages_html(
             if thinking_text:
                 blocks.append(_render_thinking_block(thinking_text))
 
+            assistant_text = message.join_text_parts(item.parts)
             assistant_images = _extract_image_parts(item.parts)
-            blocks.append(
-                _render_assistant_message(
-                    assistant_counter,
-                    message.join_text_parts(item.parts),
-                    item.created_at,
-                    assistant_images,
+            if assistant_text or assistant_images:
+                blocks.append(
+                    _render_assistant_message(
+                        assistant_counter,
+                        assistant_text,
+                        item.created_at,
+                        assistant_images,
+                    )
                 )
-            )
 
             for part in item.parts:
                 if isinstance(part, message.ToolCallPart):

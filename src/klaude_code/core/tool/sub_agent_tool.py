@@ -115,17 +115,9 @@ class SubAgentTool(ToolABC):
         except Exception as e:
             return message.ToolResultMessage(status="error", output_text=f"Failed to run subtask: {e}")
 
-        task_result = result.task_result or ""
-        if result.session_id and "agentId:" not in task_result:
-            task_result = (
-                task_result.rstrip()
-                + ("\n\n" if task_result.strip() else "")
-                + f"agentId: {result.session_id} (for resuming to continue this agent's work if needed)"
-            )
-
         return message.ToolResultMessage(
             status="success" if not result.error else "error",
-            output_text=task_result,
+            output_text=result.task_result,
             ui_extra=model.SessionIdUIExtra(session_id=result.session_id),
             task_metadata=result.task_metadata,
         )
