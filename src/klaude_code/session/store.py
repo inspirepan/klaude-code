@@ -8,38 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from klaude_code.const import ProjectPaths
 from klaude_code.protocol import llm_param, message, model
 from klaude_code.session.codec import decode_jsonl_line, encode_jsonl_line
-
-
-@dataclass(frozen=True)
-class ProjectPaths:
-    project_key: str
-
-    @property
-    def base_dir(self) -> Path:
-        return Path.home() / ".klaude" / "projects" / self.project_key
-
-    @property
-    def sessions_dir(self) -> Path:
-        return self.base_dir / "sessions"
-
-    @property
-    def exports_dir(self) -> Path:
-        return self.base_dir / "exports"
-
-    def session_dir(self, session_id: str) -> Path:
-        return self.sessions_dir / session_id
-
-    def images_dir(self, session_id: str) -> Path:
-        """Return the directory for storing session-scoped image artifacts."""
-        return self.session_dir(session_id) / "images"
-
-    def events_file(self, session_id: str) -> Path:
-        return self.session_dir(session_id) / "events.jsonl"
-
-    def meta_file(self, session_id: str) -> Path:
-        return self.session_dir(session_id) / "meta.json"
 
 
 class _WriterClosedError(RuntimeError):

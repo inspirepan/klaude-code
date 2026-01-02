@@ -13,9 +13,13 @@ from base64 import b64decode, b64encode
 from binascii import Error as BinasciiError
 from pathlib import Path
 
-from klaude_code.const import IMAGE_OUTPUT_MAX_BYTES, TOOL_OUTPUT_TRUNCATION_DIR
+from klaude_code.const import (
+    IMAGE_OUTPUT_MAX_BYTES,
+    TOOL_OUTPUT_TRUNCATION_DIR,
+    ProjectPaths,
+    project_key_from_cwd,
+)
 from klaude_code.protocol import message
-from klaude_code.session.session import Session
 
 IMAGE_EXT_BY_MIME: dict[str, str] = {
     "image/png": ".png",
@@ -61,7 +65,8 @@ def parse_data_url_image(url: str) -> tuple[str, bytes]:
 def get_assistant_image_output_dir(session_id: str | None) -> Path:
     """Get the output directory for assistant-generated images."""
     if session_id:
-        return Session.paths().images_dir(session_id)
+        paths = ProjectPaths(project_key=project_key_from_cwd())
+        return paths.images_dir(session_id)
     return Path(TOOL_OUTPUT_TRUNCATION_DIR) / "images"
 
 

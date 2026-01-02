@@ -9,14 +9,11 @@ from typing import Any, cast
 
 from pydantic import BaseModel, Field, PrivateAttr, ValidationError
 
+from klaude_code.const import ProjectPaths, project_key_from_cwd
 from klaude_code.protocol import events, llm_param, message, model, tools
-from klaude_code.session.store import JsonlSessionStore, ProjectPaths, build_meta_snapshot
+from klaude_code.session.store import JsonlSessionStore, build_meta_snapshot
 
 _DEFAULT_STORES: dict[str, JsonlSessionStore] = {}
-
-
-def _project_key_from_cwd() -> str:
-    return str(Path.cwd()).strip("/").replace("/", "-")
 
 
 def _read_json_dict(path: Path) -> dict[str, Any] | None:
@@ -30,7 +27,7 @@ def _read_json_dict(path: Path) -> dict[str, Any] | None:
 
 
 def get_default_store() -> JsonlSessionStore:
-    project_key = _project_key_from_cwd()
+    project_key = project_key_from_cwd()
     store = _DEFAULT_STORES.get(project_key)
     if store is None:
         store = JsonlSessionStore(project_key=project_key)
@@ -97,7 +94,7 @@ class Session(BaseModel):
 
     @staticmethod
     def _project_key() -> str:
-        return _project_key_from_cwd()
+        return project_key_from_cwd()
 
     @classmethod
     def paths(cls) -> ProjectPaths:

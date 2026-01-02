@@ -4,7 +4,10 @@ This module consolidates all magic numbers and configuration values
 that were previously scattered across the codebase.
 """
 
+from __future__ import annotations
+
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -172,3 +175,45 @@ DEFAULT_DEBUG_LOG_DIR = Path.home() / ".klaude" / "logs"  # Default debug log di
 DEFAULT_DEBUG_LOG_FILE = DEFAULT_DEBUG_LOG_DIR / "debug.log"  # Default debug log file path
 LOG_MAX_BYTES = 10 * 1024 * 1024  # Maximum log file size before rotation (10MB)
 LOG_BACKUP_COUNT = 3  # Number of backup log files to keep
+
+
+# =============================================================================
+# Project Paths
+# =============================================================================
+
+
+def project_key_from_cwd() -> str:
+    """Derive the project key from the current working directory."""
+    return str(Path.cwd()).strip("/").replace("/", "-")
+
+
+@dataclass(frozen=True)
+class ProjectPaths:
+    """Path utilities for project-scoped storage."""
+
+    project_key: str
+
+    @property
+    def base_dir(self) -> Path:
+        return Path.home() / ".klaude" / "projects" / self.project_key
+
+    @property
+    def sessions_dir(self) -> Path:
+        return self.base_dir / "sessions"
+
+    @property
+    def exports_dir(self) -> Path:
+        return self.base_dir / "exports"
+
+    def session_dir(self, session_id: str) -> Path:
+        return self.sessions_dir / session_id
+
+    def images_dir(self, session_id: str) -> Path:
+        """Return the directory for storing session-scoped image artifacts."""
+        return self.session_dir(session_id) / "images"
+
+    def events_file(self, session_id: str) -> Path:
+        return self.session_dir(session_id) / "events.jsonl"
+
+    def meta_file(self, session_id: str) -> Path:
+        return self.session_dir(session_id) / "meta.json"
