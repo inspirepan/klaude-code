@@ -18,7 +18,12 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
-from klaude_code.const import MARKDOWN_RIGHT_MARGIN, MARKDOWN_STREAM_LIVE_REPAINT_ENABLED, UI_REFRESH_RATE_FPS
+from klaude_code.const import (
+    MARKDOWN_RIGHT_MARGIN,
+    MARKDOWN_STREAM_LIVE_REPAINT_ENABLED,
+    MARKDOWN_STREAM_SYNCHRONIZED_OUTPUT_ENABLED,
+    UI_REFRESH_RATE_FPS,
+)
 from klaude_code.ui.rich.code_panel import CodePanel
 
 
@@ -200,6 +205,52 @@ class MarkdownStream:
 
     def _get_base_width(self) -> int:
         return self.console.options.max_width
+
+    def _should_use_synchronized_output(self) -> bool:
+        if not MARKDOWN_STREAM_SYNCHRONIZED_OUTPUT_ENABLED:
+            return False
+        if self._live_sink is None:
+            return False
+        console_file = getattr(self.console, "file", None)
+        if console_file is None:
+            return False
+        isatty = getattr(console_file, "isatty", None)
+        if isatty is None:
+            return False
+        return bool(isatty())
+
+    @contextlib.contextmanager
+    def _synchronized_output(self) -> Any:
+        """Batch terminal updates to reduce flicker.
+
+        Uses xterm's "Synchronized Output" mode (DECSET/DECRST 2026). Terminals that
+        don't support it will typically ignore the escape codes.
+        """
+
+        if not self._should_use_synchronized_output():
+            yield
+            return
+
+        console_file = self.console.file
+        enabled = False
+        try:
+            console_file.write("\x1b[?2026h")
+            flush = getattr(console_file, "flush", None)
+            if flush is not None:
+                flush()
+            enabled = True
+        except Exception:
+            pass
+
+        try:
+            yield
+        finally:
+            if enabled:
+                with contextlib.suppress(Exception):
+                    console_file.write("\x1b[?2026l")
+                    flush = getattr(console_file, "flush", None)
+                    if flush is not None:
+                        flush()
 
     def compute_candidate_stable_line(self, text: str) -> int:
         """Return the start line of the last top-level block, or 0.
@@ -427,26 +478,22 @@ class MarkdownStream:
 
         start = time.time()
 
+        stable_chunk_to_print: str | None = None
         stable_changed = final or stable_line > self._stable_source_line_count
         if stable_changed and stable_source:
             stable_ansi = self.render_stable_ansi(stable_source, has_live_suffix=bool(live_source), final=final)
             stable_lines = stable_ansi.splitlines(keepends=True)
             new_lines = stable_lines[len(self._stable_rendered_lines) :]
             if new_lines:
-                stable_chunk = "".join(new_lines)
-                self.console.print(Text.from_ansi(stable_chunk), end="\n")
+                stable_chunk_to_print = "".join(new_lines)
             self._stable_rendered_lines = stable_lines
             self._stable_source_line_count = stable_line
         elif final and not stable_source:
             self._stable_rendered_lines = []
             self._stable_source_line_count = stable_line
 
-        if final:
-            if self._live_sink is not None:
-                self._live_sink(None)
-            return
-
-        if MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._live_sink is not None:
+        live_text_to_set: Text | None = None
+        if not final and MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._live_sink is not None:
             apply_mark_live = self._stable_source_line_count == 0
             live_lines = self._render_markdown_to_lines(live_source, apply_mark=apply_mark_live)
 
@@ -468,8 +515,19 @@ class MarkdownStream:
                     if drop > 0:
                         live_lines = live_lines[drop:]
 
-            live_text = Text.from_ansi("".join(live_lines))
-            self._live_sink(live_text)
+            live_text_to_set = Text.from_ansi("".join(live_lines))
+
+        with self._synchronized_output():
+            if stable_chunk_to_print:
+                self.console.print(Text.from_ansi(stable_chunk_to_print), end="\n")
+
+            if final:
+                if self._live_sink is not None:
+                    self._live_sink(None)
+                return
+
+            if live_text_to_set is not None and self._live_sink is not None:
+                self._live_sink(live_text_to_set)
 
         elapsed = time.time() - start
         self.min_delay = min(max(elapsed * 6, 1.0 / 30), 0.5)

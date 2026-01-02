@@ -142,6 +142,7 @@ NOTIFY_COMPACT_LIMIT = 160  # Maximum length for notification body text
 UI_REFRESH_RATE_FPS = 10  # UI refresh rate (frames per second)
 CROP_ABOVE_LIVE_REFRESH_PER_SECOND = 4.0  # CropAboveLive default refresh rate
 MARKDOWN_STREAM_LIVE_REPAINT_ENABLED = True  # Enable live area for streaming markdown
+MARKDOWN_STREAM_SYNCHRONIZED_OUTPUT_ENABLED = True  # Use terminal "Synchronized Output" to reduce flicker
 STREAM_MAX_HEIGHT_SHRINK_RESET_LINES = 20  # Reset stream height ceiling after this shrinkage
 MARKDOWN_LEFT_MARGIN = 2  # Left margin (columns) for markdown rendering
 MARKDOWN_RIGHT_MARGIN = 2  # Right margin (columns) for markdown rendering

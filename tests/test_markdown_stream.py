@@ -160,6 +160,34 @@ def test_single_line_wrapper_renders_first_line_only() -> None:
     assert len(lines) == 1
 
 
+def test_update_does_not_write_synchronized_output_sequences_when_not_tty() -> None:
+    theme = Theme(
+        {
+            "markdown.code.border": "dim",
+            "markdown.code.block": "dim",
+            "markdown.h1": "bold",
+            "markdown.h2.border": "dim",
+            "markdown.hr": "dim",
+        }
+    )
+    out = io.StringIO()
+    console = Console(file=out, force_terminal=True, width=80, theme=theme)
+    live_calls: list[object] = []
+
+    def _sink(renderable: object) -> None:
+        live_calls.append(renderable)
+
+    stream = MarkdownStream(console=console, theme=theme, live_sink=_sink, left_margin=0)
+    stream.min_delay = 0
+
+    stream.update("Para 1\n\nPara 2", final=False)
+    captured = out.getvalue()
+
+    assert "\x1b[?2026h" not in captured
+    assert "\x1b[?2026l" not in captured
+    assert live_calls
+
+
 def _mk_markdown_document(blocks: list[tuple[str, str]]) -> str:
     """Build a markdown document from typed blocks.
 
