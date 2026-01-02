@@ -138,11 +138,11 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
 
     if isinstance(command, str) and command.strip():
         cmd_str = command.strip()
-        line_count = len(cmd_str.splitlines())
-
         highlighted = highlight_bash_command(cmd_str)
 
-        if line_count > BASH_OUTPUT_PANEL_THRESHOLD:
+        display_line_count = len(highlighted.plain.splitlines())
+
+        if display_line_count > BASH_OUTPUT_PANEL_THRESHOLD:
             code_panel = CodePanel(highlighted, border_style=ThemeKey.LINES)
             if isinstance(timeout_ms, int):
                 if timeout_ms >= 1000 and timeout_ms % 1000 == 0:
@@ -734,8 +734,6 @@ def render_tool_result(
         case tools.MERMAID:
             return wrap(render_mermaid_tool_result(e, session_id=session_id))
         case tools.BASH:
-            if e.result.startswith("diff --git"):
-                return wrap(r_diffs.render_diff_panel(e.result, show_file_name=True))
             return _render_fallback()
         case _:
             return _render_fallback()

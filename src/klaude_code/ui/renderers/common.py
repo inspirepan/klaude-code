@@ -38,7 +38,7 @@ def truncate_middle(
     if max_lines <= 0:
         truncated_lines = text.split("\n")
         remaining = max(0, len(truncated_lines))
-        return Text(f"… (more {remaining} lines)", style=ThemeKey.TOOL_RESULT_TRUNCATED)
+        return Text(f"  … (more {remaining} lines)", style=ThemeKey.TOOL_RESULT_TRUNCATED)
 
     lines = text.split("\n")
     truncated_lines = 0
@@ -67,7 +67,7 @@ def truncate_middle(
             out.append(line[:max_line_length])
             out.append_text(
                 Text(
-                    f"… (more {extra_chars} characters in this line)",
+                    f" … (more {extra_chars} characters in this line)",
                     style=ThemeKey.TOOL_RESULT_TRUNCATED,
                 )
             )
@@ -84,7 +84,7 @@ def truncate_middle(
             out.append("\n")
 
     if truncated_lines > 0:
-        out.append_text(Text(f"⋮ (more {truncated_lines} lines)\n", style=ThemeKey.TOOL_RESULT_TRUNCATED))
+        out.append_text(Text(f"  … (more {truncated_lines} lines)\n", style=ThemeKey.TOOL_RESULT_TRUNCATED))
 
     for idx, line in enumerate(tail_lines):
         append_line(out, line)
@@ -141,6 +141,6 @@ def truncate_head(
         out.append("\n")
 
     remaining = len(lines) - max_lines
-    out.append_text(Text(f"… more {remaining} lines", style=truncated_style or ThemeKey.TOOL_RESULT_TRUNCATED))
+    out.append_text(Text(f"  … (more {remaining} lines)", style=truncated_style or ThemeKey.TOOL_RESULT_TRUNCATED))
 
     return out

@@ -129,6 +129,7 @@ MIN_HIDDEN_LINES_FOR_INDICATOR = 5  # Minimum hidden lines before showing trunca
 SUB_AGENT_RESULT_MAX_LINES = 10  # Maximum lines for sub-agent result display
 TRUNCATE_HEAD_MAX_LINES = 2  # Maximum lines for sub-agent error display
 BASH_OUTPUT_PANEL_THRESHOLD = 10  # Bash output line threshold for CodePanel display
+BASH_MULTILINE_STRING_TRUNCATE_MAX_LINES = 2  # Max lines shown for heredoc / multiline string tokens in bash tool calls
 URL_TRUNCATE_MAX_LENGTH = 400  # Maximum length for URL truncation in display
 QUERY_DISPLAY_TRUNCATE_LENGTH = 80  # Maximum length for search query display
 NOTIFY_COMPACT_LIMIT = 160  # Maximum length for notification body text

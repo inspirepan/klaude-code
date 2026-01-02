@@ -270,11 +270,11 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_RESULT.value: palette.grey_green,
                 ThemeKey.TOOL_RESULT_TREE_PREFIX.value: palette.grey_green + " dim",
                 ThemeKey.TOOL_RESULT_BOLD.value: "bold " + palette.grey_green,
-                ThemeKey.TOOL_RESULT_TRUNCATED.value: palette.yellow + " dim",
+                ThemeKey.TOOL_RESULT_TRUNCATED.value: palette.grey1,
                 ThemeKey.TOOL_MARK.value: "bold",
                 ThemeKey.TOOL_APPROVED.value: palette.green + " bold reverse",
                 ThemeKey.TOOL_REJECTED.value: palette.red + " bold reverse",
-                ThemeKey.TOOL_TIMEOUT.value: palette.yellow,
+                ThemeKey.TOOL_TIMEOUT.value: palette.grey2,
                 ThemeKey.TOOL_RESULT_MERMAID: palette.blue + " underline",
                 ThemeKey.SUB_AGENT_FOOTER.value: "dim " + palette.grey2,
                 # BASH SYNTAX

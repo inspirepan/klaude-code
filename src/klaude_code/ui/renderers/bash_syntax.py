@@ -7,6 +7,8 @@ from pygments.lexers import BashLexer  # pyright: ignore[reportUnknownVariableTy
 from pygments.token import Token
 from rich.text import Text
 
+from klaude_code.const import BASH_MULTILINE_STRING_TRUNCATE_MAX_LINES
+from klaude_code.ui.renderers.common import truncate_head
 from klaude_code.ui.rich.theme import ThemeKey
 
 # Token types for bash syntax highlighting
@@ -110,13 +112,34 @@ def _append_heredoc(result: Text, token_value: str) -> None:
         # Extra content on first line (e.g., "> file.py")
         if extra:
             result.append(extra, style=ThemeKey.BASH_ARGUMENT)
-        # Body content
-        result.append(body, style=ThemeKey.BASH_STRING)
+
+        # Body content (truncate to keep tool call rendering compact)
+        body_inner = body.strip("\n")
+        result.append("\n")
+        if body_inner:
+            body_text = truncate_head(
+                body_inner,
+                max_lines=BASH_MULTILINE_STRING_TRUNCATE_MAX_LINES,
+                base_style=ThemeKey.BASH_STRING,
+                truncated_style=ThemeKey.TOOL_RESULT_TRUNCATED,
+            )
+            result.append_text(body_text)
+            result.append("\n")
+
         # End delimiter
         result.append(end_delimiter, style=ThemeKey.BASH_HEREDOC_DELIMITER)
     else:
         # Fallback: couldn't parse heredoc structure
-        result.append(token_value, style=ThemeKey.BASH_STRING)
+        if "\n" in token_value and len(token_value.splitlines()) > BASH_MULTILINE_STRING_TRUNCATE_MAX_LINES:
+            truncated = truncate_head(
+                token_value,
+                max_lines=BASH_MULTILINE_STRING_TRUNCATE_MAX_LINES,
+                base_style=ThemeKey.BASH_STRING,
+                truncated_style=ThemeKey.TOOL_RESULT_TRUNCATED,
+            )
+            result.append_text(truncated)
+        else:
+            result.append(token_value, style=ThemeKey.BASH_STRING)
 
 
 def highlight_bash_command(command: str) -> Text:
@@ -145,7 +168,16 @@ def highlight_bash_command(command: str) -> Text:
             if token_value.startswith("<<"):
                 _append_heredoc(result, token_value)
             else:
-                result.append(token_value, style=ThemeKey.BASH_STRING)
+                if "\n" in token_value and len(token_value.splitlines()) > BASH_MULTILINE_STRING_TRUNCATE_MAX_LINES:
+                    truncated = truncate_head(
+                        token_value,
+                        max_lines=BASH_MULTILINE_STRING_TRUNCATE_MAX_LINES,
+                        base_style=ThemeKey.BASH_STRING,
+                        truncated_style=ThemeKey.TOOL_RESULT_TRUNCATED,
+                    )
+                    result.append_text(truncated)
+                else:
+                    result.append(token_value, style=ThemeKey.BASH_STRING)
             expect_subcommand = False
         elif token_type in _OPERATOR_TOKENS:
             result.append(token_value, style=ThemeKey.BASH_OPERATOR)
