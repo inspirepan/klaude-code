@@ -257,7 +257,7 @@ class REPLRenderer:
             self.print(r_developer.render_developer_message(e))
 
     def display_command_output(self, e: events.DeveloperMessageEvent) -> None:
-        if not e.item.command_output:
+        if not r_developer.get_command_output(e.item):
             return
         with self.session_print_context(e.session_id):
             self.print(r_developer.render_command_output(e))

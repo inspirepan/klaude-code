@@ -1,14 +1,19 @@
 import asyncio
 
+import pytest
+
 from klaude_code.protocol import events
 from klaude_code.ui.modes.exec import display as exec_display
 from klaude_code.ui.modes.exec.display import ExecDisplay
 
 
-def test_exec_display_emits_osc94_only_on_error(monkeypatch, capsys):
+def test_exec_display_emits_osc94_only_on_error(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     calls: list[exec_display.OSC94States] = []
 
-    def fake_emit_osc94(state: exec_display.OSC94States, *args, **kwargs) -> None:
+    def fake_emit_osc94(state: exec_display.OSC94States, *args: object, **kwargs: object) -> None:
         calls.append(state)
 
     monkeypatch.setattr(exec_display, "emit_osc94", fake_emit_osc94)

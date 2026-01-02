@@ -205,7 +205,7 @@ class ExecutorContext:
             default_note = " (saved as default)" if operation.save_as_default else ""
             developer_item = message.DeveloperMessage(
                 parts=message.text_parts_from_str(f"Switched to: {llm_config.model}{default_note}"),
-                command_output=model.CommandOutput(command_name=commands.CommandName.MODEL),
+                ui_extra=model.build_command_output_extra(commands.CommandName.MODEL),
             )
             agent.session.append_history([developer_item])
             await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
@@ -250,7 +250,7 @@ class ExecutorContext:
         if operation.emit_switch_message:
             developer_item = message.DeveloperMessage(
                 parts=message.text_parts_from_str(f"Thinking changed: {current} -> {new_status}"),
-                command_output=model.CommandOutput(command_name=commands.CommandName.THINKING),
+                ui_extra=model.build_command_output_extra(commands.CommandName.THINKING),
             )
             agent.session.append_history([developer_item])
             await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
@@ -268,7 +268,7 @@ class ExecutorContext:
 
         developer_item = message.DeveloperMessage(
             parts=message.text_parts_from_str("started new conversation"),
-            command_output=model.CommandOutput(command_name=commands.CommandName.CLEAR),
+            ui_extra=model.build_command_output_extra(commands.CommandName.CLEAR),
         )
         await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
         await self.emit_event(
@@ -319,7 +319,7 @@ class ExecutorContext:
             await asyncio.to_thread(self._open_file, output_path)
             developer_item = message.DeveloperMessage(
                 parts=message.text_parts_from_str(f"Session exported and opened: {output_path}"),
-                command_output=model.CommandOutput(command_name=commands.CommandName.EXPORT),
+                ui_extra=model.build_command_output_extra(commands.CommandName.EXPORT),
             )
             agent.session.append_history([developer_item])
             await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
@@ -328,7 +328,7 @@ class ExecutorContext:
 
             developer_item = message.DeveloperMessage(
                 parts=message.text_parts_from_str(f"Failed to export session: {exc}\n{traceback.format_exc()}"),
-                command_output=model.CommandOutput(command_name=commands.CommandName.EXPORT, is_error=True),
+                ui_extra=model.build_command_output_extra(commands.CommandName.EXPORT, is_error=True),
             )
             agent.session.append_history([developer_item])
             await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))

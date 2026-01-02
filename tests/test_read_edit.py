@@ -27,7 +27,7 @@ from klaude_code.core.tool import (  # noqa: E402
     reset_tool_context,
     set_tool_context_from_session,
 )
-from klaude_code.protocol import message  # noqa: E402
+from klaude_code.protocol import message, model  # noqa: E402
 from klaude_code.session.session import Session  # noqa: E402
 
 _TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
@@ -35,6 +35,15 @@ _TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNg
 
 def arun(coro) -> Any:  # type: ignore
     return asyncio.run(coro)  # type: ignore
+
+
+def _get_at_file_ops(reminder: message.DeveloperMessage) -> list[model.AtFileOp]:
+    if reminder.ui_extra is None:
+        return []
+    for ui_item in reminder.ui_extra.items:
+        if isinstance(ui_item, model.AtFileOpsUIItem):
+            return ui_item.ops
+    return []
 
 
 class BaseTempDirTest(unittest.TestCase):
@@ -172,9 +181,7 @@ class TestReminders(BaseTempDirTest):
         self.assertTrue(len(image_parts) > 0)
         self.assertTrue(image_parts[0].url.startswith("data:image/png;base64,"))
 
-        self.assertIsNotNone(reminder.at_files)
-        assert reminder.at_files is not None
-        self.assertEqual(len(reminder.at_files), 1)
+        self.assertEqual(len(_get_at_file_ops(reminder)), 1)
 
     def test_at_file_reader_reminder_supports_paths_with_spaces(self):
         # Create a file whose directory and filename both contain spaces
@@ -192,12 +199,10 @@ class TestReminders(BaseTempDirTest):
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNotNone(reminder)
         assert reminder is not None
-        self.assertIsNotNone(reminder.at_files)
-        assert reminder.at_files is not None
-        self.assertEqual(len(reminder.at_files), 1)
-        at_file = reminder.at_files[0]
-        self.assertEqual(at_file.path, str(file_path))
-        self.assertIn("hello world", at_file.result)
+        ops = _get_at_file_ops(reminder)
+        self.assertEqual(len(ops), 1)
+        self.assertEqual(ops[0].path, str(file_path))
+        self.assertIn("hello world", message.join_text_parts(reminder.parts))
 
     def test_at_file_reader_reminder_preserves_filename_case(self):
         # Create a file with uppercase letters in the name
@@ -213,13 +218,13 @@ class TestReminders(BaseTempDirTest):
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNotNone(reminder)
         assert reminder is not None
-        self.assertIsNotNone(reminder.at_files)
-        assert reminder.at_files is not None
-        self.assertEqual(len(reminder.at_files), 1)
-        at_file = reminder.at_files[0]
+
+        ops = _get_at_file_ops(reminder)
+        self.assertEqual(len(ops), 1)
+        at_file = ops[0]
         # Path string should preserve the filename casing (e.g. README.md, not readme.md)
         self.assertTrue(at_file.path.endswith("README.md"))
-        self.assertIn("READ ME", at_file.result)
+        self.assertIn("READ ME", message.join_text_parts(reminder.parts))
 
     def test_at_file_reader_reminder_skips_tracked_unchanged_file(self):
         file_path = os.path.abspath("tracked.txt")
@@ -289,11 +294,11 @@ class TestReminders(BaseTempDirTest):
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNotNone(reminder)
         assert reminder is not None
-        self.assertIsNotNone(reminder.at_files)
-        assert reminder.at_files is not None
+
+        ops = _get_at_file_ops(reminder)
         # Should load all 3 files recursively
-        self.assertEqual(len(reminder.at_files), 3)
-        at_files_by_path = {at.path: at for at in reminder.at_files}
+        self.assertEqual(len(ops), 3)
+        at_files_by_path = {at.path: at for at in ops}
         self.assertIn(main_path, at_files_by_path)
         self.assertIn(sub_path, at_files_by_path)
         self.assertIn(leaf_path, at_files_by_path)
@@ -318,10 +323,10 @@ class TestReminders(BaseTempDirTest):
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNotNone(reminder)
         assert reminder is not None
-        self.assertIsNotNone(reminder.at_files)
-        assert reminder.at_files is not None
+
+        ops = _get_at_file_ops(reminder)
         # Should load both files exactly once
-        self.assertEqual(len(reminder.at_files), 2)
+        self.assertEqual(len(ops), 2)
 
     def test_at_file_reader_reminder_recursive_relative_path(self):
         # Create subdir/child.md that references ../sibling.txt
@@ -343,11 +348,11 @@ class TestReminders(BaseTempDirTest):
         reminder = arun(at_file_reader_reminder(self.session))
         self.assertIsNotNone(reminder)
         assert reminder is not None
-        self.assertIsNotNone(reminder.at_files)
-        assert reminder.at_files is not None
+
+        ops = _get_at_file_ops(reminder)
         # Should load both files
-        self.assertEqual(len(reminder.at_files), 2)
-        paths = [at.path for at in reminder.at_files]
+        self.assertEqual(len(ops), 2)
+        paths = [at.path for at in ops]
         self.assertIn(str(child_path), paths)
         self.assertIn(sibling_path, paths)
 

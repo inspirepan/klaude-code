@@ -141,8 +141,8 @@ class StatusCommand(CommandABC):
             session_id=session.id,
             item=message.DeveloperMessage(
                 parts=message.text_parts_from_str(format_status_content(aggregated)),
-                command_output=model.CommandOutput(
-                    command_name=self.name,
+                ui_extra=model.build_command_output_extra(
+                    self.name,
                     ui_extra=model.SessionStatusUIExtra(
                         usage=aggregated.total,
                         task_count=aggregated.task_count,

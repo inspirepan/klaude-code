@@ -229,7 +229,7 @@ class TerminalSetupCommand(CommandABC):
                     session_id=agent.session.id,
                     item=message.DeveloperMessage(
                         parts=message.text_parts_from_str(msg),
-                        command_output=model.CommandOutput(command_name=self.name, is_error=False),
+                        ui_extra=model.build_command_output_extra(self.name),
                     ),
                 )
             ]
@@ -243,7 +243,7 @@ class TerminalSetupCommand(CommandABC):
                     session_id=agent.session.id,
                     item=message.DeveloperMessage(
                         parts=message.text_parts_from_str(msg),
-                        command_output=model.CommandOutput(command_name=self.name, is_error=True),
+                        ui_extra=model.build_command_output_extra(self.name, is_error=True),
                     ),
                 )
             ]

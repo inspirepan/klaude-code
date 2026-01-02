@@ -92,7 +92,7 @@ class ResumeCommand(CommandABC):
                     parts=message.text_parts_from_str(
                         "Cannot resume: current session already has messages. Use `klaude -r` to start a new instance with session selection."
                     ),
-                    command_output=model.CommandOutput(command_name=self.name, is_error=True),
+                    ui_extra=model.build_command_output_extra(self.name, is_error=True),
                 ),
             )
             return CommandResult(events=[event], persist_user_input=False, persist_events=False)
@@ -103,7 +103,7 @@ class ResumeCommand(CommandABC):
                 session_id=agent.session.id,
                 item=message.DeveloperMessage(
                     parts=message.text_parts_from_str("(no session selected)"),
-                    command_output=model.CommandOutput(command_name=self.name),
+                    ui_extra=model.build_command_output_extra(self.name),
                 ),
             )
             return CommandResult(events=[event], persist_user_input=False, persist_events=False)

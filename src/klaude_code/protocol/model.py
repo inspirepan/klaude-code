@@ -272,19 +272,88 @@ ToolResultUIExtra = Annotated[
 ]
 
 
-class AtPatternParseResult(BaseModel):
-    path: str
-    tool_name: str
-    result: str
-    tool_args: str
-    operation: Literal["Read", "List"]
-    mentioned_in: str | None = None  # Parent file that referenced this file
-
-
 class CommandOutput(BaseModel):
     command_name: CommandName
     ui_extra: ToolResultUIExtra | None = None
     is_error: bool = False
+
+
+class MemoryFileLoaded(BaseModel):
+    path: str
+    mentioned_patterns: list[str] = Field(default_factory=list)
+
+
+class MemoryLoadedUIItem(BaseModel):
+    type: Literal["memory_loaded"] = "memory_loaded"
+    files: list[MemoryFileLoaded]
+
+
+class ExternalFileChangesUIItem(BaseModel):
+    type: Literal["external_file_changes"] = "external_file_changes"
+    paths: list[str]
+
+
+class TodoReminderUIItem(BaseModel):
+    type: Literal["todo_reminder"] = "todo_reminder"
+    reason: Literal["empty", "not_used_recently"]
+
+
+class AtFileOp(BaseModel):
+    operation: Literal["Read", "List"]
+    path: str
+    mentioned_in: str | None = None
+
+
+class AtFileOpsUIItem(BaseModel):
+    type: Literal["at_file_ops"] = "at_file_ops"
+    ops: list[AtFileOp]
+
+
+class UserImagesUIItem(BaseModel):
+    type: Literal["user_images"] = "user_images"
+    count: int
+
+
+class SkillActivatedUIItem(BaseModel):
+    type: Literal["skill_activated"] = "skill_activated"
+    name: str
+
+
+class CommandOutputUIItem(BaseModel):
+    type: Literal["command_output"] = "command_output"
+    output: CommandOutput
+
+
+type DeveloperUIItem = (
+    MemoryLoadedUIItem
+    | ExternalFileChangesUIItem
+    | TodoReminderUIItem
+    | AtFileOpsUIItem
+    | UserImagesUIItem
+    | SkillActivatedUIItem
+    | CommandOutputUIItem
+)
+
+
+def _empty_developer_ui_items() -> list[DeveloperUIItem]:
+    return []
+
+
+class DeveloperUIExtra(BaseModel):
+    items: list[DeveloperUIItem] = Field(default_factory=_empty_developer_ui_items)
+
+
+def build_command_output_extra(
+    command_name: CommandName,
+    *,
+    ui_extra: ToolResultUIExtra | None = None,
+    is_error: bool = False,
+) -> DeveloperUIExtra:
+    return DeveloperUIExtra(
+        items=[
+            CommandOutputUIItem(output=CommandOutput(command_name=command_name, ui_extra=ui_extra, is_error=is_error))
+        ]
+    )
 
 
 class SubAgentState(BaseModel):

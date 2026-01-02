@@ -183,6 +183,15 @@ async def dispatch_command(user_input: message.UserInputPayload, agent: Agent, *
             if isinstance(command_identifier, commands.CommandName)
             else None
         )
+        ui_extra = (
+            model.build_command_output_extra(
+                command_output.command_name,
+                ui_extra=command_output.ui_extra,
+                is_error=command_output.is_error,
+            )
+            if command_output is not None
+            else None
+        )
         return CommandResult(
             events=[
                 events.DeveloperMessageEvent(
@@ -191,7 +200,7 @@ async def dispatch_command(user_input: message.UserInputPayload, agent: Agent, *
                         parts=message.text_parts_from_str(
                             f"Command {command_identifier} error: [{e.__class__.__name__}] {e!s}"
                         ),
-                        command_output=command_output,
+                        ui_extra=ui_extra,
                     ),
                 )
             ]

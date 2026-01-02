@@ -207,7 +207,7 @@ class ForkSessionCommand(CommandABC):
                 session_id=agent.session.id,
                 item=message.DeveloperMessage(
                     parts=message.text_parts_from_str("(no messages to fork)"),
-                    command_output=model.CommandOutput(command_name=self.name),
+                    ui_extra=model.build_command_output_extra(self.name),
                 ),
             )
             return CommandResult(events=[event], persist_user_input=False, persist_events=False)
@@ -227,8 +227,8 @@ class ForkSessionCommand(CommandABC):
                 session_id=agent.session.id,
                 item=message.DeveloperMessage(
                     parts=message.text_parts_from_str(f"Session forked successfully. New session id: {new_session.id}"),
-                    command_output=model.CommandOutput(
-                        command_name=self.name,
+                    ui_extra=model.build_command_output_extra(
+                        self.name,
                         ui_extra=model.SessionIdUIExtra(session_id=new_session.id),
                     ),
                 ),
@@ -243,7 +243,7 @@ class ForkSessionCommand(CommandABC):
                 session_id=agent.session.id,
                 item=message.DeveloperMessage(
                     parts=message.text_parts_from_str("(fork cancelled)"),
-                    command_output=model.CommandOutput(command_name=self.name),
+                    ui_extra=model.build_command_output_extra(self.name),
                 ),
             )
             return CommandResult(events=[event], persist_user_input=False, persist_events=False)
@@ -264,8 +264,8 @@ class ForkSessionCommand(CommandABC):
                 parts=message.text_parts_from_str(
                     f"Session forked ({fork_description}). New session id: {new_session.id}"
                 ),
-                command_output=model.CommandOutput(
-                    command_name=self.name,
+                ui_extra=model.build_command_output_extra(
+                    self.name,
                     ui_extra=model.SessionIdUIExtra(session_id=new_session.id),
                 ),
             ),

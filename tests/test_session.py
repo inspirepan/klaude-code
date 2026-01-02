@@ -867,8 +867,11 @@ class TestForkSessionCommand:
             content = message.join_text_parts(result.events[0].item.parts)
             assert "Session forked" in content
 
-            command_output = result.events[0].item.command_output
-            assert command_output is not None
+            ui_extra = result.events[0].item.ui_extra
+            assert ui_extra is not None
+            command_output_items = [item for item in ui_extra.items if isinstance(item, model.CommandOutputUIItem)]
+            assert len(command_output_items) == 1
+            command_output = command_output_items[0].output
             assert isinstance(command_output.ui_extra, model.SessionIdUIExtra)
             new_id = command_output.ui_extra.session_id
             assert new_id

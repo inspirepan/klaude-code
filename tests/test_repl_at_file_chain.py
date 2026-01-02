@@ -5,7 +5,7 @@ import pytest
 from prompt_toolkit.document import Document
 
 from klaude_code.core.reminders import at_file_reader_reminder
-from klaude_code.protocol import events, message
+from klaude_code.protocol import events, message, model
 from klaude_code.session.session import Session
 from klaude_code.ui.modes.repl.completers import create_repl_completer
 from klaude_code.ui.renderers.developer import render_developer_message
@@ -86,13 +86,15 @@ def test_at_file_reader_reminder_and_developer_render_chain(tmp_path: Path, monk
     # Run reminder to parse and read the file
     reminder = _arun(at_file_reader_reminder(session))
     assert reminder is not None
-    assert reminder.at_files is not None
-    assert len(reminder.at_files) == 1
+    assert reminder.ui_extra is not None
 
-    at_file = reminder.at_files[0]
-    # The stored path should preserve the filename casing
+    at_file_items = [ui_item for ui_item in reminder.ui_extra.items if isinstance(ui_item, model.AtFileOpsUIItem)]
+    assert len(at_file_items) == 1
+    assert len(at_file_items[0].ops) == 1
+
+    at_file = at_file_items[0].ops[0]
     assert at_file.path.endswith("ReadMe File.txt")
-    assert "hello chain" in at_file.result
+    assert "hello chain" in message.join_text_parts(reminder.parts)
 
     # Render developer message and ensure the path appears with the same casing
     event = events.DeveloperMessageEvent(session_id="test-session", item=reminder)

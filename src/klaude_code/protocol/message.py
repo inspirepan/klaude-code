@@ -12,8 +12,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field, field_validator
 
 from klaude_code.protocol.model import (
-    AtPatternParseResult,
-    CommandOutput,
+    DeveloperUIExtra,
     StopReason,
     TaskMetadata,
     TaskMetadataItem,
@@ -137,15 +136,8 @@ class DeveloperMessage(MessageBase):
     role: Literal["developer"] = "developer"
     parts: list[Part]
 
-    # Special fields for reminders UI
-    memory_paths: list[str] | None = None
-    memory_mentioned: dict[str, list[str]] | None = None  # memory_path -> list of @ patterns mentioned in it
-    external_file_changes: list[str] | None = None
-    todo_use: bool | None = None
-    at_files: list[AtPatternParseResult] | None = None
-    command_output: CommandOutput | None = None
-    user_image_count: int | None = None
-    skill_name: str | None = None  # Skill name activated via $skill syntax
+    # Structured UI-only metadata (never sent to the LLM).
+    ui_extra: DeveloperUIExtra | None = None
 
 
 class UserMessage(MessageBase):

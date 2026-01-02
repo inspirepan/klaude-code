@@ -71,10 +71,13 @@ def get_at_patterns_with_source(session: Session) -> list[AtPatternSource]:
                 patterns.append(AtPatternSource(pattern=path_str, mentioned_in=None))
             break
 
-        if isinstance(item, message.DeveloperMessage) and item.memory_mentioned:
-            for memory_path, mentioned_patterns in item.memory_mentioned.items():
-                for pattern in mentioned_patterns:
-                    patterns.append(AtPatternSource(pattern=pattern, mentioned_in=memory_path))
+        if isinstance(item, message.DeveloperMessage) and item.ui_extra:
+            for ui_item in item.ui_extra.items:
+                if not isinstance(ui_item, model.MemoryLoadedUIItem):
+                    continue
+                for mem in ui_item.files:
+                    for pattern in mem.mentioned_patterns:
+                        patterns.append(AtPatternSource(pattern=pattern, mentioned_in=mem.path))
     return patterns
 
 
@@ -113,7 +116,8 @@ def _is_tracked_file_unchanged(session: Session, path: str) -> bool:
 async def _load_at_file_recursive(
     session: Session,
     pattern: str,
-    at_files: dict[str, model.AtPatternParseResult],
+    at_ops: list[model.AtFileOp],
+    formatted_blocks: list[str],
     collected_images: list[message.ImageURLPart],
     visited: set[str],
     base_dir: Path | None = None,
@@ -135,14 +139,15 @@ async def _load_at_file_recursive(
             args = ReadTool.ReadArguments(file_path=path_str)
             tool_result = await ReadTool.call_with_args(args)
             images = [part for part in tool_result.parts if isinstance(part, message.ImageURLPart)]
-            at_files[path_str] = model.AtPatternParseResult(
-                path=path_str,
-                tool_name=tools.READ,
-                result=tool_result.output_text,
-                tool_args=args.model_dump_json(exclude_none=True),
-                operation="Read",
-                mentioned_in=mentioned_in,
+
+            tool_args = args.model_dump_json(exclude_none=True)
+            formatted_blocks.append(
+                f"""Called the {tools.READ} tool with the following input: {tool_args}
+Result of calling the {tools.READ} tool:
+{tool_result.output_text}
+"""
             )
+            at_ops.append(model.AtFileOp(operation="Read", path=path_str, mentioned_in=mentioned_in))
             if images:
                 collected_images.extend(images)
 
@@ -155,7 +160,8 @@ async def _load_at_file_recursive(
                         await _load_at_file_recursive(
                             session,
                             nested,
-                            at_files,
+                            at_ops,
+                            formatted_blocks,
                             collected_images,
                             visited,
                             base_dir=path.parent,
@@ -165,13 +171,15 @@ async def _load_at_file_recursive(
             quoted_path = shlex.quote(path_str)
             args = BashTool.BashArguments(command=f"ls {quoted_path}")
             tool_result = await BashTool.call_with_args(args)
-            at_files[path_str] = model.AtPatternParseResult(
-                path=path_str + "/",
-                tool_name=tools.BASH,
-                result=tool_result.output_text,
-                tool_args=args.model_dump_json(exclude_none=True),
-                operation="List",
+
+            tool_args = args.model_dump_json(exclude_none=True)
+            formatted_blocks.append(
+                f"""Called the {tools.BASH} tool with the following input: {tool_args}
+Result of calling the {tools.BASH} tool:
+{tool_result.output_text}
+"""
             )
+            at_ops.append(model.AtFileOp(operation="List", path=path_str + "/", mentioned_in=mentioned_in))
     finally:
         reset_tool_context(context_token)
 
@@ -184,7 +192,8 @@ async def at_file_reader_reminder(
     if not at_pattern_sources:
         return None
 
-    at_files: dict[str, model.AtPatternParseResult] = {}  # path -> content
+    at_ops: list[model.AtFileOp] = []
+    formatted_blocks: list[str] = []
     collected_images: list[message.ImageURLPart] = []
     visited: set[str] = set()
 
@@ -192,30 +201,23 @@ async def at_file_reader_reminder(
         await _load_at_file_recursive(
             session,
             source.pattern,
-            at_files,
+            at_ops,
+            formatted_blocks,
             collected_images,
             visited,
             mentioned_in=source.mentioned_in,
         )
 
-    if len(at_files) == 0:
+    if len(formatted_blocks) == 0:
         return None
 
-    at_files_str = "\n\n".join(
-        [
-            f"""Called the {result.tool_name} tool with the following input: {result.tool_args}
-Result of calling the {result.tool_name} tool:
-{result.result}
-"""
-            for result in at_files.values()
-        ]
-    )
+    at_files_str = "\n\n".join(formatted_blocks)
     return message.DeveloperMessage(
         parts=message.parts_from_text_and_images(
             f"""<system-reminder>{at_files_str}\n</system-reminder>""",
             collected_images or None,
         ),
-        at_files=list(at_files.values()),
+        ui_extra=model.DeveloperUIExtra(items=[model.AtFileOpsUIItem(ops=at_ops)]),
     )
 
 
@@ -299,7 +301,7 @@ Here are the existing contents of your todo list:
 
 {model.todo_list_str(session.todos)}</system-reminder>"""
             ),
-            todo_use=True,
+            ui_extra=model.DeveloperUIExtra(items=[model.TodoReminderUIItem(reason="not_used_recently")]),
         )
 
     if session.need_todo_not_used_cooldown_counter > 0:
@@ -360,7 +362,9 @@ async def file_changed_externally_reminder(
                 f"""<system-reminder>{changed_files_str}</system-reminder>""",
                 collected_images or None,
             ),
-            external_file_changes=[file_path for file_path, _, _ in changed_files],
+            ui_extra=model.DeveloperUIExtra(
+                items=[model.ExternalFileChangesUIItem(paths=[file_path for file_path, _, _ in changed_files])]
+            ),
         )
 
     return None
@@ -426,7 +430,7 @@ async def image_reminder(session: Session) -> message.DeveloperMessage | None:
         parts=message.text_parts_from_str(
             f"<system-reminder>User attached {image_count} image{'s' if image_count > 1 else ''} in their message. Make sure to analyze and reference these images as needed.</system-reminder>"
         ),
-        user_image_count=image_count,
+        ui_extra=model.DeveloperUIExtra(items=[model.UserImagesUIItem(count=image_count)]),
     )
 
 
@@ -456,7 +460,7 @@ async def skill_reminder(session: Session) -> message.DeveloperMessage | None:
 
     return message.DeveloperMessage(
         parts=message.text_parts_from_str(content),
-        skill_name=skill.name,
+        ui_extra=model.DeveloperUIExtra(items=[model.SkillActivatedUIItem(name=skill.name)]),
     )
 
 
@@ -496,13 +500,10 @@ async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
         memories_str = "\n\n".join(
             [f"Contents of {memory.path} ({memory.instruction}):\n\n{memory.content}" for memory in memories]
         )
-        # Build memory_mentioned: extract @ patterns from each memory's content
-        memory_mentioned: dict[str, list[str]] = {}
-        for memory in memories:
-            patterns = _extract_at_patterns(memory.content)
-            if patterns:
-                memory_mentioned[memory.path] = patterns
-
+        loaded_files = [
+            model.MemoryFileLoaded(path=memory.path, mentioned_patterns=_extract_at_patterns(memory.content))
+            for memory in memories
+        ]
         return message.DeveloperMessage(
             parts=message.text_parts_from_str(
                 f"""<system-reminder>
@@ -511,8 +512,7 @@ Loaded memory files. Follow these instructions. Do not mention them to the user 
 {memories_str}
 </system-reminder>"""
             ),
-            memory_paths=[memory.path for memory in memories],
-            memory_mentioned=memory_mentioned or None,
+            ui_extra=model.DeveloperUIExtra(items=[model.MemoryLoadedUIItem(files=loaded_files)]),
         )
     return None
 
@@ -580,20 +580,16 @@ async def last_path_memory_reminder(
         memories_str = "\n\n".join(
             [f"Contents of {memory.path} ({memory.instruction}):\n\n{memory.content}" for memory in memories]
         )
-        # Build memory_mentioned: extract @ patterns from each memory's content
-        memory_mentioned: dict[str, list[str]] = {}
-        for memory in memories:
-            patterns = _extract_at_patterns(memory.content)
-            if patterns:
-                memory_mentioned[memory.path] = patterns
-
+        loaded_files = [
+            model.MemoryFileLoaded(path=memory.path, mentioned_patterns=_extract_at_patterns(memory.content))
+            for memory in memories
+        ]
         return message.DeveloperMessage(
             parts=message.text_parts_from_str(
                 f"""<system-reminder>{memories_str}
 </system-reminder>"""
             ),
-            memory_paths=[memory.path for memory in memories],
-            memory_mentioned=memory_mentioned or None,
+            ui_extra=model.DeveloperUIExtra(items=[model.MemoryLoadedUIItem(files=loaded_files)]),
         )
 
 

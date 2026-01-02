@@ -12,15 +12,19 @@ from klaude_code.ui.rich.theme import ThemeKey
 REMINDER_BULLET = "  ⧉"
 
 
+def get_command_output(item: message.DeveloperMessage) -> model.CommandOutput | None:
+    if not item.ui_extra:
+        return None
+    for ui_item in item.ui_extra.items:
+        if isinstance(ui_item, model.CommandOutputUIItem):
+            return ui_item.output
+    return None
+
+
 def need_render_developer_message(e: events.DeveloperMessageEvent) -> bool:
-    return bool(
-        e.item.memory_paths
-        or e.item.external_file_changes
-        or e.item.todo_use
-        or e.item.at_files
-        or e.item.user_image_count
-        or e.item.skill_name
-    )
+    if not e.item.ui_extra:
+        return False
+    return any(not isinstance(ui_item, model.CommandOutputUIItem) for ui_item in e.item.ui_extra.items)
 
 
 def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
@@ -31,112 +35,124 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
     """
     parts: list[RenderableType] = []
 
-    if mp := e.item.memory_paths:
-        grid = create_grid()
-        grid.add_row(
-            Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
-            Text.assemble(
-                ("Load memory ", ThemeKey.REMINDER),
-                Text(", ", ThemeKey.REMINDER).join(
-                    render_path(memory_path, ThemeKey.REMINDER_BOLD) for memory_path in mp
-                ),
-            ),
-        )
-        parts.append(grid)
+    if e.item.ui_extra:
+        for ui_item in e.item.ui_extra.items:
+            match ui_item:
+                case model.MemoryLoadedUIItem() as item:
+                    grid = create_grid()
+                    grid.add_row(
+                        Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
+                        Text.assemble(
+                            ("Load memory ", ThemeKey.REMINDER),
+                            Text(", ", ThemeKey.REMINDER).join(
+                                render_path(mem.path, ThemeKey.REMINDER_BOLD) for mem in item.files
+                            ),
+                        ),
+                    )
+                    parts.append(grid)
+                case model.ExternalFileChangesUIItem() as item:
+                    grid = create_grid()
+                    for file_path in item.paths:
+                        grid.add_row(
+                            Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
+                            Text.assemble(
+                                ("Read ", ThemeKey.REMINDER),
+                                render_path(file_path, ThemeKey.REMINDER_BOLD),
+                                (" after external changes", ThemeKey.REMINDER),
+                            ),
+                        )
+                    parts.append(grid)
+                case model.TodoReminderUIItem() as item:
+                    match item.reason:
+                        case "not_used_recently":
+                            text = "Todo hasn't been updated recently"
+                        case "empty":
+                            text = "Todo list is empty"
+                        case _:
+                            text = "Todo reminder"
+                    grid = create_grid()
+                    grid.add_row(
+                        Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
+                        Text(text, ThemeKey.REMINDER),
+                    )
+                    parts.append(grid)
+                case model.AtFileOpsUIItem() as item:
+                    grid = create_grid()
+                    grouped: dict[tuple[str, str | None], list[str]] = {}
+                    for op in item.ops:
+                        key = (op.operation, op.mentioned_in)
+                        grouped.setdefault(key, []).append(op.path)
 
-    if fc := e.item.external_file_changes:
-        grid = create_grid()
-        for file_path in fc:
-            grid.add_row(
-                Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
-                Text.assemble(
-                    ("Read ", ThemeKey.REMINDER),
-                    render_path(file_path, ThemeKey.REMINDER_BOLD),
-                    (" after external changes", ThemeKey.REMINDER),
-                ),
-            )
-        parts.append(grid)
-
-    if e.item.todo_use:
-        grid = create_grid()
-        grid.add_row(
-            Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
-            Text("Todo hasn't been updated recently", ThemeKey.REMINDER),
-        )
-        parts.append(grid)
-
-    if e.item.at_files:
-        grid = create_grid()
-        # Group at_files by (operation, mentioned_in)
-        grouped: dict[tuple[str, str | None], list[str]] = {}
-        for at_file in e.item.at_files:
-            key = (at_file.operation, at_file.mentioned_in)
-            if key not in grouped:
-                grouped[key] = []
-            grouped[key].append(at_file.path)
-
-        for (operation, mentioned_in), paths in grouped.items():
-            path_texts = Text(", ", ThemeKey.REMINDER).join(render_path(p, ThemeKey.REMINDER_BOLD) for p in paths)
-            if mentioned_in:
-                grid.add_row(
-                    Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
-                    Text.assemble(
-                        (f"{operation} ", ThemeKey.REMINDER),
-                        path_texts,
-                        (" mentioned in ", ThemeKey.REMINDER),
-                        render_path(mentioned_in, ThemeKey.REMINDER_BOLD),
-                    ),
-                )
-            else:
-                grid.add_row(
-                    Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
-                    Text.assemble(
-                        (f"{operation} ", ThemeKey.REMINDER),
-                        path_texts,
-                    ),
-                )
-        parts.append(grid)
-
-    if uic := e.item.user_image_count:
-        grid = create_grid()
-        grid.add_row(
-            Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
-            Text(f"Attached {uic} image{'s' if uic > 1 else ''}", style=ThemeKey.REMINDER),
-        )
-        parts.append(grid)
-
-    if sn := e.item.skill_name:
-        grid = create_grid()
-        grid.add_row(
-            Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
-            Text.assemble(
-                ("Activated skill ", ThemeKey.REMINDER),
-                (sn, ThemeKey.REMINDER_BOLD),
-            ),
-        )
-        parts.append(grid)
+                    for (operation, mentioned_in), paths in grouped.items():
+                        path_texts = Text(", ", ThemeKey.REMINDER).join(
+                            render_path(p, ThemeKey.REMINDER_BOLD) for p in paths
+                        )
+                        if mentioned_in:
+                            grid.add_row(
+                                Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
+                                Text.assemble(
+                                    (f"{operation} ", ThemeKey.REMINDER),
+                                    path_texts,
+                                    (" mentioned in ", ThemeKey.REMINDER),
+                                    render_path(mentioned_in, ThemeKey.REMINDER_BOLD),
+                                ),
+                            )
+                        else:
+                            grid.add_row(
+                                Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
+                                Text.assemble(
+                                    (f"{operation} ", ThemeKey.REMINDER),
+                                    path_texts,
+                                ),
+                            )
+                    parts.append(grid)
+                case model.UserImagesUIItem() as item:
+                    grid = create_grid()
+                    count = item.count
+                    grid.add_row(
+                        Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
+                        Text(
+                            f"Attached {count} image{'s' if count > 1 else ''}",
+                            style=ThemeKey.REMINDER,
+                        ),
+                    )
+                    parts.append(grid)
+                case model.SkillActivatedUIItem() as item:
+                    grid = create_grid()
+                    grid.add_row(
+                        Text(REMINDER_BULLET, style=ThemeKey.REMINDER),
+                        Text.assemble(
+                            ("Activated skill ", ThemeKey.REMINDER),
+                            (item.name, ThemeKey.REMINDER_BOLD),
+                        ),
+                    )
+                    parts.append(grid)
+                case model.CommandOutputUIItem():
+                    # Rendered via render_command_output
+                    pass
 
     return Group(*parts) if parts else Text("")
 
 
 def render_command_output(e: events.DeveloperMessageEvent) -> RenderableType:
     """Render developer command output content."""
-    if not e.item.command_output:
+    command_output = get_command_output(e.item)
+    if not command_output:
         return Text("")
 
     content = message.join_text_parts(e.item.parts)
-    match e.item.command_output.command_name:
+    match command_output.command_name:
         case commands.CommandName.HELP:
             return Padding.indent(Text.from_markup(content or ""), level=2)
         case commands.CommandName.STATUS:
-            return _render_status_output(e.item.command_output)
+            return _render_status_output(command_output)
         case commands.CommandName.RELEASE_NOTES:
             return Padding.indent(NoInsetMarkdown(content or ""), level=2)
         case commands.CommandName.FORK_SESSION:
-            return _render_fork_session_output(e.item.command_output)
+            return _render_fork_session_output(command_output)
         case _:
             content = content or "(no content)"
-            style = ThemeKey.TOOL_RESULT if not e.item.command_output.is_error else ThemeKey.ERROR
+            style = ThemeKey.TOOL_RESULT if not command_output.is_error else ThemeKey.ERROR
             return Padding.indent(truncate_middle(content, base_style=style), level=2)
 
 

@@ -42,7 +42,7 @@ class ExportOnlineCommand(CommandABC):
                 session_id=agent.session.id,
                 item=message.DeveloperMessage(
                     parts=message.text_parts_from_str("surge.sh CLI not found. Install with: npm install -g surge"),
-                    command_output=model.CommandOutput(command_name=self.name, is_error=True),
+                    ui_extra=model.build_command_output_extra(self.name, is_error=True),
                 ),
             )
             return CommandResult(events=[event])
@@ -59,7 +59,7 @@ class ExportOnlineCommand(CommandABC):
                     session_id=agent.session.id,
                     item=message.DeveloperMessage(
                         parts=message.text_parts_from_str(f"Not logged in to surge.sh. Please run: {login_cmd}"),
-                        command_output=model.CommandOutput(command_name=self.name, is_error=True),
+                        ui_extra=model.build_command_output_extra(self.name, is_error=True),
                     ),
                 )
                 return CommandResult(events=[event])
@@ -73,7 +73,7 @@ class ExportOnlineCommand(CommandABC):
                 session_id=agent.session.id,
                 item=message.DeveloperMessage(
                     parts=message.text_parts_from_str(f"Session deployed to: {url}"),
-                    command_output=model.CommandOutput(command_name=self.name),
+                    ui_extra=model.build_command_output_extra(self.name),
                 ),
             )
             return CommandResult(events=[event])
@@ -84,7 +84,7 @@ class ExportOnlineCommand(CommandABC):
                 session_id=agent.session.id,
                 item=message.DeveloperMessage(
                     parts=message.text_parts_from_str(f"Failed to deploy session: {exc}\n{traceback.format_exc()}"),
-                    command_output=model.CommandOutput(command_name=self.name, is_error=True),
+                    ui_extra=model.build_command_output_extra(self.name, is_error=True),
                 ),
             )
             return CommandResult(events=[event])

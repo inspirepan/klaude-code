@@ -72,7 +72,7 @@ class DebugCommand(CommandABC):
                     session_id=agent.session.id,
                     item=message.DeveloperMessage(
                         parts=message.text_parts_from_str(content),
-                        command_output=model.CommandOutput(command_name=self.name),
+                        ui_extra=model.build_command_output_extra(self.name),
                     ),
                 )
             ]
