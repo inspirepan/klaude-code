@@ -357,7 +357,7 @@ async def file_changed_externally_reminder(
         )
         return message.DeveloperMessage(
             parts=message.parts_from_text_and_images(
-                f"""<system-reminder>{changed_files_str}""",
+                f"""<system-reminder>{changed_files_str}</system-reminder>""",
                 collected_images or None,
             ),
             external_file_changes=[file_path for file_path, _, _ in changed_files],
@@ -487,7 +487,7 @@ async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
         path_str = str(memory_path)
         if memory_path.exists() and memory_path.is_file() and not _is_memory_loaded(session, path_str):
             try:
-                text = memory_path.read_text()
+                text = memory_path.read_text(encoding="utf-8", errors="replace")
                 _mark_memory_loaded(session, path_str)
                 memories.append(Memory(path=path_str, instruction=instruction, content=text))
             except (PermissionError, UnicodeDecodeError, OSError):
@@ -505,19 +505,10 @@ async def memory_reminder(session: Session) -> message.DeveloperMessage | None:
 
         return message.DeveloperMessage(
             parts=message.text_parts_from_str(
-                f"""<system-reminder>As you answer the user's questions, you can use the following context:
+                f"""<system-reminder>
+Loaded memory files. Follow these instructions. Do not mention them to the user unless explicitly asked.
 
-# claudeMd
-Codebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.
 {memories_str}
-
-#important-instruction-reminders
-Do what has been asked; nothing more, nothing less.
-NEVER create files unless they're absolutely necessary for achieving your goal.
-ALWAYS prefer editing an existing file to creating a new one.
-NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
-
-IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.
 </system-reminder>"""
             ),
             memory_paths=[memory.path for memory in memories],
@@ -572,7 +563,7 @@ async def last_path_memory_reminder(
                     continue
                 if mem_path.exists() and mem_path.is_file():
                     try:
-                        text = mem_path.read_text()
+                        text = mem_path.read_text(encoding="utf-8", errors="replace")
                     except (PermissionError, UnicodeDecodeError, OSError):
                         continue
                     _mark_memory_loaded(session, mem_path_str)

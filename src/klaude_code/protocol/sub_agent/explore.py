@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from klaude_code.protocol import tools
 from klaude_code.protocol.sub_agent import SubAgentProfile, register_sub_agent
 
@@ -37,11 +35,6 @@ EXPLORE_PARAMETERS = {
             "type": "string",
             "description": "The task for the agent to perform",
         },
-        "thoroughness": {
-            "type": "string",
-            "enum": ["quick", "medium", "very thorough"],
-            "description": "Controls how deep the sub-agent should search the repo",
-        },
         "output_format": {
             "type": "object",
             "description": "Optional JSON Schema for sub-agent structured output",
@@ -52,13 +45,6 @@ EXPLORE_PARAMETERS = {
 }
 
 
-def _explore_prompt_builder(args: dict[str, Any]) -> str:
-    """Build the Explore prompt from tool arguments."""
-    prompt = args.get("prompt", "").strip()
-    thoroughness = args.get("thoroughness", "medium")
-    return f"{prompt}\nthoroughness: {thoroughness}"
-
-
 register_sub_agent(
     SubAgentProfile(
         name="Explore",
@@ -66,7 +52,6 @@ register_sub_agent(
         parameters=EXPLORE_PARAMETERS,
         prompt_file="prompts/prompt-sub-agent-explore.md",
         tool_set=(tools.BASH, tools.READ),
-        prompt_builder=_explore_prompt_builder,
         active_form="Exploring",
         output_schema_arg="output_format",
     )

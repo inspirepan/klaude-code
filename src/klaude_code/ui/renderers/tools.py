@@ -138,6 +138,7 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
     if isinstance(command, str) and command.strip():
         cmd_str = command.strip()
         highlighted = highlight_bash_command(cmd_str)
+        highlighted.stylize(ThemeKey.CODE_BACKGROUND)
 
         display_line_count = len(highlighted.plain.splitlines())
 

@@ -110,6 +110,9 @@ DARK_PALETTE = Palette(
 class ThemeKey(str, Enum):
     LINES = "lines"
 
+    # CODE
+    CODE_BACKGROUND = "code_background"
+
     # PANEL
     SUB_AGENT_RESULT_PANEL = "panel.sub_agent_result"
     WRITE_MARKDOWN_PANEL = "panel.write_markdown"
@@ -224,6 +227,8 @@ def get_theme(theme: str | None = None) -> Themes:
         app_theme=Theme(
             styles={
                 ThemeKey.LINES.value: palette.grey3,
+                # CODE
+                ThemeKey.CODE_BACKGROUND.value: f"on {palette.code_background}",
                 # PANEL
                 ThemeKey.SUB_AGENT_RESULT_PANEL.value: f"on {palette.blue_grey_background}",
                 ThemeKey.WRITE_MARKDOWN_PANEL.value: f"on {palette.green_background}",
@@ -260,7 +265,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.STATUS_HINT.value: palette.grey2,
                 # REMINDER
                 ThemeKey.REMINDER.value: palette.grey1,
-                ThemeKey.REMINDER_BOLD.value: "bold " + palette.grey1,
+                ThemeKey.REMINDER_BOLD.value: palette.grey1,
                 # TOOL
                 ThemeKey.INVALID_TOOL_CALL_ARGS.value: palette.yellow,
                 ThemeKey.TOOL_NAME.value: "bold",
