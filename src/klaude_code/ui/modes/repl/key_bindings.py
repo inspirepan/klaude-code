@@ -11,8 +11,9 @@ import re
 from collections.abc import Callable
 from typing import cast
 
+from prompt_toolkit.application.current import get_app
 from prompt_toolkit.buffer import Buffer
-from prompt_toolkit.filters import Always, Filter
+from prompt_toolkit.filters import Always, Condition, Filter
 from prompt_toolkit.filters.app import has_completions
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
@@ -39,6 +40,115 @@ def create_key_bindings(
     """
     kb = KeyBindings()
     enabled = input_enabled if input_enabled is not None else Always()
+
+    def _can_move_cursor_visually_within_wrapped_line(delta_visible_y: int) -> bool:
+        """Return True when Up/Down should move within a wrapped visual line.
+
+        prompt_toolkit's default Up/Down behavior operates on logical lines
+        (split by '\n'). When a single logical line wraps across terminal
+        rows, pressing Up/Down should move within those wrapped rows instead of
+        triggering history navigation.
+
+        We only intercept when the cursor can move to an adjacent *visible*
+        line that maps to the same input line.
+        """
+
+        try:
+            app = get_app()
+            window = app.layout.current_window
+            if window is None or window.render_info is None:
+                return False
+            ri = window.render_info
+
+            current_visible_y = int(ri.cursor_position.y)
+            target_visible_y = current_visible_y + delta_visible_y
+            if target_visible_y < 0:
+                return False
+
+            current_input_line = ri.visible_line_to_input_line.get(current_visible_y)
+            target_input_line = ri.visible_line_to_input_line.get(target_visible_y)
+            return current_input_line is not None and current_input_line == target_input_line
+        except Exception:
+            return False
+
+    def _move_cursor_visually_within_wrapped_line(event: KeyPressEvent, *, delta_visible_y: int) -> None:
+        """Move the cursor Up/Down by one wrapped screen row, keeping column."""
+
+        buf = event.current_buffer
+        try:
+            window = event.app.layout.current_window
+            if window is None or window.render_info is None:
+                return
+            ri = window.render_info
+
+            rowcol_to_yx = getattr(ri, "_rowcol_to_yx", None)
+            x_offset = getattr(ri, "_x_offset", None)
+            y_offset = getattr(ri, "_y_offset", None)
+            if not isinstance(rowcol_to_yx, dict) or not isinstance(x_offset, int) or not isinstance(y_offset, int):
+                return
+
+            current_visible_y = int(ri.cursor_position.y)
+            target_visible_y = current_visible_y + delta_visible_y
+            mapping = ri.visible_line_to_row_col
+            if current_visible_y not in mapping or target_visible_y not in mapping:
+                return
+
+            current_row, _ = mapping[current_visible_y]
+            target_row, _ = mapping[target_visible_y]
+
+            # Only handle wrapped rows within the same input line.
+            if current_row != target_row:
+                return
+
+            current_abs_y = y_offset + current_visible_y
+            target_abs_y = y_offset + target_visible_y
+            cursor_abs_x = x_offset + int(ri.cursor_position.x)
+
+            def _segment_start_abs_x(row: int, abs_y: int) -> int | None:
+                xs: list[int] = []
+                for (r, _col), (y, x) in rowcol_to_yx.items():
+                    if r == row and y == abs_y:
+                        xs.append(x)
+                return min(xs) if xs else None
+
+            current_start_x = _segment_start_abs_x(current_row, current_abs_y)
+            target_start_x = _segment_start_abs_x(target_row, target_abs_y)
+            if current_start_x is None or target_start_x is None:
+                return
+
+            offset_in_segment_cells = max(0, cursor_abs_x - current_start_x)
+            desired_abs_x = target_start_x + offset_in_segment_cells
+
+            candidates: list[tuple[int, int]] = []
+            for (r, col), (y, x) in rowcol_to_yx.items():
+                if r == target_row and y == target_abs_y:
+                    candidates.append((col, x))
+            if not candidates:
+                return
+
+            # Pick the closest column at/before the desired X. If the desired
+            # position is before the first character, snap to the first.
+            candidates.sort(key=lambda t: t[1])
+            chosen_display_col = candidates[0][0]
+            for col, x in candidates:
+                if x <= desired_abs_x:
+                    chosen_display_col = col
+                else:
+                    break
+
+            control = event.app.layout.current_control
+            get_processed_line = getattr(control, "_last_get_processed_line", None)
+            target_source_col = chosen_display_col
+            if callable(get_processed_line):
+                processed_line = get_processed_line(target_row)
+                target_source_col = int(processed_line.display_to_source(chosen_display_col))
+
+            doc = buf.document  # type: ignore[reportUnknownMemberType]
+            new_index = doc.translate_row_col_to_index(target_row, target_source_col)  # type: ignore[reportUnknownMemberType]
+            buf.cursor_position = new_index  # type: ignore[reportUnknownMemberType]
+            event.app.invalidate()  # type: ignore[reportUnknownMemberType]
+        except Exception:
+            return
 
     def _should_submit_instead_of_accepting_completion(buf: Buffer) -> bool:
         """Return True when Enter should submit even if completions are visible.
@@ -173,6 +283,26 @@ def create_key_bindings(
         buf = event.current_buffer
         _cycle_completion(buf, delta=-1)
         event.app.invalidate()  # type: ignore[reportUnknownMemberType]
+
+    @kb.add(
+        "up",
+        filter=enabled
+        & ~has_completions
+        & Condition(lambda: _can_move_cursor_visually_within_wrapped_line(delta_visible_y=-1)),
+        eager=True,
+    )
+    def _(event: KeyPressEvent) -> None:
+        _move_cursor_visually_within_wrapped_line(event, delta_visible_y=-1)
+
+    @kb.add(
+        "down",
+        filter=enabled
+        & ~has_completions
+        & Condition(lambda: _can_move_cursor_visually_within_wrapped_line(delta_visible_y=1)),
+        eager=True,
+    )
+    def _(event: KeyPressEvent) -> None:
+        _move_cursor_visually_within_wrapped_line(event, delta_visible_y=1)
 
     @kb.add("c-j", filter=enabled)
     def _(event: KeyPressEvent) -> None:
