@@ -11,6 +11,8 @@ from klaude_code.const import TOOL_OUTPUT_TRUNCATION_DIR
 from klaude_code.llm.image import get_assistant_image_output_dir
 
 _MERMAID_INK_PREFIX = "https://mermaid.ink/img/pako:"
+_MERMAID_DEFAULT_PNG_WIDTH = 1600
+_MERMAID_DEFAULT_PNG_SCALE = 2
 
 
 def artifacts_dir() -> Path:
@@ -44,7 +46,9 @@ def download_mermaid_png(
     if image_path.exists():
         return image_path
 
-    png_url = f"{_MERMAID_INK_PREFIX}{pako}"
+    png_url = (
+        f"{_MERMAID_INK_PREFIX}{pako}?type=png&width={_MERMAID_DEFAULT_PNG_WIDTH}&scale={_MERMAID_DEFAULT_PNG_SCALE}"
+    )
     try:
         with httpx.Client(timeout=10.0) as client:
             resp = client.get(png_url)

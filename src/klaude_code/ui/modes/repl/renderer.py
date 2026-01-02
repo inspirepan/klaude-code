@@ -17,10 +17,11 @@ from klaude_code.const import (
     STATUS_DEFAULT_TEXT,
     STREAM_MAX_HEIGHT_SHRINK_RESET_LINES,
 )
-from klaude_code.protocol import events, model
+from klaude_code.protocol import events, model, tools
 from klaude_code.ui.renderers import assistant as r_assistant
 from klaude_code.ui.renderers import developer as r_developer
 from klaude_code.ui.renderers import errors as r_errors
+from klaude_code.ui.renderers import mermaid_viewer as r_mermaid_viewer
 from klaude_code.ui.renderers import metadata as r_metadata
 from klaude_code.ui.renderers import sub_agent as r_sub_agent
 from klaude_code.ui.renderers import thinking as r_thinking
@@ -146,7 +147,18 @@ class REPLRenderer:
             error_msg = truncate_head(e.result)
             self.print(r_errors.render_tool_error(error_msg))
             return
-        renderable = r_tools.render_tool_result(e, code_theme=self.themes.code_theme, session_id=e.session_id)
+        if not is_sub_agent and e.tool_name == tools.MERMAID and isinstance(e.ui_extra, model.MermaidLinkUIExtra):
+            image_path = r_mermaid_viewer.download_mermaid_png(
+                link=e.ui_extra.link,
+                tool_call_id=e.tool_call_id,
+                session_id=e.session_id,
+            )
+            if image_path is not None:
+                self.display_image(str(image_path), height=None)
+
+            renderable = r_tools.render_tool_result(e, code_theme=self.themes.code_theme, session_id=e.session_id)
+        else:
+            renderable = r_tools.render_tool_result(e, code_theme=self.themes.code_theme, session_id=e.session_id)
         if renderable is not None:
             self.print(renderable)
 
@@ -278,18 +290,17 @@ class REPLRenderer:
             self.print(renderable)
             self.print()
 
-    def display_image(self, file_path: str, height: int = 40) -> None:
+    def display_image(self, file_path: str, height: int | None = 40) -> None:
         """Display an image in the terminal.
 
         Args:
             file_path: Path to the image file.
             height: Height in terminal lines for displaying the image.
         """
-        from klaude_code.ui.rich.terminal_image import TerminalImage
+        from klaude_code.ui.terminal.image import print_kitty_image
 
-        # TerminalImage writes directly to stdout to preserve Kitty graphics
-        # escape sequences. Suspend the Live status bar while emitting the image
-        # to avoid interleaving refreshes with raw terminal output.
+        # Suspend the Live status bar while emitting raw terminal output to avoid
+        # interleaving refreshes with Kitty graphics escape sequences.
         had_live = self._bottom_live is not None
         was_spinner_visible = self._spinner_visible
         has_stream = MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._stream_renderable is not None
@@ -301,7 +312,7 @@ class REPLRenderer:
             self._bottom_live = None
 
         try:
-            self.print(TerminalImage(file_path, height=height))
+            print_kitty_image(file_path, height=height, file=self.console.file)
         finally:
             if resume_live:
                 if was_spinner_visible:

@@ -514,8 +514,11 @@ def render_web_search_tool_call(arguments: str) -> RenderableType:
     return _render_tool_call_tree(mark=MARK_WEB_SEARCH, tool_name=tool_name, details=summary)
 
 
-def render_mermaid_tool_result(tr: events.ToolResultEvent, *, session_id: str | None = None) -> RenderableType:
-    from klaude_code.ui.rich.terminal_image import TerminalImage
+def render_mermaid_tool_result(
+    tr: events.ToolResultEvent,
+    *,
+    session_id: str | None = None,
+) -> RenderableType:
     from klaude_code.ui.terminal import supports_osc8_hyperlinks
 
     link_info = _extract_mermaid_link(tr.ui_extra)
@@ -524,15 +527,6 @@ def render_mermaid_tool_result(tr: events.ToolResultEvent, *, session_id: str | 
 
     use_osc8 = supports_osc8_hyperlinks()
     viewer = _render_mermaid_viewer_link(tr, link_info, use_osc8=use_osc8)
-
-    # Download and display PNG image
-    image_path = r_mermaid_viewer.download_mermaid_png(
-        link=link_info.link,
-        tool_call_id=tr.tool_call_id,
-        session_id=session_id,
-    )
-    if image_path is not None:
-        return Group(TerminalImage(image_path), viewer)
 
     return viewer
 
@@ -674,7 +668,10 @@ def render_markdown_doc(md_ui: model.MarkdownDocUIExtra, *, code_theme: str) -> 
 
 
 def render_tool_result(
-    e: events.ToolResultEvent, *, code_theme: str = "monokai", session_id: str | None = None
+    e: events.ToolResultEvent,
+    *,
+    code_theme: str = "monokai",
+    session_id: str | None = None,
 ) -> RenderableType | None:
     """Unified entry point for rendering tool results.
 
