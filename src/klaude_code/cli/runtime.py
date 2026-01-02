@@ -25,7 +25,6 @@ from klaude_code.ui.modes.repl import build_repl_status_snapshot
 from klaude_code.ui.modes.repl.input_prompt_toolkit import REPLStatusSnapshot
 from klaude_code.ui.terminal.color import is_light_terminal_background
 from klaude_code.ui.terminal.control import install_sigint_double_press_exit, start_esc_interrupt_monitor
-from klaude_code.ui.terminal.progress_bar import OSC94States, emit_osc94
 
 
 class PrintCapable(Protocol):
@@ -269,11 +268,6 @@ async def cleanup_app_components(components: AppComponents) -> None:
         await components.event_queue.put(events.EndEvent())
         await components.display_task
     finally:
-        # Always attempt to clear Ghostty progress bar and restore cursor visibility
-        # Best-effort only; never fail cleanup due to OSC errors
-        with contextlib.suppress(Exception):
-            emit_osc94(OSC94States.HIDDEN)
-
         # Ensure the terminal cursor is visible even if Rich's Status spinner
         # did not get a chance to stop cleanly (e.g. on KeyboardInterrupt).
         # If this fails the shell can still recover via `reset`/`stty sane`.
@@ -452,8 +446,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             print(MSG, file=sys.stderr)
 
     def _hide_progress() -> None:
-        with contextlib.suppress(Exception):
-            emit_osc94(OSC94States.HIDDEN)
+        return
 
     restore_sigint = install_sigint_double_press_exit(_show_toast_once, _hide_progress)
 

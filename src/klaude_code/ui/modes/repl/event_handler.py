@@ -416,14 +416,12 @@ class DisplayEventHandler:
             self._sub_agent_thinking_headers[event.session_id] = SubAgentThinkingHeaderState()
         self.renderer.spinner_start()
         self.renderer.display_task_start(event)
-        emit_osc94(OSC94States.INDETERMINATE)
 
     def _on_developer_message(self, event: events.DeveloperMessageEvent) -> None:
         self.renderer.display_developer_message(event)
         self.renderer.display_command_output(event)
 
     def _on_turn_start(self, event: events.TurnStartEvent) -> None:
-        emit_osc94(OSC94States.INDETERMINATE)
         self.renderer.display_turn_start(event)
         self.spinner_status.clear_for_new_turn()
         self.spinner_status.set_reasoning_status(None)
@@ -533,7 +531,6 @@ class DisplayEventHandler:
         self.renderer.display_task_finish(event)
         if not self.renderer.is_sub_agent_session(event.session_id):
             r_status.clear_task_start()
-            emit_osc94(OSC94States.HIDDEN)
             self.spinner_status.reset()
             self.renderer.spinner_stop()
             self.renderer.console.print(Rule(characters="─", style=ThemeKey.LINES))
@@ -548,7 +545,6 @@ class DisplayEventHandler:
         self.spinner_status.reset()
         r_status.clear_task_start()
         await self.stage_manager.transition_to(Stage.WAITING)
-        emit_osc94(OSC94States.HIDDEN)
         self.renderer.display_interrupt()
 
     async def _on_error(self, event: events.ErrorEvent) -> None:
@@ -560,7 +556,6 @@ class DisplayEventHandler:
             self.spinner_status.reset()
 
     async def _on_end(self, event: events.EndEvent) -> None:
-        emit_osc94(OSC94States.HIDDEN)
         await self.stage_manager.transition_to(Stage.WAITING)
         self.renderer.spinner_stop()
         self.spinner_status.reset()

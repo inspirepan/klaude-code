@@ -19,7 +19,7 @@ class REPLDisplay(DisplayABC):
     - Syntax-highlighted code blocks and diffs
     - Animated spinners for in-progress operations
     - Tool call and result visualization
-    - OSC94 progress bar integration (for supported terminals)
+    - OSC94 error indicator (for supported terminals)
     - Desktop notifications on task completion
 
     This is the primary display mode for interactive klaude-code sessions.

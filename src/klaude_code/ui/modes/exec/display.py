@@ -14,12 +14,11 @@ class ExecDisplay(DisplayABC):
         """Only handle TaskFinishEvent."""
         match event:
             case events.TaskStartEvent():
-                emit_osc94(OSC94States.INDETERMINATE)
+                pass
             case events.ErrorEvent() as e:
-                emit_osc94(OSC94States.HIDDEN)
+                emit_osc94(OSC94States.ERROR)
                 print(f"Error: {e.error_message}")
             case events.TaskFinishEvent() as e:
-                emit_osc94(OSC94States.HIDDEN)
                 # Print the task result when task finishes
                 if e.task_result.strip():
                     print(e.task_result)
