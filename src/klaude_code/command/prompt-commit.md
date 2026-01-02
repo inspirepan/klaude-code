@@ -8,7 +8,16 @@ description: Commit current git changes
 
 Check if `jj` is available in the current environment. (check in your <env> tag)
 
-### Step 2A: If jj is available
+### Step 2: Run pre-commit checks
+
+Before creating a commit, run the following checks:
+
+1. Run the project's linter to check and fix code style issues
+2. Run the project's test suite to ensure all tests pass
+3. If either check fails, stop the commit process and report the errors to the user
+4. If both checks pass, proceed to the next step
+
+### Step 3A: If jj is available
 
 1. Run `jj status` and `jj log -r 'ancestors(@, 10)'` to see working copy changes and the last 10 changes
 2. For each change that has no description (shows as "(no description set)"):

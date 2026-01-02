@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from rich.rule import Rule
@@ -11,6 +12,7 @@ from klaude_code.ui.core.stage_manager import Stage, StageManager
 from klaude_code.ui.modes.repl.renderer import REPLRenderer
 from klaude_code.ui.renderers.assistant import ASSISTANT_MESSAGE_MARK
 from klaude_code.ui.renderers.thinking import THINKING_MESSAGE_MARK, normalize_thinking_content
+from klaude_code.ui.renderers.tools import get_tool_active_form
 from klaude_code.ui.rich import status as r_status
 from klaude_code.ui.rich.markdown import MarkdownStream, ThinkingMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
@@ -106,6 +108,31 @@ class StreamState:
     def finish(self) -> None:
         """End the current streaming session."""
         self._active = None
+
+    def render(self, *, transform: Callable[[str], str] | None = None, final: bool = False) -> bool:
+        """Render the current buffer to the markdown stream.
+
+        Returns:
+            bool: True if an active stream was rendered.
+        """
+
+        if self._active is None:
+            return False
+
+        text = self._active.buffer
+        if transform is not None:
+            text = transform(text)
+        self._active.mdstream.update(text, final=final)
+
+        if final:
+            self.finish()
+
+        return True
+
+    def finalize(self, *, transform: Callable[[str], str] | None = None) -> bool:
+        """Finalize rendering and end the current streaming session."""
+
+        return self.render(transform=transform, final=True)
 
 
 class ActivityState:
@@ -302,6 +329,31 @@ class DisplayEventHandler:
             finish_thinking=self._finish_thinking_stream,
         )
 
+    def _new_thinking_mdstream(self) -> MarkdownStream:
+        return MarkdownStream(
+            mdargs={
+                "code_theme": self.renderer.themes.code_theme,
+                "style": ThemeKey.THINKING,
+            },
+            theme=self.renderer.themes.thinking_markdown_theme,
+            console=self.renderer.console,
+            live_sink=self.renderer.set_stream_renderable if MARKDOWN_STREAM_LIVE_REPAINT_ENABLED else None,
+            mark=THINKING_MESSAGE_MARK,
+            mark_style=ThemeKey.THINKING,
+            left_margin=MARKDOWN_LEFT_MARGIN,
+            markdown_class=ThinkingMarkdown,
+        )
+
+    def _new_assistant_mdstream(self) -> MarkdownStream:
+        return MarkdownStream(
+            mdargs={"code_theme": self.renderer.themes.code_theme},
+            theme=self.renderer.themes.markdown_theme,
+            console=self.renderer.console,
+            live_sink=self.renderer.set_stream_renderable if MARKDOWN_STREAM_LIVE_REPAINT_ENABLED else None,
+            mark=ASSISTANT_MESSAGE_MARK,
+            left_margin=MARKDOWN_LEFT_MARGIN,
+        )
+
     async def consume_event(self, event: events.Event) -> None:
         match event:
             case events.ReplayHistoryEvent() as e:
@@ -325,7 +377,7 @@ class DisplayEventHandler:
             case events.AssistantMessageEvent() as e:
                 await self._on_assistant_message(e)
             case events.TurnToolCallStartEvent() as e:
-                self._on_tool_call_start(e)
+                await self._on_tool_call_start(e)
             case events.ToolCallEvent() as e:
                 await self._on_tool_call(e)
             case events.ToolResultEvent() as e:
@@ -350,8 +402,8 @@ class DisplayEventHandler:
                 await self._on_end(e)
 
     async def stop(self) -> None:
-        await self._flush_assistant_buffer(self.assistant_stream)
-        await self._flush_thinking_buffer(self.thinking_stream)
+        self._flush_assistant_buffer()
+        self._flush_thinking_buffer()
 
     # ─────────────────────────────────────────────────────────────────────────────
     # Private event handlers
@@ -391,20 +443,7 @@ class DisplayEventHandler:
 
         first_delta = not self.thinking_stream.is_active
         if first_delta:
-            mdstream = MarkdownStream(
-                mdargs={
-                    "code_theme": self.renderer.themes.code_theme,
-                    "style": ThemeKey.THINKING,
-                },
-                theme=self.renderer.themes.thinking_markdown_theme,
-                console=self.renderer.console,
-                live_sink=self.renderer.set_stream_renderable if MARKDOWN_STREAM_LIVE_REPAINT_ENABLED else None,
-                mark=THINKING_MESSAGE_MARK,
-                mark_style=ThemeKey.THINKING,
-                left_margin=MARKDOWN_LEFT_MARGIN,
-                markdown_class=ThinkingMarkdown,
-            )
-            self.thinking_stream.start(mdstream)
+            self.thinking_stream.start(self._new_thinking_mdstream())
 
         self.thinking_stream.append(event.content)
 
@@ -413,67 +452,52 @@ class DisplayEventHandler:
             self.spinner_status.set_reasoning_status(reasoning_status)
             self._update_spinner()
 
-        if first_delta and self.thinking_stream.mdstream is not None:
-            self.thinking_stream.mdstream.update(normalize_thinking_content(self.thinking_stream.buffer))
+        if first_delta:
+            self.thinking_stream.render(transform=normalize_thinking_content)
 
         await self.stage_manager.enter_thinking_stage()
-        await self._flush_thinking_buffer(self.thinking_stream)
+        self._flush_thinking_buffer()
 
     async def _on_assistant_delta(self, event: events.AssistantTextDeltaEvent) -> None:
         if self.renderer.is_sub_agent_session(event.session_id):
             self.spinner_status.set_composing(True)
             self._update_spinner()
             return
-        else:
-            await self._finish_thinking_stream()
+
         if len(event.content.strip()) == 0 and self.stage_manager.current_stage != Stage.ASSISTANT:
+            await self.stage_manager.transition_to(Stage.WAITING)
             return
+
+        await self.stage_manager.transition_to(Stage.ASSISTANT)
         first_delta = not self.assistant_stream.is_active
         if first_delta:
             self.spinner_status.set_composing(True)
             self.spinner_status.clear_tool_calls()
             self._update_spinner()
-            mdstream = MarkdownStream(
-                mdargs={"code_theme": self.renderer.themes.code_theme},
-                theme=self.renderer.themes.markdown_theme,
-                console=self.renderer.console,
-                live_sink=self.renderer.set_stream_renderable if MARKDOWN_STREAM_LIVE_REPAINT_ENABLED else None,
-                mark=ASSISTANT_MESSAGE_MARK,
-                left_margin=MARKDOWN_LEFT_MARGIN,
-            )
-            self.assistant_stream.start(mdstream)
+            self.assistant_stream.start(self._new_assistant_mdstream())
         self.assistant_stream.append(event.content)
         self.spinner_status.set_buffer_length(len(self.assistant_stream.buffer))
         if not first_delta:
             self._update_spinner()
-        if first_delta and self.assistant_stream.mdstream is not None:
-            self.assistant_stream.mdstream.update(self.assistant_stream.buffer)
-        await self.stage_manager.transition_to(Stage.ASSISTANT)
-        await self._flush_assistant_buffer(self.assistant_stream)
+        if first_delta:
+            self.assistant_stream.render()
+        self._flush_assistant_buffer()
 
     async def _on_assistant_message(self, event: events.AssistantMessageEvent) -> None:
         if self.renderer.is_sub_agent_session(event.session_id):
             return
-        await self._finish_thinking_stream()
-        await self.stage_manager.transition_to(Stage.ASSISTANT)
-        if self.assistant_stream.is_active:
-            mdstream = self.assistant_stream.mdstream
-            assert mdstream is not None
-            mdstream.update(event.content.strip(), final=True)
-            self.renderer.print()
-        self.assistant_stream.finish()
+
+        await self.stage_manager.transition_to(Stage.WAITING)
         self.spinner_status.set_composing(False)
         self._update_spinner()
-        await self.stage_manager.transition_to(Stage.WAITING)
         self.renderer.spinner_start()
 
     async def _on_assistant_image_delta(self, event: events.AssistantImageDeltaEvent) -> None:
         await self.stage_manager.transition_to(Stage.ASSISTANT)
         self.renderer.display_image(event.file_path)
 
-    def _on_tool_call_start(self, event: events.TurnToolCallStartEvent) -> None:
-        from klaude_code.ui.renderers.tools import get_tool_active_form
-
+    async def _on_tool_call_start(self, event: events.TurnToolCallStartEvent) -> None:
+        self._flush_assistant_buffer()
         self.spinner_status.set_composing(False)
         self.spinner_status.add_tool_call(get_tool_active_form(event.tool_name))
         self._update_spinner()
@@ -495,8 +519,7 @@ class DisplayEventHandler:
         self.renderer.display_task_metadata(event)
 
     def _on_todo_change(self, event: events.TodoChangeEvent) -> None:
-        active_form_status_text = self._extract_active_form_text(event)
-        self.spinner_status.set_todo_status(active_form_status_text if active_form_status_text else None)
+        self.spinner_status.set_todo_status(self._extract_active_form_text(event))
         # Clear tool calls when todo changes, as the tool execution has advanced
         self.spinner_status.clear_for_new_turn()
         self._update_spinner()
@@ -546,13 +569,6 @@ class DisplayEventHandler:
     # Private helper methods
     # ─────────────────────────────────────────────────────────────────────────────
 
-    async def _finish_assistant_stream(self) -> None:
-        if self.assistant_stream.is_active:
-            mdstream = self.assistant_stream.mdstream
-            assert mdstream is not None
-            mdstream.update(self.assistant_stream.buffer, final=True)
-            self.assistant_stream.finish()
-
     def _update_spinner(self) -> None:
         """Update spinner text from current status state."""
         status_text = self.spinner_status.get_status()
@@ -562,26 +578,22 @@ class DisplayEventHandler:
             right_text,
         )
 
-    async def _flush_assistant_buffer(self, state: StreamState) -> None:
-        if state.is_active:
-            mdstream = state.mdstream
-            assert mdstream is not None
-            mdstream.update(state.buffer)
+    def _flush_thinking_buffer(self) -> None:
+        self.thinking_stream.render(transform=normalize_thinking_content)
 
-    async def _flush_thinking_buffer(self, state: StreamState) -> None:
-        if state.is_active:
-            mdstream = state.mdstream
-            assert mdstream is not None
-            mdstream.update(normalize_thinking_content(state.buffer))
+    def _flush_assistant_buffer(self) -> None:
+        self.assistant_stream.render()
 
     async def _finish_thinking_stream(self) -> None:
-        if self.thinking_stream.is_active:
-            mdstream = self.thinking_stream.mdstream
-            assert mdstream is not None
-            mdstream.update(normalize_thinking_content(self.thinking_stream.buffer), final=True)
-            self.thinking_stream.finish()
+        finalized = self.thinking_stream.finalize(transform=normalize_thinking_content)
+        if finalized:
             self.renderer.print()
             self.renderer.spinner_start()
+
+    async def _finish_assistant_stream(self) -> None:
+        finalized = self.assistant_stream.finalize()
+        if finalized:
+            self.renderer.print()
 
     def _maybe_notify_task_finish(self, event: events.TaskFinishEvent) -> None:
         if self.notifier is None:
@@ -608,12 +620,17 @@ class DisplayEventHandler:
             return squashed[:197] + "…"
         return squashed
 
-    def _extract_active_form_text(self, todo_event: events.TodoChangeEvent) -> str:
-        status_text = ""
+    def _extract_active_form_text(self, todo_event: events.TodoChangeEvent) -> str | None:
+        status_text: str | None = None
         for todo in todo_event.todos:
             if todo.status == "in_progress":
                 if len(todo.active_form) > 0:
                     status_text = todo.active_form
                 if len(todo.content) > 0:
                     status_text = todo.content
-        return status_text.replace("\n", " ").strip()
+
+        if status_text is None:
+            return None
+
+        normalized = status_text.replace("\n", " ").strip()
+        return normalized if normalized else None

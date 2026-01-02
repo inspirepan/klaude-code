@@ -40,16 +40,9 @@ class StageManager:
             return
         await self.transition_to(Stage.THINKING)
 
-    async def finish_assistant(self) -> None:
-        if self._stage != Stage.ASSISTANT:
-            await self._finish_assistant()
-            return
-        await self._finish_assistant()
-        self._stage = Stage.WAITING
-
     async def _leave_current_stage(self) -> None:
         if self._stage == Stage.THINKING:
             await self._finish_thinking()
         elif self._stage == Stage.ASSISTANT:
-            await self.finish_assistant()
+            await self._finish_assistant()
         self._stage = Stage.WAITING

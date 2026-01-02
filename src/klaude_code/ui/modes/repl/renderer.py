@@ -26,7 +26,7 @@ from klaude_code.ui.renderers import sub_agent as r_sub_agent
 from klaude_code.ui.renderers import thinking as r_thinking
 from klaude_code.ui.renderers import tools as r_tools
 from klaude_code.ui.renderers import user_input as r_user_input
-from klaude_code.ui.renderers.common import truncate_middle, truncate_head
+from klaude_code.ui.renderers.common import truncate_head, truncate_middle
 from klaude_code.ui.rich import status as r_status
 from klaude_code.ui.rich.live import CropAboveLive, SingleLine
 from klaude_code.ui.rich.quote import Quote
