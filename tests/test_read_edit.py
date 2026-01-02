@@ -680,6 +680,36 @@ def edit_scenarios(draw: st.DrawFn) -> tuple[str, str, str, bool]:
     return base, old_string, new_string, replace_all
 
 
+@st.composite
+def edit_scenarios_with_match(draw: st.DrawFn) -> tuple[str, str, str]:
+    """Generate (content, old_string, new_string) where old_string is always in content.
+
+    Ensures: old_string is non-empty, present in content, different from new_string,
+    and old_string is not a substring of new_string.
+    """
+    # Generate non-empty old_string first
+    old_string = draw(st.text(st.characters(blacklist_categories=("Cs",)), min_size=1, max_size=20))
+
+    # Generate prefix and suffix to build content containing old_string
+    prefix = draw(st.text(st.characters(blacklist_categories=("Cs",)), min_size=0, max_size=40))
+    suffix = draw(st.text(st.characters(blacklist_categories=("Cs",)), min_size=0, max_size=40))
+
+    # Optionally repeat old_string multiple times
+    repeat_count = draw(st.integers(min_value=1, max_value=3))
+    middle = old_string * repeat_count
+
+    content = prefix + middle + suffix
+
+    # Generate new_string that doesn't contain old_string
+    new_string = draw(
+        st.text(st.characters(blacklist_categories=("Cs",)), min_size=0, max_size=20).filter(
+            lambda s: old_string not in s and s != old_string
+        )
+    )
+
+    return content, old_string, new_string
+
+
 @given(scenario=edit_scenarios())
 @settings(max_examples=100, deadline=None)
 def test_edit_tool_valid_detects_same_strings(scenario: tuple[str, str, str, bool]) -> None:
@@ -711,35 +741,28 @@ def test_edit_tool_valid_detects_missing_string(scenario: tuple[str, str, str, b
         assert "not found" in result.lower()
 
 
-@given(scenario=edit_scenarios())
+@given(scenario=edit_scenarios_with_match())
 @settings(max_examples=100, deadline=None)
-def test_edit_tool_execute_replace_all_removes_all(scenario: tuple[str, str, str, bool]) -> None:
+def test_edit_tool_execute_replace_all_removes_all(scenario: tuple[str, str, str]) -> None:
     """Property: execute with replace_all=True removes all occurrences."""
     from klaude_code.core.tool.file.edit_tool import EditTool
 
-    content, old_string, new_string, _ = scenario
-    assume(old_string)  # Non-empty old_string
-    assume(old_string != new_string)
-    assume(old_string not in new_string)  # Avoid replacement creating new matches
+    content, old_string, new_string = scenario
 
     result = EditTool.execute(content=content, old_string=old_string, new_string=new_string, replace_all=True)
 
     assert old_string not in result
 
 
-@given(scenario=edit_scenarios())
+@given(scenario=edit_scenarios_with_match())
 @settings(max_examples=100, deadline=None)
-def test_edit_tool_execute_single_replace_count(scenario: tuple[str, str, str, bool]) -> None:
+def test_edit_tool_execute_single_replace_count(scenario: tuple[str, str, str]) -> None:
     """Property: execute with replace_all=False replaces exactly one occurrence."""
     from klaude_code.core.tool.file.edit_tool import EditTool
 
-    content, old_string, new_string, _ = scenario
-    assume(old_string)  # Non-empty old_string
-    assume(old_string != new_string)
-    assume(old_string not in new_string)  # Avoid replacement creating new matches
+    content, old_string, new_string = scenario
 
     original_count = content.count(old_string)
-    assume(original_count >= 1)
 
     result = EditTool.execute(content=content, old_string=old_string, new_string=new_string, replace_all=False)
 
