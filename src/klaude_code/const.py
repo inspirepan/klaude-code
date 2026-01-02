@@ -23,9 +23,6 @@ def _get_int_env(name: str, default: int) -> int:
 # Agent Configuration
 # =============================================================================
 
-# Timeout for waiting for the first event from LLM (seconds)
-FIRST_EVENT_TIMEOUT_S = 200.0
-
 # Maximum number of retry attempts for failed turns
 MAX_FAILED_TURN_RETRIES = 10
 
@@ -92,7 +89,6 @@ TOOL_OUTPUT_DISPLAY_TAIL = 10000
 # Directory for saving full truncated output
 TOOL_OUTPUT_TRUNCATION_DIR = "/tmp/klaude"
 
-
 # =============================================================================
 # UI
 # =============================================================================
@@ -115,16 +111,17 @@ TRUNCATE_DISPLAY_MAX_LINES = 6
 # Maximum lines for sub-agent result display
 SUB_AGENT_RESULT_MAX_LINES = 20
 
-
 # UI refresh rate (frames per second) for debounced content streaming
 UI_REFRESH_RATE_FPS = 10
 
 # Enable live area for streaming markdown (shows incomplete blocks being typed)
 # When False, only completed markdown blocks are displayed (more stable, less flicker)
-MARKDOWN_STREAM_LIVE_REPAINT_ENABLED = False
+MARKDOWN_STREAM_LIVE_REPAINT_ENABLED = True
 
-# Number of lines to keep visible at bottom of markdown streaming window
-MARKDOWN_STREAM_LIVE_WINDOW = 6
+# Reset the stream height "ceiling" when the live stream shrinks significantly.
+# This prevents large temporary blocks (e.g., big tables) from leaving excessive
+# blank padding after they become part of the stable area.
+STREAM_MAX_HEIGHT_SHRINK_RESET_LINES = 20
 
 # Left margin (columns) to reserve when rendering markdown
 MARKDOWN_LEFT_MARGIN = 2

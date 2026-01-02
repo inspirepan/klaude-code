@@ -162,7 +162,7 @@ class MarkdownStream:
 
         # Streaming control
         self.when: float = 0.0  # Timestamp of last update
-        self.min_delay: float = 1.0 / 20  # Minimum time between updates (20fps)
+        self.min_delay: float = 1.0 / const.UI_REFRESH_RATE_FPS
         self._parser: MarkdownIt = MarkdownIt("commonmark")
 
         self.theme = theme

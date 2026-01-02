@@ -33,6 +33,7 @@ class TerminalImage(ConsoleRenderable, RichCast):
                 img.height = self.height  # type: ignore[reportUnknownMemberType]
             # Write directly to the console's file to bypass Rich's processing
             # which would corrupt Kitty graphics protocol escape sequences
+            console.file.write("\x1b[1A\x1b[2K")  # Clear status bar residue from previous line
             console.file.write("\n")
             console.file.write(str(img))
             console.file.write("\n")

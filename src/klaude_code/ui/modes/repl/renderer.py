@@ -325,7 +325,11 @@ class REPLRenderer:
         height = len(self.console.render_lines(renderable, self.console.options, pad=False))
         self._stream_last_height = height
         self._stream_last_width = self.console.size.width
-        self._stream_max_height = max(self._stream_max_height, height)
+
+        if self._stream_max_height - height > const.STREAM_MAX_HEIGHT_SHRINK_RESET_LINES:
+            self._stream_max_height = height
+        else:
+            self._stream_max_height = max(self._stream_max_height, height)
         self._refresh_bottom_live()
 
     def _ensure_bottom_live_started(self) -> None:
@@ -353,7 +357,11 @@ class REPLRenderer:
                     height = len(self.console.render_lines(stream, self.console.options, pad=False))
                     self._stream_last_height = height
                     self._stream_last_width = current_width
-                    self._stream_max_height = max(self._stream_max_height, height)
+
+                    if self._stream_max_height - height > const.STREAM_MAX_HEIGHT_SHRINK_RESET_LINES:
+                        self._stream_max_height = height
+                    else:
+                        self._stream_max_height = max(self._stream_max_height, height)
                 else:
                     height = self._stream_last_height
 
