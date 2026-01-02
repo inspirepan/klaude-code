@@ -8,6 +8,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from klaude_code.const import DIFF_DEFAULT_CONTEXT_LINES
 from klaude_code.core.tool.file._utils import file_exists, hash_text_sha256, is_directory, read_text, write_text
 from klaude_code.core.tool.file.diff_builder import build_structured_diff
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
@@ -191,14 +192,14 @@ class EditTool(ToolABC):
         except (OSError, UnicodeError) as e:  # pragma: no cover
             return message.ToolResultMessage(status="error", output_text=f"<tool_use_error>{e}</tool_use_error>")
 
-        # Prepare UI extra: unified diff with 3 context lines
+        # Prepare UI extra: unified diff with default context lines
         diff_lines = list(
             difflib.unified_diff(
                 before.splitlines(),
                 after.splitlines(),
                 fromfile=file_path,
                 tofile=file_path,
-                n=3,
+                n=DIFF_DEFAULT_CONTEXT_LINES,
             )
         )
         ui_extra = build_structured_diff(before, after, file_path=file_path)

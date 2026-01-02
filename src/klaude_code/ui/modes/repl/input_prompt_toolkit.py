@@ -314,7 +314,7 @@ class PromptToolkitInput(InputProviderABC):
                     "question": "bold",
                     "msg": "",
                     "meta": "fg:ansibrightblack",
-                    "frame.border": "fg:ansibrightblack",
+                    "frame.border": "fg:ansibrightblack dim",
                     "search_prefix": "fg:ansibrightblack",
                     "search_placeholder": "fg:ansibrightblack italic",
                     "search_input": "",
@@ -604,6 +604,10 @@ class PromptToolkitInput(InputProviderABC):
                 (symbol_style, " ctrl-l "),
                 (text_style, " "),
                 (text_style, "models"),
+                (text_style, "  "),
+                (symbol_style, " ctrl-t "),
+                (text_style, " "),
+                (text_style, "think"),
             ]
         )
 

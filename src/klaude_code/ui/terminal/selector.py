@@ -238,9 +238,31 @@ def _build_choices_tokens[T](
     return tokens
 
 
-def _build_rounded_frame(body: Container) -> HSplit:
+def _build_rounded_frame(body: Container, *, padding_x: int = 0, padding_y: int = 0) -> HSplit:
     """Build a rounded border frame around the given container."""
     border = partial(Window, style="class:frame.border", height=1)
+    pad = partial(Window, style="class:frame", char=" ", always_hide_cursor=Always())
+
+    inner: Container = body
+    if padding_y > 0:
+        inner = HSplit(
+            [
+                pad(height=padding_y, dont_extend_height=Always()),
+                body,
+                pad(height=padding_y, dont_extend_height=Always()),
+            ],
+            padding=0,
+            style="class:frame",
+        )
+
+    middle_children: list[Container] = [border(width=1, char="│")]
+    if padding_x > 0:
+        middle_children.append(pad(width=padding_x))
+    middle_children.append(inner)
+    if padding_x > 0:
+        middle_children.append(pad(width=padding_x))
+    middle_children.append(border(width=1, char="│"))
+
     top = VSplit(
         [
             border(width=1, char="╭"),
@@ -250,14 +272,7 @@ def _build_rounded_frame(body: Container) -> HSplit:
         height=1,
         padding=0,
     )
-    middle = VSplit(
-        [
-            border(width=1, char="│"),
-            body,
-            border(width=1, char="│"),
-        ],
-        padding=0,
-    )
+    middle = VSplit(middle_children, padding=0)
     bottom = VSplit(
         [
             border(width=1, char="╰"),
@@ -273,6 +288,8 @@ def _build_rounded_frame(body: Container) -> HSplit:
 def _build_search_container(
     search_buffer: Buffer,
     search_placeholder: str,
+    *,
+    frame: bool = True,
 ) -> tuple[Window, Container]:
     """Build the search input container with placeholder."""
     placeholder_text = f"{search_placeholder} · ↑↓ to select · esc to quit"
@@ -303,8 +320,10 @@ def _build_search_container(
         content=input_window,
         floats=[Float(content=placeholder_window, top=0, left=0)],
     )
-    framed = _build_rounded_frame(VSplit([search_prefix_window, search_input_container], padding=0))
-    return input_window, framed
+    search_row: Container = VSplit([search_prefix_window, search_input_container], padding=0)
+    if frame:
+        return input_window, _build_rounded_frame(search_row)
+    return input_window, search_row
 
 
 # ---------------------------------------------------------------------------
@@ -436,7 +455,7 @@ def select_one[T](
 
     base_style = Style(
         [
-            ("frame.border", "fg:ansibrightblack"),
+            ("frame.border", "fg:ansibrightblack dim"),
             ("frame.label", "fg:ansibrightblack italic"),
             ("search_prefix", "fg:ansibrightblack"),
             ("search_placeholder", "fg:ansibrightblack italic"),
@@ -619,17 +638,17 @@ class SelectOverlay[T]:
         search_container: Container | None = None
         if self._use_search_filter and self._search_buffer is not None:
             self._search_input_window, search_container = _build_search_container(
-                self._search_buffer, self._search_placeholder
+                self._search_buffer,
+                self._search_placeholder,
+                frame=False,
             )
 
         root_children: list[Container] = [header_window, spacer_window, list_window]
         if search_container is not None:
             root_children.append(search_container)
 
-        return ConditionalContainer(
-            content=HSplit(root_children, padding=0),
-            filter=Condition(lambda: self._is_open),
-        )
+        framed_content = _build_rounded_frame(HSplit(root_children, padding=0), padding_x=1)
+        return ConditionalContainer(content=framed_content, filter=Condition(lambda: self._is_open))
 
     @property
     def is_open(self) -> bool:

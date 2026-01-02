@@ -7,6 +7,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from klaude_code.const import DIFF_DEFAULT_CONTEXT_LINES
 from klaude_code.core.tool.file._utils import file_exists, hash_text_sha256, is_directory, read_text, write_text
 from klaude_code.core.tool.file.diff_builder import build_structured_diff
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
@@ -27,7 +28,7 @@ def _build_context_snippet(
     all_lines: list[str],
     start_line: int,
     end_line: int,
-    context_lines: int = 3,
+    context_lines: int = DIFF_DEFAULT_CONTEXT_LINES,
     marker: str = "cut here",
 ) -> str:
     """Build a snippet showing context around a cut/insert point.
@@ -70,7 +71,7 @@ def _build_insert_context_snippet(
     all_lines: list[str],
     insert_line: int,
     inserted_count: int,
-    context_lines: int = 3,
+    context_lines: int = DIFF_DEFAULT_CONTEXT_LINES,
 ) -> str:
     """Build a snippet showing context around inserted content.
 
