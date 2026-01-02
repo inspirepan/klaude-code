@@ -37,6 +37,41 @@ def normalize_thinking_content(content: str) -> str:
     return text
 
 
+def extract_last_bold_header(text: str) -> str | None:
+    """Extract the latest complete bold header ("**…**") from text.
+
+    We treat a bold segment as a "header" only if it appears at the beginning
+    of a line (ignoring leading whitespace). This avoids picking up incidental
+    emphasis inside paragraphs.
+
+    Returns None if no complete bold segment is available yet.
+    """
+
+    last: str | None = None
+    i = 0
+    while True:
+        start = text.find("**", i)
+        if start < 0:
+            break
+
+        line_start = text.rfind("\n", 0, start) + 1
+        if text[line_start:start].strip():
+            i = start + 2
+            continue
+
+        end = text.find("**", start + 2)
+        if end < 0:
+            break
+
+        inner = " ".join(text[start + 2 : end].split())
+        if inner and "\n" not in inner:
+            last = inner
+
+        i = end + 2
+
+    return last
+
+
 def render_thinking(content: str, *, code_theme: str, style: str) -> RenderableType | None:
     """Render thinking content as markdown with left mark.
 

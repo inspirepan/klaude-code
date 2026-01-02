@@ -155,6 +155,23 @@ class REPLRenderer:
             self.console.pop_theme()
             self.print()
 
+    def display_thinking_header(self, header: str) -> None:
+        """Display a single thinking header line.
+
+        Used by sub-agent sessions to avoid verbose thinking streaming.
+        """
+
+        stripped = header.strip()
+        if not stripped:
+            return
+        self.print(
+            Text.assemble(
+                (r_thinking.THINKING_MESSAGE_MARK, ThemeKey.THINKING),
+                " ",
+                (stripped, ThemeKey.THINKING_BOLD),
+            )
+        )
+
     async def replay_history(self, history_events: events.ReplayHistoryEvent) -> None:
         tool_call_dict: dict[str, events.ToolCallEvent] = {}
         for event in history_events.events:
@@ -171,6 +188,12 @@ class REPLRenderer:
                         self.display_image(e.file_path)
                     case events.AssistantMessageEvent() as e:
                         if is_sub_agent:
+                            if e.thinking_text:
+                                header = r_thinking.extract_last_bold_header(
+                                    r_thinking.normalize_thinking_content(e.thinking_text)
+                                )
+                                if header:
+                                    self.display_thinking_header(header)
                             continue
                         if e.thinking_text:
                             self.display_thinking(e.thinking_text)

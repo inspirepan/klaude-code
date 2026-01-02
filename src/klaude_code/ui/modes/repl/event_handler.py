@@ -11,7 +11,11 @@ from klaude_code.protocol import events
 from klaude_code.ui.core.stage_manager import Stage, StageManager
 from klaude_code.ui.modes.repl.renderer import REPLRenderer
 from klaude_code.ui.renderers.assistant import ASSISTANT_MESSAGE_MARK
-from klaude_code.ui.renderers.thinking import THINKING_MESSAGE_MARK, normalize_thinking_content
+from klaude_code.ui.renderers.thinking import (
+    THINKING_MESSAGE_MARK,
+    extract_last_bold_header,
+    normalize_thinking_content,
+)
 from klaude_code.ui.renderers.tools import get_tool_active_form
 from klaude_code.ui.rich import status as r_status
 from klaude_code.ui.rich.markdown import MarkdownStream, ThinkingMarkdown
@@ -20,39 +24,24 @@ from klaude_code.ui.terminal.notifier import Notification, NotificationType, Ter
 from klaude_code.ui.terminal.progress_bar import OSC94States, emit_osc94
 
 
-def extract_last_bold_header(text: str) -> str | None:
-    """Extract the latest complete bold header ("**…**") from text.
+@dataclass
+class SubAgentThinkingHeaderState:
+    buffer: str = ""
+    last_header: str | None = None
 
-    We treat a bold segment as a "header" only if it appears at the beginning
-    of a line (ignoring leading whitespace). This avoids picking up incidental
-    emphasis inside paragraphs.
+    def append_and_extract_new_header(self, content: str) -> str | None:
+        self.buffer += content
 
-    Returns None if no complete bold segment is available yet.
-    """
+        # Sub-agent thinking does not need full streaming; keep a bounded tail.
+        max_chars = 8192
+        if len(self.buffer) > max_chars:
+            self.buffer = self.buffer[-max_chars:]
 
-    last: str | None = None
-    i = 0
-    while True:
-        start = text.find("**", i)
-        if start < 0:
-            break
-
-        line_start = text.rfind("\n", 0, start) + 1
-        if text[line_start:start].strip():
-            i = start + 2
-            continue
-
-        end = text.find("**", start + 2)
-        if end < 0:
-            break
-
-        inner = " ".join(text[start + 2 : end].split())
-        if inner and "\n" not in inner:
-            last = inner
-
-        i = end + 2
-
-    return last
+        header = extract_last_bold_header(normalize_thinking_content(self.buffer))
+        if header and header != self.last_header:
+            self.last_header = header
+            return header
+        return None
 
 
 @dataclass
@@ -322,6 +311,7 @@ class DisplayEventHandler:
         self.notifier = notifier
         self.assistant_stream = StreamState()
         self.thinking_stream = StreamState()
+        self._sub_agent_thinking_headers: dict[str, SubAgentThinkingHeaderState] = {}
         self.spinner_status = SpinnerStatusState()
 
         self.stage_manager = StageManager(
@@ -422,6 +412,8 @@ class DisplayEventHandler:
     def _on_task_start(self, event: events.TaskStartEvent) -> None:
         if event.sub_agent_state is None:
             r_status.set_task_start()
+        else:
+            self._sub_agent_thinking_headers[event.session_id] = SubAgentThinkingHeaderState()
         self.renderer.spinner_start()
         self.renderer.display_task_start(event)
         emit_osc94(OSC94States.INDETERMINATE)
@@ -439,6 +431,11 @@ class DisplayEventHandler:
 
     async def _on_thinking_delta(self, event: events.ThinkingDeltaEvent) -> None:
         if self.renderer.is_sub_agent_session(event.session_id):
+            state = self._sub_agent_thinking_headers.setdefault(event.session_id, SubAgentThinkingHeaderState())
+            header = state.append_and_extract_new_header(event.content)
+            if header:
+                with self.renderer.session_print_context(event.session_id):
+                    self.renderer.display_thinking_header(header)
             return
 
         first_delta = not self.thinking_stream.is_active
@@ -539,6 +536,8 @@ class DisplayEventHandler:
             self.renderer.spinner_stop()
             self.renderer.console.print(Rule(characters="─", style=ThemeKey.LINES))
             emit_tmux_signal()  # Signal test harness if KLAUDE_TEST_SIGNAL is set
+        else:
+            self._sub_agent_thinking_headers.pop(event.session_id, None)
         await self.stage_manager.transition_to(Stage.WAITING)
         self._maybe_notify_task_finish(event)
 
