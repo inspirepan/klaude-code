@@ -11,6 +11,7 @@ from rich.text import Text
 from klaude_code.const import SUB_AGENT_RESULT_MAX_LINES
 from klaude_code.protocol import events, model
 from klaude_code.protocol.sub_agent import get_sub_agent_profile_by_tool
+from klaude_code.ui.renderers.common import truncate_head
 from klaude_code.ui.rich.markdown import NoInsetMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
 
@@ -54,7 +55,7 @@ def render_sub_agent_call(e: model.SubAgentState, style: Style | None = None) ->
         )
     elements: list[RenderableType] = [
         Text.assemble((e.sub_agent_type, ThemeKey.TOOL_NAME), " ", desc, resume_note),
-        Text(e.sub_agent_prompt, style=style or ""),
+        truncate_head(e.sub_agent_prompt, base_style=style or "", truncated_style=ThemeKey.STATUS_HINT),
     ]
     if e.output_schema:
         elements.append(Text("\nExpected Output Format JSON:", style=style or ""))

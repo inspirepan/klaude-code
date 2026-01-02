@@ -4,7 +4,7 @@ from rich.text import Text
 
 from klaude_code.const import (
     MIN_HIDDEN_LINES_FOR_INDICATOR,
-    SUB_AGENT_ERROR_MAX_LINES,
+    TRUNCATE_HEAD_MAX_LINES,
     TAB_EXPAND_WIDTH,
     TRUNCATE_DISPLAY_MAX_LINE_LENGTH,
     TRUNCATE_DISPLAY_MAX_LINES,
@@ -94,14 +94,15 @@ def truncate_middle(
 
 def truncate_head(
     text: str,
-    max_lines: int = SUB_AGENT_ERROR_MAX_LINES,
+    max_lines: int = TRUNCATE_HEAD_MAX_LINES,
     max_line_length: int = TRUNCATE_DISPLAY_MAX_LINE_LENGTH,
     *,
     base_style: str | Style | None = None,
+    truncated_style: str | Style | None = None,
 ) -> Text:
     """Truncate text to show only the first N lines."""
     text = text.expandtabs(TAB_EXPAND_WIDTH)
-    lines = text.split("\n")
+    lines = [line for line in text.split("\n") if line.strip()]
 
     out = Text()
     if base_style is not None:
@@ -114,7 +115,7 @@ def truncate_head(
                 out.append_text(
                     Text(
                         f" ... (more {len(line) - max_line_length} characters)",
-                        style=ThemeKey.TOOL_RESULT_TRUNCATED,
+                        style=truncated_style or ThemeKey.TOOL_RESULT_TRUNCATED,
                     )
                 )
             else:
@@ -130,7 +131,7 @@ def truncate_head(
             out.append_text(
                 Text(
                     f" ... (more {len(line) - max_line_length} characters)",
-                    style=ThemeKey.TOOL_RESULT_TRUNCATED,
+                    style=truncated_style or ThemeKey.TOOL_RESULT_TRUNCATED,
                 )
             )
         else:
@@ -138,6 +139,6 @@ def truncate_head(
         out.append("\n")
 
     remaining = len(lines) - max_lines
-    out.append_text(Text(f"... more {remaining} lines", style=ThemeKey.TOOL_RESULT_TRUNCATED))
+    out.append_text(Text(f"... more {remaining} lines", style=truncated_style or ThemeKey.TOOL_RESULT_TRUNCATED))
 
     return out
