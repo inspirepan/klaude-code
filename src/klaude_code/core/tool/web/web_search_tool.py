@@ -4,12 +4,10 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from klaude_code.const import WEB_SEARCH_DEFAULT_MAX_RESULTS, WEB_SEARCH_MAX_RESULTS_LIMIT
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, tools
-
-DEFAULT_MAX_RESULTS = 10
-MAX_RESULTS_LIMIT = 20
 
 
 @dataclass
@@ -81,7 +79,7 @@ class WebSearchTool(ToolABC):
                     },
                     "max_results": {
                         "type": "integer",
-                        "description": f"Maximum number of results to return (default: {DEFAULT_MAX_RESULTS}, max: {MAX_RESULTS_LIMIT})",
+                        "description": f"Maximum number of results to return (default: {WEB_SEARCH_DEFAULT_MAX_RESULTS}, max: {WEB_SEARCH_MAX_RESULTS_LIMIT})",
                     },
                 },
                 "required": ["query"],
@@ -90,7 +88,7 @@ class WebSearchTool(ToolABC):
 
     class WebSearchArguments(BaseModel):
         query: str
-        max_results: int = DEFAULT_MAX_RESULTS
+        max_results: int = WEB_SEARCH_DEFAULT_MAX_RESULTS
 
     @classmethod
     async def call(cls, arguments: str) -> message.ToolResultMessage:
@@ -112,7 +110,7 @@ class WebSearchTool(ToolABC):
                 output_text="Query cannot be empty",
             )
 
-        max_results = min(max(args.max_results, 1), MAX_RESULTS_LIMIT)
+        max_results = min(max(args.max_results, 1), WEB_SEARCH_MAX_RESULTS_LIMIT)
 
         try:
             results = await asyncio.to_thread(_search_duckduckgo, query, max_results)

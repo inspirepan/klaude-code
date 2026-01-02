@@ -27,6 +27,7 @@ from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import FormattedText
 
+from klaude_code.const import COMPLETER_CACHE_TTL_SEC, COMPLETER_CMD_TIMEOUT_SEC, COMPLETER_DEBOUNCE_SEC
 from klaude_code.protocol.commands import CommandInfo
 from klaude_code.trace.log import DebugType, log_debug
 
@@ -251,8 +252,8 @@ class _AtFilesCompleter(Completer):
 
     def __init__(
         self,
-        debounce_sec: float = 0.25,
-        cache_ttl_sec: float = 60.0,
+        debounce_sec: float = COMPLETER_DEBOUNCE_SEC,
+        cache_ttl_sec: float = COMPLETER_CACHE_TTL_SEC,
         max_results: int = 20,
     ):
         self._debounce_sec = debounce_sec
@@ -283,7 +284,7 @@ class _AtFilesCompleter(Completer):
 
         # Command timeout is intentionally higher than a keypress cadence.
         # We rely on caching/narrowing to avoid calling fd repeatedly.
-        self._cmd_timeout_sec: float = 3.0
+        self._cmd_timeout_sec: float = COMPLETER_CMD_TIMEOUT_SEC
 
     # ---- prompt_toolkit API ----
     def get_completions(self, document: Document, complete_event) -> Iterable[Completion]:  # type: ignore[override]

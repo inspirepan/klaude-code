@@ -2,7 +2,13 @@ from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 
-from klaude_code.const import TRUNCATE_DISPLAY_MAX_LINE_LENGTH, TRUNCATE_DISPLAY_MAX_LINES
+from klaude_code.const import (
+    MIN_HIDDEN_LINES_FOR_INDICATOR,
+    SUB_AGENT_ERROR_MAX_LINES,
+    TAB_EXPAND_WIDTH,
+    TRUNCATE_DISPLAY_MAX_LINE_LENGTH,
+    TRUNCATE_DISPLAY_MAX_LINES,
+)
 from klaude_code.ui.rich.theme import ThemeKey
 
 
@@ -13,7 +19,7 @@ def create_grid() -> Table:
     return grid
 
 
-def truncate_display(
+def truncate_middle(
     text: str,
     max_lines: int = TRUNCATE_DISPLAY_MAX_LINES,
     max_line_length: int = TRUNCATE_DISPLAY_MAX_LINE_LENGTH,
@@ -25,7 +31,7 @@ def truncate_display(
     Applies `ThemeKey.TOOL_RESULT_TRUNCATED` style to truncation indicators.
     """
     # Expand tabs to spaces to ensure correct alignment when Rich applies padding.
-    text = text.expandtabs(8)
+    text = text.expandtabs(TAB_EXPAND_WIDTH)
 
     if max_lines <= 0:
         truncated_lines = text.split("\n")
@@ -42,7 +48,7 @@ def truncate_display(
 
         # If the hidden section is too small, show everything instead of inserting
         # the "(more N lines)" indicator.
-        if truncated_lines < 5:
+        if truncated_lines < MIN_HIDDEN_LINES_FOR_INDICATOR:
             truncated_lines = 0
             head_lines = lines
         else:
@@ -82,5 +88,56 @@ def truncate_display(
         append_line(out, line)
         if idx < len(tail_lines) - 1:
             out.append("\n")
+
+    return out
+
+
+def truncate_head(
+    text: str,
+    max_lines: int = SUB_AGENT_ERROR_MAX_LINES,
+    max_line_length: int = TRUNCATE_DISPLAY_MAX_LINE_LENGTH,
+    *,
+    base_style: str | Style | None = None,
+) -> Text:
+    """Truncate text to show only the first N lines."""
+    text = text.expandtabs(TAB_EXPAND_WIDTH)
+    lines = text.split("\n")
+
+    out = Text()
+    if base_style is not None:
+        out.style = base_style
+
+    if len(lines) <= max_lines:
+        for idx, line in enumerate(lines):
+            if len(line) > max_line_length:
+                out.append(line[:max_line_length])
+                out.append_text(
+                    Text(
+                        f" ... (more {len(line) - max_line_length} characters)",
+                        style=ThemeKey.TOOL_RESULT_TRUNCATED,
+                    )
+                )
+            else:
+                out.append(line)
+            if idx < len(lines) - 1:
+                out.append("\n")
+        return out
+
+    for idx in range(max_lines):
+        line = lines[idx]
+        if len(line) > max_line_length:
+            out.append(line[:max_line_length])
+            out.append_text(
+                Text(
+                    f" ... (more {len(line) - max_line_length} characters)",
+                    style=ThemeKey.TOOL_RESULT_TRUNCATED,
+                )
+            )
+        else:
+            out.append(line)
+        out.append("\n")
+
+    remaining = len(lines) - max_lines
+    out.append_text(Text(f"... more {remaining} lines", style=ThemeKey.TOOL_RESULT_TRUNCATED))
 
     return out

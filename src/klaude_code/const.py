@@ -20,7 +20,7 @@ def _get_int_env(name: str, default: int) -> int:
 
 
 # =============================================================================
-# Agent Configuration
+# Agent / LLM Configuration
 # =============================================================================
 
 # Maximum number of retry attempts for failed turns
@@ -35,6 +35,9 @@ MAX_RETRY_DELAY_S = 30.0
 # Message shown when a tool call is cancelled by the user
 CANCEL_OUTPUT = "[Request interrupted by user for tool use]"
 
+# Marker appended to assistant message when interrupted by user
+INTERRUPT_MARKER = "<system interrupted by user>"
+
 # Default maximum tokens for LLM responses
 DEFAULT_MAX_TOKENS = 32000
 
@@ -44,15 +47,28 @@ DEFAULT_TEMPERATURE = 1.0
 # Default thinking budget tokens for Anthropic models
 DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS = 2048
 
+# Supported image sizes for ImageGen tool
+SUPPORTED_IMAGE_SIZES = {"1K", "2K", "4K"}
+
+
+# =============================================================================
+# Reminders
+# =============================================================================
+
 # Tool call count threshold for todo reminder
 TODO_REMINDER_TOOL_CALL_THRESHOLD = 10
 
+# Cooldown turns between reminder triggers
+REMINDER_COOLDOWN_TURNS = 3
+
+# Memory file names to search for in directories
+MEMORY_FILE_NAMES = ["CLAUDE.md", "AGENTS.md", "AGENT.md"]
+
 
 # =============================================================================
-# Tool
+# Tool - Read
 # =============================================================================
 
-# -- Read Tool --
 # Maximum characters per line before truncation
 READ_CHAR_LIMIT_PER_LINE = 2000
 
@@ -72,11 +88,59 @@ READ_MAX_IMAGE_BYTES = _get_int_env("KLAUDE_READ_MAX_IMAGE_BYTES", 4 * 1024 * 10
 # Can be overridden via KLAUDE_IMAGE_OUTPUT_MAX_BYTES environment variable
 IMAGE_OUTPUT_MAX_BYTES = _get_int_env("KLAUDE_IMAGE_OUTPUT_MAX_BYTES", 64 * 1024 * 1024)
 
-# -- Bash Tool --
+# Bytes to check for binary file detection
+BINARY_CHECK_SIZE = 8192
+
+
+# =============================================================================
+# Tool - Bash / Shell
+# =============================================================================
+
 # Default timeout for bash commands (milliseconds)
 BASH_DEFAULT_TIMEOUT_MS = 120000
 
-# -- Tool Output --
+# Timeout for process termination before escalating to SIGKILL (seconds)
+BASH_TERMINATE_TIMEOUT_SEC = 1.0
+
+
+# =============================================================================
+# Tool - Web
+# =============================================================================
+
+# Default timeout for web fetch requests (seconds)
+WEB_FETCH_DEFAULT_TIMEOUT_SEC = 30
+
+# User-Agent header for web requests
+WEB_FETCH_USER_AGENT = "Mozilla/5.0 (compatible; KlaudeCode/1.0)"
+
+# Maximum length for extracting filename from URL
+URL_FILENAME_MAX_LENGTH = 80
+
+# Default number of search results
+WEB_SEARCH_DEFAULT_MAX_RESULTS = 10
+
+# Maximum number of search results allowed
+WEB_SEARCH_MAX_RESULTS_LIMIT = 20
+
+# Mermaid.live URL prefix for diagram links
+MERMAID_LIVE_PREFIX = "https://mermaid.live/view#pako:"
+
+
+# =============================================================================
+# Tool - Diff
+# =============================================================================
+
+# Maximum line length for character-level diff comparison
+DIFF_MAX_LINE_LENGTH_FOR_CHAR_DIFF = 2000
+
+# Default number of context lines in diff output
+DIFF_DEFAULT_CONTEXT_LINES = 3
+
+
+# =============================================================================
+# Tool - Output Truncation
+# =============================================================================
+
 # Maximum length for tool output before truncation
 TOOL_OUTPUT_MAX_LENGTH = 40000
 
@@ -89,9 +153,13 @@ TOOL_OUTPUT_DISPLAY_TAIL = 10000
 # Directory for saving full truncated output
 TOOL_OUTPUT_TRUNCATION_DIR = "/tmp/klaude"
 
+
 # =============================================================================
-# UI
+# UI - Display
 # =============================================================================
+
+# Tab expansion width for text rendering
+TAB_EXPAND_WIDTH = 8
 
 # Width of line number prefix in diff display
 DIFF_PREFIX_WIDTH = 4
@@ -108,11 +176,37 @@ TRUNCATE_DISPLAY_MAX_LINE_LENGTH = 1000
 # Maximum lines for truncated display output
 TRUNCATE_DISPLAY_MAX_LINES = 6
 
+# Minimum hidden lines before showing truncation indicator
+MIN_HIDDEN_LINES_FOR_INDICATOR = 5
+
 # Maximum lines for sub-agent result display
 SUB_AGENT_RESULT_MAX_LINES = 20
 
+# Maximum lines for sub-agent error display
+SUB_AGENT_ERROR_MAX_LINES = 2
+
+# Bash output line count threshold for switching to CodePanel display
+BASH_OUTPUT_PANEL_THRESHOLD = 10
+
+# Maximum length for URL truncation in display
+URL_TRUNCATE_MAX_LENGTH = 400
+
+# Maximum length for search query display before truncation
+QUERY_DISPLAY_TRUNCATE_LENGTH = 80
+
+# Maximum length for notification body text
+NOTIFY_COMPACT_LIMIT = 160
+
+
+# =============================================================================
+# UI - Markdown Streaming
+# =============================================================================
+
 # UI refresh rate (frames per second) for debounced content streaming
 UI_REFRESH_RATE_FPS = 10
+
+# CropAboveLive default refresh rate (frames per second)
+CROP_ABOVE_LIVE_REFRESH_PER_SECOND = 4.0
 
 # Enable live area for streaming markdown (shows incomplete blocks being typed)
 # When False, only completed markdown blocks are displayed (more stable, less flicker)
@@ -129,24 +223,42 @@ MARKDOWN_LEFT_MARGIN = 2
 # Right margin (columns) to reserve when rendering markdown
 MARKDOWN_RIGHT_MARGIN = 2
 
+
+# =============================================================================
+# UI - Spinner / Status
+# =============================================================================
+
 # Status hint text shown after spinner status
 STATUS_HINT_TEXT = " (esc to interrupt)"
 
 # Default spinner status text when idle/thinking
-STATUS_DEFAULT_TEXT = "Thinking …"
+STATUS_DEFAULT_TEXT = "Thinking ..."
 
-# Status shimmer animation
+# Spinner breathing and shimmer animation period (seconds)
+SPINNER_BREATH_PERIOD_SECONDS: float = 2.0
+
 # Horizontal padding used when computing shimmer band position
 STATUS_SHIMMER_PADDING = 10
+
 # Half-width of the shimmer band in characters
 STATUS_SHIMMER_BAND_HALF_WIDTH = 5.0
+
 # Scale factor applied to shimmer intensity when blending colors
 STATUS_SHIMMER_ALPHA_SCALE = 0.7
 
-# Spinner breathing and shimmer animation period
-# Duration in seconds for one full breathe-in + breathe-out cycle (breathing)
-# and one full shimmer sweep across the text (shimmer)
-SPINNER_BREATH_PERIOD_SECONDS: float = 2.0
+
+# =============================================================================
+# UI - Completion System
+# =============================================================================
+
+# Debounce time for file path completion (seconds)
+COMPLETER_DEBOUNCE_SEC = 0.25
+
+# Cache TTL for completion results (seconds)
+COMPLETER_CACHE_TTL_SEC = 60.0
+
+# Timeout for completion subprocess commands (seconds)
+COMPLETER_CMD_TIMEOUT_SEC = 3.0
 
 
 # =============================================================================

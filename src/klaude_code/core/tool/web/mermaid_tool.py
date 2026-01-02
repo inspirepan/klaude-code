@@ -7,11 +7,10 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from klaude_code.const import MERMAID_LIVE_PREFIX
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, model, tools
-
-_MERMAID_LIVE_PREFIX = "https://mermaid.live/view#pako:"
 
 
 @register(tools.MERMAID)
@@ -64,7 +63,7 @@ class MermaidTool(ToolABC):
         json_payload = json.dumps(state, ensure_ascii=False)
         compressed = zlib.compress(json_payload.encode("utf-8"), level=9)
         encoded = base64.urlsafe_b64encode(compressed).decode("ascii").rstrip("=")
-        return f"{_MERMAID_LIVE_PREFIX}{encoded}"
+        return f"{MERMAID_LIVE_PREFIX}{encoded}"
 
     @staticmethod
     def _count_lines(code: str) -> int:

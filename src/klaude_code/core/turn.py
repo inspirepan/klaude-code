@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from klaude_code.const import INTERRUPT_MARKER, SUPPORTED_IMAGE_SIZES
 from klaude_code.core.tool import ToolABC, tool_context
 from klaude_code.core.tool.tool_context import current_sub_agent_resume_claims
 
@@ -234,7 +235,7 @@ class TurnExecutor:
             if isinstance(aspect_ratio, str) and aspect_ratio.strip():
                 image_config.aspect_ratio = aspect_ratio.strip()
             image_size = generation.get("image_size")
-            if image_size in {"1K", "2K", "4K"}:
+            if image_size in SUPPORTED_IMAGE_SIZES:
                 image_config.image_size = image_size
             extra = generation.get("extra")
             if isinstance(extra, dict) and extra:
@@ -364,7 +365,7 @@ class TurnExecutor:
 
         if not self._assistant_delta_buffer:
             return
-        partial_text = "".join(self._assistant_delta_buffer) + "<system interrupted by user>"
+        partial_text = "".join(self._assistant_delta_buffer) + INTERRUPT_MARKER
         if not partial_text:
             return
         partial_message = message.AssistantMessage(

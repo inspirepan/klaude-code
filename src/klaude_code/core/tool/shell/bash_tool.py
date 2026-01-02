@@ -10,7 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from klaude_code.const import BASH_DEFAULT_TIMEOUT_MS
+from klaude_code.const import BASH_DEFAULT_TIMEOUT_MS, BASH_TERMINATE_TIMEOUT_SEC
 from klaude_code.core.tool.shell.command_safety import is_safe_command
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
@@ -279,7 +279,7 @@ class BashTool(ToolABC):
                 pass
 
             with contextlib.suppress(Exception):
-                await asyncio.wait_for(proc.wait(), timeout=1.0)
+                await asyncio.wait_for(proc.wait(), timeout=BASH_TERMINATE_TIMEOUT_SEC)
                 return
 
             # Escalate to hard kill if it didn't exit quickly.
@@ -289,7 +289,7 @@ class BashTool(ToolABC):
                 else:
                     proc.kill()
             with contextlib.suppress(Exception):
-                await asyncio.wait_for(proc.wait(), timeout=1.0)
+                await asyncio.wait_for(proc.wait(), timeout=BASH_TERMINATE_TIMEOUT_SEC)
 
         try:
             # Create a dedicated process group so we can terminate the whole tree.

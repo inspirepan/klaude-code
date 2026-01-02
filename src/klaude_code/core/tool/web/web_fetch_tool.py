@@ -10,13 +10,16 @@ from urllib.parse import quote, urlparse, urlunparse
 
 from pydantic import BaseModel
 
-from klaude_code.const import TOOL_OUTPUT_TRUNCATION_DIR
+from klaude_code.const import (
+    TOOL_OUTPUT_TRUNCATION_DIR,
+    URL_FILENAME_MAX_LENGTH,
+    WEB_FETCH_DEFAULT_TIMEOUT_SEC,
+    WEB_FETCH_USER_AGENT,
+)
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, tools
 
-DEFAULT_TIMEOUT_SEC = 30
-DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; KlaudeCode/1.0)"
 WEB_FETCH_SAVE_DIR = Path(TOOL_OUTPUT_TRUNCATION_DIR) / "web"
 
 
@@ -110,7 +113,7 @@ def _extract_url_filename(url: str) -> str:
     path = parsed.path.strip("/").replace("/", "_")
     name = f"{host}_{path}" if path else host
     name = re.sub(r"[^a-zA-Z0-9_\-]", "_", name)
-    return name[:80] if len(name) > 80 else name
+    return name[:URL_FILENAME_MAX_LENGTH] if len(name) > URL_FILENAME_MAX_LENGTH else name
 
 
 def _save_web_content(url: str, content: str, extension: str = ".md") -> str | None:
@@ -159,7 +162,7 @@ def _process_content(content_type: str, text: str) -> str:
         return text
 
 
-def _fetch_url(url: str, timeout: int = DEFAULT_TIMEOUT_SEC) -> tuple[str, bytes, str | None]:
+def _fetch_url(url: str, timeout: int = WEB_FETCH_DEFAULT_TIMEOUT_SEC) -> tuple[str, bytes, str | None]:
     """
     Fetch URL content synchronously.
 
@@ -171,7 +174,7 @@ def _fetch_url(url: str, timeout: int = DEFAULT_TIMEOUT_SEC) -> tuple[str, bytes
     """
     headers = {
         "Accept": "text/markdown, */*",
-        "User-Agent": DEFAULT_USER_AGENT,
+        "User-Agent": WEB_FETCH_USER_AGENT,
     }
     encoded_url = _encode_url(url)
     request = urllib.request.Request(encoded_url, headers=headers)
@@ -275,7 +278,7 @@ class WebFetchTool(ToolABC):
         except TimeoutError:
             return message.ToolResultMessage(
                 status="error",
-                output_text=f"Request timed out after {DEFAULT_TIMEOUT_SEC} seconds (url={url})",
+                output_text=f"Request timed out after {WEB_FETCH_DEFAULT_TIMEOUT_SEC} seconds (url={url})",
             )
         except Exception as e:
             return message.ToolResultMessage(

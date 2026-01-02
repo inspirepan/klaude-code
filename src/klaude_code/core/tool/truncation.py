@@ -12,6 +12,7 @@ from klaude_code.const import (
     TOOL_OUTPUT_DISPLAY_TAIL,
     TOOL_OUTPUT_MAX_LENGTH,
     TOOL_OUTPUT_TRUNCATION_DIR,
+    URL_FILENAME_MAX_LENGTH,
 )
 from klaude_code.protocol import tools
 
@@ -57,7 +58,7 @@ def _extract_url_filename(url: str) -> str:
     # Sanitize: keep only alphanumeric, underscore, hyphen
     name = re.sub(r"[^a-zA-Z0-9_\-]", "_", name)
     # Limit length
-    return name[:80] if len(name) > 80 else name
+    return name[:URL_FILENAME_MAX_LENGTH] if len(name) > URL_FILENAME_MAX_LENGTH else name
 
 
 class TruncationStrategy(ABC):

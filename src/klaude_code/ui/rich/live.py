@@ -7,6 +7,8 @@ from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
 from rich.live import Live
 from rich.segment import Segment
 
+from klaude_code.const import CROP_ABOVE_LIVE_REFRESH_PER_SECOND
+
 
 class CropAbove:
     def __init__(self, renderable: RenderableType, style: str = "") -> None:
@@ -33,7 +35,7 @@ class CropAboveLive(Live):
         renderable: RenderableType | None = None,
         *,
         console: Console | None = None,
-        refresh_per_second: float = 4,
+        refresh_per_second: float = CROP_ABOVE_LIVE_REFRESH_PER_SECOND,
         transient: bool = False,
         get_renderable: Any | None = None,
         style: str = "",

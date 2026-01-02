@@ -4,7 +4,7 @@ from rich.table import Table
 from rich.text import Text
 
 from klaude_code.protocol import commands, events, message, model
-from klaude_code.ui.renderers.common import create_grid, truncate_display
+from klaude_code.ui.renderers.common import create_grid, truncate_middle
 from klaude_code.ui.renderers.tools import render_path
 from klaude_code.ui.rich.markdown import NoInsetMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
@@ -137,7 +137,7 @@ def render_command_output(e: events.DeveloperMessageEvent) -> RenderableType:
         case _:
             content = content or "(no content)"
             style = ThemeKey.TOOL_RESULT if not e.item.command_output.is_error else ThemeKey.ERROR
-            return Padding.indent(truncate_display(content, base_style=style), level=2)
+            return Padding.indent(truncate_middle(content, base_style=style), level=2)
 
 
 def _format_tokens(tokens: int) -> str:

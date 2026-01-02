@@ -26,7 +26,7 @@ from klaude_code.ui.renderers import sub_agent as r_sub_agent
 from klaude_code.ui.renderers import thinking as r_thinking
 from klaude_code.ui.renderers import tools as r_tools
 from klaude_code.ui.renderers import user_input as r_user_input
-from klaude_code.ui.renderers.common import truncate_display
+from klaude_code.ui.renderers.common import truncate_middle, truncate_head
 from klaude_code.ui.rich import status as r_status
 from klaude_code.ui.rich.live import CropAboveLive, SingleLine
 from klaude_code.ui.rich.quote import Quote
@@ -131,8 +131,13 @@ class REPLRenderer:
         if renderable is not None:
             self.print(renderable)
 
-    def display_tool_call_result(self, e: events.ToolResultEvent) -> None:
+    def display_tool_call_result(self, e: events.ToolResultEvent, *, is_sub_agent: bool = False) -> None:
         if r_tools.is_sub_agent_tool(e.tool_name):
+            return
+        # Sub-agent errors: show only first 2 lines
+        if is_sub_agent and e.status == "error":
+            error_msg = truncate_head(e.result)
+            self.print(r_errors.render_tool_error(error_msg))
             return
         renderable = r_tools.render_tool_result(e, code_theme=self.themes.code_theme, session_id=e.session_id)
         if renderable is not None:
@@ -283,9 +288,9 @@ class REPLRenderer:
     def display_error(self, event: events.ErrorEvent) -> None:
         if event.session_id:
             with self.session_print_context(event.session_id):
-                self.print(r_errors.render_error(truncate_display(event.error_message)))
+                self.print(r_errors.render_error(truncate_middle(event.error_message)))
         else:
-            self.print(r_errors.render_error(truncate_display(event.error_message)))
+            self.print(r_errors.render_error(truncate_middle(event.error_message)))
 
     # -------------------------------------------------------------------------
     # Spinner control methods

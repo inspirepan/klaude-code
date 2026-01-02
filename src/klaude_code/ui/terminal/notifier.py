@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TextIO, cast
 
+from klaude_code.const import NOTIFY_COMPACT_LIMIT
 from klaude_code.trace import DebugType, log_debug
 
 # Environment variable for tmux test signal channel
@@ -102,7 +103,7 @@ class TerminalNotifier:
         return term.lower() not in {"", "dumb"}
 
 
-def _compact(text: str, limit: int = 160) -> str:
+def _compact(text: str, limit: int = NOTIFY_COMPACT_LIMIT) -> str:
     squashed = " ".join(text.split())
     if len(squashed) > limit:
         return squashed[: limit - 3] + "…"

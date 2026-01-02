@@ -5,10 +5,8 @@ from typing import cast
 
 from diff_match_patch import diff_match_patch  # type: ignore[import-untyped]
 
+from klaude_code.const import DIFF_DEFAULT_CONTEXT_LINES, DIFF_MAX_LINE_LENGTH_FOR_CHAR_DIFF
 from klaude_code.protocol import model
-
-_MAX_LINE_LENGTH_FOR_CHAR_DIFF = 2000
-_DEFAULT_CONTEXT_LINES = 3
 
 
 def build_structured_diff(before: str, after: str, *, file_path: str) -> model.DiffUIExtra:
@@ -31,7 +29,7 @@ def _build_file_diff(before: str, after: str, *, file_path: str) -> model.DiffFi
     stats_add = 0
     stats_remove = 0
 
-    grouped_opcodes = matcher.get_grouped_opcodes(n=_DEFAULT_CONTEXT_LINES)
+    grouped_opcodes = matcher.get_grouped_opcodes(n=DIFF_DEFAULT_CONTEXT_LINES)
     for group_idx, group in enumerate(grouped_opcodes):
         if group_idx > 0:
             lines.append(_gap_line())
@@ -148,4 +146,4 @@ def _diff_line_spans(old_line: str, new_line: str) -> tuple[list[model.DiffSpan]
 
 
 def _should_char_diff(old_line: str, new_line: str) -> bool:
-    return len(old_line) <= _MAX_LINE_LENGTH_FOR_CHAR_DIFF and len(new_line) <= _MAX_LINE_LENGTH_FOR_CHAR_DIFF
+    return len(old_line) <= DIFF_MAX_LINE_LENGTH_FOR_CHAR_DIFF and len(new_line) <= DIFF_MAX_LINE_LENGTH_FOR_CHAR_DIFF

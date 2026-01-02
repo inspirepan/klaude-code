@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from klaude_code.const import TODO_REMINDER_TOOL_CALL_THRESHOLD
+from klaude_code.const import MEMORY_FILE_NAMES, REMINDER_COOLDOWN_TURNS, TODO_REMINDER_TOOL_CALL_THRESHOLD
 from klaude_code.core.tool import BashTool, ReadTool, reset_tool_context, set_tool_context_from_session
 from klaude_code.core.tool.file._utils import hash_text_sha256
 from klaude_code.protocol import message, model, tools
@@ -235,7 +235,7 @@ async def empty_todo_reminder(session: Session) -> message.DeveloperMessage | No
         return None
 
     if session.need_todo_empty_cooldown_counter == 0:
-        session.need_todo_empty_cooldown_counter = 3
+        session.need_todo_empty_cooldown_counter = REMINDER_COOLDOWN_TURNS
         return message.DeveloperMessage(
             parts=message.text_parts_from_str(
                 "<system-reminder>This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.</system-reminder>"
@@ -288,7 +288,7 @@ async def todo_not_used_recently_reminder(
         return None
 
     if session.need_todo_not_used_cooldown_counter == 0:
-        session.need_todo_not_used_cooldown_counter = 3
+        session.need_todo_not_used_cooldown_counter = REMINDER_COOLDOWN_TURNS
         return message.DeveloperMessage(
             parts=message.text_parts_from_str(
                 f"""<system-reminder>
@@ -524,9 +524,6 @@ IMPORTANT: this context may or may not be relevant to your tasks. You should not
             memory_mentioned=memory_mentioned or None,
         )
     return None
-
-
-MEMORY_FILE_NAMES = ["CLAUDE.md", "AGENTS.md", "AGENT.md"]
 
 
 async def last_path_memory_reminder(

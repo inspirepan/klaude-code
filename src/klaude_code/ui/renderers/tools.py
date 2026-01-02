@@ -9,13 +9,19 @@ from rich.panel import Panel
 from rich.style import Style
 from rich.text import Text
 
-from klaude_code.const import INVALID_TOOL_CALL_MAX_LENGTH
+from klaude_code.const import (
+    BASH_OUTPUT_PANEL_THRESHOLD,
+    INVALID_TOOL_CALL_MAX_LENGTH,
+    QUERY_DISPLAY_TRUNCATE_LENGTH,
+    URL_TRUNCATE_MAX_LENGTH,
+    WEB_SEARCH_DEFAULT_MAX_RESULTS,
+)
 from klaude_code.protocol import events, model, tools
 from klaude_code.protocol.sub_agent import is_sub_agent_tool as _is_sub_agent_tool
 from klaude_code.ui.renderers import diffs as r_diffs
 from klaude_code.ui.renderers import mermaid_viewer as r_mermaid_viewer
 from klaude_code.ui.renderers.bash_syntax import highlight_bash_command
-from klaude_code.ui.renderers.common import create_grid, truncate_display
+from klaude_code.ui.renderers.common import create_grid, truncate_middle
 from klaude_code.ui.rich.code_panel import CodePanel
 from klaude_code.ui.rich.markdown import NoInsetMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
@@ -118,8 +124,8 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
 
         highlighted = highlight_bash_command(cmd_str)
 
-        # For commands > 10 lines, use CodePanel for better display
-        if line_count > 10:
+        # For commands > threshold lines, use CodePanel for better display
+        if line_count > BASH_OUTPUT_PANEL_THRESHOLD:
             code_panel = CodePanel(highlighted, border_style=ThemeKey.LINES)
             if isinstance(timeout_ms, int):
                 if timeout_ms >= 1000 and timeout_ms % 1000 == 0:
@@ -370,7 +376,7 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
 def render_generic_tool_result(result: str, *, is_error: bool = False) -> RenderableType:
     """Render a generic tool result as indented, truncated text."""
     style = ThemeKey.ERROR if is_error else ThemeKey.TOOL_RESULT
-    return Padding.indent(truncate_display(result, base_style=style), level=2)
+    return Padding.indent(truncate_middle(result, base_style=style), level=2)
 
 
 def _extract_mermaid_link(
@@ -405,7 +411,7 @@ def render_mermaid_tool_call(arguments: str) -> RenderableType:
     return grid
 
 
-def _truncate_url(url: str, max_length: int = 400) -> str:
+def _truncate_url(url: str, max_length: int = URL_TRUNCATE_MAX_LENGTH) -> str:
     """Truncate URL for display, preserving domain and path structure."""
     if len(url) <= max_length:
         return url
@@ -492,12 +498,14 @@ def render_web_search_tool_call(arguments: str) -> RenderableType:
     summary = Text("", ThemeKey.TOOL_PARAM)
     if query:
         # Truncate long queries
-        display_query = query if len(query) <= 80 else query[:77] + "..."
+        display_query = (
+            query if len(query) <= QUERY_DISPLAY_TRUNCATE_LENGTH else query[: QUERY_DISPLAY_TRUNCATE_LENGTH - 3] + "..."
+        )
         summary.append(display_query, ThemeKey.TOOL_PARAM)
     else:
         summary.append("(no query)", ThemeKey.TOOL_PARAM)
 
-    if isinstance(max_results, int) and max_results != 10:
+    if isinstance(max_results, int) and max_results != WEB_SEARCH_DEFAULT_MAX_RESULTS:
         summary.append(f" (max {max_results})", ThemeKey.TOOL_TIMEOUT)
 
     grid.add_row(tool_name_column, summary)
@@ -680,7 +688,7 @@ def render_tool_result(
 
     # Handle error case
     if e.status == "error" and e.ui_extra is None:
-        error_msg = truncate_display(e.result)
+        error_msg = truncate_middle(e.result)
         return r_errors.render_tool_error(error_msg)
 
     # Render multiple ui blocks if present

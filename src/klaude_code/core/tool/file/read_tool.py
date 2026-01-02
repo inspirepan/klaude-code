@@ -10,7 +10,13 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from klaude_code.const import READ_CHAR_LIMIT_PER_LINE, READ_GLOBAL_LINE_CAP, READ_MAX_CHARS, READ_MAX_IMAGE_BYTES
+from klaude_code.const import (
+    BINARY_CHECK_SIZE,
+    READ_CHAR_LIMIT_PER_LINE,
+    READ_GLOBAL_LINE_CAP,
+    READ_MAX_CHARS,
+    READ_MAX_IMAGE_BYTES,
+)
 from klaude_code.core.tool.file._utils import file_exists, is_directory
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
@@ -25,14 +31,12 @@ _IMAGE_MIME_TYPES: dict[str, str] = {
     ".webp": "image/webp",
 }
 
-_BINARY_CHECK_SIZE = 8192
-
 
 def _is_binary_file(file_path: str) -> bool:
     """Check if a file is binary by looking for null bytes in the first chunk."""
     try:
         with open(file_path, "rb") as f:
-            chunk = f.read(_BINARY_CHECK_SIZE)
+            chunk = f.read(BINARY_CHECK_SIZE)
             return b"\x00" in chunk
     except OSError:
         return False
