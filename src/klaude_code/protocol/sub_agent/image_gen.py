@@ -97,16 +97,12 @@ def _build_image_gen_prompt(args: dict[str, Any]) -> str:
     prompt = str(args.get("prompt") or "").strip()
     image_paths = args.get("image_paths")
 
-    lines: list[str] = []
-    if prompt:
-        lines.append(prompt)
-
+    lines: list[str] = ["Generate images: " + prompt]
     if isinstance(image_paths, list) and image_paths:
         referenced = [str(p) for p in cast(list[object], image_paths) if str(p).strip()]
         if referenced:
             lines.append("\n# Reference images\n" + "\n".join(_quote_at_pattern_path(p) for p in referenced))
 
-    lines.append("\nReturn a short description of the generated image(s).")
     return "\n".join(lines).strip()
 
 
