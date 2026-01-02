@@ -127,6 +127,7 @@ class UserMessageEvent(BaseModel):
 class WelcomeEvent(BaseModel):
     work_dir: str
     llm_config: llm_param.LLMConfigParameter
+    show_klaude_code_info: bool = True
 
 
 class InterruptEvent(BaseModel):

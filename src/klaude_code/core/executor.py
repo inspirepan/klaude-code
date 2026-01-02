@@ -214,7 +214,11 @@ class ExecutorContext:
             self._on_model_change(llm_client.model_name)
 
         if operation.emit_welcome_event:
-            await self.emit_event(events.WelcomeEvent(llm_config=llm_config, work_dir=str(agent.session.work_dir)))
+            await self.emit_event(
+                events.WelcomeEvent(
+                    llm_config=llm_config, work_dir=str(agent.session.work_dir), show_klaude_code_info=False
+                )
+            )
 
     async def handle_change_thinking(self, operation: op.ChangeThinkingOperation) -> None:
         """Handle a change thinking operation.
@@ -256,7 +260,11 @@ class ExecutorContext:
             await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
 
         if operation.emit_welcome_event:
-            await self.emit_event(events.WelcomeEvent(work_dir=str(agent.session.work_dir), llm_config=config))
+            await self.emit_event(
+                events.WelcomeEvent(
+                    work_dir=str(agent.session.work_dir), llm_config=config, show_klaude_code_info=False
+                )
+            )
 
     async def handle_clear_session(self, operation: op.ClearSessionOperation) -> None:
         agent = await self._ensure_agent(operation.session_id)

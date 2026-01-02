@@ -273,7 +273,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_PARAM.value: palette.green,
                 ThemeKey.TOOL_PARAM_BOLD.value: "bold " + palette.green,
                 ThemeKey.TOOL_RESULT.value: palette.grey_green,
-                ThemeKey.TOOL_RESULT_TREE_PREFIX.value: palette.grey_green + " dim",
+                ThemeKey.TOOL_RESULT_TREE_PREFIX.value: palette.grey3 + " dim",
                 ThemeKey.TOOL_RESULT_BOLD.value: "bold " + palette.grey_green,
                 ThemeKey.TOOL_RESULT_TRUNCATED.value: palette.grey1,
                 ThemeKey.TOOL_MARK.value: "bold",

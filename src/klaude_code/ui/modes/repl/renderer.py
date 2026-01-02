@@ -458,6 +458,7 @@ class REPLRenderer:
             return
         with contextlib.suppress(Exception):
             # Avoid cursor restore when stopping right before prompt_toolkit.
+            # This will leave a blank line before prompt input
             self._bottom_live.transient = False
             self._bottom_live.stop()
         self._bottom_live = None

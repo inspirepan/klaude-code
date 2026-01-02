@@ -1,15 +1,14 @@
 from importlib.metadata import PackageNotFoundError, version
 
-from rich import box
 from rich.console import Group, RenderableType
 from rich.padding import Padding
-from rich.panel import Panel
 from rich.text import Text
 
 from klaude_code.const import DEFAULT_MAX_TOKENS
 from klaude_code.protocol import events, model
 from klaude_code.trace import is_debug_enabled
 from klaude_code.ui.renderers.common import create_grid
+from klaude_code.ui.rich.quote import Quote
 from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.utils.common import format_model_params, format_number
 
@@ -199,17 +198,29 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
 
 
 def render_welcome(e: events.WelcomeEvent) -> RenderableType:
-    """Render the welcome panel with model info and settings."""
+    """Render the welcome panel with model info and settings.
+
+    Args:
+        e: The welcome event.
+    """
     debug_mode = is_debug_enabled()
 
-    # First line: Klaude Code version
-    klaude_code_style = ThemeKey.WELCOME_DEBUG_TITLE if debug_mode else ThemeKey.WELCOME_HIGHLIGHT_BOLD
-    panel_content = Text.assemble(
-        ("Klaude Code", klaude_code_style),
-        (f" v{_get_version()}\n", ThemeKey.WELCOME_INFO),
-        (str(e.llm_config.model), ThemeKey.WELCOME_HIGHLIGHT),
-        (" @ ", ThemeKey.WELCOME_INFO),
-        (e.llm_config.provider_name, ThemeKey.WELCOME_INFO),
+    panel_content = Text()
+
+    if e.show_klaude_code_info:
+        # First line: Klaude Code version
+        klaude_code_style = ThemeKey.WELCOME_DEBUG_TITLE if debug_mode else ThemeKey.WELCOME_HIGHLIGHT_BOLD
+        panel_content.append_text(Text("Klaude Code", style=klaude_code_style))
+        panel_content.append_text(Text(f" v{_get_version()}", style=ThemeKey.WELCOME_INFO))
+        panel_content.append_text(Text("\n"))
+
+    # Model line: model @ provider · params...
+    panel_content.append_text(
+        Text.assemble(
+            (str(e.llm_config.model), ThemeKey.WELCOME_HIGHLIGHT),
+            (" @ ", ThemeKey.WELCOME_INFO),
+            (e.llm_config.provider_name, ThemeKey.WELCOME_INFO),
+        )
     )
 
     # Use format_model_params for consistent formatting
@@ -228,7 +239,9 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
         )
 
     border_style = ThemeKey.WELCOME_DEBUG_BORDER if debug_mode else ThemeKey.LINES
-    return Group(
-        Panel.fit(panel_content, border_style=border_style, box=box.ROUNDED),
-        "",  # empty line
-    )
+
+    if e.show_klaude_code_info:
+        groups = ["", Quote(panel_content, style=border_style, prefix="▌ "), ""]
+    else:
+        groups = [Quote(panel_content, style=border_style, prefix="▌ "), ""]
+    return Group(*groups)
