@@ -482,11 +482,18 @@ class _AtFilesCompleter(Completer):
             # Deprioritize paths containing "test"
             has_test = "test" in pl
 
+            # Calculate basename match quality: how close is base to the keyword?
+            # Strip extension for files to compare stem (e.g., "renderer.py" -> "renderer")
+            base_stem = base.rsplit(".", 1)[0] if "." in base and not base.startswith(".") else base
+            # Exact stem match gets 0, otherwise difference in length
+            base_match_quality = abs(len(base_stem) - len(kn)) if base_pos != -1 else 10_000
+
             score = (
                 1 if is_hidden else 0,
                 1 if has_test else 0,
-                depth,
-                0 if base_pos != -1 else 1,
+                0 if base_pos != -1 else 1,  # basename match first
+                base_match_quality,           # more precise basename match wins
+                depth,                        # then shallower paths
                 base_pos if base_pos != -1 else 10_000,
                 path_pos,
                 len(p),
