@@ -119,6 +119,9 @@ def render_sub_agent_result(
             # Fall back to markdown if not valid JSON
             pass
 
+    if not stripped_result:
+        return Text()
+
     # Add markdown heading if description is provided for non-structured output
     if description:
         stripped_result = f"# {description}\n\n{stripped_result}"

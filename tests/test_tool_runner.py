@@ -272,6 +272,23 @@ class TestToolExecutor:
         assert isinstance(events[1], ToolExecutionResult)
         assert events[1].tool_result.status == "aborted"
 
+    def test_cancel_includes_session_id_ui_extra_when_available(self, executor: ToolExecutor):
+        tool_call = ToolCallRequest(
+            response_id=None,
+            call_id="test_123",
+            tool_name="MockSuccess",
+            arguments_json="{}",
+        )
+        executor._unfinished_calls["test_123"] = tool_call
+        executor._sub_agent_session_ids["test_123"] = "session_abc"  # pyright: ignore[reportPrivateUsage]
+
+        events = list(executor.cancel())
+
+        assert len(events) == 2
+        assert isinstance(events[1], ToolExecutionResult)
+        assert isinstance(events[1].tool_result.ui_extra, model.SessionIdUIExtra)
+        assert events[1].tool_result.ui_extra.session_id == "session_abc"
+
     def test_cancel_already_emitted_call(self, executor: ToolExecutor):
         """Test cancelling call that was already emitted."""
         tool_call = ToolCallRequest(

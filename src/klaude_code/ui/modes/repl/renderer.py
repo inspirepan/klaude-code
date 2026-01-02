@@ -168,12 +168,13 @@ class REPLRenderer:
             Text.assemble(
                 (r_thinking.THINKING_MESSAGE_MARK, ThemeKey.THINKING),
                 " ",
-                (stripped, ThemeKey.THINKING_BOLD),
+                (stripped, ThemeKey.THINKING),
             )
         )
 
     async def replay_history(self, history_events: events.ReplayHistoryEvent) -> None:
         tool_call_dict: dict[str, events.ToolCallEvent] = {}
+        self.print()
         for event in history_events.events:
             event_session_id = getattr(event, "session_id", history_events.session_id)
             is_sub_agent = self.is_sub_agent_session(event_session_id)
@@ -219,6 +220,7 @@ class REPLRenderer:
                             continue
                         self.display_tool_call_result(e)
                     case events.TaskMetadataEvent() as e:
+                        self.print()
                         self.print(r_metadata.render_task_metadata(e))
                         self.print()
                     case events.InterruptEvent():

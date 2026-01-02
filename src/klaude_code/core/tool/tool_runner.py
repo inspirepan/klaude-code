@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from klaude_code.const import CANCEL_OUTPUT
 from klaude_code.core.tool.report_back_tool import ReportBackTool
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy
+from klaude_code.core.tool.tool_context import current_sub_agent_session_id_recorder
 from klaude_code.core.tool.truncation import truncate_tool_output
 from klaude_code.protocol import message, model, tools
 
@@ -114,6 +115,7 @@ class ToolExecutor:
         self._unfinished_calls: dict[str, ToolCallRequest] = {}
         self._call_event_emitted: set[str] = set()
         self._concurrent_tasks: set[asyncio.Task[list[ToolExecutorEvent]]] = set()
+        self._sub_agent_session_ids: dict[str, str] = {}
 
     async def run_tools(self, tool_calls: list[ToolCallRequest]) -> AsyncGenerator[ToolExecutorEvent]:
         """Run the given tool calls and yield execution events.
@@ -191,12 +193,13 @@ class ToolExecutor:
             return events_to_yield
 
         for call_id, tool_call in list(self._unfinished_calls.items()):
+            session_id = self._sub_agent_session_ids.get(call_id)
             cancel_result = message.ToolResultMessage(
                 call_id=tool_call.call_id,
                 output_text=CANCEL_OUTPUT,
                 status="aborted",
                 tool_name=tool_call.tool_name,
-                ui_extra=None,
+                ui_extra=model.SessionIdUIExtra(session_id=session_id) if session_id else None,
             )
 
             if call_id not in self._call_event_emitted:
@@ -207,6 +210,7 @@ class ToolExecutor:
 
             self._append_history([cancel_result])
             self._unfinished_calls.pop(call_id, None)
+            self._sub_agent_session_ids.pop(call_id, None)
 
         return events_to_yield
 
@@ -239,13 +243,23 @@ class ToolExecutor:
         return ToolExecutionCallStarted(tool_call=tool_call)
 
     async def _run_single_tool_call(self, tool_call: ToolCallRequest) -> list[ToolExecutorEvent]:
-        tool_result: message.ToolResultMessage = await run_tool(tool_call, self._registry)
+        def _record_sub_agent_session_id(session_id: str) -> None:
+            # Keep the first recorded id if multiple writes happen.
+            if tool_call.call_id not in self._sub_agent_session_ids:
+                self._sub_agent_session_ids[tool_call.call_id] = session_id
+
+        recorder_token = current_sub_agent_session_id_recorder.set(_record_sub_agent_session_id)
+        try:
+            tool_result: message.ToolResultMessage = await run_tool(tool_call, self._registry)
+        finally:
+            current_sub_agent_session_id_recorder.reset(recorder_token)
 
         self._append_history([tool_result])
 
         result_event = ToolExecutionResult(tool_call=tool_call, tool_result=tool_result)
 
         self._unfinished_calls.pop(tool_call.call_id, None)
+        self._sub_agent_session_ids.pop(tool_call.call_id, None)
 
         extra_events = self._build_tool_side_effect_events(tool_result)
         return [result_event, *extra_events]

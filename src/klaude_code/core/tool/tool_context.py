@@ -121,6 +121,23 @@ current_run_subtask_callback: ContextVar[Callable[[model.SubAgentState], Awaitab
 )
 
 
+# Allows sub-agent execution to record the created/used session id for the currently
+# executing tool call (used by ToolExecutor.cancel() to include session_id in UIExtra).
+current_sub_agent_session_id_recorder: ContextVar[Callable[[str], None] | None] = ContextVar(
+    "current_sub_agent_session_id_recorder",
+    default=None,
+)
+
+
+def record_sub_agent_session_id(session_id: str) -> None:
+    """Record the sub-agent session id for the current tool call, if supported."""
+
+    recorder = current_sub_agent_session_id_recorder.get()
+    if recorder is None:
+        return
+    recorder(session_id)
+
+
 # Tracks sub-agent resume claims for the current turn.
 #
 # This is used to reject multiple sub-agent tool calls in the same LLM response
