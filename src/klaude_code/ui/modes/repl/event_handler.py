@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from collections.abc import Callable
 from dataclasses import dataclass
 
 from rich.rule import Rule
 from rich.text import Text
 
-from klaude_code.const import MARKDOWN_LEFT_MARGIN, MARKDOWN_STREAM_LIVE_REPAINT_ENABLED, STATUS_DEFAULT_TEXT
+from klaude_code.const import (
+    MARKDOWN_LEFT_MARGIN,
+    MARKDOWN_STREAM_LIVE_REPAINT_ENABLED,
+    SIGINT_DOUBLE_PRESS_EXIT_TEXT,
+    STATUS_DEFAULT_TEXT,
+)
 from klaude_code.protocol import events
 from klaude_code.ui.core.stage_manager import Stage, StageManager
 from klaude_code.ui.modes.repl.renderer import REPLRenderer
@@ -210,6 +217,7 @@ class SpinnerStatusState:
     def __init__(self) -> None:
         self._todo_status: str | None = None
         self._reasoning_status: str | None = None
+        self._toast_status: str | None = None
         self._activity = ActivityState()
         self._context_percent: float | None = None
 
@@ -217,8 +225,13 @@ class SpinnerStatusState:
         """Reset all layers."""
         self._todo_status = None
         self._reasoning_status = None
+        self._toast_status = None
         self._activity.reset()
         self._context_percent = None
+
+    def set_toast_status(self, status: str | None) -> None:
+        """Set a transient toast status that temporarily overrides other layers."""
+        self._toast_status = status
 
     def set_todo_status(self, status: str | None) -> None:
         """Set base status from TodoChange."""
@@ -260,6 +273,9 @@ class SpinnerStatusState:
 
     def get_status(self) -> Text:
         """Get current spinner status as rich Text (without context)."""
+        if self._toast_status:
+            return Text(self._toast_status, style=ThemeKey.STATUS_TOAST)
+
         activity_text = self._activity.get_activity_text()
 
         base_status = self._reasoning_status or self._todo_status
@@ -313,6 +329,8 @@ class DisplayEventHandler:
         self.thinking_stream = StreamState()
         self._sub_agent_thinking_headers: dict[str, SubAgentThinkingHeaderState] = {}
         self.spinner_status = SpinnerStatusState()
+
+        self._sigint_toast_clear_handle: asyncio.Handle | None = None
 
         self.stage_manager = StageManager(
             finish_assistant=self._finish_assistant_stream,
@@ -394,6 +412,11 @@ class DisplayEventHandler:
     async def stop(self) -> None:
         self._flush_assistant_buffer()
         self._flush_thinking_buffer()
+
+        if self._sigint_toast_clear_handle is not None:
+            with contextlib.suppress(Exception):
+                self._sigint_toast_clear_handle.cancel()
+            self._sigint_toast_clear_handle = None
 
     # ─────────────────────────────────────────────────────────────────────────────
     # Private event handlers
@@ -573,6 +596,29 @@ class DisplayEventHandler:
             status_text,
             right_text,
         )
+
+    def show_sigint_exit_toast(self, *, window_seconds: float = 2.0) -> None:
+        """Show a transient Ctrl+C hint in the REPL status line.
+
+        The toast is cleared after ``window_seconds`` and does not overwrite the
+        underlying status layers (todo/reasoning/activity/context).
+        """
+
+        self.spinner_status.set_toast_status(SIGINT_DOUBLE_PRESS_EXIT_TEXT)
+        self._update_spinner()
+
+        if self._sigint_toast_clear_handle is not None:
+            with contextlib.suppress(Exception):
+                self._sigint_toast_clear_handle.cancel()
+            self._sigint_toast_clear_handle = None
+
+        loop = asyncio.get_running_loop()
+        self._sigint_toast_clear_handle = loop.call_later(window_seconds, self._clear_sigint_exit_toast)
+
+    def _clear_sigint_exit_toast(self) -> None:
+        self._sigint_toast_clear_handle = None
+        self.spinner_status.set_toast_status(None)
+        self._update_spinner()
 
     def _flush_thinking_buffer(self) -> None:
         self.thinking_stream.render(transform=normalize_thinking_content)

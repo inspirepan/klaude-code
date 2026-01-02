@@ -2,17 +2,16 @@ import asyncio
 import contextlib
 import sys
 from dataclasses import dataclass
-from typing import Any, Protocol
 from uuid import uuid4
 
 import typer
-from rich.text import Text
 
 from klaude_code import ui
 from klaude_code.cli.main import update_terminal_title
 from klaude_code.cli.self_update import get_update_message
 from klaude_code.command import dispatch_command, get_command_info_list, has_interactive_command, is_slash_command_name
 from klaude_code.config import Config, load_config
+from klaude_code.const import SIGINT_DOUBLE_PRESS_EXIT_TEXT
 from klaude_code.core.agent import Agent, DefaultModelProfileProvider, VanillaModelProfileProvider
 from klaude_code.core.executor import Executor
 from klaude_code.core.manager import build_llm_clients
@@ -25,12 +24,6 @@ from klaude_code.ui.modes.repl import build_repl_status_snapshot
 from klaude_code.ui.modes.repl.input_prompt_toolkit import REPLStatusSnapshot
 from klaude_code.ui.terminal.color import is_light_terminal_background
 from klaude_code.ui.terminal.control import install_sigint_double_press_exit, start_esc_interrupt_monitor
-
-
-class PrintCapable(Protocol):
-    """Protocol for objects that can print styled content."""
-
-    def print(self, *objects: Any, style: Any | None = None, end: str = "\n") -> None: ...
 
 
 @dataclass
@@ -177,6 +170,20 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
     # Start executor in background
     executor_task = asyncio.create_task(executor.start())
 
+    def _drain_background_task_exception(task: asyncio.Task[None], *, label: str) -> None:
+        def _on_done(t: asyncio.Task[None]) -> None:
+            with contextlib.suppress(asyncio.CancelledError):
+                exc = t.exception()
+                if exc is None:
+                    return
+                if isinstance(exc, KeyboardInterrupt):
+                    return
+                log((f"Background task '{label}' failed: {exc}", "red"))
+
+        task.add_done_callback(_on_done)
+
+    _drain_background_task_exception(executor_task, label="executor")
+
     theme: str | None = config.theme
     if theme is None and not init_config.is_exec_mode:
         # Auto-detect theme from terminal background when config does not specify a theme.
@@ -197,6 +204,7 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
 
     # Start UI display task
     display_task = asyncio.create_task(display.consume_event_loop(event_queue))
+    _drain_background_task_exception(display_task, label="display")
 
     return AppComponents(
         config=config,
@@ -419,36 +427,65 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         command_info_provider=get_command_info_list,
     )
 
-    # --- Custom Ctrl+C handler: double-press within 2s to exit, single press shows toast ---
-    def _show_toast_once() -> None:
-        MSG = "Press ctrl+c again to exit"
+    loop = asyncio.get_running_loop()
+
+    def _get_repl_display() -> ui.REPLDisplay | None:
+        display = components.display
+        if isinstance(display, ui.REPLDisplay):
+            return display
+        if (
+            isinstance(display, ui.DebugEventDisplay)
+            and display.wrapped_display
+            and isinstance(display.wrapped_display, ui.REPLDisplay)
+        ):
+            return display.wrapped_display
+        return None
+
+    @contextlib.contextmanager
+    def _double_ctrl_c_to_exit_while_running(*, window_seconds: float = 2.0):
+        """Require double Ctrl+C to exit while waiting for task completion.
+
+        The handler is installed only during task waits so that Ctrl+C during
+        prompt input exits immediately (prompt_toolkit default behavior).
+        """
+
+        def _show_toast_once() -> None:
+            def _emit() -> None:
+                repl_display = _get_repl_display()
+                if repl_display is not None:
+                    with contextlib.suppress(Exception):
+                        repl_display.event_handler.show_sigint_exit_toast(window_seconds=window_seconds)
+                    return
+                print(SIGINT_DOUBLE_PRESS_EXIT_TEXT, file=sys.stderr)
+
+            with contextlib.suppress(Exception):
+                loop.call_soon_threadsafe(_emit)
+                return
+            _emit()
+
+        def _hide_progress() -> None:
+            def _emit() -> None:
+                repl_display = _get_repl_display()
+                if repl_display is None:
+                    return
+                with contextlib.suppress(Exception):
+                    repl_display.renderer.spinner_stop()
+                with contextlib.suppress(Exception):
+                    repl_display.renderer.stop_bottom_live()
+
+            with contextlib.suppress(Exception):
+                loop.call_soon_threadsafe(_emit)
+
+        restore_sigint = install_sigint_double_press_exit(
+            _show_toast_once,
+            _hide_progress,
+            window_seconds=window_seconds,
+        )
         try:
-            # Keep message short; avoid interfering with spinner layout
-            printer: PrintCapable | None = None
-
-            # Check if it's a REPLDisplay with renderer
-            if isinstance(components.display, ui.REPLDisplay):
-                printer = components.display.renderer
-            # Check if it's a DebugEventDisplay wrapping a REPLDisplay
-            elif (
-                isinstance(components.display, ui.DebugEventDisplay)
-                and components.display.wrapped_display
-                and isinstance(components.display.wrapped_display, ui.REPLDisplay)
-            ):
-                printer = components.display.wrapped_display.renderer
-
-            if printer is not None:
-                printer.print(Text(f" {MSG} ", style="bold yellow reverse"))
-            else:
-                print(MSG, file=sys.stderr)
-        except (AttributeError, TypeError, RuntimeError):
-            # Fallback if themed print is unavailable (e.g., display not ready or Rich internal error)
-            print(MSG, file=sys.stderr)
-
-    def _hide_progress() -> None:
-        return
-
-    restore_sigint = install_sigint_double_press_exit(_show_toast_once, _hide_progress)
+            yield
+        finally:
+            with contextlib.suppress(Exception):
+                restore_sigint()
 
     exit_hint_printed = False
 
@@ -485,7 +522,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 continue
 
             if is_interactive:
-                await components.executor.wait_for(wait_id)
+                with _double_ctrl_c_to_exit_while_running():
+                    await components.executor.wait_for(wait_id)
                 continue
 
             # Esc monitor for long-running, interruptible operations
@@ -495,7 +533,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             stop_event, esc_task = start_esc_interrupt_monitor(_on_esc_interrupt)
             # Wait for this specific task to complete before accepting next input
             try:
-                await components.executor.wait_for(wait_id)
+                with _double_ctrl_c_to_exit_while_running():
+                    await components.executor.wait_for(wait_id)
             finally:
                 # Stop ESC monitor and wait for it to finish cleaning up TTY
                 stop_event.set()
@@ -506,9 +545,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         await _handle_keyboard_interrupt(components.executor)
         exit_hint_printed = True
     finally:
-        # Restore original SIGINT handler
-        with contextlib.suppress(Exception):
-            restore_sigint()
         await cleanup_app_components(components)
 
         if not exit_hint_printed:

@@ -154,6 +154,7 @@ MARKDOWN_RIGHT_MARGIN = 2  # Right margin (columns) for markdown rendering
 
 STATUS_HINT_TEXT = " (esc to interrupt)"  # Status hint text shown after spinner
 STATUS_DEFAULT_TEXT = "Thinking …"  # Default spinner status text
+SIGINT_DOUBLE_PRESS_EXIT_TEXT = "Press ctrl+c again to exit"  # Toast shown on first Ctrl+C during task waits
 SPINNER_BREATH_PERIOD_SECONDS: float = 2.0  # Spinner breathing animation period (seconds)
 STATUS_SHIMMER_PADDING = 10  # Horizontal padding for shimmer band position
 STATUS_SHIMMER_BAND_HALF_WIDTH = 5.0  # Half-width of shimmer band in characters
