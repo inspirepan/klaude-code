@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-01-03
+
+### Added
+
+- update sub-agent params and add background for bash command (`e7746641`)
+- remove Move tool (`62ac4c5e`)
+
+### Changed
+
+- update dark background (`b85d922b`)
+- update welcome style (`dfe9b89e`)
+- update developer ui extra model (`b5b68cb9`)
+- remove osc94 effect (`586d0c36`)
+- add window around selector overlay and extract constant DIFF_DEFAULT_CONTEXT_LINES (`ccd0c5fe`)
+
+### Fixed
+
+- use synchronized output (2026) for markdown stream (`dc719829`)
 ## [2.0.1] - 2026-01-02
 
 ### Added
@@ -1070,7 +1088,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.0.2...HEAD
+[2.0.2]: https://github.com/inspirepan/klaude-code/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/inspirepan/klaude-code/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/inspirepan/klaude-code/compare/v1.9.0...v2.0.0
 [1.9.0]: https://github.com/inspirepan/klaude-code/compare/v1.8.0...v1.9.0
