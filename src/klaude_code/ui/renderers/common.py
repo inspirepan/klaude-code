@@ -1,3 +1,5 @@
+from typing import Literal
+
 from rich.style import Style
 from rich.table import Table
 from rich.text import Text
@@ -12,10 +14,10 @@ from klaude_code.const import (
 from klaude_code.ui.rich.theme import ThemeKey
 
 
-def create_grid() -> Table:
+def create_grid(*, overflow: Literal["fold", "crop", "ellipsis", "ignore"] = "fold") -> Table:
     grid = Table.grid(padding=(0, 1))
     grid.add_column(no_wrap=True)
-    grid.add_column(overflow="fold")
+    grid.add_column(overflow=overflow)
     return grid
 
 

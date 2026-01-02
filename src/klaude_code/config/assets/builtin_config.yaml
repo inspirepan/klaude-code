@@ -347,6 +347,10 @@ provider_list:
         reasoning_effort: medium
       context_limit: 400000
       max_tokens: 128000
+      cost:
+        input: 1.75
+        output: 14.0
+        cache_read: 0.17
 
 sub_agent_models:
   ImageGen: nano-banana-pro@or

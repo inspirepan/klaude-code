@@ -68,9 +68,7 @@ def _render_tool_call_tree(
     tool_name: str,
     details: RenderableType | None,
 ) -> RenderableType:
-    # Keep the original 2-column layout (tool name on the left, details on the right),
-    # but move the tool mark into the tree prefix so it can connect to the tool result.
-    grid = create_grid()
+    grid = create_grid(overflow="ellipsis")
     grid.add_row(
         Text(tool_name, style=ThemeKey.TOOL_NAME),
         details if details is not None else Text(""),
@@ -138,14 +136,12 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
     command = payload.get("command")
     timeout_ms = payload.get("timeout_ms")
 
-    # Build the command display with optional timeout suffix
     if isinstance(command, str) and command.strip():
         cmd_str = command.strip()
         line_count = len(cmd_str.splitlines())
 
         highlighted = highlight_bash_command(cmd_str)
 
-        # For commands > threshold lines, use CodePanel for better display
         if line_count > BASH_OUTPUT_PANEL_THRESHOLD:
             code_panel = CodePanel(highlighted, border_style=ThemeKey.LINES)
             if isinstance(timeout_ms, int):
@@ -298,7 +294,6 @@ def render_move_tool_call(arguments: str) -> RenderableType:
     start_line = payload.get("start_line", "")
     end_line = payload.get("end_line", "")
 
-    # Build display: source:start-end -> target
     parts = Text()
     if source_path:
         parts.append_text(render_path(source_path, ThemeKey.TOOL_PARAM_FILE_PATH))
@@ -386,15 +381,17 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
 def render_generic_tool_result(result: str, *, is_error: bool = False) -> RenderableType:
     """Render a generic tool result as truncated text."""
     style = ThemeKey.ERROR if is_error else ThemeKey.TOOL_RESULT
-    return truncate_middle(result, base_style=style)
+    text = truncate_middle(result, base_style=style)
+    # Tool results should not reflow/wrap; use ellipsis when exceeding terminal width.
+    text.no_wrap = True
+    text.overflow = "ellipsis"
+    return text
 
 
 def _extract_mermaid_link(
     ui_extra: model.ToolResultUIExtra | None,
 ) -> model.MermaidLinkUIExtra | None:
-    if isinstance(ui_extra, model.MermaidLinkUIExtra):
-        return ui_extra
-    return None
+    return ui_extra if isinstance(ui_extra, model.MermaidLinkUIExtra) else None
 
 
 def render_mermaid_tool_call(arguments: str) -> RenderableType:
@@ -443,7 +440,7 @@ def _render_mermaid_viewer_link(
 ) -> RenderableType:
     viewer_path = r_mermaid_viewer.build_viewer(code=link_info.code, link=link_info.link, tool_call_id=tr.tool_call_id)
     if viewer_path is None:
-        return Text(link_info.link, style=ThemeKey.TOOL_RESULT_MERMAID, overflow="fold")
+        return Text(link_info.link, style=ThemeKey.TOOL_RESULT_MERMAID, overflow="ellipsis", no_wrap=True)
 
     display_path = str(viewer_path)
 
@@ -534,9 +531,7 @@ def render_mermaid_tool_result(
 def _extract_truncation(
     ui_extra: model.ToolResultUIExtra | None,
 ) -> model.TruncationUIExtra | None:
-    if isinstance(ui_extra, model.TruncationUIExtra):
-        return ui_extra
-    return None
+    return ui_extra if isinstance(ui_extra, model.TruncationUIExtra) else None
 
 
 def render_truncation_info(ui_extra: model.TruncationUIExtra) -> RenderableType:
@@ -548,6 +543,8 @@ def render_truncation_info(ui_extra: model.TruncationUIExtra) -> RenderableType:
         (ui_extra.saved_file_path, ThemeKey.TOOL_RESULT_TRUNCATED),
         (f", {truncated_kb:.1f}KB truncated", ThemeKey.TOOL_RESULT_TRUNCATED),
     )
+    text.no_wrap = True
+    text.overflow = "ellipsis"
     return text
 
 
@@ -685,7 +682,7 @@ def render_tool_result(
 
     # Handle error case
     if e.status == "error" and e.ui_extra is None:
-        return wrap(truncate_middle(e.result, base_style=ThemeKey.ERROR))
+        return wrap(render_generic_tool_result(e.result, is_error=True))
 
     # Render multiple ui blocks if present
     if isinstance(e.ui_extra, model.MultiUIExtra) and e.ui_extra.items:
