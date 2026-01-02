@@ -136,7 +136,7 @@ def render_sub_agent_result(
         truncated_elements: list[RenderableType] = [
             NoInsetMarkdown(head_text, code_theme=code_theme, style=style or ""),
             Text(
-                f"\n( … more {hidden_count} lines — use /export to view full output )\n",
+                f"( … more {hidden_count} lines — use /export to view full output )",
                 style=ThemeKey.TOOL_RESULT_TRUNCATED,
             ),
             NoInsetMarkdown(tail_text, code_theme=code_theme, style=style or ""),

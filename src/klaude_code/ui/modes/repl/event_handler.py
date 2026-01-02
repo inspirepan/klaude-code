@@ -431,6 +431,8 @@ class DisplayEventHandler:
 
     async def _on_thinking_delta(self, event: events.ThinkingDeltaEvent) -> None:
         if self.renderer.is_sub_agent_session(event.session_id):
+            if not self.renderer.should_display_sub_agent_thinking_header(event.session_id):
+                return
             state = self._sub_agent_thinking_headers.setdefault(event.session_id, SubAgentThinkingHeaderState())
             header = state.append_and_extract_new_header(event.content)
             if header:

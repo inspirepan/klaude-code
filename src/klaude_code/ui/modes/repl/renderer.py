@@ -79,6 +79,13 @@ class REPLRenderer:
     def is_sub_agent_session(self, session_id: str) -> bool:
         return session_id in self.session_map and self.session_map[session_id].sub_agent_state is not None
 
+    def should_display_sub_agent_thinking_header(self, session_id: str) -> bool:
+        # Hardcoded: only show sub-agent thinking headers for ImageGen.
+        status = self.session_map.get(session_id)
+        if status is None or status.sub_agent_state is None:
+            return False
+        return status.sub_agent_state.sub_agent_type == "ImageGen"
+
     def _advance_sub_agent_color_index(self) -> None:
         palette_size = len(self.themes.sub_agent_colors)
         if palette_size == 0:
@@ -168,7 +175,7 @@ class REPLRenderer:
             Text.assemble(
                 (r_thinking.THINKING_MESSAGE_MARK, ThemeKey.THINKING),
                 " ",
-                (stripped, ThemeKey.THINKING),
+                (stripped, ThemeKey.THINKING_BOLD),
             )
         )
 
@@ -189,7 +196,7 @@ class REPLRenderer:
                         self.display_image(e.file_path)
                     case events.AssistantMessageEvent() as e:
                         if is_sub_agent:
-                            if e.thinking_text:
+                            if self.should_display_sub_agent_thinking_header(event_session_id) and e.thinking_text:
                                 header = r_thinking.extract_last_bold_header(
                                     r_thinking.normalize_thinking_content(e.thinking_text)
                                 )
