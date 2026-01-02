@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-01-02
+
+### Added
+
+- add tree quote for tool result and tool call (`ce6e6881`)
+- update image-gen prompt (`de7e1cf1`)
+- show sub-agent thoughts header (`3cf6c3b5`)
+- add image token tracking and cost calculation (`43e1b904`)
+- add total cost in metadata (`59555da7`)
+- support assistant images in multi-turn conversations (`ae86f23f`)
+- add resume capability for continuing suspended sub-agent work (`13f334a4`)
+- show Mermaid diagrams as images in terminal (`ee37bcc8`)
+- add ImageGen sub-agent with OpenRouter Nano Banana Pro support (`20a31841`)
+- add PDF file handling support (`9a5f6911`)
+- update web search agent prompot (`2d14a65e`)
+- improve clear command and session selector display (`f7358b76`)
+
+### Changed
+
+- reduce Hypothesis filtering in replace properties (`848396e5`)
+- update truncate hint color (`f5a48117`)
+- move ProjectPaths to const module for layer compliance (`2b2a794e`)
+- extract format_saved_images helper (`3c38da7b`)
+- replace ... with unicode ellipsis (…) for consistent typography (`4af9652d`)
+- consolidate constants and extract common input utilities (`fb58de7d`)
+- move agentId footer styling to render layer (`3f735931`)
+- simplify stream state rendering logic & update /commit prompt (`9ddeb28b`)
+- improve error message truncation strategies and extract const (`a5d4f703`)
+- use direct imports from klaude_code.const (`d854950c`)
+- rename AssistantTextDelta (`08b64bfc`)
+- remove redundant startItem & usage emit (`98017ea5`)
+- split message.py from model.py (`bb17ac3d`)
+- use message + part instead of responses item protocol (`1f20cde3`)
+
+### Fixed
+
+- render Mermaid images via live-safe terminal output (`3566cecd`)
+- render banana's thought only (`451866ba`)
+- preserve session id when tool call is cancelled (`e92cbe33`)
+- remove empty lines around markdown table (`b6bab7df`)
+- prioritize basename match quality over depth in @ file completion (`c86699f7`)
+- live markdown window max height reset (`5d63dcae`)
+- reponses API thinking and tool call id (`ddb2c21f`)
+
+### Other
+
+- plan for message + part protocol (`0e14c396`)
 ## [1.9.0] - 2026-01-01
 
 ### Added
@@ -1007,7 +1054,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/inspirepan/klaude-code/compare/v1.9.0...v2.0.0
 [1.9.0]: https://github.com/inspirepan/klaude-code/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/inspirepan/klaude-code/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/inspirepan/klaude-code/compare/v1.7.0...v1.7.1
