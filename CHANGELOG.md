@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-01-02
+
+### Added
+
+- move cursor visually within wrapped line (`aaeb111f`)
+- truncate heredoc in bash and remove bash git diff render (`28d13100`)
+
+### Changed
+
+- remove unused UserInputOperation (`14c41ffc`)
+- remove unused activeForm parameter from TodoWrite tool (`e01deb86`)
+- soften light theme backgrounds (`fa244432`)
+
+### Fixed
+
+- clamp tool output display and update codex pricing (`139a85fa`)
 ## [2.0.0] - 2026-01-02
 
 ### Added
@@ -1054,7 +1070,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.0.1...HEAD
+[2.0.1]: https://github.com/inspirepan/klaude-code/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/inspirepan/klaude-code/compare/v1.9.0...v2.0.0
 [1.9.0]: https://github.com/inspirepan/klaude-code/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/inspirepan/klaude-code/compare/v1.7.1...v1.8.0
