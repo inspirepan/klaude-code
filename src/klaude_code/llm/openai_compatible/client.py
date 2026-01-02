@@ -6,6 +6,7 @@ import httpx
 import openai
 from openai.types.chat.completion_create_params import CompletionCreateParamsStreaming
 
+from klaude_code.const import LLM_HTTP_TIMEOUT_CONNECT, LLM_HTTP_TIMEOUT_READ, LLM_HTTP_TIMEOUT_TOTAL
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_compatible.input import convert_history_to_input, convert_tool_schema
@@ -56,13 +57,17 @@ class OpenAICompatibleClient(LLMClientABC):
                 api_key=config.api_key,
                 azure_endpoint=str(config.base_url),
                 api_version=config.azure_api_version,
-                timeout=httpx.Timeout(300.0, connect=15.0, read=285.0),
+                timeout=httpx.Timeout(
+                    LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ
+                ),
             )
         else:
             client = openai.AsyncOpenAI(
                 api_key=config.api_key,
                 base_url=config.base_url,
-                timeout=httpx.Timeout(300.0, connect=15.0, read=285.0),
+                timeout=httpx.Timeout(
+                    LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ
+                ),
             )
         self.client: openai.AsyncAzureOpenAI | openai.AsyncOpenAI = client
 

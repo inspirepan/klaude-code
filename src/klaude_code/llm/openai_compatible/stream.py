@@ -59,7 +59,7 @@ class StreamStateManager:
     def set_response_id(self, response_id: str) -> None:
         """Set the response ID once received from the stream."""
         self.response_id = response_id
-        self.accumulated_tool_calls.response_id = response_id  # pyright: ignore[reportAttributeAccessIssue]
+        self.accumulated_tool_calls.set_response_id(response_id)
 
     def flush_reasoning(self) -> None:
         """Flush accumulated reasoning content into parts."""
@@ -83,7 +83,7 @@ class StreamStateManager:
         items = self.accumulated_tool_calls.get()
         if items:
             self.parts.extend(items)
-            self.accumulated_tool_calls.chunks_by_step = []  # pyright: ignore[reportAttributeAccessIssue]
+            self.accumulated_tool_calls.reset()
 
     def flush_all(self) -> list[message.Part]:
         """Flush all accumulated content in order: reasoning, assistant, tool calls."""

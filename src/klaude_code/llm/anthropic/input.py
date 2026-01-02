@@ -5,8 +5,6 @@
 # pyright: reportUnknownVariableType=false
 
 import json
-from base64 import b64decode
-from binascii import Error as BinasciiError
 from typing import Literal, cast
 
 from anthropic.types.beta.beta_base64_image_source_param import BetaBase64ImageSourceParam
@@ -16,7 +14,14 @@ from anthropic.types.beta.beta_text_block_param import BetaTextBlockParam
 from anthropic.types.beta.beta_tool_param import BetaToolParam
 from anthropic.types.beta.beta_url_image_source_param import BetaURLImageSourceParam
 
-from klaude_code.llm.input_common import DeveloperAttachment, attach_developer_messages, merge_reminder_text
+from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
+from klaude_code.llm.image import parse_data_url
+from klaude_code.llm.input_common import (
+    DeveloperAttachment,
+    attach_developer_messages,
+    merge_reminder_text,
+    split_thinking_parts,
+)
 from klaude_code.protocol import llm_param, message
 
 AllowedMediaType = Literal["image/png", "image/jpeg", "image/gif", "image/webp"]
@@ -31,22 +36,9 @@ _INLINE_IMAGE_MEDIA_TYPES: tuple[AllowedMediaType, ...] = (
 def _image_part_to_block(image: message.ImageURLPart) -> BetaImageBlockParam:
     url = image.url
     if url.startswith("data:"):
-        header_and_media = url.split(",", 1)
-        if len(header_and_media) != 2:
-            raise ValueError("Invalid data URL for image: missing comma separator")
-        header, base64_data = header_and_media
-        if ";base64" not in header:
-            raise ValueError("Invalid data URL for image: missing base64 marker")
-        media_type = header[5:].split(";", 1)[0]
+        media_type, base64_payload, _ = parse_data_url(url)
         if media_type not in _INLINE_IMAGE_MEDIA_TYPES:
             raise ValueError(f"Unsupported inline image media type: {media_type}")
-        base64_payload = base64_data.strip()
-        if base64_payload == "":
-            raise ValueError("Inline image data is empty")
-        try:
-            b64decode(base64_payload, validate=True)
-        except (BinasciiError, ValueError) as exc:
-            raise ValueError("Inline image data is not valid base64") from exc
         source = cast(
             BetaBase64ImageSourceParam,
             {
@@ -87,7 +79,7 @@ def _tool_message_to_block(
     """Convert a single tool result message to a tool_result block."""
     tool_content: list[BetaTextBlockParam | BetaImageBlockParam] = []
     merged_text = merge_reminder_text(
-        msg.output_text or "<system-reminder>Tool ran without output or errors</system-reminder>",
+        msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
         attachment.text,
     )
     tool_content.append({"type": "text", "text": merged_text})
@@ -114,7 +106,8 @@ def _tool_blocks_to_message(blocks: list[dict[str, object]]) -> BetaMessageParam
 def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str | None) -> BetaMessageParam:
     content: list[dict[str, object]] = []
     current_thinking_content: str | None = None
-    degraded_thinking_texts: list[str] = []
+    native_thinking_parts, degraded_thinking_texts = split_thinking_parts(msg, model_name)
+    native_thinking_ids = {id(part) for part in native_thinking_parts}
 
     def _flush_thinking() -> None:
         nonlocal current_thinking_content
@@ -125,13 +118,12 @@ def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str
 
     for part in msg.parts:
         if isinstance(part, message.ThinkingTextPart):
-            if part.model_id and model_name and part.model_id != model_name:
-                degraded_thinking_texts.append(part.text)
+            if id(part) not in native_thinking_ids:
                 continue
             current_thinking_content = part.text
             continue
         if isinstance(part, message.ThinkingSignaturePart):
-            if part.model_id and model_name and part.model_id != model_name:
+            if id(part) not in native_thinking_ids:
                 continue
             if part.signature:
                 content.append(

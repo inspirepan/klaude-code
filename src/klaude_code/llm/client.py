@@ -16,8 +16,9 @@ class LLMClientABC(ABC):
 
     @abstractmethod
     async def call(self, param: llm_param.LLMCallParameter) -> AsyncGenerator[message.LLMStreamItem]:
+        if False:  # pragma: no cover
+            yield cast(message.LLMStreamItem, None)
         raise NotImplementedError
-        yield cast(message.LLMStreamItem, None)
 
     def get_llm_config(self) -> llm_param.LLMConfigParameter:
         return self._config

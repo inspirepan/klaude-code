@@ -8,11 +8,12 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types import responses
 from openai.types.responses.response_create_params import ResponseCreateParamsStreaming
 
+from klaude_code.const import LLM_HTTP_TIMEOUT_CONNECT, LLM_HTTP_TIMEOUT_READ, LLM_HTTP_TIMEOUT_TOTAL
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.responses.input import convert_history_to_input, convert_tool_schema
-from klaude_code.llm.usage import MetadataTracker
+from klaude_code.llm.usage import MetadataTracker, error_stream_items
 from klaude_code.protocol import llm_param, message, model
 from klaude_code.trace import DebugType, log_debug
 
@@ -243,13 +244,17 @@ class ResponsesClient(LLMClientABC):
                 api_key=config.api_key,
                 azure_endpoint=str(config.base_url),
                 api_version=config.azure_api_version,
-                timeout=httpx.Timeout(300.0, connect=15.0, read=285.0),
+                timeout=httpx.Timeout(
+                    LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ
+                ),
             )
         else:
             client = AsyncOpenAI(
                 api_key=config.api_key,
                 base_url=config.base_url,
-                timeout=httpx.Timeout(300.0, connect=15.0, read=285.0),
+                timeout=httpx.Timeout(
+                    LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ
+                ),
             )
         self.client: AsyncAzureOpenAI | AsyncOpenAI = client
 
@@ -277,7 +282,9 @@ class ResponsesClient(LLMClientABC):
                 extra_headers={"extra": json.dumps({"session_id": param.session_id}, sort_keys=True)},
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
-            yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+            error_message = f"{e.__class__.__name__} {e!s}"
+            for item in error_stream_items(metadata_tracker, error=error_message):
+                yield item
             return
 
         async for item in parse_responses_stream(stream, param, metadata_tracker):

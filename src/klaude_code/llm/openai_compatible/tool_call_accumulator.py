@@ -31,6 +31,14 @@ class ToolCallAccumulatorABC(ABC):
     def get(self) -> list[message.ToolCallPart]:
         pass
 
+    @abstractmethod
+    def set_response_id(self, response_id: str | None) -> None:
+        pass
+
+    @abstractmethod
+    def reset(self) -> None:
+        pass
+
 
 class BasicToolCallAccumulator(ToolCallAccumulatorABC, BaseModel):
     """
@@ -92,3 +100,9 @@ class BasicToolCallAccumulator(ToolCallAccumulatorABC, BaseModel):
             if first_chunk.function.arguments:
                 result[-1].arguments_json += first_chunk.function.arguments
         return result
+
+    def set_response_id(self, response_id: str | None) -> None:
+        self.response_id = response_id
+
+    def reset(self) -> None:
+        self.chunks_by_step = []

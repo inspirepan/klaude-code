@@ -26,8 +26,8 @@ IMAGE_EXT_BY_MIME: dict[str, str] = {
 }
 
 
-def parse_data_url_image(url: str) -> tuple[str, bytes]:
-    """Parse a base64 data URL and return (mime_type, decoded_bytes)."""
+def parse_data_url(url: str) -> tuple[str, str, bytes]:
+    """Parse a base64 data URL and return (mime_type, base64_payload, decoded_bytes)."""
 
     header_and_media = url.split(",", 1)
     if len(header_and_media) != 2:
@@ -48,6 +48,13 @@ def parse_data_url_image(url: str) -> tuple[str, bytes]:
     except (BinasciiError, ValueError) as exc:
         raise ValueError("Inline image data is not valid base64") from exc
 
+    return mime_type, base64_payload, decoded
+
+
+def parse_data_url_image(url: str) -> tuple[str, bytes]:
+    """Parse a base64 data URL and return (mime_type, decoded_bytes)."""
+
+    mime_type, _, decoded = parse_data_url(url)
     return mime_type, decoded
 
 

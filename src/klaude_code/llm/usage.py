@@ -2,7 +2,8 @@ import time
 
 import openai.types
 
-from klaude_code.protocol import llm_param, model
+from klaude_code.const import THROUGHPUT_MIN_DURATION_SEC
+from klaude_code.protocol import llm_param, message, model
 
 
 def calculate_cost(usage: model.Usage, cost_config: llm_param.Cost | None) -> None:
@@ -18,7 +19,7 @@ def calculate_cost(usage: model.Usage, cost_config: llm_param.Cost | None) -> No
     usage.currency = cost_config.currency
 
     # Non-cached input tokens cost
-    non_cached_input = usage.input_tokens - usage.cached_tokens
+    non_cached_input = max(0, usage.input_tokens - usage.cached_tokens)
     usage.input_cost = (non_cached_input / 1_000_000) * cost_config.input
 
     # Output tokens cost (includes reasoning tokens)
@@ -83,7 +84,7 @@ class MetadataTracker:
 
             if self._last_token_time is not None and self._usage.output_tokens > 0:
                 time_duration = self._last_token_time - self._request_start_time
-                if time_duration >= 0.15:
+                if time_duration >= THROUGHPUT_MIN_DURATION_SEC:
                     self._usage.throughput_tps = self._usage.output_tokens / time_duration
 
         # Calculate cost if config is available
@@ -94,6 +95,20 @@ class MetadataTracker:
     @property
     def usage(self) -> model.Usage:
         return self._usage
+
+
+def error_stream_items(
+    metadata_tracker: MetadataTracker,
+    *,
+    error: str,
+    response_id: str | None = None,
+) -> list[message.LLMStreamItem]:
+    metadata_tracker.set_response_id(response_id)
+    metadata = metadata_tracker.finalize()
+    return [
+        message.StreamErrorItem(error=error),
+        message.AssistantMessage(parts=[], response_id=response_id, usage=metadata),
+    ]
 
 
 def convert_usage(

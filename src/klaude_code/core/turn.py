@@ -243,63 +243,60 @@ class TurnExecutor:
             if image_config.model_dump(exclude_none=True):
                 call_param.image_config = image_config
 
-        metadata_emitted = False
-
-        async for response_item in ctx.llm_client.call(call_param):
+        async for delta in ctx.llm_client.call(call_param):
             log_debug(
-                f"[{response_item.__class__.__name__}]",
-                response_item.model_dump_json(exclude_none=True),
+                f"[{delta.__class__.__name__}]",
+                delta.model_dump_json(exclude_none=True),
                 style="green",
                 debug_type=DebugType.RESPONSE,
             )
-            match response_item:
-                case message.ThinkingTextDelta() as item:
+            match delta:
+                case message.ThinkingTextDelta() as delta:
                     yield events.ThinkingDeltaEvent(
-                        content=item.content,
-                        response_id=item.response_id,
+                        content=delta.content,
+                        response_id=delta.response_id,
                         session_id=session_ctx.session_id,
                     )
-                case message.AssistantTextDelta() as item:
-                    if item.response_id:
-                        self._assistant_response_id = item.response_id
-                    self._assistant_delta_buffer.append(item.content)
+                case message.AssistantTextDelta() as delta:
+                    if delta.response_id:
+                        self._assistant_response_id = delta.response_id
+                    self._assistant_delta_buffer.append(delta.content)
                     yield events.AssistantTextDeltaEvent(
-                        content=item.content,
-                        response_id=item.response_id,
+                        content=delta.content,
+                        response_id=delta.response_id,
                         session_id=session_ctx.session_id,
                     )
-                case message.AssistantImageDelta() as item:
+                case message.AssistantImageDelta() as delta:
                     yield events.AssistantImageDeltaEvent(
-                        file_path=item.file_path,
-                        response_id=item.response_id,
+                        file_path=delta.file_path,
+                        response_id=delta.response_id,
                         session_id=session_ctx.session_id,
                     )
-                case message.AssistantMessage() as item:
-                    if item.response_id is None and self._assistant_response_id:
-                        item.response_id = self._assistant_response_id
-                    turn_result.assistant_message = item
-                    for part in item.parts:
+                case message.AssistantMessage() as msg:
+                    if msg.response_id is None and self._assistant_response_id:
+                        msg.response_id = self._assistant_response_id
+                    turn_result.assistant_message = msg
+                    for part in msg.parts:
                         if isinstance(part, message.ToolCallPart):
                             turn_result.tool_calls.append(
                                 ToolCallRequest(
-                                    response_id=item.response_id,
+                                    response_id=msg.response_id,
                                     call_id=part.call_id,
                                     tool_name=part.tool_name,
                                     arguments_json=part.arguments_json,
                                 )
                             )
                     yield events.AssistantMessageEvent(
-                        content=message.join_text_parts(item.parts),
-                        response_id=item.response_id,
+                        content=message.join_text_parts(msg.parts),
+                        response_id=msg.response_id,
                         session_id=session_ctx.session_id,
                     )
-                    if item.stop_reason == "aborted":
+                    if msg.stop_reason == "aborted":
                         yield events.InterruptEvent(session_id=session_ctx.session_id)
-                    if item.usage and not metadata_emitted:
-                        metadata_emitted = True
-                        metadata = item.usage
+                    if msg.usage:
+                        metadata = msg.usage
                         if metadata.response_id is None:
-                            metadata.response_id = item.response_id
+                            metadata.response_id = msg.response_id
                         if not metadata.model_name:
                             metadata.model_name = ctx.llm_client.model_name
                         if metadata.provider is None:
@@ -308,20 +305,20 @@ class TurnExecutor:
                             session_id=session_ctx.session_id,
                             metadata=metadata,
                         )
-                case message.StreamErrorItem() as item:
-                    turn_result.stream_error = item
+                case message.StreamErrorItem() as msg:
+                    turn_result.stream_error = msg
                     log_debug(
                         "[StreamError]",
-                        item.error,
+                        msg.error,
                         style="red",
                         debug_type=DebugType.RESPONSE,
                     )
-                case message.ToolCallStartItem() as item:
+                case message.ToolCallStartItem() as msg:
                     yield events.TurnToolCallStartEvent(
                         session_id=session_ctx.session_id,
-                        response_id=item.response_id,
-                        tool_call_id=item.call_id,
-                        tool_name=item.name,
+                        response_id=msg.response_id,
+                        tool_call_id=msg.call_id,
+                        tool_name=msg.name,
                         arguments="",
                     )
                 case _:

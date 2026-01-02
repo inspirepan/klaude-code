@@ -6,6 +6,14 @@ import httpx
 import openai
 from openai.types.chat.completion_create_params import CompletionCreateParamsStreaming
 
+from klaude_code.const import (
+    ANTHROPIC_BETA_FINE_GRAINED_TOOL_STREAMING,
+    ANTHROPIC_BETA_INTERLEAVED_THINKING,
+    LLM_HTTP_TIMEOUT_CONNECT,
+    LLM_HTTP_TIMEOUT_READ,
+    LLM_HTTP_TIMEOUT_TOTAL,
+    OPENROUTER_BASE_URL,
+)
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_compatible.input import convert_tool_schema
@@ -59,7 +67,9 @@ def build_payload(
         extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
 
     if is_claude_model(param.model):
-        extra_headers["x-anthropic-beta"] = "fine-grained-tool-streaming-2025-05-14,interleaved-thinking-2025-05-14"
+        extra_headers["x-anthropic-beta"] = (
+            f"{ANTHROPIC_BETA_FINE_GRAINED_TOOL_STREAMING},{ANTHROPIC_BETA_INTERLEAVED_THINKING}"
+        )
 
     payload: CompletionCreateParamsStreaming = {
         "model": str(param.model),
@@ -82,8 +92,8 @@ class OpenRouterClient(LLMClientABC):
         super().__init__(config)
         client = openai.AsyncOpenAI(
             api_key=config.api_key,
-            base_url="https://openrouter.ai/api/v1",
-            timeout=httpx.Timeout(300.0, connect=15.0, read=285.0),
+            base_url=OPENROUTER_BASE_URL,
+            timeout=httpx.Timeout(LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ),
         )
         self.client: openai.AsyncOpenAI = client
 

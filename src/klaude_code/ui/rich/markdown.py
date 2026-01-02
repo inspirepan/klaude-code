@@ -201,6 +201,20 @@ class MarkdownStream:
 
         last = top_level[-1]
         assert last.map is not None
+
+        # When the buffer ends mid-line, markdown-it-py can temporarily classify
+        # some lines as a thematic break (hr). For example, a trailing "- --"
+        # parses as an hr, but appending a non-hr character ("- --0") turns it
+        # into a list item, which should belong to the previous list block.
+        #
+        # Because stable_line is clamped to be monotonic, advancing to the hr's
+        # start line would be irreversible and can split a list across
+        # stable/live, producing a render mismatch.
+        if last.type == "hr" and not text.endswith("\n"):
+            prev = top_level[-2]
+            assert prev.map is not None
+            return max(prev.map[0], 0)
+
         start_line = last.map[0]
         return max(start_line, 0)
 

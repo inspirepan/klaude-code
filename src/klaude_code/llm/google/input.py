@@ -4,36 +4,23 @@
 # pyright: reportAttributeAccessIssue=false
 
 import json
-from base64 import b64decode
-from binascii import Error as BinasciiError
 from typing import Any
 
 from google.genai import types
 
-from klaude_code.llm.input_common import DeveloperAttachment, attach_developer_messages, merge_reminder_text
+from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
+from klaude_code.llm.image import parse_data_url
+from klaude_code.llm.input_common import (
+    DeveloperAttachment,
+    attach_developer_messages,
+    merge_reminder_text,
+    split_thinking_parts,
+)
 from klaude_code.protocol import llm_param, message
 
 
 def _data_url_to_blob(url: str) -> types.Blob:
-    header_and_media = url.split(",", 1)
-    if len(header_and_media) != 2:
-        raise ValueError("Invalid data URL for image: missing comma separator")
-    header, base64_data = header_and_media
-    if not header.startswith("data:"):
-        raise ValueError("Invalid data URL for image: missing data: prefix")
-    if ";base64" not in header:
-        raise ValueError("Invalid data URL for image: missing base64 marker")
-
-    media_type = header[5:].split(";", 1)[0]
-    base64_payload = base64_data.strip()
-    if base64_payload == "":
-        raise ValueError("Inline image data is empty")
-
-    try:
-        decoded = b64decode(base64_payload, validate=True)
-    except (BinasciiError, ValueError) as exc:
-        raise ValueError("Inline image data is not valid base64") from exc
-
+    media_type, _, decoded = parse_data_url(url)
     return types.Blob(data=decoded, mime_type=media_type)
 
 
@@ -71,7 +58,7 @@ def _tool_messages_to_contents(
 
     for msg, attachment in msgs:
         merged_text = merge_reminder_text(
-            msg.output_text or "<system-reminder>Tool ran without output or errors</system-reminder>",
+            msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
             attachment.text,
         )
         has_text = merged_text.strip() != ""
@@ -110,8 +97,8 @@ def _tool_messages_to_contents(
 
 def _assistant_message_to_content(msg: message.AssistantMessage, model_name: str | None) -> types.Content | None:
     parts: list[types.Part] = []
-
-    degraded_thinking_texts: list[str] = []
+    native_thinking_parts, degraded_thinking_texts = split_thinking_parts(msg, model_name)
+    native_thinking_ids = {id(part) for part in native_thinking_parts}
     pending_thought_text: str | None = None
     pending_thought_signature: str | None = None
 
@@ -131,13 +118,12 @@ def _assistant_message_to_content(msg: message.AssistantMessage, model_name: str
 
     for part in msg.parts:
         if isinstance(part, message.ThinkingTextPart):
-            if part.model_id and model_name and part.model_id != model_name:
-                degraded_thinking_texts.append(part.text)
+            if id(part) not in native_thinking_ids:
                 continue
             pending_thought_text = part.text
             continue
         if isinstance(part, message.ThinkingSignaturePart):
-            if part.model_id and model_name and part.model_id != model_name:
+            if id(part) not in native_thinking_ids:
                 continue
             if part.signature and (part.format or "").startswith("google"):
                 pending_thought_signature = part.signature

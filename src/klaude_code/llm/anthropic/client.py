@@ -20,19 +20,22 @@ from anthropic.types.beta.beta_tool_use_block import BetaToolUseBlock
 from anthropic.types.beta.message_create_params import MessageCreateParamsStreaming
 
 from klaude_code.const import (
+    ANTHROPIC_BETA_INTERLEAVED_THINKING,
+    CLAUDE_CODE_IDENTITY,
     DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
+    LLM_HTTP_TIMEOUT_CONNECT,
+    LLM_HTTP_TIMEOUT_READ,
+    LLM_HTTP_TIMEOUT_TOTAL,
 )
 from klaude_code.llm.anthropic.input import convert_history_to_input, convert_system_to_input, convert_tool_schema
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
-from klaude_code.llm.usage import MetadataTracker
+from klaude_code.llm.usage import MetadataTracker, error_stream_items
 from klaude_code.protocol import llm_param, message, model
 from klaude_code.trace import DebugType, log_debug
-
-_IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."
 
 
 def _map_anthropic_stop_reason(reason: str) -> model.StopReason | None:
@@ -69,12 +72,12 @@ def build_payload(
     # Add identity block at the beginning of the system prompt
     identity_block: BetaTextBlockParam = {
         "type": "text",
-        "text": _IDENTITY,
+        "text": CLAUDE_CODE_IDENTITY,
         "cache_control": {"type": "ephemeral"},
     }
     system = [identity_block, *system]
 
-    betas = ["interleaved-thinking-2025-05-14"]
+    betas = [ANTHROPIC_BETA_INTERLEAVED_THINKING]
     if extra_betas:
         # Prepend extra betas, avoiding duplicates
         betas = [b for b in extra_betas if b not in betas] + betas
@@ -248,7 +251,9 @@ class AnthropicClient(LLMClientABC):
             client = anthropic.AsyncAnthropic(
                 api_key=config.api_key,
                 base_url=config.base_url,
-                timeout=httpx.Timeout(300.0, connect=15.0, read=285.0),
+                timeout=httpx.Timeout(
+                    LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ
+                ),
             )
         finally:
             if saved_auth_token is not None:
@@ -283,4 +288,6 @@ class AnthropicClient(LLMClientABC):
             async for item in parse_anthropic_stream(stream, param, metadata_tracker):
                 yield item
         except (APIError, httpx.HTTPError) as e:
-            yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+            error_message = f"{e.__class__.__name__} {e!s}"
+            for item in error_stream_items(metadata_tracker, error=error_message):
+                yield item

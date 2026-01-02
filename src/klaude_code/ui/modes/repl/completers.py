@@ -460,7 +460,7 @@ class _AtFilesCompleter(Completer):
         # 4. Basename hit first, then path hit position, then length
         # Since both fd and rg now search from current directory, all paths are relative to cwd
         kn = keyword_norm
-        out: list[tuple[str, tuple[int, int, int, int, int, int, int]]] = []
+        out: list[tuple[str, tuple[int, int, int, int, int, int, int, int]]] = []
         for p in paths_from_root:
             pl = p.lower()
             if kn not in pl:

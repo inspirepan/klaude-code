@@ -1,12 +1,13 @@
 """Common utilities for converting message history to LLM input formats."""
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from klaude_code.protocol.llm_param import LLMCallParameter, LLMConfigParameter
 
+from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
 from klaude_code.protocol import message
 
 
@@ -70,6 +71,96 @@ def merge_reminder_text(tool_output: str | None, reminder_text: str) -> str:
     if reminder_text:
         base += "\n" + reminder_text
     return base
+
+
+def collect_text_content(parts: list[message.Part]) -> str:
+    return "".join(part.text for part in parts if isinstance(part, message.TextPart))
+
+
+def build_chat_content_parts(
+    msg: message.UserMessage,
+    attachment: DeveloperAttachment,
+) -> list[dict[str, object]]:
+    parts: list[dict[str, object]] = []
+    for part in msg.parts:
+        if isinstance(part, message.TextPart):
+            parts.append({"type": "text", "text": part.text})
+        elif isinstance(part, message.ImageURLPart):
+            parts.append({"type": "image_url", "image_url": {"url": part.url}})
+    if attachment.text:
+        parts.append({"type": "text", "text": attachment.text})
+    for image in attachment.images:
+        parts.append({"type": "image_url", "image_url": {"url": image.url}})
+    if not parts:
+        parts.append({"type": "text", "text": ""})
+    return parts
+
+
+def build_tool_message(
+    msg: message.ToolResultMessage,
+    attachment: DeveloperAttachment,
+) -> dict[str, object]:
+    merged_text = merge_reminder_text(
+        msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
+        attachment.text,
+    )
+    return {
+        "role": "tool",
+        "content": [{"type": "text", "text": merged_text}],
+        "tool_call_id": msg.call_id,
+    }
+
+
+def build_assistant_common_fields(
+    msg: message.AssistantMessage,
+    *,
+    image_to_data_url: Callable[[message.ImageFilePart], str],
+) -> dict[str, object]:
+    result: dict[str, object] = {}
+    images = [part for part in msg.parts if isinstance(part, message.ImageFilePart)]
+    if images:
+        result["images"] = [
+            {
+                "image_url": {
+                    "url": image_to_data_url(image),
+                }
+            }
+            for image in images
+        ]
+
+    tool_calls = [part for part in msg.parts if isinstance(part, message.ToolCallPart)]
+    if tool_calls:
+        result["tool_calls"] = [
+            {
+                "id": tc.call_id,
+                "type": "function",
+                "function": {
+                    "name": tc.tool_name,
+                    "arguments": tc.arguments_json,
+                },
+            }
+            for tc in tool_calls
+        ]
+    return result
+
+
+def split_thinking_parts(
+    msg: message.AssistantMessage,
+    model_name: str | None,
+) -> tuple[list[message.ThinkingTextPart | message.ThinkingSignaturePart], list[str]]:
+    native_parts: list[message.ThinkingTextPart | message.ThinkingSignaturePart] = []
+    degraded_texts: list[str] = []
+    for part in msg.parts:
+        if isinstance(part, message.ThinkingTextPart):
+            if part.model_id and model_name and part.model_id != model_name:
+                degraded_texts.append(part.text)
+                continue
+            native_parts.append(part)
+        elif isinstance(part, message.ThinkingSignaturePart):
+            if part.model_id and model_name and part.model_id != model_name:
+                continue
+            native_parts.append(part)
+    return native_parts, degraded_texts
 
 
 def apply_config_defaults(param: "LLMCallParameter", config: "LLMConfigParameter") -> "LLMCallParameter":

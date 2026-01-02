@@ -12,31 +12,34 @@ _T = TypeVar("_T", bound=type["LLMClientABC"])
 # Track which protocols have been loaded
 _loaded_protocols: set[llm_param.LLMClientProtocol] = set()
 _REGISTRY: dict[llm_param.LLMClientProtocol, type["LLMClientABC"]] = {}
+_PROTOCOL_MODULES: dict[llm_param.LLMClientProtocol, str] = {
+    llm_param.LLMClientProtocol.ANTHROPIC: "klaude_code.llm.anthropic",
+    llm_param.LLMClientProtocol.CLAUDE_OAUTH: "klaude_code.llm.claude",
+    llm_param.LLMClientProtocol.BEDROCK: "klaude_code.llm.bedrock",
+    llm_param.LLMClientProtocol.CODEX_OAUTH: "klaude_code.llm.codex",
+    llm_param.LLMClientProtocol.OPENAI: "klaude_code.llm.openai_compatible",
+    llm_param.LLMClientProtocol.OPENROUTER: "klaude_code.llm.openrouter",
+    llm_param.LLMClientProtocol.RESPONSES: "klaude_code.llm.responses",
+    llm_param.LLMClientProtocol.GOOGLE: "klaude_code.llm.google",
+}
 
 
 def _load_protocol(protocol: llm_param.LLMClientProtocol) -> None:
     """Load the module for a specific protocol on demand."""
     if protocol in _loaded_protocols:
         return
-    _loaded_protocols.add(protocol)
+    module_path = _PROTOCOL_MODULES.get(protocol)
+    if module_path is None:
+        raise ValueError(f"Unknown LLMClient protocol: {protocol}")
 
     # Import only the needed module to trigger @register decorator
-    if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
-        importlib.import_module("klaude_code.llm.anthropic")
-    elif protocol == llm_param.LLMClientProtocol.CLAUDE_OAUTH:
-        importlib.import_module("klaude_code.llm.claude")
-    elif protocol == llm_param.LLMClientProtocol.BEDROCK:
-        importlib.import_module("klaude_code.llm.bedrock")
-    elif protocol == llm_param.LLMClientProtocol.CODEX_OAUTH:
-        importlib.import_module("klaude_code.llm.codex")
-    elif protocol == llm_param.LLMClientProtocol.OPENAI:
-        importlib.import_module("klaude_code.llm.openai_compatible")
-    elif protocol == llm_param.LLMClientProtocol.OPENROUTER:
-        importlib.import_module("klaude_code.llm.openrouter")
-    elif protocol == llm_param.LLMClientProtocol.RESPONSES:
-        importlib.import_module("klaude_code.llm.responses")
-    elif protocol == llm_param.LLMClientProtocol.GOOGLE:
-        importlib.import_module("klaude_code.llm.google")
+    importlib.import_module(module_path)
+    _loaded_protocols.add(protocol)
+
+
+def load_protocol(protocol: llm_param.LLMClientProtocol) -> None:
+    """Load the module for a specific protocol on demand."""
+    _load_protocol(protocol)
 
 
 def register(name: llm_param.LLMClientProtocol) -> Callable[[_T], _T]:

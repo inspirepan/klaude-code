@@ -6,7 +6,13 @@ from typing import Any
 
 from openai.types import responses
 
-from klaude_code.llm.input_common import DeveloperAttachment, attach_developer_messages, merge_reminder_text
+from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
+from klaude_code.llm.input_common import (
+    DeveloperAttachment,
+    attach_developer_messages,
+    merge_reminder_text,
+    split_thinking_parts,
+)
 from klaude_code.protocol import llm_param, message
 
 
@@ -35,7 +41,7 @@ def _build_tool_result_item(
 ) -> responses.ResponseInputItemParam:
     content_parts: list[responses.ResponseInputContentParam] = []
     text_output = merge_reminder_text(
-        tool.output_text or "<system-reminder>Tool ran without output or errors</system-reminder>",
+        tool.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
         attachment.text,
     )
     if text_output:
@@ -93,6 +99,9 @@ def convert_history_to_input(
                 assistant_text_parts: list[responses.ResponseInputContentParam] = []
                 pending_thinking_text: str | None = None
                 pending_signature: str | None = None
+                native_thinking_parts, degraded_for_message = split_thinking_parts(msg, model_name)
+                native_thinking_ids = {id(part) for part in native_thinking_parts}
+                degraded_thinking_texts.extend(degraded_for_message)
 
                 def flush_text(*, _message_id: str = msg.id) -> None:
                     nonlocal assistant_text_parts
@@ -118,14 +127,13 @@ def convert_history_to_input(
 
                 for part in msg.parts:
                     if isinstance(part, message.ThinkingTextPart):
-                        if part.model_id and model_name and part.model_id != model_name:
-                            degraded_thinking_texts.append(part.text)
+                        if id(part) not in native_thinking_ids:
                             continue
                         emit_reasoning()
                         pending_thinking_text = part.text
                         continue
                     if isinstance(part, message.ThinkingSignaturePart):
-                        if part.model_id and model_name and part.model_id != model_name:
+                        if id(part) not in native_thinking_ids:
                             continue
                         pending_signature = part.signature
                         continue

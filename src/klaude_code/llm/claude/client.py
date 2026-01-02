@@ -9,17 +9,25 @@ from anthropic import APIError
 from klaude_code.auth.claude.exceptions import ClaudeNotLoggedInError
 from klaude_code.auth.claude.oauth import ClaudeOAuth
 from klaude_code.auth.claude.token_manager import ClaudeTokenManager
+from klaude_code.const import (
+    ANTHROPIC_BETA_FINE_GRAINED_TOOL_STREAMING,
+    ANTHROPIC_BETA_INTERLEAVED_THINKING,
+    ANTHROPIC_BETA_OAUTH,
+    LLM_HTTP_TIMEOUT_CONNECT,
+    LLM_HTTP_TIMEOUT_READ,
+    LLM_HTTP_TIMEOUT_TOTAL,
+)
 from klaude_code.llm.anthropic.client import build_payload, parse_anthropic_stream
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
-from klaude_code.llm.usage import MetadataTracker
+from klaude_code.llm.usage import MetadataTracker, error_stream_items
 from klaude_code.protocol import llm_param, message
 from klaude_code.trace import DebugType, log_debug
 
 _CLAUDE_OAUTH_REQUIRED_BETAS: tuple[str, ...] = (
-    "oauth-2025-04-20",
-    "fine-grained-tool-streaming-2025-05-14",
+    ANTHROPIC_BETA_OAUTH,
+    ANTHROPIC_BETA_FINE_GRAINED_TOOL_STREAMING,
 )
 
 
@@ -45,7 +53,7 @@ class ClaudeClient(LLMClientABC):
         token = self._oauth.ensure_valid_token()
         return anthropic.AsyncAnthropic(
             auth_token=token,
-            timeout=httpx.Timeout(300.0, connect=15.0, read=285.0),
+            timeout=httpx.Timeout(LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ),
         )
 
     def _ensure_valid_token(self) -> None:
@@ -75,7 +83,7 @@ class ClaudeClient(LLMClientABC):
 
         # Keep the interleaved-thinking beta in sync with configured thinking.
         if not (param.thinking and param.thinking.type == "enabled"):
-            payload["betas"] = [b for b in payload.get("betas", []) if b != "interleaved-thinking-2025-05-14"]
+            payload["betas"] = [b for b in payload.get("betas", []) if b != ANTHROPIC_BETA_INTERLEAVED_THINKING]
 
         log_debug(
             json.dumps(payload, ensure_ascii=False, default=str),
@@ -92,4 +100,6 @@ class ClaudeClient(LLMClientABC):
             async for item in parse_anthropic_stream(stream, param, metadata_tracker):
                 yield item
         except (APIError, httpx.HTTPError) as e:
-            yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
+            error_message = f"{e.__class__.__name__} {e!s}"
+            for item in error_stream_items(metadata_tracker, error=error_message):
+                yield item
