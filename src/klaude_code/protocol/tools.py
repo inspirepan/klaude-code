@@ -1,6 +1,5 @@
 BASH = "Bash"
 APPLY_PATCH = "apply_patch"
-MOVE = "Move"
 EDIT = "Edit"
 
 READ = "Read"

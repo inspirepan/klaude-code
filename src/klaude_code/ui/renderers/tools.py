@@ -33,7 +33,6 @@ MARK_PLAN = "◈"
 MARK_READ = "→"
 MARK_EDIT = "±"
 MARK_WRITE = "+"
-MARK_MOVE = "±"
 MARK_MERMAID = "⧉"
 MARK_WEB_FETCH = "→"
 MARK_WEB_SEARCH = "✱"
@@ -275,35 +274,6 @@ def render_write_tool_call(arguments: str) -> RenderableType:
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
     return _render_tool_call_tree(mark=MARK_WRITE, tool_name=tool_name, details=details)
-
-
-def render_move_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Move"
-
-    try:
-        payload = json.loads(arguments)
-    except json.JSONDecodeError:
-        details = Text(
-            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
-            style=ThemeKey.INVALID_TOOL_CALL_ARGS,
-        )
-        return _render_tool_call_tree(mark=MARK_MOVE, tool_name=tool_name, details=details)
-
-    source_path = payload.get("source_file_path", "")
-    target_path = payload.get("target_file_path", "")
-    start_line = payload.get("start_line", "")
-    end_line = payload.get("end_line", "")
-
-    parts = Text()
-    if source_path:
-        parts.append_text(render_path(source_path, ThemeKey.TOOL_PARAM_FILE_PATH))
-        if start_line and end_line:
-            parts.append(f":{start_line}-{end_line}", style=ThemeKey.TOOL_PARAM)
-    parts.append(" -> ", style=ThemeKey.TOOL_PARAM)
-    if target_path:
-        parts.append_text(render_path(target_path, ThemeKey.TOOL_PARAM_FILE_PATH))
-
-    return _render_tool_call_tree(mark=MARK_MOVE, tool_name=tool_name, details=parts)
 
 
 def render_apply_patch_tool_call(arguments: str) -> RenderableType:
@@ -561,7 +531,6 @@ def render_report_back_tool_call() -> RenderableType:
 _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.BASH: "Bashing",
     tools.APPLY_PATCH: "Patching",
-    tools.MOVE: "Moving",
     tools.EDIT: "Editing",
     tools.READ: "Reading",
     tools.WRITE: "Writing",
@@ -609,8 +578,6 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
             return render_edit_tool_call(e.arguments)
         case tools.WRITE:
             return render_write_tool_call(e.arguments)
-        case tools.MOVE:
-            return render_move_tool_call(e.arguments)
         case tools.BASH:
             return render_bash_tool_call(e.arguments)
         case tools.APPLY_PATCH:
@@ -691,7 +658,7 @@ def render_tool_result(
             if isinstance(item, model.MarkdownDocUIExtra):
                 rendered.append(render_markdown_doc(item, code_theme=code_theme))
             elif isinstance(item, model.DiffUIExtra):
-                show_file_name = e.tool_name in (tools.APPLY_PATCH, tools.MOVE)
+                show_file_name = e.tool_name == tools.APPLY_PATCH
                 rendered.append(r_diffs.render_structured_diff(item, show_file_name=show_file_name))
         return wrap(Group(*rendered)) if rendered else None
 
@@ -718,11 +685,6 @@ def render_tool_result(
             if md_ui:
                 return wrap(render_markdown_doc(md_ui, code_theme=code_theme))
             return wrap(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""))
-        case tools.MOVE:
-            # Same-file move returns single DiffUIExtra, cross-file returns MultiUIExtra (handled above)
-            if diff_ui:
-                return wrap(r_diffs.render_structured_diff(diff_ui, show_file_name=True))
-            return None
         case tools.APPLY_PATCH:
             if md_ui:
                 return wrap(render_markdown_doc(md_ui, code_theme=code_theme))

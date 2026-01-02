@@ -1,7 +1,6 @@
 from .file.apply_patch import DiffError, process_patch
 from .file.apply_patch_tool import ApplyPatchTool
 from .file.edit_tool import EditTool
-from .file.move_tool import MoveTool
 from .file.read_tool import ReadTool
 from .file.write_tool import WriteTool
 from .report_back_tool import ReportBackTool
@@ -36,7 +35,6 @@ __all__ = [
     "EditTool",
     "FileTracker",
     "MermaidTool",
-    "MoveTool",
     "ReadTool",
     "ReportBackTool",
     "SafetyCheckResult",
