@@ -277,7 +277,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_RESULT.value: palette.grey_green,
                 ThemeKey.TOOL_RESULT_TREE_PREFIX.value: palette.grey3 + " dim",
                 ThemeKey.TOOL_RESULT_BOLD.value: "bold " + palette.grey_green,
-                ThemeKey.TOOL_RESULT_TRUNCATED.value: palette.grey1,
+                ThemeKey.TOOL_RESULT_TRUNCATED.value: palette.grey1 + " dim",
                 ThemeKey.TOOL_MARK.value: "bold",
                 ThemeKey.TOOL_APPROVED.value: palette.green + " bold reverse",
                 ThemeKey.TOOL_REJECTED.value: palette.red + " bold reverse",

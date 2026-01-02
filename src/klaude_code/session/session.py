@@ -360,7 +360,8 @@ class Session(BaseModel):
                         images=images or None,
                     )
                 case model.TaskMetadataItem() as mt:
-                    yield events.TaskMetadataEvent(session_id=self.id, metadata=mt)
+                    if self.sub_agent_state is None:
+                        yield events.TaskMetadataEvent(session_id=self.id, metadata=mt)
                 case message.DeveloperMessage() as dm:
                     yield events.DeveloperMessageEvent(session_id=self.id, item=dm)
                 case message.StreamErrorItem() as se:

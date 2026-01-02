@@ -322,9 +322,10 @@ class REPLRenderer:
                     self._refresh_bottom_live()
 
     def display_task_metadata(self, event: events.TaskMetadataEvent) -> None:
-        with self.session_print_context(event.session_id):
-            self.print(r_metadata.render_task_metadata(event))
-            self.print()
+        if self.is_sub_agent_session(event.session_id):
+            return
+        self.print(r_metadata.render_task_metadata(event))
+        self.print()
 
     def display_task_finish(self, event: events.TaskFinishEvent) -> None:
         if self.is_sub_agent_session(event.session_id):
@@ -334,7 +335,6 @@ class REPLRenderer:
                 if session_status and session_status.sub_agent_state
                 else None
             )
-            panel_style = self.get_session_sub_agent_background(event.session_id)
             with self.session_print_context(event.session_id):
                 self.print(
                     r_sub_agent.render_sub_agent_result(
@@ -342,7 +342,7 @@ class REPLRenderer:
                         code_theme=self.themes.code_theme,
                         has_structured_output=event.has_structured_output,
                         description=description,
-                        panel_style=panel_style,
+                        style=ThemeKey.TOOL_RESULT,
                     )
                 )
 

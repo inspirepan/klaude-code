@@ -99,7 +99,7 @@ def _render_task_metadata_block(
             )
         )
     if metadata.usage is not None:
-        # Context (only for main agent)
+        # Context usage
         if show_context_and_time and metadata.usage.context_usage_percent is not None:
             context_size = format_number(metadata.usage.context_size or 0)
             # Calculate effective limit (same as Usage.context_usage_percent)
@@ -169,7 +169,7 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
 
     # Render each sub-agent metadata block
     for meta in e.metadata.sub_agent_task_metadata:
-        renderables.append(_render_task_metadata_block(meta, is_sub_agent=True, show_context_and_time=False))
+        renderables.append(_render_task_metadata_block(meta, is_sub_agent=True, show_context_and_time=True))
 
     # Add total cost line when there are sub-agents
     if e.metadata.sub_agent_task_metadata:

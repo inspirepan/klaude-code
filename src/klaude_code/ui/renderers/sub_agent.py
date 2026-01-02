@@ -1,18 +1,15 @@
 import json
 from typing import Any, cast
 
-from rich import box
 from rich.console import Group, RenderableType
 from rich.json import JSON
-from rich.panel import Panel
-from rich.style import Style
+from rich.style import Style, StyleType
 from rich.text import Text
 
 from klaude_code.const import SUB_AGENT_RESULT_MAX_LINES
 from klaude_code.protocol import events, model
 from klaude_code.protocol.sub_agent import get_sub_agent_profile_by_tool
 from klaude_code.ui.renderers.common import truncate_head
-from klaude_code.ui.rich.markdown import NoInsetMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
 
 
@@ -83,13 +80,11 @@ def render_sub_agent_result(
     result: str,
     *,
     code_theme: str,
-    style: Style | None = None,
+    style: StyleType | None = None,
     has_structured_output: bool = False,
     description: str | None = None,
-    panel_style: Style | None = None,
 ) -> RenderableType:
     stripped_result = result.strip()
-    result_panel_style = panel_style or ThemeKey.SUB_AGENT_RESULT_PANEL
 
     # Extract agentId footer for separate styling
     main_content, agent_id_footer = _extract_agent_id_footer(stripped_result)
@@ -106,15 +101,10 @@ def render_sub_agent_result(
                 JSON(stripped_result),
             ]
             if description:
-                group_elements.insert(0, NoInsetMarkdown(f"# {description}", code_theme=code_theme, style=style or ""))
+                group_elements.insert(0, Text(f"\n{description}", style=style or ""))
             if agent_id_footer:
                 group_elements.append(Text(agent_id_footer, style=ThemeKey.SUB_AGENT_FOOTER))
-            return Panel.fit(
-                Group(*group_elements),
-                box=box.SIMPLE,
-                border_style=ThemeKey.LINES,
-                style=result_panel_style,
-            )
+            return Group(*group_elements)
         except json.JSONDecodeError:
             # Fall back to markdown if not valid JSON
             pass
@@ -122,42 +112,32 @@ def render_sub_agent_result(
     if not stripped_result:
         return Text()
 
-    # Add markdown heading if description is provided for non-structured output
-    if description:
-        stripped_result = f"# {description}\n\n{stripped_result}"
-
     lines = stripped_result.splitlines()
     if len(lines) > SUB_AGENT_RESULT_MAX_LINES:
         hidden_count = len(lines) - SUB_AGENT_RESULT_MAX_LINES
-        head_count = SUB_AGENT_RESULT_MAX_LINES // 2
-        tail_count = SUB_AGENT_RESULT_MAX_LINES - head_count
-        head_text = "\n".join(lines[:head_count])
-        tail_text = "\n".join(lines[-tail_count:])
-        truncated_elements: list[RenderableType] = [
-            NoInsetMarkdown(head_text, code_theme=code_theme, style=style or ""),
+        tail_text = "\n".join(lines[-SUB_AGENT_RESULT_MAX_LINES:])
+        truncated_elements: list[RenderableType] = []
+        # Add description heading separately so it won't be truncated
+        if description:
+            truncated_elements.append(Text(f"---\n{description}", style=style or ""))
+        truncated_elements.append(
             Text(
-                f"( … more {hidden_count} lines — use /export to view full output )",
+                f"( … more {hidden_count} lines)",
                 style=ThemeKey.TOOL_RESULT_TRUNCATED,
-            ),
-            NoInsetMarkdown(tail_text, code_theme=code_theme, style=style or ""),
-        ]
+            )
+        )
+        truncated_elements.append(Text(tail_text, style=style or ""))
         if agent_id_footer:
             truncated_elements.append(Text(agent_id_footer, style=ThemeKey.SUB_AGENT_FOOTER))
-        return Panel.fit(
-            Group(*truncated_elements),
-            box=box.SIMPLE,
-            border_style=ThemeKey.LINES,
-            style=result_panel_style,
-        )
-    normal_elements: list[RenderableType] = [NoInsetMarkdown(stripped_result, code_theme=code_theme)]
+        return Group(*truncated_elements)
+
+    # No truncation needed - add description heading if provided
+    if description:
+        stripped_result = f"\n# {description}\n\n{stripped_result}"
+    normal_elements: list[RenderableType] = [Text(stripped_result)]
     if agent_id_footer:
         normal_elements.append(Text(agent_id_footer, style=ThemeKey.SUB_AGENT_FOOTER))
-    return Panel.fit(
-        Group(*normal_elements),
-        box=box.SIMPLE,
-        border_style=ThemeKey.LINES,
-        style=result_panel_style,
-    )
+    return Group(*normal_elements)
 
 
 def build_sub_agent_state_from_tool_call(e: events.ToolCallEvent) -> model.SubAgentState | None:
