@@ -9,7 +9,7 @@ from rich.panel import Panel
 from rich.style import Style
 from rich.text import Text
 
-from klaude_code import const
+from klaude_code.const import INVALID_TOOL_CALL_MAX_LENGTH
 from klaude_code.protocol import events, model, tools
 from klaude_code.protocol.sub_agent import is_sub_agent_tool as _is_sub_agent_tool
 from klaude_code.ui.renderers import diffs as r_diffs
@@ -77,7 +77,7 @@ def render_generic_tool_call(tool_name: str, arguments: str, markup: str = MARK_
             )
     except json.JSONDecodeError:
         arguments_column = Text(
-            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
     grid.add_row(tool_name_column, arguments_column)
@@ -92,7 +92,7 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
         payload_raw: Any = json.loads(arguments) if arguments else {}
     except json.JSONDecodeError:
         summary = Text(
-            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
         grid.add_row(tool_name_column, summary)
@@ -100,7 +100,7 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
 
     if not isinstance(payload_raw, dict):
         summary = Text(
-            str(payload_raw)[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            str(payload_raw)[:INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
         grid.add_row(tool_name_column, summary)
@@ -158,7 +158,7 @@ def render_update_plan_tool_call(arguments: str) -> RenderableType:
             payload = json.loads(arguments)
         except json.JSONDecodeError:
             explanation_column = Text(
-                arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+                arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
                 style=ThemeKey.INVALID_TOOL_CALL_ARGS,
             )
         else:
@@ -203,7 +203,7 @@ def render_read_tool_call(arguments: str) -> RenderableType:
     except json.JSONDecodeError:
         render_result = render_result.append_text(
             Text(
-                arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+                arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
                 style=ThemeKey.INVALID_TOOL_CALL_ARGS,
             )
         )
@@ -231,7 +231,7 @@ def render_edit_tool_call(arguments: str) -> RenderableType:
             arguments_column = path_text
     except json.JSONDecodeError:
         arguments_column = Text(
-            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
     grid.add_row(tool_name_column, arguments_column)
@@ -252,7 +252,7 @@ def render_write_tool_call(arguments: str) -> RenderableType:
     except json.JSONDecodeError:
         tool_name_column = Text.assemble((MARK_WRITE, ThemeKey.TOOL_MARK), " ", ("Write", ThemeKey.TOOL_NAME))
         arguments_column = Text(
-            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
     grid.add_row(tool_name_column, arguments_column)
@@ -267,7 +267,7 @@ def render_move_tool_call(arguments: str) -> RenderableType:
         payload = json.loads(arguments)
     except json.JSONDecodeError:
         arguments_column = Text(
-            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
         grid.add_row(tool_name_column, arguments_column)
@@ -300,7 +300,7 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
         payload = json.loads(arguments)
     except json.JSONDecodeError:
         arguments_column = Text(
-            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
         grid.add_row(tool_name_column, arguments_column)
@@ -333,7 +333,7 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
             arguments_column = Text(", ".join(parts), ThemeKey.TOOL_PARAM)
     else:
         arguments_column = Text(
-            str(patch_content)[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            str(patch_content)[:INVALID_TOOL_CALL_MAX_LENGTH],
             ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
 
@@ -390,7 +390,7 @@ def render_mermaid_tool_call(arguments: str) -> RenderableType:
         payload: dict[str, str] = json.loads(arguments)
     except json.JSONDecodeError:
         summary = Text(
-            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
     else:
@@ -459,7 +459,7 @@ def render_web_fetch_tool_call(arguments: str) -> RenderableType:
         payload: dict[str, str] = json.loads(arguments)
     except json.JSONDecodeError:
         summary = Text(
-            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
         grid.add_row(tool_name_column, summary)
@@ -480,7 +480,7 @@ def render_web_search_tool_call(arguments: str) -> RenderableType:
         payload: dict[str, Any] = json.loads(arguments)
     except json.JSONDecodeError:
         summary = Text(
-            arguments.strip()[: const.INVALID_TOOL_CALL_MAX_LENGTH],
+            arguments.strip()[:INVALID_TOOL_CALL_MAX_LENGTH],
             style=ThemeKey.INVALID_TOOL_CALL_ARGS,
         )
         grid.add_row(tool_name_column, summary)

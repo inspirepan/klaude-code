@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from rich.rule import Rule
 from rich.text import Text
 
-from klaude_code import const
+from klaude_code.const import MARKDOWN_LEFT_MARGIN, MARKDOWN_STREAM_LIVE_REPAINT_ENABLED, STATUS_DEFAULT_TEXT
 from klaude_code.protocol import events
 from klaude_code.ui.core.stage_manager import Stage, StageManager
 from klaude_code.ui.modes.repl.renderer import REPLRenderer
@@ -260,7 +260,7 @@ class SpinnerStatusState:
             activity_text.append(" …")
             result = activity_text
         else:
-            result = Text(const.STATUS_DEFAULT_TEXT, style=ThemeKey.STATUS_TEXT)
+            result = Text(STATUS_DEFAULT_TEXT, style=ThemeKey.STATUS_TEXT)
 
         return result
 
@@ -398,10 +398,10 @@ class DisplayEventHandler:
                 },
                 theme=self.renderer.themes.thinking_markdown_theme,
                 console=self.renderer.console,
-                live_sink=self.renderer.set_stream_renderable if const.MARKDOWN_STREAM_LIVE_REPAINT_ENABLED else None,
+                live_sink=self.renderer.set_stream_renderable if MARKDOWN_STREAM_LIVE_REPAINT_ENABLED else None,
                 mark=THINKING_MESSAGE_MARK,
                 mark_style=ThemeKey.THINKING,
-                left_margin=const.MARKDOWN_LEFT_MARGIN,
+                left_margin=MARKDOWN_LEFT_MARGIN,
                 markdown_class=ThinkingMarkdown,
             )
             self.thinking_stream.start(mdstream)
@@ -437,9 +437,9 @@ class DisplayEventHandler:
                 mdargs={"code_theme": self.renderer.themes.code_theme},
                 theme=self.renderer.themes.markdown_theme,
                 console=self.renderer.console,
-                live_sink=self.renderer.set_stream_renderable if const.MARKDOWN_STREAM_LIVE_REPAINT_ENABLED else None,
+                live_sink=self.renderer.set_stream_renderable if MARKDOWN_STREAM_LIVE_REPAINT_ENABLED else None,
                 mark=ASSISTANT_MESSAGE_MARK,
-                left_margin=const.MARKDOWN_LEFT_MARGIN,
+                left_margin=MARKDOWN_LEFT_MARGIN,
             )
             self.assistant_stream.start(mdstream)
         self.assistant_stream.append(event.content)

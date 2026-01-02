@@ -7,7 +7,12 @@ from pathlib import Path
 from typing import Protocol
 from urllib.parse import urlparse
 
-from klaude_code import const
+from klaude_code.const import (
+    TOOL_OUTPUT_DISPLAY_HEAD,
+    TOOL_OUTPUT_DISPLAY_TAIL,
+    TOOL_OUTPUT_MAX_LENGTH,
+    TOOL_OUTPUT_TRUNCATION_DIR,
+)
 from klaude_code.protocol import tools
 
 
@@ -67,7 +72,7 @@ class TruncationStrategy(ABC):
 class SimpleTruncationStrategy(TruncationStrategy):
     """Simple character-based truncation strategy."""
 
-    def __init__(self, max_length: int = const.TOOL_OUTPUT_MAX_LENGTH):
+    def __init__(self, max_length: int = TOOL_OUTPUT_MAX_LENGTH):
         self.max_length = max_length
 
     def truncate(self, output: str, tool_call: ToolCallLike | None = None) -> TruncationResult:
@@ -88,10 +93,10 @@ class SmartTruncationStrategy(TruncationStrategy):
 
     def __init__(
         self,
-        max_length: int = const.TOOL_OUTPUT_MAX_LENGTH,
-        head_chars: int = const.TOOL_OUTPUT_DISPLAY_HEAD,
-        tail_chars: int = const.TOOL_OUTPUT_DISPLAY_TAIL,
-        truncation_dir: str = const.TOOL_OUTPUT_TRUNCATION_DIR,
+        max_length: int = TOOL_OUTPUT_MAX_LENGTH,
+        head_chars: int = TOOL_OUTPUT_DISPLAY_HEAD,
+        tail_chars: int = TOOL_OUTPUT_DISPLAY_TAIL,
+        truncation_dir: str = TOOL_OUTPUT_TRUNCATION_DIR,
     ):
         self.max_length = max_length
         self.head_chars = head_chars

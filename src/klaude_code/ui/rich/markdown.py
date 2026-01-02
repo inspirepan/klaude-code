@@ -18,7 +18,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
-from klaude_code import const
+from klaude_code.const import MARKDOWN_RIGHT_MARGIN, MARKDOWN_STREAM_LIVE_REPAINT_ENABLED, UI_REFRESH_RATE_FPS
 from klaude_code.ui.rich.code_panel import CodePanel
 
 
@@ -135,7 +135,7 @@ class MarkdownStream:
         mark: str | None = None,
         mark_style: StyleType | None = None,
         left_margin: int = 0,
-        right_margin: int = const.MARKDOWN_RIGHT_MARGIN,
+        right_margin: int = MARKDOWN_RIGHT_MARGIN,
         markdown_class: Callable[..., Markdown] | None = None,
     ) -> None:
         """Initialize the markdown stream.
@@ -162,7 +162,7 @@ class MarkdownStream:
 
         # Streaming control
         self.when: float = 0.0  # Timestamp of last update
-        self.min_delay: float = 1.0 / const.UI_REFRESH_RATE_FPS
+        self.min_delay: float = 1.0 / UI_REFRESH_RATE_FPS
         self._parser: MarkdownIt = MarkdownIt("commonmark")
 
         self.theme = theme
@@ -414,7 +414,7 @@ class MarkdownStream:
                 self._live_sink(None)
             return
 
-        if const.MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._live_sink is not None:
+        if MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._live_sink is not None:
             apply_mark_live = self._stable_source_line_count == 0
             live_lines = self._render_markdown_to_lines(live_source, apply_mark=apply_mark_live)
 

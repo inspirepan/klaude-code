@@ -2,7 +2,7 @@ from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 
-from klaude_code import const
+from klaude_code.const import TRUNCATE_DISPLAY_MAX_LINE_LENGTH, TRUNCATE_DISPLAY_MAX_LINES
 from klaude_code.ui.rich.theme import ThemeKey
 
 
@@ -15,8 +15,8 @@ def create_grid() -> Table:
 
 def truncate_display(
     text: str,
-    max_lines: int = const.TRUNCATE_DISPLAY_MAX_LINES,
-    max_line_length: int = const.TRUNCATE_DISPLAY_MAX_LINE_LENGTH,
+    max_lines: int = TRUNCATE_DISPLAY_MAX_LINES,
+    max_line_length: int = TRUNCATE_DISPLAY_MAX_LINE_LENGTH,
     *,
     base_style: str | Style | None = None,
 ) -> Text:

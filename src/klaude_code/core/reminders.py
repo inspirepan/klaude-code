@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from klaude_code import const
+from klaude_code.const import TODO_REMINDER_TOOL_CALL_THRESHOLD
 from klaude_code.core.tool import BashTool, ReadTool, reset_tool_context, set_tool_context_from_session
 from klaude_code.core.tool.file._utils import hash_text_sha256
 from klaude_code.protocol import message, model, tools
@@ -277,12 +277,12 @@ async def todo_not_used_recently_reminder(
                 other_tool_call_count_before_last_todo = 0
                 break
             other_tool_call_count_before_last_todo += 1
-            if other_tool_call_count_before_last_todo >= const.TODO_REMINDER_TOOL_CALL_THRESHOLD:
+            if other_tool_call_count_before_last_todo >= TODO_REMINDER_TOOL_CALL_THRESHOLD:
                 break
         if other_tool_call_count_before_last_todo == 0:
             break
 
-    not_used_recently = other_tool_call_count_before_last_todo >= const.TODO_REMINDER_TOOL_CALL_THRESHOLD
+    not_used_recently = other_tool_call_count_before_last_todo >= TODO_REMINDER_TOOL_CALL_THRESHOLD
 
     if not not_used_recently:
         return None

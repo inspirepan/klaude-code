@@ -4,7 +4,7 @@ from rich.console import RenderableType
 from rich.padding import Padding
 from rich.text import Text
 
-from klaude_code import const
+from klaude_code.const import MARKDOWN_RIGHT_MARGIN
 from klaude_code.ui.renderers.common import create_grid
 from klaude_code.ui.rich.markdown import ThinkingMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
@@ -55,7 +55,7 @@ def render_thinking(content: str, *, code_theme: str, style: str) -> RenderableT
                 code_theme=code_theme,
                 style=style,
             ),
-            (0, const.MARKDOWN_RIGHT_MARGIN, 0, 0),
+            (0, MARKDOWN_RIGHT_MARGIN, 0, 0),
         ),
     )
     return grid

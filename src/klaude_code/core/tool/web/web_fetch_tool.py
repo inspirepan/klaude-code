@@ -10,14 +10,14 @@ from urllib.parse import quote, urlparse, urlunparse
 
 from pydantic import BaseModel
 
-from klaude_code import const
+from klaude_code.const import TOOL_OUTPUT_TRUNCATION_DIR
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, tools
 
 DEFAULT_TIMEOUT_SEC = 30
 DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; KlaudeCode/1.0)"
-WEB_FETCH_SAVE_DIR = Path(const.TOOL_OUTPUT_TRUNCATION_DIR) / "web"
+WEB_FETCH_SAVE_DIR = Path(TOOL_OUTPUT_TRUNCATION_DIR) / "web"
 
 
 def _encode_url(url: str) -> str:

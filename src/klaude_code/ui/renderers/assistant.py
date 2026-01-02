@@ -2,7 +2,7 @@ from rich.console import RenderableType
 from rich.padding import Padding
 from rich.text import Text
 
-from klaude_code import const
+from klaude_code.const import MARKDOWN_RIGHT_MARGIN
 from klaude_code.ui.renderers.common import create_grid
 from klaude_code.ui.rich.markdown import NoInsetMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
@@ -23,6 +23,6 @@ def render_assistant_message(content: str, *, code_theme: str) -> RenderableType
     grid = create_grid()
     grid.add_row(
         Text(ASSISTANT_MESSAGE_MARK, style=ThemeKey.ASSISTANT_MESSAGE_MARK),
-        Padding(NoInsetMarkdown(stripped, code_theme=code_theme), (0, const.MARKDOWN_RIGHT_MARGIN, 0, 0)),
+        Padding(NoInsetMarkdown(stripped, code_theme=code_theme), (0, MARKDOWN_RIGHT_MARGIN, 0, 0)),
     )
     return grid

@@ -10,7 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from klaude_code import const
+from klaude_code.const import BASH_DEFAULT_TIMEOUT_MS
 from klaude_code.core.tool.shell.command_safety import is_safe_command
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_context import get_current_file_tracker
@@ -58,8 +58,8 @@ class BashTool(ToolABC):
                     },
                     "timeout_ms": {
                         "type": "integer",
-                        "description": f"The timeout for the command in milliseconds, default is {const.BASH_DEFAULT_TIMEOUT_MS}",
-                        "default": const.BASH_DEFAULT_TIMEOUT_MS,
+                        "description": f"The timeout for the command in milliseconds, default is {BASH_DEFAULT_TIMEOUT_MS}",
+                        "default": BASH_DEFAULT_TIMEOUT_MS,
                     },
                 },
                 "required": ["command"],
@@ -68,7 +68,7 @@ class BashTool(ToolABC):
 
     class BashArguments(BaseModel):
         command: str
-        timeout_ms: int = const.BASH_DEFAULT_TIMEOUT_MS
+        timeout_ms: int = BASH_DEFAULT_TIMEOUT_MS
 
     @classmethod
     async def call(cls, arguments: str) -> message.ToolResultMessage:

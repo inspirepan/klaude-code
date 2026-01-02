@@ -16,7 +16,13 @@ from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 
-from klaude_code import const
+from klaude_code.const import (
+    SPINNER_BREATH_PERIOD_SECONDS,
+    STATUS_HINT_TEXT,
+    STATUS_SHIMMER_ALPHA_SCALE,
+    STATUS_SHIMMER_BAND_HALF_WIDTH,
+    STATUS_SHIMMER_PADDING,
+)
 from klaude_code.ui.rich.theme import ThemeKey
 from klaude_code.ui.terminal.color import get_last_terminal_background_rgb
 
@@ -91,7 +97,7 @@ def current_hint_text(*, min_time_width: int = 0) -> str:
 
     # Keep the signature stable; min_time_width is intentionally ignored.
     _ = min_time_width
-    return const.STATUS_HINT_TEXT
+    return STATUS_HINT_TEXT
 
 
 def current_elapsed_text(*, min_time_width: int = 0) -> str | None:
@@ -152,18 +158,18 @@ def _shimmer_profile(main_text: str) -> list[tuple[str, float]]:
     if not chars:
         return []
 
-    padding = const.STATUS_SHIMMER_PADDING
+    padding = STATUS_SHIMMER_PADDING
     char_count = len(chars)
     period = char_count + padding * 2
 
     # Use same period as breathing spinner for visual consistency
-    sweep_seconds = max(const.SPINNER_BREATH_PERIOD_SECONDS, 0.1)
+    sweep_seconds = max(SPINNER_BREATH_PERIOD_SECONDS, 0.1)
 
     elapsed = _elapsed_since_start()
     # Complete one full sweep in sweep_seconds, regardless of text length
     pos_f = (elapsed / sweep_seconds % 1.0) * period
     pos = int(pos_f)
-    band_half_width = const.STATUS_SHIMMER_BAND_HALF_WIDTH
+    band_half_width = STATUS_SHIMMER_BAND_HALF_WIDTH
 
     profile: list[tuple[str, float]] = []
     for index, ch in enumerate(chars):
@@ -189,7 +195,7 @@ def _shimmer_style(console: Console, base_style: Style, intensity: float) -> Sty
     if intensity <= 0.0:
         return base_style
 
-    alpha = max(0.0, min(1.0, intensity * const.STATUS_SHIMMER_ALPHA_SCALE))
+    alpha = max(0.0, min(1.0, intensity * STATUS_SHIMMER_ALPHA_SCALE))
 
     base_color = base_style.color or Color.default()
     base_triplet = base_color.get_truecolor()
@@ -213,7 +219,7 @@ def _breathing_intensity() -> float:
     then returning to 0, giving a subtle "breathing" effect.
     """
 
-    period = max(const.SPINNER_BREATH_PERIOD_SECONDS, 0.1)
+    period = max(SPINNER_BREATH_PERIOD_SECONDS, 0.1)
     elapsed = _elapsed_since_start()
     phase = (elapsed % period) / period
     return 0.5 * (1.0 - math.cos(2.0 * math.pi * phase))
@@ -224,7 +230,7 @@ def _breathing_glyph() -> str:
 
     Alternates between glyphs at each breath cycle (when intensity reaches 0).
     """
-    period = max(const.SPINNER_BREATH_PERIOD_SECONDS, 0.1)
+    period = max(SPINNER_BREATH_PERIOD_SECONDS, 0.1)
     elapsed = _elapsed_since_start()
     cycle = int(elapsed / period)
     return BREATHING_SPINNER_GLYPHS[cycle % len(BREATHING_SPINNER_GLYPHS)]

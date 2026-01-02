@@ -4,7 +4,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from klaude_code import const
+from klaude_code.const import DEFAULT_MAX_TOKENS
 from klaude_code.protocol.commands import CommandName
 from klaude_code.protocol.tools import SubAgentType
 
@@ -62,7 +62,7 @@ class Usage(BaseModel):
             return None
         if self.context_size is None:
             return None
-        effective_limit = self.context_limit - (self.max_tokens or const.DEFAULT_MAX_TOKENS)
+        effective_limit = self.context_limit - (self.max_tokens or DEFAULT_MAX_TOKENS)
         if effective_limit <= 0:
             return None
         return (self.context_size / effective_limit) * 100

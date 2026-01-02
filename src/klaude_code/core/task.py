@@ -6,7 +6,7 @@ from collections.abc import AsyncGenerator, Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from klaude_code import const
+from klaude_code.const import INITIAL_RETRY_DELAY_S, MAX_FAILED_TURN_RETRIES, MAX_RETRY_DELAY_S
 from klaude_code.core.reminders import Reminder
 from klaude_code.core.tool import FileTracker, TodoContext, ToolABC
 from klaude_code.core.turn import TurnError, TurnExecutionContext, TurnExecutor
@@ -184,7 +184,7 @@ class TaskExecutor:
             turn_succeeded = False
             last_error_message: str | None = None
 
-            for attempt in range(const.MAX_FAILED_TURN_RETRIES + 1):
+            for attempt in range(MAX_FAILED_TURN_RETRIES + 1):
                 turn = TurnExecutor(turn_context)
                 self._current_turn = turn
 
@@ -214,9 +214,9 @@ class TaskExecutor:
                     break
                 except TurnError as e:
                     last_error_message = str(e)
-                    if attempt < const.MAX_FAILED_TURN_RETRIES:
+                    if attempt < MAX_FAILED_TURN_RETRIES:
                         delay = _retry_delay_seconds(attempt + 1)
-                        error_msg = f"Retrying {attempt + 1}/{const.MAX_FAILED_TURN_RETRIES} in {delay:.1f}s"
+                        error_msg = f"Retrying {attempt + 1}/{MAX_FAILED_TURN_RETRIES} in {delay:.1f}s"
                         if last_error_message:
                             error_msg = f"{error_msg} - {last_error_message}"
                         yield events.ErrorEvent(
@@ -232,7 +232,7 @@ class TaskExecutor:
                     style="red",
                     debug_type=DebugType.EXECUTION,
                 )
-                final_error = f"Turn failed after {const.MAX_FAILED_TURN_RETRIES} retries."
+                final_error = f"Turn failed after {MAX_FAILED_TURN_RETRIES} retries."
                 if last_error_message:
                     final_error = f"{last_error_message}\n{final_error}"
                 yield events.ErrorEvent(error_message=final_error, can_retry=False, session_id=session_ctx.session_id)
@@ -270,5 +270,5 @@ class TaskExecutor:
 def _retry_delay_seconds(attempt: int) -> float:
     """Compute exponential backoff delay for the given attempt count."""
     capped_attempt = max(1, attempt)
-    delay = const.INITIAL_RETRY_DELAY_S * (2 ** (capped_attempt - 1))
-    return min(delay, const.MAX_RETRY_DELAY_S)
+    delay = INITIAL_RETRY_DELAY_S * (2 ** (capped_attempt - 1))
+    return min(delay, MAX_RETRY_DELAY_S)

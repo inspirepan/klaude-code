@@ -7,14 +7,14 @@ from pathlib import Path
 
 import httpx
 
-from klaude_code import const
+from klaude_code.const import TOOL_OUTPUT_TRUNCATION_DIR
 from klaude_code.llm.image import get_assistant_image_output_dir
 
 _MERMAID_INK_PREFIX = "https://mermaid.ink/img/pako:"
 
 
 def artifacts_dir() -> Path:
-    return Path(const.TOOL_OUTPUT_TRUNCATION_DIR) / "mermaid"
+    return Path(TOOL_OUTPUT_TRUNCATION_DIR) / "mermaid"
 
 
 def _extract_pako_from_link(link: str) -> str | None:

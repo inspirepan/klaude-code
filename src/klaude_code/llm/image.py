@@ -13,7 +13,7 @@ from base64 import b64decode, b64encode
 from binascii import Error as BinasciiError
 from pathlib import Path
 
-from klaude_code import const
+from klaude_code.const import IMAGE_OUTPUT_MAX_BYTES, TOOL_OUTPUT_TRUNCATION_DIR
 from klaude_code.protocol import message
 from klaude_code.session.session import Session
 
@@ -55,7 +55,7 @@ def get_assistant_image_output_dir(session_id: str | None) -> Path:
     """Get the output directory for assistant-generated images."""
     if session_id:
         return Session.paths().images_dir(session_id)
-    return Path(const.TOOL_OUTPUT_TRUNCATION_DIR) / "images"
+    return Path(TOOL_OUTPUT_TRUNCATION_DIR) / "images"
 
 
 def save_assistant_image(
@@ -65,9 +65,9 @@ def save_assistant_image(
 
     mime_type, decoded = parse_data_url_image(data_url)
 
-    if len(decoded) > const.IMAGE_OUTPUT_MAX_BYTES:
+    if len(decoded) > IMAGE_OUTPUT_MAX_BYTES:
         decoded_mb = len(decoded) / (1024 * 1024)
-        limit_mb = const.IMAGE_OUTPUT_MAX_BYTES / (1024 * 1024)
+        limit_mb = IMAGE_OUTPUT_MAX_BYTES / (1024 * 1024)
         raise ValueError(f"Image output size ({decoded_mb:.2f}MB) exceeds limit ({limit_mb:.2f}MB)")
 
     output_dir = get_assistant_image_output_dir(session_id)
@@ -97,9 +97,9 @@ def assistant_image_to_data_url(image: message.ImageFilePart) -> str:
     file_path = Path(image.file_path)
     decoded = file_path.read_bytes()
 
-    if len(decoded) > const.IMAGE_OUTPUT_MAX_BYTES:
+    if len(decoded) > IMAGE_OUTPUT_MAX_BYTES:
         decoded_mb = len(decoded) / (1024 * 1024)
-        limit_mb = const.IMAGE_OUTPUT_MAX_BYTES / (1024 * 1024)
+        limit_mb = IMAGE_OUTPUT_MAX_BYTES / (1024 * 1024)
         raise ValueError(f"Assistant image size ({decoded_mb:.2f}MB) exceeds limit ({limit_mb:.2f}MB)")
 
     mime_type = image.mime_type

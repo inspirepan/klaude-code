@@ -12,7 +12,11 @@ from rich.spinner import Spinner
 from rich.style import Style, StyleType
 from rich.text import Text
 
-from klaude_code import const
+from klaude_code.const import (
+    MARKDOWN_STREAM_LIVE_REPAINT_ENABLED,
+    STATUS_DEFAULT_TEXT,
+    STREAM_MAX_HEIGHT_SHRINK_RESET_LINES,
+)
 from klaude_code.protocol import events, model
 from klaude_code.ui.renderers import assistant as r_assistant
 from klaude_code.ui.renderers import developer as r_developer
@@ -51,7 +55,7 @@ class REPLRenderer:
         self._stream_last_width: int = 0
         self._spinner_visible: bool = False
 
-        self._status_text: ShimmerStatusText = ShimmerStatusText(const.STATUS_DEFAULT_TEXT)
+        self._status_text: ShimmerStatusText = ShimmerStatusText(STATUS_DEFAULT_TEXT)
         self._status_spinner: Spinner = BreathingSpinner(
             r_status.spinner_name(),
             text=SingleLine(self._status_text),
@@ -326,7 +330,7 @@ class REPLRenderer:
         self._stream_last_height = height
         self._stream_last_width = self.console.size.width
 
-        if self._stream_max_height - height > const.STREAM_MAX_HEIGHT_SHRINK_RESET_LINES:
+        if self._stream_max_height - height > STREAM_MAX_HEIGHT_SHRINK_RESET_LINES:
             self._stream_max_height = height
         else:
             self._stream_max_height = max(self._stream_max_height, height)
@@ -349,7 +353,7 @@ class REPLRenderer:
         stream_part: RenderableType = Group()
         gap_part: RenderableType = Group()
 
-        if const.MARKDOWN_STREAM_LIVE_REPAINT_ENABLED:
+        if MARKDOWN_STREAM_LIVE_REPAINT_ENABLED:
             stream = self._stream_renderable
             if stream is not None:
                 current_width = self.console.size.width
@@ -358,7 +362,7 @@ class REPLRenderer:
                     self._stream_last_height = height
                     self._stream_last_width = current_width
 
-                    if self._stream_max_height - height > const.STREAM_MAX_HEIGHT_SHRINK_RESET_LINES:
+                    if self._stream_max_height - height > STREAM_MAX_HEIGHT_SHRINK_RESET_LINES:
                         self._stream_max_height = height
                     else:
                         self._stream_max_height = max(self._stream_max_height, height)

@@ -13,7 +13,12 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.text import Text
 
-from klaude_code import const
+from klaude_code.const import (
+    DEFAULT_DEBUG_LOG_DIR,
+    DEFAULT_DEBUG_LOG_FILE,
+    LOG_BACKUP_COUNT,
+    LOG_MAX_BYTES,
+)
 
 # Module-level logger
 logger = logging.getLogger("klaude_code")
@@ -123,13 +128,13 @@ def set_debug_logging(
         file_path = None
 
     if use_file and file_path is not None:
-        _prune_old_logs(const.DEFAULT_DEBUG_LOG_DIR, LOG_RETENTION_DAYS, LOG_MAX_TOTAL_BYTES)
+        _prune_old_logs(DEFAULT_DEBUG_LOG_DIR, LOG_RETENTION_DAYS, LOG_MAX_TOTAL_BYTES)
 
     if use_file and file_path is not None:
         _file_handler = GzipRotatingFileHandler(
             file_path,
-            maxBytes=const.LOG_MAX_BYTES,
-            backupCount=const.LOG_BACKUP_COUNT,
+            maxBytes=LOG_MAX_BYTES,
+            backupCount=LOG_BACKUP_COUNT,
             encoding="utf-8",
         )
         _file_handler.setLevel(logging.DEBUG)
@@ -238,7 +243,7 @@ def _build_default_log_file_path() -> Path:
     """Build a per-session log path under the default log directory."""
 
     now = datetime.now()
-    session_dir = const.DEFAULT_DEBUG_LOG_DIR / now.strftime("%Y-%m-%d")
+    session_dir = DEFAULT_DEBUG_LOG_DIR / now.strftime("%Y-%m-%d")
     session_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{now.strftime('%H%M%S')}-{os.getpid()}.log"
     return session_dir / filename
@@ -247,7 +252,7 @@ def _build_default_log_file_path() -> Path:
 def _refresh_latest_symlink(target: Path) -> None:
     """Point the debug.log symlink at the latest session file."""
 
-    latest = const.DEFAULT_DEBUG_LOG_FILE
+    latest = DEFAULT_DEBUG_LOG_FILE
     try:
         latest.unlink(missing_ok=True)
         latest.symlink_to(target)

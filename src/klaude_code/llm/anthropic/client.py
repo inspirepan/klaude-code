@@ -19,7 +19,11 @@ from anthropic.types.beta.beta_thinking_delta import BetaThinkingDelta
 from anthropic.types.beta.beta_tool_use_block import BetaToolUseBlock
 from anthropic.types.beta.message_create_params import MessageCreateParamsStreaming
 
-from klaude_code import const
+from klaude_code.const import (
+    DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_TEMPERATURE,
+)
 from klaude_code.llm.anthropic.input import convert_history_to_input, convert_system_to_input, convert_tool_schema
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.input_common import apply_config_defaults
@@ -82,8 +86,8 @@ def build_payload(
             "disable_parallel_tool_use": False,
         },
         "stream": True,
-        "max_tokens": param.max_tokens or const.DEFAULT_MAX_TOKENS,
-        "temperature": param.temperature or const.DEFAULT_TEMPERATURE,
+        "max_tokens": param.max_tokens or DEFAULT_MAX_TOKENS,
+        "temperature": param.temperature or DEFAULT_TEMPERATURE,
         "messages": messages,
         "system": system,
         "tools": tools,
@@ -93,7 +97,7 @@ def build_payload(
     if param.thinking and param.thinking.type == "enabled":
         payload["thinking"] = anthropic.types.ThinkingConfigEnabledParam(
             type="enabled",
-            budget_tokens=param.thinking.budget_tokens or const.DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
+            budget_tokens=param.thinking.budget_tokens or DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
         )
 
     return payload

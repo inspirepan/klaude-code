@@ -4,7 +4,7 @@ from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
 
-from klaude_code import const
+from klaude_code.const import DIFF_PREFIX_WIDTH, MAX_DIFF_LINES
 from klaude_code.protocol import model
 from klaude_code.ui.renderers.common import create_grid
 from klaude_code.ui.rich.theme import ThemeKey
@@ -65,7 +65,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
             elif line.strip():  # Non-empty line in untracked section
                 file_text = Text(line.strip(), style=ThemeKey.TOOL_PARAM_BOLD)
                 grid.add_row(
-                    Text(f"{'+':>{const.DIFF_PREFIX_WIDTH}}", style=ThemeKey.TOOL_PARAM_BOLD),
+                    Text(f"{'+':>{DIFF_PREFIX_WIDTH}}", style=ThemeKey.TOOL_PARAM_BOLD),
                     file_text,
                 )
                 continue
@@ -130,7 +130,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
                 file_mark = "±"
 
             grid.add_row(
-                Text(f"{file_mark:>{const.DIFF_PREFIX_WIDTH}}  ", style=ThemeKey.DIFF_FILE_NAME),
+                Text(f"{file_mark:>{DIFF_PREFIX_WIDTH}}  ", style=ThemeKey.DIFF_FILE_NAME),
                 file_line,
             )
             has_rendered_file_header = True
@@ -151,7 +151,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
             except (IndexError, ValueError):
                 new_ln = None
             if has_rendered_diff_content:
-                grid.add_row(Text(f"{'⋮':>{const.DIFF_PREFIX_WIDTH}}", style=ThemeKey.TOOL_RESULT), "")
+                grid.add_row(Text(f"{'⋮':>{DIFF_PREFIX_WIDTH}}", style=ThemeKey.TOOL_RESULT), "")
             continue
 
         # Skip +++ lines (already handled above)
@@ -164,7 +164,7 @@ def render_diff(diff_text: str, show_file_name: bool = False) -> RenderableType:
             continue
 
         # Compute line number prefix and style diff content
-        prefix, new_ln = _make_diff_prefix(line, new_ln, const.DIFF_PREFIX_WIDTH)
+        prefix, new_ln = _make_diff_prefix(line, new_ln, DIFF_PREFIX_WIDTH)
 
         if line.startswith("-"):
             text = Text(line[1:])
@@ -197,7 +197,7 @@ def render_structured_diff(ui_extra: model.DiffUIExtra, show_file_name: bool = F
             grid.add_row(*_render_file_header(file_diff))
 
         for line in file_diff.lines:
-            prefix = _make_structured_prefix(line, const.DIFF_PREFIX_WIDTH)
+            prefix = _make_structured_prefix(line, DIFF_PREFIX_WIDTH)
             text = _render_structured_line(line)
             grid.add_row(Text(prefix, ThemeKey.TOOL_RESULT), text)
 
@@ -213,9 +213,9 @@ def render_diff_panel(
 ) -> RenderableType:
     lines = diff_text.splitlines()
     truncated_notice: Text | None = None
-    if len(lines) > const.MAX_DIFF_LINES:
-        truncated_lines = len(lines) - const.MAX_DIFF_LINES
-        diff_text = "\n".join(lines[: const.MAX_DIFF_LINES])
+    if len(lines) > MAX_DIFF_LINES:
+        truncated_lines = len(lines) - MAX_DIFF_LINES
+        diff_text = "\n".join(lines[:MAX_DIFF_LINES])
         truncated_notice = Text(f"… truncated {truncated_lines} lines", style=ThemeKey.TOOL_MARK)
 
     diff_body = render_diff(diff_text, show_file_name=show_file_name)
@@ -261,7 +261,7 @@ def _render_file_header(file_diff: model.DiffFileDiff) -> tuple[Text, Text]:
     else:
         file_mark = "±"
 
-    prefix = Text(f"{file_mark:>{const.DIFF_PREFIX_WIDTH}}  ", style=ThemeKey.DIFF_FILE_NAME)
+    prefix = Text(f"{file_mark:>{DIFF_PREFIX_WIDTH}}  ", style=ThemeKey.DIFF_FILE_NAME)
     return prefix, file_line
 
 

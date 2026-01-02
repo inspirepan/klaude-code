@@ -8,7 +8,7 @@ from rich.panel import Panel
 from rich.style import Style
 from rich.text import Text
 
-from klaude_code import const
+from klaude_code.const import SUB_AGENT_RESULT_MAX_LINES
 from klaude_code.protocol import events, model
 from klaude_code.protocol.sub_agent import get_sub_agent_profile_by_tool
 from klaude_code.ui.rich.markdown import NoInsetMarkdown
@@ -103,10 +103,10 @@ def render_sub_agent_result(
         stripped_result = f"# {description}\n\n{stripped_result}"
 
     lines = stripped_result.splitlines()
-    if len(lines) > const.SUB_AGENT_RESULT_MAX_LINES:
-        hidden_count = len(lines) - const.SUB_AGENT_RESULT_MAX_LINES
-        head_count = const.SUB_AGENT_RESULT_MAX_LINES // 2
-        tail_count = const.SUB_AGENT_RESULT_MAX_LINES - head_count
+    if len(lines) > SUB_AGENT_RESULT_MAX_LINES:
+        hidden_count = len(lines) - SUB_AGENT_RESULT_MAX_LINES
+        head_count = SUB_AGENT_RESULT_MAX_LINES // 2
+        tail_count = SUB_AGENT_RESULT_MAX_LINES - head_count
         head_text = "\n".join(lines[:head_count])
         tail_text = "\n".join(lines[-tail_count:])
         return Panel.fit(
