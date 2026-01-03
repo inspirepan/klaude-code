@@ -7,13 +7,15 @@ def test_sub_agent_tool_calls_persist_across_turn_start() -> None:
     state = SpinnerStatusState()
     state.add_sub_agent_tool_call("tc_1", "Tasking")
 
-    assert state.get_activity_text() is not None
-    assert "Tasking" in state.get_activity_text().plain
+    activity = state.get_activity_text()
+    assert activity is not None
+    assert "Tasking" in activity.plain
 
     state.clear_for_new_turn()
 
-    assert state.get_activity_text() is not None
-    assert "Tasking" in state.get_activity_text().plain
+    activity = state.get_activity_text()
+    assert activity is not None
+    assert "Tasking" in activity.plain
 
     state.finish_sub_agent_tool_call("tc_1", "Tasking")
     assert state.get_activity_text() is None

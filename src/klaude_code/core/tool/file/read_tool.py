@@ -17,9 +17,9 @@ from klaude_code.const import (
     READ_MAX_CHARS,
     READ_MAX_IMAGE_BYTES,
 )
+from klaude_code.core.tool.context import FileTracker, ToolContext
 from klaude_code.core.tool.file._utils import file_exists, is_directory
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
-from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, model, tools
 
@@ -121,8 +121,13 @@ def _read_segment(options: ReadOptions) -> ReadSegmentResult:
     )
 
 
-def _track_file_access(file_path: str, *, content_sha256: str | None = None, is_memory: bool = False) -> None:
-    file_tracker = get_current_file_tracker()
+def _track_file_access(
+    file_tracker: FileTracker | None,
+    file_path: str,
+    *,
+    content_sha256: str | None = None,
+    is_memory: bool = False,
+) -> None:
     if file_tracker is None or not file_exists(file_path) or is_directory(file_path):
         return
     with contextlib.suppress(Exception):
@@ -182,12 +187,12 @@ class ReadTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
         try:
             args = ReadTool.ReadArguments.model_validate_json(arguments)
         except Exception as e:  # pragma: no cover - defensive
             return message.ToolResultMessage(status="error", output_text=f"Invalid arguments: {e}")
-        return await cls.call_with_args(args)
+        return await cls.call_with_args(args, context)
 
     @classmethod
     def _effective_limits(cls) -> tuple[int | None, int | None, int | None]:
@@ -198,7 +203,7 @@ class ReadTool(ToolABC):
         )
 
     @classmethod
-    async def call_with_args(cls, args: ReadTool.ReadArguments) -> message.ToolResultMessage:
+    async def call_with_args(cls, args: ReadTool.ReadArguments, context: ToolContext) -> message.ToolResultMessage:
         file_path = os.path.abspath(args.file_path)
         char_per_line, line_cap, max_chars = cls._effective_limits()
 
@@ -271,7 +276,7 @@ class ReadTool(ToolABC):
                     output_text=f"<tool_use_error>Failed to read image file: {exc}</tool_use_error>",
                 )
 
-            _track_file_access(file_path, content_sha256=hashlib.sha256(image_bytes).hexdigest())
+            _track_file_access(context.file_tracker, file_path, content_sha256=hashlib.sha256(image_bytes).hexdigest())
             size_kb = size_bytes / 1024.0 if size_bytes else 0.0
             output_text = f"[image] {Path(file_path).name} ({size_kb:.1f}KB)"
             image_part = message.ImageURLPart(url=data_url, id=None)
@@ -308,7 +313,7 @@ class ReadTool(ToolABC):
 
         if offset > max(read_result.total_lines, 0):
             warn = f"<system-reminder>Warning: the file exists but is shorter than the provided offset ({offset}). The file has {read_result.total_lines} lines.</system-reminder>"
-            _track_file_access(file_path, content_sha256=read_result.content_sha256)
+            _track_file_access(context.file_tracker, file_path, content_sha256=read_result.content_sha256)
             return message.ToolResultMessage(status="success", output_text=warn)
 
         lines_out: list[str] = [_format_numbered_line(no, content) for no, content in read_result.selected_lines]
@@ -326,6 +331,6 @@ class ReadTool(ToolABC):
             )
 
         read_result_str = "\n".join(lines_out)
-        _track_file_access(file_path, content_sha256=read_result.content_sha256)
+        _track_file_access(context.file_tracker, file_path, content_sha256=read_result.content_sha256)
 
         return message.ToolResultMessage(status="success", output_text=read_result_str)

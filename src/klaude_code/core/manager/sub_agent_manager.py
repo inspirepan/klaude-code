@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Callable
 
 from klaude_code.core.agent import Agent, AgentProfile, ModelProfileProvider
 from klaude_code.core.manager.llm_clients import LLMClients
 from klaude_code.core.tool import ReportBackTool
-from klaude_code.core.tool.tool_context import record_sub_agent_session_id
 from klaude_code.protocol import events, message, model
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.session import Session
@@ -38,7 +38,13 @@ class SubAgentManager:
 
         await self._event_queue.put(event)
 
-    async def run_sub_agent(self, parent_agent: Agent, state: model.SubAgentState) -> SubAgentResult:
+    async def run_sub_agent(
+        self,
+        parent_agent: Agent,
+        state: model.SubAgentState,
+        *,
+        record_session_id: Callable[[str], None] | None = None,
+    ) -> SubAgentResult:
         """Run a nested sub-agent task and return its result."""
 
         parent_session = parent_agent.session
@@ -77,9 +83,8 @@ class SubAgentManager:
                     error=True,
                 )
 
-            # Expose the session id immediately so ToolExecutor.cancel() can attach
-            # it to the synthesized cancellation ToolResult.
-            record_sub_agent_session_id(child_session.id)
+            if record_session_id is not None:
+                record_session_id(child_session.id)
 
             # Update persisted sub-agent state to reflect the current invocation.
             child_session.sub_agent_state.sub_agent_desc = state.sub_agent_desc
@@ -92,9 +97,8 @@ class SubAgentManager:
             child_session = Session(work_dir=parent_session.work_dir)
             child_session.sub_agent_state = state
 
-            # Expose the new session id immediately so ToolExecutor.cancel() can attach
-            # it to the synthesized cancellation ToolResult.
-            record_sub_agent_session_id(child_session.id)
+            if record_session_id is not None:
+                record_session_id(child_session.id)
 
         child_profile = self._model_profile_provider.build_profile(
             self._llm_clients.get_client(state.sub_agent_type),

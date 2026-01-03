@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 # Ensure imports from src/
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,11 +14,17 @@ if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from klaude_code.core.tool import ApplyPatchTool  # noqa: E402
+from klaude_code.core.tool.context import TodoContext, ToolContext  # noqa: E402
 from klaude_code.protocol import model  # noqa: E402
 
 
-def arun(coro):  # type:ignore
-    return asyncio.run(coro)  # type:ignore
+def arun(coro: Any) -> Any:
+    return asyncio.run(coro)
+
+
+def _tool_context() -> ToolContext:
+    todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
+    return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test")
 
 
 class BaseTempDirTest(unittest.TestCase):
@@ -45,7 +52,7 @@ class TestApplyPatchToolMarkdown(BaseTempDirTest):
         )
         payload = json.dumps({"patch": patch_content})
 
-        result = arun(ApplyPatchTool.call(payload))
+        result = arun(ApplyPatchTool.call(payload, _tool_context()))
 
         self.assertEqual(result.status, "success")
         self.assertEqual(result.output_text, "Done!")

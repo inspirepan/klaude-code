@@ -8,7 +8,13 @@ import zlib
 import pytest
 
 from klaude_code.core.tool import MermaidTool
+from klaude_code.core.tool.context import TodoContext, ToolContext
 from klaude_code.protocol.model import MermaidLinkUIExtra
+
+
+def _tool_context() -> ToolContext:
+    todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
+    return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test")
 
 
 def _decode_payload(link: str) -> dict[str, object]:
@@ -29,7 +35,7 @@ def test_mermaid_tool_generates_shareable_link(
     code = "graph TD\n    A-->B\n    B-->C"
     args = MermaidTool.MermaidArguments(code=code).model_dump_json()
 
-    result = asyncio.run(MermaidTool.call(args))
+    result = asyncio.run(MermaidTool.call(args, _tool_context()))
 
     assert result.status == "success"
     assert isinstance(result.ui_extra, MermaidLinkUIExtra)

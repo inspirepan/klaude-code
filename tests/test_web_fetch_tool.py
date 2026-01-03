@@ -6,6 +6,7 @@ import json
 import pytest
 
 from klaude_code.core.tool import WebFetchTool
+from klaude_code.core.tool.context import TodoContext, ToolContext
 from klaude_code.core.tool.web.web_fetch_tool import (
     _convert_html_to_markdown,  # pyright: ignore[reportPrivateUsage]
     _decode_content,  # pyright: ignore[reportPrivateUsage]
@@ -14,6 +15,11 @@ from klaude_code.core.tool.web.web_fetch_tool import (
     _is_pdf_url,  # pyright: ignore[reportPrivateUsage]
     _process_content,  # pyright: ignore[reportPrivateUsage]
 )
+
+
+def _tool_context() -> ToolContext:
+    todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
+    return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test")
 
 
 class TestHelperFunctions:
@@ -130,13 +136,13 @@ class TestWebFetchTool:
 
     def test_invalid_url_no_protocol(self) -> None:
         args = WebFetchTool.WebFetchArguments(url="example.com").model_dump_json()
-        result = asyncio.run(WebFetchTool.call(args))
+        result = asyncio.run(WebFetchTool.call(args, _tool_context()))
         assert result.status == "error"
         assert result.output_text is not None
         assert "http://" in result.output_text or "https://" in result.output_text
 
     def test_invalid_arguments(self) -> None:
-        result = asyncio.run(WebFetchTool.call("not valid json"))
+        result = asyncio.run(WebFetchTool.call("not valid json", _tool_context()))
         assert result.status == "error"
         assert result.output_text is not None
         assert "Invalid arguments" in result.output_text
@@ -149,7 +155,7 @@ class TestWebFetchToolNetwork:
     def test_fetch_real_url(self) -> None:
         """Test fetching a real URL (Claude Code docs)."""
         args = WebFetchTool.WebFetchArguments(url="https://code.claude.com/docs/en/hooks").model_dump_json()
-        result = asyncio.run(WebFetchTool.call(args))
+        result = asyncio.run(WebFetchTool.call(args, _tool_context()))
 
         assert result.status == "success"
         assert result.output_text is not None
@@ -163,14 +169,14 @@ class TestWebFetchToolNetwork:
         args = WebFetchTool.WebFetchArguments(
             url="https://this-domain-definitely-does-not-exist-12345.com/page"
         ).model_dump_json()
-        result = asyncio.run(WebFetchTool.call(args))
+        result = asyncio.run(WebFetchTool.call(args, _tool_context()))
 
         assert result.status == "error"
 
     def test_fetch_pdf_url(self) -> None:
         """Test fetching a PDF file (arxiv)."""
         args = WebFetchTool.WebFetchArguments(url="https://arxiv.org/pdf/2312.00752").model_dump_json()
-        result = asyncio.run(WebFetchTool.call(args))
+        result = asyncio.run(WebFetchTool.call(args, _tool_context()))
 
         assert result.status == "success"
         assert result.output_text is not None

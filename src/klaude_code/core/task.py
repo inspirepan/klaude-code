@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from klaude_code.const import INITIAL_RETRY_DELAY_S, MAX_FAILED_TURN_RETRIES, MAX_RETRY_DELAY_S
 from klaude_code.core.reminders import Reminder
 from klaude_code.core.tool import FileTracker, TodoContext, ToolABC
+from klaude_code.core.tool.context import RunSubtask
 from klaude_code.core.turn import TurnError, TurnExecutionContext, TurnExecutor
 from klaude_code.protocol import events, message, model
 from klaude_code.trace import DebugType, log_debug
@@ -101,6 +102,7 @@ class SessionContext:
     append_history: Callable[[Sequence[message.HistoryEvent]], None]
     file_tracker: FileTracker
     todo_context: TodoContext
+    run_subtask: RunSubtask | None
 
 
 @dataclass

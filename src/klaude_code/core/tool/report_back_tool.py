@@ -2,6 +2,7 @@
 
 from typing import Any, ClassVar, cast
 
+from klaude_code.core.tool.context import ToolContext
 from klaude_code.protocol import llm_param, message, tools
 
 
@@ -72,7 +73,9 @@ class ReportBackTool:
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
+        del arguments
+        del context
         """Execute the report_back tool.
 
         The actual handling of report_back results is done by TurnExecutor.

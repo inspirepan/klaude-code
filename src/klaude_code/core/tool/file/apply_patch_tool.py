@@ -7,20 +7,20 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from klaude_code.core.tool.context import FileTracker, ToolContext
 from klaude_code.core.tool.file import apply_patch as apply_patch_module
 from klaude_code.core.tool.file._utils import hash_text_sha256
 from klaude_code.core.tool.file.diff_builder import build_structured_file_diff
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
-from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, model, tools
 
 
 class ApplyPatchHandler:
     @classmethod
-    async def handle_apply_patch(cls, patch_text: str) -> message.ToolResultMessage:
+    async def handle_apply_patch(cls, patch_text: str, context: ToolContext) -> message.ToolResultMessage:
         try:
-            output, ui_extra = await asyncio.to_thread(cls._apply_patch_in_thread, patch_text)
+            output, ui_extra = await asyncio.to_thread(cls._apply_patch_in_thread, patch_text, context.file_tracker)
         except apply_patch_module.DiffError as error:
             return message.ToolResultMessage(status="error", output_text=str(error))
         except Exception as error:  # pragma: no cover  # unexpected errors bubbled to tool result
@@ -32,14 +32,13 @@ class ApplyPatchHandler:
         )
 
     @staticmethod
-    def _apply_patch_in_thread(patch_text: str) -> tuple[str, model.ToolResultUIExtra]:
+    def _apply_patch_in_thread(patch_text: str, file_tracker: FileTracker) -> tuple[str, model.ToolResultUIExtra]:
         ap = apply_patch_module
         normalized_start = patch_text.lstrip()
         if not normalized_start.startswith("*** Begin Patch"):
             raise ap.DiffError("apply_patch content must start with *** Begin Patch")
 
         workspace_root = os.path.realpath(os.getcwd())
-        file_tracker = get_current_file_tracker()
 
         def resolve_path(path: str) -> str:
             candidate = os.path.realpath(path if os.path.isabs(path) else os.path.join(workspace_root, path))
@@ -89,15 +88,14 @@ class ApplyPatchHandler:
             with open(resolved, "w", encoding="utf-8") as handle:
                 handle.write(content)
 
-            if file_tracker is not None:
-                with contextlib.suppress(Exception):  # pragma: no cover - file tracker best-effort
-                    existing = file_tracker.get(resolved)
-                    is_mem = existing.is_memory if existing else False
-                    file_tracker[resolved] = model.FileStatus(
-                        mtime=Path(resolved).stat().st_mtime,
-                        content_sha256=hash_text_sha256(content),
-                        is_memory=is_mem,
-                    )
+            with contextlib.suppress(Exception):  # pragma: no cover - file tracker best-effort
+                existing = file_tracker.get(resolved)
+                is_mem = existing.is_memory if existing else False
+                file_tracker[resolved] = model.FileStatus(
+                    mtime=Path(resolved).stat().st_mtime,
+                    content_sha256=hash_text_sha256(content),
+                    is_memory=is_mem,
+                )
 
         def remove_fn(path: str) -> None:
             resolved = resolve_path(path)
@@ -107,9 +105,8 @@ class ApplyPatchHandler:
                 raise ap.DiffError(f"Cannot delete directory: {path}")
             os.remove(resolved)
 
-            if file_tracker is not None:
-                with contextlib.suppress(Exception):  # pragma: no cover - file tracker best-effort
-                    file_tracker.pop(resolved, None)
+            with contextlib.suppress(Exception):  # pragma: no cover - file tracker best-effort
+                file_tracker.pop(resolved, None)
 
         ap.apply_commit(commit, write_fn, remove_fn)
 
@@ -172,13 +169,13 @@ class ApplyPatchTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
         try:
             args = cls.ApplyPatchArguments.model_validate_json(arguments)
         except ValueError as exc:
             return message.ToolResultMessage(status="error", output_text=f"Invalid arguments: {exc}")
-        return await cls.call_with_args(args)
+        return await cls.call_with_args(args, context)
 
     @classmethod
-    async def call_with_args(cls, args: ApplyPatchArguments) -> message.ToolResultMessage:
-        return await ApplyPatchHandler.handle_apply_patch(args.patch)
+    async def call_with_args(cls, args: ApplyPatchArguments, context: ToolContext) -> message.ToolResultMessage:
+        return await ApplyPatchHandler.handle_apply_patch(args.patch, context)

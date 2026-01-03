@@ -2,8 +2,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
-from klaude_code.core.tool.tool_context import get_current_todo_context
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, model, tools
 
@@ -76,7 +76,7 @@ class TodoWriteTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
         try:
             args = TodoWriteArguments.model_validate_json(arguments)
         except ValueError as e:
@@ -85,13 +85,7 @@ class TodoWriteTool(ToolABC):
                 output_text=f"Invalid arguments: {e}",
             )
 
-        # Get current todo context to store todos
-        todo_context = get_current_todo_context()
-        if todo_context is None:
-            return message.ToolResultMessage(
-                status="error",
-                output_text="No active session found",
-            )
+        todo_context = context.todo_context
 
         # Get current todos before updating (for comparison)
         old_todos = todo_context.get_todos()

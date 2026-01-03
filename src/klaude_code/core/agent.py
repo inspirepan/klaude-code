@@ -8,6 +8,7 @@ from klaude_code.core.prompt import load_system_prompt
 from klaude_code.core.reminders import Reminder, load_agent_reminders
 from klaude_code.core.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.core.tool import build_todo_context, get_registry, load_agent_tools
+from klaude_code.core.tool.context import RunSubtask
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import events, llm_param, tools
 from klaude_code.protocol.message import UserInputPayload
@@ -94,13 +95,16 @@ class Agent:
             debug_type=DebugType.EXECUTION,
         )
 
-    async def run_task(self, user_input: UserInputPayload) -> AsyncGenerator[events.Event]:
+    async def run_task(
+        self, user_input: UserInputPayload, *, run_subtask: RunSubtask | None = None
+    ) -> AsyncGenerator[events.Event]:
         session_ctx = SessionContext(
             session_id=self.session.id,
             get_conversation_history=lambda: self.session.conversation_history,
             append_history=self.session.append_history,
             file_tracker=self.session.file_tracker,
             todo_context=build_todo_context(self.session),
+            run_subtask=run_subtask,
         )
         context = TaskExecutionContext(
             session_ctx=session_ctx,

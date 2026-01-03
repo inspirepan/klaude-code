@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 
+from klaude_code.core.tool.context import TodoContext, ToolContext
 from klaude_code.core.tool.shell.bash_tool import BashTool
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.core.tool.tool_runner import (
@@ -22,6 +23,11 @@ from klaude_code.core.tool.tool_runner import (
     run_tool,
 )
 from klaude_code.protocol import llm_param, message, model
+
+
+def _tool_context() -> ToolContext:
+    todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
+    return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test")
 
 
 def arun(coro: Any) -> Any:
@@ -42,7 +48,9 @@ class MockSuccessTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
+        del arguments
+        del context
         return message.ToolResultMessage(status="success", output_text="Success!")
 
 
@@ -59,7 +67,9 @@ class MockErrorTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
+        del arguments
+        del context
         raise ValueError("Something went wrong")
 
 
@@ -76,7 +86,9 @@ class MockTodoChangeTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
+        del arguments
+        del context
         todos = [model.TodoItem(content="Test todo", status="pending")]
         ui_extra = model.TodoListUIExtra(todo_list=model.TodoUIExtra(todos=todos, new_completed=[]))
         return message.ToolResultMessage(
@@ -104,7 +116,9 @@ class MockConcurrentTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
+        del arguments
+        del context
         return message.ToolResultMessage(status="success", output_text="Concurrent!")
 
 
@@ -127,7 +141,7 @@ class TestRunTool:
             tool_name="MockSuccess",
             arguments_json="{}",
         )
-        result = arun(run_tool(tool_call, registry))
+        result = arun(run_tool(tool_call, registry, _tool_context()))
 
         assert result.status == "success"
         assert result.output_text == "Success!"
@@ -142,7 +156,7 @@ class TestRunTool:
             tool_name="NonExistent",
             arguments_json="{}",
         )
-        result = arun(run_tool(tool_call, registry))
+        result = arun(run_tool(tool_call, registry, _tool_context()))
 
         assert result.status == "error"
         assert result.output_text is not None and "not exists" in result.output_text
@@ -156,7 +170,7 @@ class TestRunTool:
             tool_name="MockError",
             arguments_json="{}",
         )
-        result = arun(run_tool(tool_call, registry))
+        result = arun(run_tool(tool_call, registry, _tool_context()))
 
         assert result.status == "error"
         assert result.output_text is not None and "ValueError" in result.output_text
@@ -182,7 +196,7 @@ class TestToolExecutor:
         def append_history(items: Sequence[message.HistoryEvent]) -> None:
             history.extend(items)
 
-        return ToolExecutor(registry=registry, append_history=append_history)
+        return ToolExecutor(context=_tool_context(), registry=registry, append_history=append_history)
 
     def test_run_single_tool(self, executor: ToolExecutor):
         """Test running a single tool call."""
@@ -322,6 +336,7 @@ class TestToolExecutorPartition:
             ToolCallRequest(response_id=None, call_id="2", tool_name="Bash", arguments_json="{}"),
         ]
         executor = ToolExecutor(
+            context=_tool_context(),
             registry={"Read": MockSuccessTool, "Bash": MockSuccessTool},
             append_history=lambda items: None,  # type: ignore[arg-type]
         )
@@ -337,6 +352,7 @@ class TestToolExecutorPartition:
             ToolCallRequest(response_id=None, call_id="2", tool_name="Explore", arguments_json="{}"),
         ]
         executor = ToolExecutor(
+            context=_tool_context(),
             registry={"Task": MockConcurrentTool, "Explore": MockConcurrentTool},
             append_history=lambda items: None,  # type: ignore[arg-type]
         )
@@ -353,6 +369,7 @@ class TestToolExecutorPartition:
             ToolCallRequest(response_id=None, call_id="3", tool_name="Bash", arguments_json="{}"),
         ]
         executor = ToolExecutor(
+            context=_tool_context(),
             registry={"Read": MockSuccessTool, "Bash": MockSuccessTool, "Task": MockConcurrentTool},
             append_history=lambda items: None,  # type: ignore[arg-type]
         )
@@ -373,6 +390,7 @@ class TestToolExecutorPartition:
             ToolCallRequest(response_id=None, call_id="4", tool_name="Task", arguments_json="{}"),
         ]
         executor = ToolExecutor(
+            context=_tool_context(),
             registry={
                 "Read": MockSuccessTool,
                 "WebSearch": MockConcurrentTool,
@@ -424,6 +442,7 @@ class TestBuildToolSideEffectEvents:
     @pytest.fixture
     def executor(self) -> ToolExecutor:
         return ToolExecutor(
+            context=_tool_context(),
             registry={},
             append_history=lambda x: None,
         )
@@ -468,7 +487,7 @@ class TestBashToolCancellation:
 
         async def _run() -> None:
             args = BashTool.BashArguments(command="sleep 10", timeout_ms=60_000)
-            task = asyncio.create_task(BashTool.call_with_args(args))
+            task = asyncio.create_task(BashTool.call_with_args(args, _tool_context()))
             await asyncio.sleep(0.1)
             task.cancel()
             with pytest.raises(asyncio.CancelledError):

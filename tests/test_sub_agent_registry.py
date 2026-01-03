@@ -6,10 +6,16 @@ import pytest
 
 import klaude_code.core.tool as core_tool
 from klaude_code.core.tool import ToolABC, load_agent_tools
+from klaude_code.core.tool.context import TodoContext, ToolContext
 from klaude_code.core.tool.tool_abc import ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.core.tool.tool_runner import ToolCallRequest, ToolExecutor
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.sub_agent import sub_agent_tool_names
+
+
+def _tool_context() -> ToolContext:
+    todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
+    return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test")
 
 
 def test_sub_agent_tool_visibility_respects_filters() -> None:
@@ -54,7 +60,9 @@ class _SlowSubAgentTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
+        del arguments
+        del context
         assert cls.started is not None
         cls.started.set()
         try:
@@ -84,6 +92,7 @@ def test_sub_agent_tool_cancellation_propagates_cancelled_error() -> None:
         _SlowSubAgentTool.started = started_event
 
         executor = ToolExecutor(
+            context=_tool_context(),
             registry={"Explore": _SlowSubAgentTool},
             append_history=lambda items: None,  # type: ignore[arg-type]
         )

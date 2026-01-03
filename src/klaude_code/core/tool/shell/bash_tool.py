@@ -11,9 +11,9 @@ from typing import Any
 from pydantic import BaseModel
 
 from klaude_code.const import BASH_DEFAULT_TIMEOUT_MS, BASH_TERMINATE_TIMEOUT_SEC
+from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.shell.command_safety import is_safe_command
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
-from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, model, tools
 
@@ -71,7 +71,7 @@ class BashTool(ToolABC):
         timeout_ms: int = BASH_DEFAULT_TIMEOUT_MS
 
     @classmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
         try:
             args = BashTool.BashArguments.model_validate_json(arguments)
         except ValueError as e:
@@ -79,10 +79,10 @@ class BashTool(ToolABC):
                 status="error",
                 output_text=f"Invalid arguments: {e}",
             )
-        return await cls.call_with_args(args)
+        return await cls.call_with_args(args, context)
 
     @classmethod
-    async def call_with_args(cls, args: BashArguments) -> message.ToolResultMessage:
+    async def call_with_args(cls, args: BashArguments, context: ToolContext) -> message.ToolResultMessage:
         # Safety check: only execute commands proven as "known safe"
         result = is_safe_command(args.command)
         if not result.is_safe:
@@ -119,6 +119,8 @@ class BashTool(ToolABC):
             }
         )
 
+        file_tracker = context.file_tracker
+
         def _hash_file_content_sha256(file_path: str) -> str | None:
             try:
                 suffix = Path(file_path).suffix.lower()
@@ -144,9 +146,6 @@ class BashTool(ToolABC):
             return os.path.abspath(os.path.join(base_dir, path))
 
         def _track_files_read(file_paths: list[str], *, base_dir: str) -> None:
-            file_tracker = get_current_file_tracker()
-            if file_tracker is None:
-                return
             for p in file_paths:
                 abs_path = _resolve_in_dir(base_dir, p)
                 if not os.path.exists(abs_path) or os.path.isdir(abs_path):
@@ -168,10 +167,6 @@ class BashTool(ToolABC):
             _track_files_read(file_paths, base_dir=base_dir)
 
         def _track_mv(src_paths: list[str], dest_path: str, *, base_dir: str) -> None:
-            file_tracker = get_current_file_tracker()
-            if file_tracker is None:
-                return
-
             abs_dest = _resolve_in_dir(base_dir, dest_path)
             dest_is_dir = os.path.isdir(abs_dest)
 

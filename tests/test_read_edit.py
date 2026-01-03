@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import contextlib
 import hashlib
 import json
 import os
@@ -23,10 +22,9 @@ from klaude_code.core.tool import (  # noqa: E402
     BashTool,
     EditTool,
     ReadTool,
-    ToolContextToken,
-    reset_tool_context,
-    set_tool_context_from_session,
+    build_todo_context,
 )
+from klaude_code.core.tool.context import ToolContext  # noqa: E402
 from klaude_code.protocol import message, model  # noqa: E402
 from klaude_code.session.session import Session  # noqa: E402
 
@@ -52,11 +50,13 @@ class BaseTempDirTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         os.chdir(self._tmp.name)
         self.session = Session(work_dir=Path.cwd())
-        self._token: ToolContextToken = set_tool_context_from_session(self.session)
+        self.tool_context = ToolContext(
+            file_tracker=self.session.file_tracker,
+            todo_context=build_todo_context(self.session),
+            session_id=self.session.id,
+        )
 
     def tearDown(self) -> None:
-        with contextlib.suppress(Exception):
-            reset_tool_context(self._token)
         os.chdir(self._orig_cwd)
         self._tmp.cleanup()
 
@@ -66,7 +66,7 @@ class TestReadTool(BaseTempDirTest):
         file_path = os.path.abspath("basic.txt")
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("line1\nline2\nline3\n")
-        res = arun(ReadTool.call(json.dumps({"file_path": file_path})))
+        res = arun(ReadTool.call(json.dumps({"file_path": file_path}), self.tool_context))
         self.assertEqual(res.status, "success")
         self.assertIn("1→line1", res.output_text or "")
         self.assertIn("2→line2", res.output_text or "")
@@ -81,7 +81,7 @@ class TestReadTool(BaseTempDirTest):
 
     def test_read_directory_error(self):
         dir_path = os.path.abspath(".")
-        res = arun(ReadTool.call(json.dumps({"file_path": dir_path})))
+        res = arun(ReadTool.call(json.dumps({"file_path": dir_path}), self.tool_context))
         self.assertEqual(res.status, "error")
         self.assertEqual(
             res.output_text,
@@ -90,7 +90,7 @@ class TestReadTool(BaseTempDirTest):
 
     def test_read_file_not_exist(self):
         missing = os.path.abspath("missing.txt")
-        res = arun(ReadTool.call(json.dumps({"file_path": missing})))
+        res = arun(ReadTool.call(json.dumps({"file_path": missing}), self.tool_context))
         self.assertEqual(res.status, "error")
         self.assertEqual(res.output_text, "<tool_use_error>File does not exist.</tool_use_error>")
 
@@ -101,7 +101,7 @@ class TestReadTool(BaseTempDirTest):
             # Write many lines to exceed char limit
             for i in range(5000):
                 f.write(f"line{i}\n")
-        res = arun(ReadTool.call(json.dumps({"file_path": big})))
+        res = arun(ReadTool.call(json.dumps({"file_path": big}), self.tool_context))
         self.assertEqual(res.status, "success")
         # Should be truncated with remaining lines info and reason
         self.assertIn("more lines truncated due to", res.output_text or "")
@@ -111,7 +111,7 @@ class TestReadTool(BaseTempDirTest):
         p = os.path.abspath("short.txt")
         with open(p, "w", encoding="utf-8") as f:
             f.write("only one line\n")
-        res = arun(ReadTool.call(json.dumps({"file_path": p, "offset": 2})))
+        res = arun(ReadTool.call(json.dumps({"file_path": p, "offset": 2}), self.tool_context))
         self.assertEqual(res.status, "success")
         self.assertIn("shorter than the provided offset (2)", res.output_text or "")
 
@@ -121,7 +121,7 @@ class TestReadTool(BaseTempDirTest):
         with open(p, "w", encoding="utf-8") as f:
             for _ in range(4000):
                 f.write("x" * 20 + "\n")
-        res = arun(ReadTool.call(json.dumps({"file_path": p})))
+        res = arun(ReadTool.call(json.dumps({"file_path": p}), self.tool_context))
         self.assertEqual(res.status, "success")
         output = res.output_text or ""
         # Should show content and truncation message with char limit reason and total lines
@@ -134,7 +134,7 @@ class TestReadTool(BaseTempDirTest):
         p = os.path.abspath("longline.txt")
         with open(p, "w", encoding="utf-8") as f:
             f.write("x" * 2100 + "\n")
-        res = arun(ReadTool.call(json.dumps({"file_path": p})))
+        res = arun(ReadTool.call(json.dumps({"file_path": p}), self.tool_context))
         self.assertEqual(res.status, "success")
         self.assertIn("1→", res.output_text or "")
         self.assertIn("more 100 characters in this line are truncated", res.output_text or "")
@@ -144,7 +144,7 @@ class TestReadTool(BaseTempDirTest):
         with open(file_path, "wb") as image_file:
             image_file.write(base64.b64decode(_TINY_PNG_BASE64))
 
-        res = arun(ReadTool.call(json.dumps({"file_path": file_path})))
+        res = arun(ReadTool.call(json.dumps({"file_path": file_path}), self.tool_context))
         self.assertEqual(res.status, "success")
         self.assertTrue(res.parts)
         assert res.parts
@@ -157,7 +157,7 @@ class TestReadTool(BaseTempDirTest):
         with open(file_path, "wb") as image_file:
             image_file.write(b"0" * oversized)
 
-        res = arun(ReadTool.call(json.dumps({"file_path": file_path})))
+        res = arun(ReadTool.call(json.dumps({"file_path": file_path}), self.tool_context))
         self.assertEqual(res.status, "error")
         self.assertIn("maximum supported size (4.00MB)", res.output_text or "")
 
@@ -231,7 +231,7 @@ class TestReminders(BaseTempDirTest):
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("hello\n")
 
-        _ = arun(ReadTool.call(json.dumps({"file_path": file_path})))
+        _ = arun(ReadTool.call(json.dumps({"file_path": file_path}), self.tool_context))
 
         self.session.conversation_history.append(
             message.UserMessage(parts=message.text_parts_from_str(f"@{file_path}"))
@@ -245,7 +245,7 @@ class TestReminders(BaseTempDirTest):
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("same content\n")
 
-        _ = arun(ReadTool.call(json.dumps({"file_path": file_path})))
+        _ = arun(ReadTool.call(json.dumps({"file_path": file_path}), self.tool_context))
         status = self.session.file_tracker.get(file_path)
         self.assertIsNotNone(status)
         assert status is not None
@@ -372,7 +372,8 @@ class TestEditTool(BaseTempDirTest):
                         "new_string": "修改后的第一行",
                         "replace_all": False,
                     }
-                )
+                ),
+                self.tool_context,
             )
         )
         self.assertEqual(res.status, "error")
@@ -386,7 +387,7 @@ class TestEditTool(BaseTempDirTest):
         with open(p, "w", encoding="utf-8") as f:
             f.write("第一行\n第二行\n")
         # Read to track
-        _ = arun(ReadTool.call(json.dumps({"file_path": p})))
+        _ = arun(ReadTool.call(json.dumps({"file_path": p}), self.tool_context))
         res = arun(
             EditTool.call(
                 json.dumps(
@@ -396,7 +397,8 @@ class TestEditTool(BaseTempDirTest):
                         "new_string": "修改后的行",
                         "replace_all": False,
                     }
-                )
+                ),
+                self.tool_context,
             )
         )
         self.assertEqual(res.status, "success")
@@ -407,7 +409,7 @@ class TestEditTool(BaseTempDirTest):
         p = os.path.abspath("dups.txt")
         with open(p, "w", encoding="utf-8") as f:
             f.write("a\n重复行\n重复行\n")
-        _ = arun(ReadTool.call(json.dumps({"file_path": p})))
+        _ = arun(ReadTool.call(json.dumps({"file_path": p}), self.tool_context))
         res = arun(
             EditTool.call(
                 json.dumps(
@@ -417,7 +419,8 @@ class TestEditTool(BaseTempDirTest):
                         "new_string": "修改后的行",
                         "replace_all": False,
                     }
-                )
+                ),
+                self.tool_context,
             )
         )
         self.assertEqual(res.status, "error")
@@ -434,7 +437,8 @@ class TestEditTool(BaseTempDirTest):
                         "new_string": "修改后的行",
                         "replace_all": True,
                     }
-                )
+                ),
+                self.tool_context,
             )
         )
         self.assertEqual(res2.status, "success")
@@ -444,7 +448,7 @@ class TestEditTool(BaseTempDirTest):
         p = os.path.abspath("notfound.txt")
         with open(p, "w", encoding="utf-8") as f:
             f.write("hello\n")
-        _ = arun(ReadTool.call(json.dumps({"file_path": p})))
+        _ = arun(ReadTool.call(json.dumps({"file_path": p}), self.tool_context))
 
         # not found
         res = arun(
@@ -456,7 +460,8 @@ class TestEditTool(BaseTempDirTest):
                         "new_string": "x",
                         "replace_all": False,
                     }
-                )
+                ),
+                self.tool_context,
             )
         )
         self.assertEqual(res.status, "error")
@@ -475,7 +480,8 @@ class TestEditTool(BaseTempDirTest):
                         "new_string": "X",
                         "replace_all": False,
                     }
-                )
+                ),
+                self.tool_context,
             )
         )
         self.assertEqual(res2.status, "error")
@@ -495,7 +501,8 @@ class TestEditTool(BaseTempDirTest):
                         "new_string": "hello\n",
                         "replace_all": False,
                     }
-                )
+                ),
+                self.tool_context,
             )
         )
         self.assertEqual(res.status, "error")
@@ -515,7 +522,8 @@ class TestEditTool(BaseTempDirTest):
                         "new_string": "y",
                         "replace_all": False,
                     }
-                )
+                ),
+                self.tool_context,
             )
         )
         self.assertEqual(res.status, "error")
@@ -528,7 +536,7 @@ class TestEditTool(BaseTempDirTest):
         p = os.path.abspath("mtime.txt")
         with open(p, "w", encoding="utf-8") as f:
             f.write("hello\n")
-        _ = arun(ReadTool.call(json.dumps({"file_path": p})))
+        _ = arun(ReadTool.call(json.dumps({"file_path": p}), self.tool_context))
         orig_mtime_ns = os.stat(p).st_mtime_ns
         # external modification
         with open(p, "a", encoding="utf-8") as f:
@@ -544,7 +552,8 @@ class TestEditTool(BaseTempDirTest):
                         "new_string": "HELLO\nWORLD\n",
                         "replace_all": False,
                     }
-                )
+                ),
+                self.tool_context,
             )
         )
         self.assertEqual(res.status, "error")
@@ -560,7 +569,7 @@ class TestBashToolFileTracking(BaseTempDirTest):
         with open(p, "w", encoding="utf-8") as f:
             f.write("hello\n")
 
-        res = arun(BashTool.call(json.dumps({"command": f"cat {p}"})))
+        res = arun(BashTool.call(json.dumps({"command": f"cat {p}"}), self.tool_context))
         self.assertEqual(res.status, "success")
 
         status = self.session.file_tracker.get(p)
@@ -578,7 +587,8 @@ class TestBashToolFileTracking(BaseTempDirTest):
                         "new_string": "HELLO",
                         "replace_all": False,
                     }
-                )
+                ),
+                self.tool_context,
             )
         )
         self.assertEqual(res2.status, "success")
@@ -589,7 +599,7 @@ class TestBashToolFileTracking(BaseTempDirTest):
             f.write("foo\n")
 
         # In-place edit via sed should update file_tracker so subsequent edits won't error.
-        res = arun(BashTool.call(json.dumps({"command": f"sed -i '' 's/foo/bar/' {p}"})))
+        res = arun(BashTool.call(json.dumps({"command": f"sed -i '' 's/foo/bar/' {p}"}), self.tool_context))
         self.assertEqual(res.status, "success")
 
         status = self.session.file_tracker.get(p)
@@ -606,7 +616,8 @@ class TestBashToolFileTracking(BaseTempDirTest):
                         "new_string": "baz",
                         "replace_all": False,
                     }
-                )
+                ),
+                self.tool_context,
             )
         )
         self.assertEqual(res2.status, "success")
@@ -617,10 +628,10 @@ class TestBashToolFileTracking(BaseTempDirTest):
         with open(src, "w", encoding="utf-8") as f:
             f.write("move me\n")
 
-        _ = arun(BashTool.call(json.dumps({"command": f"cat {src}"})))
+        _ = arun(BashTool.call(json.dumps({"command": f"cat {src}"}), self.tool_context))
         self.assertIn(src, self.session.file_tracker)
 
-        res = arun(BashTool.call(json.dumps({"command": f"mv {src} {dst}"})))
+        res = arun(BashTool.call(json.dumps({"command": f"mv {src} {dst}"}), self.tool_context))
         self.assertEqual(res.status, "success")
 
         self.assertNotIn(src, self.session.file_tracker)
@@ -636,7 +647,7 @@ class TestBashToolFileTracking(BaseTempDirTest):
         with open(p, "w", encoding="utf-8") as f:
             f.write("hi\n")
 
-        res = arun(BashTool.call(json.dumps({"command": "cd sub && cat f.txt"})))
+        res = arun(BashTool.call(json.dumps({"command": "cd sub && cat f.txt"}), self.tool_context))
         self.assertEqual(res.status, "success")
         self.assertIn(str(p), self.session.file_tracker)
         status = self.session.file_tracker.get(str(p))
@@ -651,10 +662,10 @@ class TestBashToolFileTracking(BaseTempDirTest):
         with open(src, "w", encoding="utf-8") as f:
             f.write("x\n")
 
-        _ = arun(BashTool.call(json.dumps({"command": f"cd {sub} && cat a.txt"})))
+        _ = arun(BashTool.call(json.dumps({"command": f"cd {sub} && cat a.txt"}), self.tool_context))
         self.assertIn(str(src), self.session.file_tracker)
 
-        res = arun(BashTool.call(json.dumps({"command": f"cd {sub} && mv a.txt b.txt"})))
+        res = arun(BashTool.call(json.dumps({"command": f"cd {sub} && mv a.txt b.txt"}), self.tool_context))
         self.assertEqual(res.status, "success")
         self.assertNotIn(str(src), self.session.file_tracker)
         self.assertIn(str(dst), self.session.file_tracker)

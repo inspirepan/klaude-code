@@ -8,6 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from klaude_code.const import MERMAID_LIVE_PREFIX
+from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, model, tools
@@ -40,7 +41,8 @@ class MermaidTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
+        del context
         try:
             args = cls.MermaidArguments.model_validate_json(arguments)
         except Exception as exc:  # pragma: no cover - defensive

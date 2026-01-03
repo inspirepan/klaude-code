@@ -16,6 +16,7 @@ from klaude_code.const import (
     WEB_FETCH_DEFAULT_TIMEOUT_SEC,
     WEB_FETCH_USER_AGENT,
 )
+from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, tools
@@ -213,7 +214,7 @@ class WebFetchTool(ToolABC):
         url: str
 
     @classmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
         try:
             args = WebFetchTool.WebFetchArguments.model_validate_json(arguments)
         except ValueError as e:
@@ -221,10 +222,11 @@ class WebFetchTool(ToolABC):
                 status="error",
                 output_text=f"Invalid arguments: {e}",
             )
-        return await cls.call_with_args(args)
+        return await cls.call_with_args(args, context)
 
     @classmethod
-    async def call_with_args(cls, args: WebFetchArguments) -> message.ToolResultMessage:
+    async def call_with_args(cls, args: WebFetchArguments, context: ToolContext) -> message.ToolResultMessage:
+        del context
         url = args.url
 
         # Basic URL validation

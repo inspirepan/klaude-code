@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from klaude_code.core.tool.context import RunSubtask, TodoContext, ToolContext
 from klaude_code.core.tool.sub_agent_tool import SubAgentTool
 from klaude_code.protocol.sub_agent import SubAgentProfile
 
@@ -15,6 +16,11 @@ from klaude_code.protocol.sub_agent import SubAgentProfile
 def arun(coro: Any) -> Any:
     """Helper to run async coroutines."""
     return asyncio.run(coro)
+
+
+def _tool_context(*, run_subtask: RunSubtask | None = None) -> ToolContext:
+    todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
+    return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test", run_subtask=run_subtask)
 
 
 class TestSubAgentToolForProfile:
@@ -103,7 +109,7 @@ class TestSubAgentToolCall:
             parameters={},
         )
         tool_class = SubAgentTool.for_profile(profile)
-        result = arun(tool_class.call("not valid json"))
+        result = arun(tool_class.call("not valid json", _tool_context()))
 
         assert result.status == "error"
         assert result.output_text is not None and "Invalid JSON" in result.output_text
@@ -116,7 +122,7 @@ class TestSubAgentToolCall:
             parameters={},
         )
         tool_class = SubAgentTool.for_profile(profile)
-        result = arun(tool_class.call('{"prompt": "test"}'))
+        result = arun(tool_class.call('{"prompt": "test"}', _tool_context()))
 
         assert result.status == "error"
         assert result.output_text is not None and "No subtask runner" in result.output_text
@@ -124,7 +130,10 @@ class TestSubAgentToolCall:
     def test_call_returns_session_id_in_ui_extra(self):
         """Tool result should include session_id in ui_extra when session_id is present."""
 
-        async def _runner(state: Any) -> Any:
+        async def _runner(state: Any, record_session_id: Any) -> Any:
+            if callable(record_session_id):
+                record_session_id("abc123def456")
+
             class _Result:
                 task_result = "hello"
                 session_id = "abc123def456"
@@ -133,19 +142,13 @@ class TestSubAgentToolCall:
 
             return _Result()
 
-        from klaude_code.core.tool.tool_context import current_run_subtask_callback
-
         profile = SubAgentProfile(
             name="TestAgent",
             description="Test",
             parameters={"type": "object", "properties": {"prompt": {"type": "string"}}},
         )
         tool_class = SubAgentTool.for_profile(profile)
-        token = current_run_subtask_callback.set(_runner)  # type: ignore[arg-type]
-        try:
-            result = arun(tool_class.call('{"prompt": "test"}'))
-        finally:
-            current_run_subtask_callback.reset(token)
+        result = arun(tool_class.call('{"prompt": "test"}', _tool_context(run_subtask=_runner)))
 
         assert result.status == "success"
         assert result.output_text == "hello"

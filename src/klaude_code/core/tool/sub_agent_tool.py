@@ -10,8 +10,8 @@ import asyncio
 import json
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
+from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata
-from klaude_code.core.tool.tool_context import current_run_subtask_callback, current_sub_agent_resume_claims
 from klaude_code.protocol import llm_param, message, model
 from klaude_code.session.session import Session
 
@@ -52,7 +52,7 @@ class SubAgentTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
         profile = cls._profile
 
         try:
@@ -60,7 +60,7 @@ class SubAgentTool(ToolABC):
         except json.JSONDecodeError as e:
             return message.ToolResultMessage(status="error", output_text=f"Invalid JSON arguments: {e}")
 
-        runner = current_run_subtask_callback.get()
+        runner = context.run_subtask
         if runner is None:
             return message.ToolResultMessage(status="error", output_text="No subtask runner available in this context")
 
@@ -76,9 +76,10 @@ class SubAgentTool(ToolABC):
             except ValueError as exc:
                 return message.ToolResultMessage(status="error", output_text=str(exc))
 
-            claims = current_sub_agent_resume_claims.get()
+            claims = context.sub_agent_resume_claims
             if claims is not None:
-                if resume_session_id in claims:
+                ok = await claims.claim(resume_session_id)
+                if not ok:
                     return message.ToolResultMessage(
                         status="error",
                         output_text=(
@@ -87,7 +88,6 @@ class SubAgentTool(ToolABC):
                             "Merge into a single call or resume in a later turn."
                         ),
                     )
-                claims.add(resume_session_id)
 
         generation = args.get("generation")
         generation_dict: dict[str, Any] | None = (
@@ -108,7 +108,8 @@ class SubAgentTool(ToolABC):
                     resume=resume_session_id,
                     output_schema=output_schema,
                     generation=generation_dict,
-                )
+                ),
+                context.record_sub_agent_session_id,
             )
         except asyncio.CancelledError:
             raise

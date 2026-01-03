@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from klaude_code.const import INTERRUPT_MARKER, SUPPORTED_IMAGE_SIZES
-from klaude_code.core.tool import ToolABC, tool_context
-from klaude_code.core.tool.tool_context import current_sub_agent_resume_claims
+from klaude_code.core.tool import ToolABC
+from klaude_code.core.tool.context import SubAgentResumeClaims, ToolContext
 
 if TYPE_CHECKING:
     from klaude_code.core.task import SessionContext
@@ -332,20 +332,26 @@ class TurnExecutor:
 
         ctx = self._context
         session_ctx = ctx.session_ctx
-        with tool_context(session_ctx.file_tracker, session_ctx.todo_context):
-            resume_claims_token = current_sub_agent_resume_claims.set(set())
-            executor = ToolExecutor(
-                registry=ctx.tool_registry,
-                append_history=session_ctx.append_history,
-            )
-            self._tool_executor = executor
-            try:
-                async for exec_event in executor.run_tools(tool_calls):
-                    for ui_event in build_events_from_tool_executor_event(session_ctx.session_id, exec_event):
-                        yield ui_event
-            finally:
-                self._tool_executor = None
-                current_sub_agent_resume_claims.reset(resume_claims_token)
+        tool_context = ToolContext(
+            file_tracker=session_ctx.file_tracker,
+            todo_context=session_ctx.todo_context,
+            session_id=session_ctx.session_id,
+            run_subtask=session_ctx.run_subtask,
+            sub_agent_resume_claims=SubAgentResumeClaims(),
+        )
+
+        executor = ToolExecutor(
+            context=tool_context,
+            registry=ctx.tool_registry,
+            append_history=session_ctx.append_history,
+        )
+        self._tool_executor = executor
+        try:
+            async for exec_event in executor.run_tools(tool_calls):
+                for ui_event in build_events_from_tool_executor_event(session_ctx.session_id, exec_event):
+                    yield ui_event
+        finally:
+            self._tool_executor = None
 
     def _persist_partial_assistant_on_cancel(self) -> None:
         """Persist streamed assistant text when a turn is interrupted.

@@ -3,9 +3,9 @@ from collections.abc import AsyncGenerator, Callable, Iterable, Sequence
 from dataclasses import dataclass
 
 from klaude_code.const import CANCEL_OUTPUT
+from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.report_back_tool import ReportBackTool
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy
-from klaude_code.core.tool.tool_context import current_sub_agent_session_id_recorder
 from klaude_code.core.tool.truncation import truncate_tool_output
 from klaude_code.protocol import message, model, tools
 
@@ -18,19 +18,24 @@ class ToolCallRequest:
     arguments_json: str
 
 
-async def run_tool(tool_call: ToolCallRequest, registry: dict[str, type[ToolABC]]) -> message.ToolResultMessage:
+async def run_tool(
+    tool_call: ToolCallRequest,
+    registry: dict[str, type[ToolABC]],
+    context: ToolContext,
+) -> message.ToolResultMessage:
     """Execute a tool call and return the result.
 
     Args:
         tool_call: The tool call to execute.
         registry: The tool registry mapping tool names to tool classes.
+        context: The explicit tool execution context.
 
     Returns:
         The result of the tool execution.
     """
     # Special handling for report_back tool (not registered in global registry)
     if tool_call.tool_name == tools.REPORT_BACK:
-        tool_result = await ReportBackTool.call(tool_call.arguments_json)
+        tool_result = await ReportBackTool.call(tool_call.arguments_json, context)
         tool_result.call_id = tool_call.call_id
         tool_result.tool_name = tool_call.tool_name
         return tool_result
@@ -43,7 +48,7 @@ async def run_tool(tool_call: ToolCallRequest, registry: dict[str, type[ToolABC]
             tool_name=tool_call.tool_name,
         )
     try:
-        tool_result = await registry[tool_call.tool_name].call(tool_call.arguments_json)
+        tool_result = await registry[tool_call.tool_name].call(tool_call.arguments_json, context)
         tool_result.call_id = tool_call.call_id
         tool_result.tool_name = tool_call.tool_name
         if tool_result.output_text:
@@ -109,9 +114,11 @@ class ToolExecutor:
     def __init__(
         self,
         *,
+        context: ToolContext,
         registry: dict[str, type[ToolABC]],
         append_history: Callable[[Sequence[message.HistoryEvent]], None],
     ) -> None:
+        self._context = context
         self._registry = registry
         self._append_history = append_history
 
@@ -268,15 +275,11 @@ class ToolExecutor:
 
     async def _run_single_tool_call(self, tool_call: ToolCallRequest) -> list[ToolExecutorEvent]:
         def _record_sub_agent_session_id(session_id: str) -> None:
-            # Keep the first recorded id if multiple writes happen.
             if tool_call.call_id not in self._sub_agent_session_ids:
                 self._sub_agent_session_ids[tool_call.call_id] = session_id
 
-        recorder_token = current_sub_agent_session_id_recorder.set(_record_sub_agent_session_id)
-        try:
-            tool_result: message.ToolResultMessage = await run_tool(tool_call, self._registry)
-        finally:
-            current_sub_agent_session_id_recorder.reset(recorder_token)
+        call_context = self._context.with_record_sub_agent_session_id(_record_sub_agent_session_id)
+        tool_result: message.ToolResultMessage = await run_tool(tool_call, self._registry, call_context)
 
         self._append_history([tool_result])
 

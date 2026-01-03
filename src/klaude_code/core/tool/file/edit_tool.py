@@ -9,10 +9,10 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from klaude_code.const import DIFF_DEFAULT_CONTEXT_LINES
+from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.file._utils import file_exists, hash_text_sha256, is_directory, read_text, write_text
 from klaude_code.core.tool.file.diff_builder import build_structured_diff
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
-from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, model, tools
 
@@ -86,7 +86,7 @@ class EditTool(ToolABC):
         return content.replace(old_string, new_string, 1)
 
     @classmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
         try:
             args = EditTool.EditArguments.model_validate_json(arguments)
         except ValueError as e:  # pragma: no cover - defensive
@@ -111,7 +111,7 @@ class EditTool(ToolABC):
             )
 
         # FileTracker checks (only for editing existing files)
-        file_tracker = get_current_file_tracker()
+        file_tracker = context.file_tracker
         tracked_status: model.FileStatus | None = None
         if not file_exists(file_path):
             # We require reading before editing
@@ -119,13 +119,12 @@ class EditTool(ToolABC):
                 status="error",
                 output_text=("File has not been read yet. Read it first before writing to it."),
             )
-        if file_tracker is not None:
-            tracked_status = file_tracker.get(file_path)
-            if tracked_status is None:
-                return message.ToolResultMessage(
-                    status="error",
-                    output_text=("File has not been read yet. Read it first before writing to it."),
-                )
+        tracked_status = file_tracker.get(file_path)
+        if tracked_status is None:
+            return message.ToolResultMessage(
+                status="error",
+                output_text=("File has not been read yet. Read it first before writing to it."),
+            )
 
         # Edit existing file: validate and apply
         try:
@@ -137,29 +136,28 @@ class EditTool(ToolABC):
             )
 
         # Re-check external modifications using content hash when available.
-        if tracked_status is not None:
-            if tracked_status.content_sha256 is not None:
-                current_sha256 = hash_text_sha256(before)
-                if current_sha256 != tracked_status.content_sha256:
-                    return message.ToolResultMessage(
-                        status="error",
-                        output_text=(
-                            "File has been modified externally. Either by user or a linter. Read it first before writing to it."
-                        ),
-                    )
-            else:
-                # Backward-compat: old sessions only stored mtime.
-                try:
-                    current_mtime = Path(file_path).stat().st_mtime
-                except OSError:
-                    current_mtime = tracked_status.mtime
-                if current_mtime != tracked_status.mtime:
-                    return message.ToolResultMessage(
-                        status="error",
-                        output_text=(
-                            "File has been modified externally. Either by user or a linter. Read it first before writing to it."
-                        ),
-                    )
+        if tracked_status.content_sha256 is not None:
+            current_sha256 = hash_text_sha256(before)
+            if current_sha256 != tracked_status.content_sha256:
+                return message.ToolResultMessage(
+                    status="error",
+                    output_text=(
+                        "File has been modified externally. Either by user or a linter. Read it first before writing to it."
+                    ),
+                )
+        else:
+            # Backward-compat: old sessions only stored mtime.
+            try:
+                current_mtime = Path(file_path).stat().st_mtime
+            except OSError:
+                current_mtime = tracked_status.mtime
+            if current_mtime != tracked_status.mtime:
+                return message.ToolResultMessage(
+                    status="error",
+                    output_text=(
+                        "File has been modified externally. Either by user or a linter. Read it first before writing to it."
+                    ),
+                )
 
         err = cls.valid(
             content=before,
@@ -205,15 +203,14 @@ class EditTool(ToolABC):
         ui_extra = build_structured_diff(before, after, file_path=file_path)
 
         # Update tracker with new mtime and content hash
-        if file_tracker is not None:
-            with contextlib.suppress(Exception):
-                existing = file_tracker.get(file_path)
-                is_mem = existing.is_memory if existing else False
-                file_tracker[file_path] = model.FileStatus(
-                    mtime=Path(file_path).stat().st_mtime,
-                    content_sha256=hash_text_sha256(after),
-                    is_memory=is_mem,
-                )
+        with contextlib.suppress(Exception):
+            existing = file_tracker.get(file_path)
+            is_mem = existing.is_memory if existing else False
+            file_tracker[file_path] = model.FileStatus(
+                mtime=Path(file_path).stat().st_mtime,
+                content_sha256=hash_text_sha256(after),
+                is_memory=is_mem,
+            )
 
         # Build output message
         if args.replace_all:

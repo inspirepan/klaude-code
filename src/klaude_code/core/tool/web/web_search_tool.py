@@ -5,6 +5,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from klaude_code.const import WEB_SEARCH_DEFAULT_MAX_RESULTS, WEB_SEARCH_MAX_RESULTS_LIMIT
+from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, tools
@@ -91,7 +92,7 @@ class WebSearchTool(ToolABC):
         max_results: int = WEB_SEARCH_DEFAULT_MAX_RESULTS
 
     @classmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
         try:
             args = WebSearchTool.WebSearchArguments.model_validate_json(arguments)
         except ValueError as e:
@@ -99,10 +100,11 @@ class WebSearchTool(ToolABC):
                 status="error",
                 output_text=f"Invalid arguments: {e}",
             )
-        return await cls.call_with_args(args)
+        return await cls.call_with_args(args, context)
 
     @classmethod
-    async def call_with_args(cls, args: WebSearchArguments) -> message.ToolResultMessage:
+    async def call_with_args(cls, args: WebSearchArguments, context: ToolContext) -> message.ToolResultMessage:
+        del context
         query = args.query.strip()
         if not query:
             return message.ToolResultMessage(

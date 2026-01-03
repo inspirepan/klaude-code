@@ -17,7 +17,6 @@ from pathlib import Path
 from klaude_code.config import load_config
 from klaude_code.core.agent import Agent, DefaultModelProfileProvider, ModelProfileProvider
 from klaude_code.core.manager import LLMClients, SubAgentManager
-from klaude_code.core.tool import current_run_subtask_callback
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.protocol import commands, events, message, model, op
 from klaude_code.protocol.llm_param import Thinking
@@ -355,15 +354,14 @@ class ExecutorContext:
                 debug_type=DebugType.EXECUTION,
             )
 
-            async def _runner(state: model.SubAgentState) -> SubAgentResult:
-                return await self.sub_agent_manager.run_sub_agent(agent, state)
+            async def _runner(
+                state: model.SubAgentState,
+                record_session_id: Callable[[str], None] | None,
+            ) -> SubAgentResult:
+                return await self.sub_agent_manager.run_sub_agent(agent, state, record_session_id=record_session_id)
 
-            token = current_run_subtask_callback.set(_runner)
-            try:
-                async for event in agent.run_task(user_input):
-                    await self.emit_event(event)
-            finally:
-                current_run_subtask_callback.reset(token)
+            async for event in agent.run_task(user_input, run_subtask=_runner):
+                await self.emit_event(event)
 
         except asyncio.CancelledError:
             log_debug(

@@ -7,10 +7,10 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.file._utils import file_exists, hash_text_sha256, is_directory, read_text, write_text
 from klaude_code.core.tool.file.diff_builder import build_structured_diff
 from klaude_code.core.tool.tool_abc import ToolABC, load_desc
-from klaude_code.core.tool.tool_context import get_current_file_tracker
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, model, tools
 
@@ -46,7 +46,7 @@ class WriteTool(ToolABC):
         )
 
     @classmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
         try:
             args = WriteArguments.model_validate_json(arguments)
         except ValueError as e:  # pragma: no cover - defensive
@@ -60,12 +60,12 @@ class WriteTool(ToolABC):
                 output_text="<tool_use_error>Illegal operation on a directory. write</tool_use_error>",
             )
 
-        file_tracker = get_current_file_tracker()
+        file_tracker = context.file_tracker
         exists = file_exists(file_path)
         tracked_status: model.FileStatus | None = None
 
         if exists:
-            tracked_status = file_tracker.get(file_path) if file_tracker is not None else None
+            tracked_status = file_tracker.get(file_path)
             if tracked_status is None:
                 return message.ToolResultMessage(
                     status="error",
@@ -114,15 +114,14 @@ class WriteTool(ToolABC):
         except (OSError, UnicodeError) as e:  # pragma: no cover
             return message.ToolResultMessage(status="error", output_text=f"<tool_use_error>{e}</tool_use_error>")
 
-        if file_tracker is not None:
-            with contextlib.suppress(Exception):
-                existing = file_tracker.get(file_path)
-                is_mem = existing.is_memory if existing else False
-                file_tracker[file_path] = model.FileStatus(
-                    mtime=Path(file_path).stat().st_mtime,
-                    content_sha256=hash_text_sha256(args.content),
-                    is_memory=is_mem,
-                )
+        with contextlib.suppress(Exception):
+            existing = file_tracker.get(file_path)
+            is_mem = existing.is_memory if existing else False
+            file_tracker[file_path] = model.FileStatus(
+                mtime=Path(file_path).stat().st_mtime,
+                content_sha256=hash_text_sha256(args.content),
+                is_memory=is_mem,
+            )
 
         # For markdown files, use MarkdownDocUIExtra to render content as markdown
         # Otherwise, build diff between previous and new content

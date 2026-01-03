@@ -8,7 +8,8 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from klaude_code.const import MEMORY_FILE_NAMES, REMINDER_COOLDOWN_TURNS, TODO_REMINDER_TOOL_CALL_THRESHOLD
-from klaude_code.core.tool import BashTool, ReadTool, reset_tool_context, set_tool_context_from_session
+from klaude_code.core.tool import BashTool, ReadTool, build_todo_context
+from klaude_code.core.tool.context import ToolContext
 from klaude_code.core.tool.file._utils import hash_text_sha256
 from klaude_code.protocol import message, model, tools
 from klaude_code.session import Session
@@ -131,57 +132,59 @@ async def _load_at_file_recursive(
         return
     visited.add(path_str)
 
-    context_token = set_tool_context_from_session(session)
-    try:
-        if path.exists() and path.is_file():
-            if _is_tracked_file_unchanged(session, path_str):
-                return
-            args = ReadTool.ReadArguments(file_path=path_str)
-            tool_result = await ReadTool.call_with_args(args)
-            images = [part for part in tool_result.parts if isinstance(part, message.ImageURLPart)]
+    tool_context = ToolContext(
+        file_tracker=session.file_tracker,
+        todo_context=build_todo_context(session),
+        session_id=session.id,
+    )
 
-            tool_args = args.model_dump_json(exclude_none=True)
-            formatted_blocks.append(
-                f"""Called the {tools.READ} tool with the following input: {tool_args}
+    if path.exists() and path.is_file():
+        if _is_tracked_file_unchanged(session, path_str):
+            return
+        args = ReadTool.ReadArguments(file_path=path_str)
+        tool_result = await ReadTool.call_with_args(args, tool_context)
+        images = [part for part in tool_result.parts if isinstance(part, message.ImageURLPart)]
+
+        tool_args = args.model_dump_json(exclude_none=True)
+        formatted_blocks.append(
+            f"""Called the {tools.READ} tool with the following input: {tool_args}
 Result of calling the {tools.READ} tool:
 {tool_result.output_text}
 """
-            )
-            at_ops.append(model.AtFileOp(operation="Read", path=path_str, mentioned_in=mentioned_in))
-            if images:
-                collected_images.extend(images)
+        )
+        at_ops.append(model.AtFileOp(operation="Read", path=path_str, mentioned_in=mentioned_in))
+        if images:
+            collected_images.extend(images)
 
-            # Recursively parse @ references from ReadTool output
-            output = tool_result.output_text
-            if "@" in output:
-                for match in AT_FILE_PATTERN.finditer(output):
-                    nested = match.group("quoted") or match.group("plain")
-                    if nested:
-                        await _load_at_file_recursive(
-                            session,
-                            nested,
-                            at_ops,
-                            formatted_blocks,
-                            collected_images,
-                            visited,
-                            base_dir=path.parent,
-                            mentioned_in=path_str,
-                        )
-        elif path.exists() and path.is_dir():
-            quoted_path = shlex.quote(path_str)
-            args = BashTool.BashArguments(command=f"ls {quoted_path}")
-            tool_result = await BashTool.call_with_args(args)
+        # Recursively parse @ references from ReadTool output
+        output = tool_result.output_text
+        if "@" in output:
+            for match in AT_FILE_PATTERN.finditer(output):
+                nested = match.group("quoted") or match.group("plain")
+                if nested:
+                    await _load_at_file_recursive(
+                        session,
+                        nested,
+                        at_ops,
+                        formatted_blocks,
+                        collected_images,
+                        visited,
+                        base_dir=path.parent,
+                        mentioned_in=path_str,
+                    )
+    elif path.exists() and path.is_dir():
+        quoted_path = shlex.quote(path_str)
+        args = BashTool.BashArguments(command=f"ls {quoted_path}")
+        tool_result = await BashTool.call_with_args(args, tool_context)
 
-            tool_args = args.model_dump_json(exclude_none=True)
-            formatted_blocks.append(
-                f"""Called the {tools.BASH} tool with the following input: {tool_args}
+        tool_args = args.model_dump_json(exclude_none=True)
+        formatted_blocks.append(
+            f"""Called the {tools.BASH} tool with the following input: {tool_args}
 Result of calling the {tools.BASH} tool:
 {tool_result.output_text}
 """
-            )
-            at_ops.append(model.AtFileOp(operation="List", path=path_str + "/", mentioned_in=mentioned_in))
-    finally:
-        reset_tool_context(context_token)
+        )
+        at_ops.append(model.AtFileOp(operation="List", path=path_str + "/", mentioned_in=mentioned_in))
 
 
 async def at_file_reader_reminder(
@@ -329,18 +332,20 @@ async def file_changed_externally_reminder(
                     changed = current_mtime != status.mtime
 
                 if changed:
-                    context_token = set_tool_context_from_session(session)
-                    try:
-                        tool_result = await ReadTool.call_with_args(
-                            ReadTool.ReadArguments(file_path=path)
-                        )  # This tool will update file tracker
-                        if tool_result.status == "success":
-                            images = [part for part in tool_result.parts if isinstance(part, message.ImageURLPart)]
-                            changed_files.append((path, tool_result.output_text, images or None))
-                            if images:
-                                collected_images.extend(images)
-                    finally:
-                        reset_tool_context(context_token)
+                    tool_context = ToolContext(
+                        file_tracker=session.file_tracker,
+                        todo_context=build_todo_context(session),
+                        session_id=session.id,
+                    )
+                    tool_result = await ReadTool.call_with_args(
+                        ReadTool.ReadArguments(file_path=path),
+                        tool_context,
+                    )  # This tool will update file tracker
+                    if tool_result.status == "success":
+                        images = [part for part in tool_result.parts if isinstance(part, message.ImageURLPart)]
+                        changed_files.append((path, tool_result.output_text, images or None))
+                        if images:
+                            collected_images.extend(images)
             except (
                 FileNotFoundError,
                 IsADirectoryError,

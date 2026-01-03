@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+from klaude_code.core.tool.context import ToolContext
 from klaude_code.protocol import llm_param, message
 
 
@@ -27,7 +28,7 @@ class ToolABC(ABC):
 
     @classmethod
     @abstractmethod
-    async def call(cls, arguments: str) -> message.ToolResultMessage:
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
         raise NotImplementedError
 
 
