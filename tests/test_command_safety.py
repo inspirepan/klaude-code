@@ -57,73 +57,16 @@ class TestCommandSafety(unittest.TestCase):
                 msg=f"Expected error '{expected_error}' not found in: {result.error_msg}",
             )
 
-    # Basic allowlist
+    # Basic allowlist - all non-rm/trash commands are allowed
     def test_basic_allowlist(self):
         self.assert_safe("ls")
         self.assert_safe("echo hello")
         self.assert_safe("pwd")
         self.assert_safe("mkdir newdir")
-
-    # find
-    def test_find_safe(self):
-        self.assert_safe('find . -maxdepth 1 -name "*.txt"')
-
-    def test_find_unsafe_exec_and_delete(self):
-        # Test that find with -exec and -delete are rejected
-        self.assert_unsafe(r"find . -exec echo {} \;")
-        self.assert_unsafe("find . -delete")
-
-    # git
-    def test_git_safe_locals(self):
+        self.assert_safe("find . -name '*.txt'")
         self.assert_safe("git status")
-        self.assert_safe('git commit -m "test"')
-        self.assert_safe("git diff --name-only")
-
-    # sed
-    def test_sed_safe_patterns(self):
-        self.assert_safe("sed -n 1p file.txt")
-        self.assert_safe("sed -n 1,3p file.txt")
         self.assert_safe("sed 's/x/y/g' file.txt")
-        self.assert_safe("sed s/x/y/g file.txt")
-        self.assert_safe("sed s|x|y|g file.txt")
-        self.assert_safe("sed -n 1p")
-
-    def test_sed_unsafe_injection(self):
-        self.assert_unsafe("sed 's/x/`uname`/g' file.txt")
-        self.assert_unsafe("sed 's/x/$(uname)/g' file.txt")
-        # Test injection attempt
-        self.assert_unsafe(r"sed 's/x/y;echo injected/g' file.txt")
-
-    def test_sed_complex_multiline_commands(self):
-        """Test complex sed commands with address ranges and multiline replacements."""
-        # This complex sed command uses address ranges and multiline replacements
-        # It should be rejected due to unsafe patterns
-        complex_sed = (
-            "sed -i '' '69,74{s/ctx: typer.Context,/ctx: typer.Context,\\n"
-            "    model: str | None = typer.Option(\\n"
-            "        None,\\n"
-            '        "--model",\\n'
-            '        help="Override model config name (uses main model by default)",\\n'
-            "    ),/;\n"
-            "s/asyncio.run(run_interactive())/asyncio.run(run_interactive(model=model))/}' "
-            "src/klaude_code/cli/main.py"
-        )
-        # This should be unsafe because sed -i with complex patterns is not in the allowlist
-        self.assert_unsafe(complex_sed)
-
-        # Test the follow-up command that's chained with &&
-        chained_cmd = (
-            "sed -i '' '69,74{s/ctx: typer.Context,/ctx: typer.Context,\\n"
-            "    model: str | None = typer.Option(\\n"
-            "        None,\\n"
-            '        "--model",\\n'
-            '        help="Override model config name (uses main model by default)",\\n'
-            "    ),/;\n"
-            "s/asyncio.run(run_interactive())/asyncio.run(run_interactive(model=model))/}' "
-            "src/klaude_code/cli/main.py && sed -n '64,80p' src/klaude_code/cli/main.py | nl"
-        )
-        # This should also be unsafe
-        self.assert_unsafe(chained_cmd)
+        self.assert_safe("awk '{print $1}' file.txt")
 
     # rm strict policy
     def test_rm_safe_non_recursive_relative(self):
@@ -147,49 +90,27 @@ class TestCommandSafety(unittest.TestCase):
         if self.symlink_created:
             self.assert_unsafe("rm -rf linkdir", "symlink")
 
-    # sequences
-    def test_sequences_safe(self):
-        self.assert_safe("echo hi && ls")
-        self.assert_safe("rg hello file.txt | wc -l")
-        self.assert_safe("git show HEAD:foo | sed -n '1p'")
-        self.assert_safe("awk 'NR>=10 && NR<=20 {print}'")
-        self.assert_safe("awk -F: '{print $1}' file.txt")
+    # trash policy
+    def test_trash_safe_relative(self):
+        self.assert_safe("trash file.txt")
+        self.assert_safe("trash dir1")
 
-    def test_sequences_with_pipes_inside_quotes(self):
-        command = (
-            "nl -ba Claude_4.txt | rg -n "
-            '"antml|voice_note|election_info|search_instructions|citation_instructions|artifacts_info|thinking_mode" '
-            "-n --no-heading"
-        )
-        self.assert_safe(command)
+    def test_trash_forbidden_patterns(self):
+        self.assert_unsafe("trash /etc/passwd", "absolute path")
+        self.assert_unsafe("trash ~/file.txt", "tilde")
+        self.assert_unsafe("trash a*", "wildcard")
+        self.assert_unsafe("trash dir1/", "trailing slash")
 
-        multiline = (
-            "nl -ba Claude_4.txt | rg -n "
-            '"antml|voice_note|election_info|search_instructions|citation_instructions|artifacts\n'
-            ' _info|thinking_mode" -n --no-heading'
-        )
-        self.assert_safe(multiline)
-
-    def test_blacklist_allows_unknown_commands(self):
+    def test_other_commands_allowed(self):
+        # Commands other than rm/trash are allowed by default
         self.assert_safe("python --version")
         self.assert_safe("custom-tool --flag value")
+        self.assert_safe("echo hi && ls")
+        self.assert_safe("rg hello file.txt | wc -l")
 
     def test_parse_error_treated_as_safe(self):
         """Commands with parse errors should not be pre-emptively blocked."""
-
-        # Unterminated quotes trigger shlex parsing errors, but we still
-        # treat them as safe here and let the real shell surface the syntax
-        # error instead of blocking execution inside the safety layer.
         self.assert_safe("echo 'unterminated")
-
-    # def test_cat_with_heredoc_redirection(self):
-    #     """Ensure cat with heredoc redirection is rejected."""
-    #     self.assert_unsafe("cat > filename <<EOF")
-
-    def test_awk_disallowed_options(self):
-        self.assert_unsafe("awk -f script.awk", "-f/--file")
-        self.assert_unsafe("awk 'system(\"ls\")'", "system() call")
-        self.assert_unsafe("awk 'print | \"cat\"'", "piping output")
 
 
 if __name__ == "__main__":
