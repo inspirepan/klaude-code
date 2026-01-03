@@ -143,7 +143,7 @@ def render_command_output(e: events.DeveloperMessageEvent) -> RenderableType:
     content = message.join_text_parts(e.item.parts)
     match command_output.command_name:
         case commands.CommandName.HELP:
-            return Padding.indent(Text.from_markup(content or ""), level=2)
+            return Padding.indent(Text.from_markup(content or "", style=ThemeKey.TOOL_RESULT), level=2)
         case commands.CommandName.STATUS:
             return _render_status_output(command_output)
         case commands.CommandName.RELEASE_NOTES:
@@ -178,14 +178,14 @@ def _format_cost(cost: float | None, currency: str = "USD") -> str:
 def _render_fork_session_output(command_output: model.CommandOutput) -> RenderableType:
     """Render fork session output with usage instructions."""
     if not isinstance(command_output.ui_extra, model.SessionIdUIExtra):
-        return Padding.indent(Text("(no session id)", style=ThemeKey.METADATA), level=2)
+        return Padding.indent(Text("(no session id)", style=ThemeKey.TOOL_RESULT), level=2)
 
     grid = Table.grid(padding=(0, 1))
     session_id = command_output.ui_extra.session_id
-    grid.add_column(style=ThemeKey.METADATA, overflow="fold")
+    grid.add_column(style=ThemeKey.TOOL_RESULT, overflow="fold")
 
-    grid.add_row(Text("Session forked. Resume command copied to clipboard:", style=ThemeKey.METADATA))
-    grid.add_row(Text(f"  klaude --resume-by-id {session_id}", style=ThemeKey.METADATA_BOLD))
+    grid.add_row(Text("Session forked. Resume command copied to clipboard:", style=ThemeKey.TOOL_RESULT))
+    grid.add_row(Text(f"  klaude --resume-by-id {session_id}", style=ThemeKey.TOOL_RESULT_BOLD))
 
     return Padding.indent(grid, level=2)
 
@@ -193,24 +193,24 @@ def _render_fork_session_output(command_output: model.CommandOutput) -> Renderab
 def _render_status_output(command_output: model.CommandOutput) -> RenderableType:
     """Render session status with total cost and per-model breakdown."""
     if not isinstance(command_output.ui_extra, model.SessionStatusUIExtra):
-        return Text("(no status data)", style=ThemeKey.METADATA)
+        return Text("(no status data)", style=ThemeKey.TOOL_RESULT)
 
     status = command_output.ui_extra
     usage = status.usage
 
     table = Table.grid(padding=(0, 2))
-    table.add_column(style=ThemeKey.METADATA, overflow="fold")
-    table.add_column(style=ThemeKey.METADATA, overflow="fold")
+    table.add_column(style=ThemeKey.TOOL_RESULT, overflow="fold")
+    table.add_column(style=ThemeKey.TOOL_RESULT, overflow="fold")
 
     # Total cost line
     table.add_row(
-        Text("Total cost:", style=ThemeKey.METADATA_BOLD),
-        Text(_format_cost(usage.total_cost, usage.currency), style=ThemeKey.METADATA_BOLD),
+        Text("Total cost:", style=ThemeKey.TOOL_RESULT_BOLD),
+        Text(_format_cost(usage.total_cost, usage.currency), style=ThemeKey.TOOL_RESULT_BOLD),
     )
 
     # Per-model breakdown
     if status.by_model:
-        table.add_row(Text("Usage by model:", style=ThemeKey.METADATA_BOLD), "")
+        table.add_row(Text("Usage by model:", style=ThemeKey.TOOL_RESULT_BOLD), "")
         for meta in status.by_model:
             model_label = meta.model_name
             if meta.provider:

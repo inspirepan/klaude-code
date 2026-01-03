@@ -250,8 +250,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.USER_INPUT.value: palette.magenta,
                 ThemeKey.USER_INPUT_PROMPT.value: "bold " + palette.magenta,
                 ThemeKey.USER_INPUT_AT_PATTERN.value: palette.purple,
-                ThemeKey.USER_INPUT_SLASH_COMMAND.value: "bold reverse " + palette.blue,
-                ThemeKey.USER_INPUT_SKILL.value: "bold reverse " + palette.green,
+                ThemeKey.USER_INPUT_SLASH_COMMAND.value: "bold " + palette.blue,
+                ThemeKey.USER_INPUT_SKILL.value: "bold " + palette.green,
                 # ASSISTANT
                 ThemeKey.ASSISTANT_MESSAGE_MARK.value: "bold",
                 # METADATA
