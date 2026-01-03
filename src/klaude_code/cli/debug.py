@@ -6,7 +6,7 @@ from pathlib import Path
 
 import typer
 
-from klaude_code.trace import DebugType, log
+from klaude_code.log import DebugType, log
 
 DEBUG_FILTER_HELP = "Comma-separated debug types: " + ", ".join(dt.value for dt in DebugType)
 

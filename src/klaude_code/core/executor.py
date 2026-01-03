@@ -18,13 +18,13 @@ from klaude_code.config import load_config
 from klaude_code.core.agent import Agent, DefaultModelProfileProvider, ModelProfileProvider
 from klaude_code.core.manager import LLMClients, SubAgentManager
 from klaude_code.llm.registry import create_llm_client
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import commands, events, message, model, op
 from klaude_code.protocol.llm_param import Thinking
 from klaude_code.protocol.op_handler import OperationHandler
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.export import build_export_html, get_default_export_path
 from klaude_code.session.session import Session
-from klaude_code.trace import DebugType, log_debug
 
 
 @dataclass

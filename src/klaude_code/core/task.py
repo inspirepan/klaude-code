@@ -11,8 +11,8 @@ from klaude_code.core.reminders import Reminder
 from klaude_code.core.tool import FileTracker, TodoContext, ToolABC
 from klaude_code.core.tool.context import RunSubtask
 from klaude_code.core.turn import TurnError, TurnExecutionContext, TurnExecutor
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, model
-from klaude_code.trace import DebugType, log_debug
 
 if TYPE_CHECKING:
     from klaude_code.core.agent import AgentProfile

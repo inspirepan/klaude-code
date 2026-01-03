@@ -2,8 +2,8 @@ import os
 from typing import override
 
 from klaude_code.const import DEFAULT_DEBUG_LOG_FILE
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events
-from klaude_code.trace import DebugType, log_debug
 from klaude_code.ui.core.display import DisplayABC
 
 

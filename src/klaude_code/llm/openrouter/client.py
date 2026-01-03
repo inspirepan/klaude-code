@@ -22,8 +22,8 @@ from klaude_code.llm.openrouter.input import convert_history_to_input, is_claude
 from klaude_code.llm.openrouter.reasoning import ReasoningStreamHandler
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker
+from klaude_code.log import DebugType, is_debug_enabled, log_debug
 from klaude_code.protocol import llm_param, message
-from klaude_code.trace import DebugType, is_debug_enabled, log_debug
 
 
 def build_payload(

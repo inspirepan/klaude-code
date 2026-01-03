@@ -5,8 +5,8 @@ from rich.padding import Padding
 from rich.text import Text
 
 from klaude_code.const import DEFAULT_MAX_TOKENS
+from klaude_code.log import is_debug_enabled
 from klaude_code.protocol import events, model
-from klaude_code.trace import is_debug_enabled
 from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.theme import ThemeKey

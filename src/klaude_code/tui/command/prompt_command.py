@@ -2,8 +2,8 @@ from importlib.resources import files
 
 import yaml
 
+from klaude_code.log import log_debug
 from klaude_code.protocol import commands, message, op
-from klaude_code.trace import log_debug
 
 from .command_abc import Agent, CommandABC, CommandResult
 

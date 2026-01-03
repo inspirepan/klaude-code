@@ -5,7 +5,7 @@ from typing import ClassVar
 
 import yaml
 
-from klaude_code.trace import log_debug
+from klaude_code.log import log_debug
 
 
 @dataclass

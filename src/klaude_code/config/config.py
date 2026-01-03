@@ -13,9 +13,9 @@ from klaude_code.config.builtin_config import (
     get_builtin_provider_configs,
     get_builtin_sub_agent_models,
 )
+from klaude_code.log import log
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
-from klaude_code.trace import log
 
 # Pattern to match ${ENV_VAR} syntax
 _ENV_VAR_PATTERN = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")

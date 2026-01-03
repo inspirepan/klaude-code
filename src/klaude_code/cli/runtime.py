@@ -14,11 +14,11 @@ from klaude_code.const import SIGINT_DOUBLE_PRESS_EXIT_TEXT
 from klaude_code.core.agent import Agent, DefaultModelProfileProvider, VanillaModelProfileProvider
 from klaude_code.core.executor import Executor
 from klaude_code.core.manager import build_llm_clients
+from klaude_code.log import DebugType, log, set_debug_logging
 from klaude_code.protocol import events, llm_param, op
 from klaude_code.protocol import message as protocol_message
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session.session import Session, close_default_store
-from klaude_code.trace import DebugType, log, set_debug_logging
 from klaude_code.tui.command import (
     dispatch_command,
     get_command_info_list,

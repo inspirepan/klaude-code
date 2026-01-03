@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from asyncio import Queue
 
+from klaude_code.log import log
 from klaude_code.protocol import events
-from klaude_code.trace import log
 
 
 class DisplayABC(ABC):

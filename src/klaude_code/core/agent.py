@@ -10,10 +10,10 @@ from klaude_code.core.task import SessionContext, TaskExecutionContext, TaskExec
 from klaude_code.core.tool import build_todo_context, get_registry, load_agent_tools
 from klaude_code.core.tool.context import RunSubtask
 from klaude_code.llm import LLMClientABC
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, llm_param, tools
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session import Session
-from klaude_code.trace import DebugType, log_debug
 
 
 @dataclass(frozen=True)

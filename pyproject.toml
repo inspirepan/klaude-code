@@ -91,7 +91,7 @@ layers = [
     "klaude_code.config",
     "klaude_code.llm",
     "klaude_code.protocol",
-    "klaude_code.trace",
+    "klaude_code.log",
     "klaude_code.auth",
     "klaude_code.const",
 ]

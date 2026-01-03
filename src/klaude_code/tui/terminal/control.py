@@ -12,7 +12,7 @@ from collections.abc import Callable, Coroutine
 from types import FrameType
 from typing import Any
 
-from klaude_code.trace import log
+from klaude_code.log import log
 
 
 def start_esc_interrupt_monitor(

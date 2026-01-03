@@ -20,8 +20,8 @@ from klaude_code.core.tool.tool_runner import (
     ToolExecutorEvent,
 )
 from klaude_code.llm import LLMClientABC
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, llm_param, message, model, tools
-from klaude_code.trace import DebugType, log_debug
 
 
 class TurnError(Exception):

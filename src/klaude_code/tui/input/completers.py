@@ -28,8 +28,8 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import FormattedText
 
 from klaude_code.const import COMPLETER_CACHE_TTL_SEC, COMPLETER_CMD_TIMEOUT_SEC, COMPLETER_DEBOUNCE_SEC
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol.commands import CommandInfo
-from klaude_code.trace.log import DebugType, log_debug
 
 # Pattern to match @token for completion refresh (used by key bindings).
 # Supports both plain tokens like `@src/file.py` and quoted tokens like

@@ -6,9 +6,9 @@ from klaude_code.config import Config
 from klaude_code.core.manager.llm_clients import LLMClients
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.registry import create_llm_client
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 from klaude_code.protocol.tools import SubAgentType
-from klaude_code.trace import DebugType, log_debug
 
 
 def build_llm_clients(

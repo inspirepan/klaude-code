@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from klaude_code.config.config import ModelEntry, load_config, print_no_available_models_hint
-from klaude_code.trace import log
+from klaude_code.log import log
 
 
 def _normalize_model_key(value: str) -> str:

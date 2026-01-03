@@ -12,8 +12,8 @@ from klaude_code.cli.cost_cmd import register_cost_commands
 from klaude_code.cli.debug import DEBUG_FILTER_HELP, open_log_file_in_editor, resolve_debug_settings
 from klaude_code.cli.self_update import register_self_update_commands, version_option_callback
 from klaude_code.cli.session_cmd import register_session_commands
+from klaude_code.log import DebugType, prepare_debug_log_file
 from klaude_code.session import Session
-from klaude_code.trace import DebugType, prepare_debug_log_file
 from klaude_code.tui.command.resume_cmd import select_session_sync
 
 
@@ -68,7 +68,7 @@ def read_input_content(cli_argument: str) -> str | None:
     Returns:
         The merged input content, or None if no input was provided.
     """
-    from klaude_code.trace import log
+    from klaude_code.log import log
 
     parts: list[str] = []
 
@@ -188,7 +188,7 @@ def exec_command(
             # Save the selection as default
             config.main_model = chosen_model
             from klaude_code.config.config import config_path
-            from klaude_code.trace import log
+            from klaude_code.log import log
 
             asyncio.run(config.save())
             log(f"Saved main_model={chosen_model} to {config_path}", style="cyan")
@@ -269,7 +269,7 @@ def main_callback(
 ) -> None:
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
-        from klaude_code.trace import log
+        from klaude_code.log import log
 
         resume_by_id_value = resume_by_id.strip() if resume_by_id is not None else None
         if resume_by_id_value == "":
@@ -333,7 +333,7 @@ def main_callback(
 
         if session_id is not None and chosen_model is None:
             from klaude_code.config import load_config
-            from klaude_code.trace import log
+            from klaude_code.log import log
 
             session_meta = Session.load_meta(session_id)
             cfg = load_config()
@@ -372,7 +372,7 @@ def main_callback(
                 # Save the selection as default
                 cfg.main_model = chosen_model
                 from klaude_code.config.config import config_path
-                from klaude_code.trace import log
+                from klaude_code.log import log
 
                 asyncio.run(cfg.save())
                 log(f"Saved main_model={chosen_model} to {config_path}", style="dim")

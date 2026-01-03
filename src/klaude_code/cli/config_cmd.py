@@ -7,7 +7,7 @@ import sys
 import typer
 
 from klaude_code.config import config_path, create_example_config, example_config_path, load_config
-from klaude_code.trace import log
+from klaude_code.log import log
 
 
 def list_models(

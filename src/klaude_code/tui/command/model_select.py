@@ -4,7 +4,7 @@ import sys
 
 from klaude_code.config.config import load_config
 from klaude_code.config.select_model import match_model_from_config
-from klaude_code.trace import log
+from klaude_code.log import log
 
 
 def select_model_interactive(preferred: str | None = None) -> str | None:

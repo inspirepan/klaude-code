@@ -8,7 +8,7 @@ from enum import Enum
 from typing import TextIO, cast
 
 from klaude_code.const import NOTIFY_COMPACT_LIMIT
-from klaude_code.trace import DebugType, log_debug
+from klaude_code.log import DebugType, log_debug
 
 # Environment variable for tmux test signal channel
 TMUX_SIGNAL_ENV = "KLAUDE_TEST_SIGNAL"

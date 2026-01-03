@@ -14,8 +14,8 @@ from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_stream_items
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, message
-from klaude_code.trace import DebugType, log_debug
 
 
 @register(llm_param.LLMClientProtocol.BEDROCK)

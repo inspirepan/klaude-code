@@ -6,7 +6,7 @@ import webbrowser
 import typer
 from prompt_toolkit.styles import Style
 
-from klaude_code.trace import log
+from klaude_code.log import log
 from klaude_code.tui.terminal.selector import SelectItem, select_one
 
 _SELECT_STYLE = Style(

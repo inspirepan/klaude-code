@@ -2,8 +2,8 @@ import time
 
 import typer
 
+from klaude_code.log import log
 from klaude_code.session import Session
-from klaude_code.trace import log
 
 
 def _session_confirm(sessions: list[Session.SessionMetaBrief], message: str) -> bool:

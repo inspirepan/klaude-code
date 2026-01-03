@@ -13,8 +13,8 @@ from klaude_code.llm.openai_compatible.input import convert_history_to_input, co
 from klaude_code.llm.openai_compatible.stream import DefaultReasoningHandler, parse_chat_completions_stream
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, message
-from klaude_code.trace import DebugType, log_debug
 
 
 def build_payload(param: llm_param.LLMCallParameter) -> tuple[CompletionCreateParamsStreaming, dict[str, object]]:

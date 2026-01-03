@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from importlib import resources
 from pathlib import Path
 
-from klaude_code.trace import log_debug
+from klaude_code.log import log_debug
 
 # Marker file name for tracking installed skills version
 SYSTEM_SKILLS_MARKER_FILENAME = ".klaude-system-skills.marker"

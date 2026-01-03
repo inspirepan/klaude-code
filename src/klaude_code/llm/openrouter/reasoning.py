@@ -1,8 +1,8 @@
 from pydantic import BaseModel
 
 from klaude_code.llm.openai_compatible.stream import ReasoningDeltaResult, ReasoningHandlerABC
+from klaude_code.log import log
 from klaude_code.protocol import message
-from klaude_code.trace import log
 
 
 class ReasoningDetail(BaseModel):

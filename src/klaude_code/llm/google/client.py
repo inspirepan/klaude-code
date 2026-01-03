@@ -26,8 +26,8 @@ from klaude_code.llm.google.input import convert_history_to_contents, convert_to
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, message, model
-from klaude_code.trace import DebugType, log_debug
 
 
 def _build_config(param: llm_param.LLMCallParameter) -> GenerateContentConfig:

@@ -9,7 +9,7 @@ import time
 import tty
 from typing import BinaryIO, Final
 
-from klaude_code.trace import DebugType, log_debug
+from klaude_code.log import DebugType, log_debug
 
 ST: Final[bytes] = b"\x1b\\"  # ESC \
 BEL: Final[int] = 7

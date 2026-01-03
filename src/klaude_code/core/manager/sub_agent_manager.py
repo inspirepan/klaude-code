@@ -14,10 +14,10 @@ from collections.abc import Callable
 from klaude_code.core.agent import Agent, AgentProfile, ModelProfileProvider
 from klaude_code.core.manager.llm_clients import LLMClients
 from klaude_code.core.tool import ReportBackTool
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, model
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.session import Session
-from klaude_code.trace import DebugType, log_debug
 
 
 class SubAgentManager:

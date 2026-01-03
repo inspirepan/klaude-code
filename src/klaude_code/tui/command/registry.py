@@ -1,8 +1,8 @@
 from importlib.resources import files
 from typing import TYPE_CHECKING
 
+from klaude_code.log import log_debug
 from klaude_code.protocol import commands, events, message, model, op
-from klaude_code.trace import log_debug
 
 from .command_abc import Agent, CommandResult
 from .prompt_command import PromptCommand

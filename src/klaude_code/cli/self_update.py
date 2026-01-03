@@ -14,7 +14,7 @@ from typing import NamedTuple
 
 import typer
 
-from klaude_code.trace import log
+from klaude_code.log import log
 
 PACKAGE_NAME = "klaude-code"
 PYPI_URL = f"https://pypi.org/pypi/{PACKAGE_NAME}/json"
