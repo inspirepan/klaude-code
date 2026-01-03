@@ -145,7 +145,7 @@ async def parse_responses_stream(
                 case responses.ResponseOutputItemAddedEvent() as event:
                     if isinstance(event.item, responses.ResponseFunctionToolCall):
                         metadata_tracker.record_token()
-                        yield message.ToolCallStartItem(
+                        yield message.ToolCallStartDelta(
                             response_id=response_id,
                             call_id=event.item.call_id,
                             name=event.item.name,

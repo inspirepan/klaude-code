@@ -348,7 +348,7 @@ class TurnExecutor:
                         style="red",
                         debug_type=DebugType.RESPONSE,
                     )
-                case message.ToolCallStartItem() as msg:
+                case message.ToolCallStartDelta() as msg:
                     if thinking_active:
                         thinking_active = False
                         yield events.ThinkingEndEvent(

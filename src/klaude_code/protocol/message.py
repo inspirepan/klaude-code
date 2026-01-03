@@ -25,7 +25,7 @@ from klaude_code.protocol.model import (
 # Stream items
 
 
-class ToolCallStartItem(BaseModel):
+class ToolCallStartDelta(BaseModel):
     """Transient streaming signal when LLM starts a tool call.
 
     This is NOT persisted to conversation history. Used only for
@@ -175,7 +175,7 @@ Message = SystemMessage | DeveloperMessage | UserMessage | AssistantMessage | To
 
 HistoryEvent = Message | StreamErrorItem | TaskMetadataItem
 
-StreamItem = AssistantTextDelta | AssistantImageDelta | ThinkingTextDelta | ToolCallStartItem
+StreamItem = AssistantTextDelta | AssistantImageDelta | ThinkingTextDelta | ToolCallStartDelta
 
 LLMStreamItem = HistoryEvent | StreamItem
 

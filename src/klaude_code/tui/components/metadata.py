@@ -188,7 +188,7 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
             ("Σ ", ThemeKey.METADATA_DIM),
             ("total ", ThemeKey.METADATA_DIM),
             (currency_symbol, ThemeKey.METADATA_DIM),
-            (f"{total_cost:.4f}", ThemeKey.METADATA_BOLD),
+            (f"{total_cost:.4f}", ThemeKey.METADATA),
         )
         grid = create_grid()
         grid.add_row(Text(" ", style=ThemeKey.METADATA_DIM), total_line)

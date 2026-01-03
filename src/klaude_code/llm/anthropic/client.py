@@ -169,7 +169,7 @@ async def parse_anthropic_stream(
                 match event.content_block:
                     case BetaToolUseBlock() as block:
                         metadata_tracker.record_token()
-                        yield message.ToolCallStartItem(
+                        yield message.ToolCallStartDelta(
                             response_id=response_id,
                             call_id=block.id,
                             name=block.name,

@@ -242,7 +242,7 @@ async def parse_google_stream(
 
             if call_id not in started_tool_items:
                 started_tool_items.add(call_id)
-                yield message.ToolCallStartItem(response_id=response_id, call_id=call_id, name=name)
+                yield message.ToolCallStartDelta(response_id=response_id, call_id=call_id, name=name)
 
             args_obj = getattr(function_call, "args", None)
             if args_obj is not None:

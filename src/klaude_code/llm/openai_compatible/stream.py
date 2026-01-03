@@ -303,7 +303,7 @@ async def parse_chat_completions_stream(
                 for tc in tool_calls:
                     if tc.index not in state.emitted_tool_start_indices and tc.function and tc.function.name:
                         state.emitted_tool_start_indices.add(tc.index)
-                        yield message.ToolCallStartItem(
+                        yield message.ToolCallStartDelta(
                             response_id=state.response_id,
                             call_id=tc.id or "",
                             name=tc.function.name,
