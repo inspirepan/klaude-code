@@ -521,13 +521,15 @@ class DisplayStateMachine:
                     self._spinner.finish_sub_agent_tool_call(e.tool_call_id, get_tool_active_form(e.tool_name))
                     cmds.extend(self._spinner_update_commands())
 
-                if s.is_sub_agent and e.status == "success":
+                if s.is_sub_agent and not e.is_error:
                     return cmds
 
                 cmds.append(RenderToolResult(event=e, is_sub_agent_session=s.is_sub_agent))
                 return cmds
 
             case events.TaskMetadataEvent() as e:
+                cmds.append(EndThinkingStream(e.session_id))
+                cmds.append(EndAssistantStream(e.session_id))
                 cmds.append(RenderTaskMetadata(e))
                 return cmds
 

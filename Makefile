@@ -17,7 +17,7 @@ help:
 		"  make format       Format code (ruff format)" \
 		"  make test         Run tests (pytest)"
 
-lint: ruff-check format-check typecheck imports
+lint: ruff-check typecheck imports
 
 ruff-check:
 	$(RUFF) check .

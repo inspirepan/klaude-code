@@ -69,7 +69,6 @@ def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEv
                 )
             )
         case ToolExecutionResult(tool_call=tool_call, tool_result=tool_result, is_last_in_turn=is_last_in_turn):
-            status = "success" if tool_result.status == "success" else "error"
             ui_events.append(
                 events.ToolResultEvent(
                     session_id=session_id,
@@ -78,13 +77,11 @@ def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEv
                     tool_name=tool_call.tool_name,
                     result=tool_result.output_text,
                     ui_extra=tool_result.ui_extra,
-                    status=status,
+                    status=tool_result.status,
                     task_metadata=tool_result.task_metadata,
                     is_last_in_turn=is_last_in_turn,
                 )
             )
-            if tool_result.status == "aborted":
-                ui_events.append(events.InterruptEvent(session_id=session_id))
         case ToolExecutionTodoChange(todos=todos):
             ui_events.append(
                 events.TodoChangeEvent(

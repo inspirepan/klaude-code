@@ -491,7 +491,7 @@ def render_mermaid_tool_result(
 
     link_info = _extract_mermaid_link(tr.ui_extra)
     if link_info is None:
-        return render_generic_tool_result(tr.result, is_error=tr.status == "error")
+        return render_generic_tool_result(tr.result, is_error=tr.is_error)
 
     use_osc8 = supports_osc8_hyperlinks()
     viewer = _render_mermaid_viewer_link(tr, link_info, use_osc8=use_osc8)
@@ -649,7 +649,7 @@ def render_tool_result(
         return TreeQuote.for_tool_result(content, is_last=e.is_last_in_turn)
 
     # Handle error case
-    if e.status == "error" and e.ui_extra is None:
+    if e.is_error and e.ui_extra is None:
         return wrap(render_generic_tool_result(e.result, is_error=True))
 
     # Render multiple ui blocks if present
@@ -666,7 +666,7 @@ def render_tool_result(
     # Show truncation info if output was truncated and saved to file
     truncation_info = get_truncation_info(e)
     if truncation_info:
-        result = render_generic_tool_result(e.result, is_error=e.status == "error")
+        result = render_generic_tool_result(e.result, is_error=e.is_error)
         return wrap(Group(render_truncation_info(truncation_info), result))
 
     diff_ui = _extract_diff(e.ui_extra)
@@ -675,7 +675,7 @@ def render_tool_result(
     def _render_fallback() -> TreeQuote:
         if len(e.result.strip()) == 0:
             return wrap(render_generic_tool_result("(no content)"))
-        return wrap(render_generic_tool_result(e.result, is_error=e.status == "error"))
+        return wrap(render_generic_tool_result(e.result, is_error=e.is_error))
 
     match e.tool_name:
         case tools.READ:

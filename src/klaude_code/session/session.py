@@ -350,8 +350,6 @@ class Session(BaseModel):
                         is_last_in_turn=is_last_in_turn,
                     )
                     yield from self._iter_sub_agent_history(tr, seen_sub_agent_sessions)
-                    if tr.status == "aborted":
-                        yield events.InterruptEvent(session_id=self.id)
                 case message.UserMessage() as um:
                     images = [part for part in um.parts if isinstance(part, message.ImageURLPart)]
                     yield events.UserMessageEvent(

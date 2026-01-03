@@ -396,7 +396,7 @@ class TUICommandRenderer:
         if c_tools.is_sub_agent_tool(e.tool_name):
             return
 
-        if is_sub_agent and e.status == "error":
+        if is_sub_agent and e.is_error:
             error_msg = truncate_head(e.result)
             self.print(c_errors.render_tool_error(error_msg))
             return
