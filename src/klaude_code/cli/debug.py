@@ -1,12 +1,10 @@
 """Debug utilities for CLI."""
 
-import subprocess
-import sys
 from pathlib import Path
 
 import typer
 
-from klaude_code.log import DebugType, log
+from klaude_code.log import DebugType, log, prepare_debug_log_file
 
 DEBUG_FILTER_HELP = "Comma-separated debug types: " + ", ".join(dt.value for dt in DebugType)
 
@@ -41,38 +39,16 @@ def resolve_debug_settings(flag: bool, raw_filters: str | None) -> tuple[bool, s
     return effective_flag, filters
 
 
-def open_log_file_in_editor(path: Path) -> None:
-    """Open the given log file in a text editor without blocking the CLI."""
+def prepare_debug_logging(debug: bool, debug_filter: str | None) -> tuple[bool, set[DebugType] | None, Path | None]:
+    """Resolve debug settings and prepare log file if enabled.
 
-    editor = ""
+    Returns:
+        A tuple of (debug_enabled, debug_filters, log_path).
+        log_path is None if debugging is disabled.
+    """
 
-    for cmd in ["code", "TextEdit", "notepad"]:
-        try:
-            subprocess.run(["which", cmd], check=True, capture_output=True)
-            editor = cmd
-            break
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            continue
-
-    if not editor:
-        if sys.platform == "darwin":
-            editor = "open"
-        elif sys.platform == "win32":
-            editor = "notepad"
-        else:
-            editor = "xdg-open"
-
-    try:
-        # Detach stdin to prevent the editor from interfering with terminal input state.
-        # Without this, the spawned process inherits the parent's TTY and can disrupt
-        # prompt_toolkit's keyboard handling (e.g., history navigation with up/down keys).
-        subprocess.Popen(
-            [editor, str(path)],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    except FileNotFoundError:
-        log((f"Error: Editor '{editor}' not found", "red"))
-    except Exception as exc:  # pragma: no cover - best effort
-        log((f"Warning: failed to open log file in editor: {exc}", "yellow"))
+    debug_enabled, debug_filters = resolve_debug_settings(debug, debug_filter)
+    log_path: Path | None = None
+    if debug_enabled:
+        log_path = prepare_debug_log_file()
+    return debug_enabled, debug_filters, log_path

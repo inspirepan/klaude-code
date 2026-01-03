@@ -25,14 +25,7 @@ Tests are located in the `tests/` directory. Configuration for tools (Ruff/Pyrig
 - `make lint-fix`: Auto-fix with ruff, then format
 - `make format`: Format (ruff)
 - `make test`: Run tests (pytest)
-
-- `uv run ruff check --fix .`: Lint
-- `uv run ruff format`: Format
-- `uv run pytest`: Run tests
-- `uv run pyright`: Type checking in strict mode
-- `uv run lint-imports`: Enforce import-layer contracts
-- `uv run klaude ...`: Execute CLI with the project's virtual environment
-- `uv run klaude update --check`: Check for newer CLI version
+- use `tmux-test` skill to test UI interactive features
 
 ## Coding Style & Naming Conventions
 

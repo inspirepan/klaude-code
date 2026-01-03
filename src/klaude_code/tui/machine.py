@@ -4,7 +4,12 @@ from dataclasses import dataclass
 
 from rich.text import Text
 
-from klaude_code.const import SIGINT_DOUBLE_PRESS_EXIT_TEXT, STATUS_DEFAULT_TEXT
+from klaude_code.const import (
+    SIGINT_DOUBLE_PRESS_EXIT_TEXT,
+    STATUS_COMPOSING_TEXT,
+    STATUS_DEFAULT_TEXT,
+    STATUS_THINKING_TEXT,
+)
 from klaude_code.protocol import events, model
 from klaude_code.tui.commands import (
     AppendAssistant,
@@ -41,7 +46,6 @@ from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.thinking import extract_last_bold_header, normalize_thinking_content
 from klaude_code.tui.components.tools import get_tool_active_form, is_sub_agent_tool
-from klaude_code.tui.display_state import DisplayState
 
 
 @dataclass
@@ -146,7 +150,7 @@ class ActivityState:
 
         if self._composing:
             text = Text()
-            text.append("Composing", style=ThemeKey.STATUS_TEXT_BOLD)
+            text.append(STATUS_COMPOSING_TEXT, style=ThemeKey.STATUS_TEXT_BOLD)
             if self._buffer_length > 0:
                 text.append(f" ({self._buffer_length:,})", style=ThemeKey.STATUS_TEXT)
             return text
@@ -257,7 +261,6 @@ class SpinnerStatusState:
 class _SessionState:
     session_id: str
     sub_agent_state: model.SubAgentState | None = None
-    display_state: DisplayState = DisplayState.IDLE
     sub_agent_thinking_header: SubAgentThinkingHeaderState | None = None
     assistant_stream_active: bool = False
     thinking_stream_active: bool = False
@@ -366,9 +369,12 @@ class DisplayStateMachine:
                     return []
                 if not self._is_primary(e.session_id):
                     return []
-                s.display_state = DisplayState.THINKING
                 s.thinking_stream_active = True
+                # Ensure the status reflects that reasoning has started even
+                # before we receive any deltas (or a bold header).
+                self._spinner.set_reasoning_status(STATUS_THINKING_TEXT)
                 cmds.append(StartThinkingStream(session_id=e.session_id))
+                cmds.extend(self._spinner_update_commands())
                 return cmds
 
             case events.ThinkingDeltaEvent() as e:
@@ -384,7 +390,6 @@ class DisplayStateMachine:
 
                 if not self._is_primary(e.session_id):
                     return []
-                s.display_state = DisplayState.THINKING
                 cmds.append(AppendThinking(session_id=e.session_id, content=e.content))
 
                 # Update reasoning status for spinner (based on bounded tail).
@@ -401,7 +406,6 @@ class DisplayStateMachine:
                     return []
                 if not self._is_primary(e.session_id):
                     return []
-                s.display_state = DisplayState.IDLE
                 s.thinking_stream_active = False
                 cmds.append(EndThinkingStream(session_id=e.session_id))
                 cmds.append(SpinnerStart())
@@ -416,7 +420,6 @@ class DisplayStateMachine:
                 if not self._is_primary(e.session_id):
                     return []
 
-                s.display_state = DisplayState.STREAMING_TEXT
                 s.assistant_stream_active = True
                 s.assistant_char_count = 0
                 self._spinner.set_composing(True)
@@ -431,7 +434,6 @@ class DisplayStateMachine:
                 if not self._is_primary(e.session_id):
                     return []
 
-                s.display_state = DisplayState.STREAMING_TEXT
                 s.assistant_char_count += len(e.content)
                 self._spinner.set_buffer_length(s.assistant_char_count)
                 cmds.append(AppendAssistant(session_id=e.session_id, content=e.content))
@@ -446,7 +448,6 @@ class DisplayStateMachine:
                 if not self._is_primary(e.session_id):
                     return []
 
-                s.display_state = DisplayState.IDLE
                 s.assistant_stream_active = False
                 self._spinner.set_composing(False)
                 cmds.append(EndAssistantStream(session_id=e.session_id))
@@ -463,7 +464,6 @@ class DisplayStateMachine:
                     return []
                 if not self._is_primary(e.session_id):
                     return []
-                s.display_state = DisplayState.IDLE
                 self._spinner.set_composing(False)
                 cmds.append(SpinnerStart())
                 cmds.extend(self._spinner_update_commands())

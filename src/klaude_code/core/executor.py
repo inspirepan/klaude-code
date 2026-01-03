@@ -178,6 +178,28 @@ class ExecutorContext:
 
     async def handle_run_agent(self, operation: op.RunAgentOperation) -> None:
         agent = await self._ensure_agent(operation.session_id)
+
+        if operation.emit_user_message_event:
+            await self.emit_event(
+                events.UserMessageEvent(
+                    content=operation.input.text,
+                    session_id=agent.session.id,
+                    images=operation.input.images,
+                )
+            )
+
+        if operation.persist_user_input:
+            agent.session.append_history(
+                [
+                    message.UserMessage(
+                        parts=message.parts_from_text_and_images(
+                            operation.input.text,
+                            operation.input.images,
+                        )
+                    )
+                ]
+            )
+
         existing_active = self.task_manager.get(operation.id)
         if existing_active is not None and not existing_active.task.done():
             raise RuntimeError(f"Active task already registered for operation {operation.id}")

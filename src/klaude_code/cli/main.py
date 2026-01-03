@@ -1,62 +1,17 @@
 import asyncio
-import contextlib
-import os
 import sys
-from pathlib import Path
 
 import typer
 
 from klaude_code.cli.auth_cmd import register_auth_commands
 from klaude_code.cli.config_cmd import register_config_commands
 from klaude_code.cli.cost_cmd import register_cost_commands
-from klaude_code.cli.debug import DEBUG_FILTER_HELP, open_log_file_in_editor, resolve_debug_settings
+from klaude_code.cli.debug import DEBUG_FILTER_HELP, prepare_debug_logging
 from klaude_code.cli.self_update import register_self_update_commands, version_option_callback
 from klaude_code.cli.session_cmd import register_session_commands
-from klaude_code.log import DebugType, prepare_debug_log_file
 from klaude_code.session import Session
 from klaude_code.tui.command.resume_cmd import select_session_sync
-
-
-def set_terminal_title(title: str) -> None:
-    """Set terminal window title using ANSI escape sequence."""
-    # Never write terminal control sequences when stdout is not a TTY (pipes/CI/redirects).
-    # This avoids corrupting machine-readable output (e.g., JSON streaming) and log captures.
-    #
-    # Use the original stdout to bypass prompt_toolkit's `patch_stdout()`. Writing OSC
-    # sequences to the patched stdout can cause them to appear as visible text.
-    stream = getattr(sys, "__stdout__", None) or sys.stdout
-    try:
-        if not stream.isatty():
-            return
-    except Exception:
-        return
-
-    stream.write(f"\033]0;{title}\007")
-    with contextlib.suppress(Exception):
-        stream.flush()
-
-
-def update_terminal_title(model_name: str | None = None) -> None:
-    """Update terminal title with folder name and optional model name."""
-    folder_name = os.path.basename(os.getcwd())
-    if model_name:
-        set_terminal_title(f"{folder_name}: klaude ✳ {model_name}")
-    else:
-        set_terminal_title(f"{folder_name}: klaude")
-
-
-def prepare_debug_logging(debug: bool, debug_filter: str | None) -> tuple[bool, set[DebugType] | None, Path | None]:
-    """Resolve debug settings and prepare log file if debugging is enabled.
-
-    Returns:
-        A tuple of (debug_enabled, debug_filters, log_path).
-        log_path is None if debugging is disabled.
-    """
-    debug_enabled, debug_filters = resolve_debug_settings(debug, debug_filter)
-    log_path: Path | None = None
-    if debug_enabled:
-        log_path = prepare_debug_log_file()
-    return debug_enabled, debug_filters, log_path
+from klaude_code.ui.terminal.title import update_terminal_title
 
 
 def read_input_content(cli_argument: str) -> str | None:
@@ -169,7 +124,7 @@ def exec_command(
     if merged_input is None:
         raise typer.Exit(1)
 
-    from klaude_code.cli.runtime import AppInitConfig, run_exec
+    from klaude_code.app.runtime import AppInitConfig, run_exec
     from klaude_code.config import load_config
     from klaude_code.tui.command.model_select import select_model_interactive
 
@@ -199,13 +154,14 @@ def exec_command(
         model=chosen_model,
         debug=debug_enabled,
         vanilla=vanilla,
-        is_exec_mode=True,
         debug_filters=debug_filters,
         stream_json=stream_json,
     )
 
     if log_path:
-        open_log_file_in_editor(log_path)
+        from klaude_code.log import log
+
+        log(f"Debug log: {log_path}", style="dim")
 
     asyncio.run(
         run_exec(
@@ -304,8 +260,9 @@ def main_callback(
             )
             return
 
-        from klaude_code.cli.runtime import AppInitConfig, run_interactive
+        from klaude_code.app.runtime import AppInitConfig
         from klaude_code.tui.command.model_select import select_model_interactive
+        from klaude_code.tui.runner import run_interactive
 
         update_terminal_title()
 
@@ -387,7 +344,7 @@ def main_callback(
         )
 
         if log_path:
-            open_log_file_in_editor(log_path)
+            log(f"Debug log: {log_path}", style="dim")
 
         asyncio.run(
             run_interactive(

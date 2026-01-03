@@ -84,6 +84,7 @@ type = "layers"
 layers = [
     "klaude_code.cli",
     "klaude_code.tui",
+    "klaude_code.app",
     "klaude_code.ui",
     "klaude_code.core",
     "klaude_code.skill",
