@@ -30,6 +30,7 @@ def ensure_commands_loaded() -> None:
 
     # Import and register commands in display order
     from .clear_cmd import ClearCommand
+    from .copy_cmd import CopyCommand
     from .debug_cmd import DebugCommand
     from .export_cmd import ExportCommand
     from .export_online_cmd import ExportOnlineCommand
@@ -49,6 +50,7 @@ def ensure_commands_loaded() -> None:
     register(RefreshTerminalCommand())
     register(ThinkingCommand())
     register(ModelCommand())
+    register(CopyCommand())
     register(ForkSessionCommand())
     register(ResumeCommand())
     load_prompt_commands()
@@ -66,6 +68,7 @@ def ensure_commands_loaded() -> None:
 def __getattr__(name: str) -> object:
     _commands_map = {
         "ClearCommand": "clear_cmd",
+        "CopyCommand": "copy_cmd",
         "DebugCommand": "debug_cmd",
         "ExportCommand": "export_cmd",
         "ExportOnlineCommand": "export_online_cmd",
