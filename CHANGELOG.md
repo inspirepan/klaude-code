@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-01-03
+
+### Added
+
+- track sub-agent tool calls in spinner status (`971ac278`)
+
+### Changed
+
+- consolidate agent profile related code into agent_profile module (`f0cef29a`)
+- extract AgentRuntime and ModelSwitcher from ExecutorContext (`1f2d49d5`)
+- improve spinner status text clarity (`ad0fff84`)
+- extract app layer for runtime coordination (`286ed756`)
+- use command registry for slash highlighting (`38dfed08`)
+- change trace to log.py (`333234fc`)
+- move command to tui (`6fd0e167`)
+- separate tui from ui (`7b66bbe2`)
+- restructure events and rewrite REPL rendering pipeline (`7b74e244`)
+- make tool execution context explicit (`052e3d6e`)
+- update sub-agent result style (`48fca1cd`)
+
+### Fixed
+
+- change thinking mdstream to no live repaint && add check for spinner update (`82251feb`)
+- show double Ctrl+C hint without breaking prompt input (`c5eaecfa`)
+
+### Other
+
+- replace dev-docs skill with create-plan skill (`34875646`)
+- add Makefile (`ee1f6ac4`)
 ## [2.0.2] - 2026-01-03
 
 ### Added
@@ -1088,7 +1117,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.0.2...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/inspirepan/klaude-code/compare/v2.0.2...v2.1.0
 [2.0.2]: https://github.com/inspirepan/klaude-code/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/inspirepan/klaude-code/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/inspirepan/klaude-code/compare/v1.9.0...v2.0.0
