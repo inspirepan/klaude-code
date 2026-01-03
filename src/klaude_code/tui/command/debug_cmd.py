@@ -1,6 +1,7 @@
-from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, message, model
 from klaude_code.trace import DebugType, get_current_log_file, is_debug_enabled, set_debug_logging
+
+from .command_abc import Agent, CommandABC, CommandResult
 
 
 def _format_status() -> str:

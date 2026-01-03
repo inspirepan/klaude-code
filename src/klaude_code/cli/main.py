@@ -12,9 +12,9 @@ from klaude_code.cli.cost_cmd import register_cost_commands
 from klaude_code.cli.debug import DEBUG_FILTER_HELP, open_log_file_in_editor, resolve_debug_settings
 from klaude_code.cli.self_update import register_self_update_commands, version_option_callback
 from klaude_code.cli.session_cmd import register_session_commands
-from klaude_code.command.resume_cmd import select_session_sync
 from klaude_code.session import Session
 from klaude_code.trace import DebugType, prepare_debug_log_file
+from klaude_code.tui.command.resume_cmd import select_session_sync
 
 
 def set_terminal_title(title: str) -> None:
@@ -170,8 +170,8 @@ def exec_command(
         raise typer.Exit(1)
 
     from klaude_code.cli.runtime import AppInitConfig, run_exec
-    from klaude_code.command.model_select import select_model_interactive
     from klaude_code.config import load_config
+    from klaude_code.tui.command.model_select import select_model_interactive
 
     chosen_model = model
     if model or select_model:
@@ -305,7 +305,7 @@ def main_callback(
             return
 
         from klaude_code.cli.runtime import AppInitConfig, run_interactive
-        from klaude_code.command.model_select import select_model_interactive
+        from klaude_code.tui.command.model_select import select_model_interactive
 
         update_terminal_title()
 

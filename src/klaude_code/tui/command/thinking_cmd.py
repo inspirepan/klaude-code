@@ -2,10 +2,11 @@ import asyncio
 
 from prompt_toolkit.styles import Style
 
-from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.config.thinking import get_thinking_picker_data, parse_thinking_value
 from klaude_code.protocol import commands, events, llm_param, message, model, op
 from klaude_code.tui.terminal.selector import SelectItem, select_one
+
+from .command_abc import Agent, CommandABC, CommandResult
 
 SELECT_STYLE = Style(
     [

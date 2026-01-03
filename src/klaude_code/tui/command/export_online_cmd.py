@@ -9,9 +9,10 @@ from pathlib import Path
 from rich.console import Console
 from rich.text import Text
 
-from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, message, model
 from klaude_code.session.export import build_export_html
+
+from .command_abc import Agent, CommandABC, CommandResult
 
 
 class ExportOnlineCommand(CommandABC):

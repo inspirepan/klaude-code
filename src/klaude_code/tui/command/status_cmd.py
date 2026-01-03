@@ -1,6 +1,7 @@
-from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, message, model
 from klaude_code.session.session import Session
+
+from .command_abc import Agent, CommandABC, CommandResult
 
 
 class AggregatedUsage(model.BaseModel):

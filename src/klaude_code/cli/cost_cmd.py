@@ -10,9 +10,9 @@ from rich.box import Box
 from rich.console import Console
 from rich.table import Table
 
-from klaude_code.command.status_cmd import format_cost, format_tokens
 from klaude_code.protocol import model
 from klaude_code.session.codec import decode_jsonl_line
+from klaude_code.tui.command.status_cmd import format_cost, format_tokens
 
 ASCII_HORIZONAL = Box(" -- \n    \n -- \n    \n -- \n -- \n    \n -- \n")
 

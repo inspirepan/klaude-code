@@ -2,8 +2,9 @@ import os
 import subprocess
 from pathlib import Path
 
-from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, message, model
+
+from .command_abc import Agent, CommandABC, CommandResult
 
 
 class TerminalSetupCommand(CommandABC):

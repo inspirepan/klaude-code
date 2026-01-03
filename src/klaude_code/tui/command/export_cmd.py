@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, message, op
+
+from .command_abc import Agent, CommandABC, CommandResult
 
 
 class ExportCommand(CommandABC):

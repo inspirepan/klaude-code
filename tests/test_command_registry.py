@@ -9,9 +9,9 @@ from typing import Any, cast
 
 import pytest
 
-from klaude_code.command import registry
-from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, message, op
+from klaude_code.tui.command import registry
+from klaude_code.tui.command.command_abc import Agent, CommandABC, CommandResult
 
 
 def arun(coro: Any) -> Any:

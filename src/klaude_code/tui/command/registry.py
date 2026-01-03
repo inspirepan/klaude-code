@@ -1,10 +1,11 @@
 from importlib.resources import files
 from typing import TYPE_CHECKING
 
-from klaude_code.command.command_abc import Agent, CommandResult
-from klaude_code.command.prompt_command import PromptCommand
 from klaude_code.protocol import commands, events, message, model, op
 from klaude_code.trace import log_debug
+
+from .command_abc import Agent, CommandResult
+from .prompt_command import PromptCommand
 
 if TYPE_CHECKING:
     from .command_abc import CommandABC
@@ -82,7 +83,7 @@ def register(cmd: "CommandABC") -> None:
 def load_prompt_commands():
     """Dynamically load prompt-based commands from the command directory."""
     try:
-        command_files = files("klaude_code.command").iterdir()
+        command_files = files("klaude_code.tui.command").iterdir()
         for file_path in command_files:
             name = file_path.name
             if (name.startswith("prompt_") or name.startswith("prompt-")) and name.endswith(".md"):
@@ -94,7 +95,7 @@ def load_prompt_commands():
 
 def _ensure_commands_loaded() -> None:
     """Ensure all commands are loaded (lazy initialization)."""
-    from klaude_code.command import ensure_commands_loaded
+    from klaude_code.tui.command import ensure_commands_loaded
 
     ensure_commands_loaded()
 

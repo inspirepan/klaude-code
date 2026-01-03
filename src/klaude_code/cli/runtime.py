@@ -9,7 +9,6 @@ import typer
 from klaude_code import ui
 from klaude_code.cli.main import update_terminal_title
 from klaude_code.cli.self_update import get_update_message
-from klaude_code.command import dispatch_command, get_command_info_list, has_interactive_command, is_slash_command_name
 from klaude_code.config import Config, load_config
 from klaude_code.const import SIGINT_DOUBLE_PRESS_EXIT_TEXT
 from klaude_code.core.agent import Agent, DefaultModelProfileProvider, VanillaModelProfileProvider
@@ -20,6 +19,12 @@ from klaude_code.protocol import message as protocol_message
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session.session import Session, close_default_store
 from klaude_code.trace import DebugType, log, set_debug_logging
+from klaude_code.tui.command import (
+    dispatch_command,
+    get_command_info_list,
+    has_interactive_command,
+    is_slash_command_name,
+)
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input import build_repl_status_snapshot
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput, REPLStatusSnapshot

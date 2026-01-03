@@ -2,9 +2,10 @@ from importlib.resources import files
 
 import yaml
 
-from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, message, op
 from klaude_code.trace import log_debug
+
+from .command_abc import Agent, CommandABC, CommandResult
 
 
 class PromptCommand(CommandABC):
@@ -30,7 +31,7 @@ class PromptCommand(CommandABC):
             return
 
         try:
-            raw_text = files("klaude_code.command").joinpath(self.template_name).read_text(encoding="utf-8")
+            raw_text = files("klaude_code.tui.command").joinpath(self.template_name).read_text(encoding="utf-8")
 
             if raw_text.startswith("---"):
                 parts = raw_text.split("---", 2)

@@ -819,7 +819,7 @@ class TestForkSessionCommand:
         monkeypatch.chdir(project_dir)
 
         async def _test() -> None:
-            from klaude_code.command.fork_session_cmd import ForkSessionCommand
+            from klaude_code.tui.command.fork_session_cmd import ForkSessionCommand
 
             session = Session(work_dir=project_dir)
             cmd = ForkSessionCommand()
@@ -843,7 +843,7 @@ class TestForkSessionCommand:
         monkeypatch.chdir(project_dir)
 
         async def _test() -> None:
-            from klaude_code.command.fork_session_cmd import ForkSessionCommand
+            from klaude_code.tui.command.fork_session_cmd import ForkSessionCommand
 
             session = Session(work_dir=project_dir, model_name="test-model", model_config_name="test-config")
             session.model_thinking = llm_param.Thinking(type="enabled", budget_tokens=123)
