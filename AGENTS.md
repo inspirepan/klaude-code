@@ -17,14 +17,20 @@ The project follows a Python package structure with source code located in `src/
 - `src/klaude_code/ui/`: User interface components
 - `src/klaude_code/protocol/`: Communication structures and event definitions
 
-Tests are located in the `tests/` directory. Configuration files include `pyproject.toml` for project settings and `pyrightconfig.json` for TypeScript-style checking.
+Tests are located in the `tests/` directory. Configuration for tools (Ruff/Pyright/import-linter) lives in `pyproject.toml`.
 
 ## Build, Test, and Development Commands
+
+- `make lint`: Run ruff + formatting check + pyright + import-linter
+- `make lint-fix`: Auto-fix with ruff, then format
+- `make format`: Format (ruff)
+- `make test`: Run tests (pytest)
 
 - `uv run ruff check --fix .`: Lint
 - `uv run ruff format`: Format
 - `uv run pytest`: Run tests
 - `uv run pyright`: Type checking in strict mode
+- `uv run lint-imports`: Enforce import-layer contracts
 - `uv run klaude ...`: Execute CLI with the project's virtual environment
 - `uv run klaude update --check`: Check for newer CLI version
 
