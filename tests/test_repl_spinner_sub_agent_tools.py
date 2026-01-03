@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from klaude_code.ui.modes.repl.event_handler import SpinnerStatusState
+from klaude_code.ui.state.state_machine import SpinnerStatusState
 
 
 def test_sub_agent_tool_calls_persist_across_turn_start() -> None:

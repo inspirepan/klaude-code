@@ -289,7 +289,7 @@ class Session(BaseModel):
             return True
         return isinstance(prev_item, (message.UserMessage, message.ToolResultMessage, message.DeveloperMessage))
 
-    def get_history_item(self) -> Iterable[events.HistoryItemEvent]:
+    def get_history_item(self) -> Iterable[events.ReplayEventUnion]:
         seen_sub_agent_sessions: set[str] = set()
         prev_item: message.HistoryEvent | None = None
         last_assistant_content: str = ""
@@ -314,8 +314,8 @@ class Session(BaseModel):
                             response_id=am.response_id,
                             session_id=self.id,
                         )
-                    yield events.AssistantMessageEvent(
-                        thinking_text=thinking_text,
+                    yield events.ResponseCompleteEvent(
+                        thinking_text=thinking_text or None,
                         content=content,
                         response_id=am.response_id,
                         session_id=self.id,
@@ -378,7 +378,7 @@ class Session(BaseModel):
 
     def _iter_sub_agent_history(
         self, tool_result: message.ToolResultMessage, seen_sub_agent_sessions: set[str]
-    ) -> Iterable[events.HistoryItemEvent]:
+    ) -> Iterable[events.ReplayEventUnion]:
         ui_extra = tool_result.ui_extra
         if not isinstance(ui_extra, model.SessionIdUIExtra):
             return

@@ -1,0 +1,595 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from rich.text import Text
+
+from klaude_code.const import SIGINT_DOUBLE_PRESS_EXIT_TEXT, STATUS_DEFAULT_TEXT
+from klaude_code.protocol import events, model
+from klaude_code.ui.renderers.thinking import extract_last_bold_header, normalize_thinking_content
+from klaude_code.ui.renderers.tools import get_tool_active_form, is_sub_agent_tool
+from klaude_code.ui.rich import status as r_status
+from klaude_code.ui.rich.theme import ThemeKey
+from klaude_code.ui.state.display_state import DisplayState
+from klaude_code.ui.state.render_command import (
+    AppendAssistant,
+    AppendThinking,
+    EmitOsc94Error,
+    EmitTmuxSignal,
+    EndAssistantStream,
+    EndThinkingStream,
+    PrintRuleLine,
+    RenderAssistantImage,
+    RenderCommand,
+    RenderDeveloperMessage,
+    RenderError,
+    RenderInterrupt,
+    RenderReplayHistory,
+    RenderTaskFinish,
+    RenderTaskMetadata,
+    RenderTaskStart,
+    RenderThinkingHeader,
+    RenderToolCall,
+    RenderToolResult,
+    RenderTurnStart,
+    RenderUserMessage,
+    RenderWelcome,
+    SpinnerStart,
+    SpinnerStop,
+    SpinnerUpdate,
+    StartAssistantStream,
+    StartThinkingStream,
+    TaskClockClear,
+    TaskClockStart,
+)
+
+
+@dataclass
+class SubAgentThinkingHeaderState:
+    buffer: str = ""
+    last_header: str | None = None
+
+    def append_and_extract_new_header(self, content: str) -> str | None:
+        self.buffer += content
+
+        max_chars = 8192
+        if len(self.buffer) > max_chars:
+            self.buffer = self.buffer[-max_chars:]
+
+        header = extract_last_bold_header(normalize_thinking_content(self.buffer))
+        if header and header != self.last_header:
+            self.last_header = header
+            return header
+        return None
+
+
+class ActivityState:
+    """Tracks composing/tool activity for spinner display."""
+
+    def __init__(self) -> None:
+        self._composing: bool = False
+        self._buffer_length: int = 0
+        self._tool_calls: dict[str, int] = {}
+        self._sub_agent_tool_calls: dict[str, int] = {}
+        self._sub_agent_tool_calls_by_id: dict[str, str] = {}
+
+    @property
+    def is_composing(self) -> bool:
+        return self._composing and not self._tool_calls and not self._sub_agent_tool_calls
+
+    def set_composing(self, composing: bool) -> None:
+        self._composing = composing
+        if not composing:
+            self._buffer_length = 0
+
+    def set_buffer_length(self, length: int) -> None:
+        self._buffer_length = length
+
+    def add_tool_call(self, tool_name: str) -> None:
+        self._tool_calls[tool_name] = self._tool_calls.get(tool_name, 0) + 1
+
+    def add_sub_agent_tool_call(self, tool_call_id: str, tool_name: str) -> None:
+        if tool_call_id in self._sub_agent_tool_calls_by_id:
+            return
+        self._sub_agent_tool_calls_by_id[tool_call_id] = tool_name
+        self._sub_agent_tool_calls[tool_name] = self._sub_agent_tool_calls.get(tool_name, 0) + 1
+
+    def finish_sub_agent_tool_call(self, tool_call_id: str, tool_name: str | None = None) -> None:
+        existing_tool_name = self._sub_agent_tool_calls_by_id.pop(tool_call_id, None)
+        decremented_name = existing_tool_name or tool_name
+        if decremented_name is None:
+            return
+
+        current = self._sub_agent_tool_calls.get(decremented_name, 0)
+        if current <= 1:
+            self._sub_agent_tool_calls.pop(decremented_name, None)
+        else:
+            self._sub_agent_tool_calls[decremented_name] = current - 1
+
+    def clear_tool_calls(self) -> None:
+        self._tool_calls = {}
+
+    def clear_for_new_turn(self) -> None:
+        self._composing = False
+        self._buffer_length = 0
+        self._tool_calls = {}
+
+    def reset(self) -> None:
+        self._composing = False
+        self._buffer_length = 0
+        self._tool_calls = {}
+        self._sub_agent_tool_calls = {}
+        self._sub_agent_tool_calls_by_id = {}
+
+    def get_activity_text(self) -> Text | None:
+        if self._tool_calls or self._sub_agent_tool_calls:
+            activity_text = Text()
+
+            def _append_counts(counts: dict[str, int]) -> None:
+                first = True
+                for name, count in counts.items():
+                    if not first:
+                        activity_text.append(", ")
+                    activity_text.append(Text(name, style=ThemeKey.STATUS_TEXT_BOLD))
+                    if count > 1:
+                        activity_text.append(f" x {count}")
+                    first = False
+
+            if self._sub_agent_tool_calls:
+                _append_counts(self._sub_agent_tool_calls)
+                activity_text.append(" | ")
+
+            if self._tool_calls:
+                _append_counts(self._tool_calls)
+
+            return activity_text
+
+        if self._composing:
+            text = Text()
+            text.append("Composing", style=ThemeKey.STATUS_TEXT_BOLD)
+            if self._buffer_length > 0:
+                text.append(f" ({self._buffer_length:,})", style=ThemeKey.STATUS_TEXT)
+            return text
+
+        return None
+
+
+class SpinnerStatusState:
+    """Multi-layer spinner status state management."""
+
+    def __init__(self) -> None:
+        self._todo_status: str | None = None
+        self._reasoning_status: str | None = None
+        self._toast_status: str | None = None
+        self._activity = ActivityState()
+        self._context_percent: float | None = None
+
+    def reset(self) -> None:
+        self._todo_status = None
+        self._reasoning_status = None
+        self._toast_status = None
+        self._activity.reset()
+        self._context_percent = None
+
+    def set_toast_status(self, status: str | None) -> None:
+        self._toast_status = status
+
+    def set_todo_status(self, status: str | None) -> None:
+        self._todo_status = status
+
+    def set_reasoning_status(self, status: str | None) -> None:
+        self._reasoning_status = status
+
+    def set_composing(self, composing: bool) -> None:
+        if composing:
+            self._reasoning_status = None
+        self._activity.set_composing(composing)
+
+    def set_buffer_length(self, length: int) -> None:
+        self._activity.set_buffer_length(length)
+
+    def add_tool_call(self, tool_name: str) -> None:
+        self._activity.add_tool_call(tool_name)
+
+    def clear_tool_calls(self) -> None:
+        self._activity.clear_tool_calls()
+
+    def add_sub_agent_tool_call(self, tool_call_id: str, tool_name: str) -> None:
+        self._activity.add_sub_agent_tool_call(tool_call_id, tool_name)
+
+    def finish_sub_agent_tool_call(self, tool_call_id: str, tool_name: str | None = None) -> None:
+        self._activity.finish_sub_agent_tool_call(tool_call_id, tool_name)
+
+    def clear_for_new_turn(self) -> None:
+        self._activity.clear_for_new_turn()
+
+    def set_context_percent(self, percent: float) -> None:
+        self._context_percent = percent
+
+    def get_activity_text(self) -> Text | None:
+        """Expose current activity for tests and UI composition."""
+        return self._activity.get_activity_text()
+
+    def get_status(self) -> Text:
+        if self._toast_status:
+            return Text(self._toast_status, style=ThemeKey.STATUS_TOAST)
+
+        activity_text = self._activity.get_activity_text()
+        base_status = self._reasoning_status or self._todo_status
+
+        if base_status:
+            if activity_text:
+                result = Text()
+                result.append(base_status, style=ThemeKey.STATUS_TEXT_BOLD_ITALIC)
+                result.append(" | ")
+                result.append_text(activity_text)
+            else:
+                result = Text(base_status, style=ThemeKey.STATUS_TEXT_BOLD_ITALIC)
+        elif activity_text:
+            activity_text.append(" …")
+            result = activity_text
+        else:
+            result = Text(STATUS_DEFAULT_TEXT, style=ThemeKey.STATUS_TEXT)
+
+        return result
+
+    def get_right_text(self) -> r_status.DynamicText | None:
+        elapsed_text = r_status.current_elapsed_text()
+        has_context = self._context_percent is not None
+        if elapsed_text is None and not has_context:
+            return None
+
+        def _render() -> Text:
+            parts: list[str] = []
+            if self._context_percent is not None:
+                parts.append(f"{self._context_percent:.1f}%")
+            current_elapsed = r_status.current_elapsed_text()
+            if current_elapsed is not None:
+                if parts:
+                    parts.append(" · ")
+                parts.append(current_elapsed)
+            return Text("".join(parts), style=ThemeKey.METADATA_DIM)
+
+        return r_status.DynamicText(_render)
+
+
+@dataclass
+class _SessionState:
+    session_id: str
+    sub_agent_state: model.SubAgentState | None = None
+    display_state: DisplayState = DisplayState.IDLE
+    sub_agent_thinking_header: SubAgentThinkingHeaderState | None = None
+    assistant_stream_active: bool = False
+    thinking_stream_active: bool = False
+    assistant_char_count: int = 0
+    thinking_tail: str = ""
+
+    @property
+    def is_sub_agent(self) -> bool:
+        return self.sub_agent_state is not None
+
+    @property
+    def should_show_sub_agent_thinking_header(self) -> bool:
+        return bool(self.sub_agent_state and self.sub_agent_state.sub_agent_type == "ImageGen")
+
+
+class DisplayStateMachine:
+    """Simplified, session-aware REPL UI state machine.
+
+    This machine is deterministic because protocol events have explicit streaming
+    boundaries (Start/Delta/End).
+    """
+
+    def __init__(self) -> None:
+        self._sessions: dict[str, _SessionState] = {}
+        self._primary_session_id: str | None = None
+        self._spinner = SpinnerStatusState()
+
+    def _session(self, session_id: str) -> _SessionState:
+        existing = self._sessions.get(session_id)
+        if existing is not None:
+            return existing
+        st = _SessionState(session_id=session_id)
+        self._sessions[session_id] = st
+        return st
+
+    def _is_primary(self, session_id: str) -> bool:
+        return self._primary_session_id == session_id
+
+    def _set_primary_if_needed(self, session_id: str) -> None:
+        if self._primary_session_id is None:
+            self._primary_session_id = session_id
+
+    def _spinner_update_commands(self) -> list[RenderCommand]:
+        return [
+            SpinnerUpdate(
+                status_text=self._spinner.get_status(),
+                right_text=self._spinner.get_right_text(),
+            )
+        ]
+
+    def show_sigint_exit_toast(self) -> list[RenderCommand]:
+        self._spinner.set_toast_status(SIGINT_DOUBLE_PRESS_EXIT_TEXT)
+        return self._spinner_update_commands()
+
+    def clear_sigint_exit_toast(self) -> list[RenderCommand]:
+        self._spinner.set_toast_status(None)
+        return self._spinner_update_commands()
+
+    def transition(self, event: events.Event) -> list[RenderCommand]:
+        session_id = getattr(event, "session_id", "__app__")
+        s = self._session(session_id)
+        cmds: list[RenderCommand] = []
+
+        match event:
+            case events.ReplayHistoryEvent() as e:
+                cmds.append(RenderReplayHistory(e))
+                cmds.append(SpinnerStop())
+                return cmds
+
+            case events.WelcomeEvent() as e:
+                cmds.append(RenderWelcome(e))
+                return cmds
+
+            case events.UserMessageEvent() as e:
+                if s.is_sub_agent:
+                    return []
+                cmds.append(RenderUserMessage(e))
+                return cmds
+
+            case events.TaskStartEvent() as e:
+                s.sub_agent_state = e.sub_agent_state
+                if not s.is_sub_agent:
+                    self._set_primary_if_needed(e.session_id)
+                    cmds.append(TaskClockStart())
+                else:
+                    s.sub_agent_thinking_header = SubAgentThinkingHeaderState()
+
+                cmds.append(SpinnerStart())
+                cmds.append(RenderTaskStart(e))
+                cmds.extend(self._spinner_update_commands())
+                return cmds
+
+            case events.DeveloperMessageEvent() as e:
+                cmds.append(RenderDeveloperMessage(e))
+                return cmds
+
+            case events.TurnStartEvent() as e:
+                cmds.append(RenderTurnStart(e))
+                self._spinner.clear_for_new_turn()
+                self._spinner.set_reasoning_status(None)
+                cmds.extend(self._spinner_update_commands())
+                return cmds
+
+            case events.ThinkingStartEvent() as e:
+                if s.is_sub_agent:
+                    return []
+                if not self._is_primary(e.session_id):
+                    return []
+                s.display_state = DisplayState.THINKING
+                s.thinking_stream_active = True
+                cmds.append(StartThinkingStream(session_id=e.session_id))
+                return cmds
+
+            case events.ThinkingDeltaEvent() as e:
+                if s.is_sub_agent:
+                    if not s.should_show_sub_agent_thinking_header:
+                        return []
+                    if s.sub_agent_thinking_header is None:
+                        s.sub_agent_thinking_header = SubAgentThinkingHeaderState()
+                    header = s.sub_agent_thinking_header.append_and_extract_new_header(e.content)
+                    if header:
+                        cmds.append(RenderThinkingHeader(session_id=e.session_id, header=header))
+                    return cmds
+
+                if not self._is_primary(e.session_id):
+                    return []
+                s.display_state = DisplayState.THINKING
+                cmds.append(AppendThinking(session_id=e.session_id, content=e.content))
+
+                # Update reasoning status for spinner (based on bounded tail).
+                s.thinking_tail = (s.thinking_tail + e.content)[-8192:]
+                header = extract_last_bold_header(normalize_thinking_content(s.thinking_tail))
+                if header:
+                    self._spinner.set_reasoning_status(header)
+                    cmds.extend(self._spinner_update_commands())
+
+                return cmds
+
+            case events.ThinkingEndEvent() as e:
+                if s.is_sub_agent:
+                    return []
+                if not self._is_primary(e.session_id):
+                    return []
+                s.display_state = DisplayState.IDLE
+                s.thinking_stream_active = False
+                cmds.append(EndThinkingStream(session_id=e.session_id))
+                cmds.append(SpinnerStart())
+                cmds.extend(self._spinner_update_commands())
+                return cmds
+
+            case events.AssistantTextStartEvent() as e:
+                if s.is_sub_agent:
+                    self._spinner.set_composing(True)
+                    cmds.extend(self._spinner_update_commands())
+                    return cmds
+                if not self._is_primary(e.session_id):
+                    return []
+
+                s.display_state = DisplayState.STREAMING_TEXT
+                s.assistant_stream_active = True
+                s.assistant_char_count = 0
+                self._spinner.set_composing(True)
+                self._spinner.clear_tool_calls()
+                cmds.append(StartAssistantStream(session_id=e.session_id))
+                cmds.extend(self._spinner_update_commands())
+                return cmds
+
+            case events.AssistantTextDeltaEvent() as e:
+                if s.is_sub_agent:
+                    return []
+                if not self._is_primary(e.session_id):
+                    return []
+
+                s.display_state = DisplayState.STREAMING_TEXT
+                s.assistant_char_count += len(e.content)
+                self._spinner.set_buffer_length(s.assistant_char_count)
+                cmds.append(AppendAssistant(session_id=e.session_id, content=e.content))
+                cmds.extend(self._spinner_update_commands())
+                return cmds
+
+            case events.AssistantTextEndEvent() as e:
+                if s.is_sub_agent:
+                    self._spinner.set_composing(False)
+                    cmds.extend(self._spinner_update_commands())
+                    return cmds
+                if not self._is_primary(e.session_id):
+                    return []
+
+                s.display_state = DisplayState.IDLE
+                s.assistant_stream_active = False
+                self._spinner.set_composing(False)
+                cmds.append(EndAssistantStream(session_id=e.session_id))
+                cmds.append(SpinnerStart())
+                cmds.extend(self._spinner_update_commands())
+                return cmds
+
+            case events.AssistantImageDeltaEvent() as e:
+                cmds.append(RenderAssistantImage(session_id=e.session_id, file_path=e.file_path))
+                return cmds
+
+            case events.ResponseCompleteEvent() as e:
+                if s.is_sub_agent:
+                    return []
+                if not self._is_primary(e.session_id):
+                    return []
+                s.display_state = DisplayState.IDLE
+                self._spinner.set_composing(False)
+                cmds.append(SpinnerStart())
+                cmds.extend(self._spinner_update_commands())
+                return cmds
+
+            case events.ToolCallStartEvent() as e:
+                # Defensive: ensure any active main-session streams are finalized
+                # before tools start producing output.
+                if self._primary_session_id is not None:
+                    primary = self._sessions.get(self._primary_session_id)
+                    if primary is not None and primary.assistant_stream_active:
+                        primary.assistant_stream_active = False
+                        cmds.append(EndAssistantStream(session_id=primary.session_id))
+                    if primary is not None and primary.thinking_stream_active:
+                        primary.thinking_stream_active = False
+                        cmds.append(EndThinkingStream(session_id=primary.session_id))
+
+                self._spinner.set_composing(False)
+
+                tool_active_form = get_tool_active_form(e.tool_name)
+                if is_sub_agent_tool(e.tool_name):
+                    self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
+                else:
+                    self._spinner.add_tool_call(tool_active_form)
+
+                cmds.extend(self._spinner_update_commands())
+                return cmds
+
+            case events.ToolCallEvent() as e:
+                # Same defensive behavior for tool calls that arrive without a
+                # preceding ToolCallStartEvent.
+                if self._primary_session_id is not None:
+                    primary = self._sessions.get(self._primary_session_id)
+                    if primary is not None and primary.assistant_stream_active:
+                        primary.assistant_stream_active = False
+                        cmds.append(EndAssistantStream(session_id=primary.session_id))
+                    if primary is not None and primary.thinking_stream_active:
+                        primary.thinking_stream_active = False
+                        cmds.append(EndThinkingStream(session_id=primary.session_id))
+
+                cmds.append(RenderToolCall(e))
+                return cmds
+
+            case events.ToolResultEvent() as e:
+                if is_sub_agent_tool(e.tool_name):
+                    self._spinner.finish_sub_agent_tool_call(e.tool_call_id, get_tool_active_form(e.tool_name))
+                    cmds.extend(self._spinner_update_commands())
+
+                if s.is_sub_agent and e.status == "success":
+                    return cmds
+
+                cmds.append(RenderToolResult(event=e, is_sub_agent_session=s.is_sub_agent))
+                return cmds
+
+            case events.TaskMetadataEvent() as e:
+                cmds.append(RenderTaskMetadata(e))
+                return cmds
+
+            case events.TodoChangeEvent() as e:
+                todo_text = _extract_active_form_text(e)
+                self._spinner.set_todo_status(todo_text)
+                self._spinner.clear_for_new_turn()
+                cmds.extend(self._spinner_update_commands())
+                return cmds
+
+            case events.UsageEvent() as e:
+                # UsageEvent is not rendered, but it drives context % display.
+                if s.is_sub_agent:
+                    return []
+                if not self._is_primary(e.session_id):
+                    return []
+                context_percent = e.usage.context_usage_percent
+                if context_percent is not None:
+                    self._spinner.set_context_percent(context_percent)
+                    cmds.extend(self._spinner_update_commands())
+                return cmds
+
+            case events.TurnEndEvent():
+                return []
+
+            case events.TaskFinishEvent() as e:
+                cmds.append(RenderTaskFinish(e))
+                if not s.is_sub_agent:
+                    cmds.append(TaskClockClear())
+                    self._spinner.reset()
+                    cmds.append(SpinnerStop())
+                    cmds.append(PrintRuleLine())
+                    cmds.append(EmitTmuxSignal())
+                else:
+                    s.sub_agent_thinking_header = None
+                return cmds
+
+            case events.InterruptEvent() as e:
+                self._spinner.reset()
+                cmds.append(SpinnerStop())
+                cmds.append(TaskClockClear())
+                cmds.append(RenderInterrupt(session_id=e.session_id))
+                return cmds
+
+            case events.ErrorEvent() as e:
+                cmds.append(EmitOsc94Error())
+                cmds.append(RenderError(e))
+                if not e.can_retry:
+                    self._spinner.reset()
+                    cmds.append(SpinnerStop())
+                cmds.extend(self._spinner_update_commands())
+                return cmds
+
+            case events.EndEvent():
+                self._spinner.reset()
+                cmds.append(SpinnerStop())
+                cmds.append(TaskClockClear())
+                return cmds
+
+            case _:
+                return []
+
+
+def _extract_active_form_text(todo_event: events.TodoChangeEvent) -> str | None:
+    status_text: str | None = None
+    for todo in todo_event.todos:
+        if todo.status == "in_progress" and todo.content:
+            status_text = todo.content
+
+    if status_text is None:
+        return None
+
+    normalized = status_text.replace("\n", " ").strip()
+    return normalized if normalized else None

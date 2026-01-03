@@ -206,7 +206,7 @@ class REPLRenderer:
                         self.print()
                     case events.AssistantImageDeltaEvent() as e:
                         self.display_image(e.file_path)
-                    case events.AssistantMessageEvent() as e:
+                    case events.ResponseCompleteEvent() as e:
                         if is_sub_agent:
                             if self.should_display_sub_agent_thinking_header(event_session_id) and e.thinking_text:
                                 header = r_thinking.extract_last_bold_header(

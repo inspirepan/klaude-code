@@ -158,6 +158,7 @@ class ExecutorContext:
 
         await self.emit_event(
             events.WelcomeEvent(
+                session_id=session.id,
                 work_dir=str(session.work_dir),
                 llm_config=self.llm_clients.main.get_llm_config(),
             )
@@ -215,7 +216,10 @@ class ExecutorContext:
         if operation.emit_welcome_event:
             await self.emit_event(
                 events.WelcomeEvent(
-                    llm_config=llm_config, work_dir=str(agent.session.work_dir), show_klaude_code_info=False
+                    session_id=agent.session.id,
+                    llm_config=llm_config,
+                    work_dir=str(agent.session.work_dir),
+                    show_klaude_code_info=False,
                 )
             )
 
@@ -261,7 +265,10 @@ class ExecutorContext:
         if operation.emit_welcome_event:
             await self.emit_event(
                 events.WelcomeEvent(
-                    work_dir=str(agent.session.work_dir), llm_config=config, show_klaude_code_info=False
+                    session_id=agent.session.id,
+                    work_dir=str(agent.session.work_dir),
+                    llm_config=config,
+                    show_klaude_code_info=False,
                 )
             )
 
@@ -280,6 +287,7 @@ class ExecutorContext:
         await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
         await self.emit_event(
             events.WelcomeEvent(
+                session_id=agent.session.id,
                 work_dir=str(agent.session.work_dir),
                 llm_config=self.llm_clients.main.get_llm_config(),
             )
@@ -304,6 +312,7 @@ class ExecutorContext:
 
         await self.emit_event(
             events.WelcomeEvent(
+                session_id=target_session.id,
                 work_dir=str(target_session.work_dir),
                 llm_config=self.llm_clients.main.get_llm_config(),
             )
@@ -384,6 +393,7 @@ class ExecutorContext:
                 events.ErrorEvent(
                     error_message=f"Agent task failed: [{e.__class__.__name__}] {e!s} {traceback.format_exc()}",
                     can_retry=False,
+                    session_id=session_id,
                 )
             )
         finally:
@@ -596,7 +606,11 @@ class Executor:
                     debug_type=DebugType.EXECUTION,
                 )
                 await self.context.emit_event(
-                    events.ErrorEvent(error_message=f"Executor error: {e!s}", can_retry=False)
+                    events.ErrorEvent(
+                        error_message=f"Executor error: {e!s}",
+                        can_retry=False,
+                        session_id="__app__",
+                    )
                 )
 
     async def stop(self) -> None:
@@ -673,7 +687,16 @@ class Executor:
                 style="red",
                 debug_type=DebugType.EXECUTION,
             )
-            await self.context.emit_event(events.ErrorEvent(error_message=f"Operation failed: {e!s}", can_retry=False))
+            session_id = getattr(submission.operation, "session_id", None) or getattr(
+                submission.operation, "target_session_id", None
+            )
+            await self.context.emit_event(
+                events.ErrorEvent(
+                    error_message=f"Operation failed: {e!s}",
+                    can_retry=False,
+                    session_id=session_id or "__app__",
+                )
+            )
             # Set completion event even on error to prevent wait_for_completion from hanging
             event = self._completion_events.get(submission.id)
             if event is not None:

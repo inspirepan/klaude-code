@@ -93,7 +93,7 @@ Notes:
 
 ## Replay derivation (history -> UI events)
 
-Goal: `src/klaude_code/session/session.py` must emit `events.HistoryItemEvent` in a shape that `src/klaude_code/ui/modes/repl/renderer.py:149` can replay.
+Goal: `src/klaude_code/session/session.py` must emit `events.ReplayEventUnion` in a shape that `src/klaude_code/ui/modes/repl/renderer.py:149` can replay.
 
 Persisted input:
 

@@ -206,6 +206,8 @@ class TurnExecutor:
 
         ctx = self._context
         session_ctx = ctx.session_ctx
+        thinking_active = False
+        assistant_text_active = False
         message_types = (
             message.SystemMessage,
             message.DeveloperMessage,
@@ -247,12 +249,30 @@ class TurnExecutor:
             )
             match delta:
                 case message.ThinkingTextDelta() as delta:
+                    if not thinking_active:
+                        thinking_active = True
+                        yield events.ThinkingStartEvent(
+                            response_id=delta.response_id,
+                            session_id=session_ctx.session_id,
+                        )
                     yield events.ThinkingDeltaEvent(
                         content=delta.content,
                         response_id=delta.response_id,
                         session_id=session_ctx.session_id,
                     )
                 case message.AssistantTextDelta() as delta:
+                    if thinking_active:
+                        thinking_active = False
+                        yield events.ThinkingEndEvent(
+                            response_id=delta.response_id,
+                            session_id=session_ctx.session_id,
+                        )
+                    if not assistant_text_active:
+                        assistant_text_active = True
+                        yield events.AssistantTextStartEvent(
+                            response_id=delta.response_id,
+                            session_id=session_ctx.session_id,
+                        )
                     if delta.response_id:
                         self._assistant_response_id = delta.response_id
                     self._assistant_delta_buffer.append(delta.content)
@@ -262,6 +282,12 @@ class TurnExecutor:
                         session_id=session_ctx.session_id,
                     )
                 case message.AssistantImageDelta() as delta:
+                    if thinking_active:
+                        thinking_active = False
+                        yield events.ThinkingEndEvent(
+                            response_id=delta.response_id,
+                            session_id=session_ctx.session_id,
+                        )
                     yield events.AssistantImageDeltaEvent(
                         file_path=delta.file_path,
                         response_id=delta.response_id,
@@ -270,6 +296,18 @@ class TurnExecutor:
                 case message.AssistantMessage() as msg:
                     if msg.response_id is None and self._assistant_response_id:
                         msg.response_id = self._assistant_response_id
+                    if thinking_active:
+                        thinking_active = False
+                        yield events.ThinkingEndEvent(
+                            response_id=msg.response_id,
+                            session_id=session_ctx.session_id,
+                        )
+                    if assistant_text_active:
+                        assistant_text_active = False
+                        yield events.AssistantTextEndEvent(
+                            response_id=msg.response_id,
+                            session_id=session_ctx.session_id,
+                        )
                     turn_result.assistant_message = msg
                     for part in msg.parts:
                         if isinstance(part, message.ToolCallPart):
@@ -281,11 +319,16 @@ class TurnExecutor:
                                     arguments_json=part.arguments_json,
                                 )
                             )
-                    yield events.AssistantMessageEvent(
-                        content=message.join_text_parts(msg.parts),
-                        response_id=msg.response_id,
-                        session_id=session_ctx.session_id,
-                    )
+                    if msg.stop_reason != "aborted":
+                        thinking_text = "".join(
+                            part.text for part in msg.parts if isinstance(part, message.ThinkingTextPart)
+                        )
+                        yield events.ResponseCompleteEvent(
+                            content=message.join_text_parts(msg.parts),
+                            response_id=msg.response_id,
+                            session_id=session_ctx.session_id,
+                            thinking_text=thinking_text or None,
+                        )
                     if msg.stop_reason == "aborted":
                         yield events.InterruptEvent(session_id=session_ctx.session_id)
                     if msg.usage:
@@ -296,9 +339,9 @@ class TurnExecutor:
                             metadata.model_name = ctx.llm_client.model_name
                         if metadata.provider is None:
                             metadata.provider = ctx.llm_client.get_llm_config().provider_name or None
-                        yield events.ResponseMetadataEvent(
+                        yield events.UsageEvent(
                             session_id=session_ctx.session_id,
-                            metadata=metadata,
+                            usage=metadata,
                         )
                 case message.StreamErrorItem() as msg:
                     turn_result.stream_error = msg
@@ -309,12 +352,23 @@ class TurnExecutor:
                         debug_type=DebugType.RESPONSE,
                     )
                 case message.ToolCallStartItem() as msg:
-                    yield events.TurnToolCallStartEvent(
+                    if thinking_active:
+                        thinking_active = False
+                        yield events.ThinkingEndEvent(
+                            response_id=msg.response_id,
+                            session_id=session_ctx.session_id,
+                        )
+                    if assistant_text_active:
+                        assistant_text_active = False
+                        yield events.AssistantTextEndEvent(
+                            response_id=msg.response_id,
+                            session_id=session_ctx.session_id,
+                        )
+                    yield events.ToolCallStartEvent(
                         session_id=session_ctx.session_id,
                         response_id=msg.response_id,
                         tool_call_id=msg.call_id,
                         tool_name=msg.name,
-                        arguments="",
                     )
                 case _:
                     continue

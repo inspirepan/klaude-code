@@ -27,6 +27,6 @@ def test_exec_display_emits_osc94_only_on_error(
     assert calls == []
     assert capsys.readouterr().out.strip() == "ok"
 
-    asyncio.run(display.consume_event(events.ErrorEvent(error_message="boom")))
+    asyncio.run(display.consume_event(events.ErrorEvent(error_message="boom", session_id="__app__")))
     assert calls == [exec_display.OSC94States.ERROR]
     assert capsys.readouterr().out.strip() == "Error: boom"

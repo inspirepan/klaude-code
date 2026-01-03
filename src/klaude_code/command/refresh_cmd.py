@@ -26,6 +26,7 @@ class RefreshTerminalCommand(CommandABC):
         return CommandResult(
             events=[
                 events.WelcomeEvent(
+                    session_id=agent.session.id,
                     work_dir=str(agent.session.work_dir),
                     llm_config=agent.get_llm_client().get_llm_config(),
                 ),

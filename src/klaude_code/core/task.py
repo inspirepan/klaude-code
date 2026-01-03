@@ -191,26 +191,20 @@ class TaskExecutor:
                 self._current_turn = turn
 
                 try:
-                    async for turn_event in turn.run():
-                        match turn_event:
-                            case events.AssistantMessageEvent() as am:
+                    async for e in turn.run():
+                        match e:
+                            case events.ResponseCompleteEvent() as am:
                                 yield am
-                            case events.ResponseMetadataEvent() as e:
-                                metadata_accumulator.add(e.metadata)
-                                # Emit context usage event if available
-                                context_percent = e.metadata.context_usage_percent
-                                if context_percent is not None:
-                                    yield events.ContextUsageEvent(
-                                        session_id=session_ctx.session_id,
-                                        context_percent=context_percent,
-                                    )
+                            case events.UsageEvent() as e:
+                                metadata_accumulator.add(e.usage)
+                                yield e
                             case events.ToolResultEvent() as e:
                                 # Collect sub-agent task metadata from tool results
                                 if e.task_metadata is not None:
                                     metadata_accumulator.add_sub_agent_metadata(e.task_metadata)
-                                yield turn_event
+                                yield e
                             case _:
-                                yield turn_event
+                                yield e
 
                     turn_succeeded = True
                     break
