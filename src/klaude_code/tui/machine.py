@@ -150,7 +150,7 @@ class ActivityState:
 
         if self._composing:
             text = Text()
-            text.append(STATUS_COMPOSING_TEXT, style=ThemeKey.STATUS_TEXT_BOLD)
+            text.append(STATUS_COMPOSING_TEXT, style=ThemeKey.STATUS_TEXT)
             if self._buffer_length > 0:
                 text.append(f" ({self._buffer_length:,})", style=ThemeKey.STATUS_TEXT)
             return text
@@ -183,6 +183,11 @@ class SpinnerStatusState:
 
     def set_reasoning_status(self, status: str | None) -> None:
         self._reasoning_status = status
+
+    def clear_default_reasoning_status(self) -> None:
+        """Clear reasoning status only if it's the default 'Reasoning ...' text."""
+        if self._reasoning_status == STATUS_THINKING_TEXT:
+            self._reasoning_status = None
 
     def set_composing(self, composing: bool) -> None:
         if composing:
@@ -222,13 +227,16 @@ class SpinnerStatusState:
         base_status = self._reasoning_status or self._todo_status
 
         if base_status:
+            # Default "Reasoning ..." uses normal style; custom headers use bold italic
+            is_default_reasoning = base_status == STATUS_THINKING_TEXT
+            status_style = ThemeKey.STATUS_TEXT if is_default_reasoning else ThemeKey.STATUS_TEXT_BOLD_ITALIC
             if activity_text:
                 result = Text()
-                result.append(base_status, style=ThemeKey.STATUS_TEXT_BOLD_ITALIC)
+                result.append(base_status, style=status_style)
                 result.append(" | ")
                 result.append_text(activity_text)
             else:
-                result = Text(base_status, style=ThemeKey.STATUS_TEXT_BOLD_ITALIC)
+                result = Text(base_status, style=status_style)
         elif activity_text:
             activity_text.append(" …")
             result = activity_text
@@ -407,6 +415,7 @@ class DisplayStateMachine:
                 if not self._is_primary(e.session_id):
                     return []
                 s.thinking_stream_active = False
+                self._spinner.clear_default_reasoning_status()
                 cmds.append(EndThinkingStream(session_id=e.session_id))
                 cmds.append(SpinnerStart())
                 cmds.extend(self._spinner_update_commands())
