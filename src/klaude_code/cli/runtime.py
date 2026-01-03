@@ -23,7 +23,6 @@ from klaude_code.tui.command import (
     dispatch_command,
     get_command_info_list,
     has_interactive_command,
-    is_slash_command_name,
 )
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input import build_repl_status_snapshot
@@ -412,11 +411,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 emit_switch_message=False,
             )
         )
-
-    # Inject command name checker into TUI user_input component (for slash command highlighting)
-    from klaude_code.tui.components.user_input import set_command_name_checker
-
-    set_command_name_checker(is_slash_command_name)
 
     input_provider: ui.InputProviderABC = PromptToolkitInput(
         status_provider=_status_provider,
