@@ -23,7 +23,7 @@ from klaude_code.ui.renderers.thinking import (
     extract_last_bold_header,
     normalize_thinking_content,
 )
-from klaude_code.ui.renderers.tools import get_tool_active_form
+from klaude_code.ui.renderers.tools import get_tool_active_form, is_sub_agent_tool
 from klaude_code.ui.rich import status as r_status
 from klaude_code.ui.rich.markdown import MarkdownStream, ThinkingMarkdown
 from klaude_code.ui.rich.theme import ThemeKey
@@ -147,14 +147,16 @@ class ActivityState:
         self._composing: bool = False
         self._buffer_length: int = 0
         self._tool_calls: dict[str, int] = {}
+        self._sub_agent_tool_calls: dict[str, int] = {}
+        self._sub_agent_tool_calls_by_id: dict[str, str] = {}
 
     @property
     def is_composing(self) -> bool:
-        return self._composing and not self._tool_calls
+        return self._composing and not self._tool_calls and not self._sub_agent_tool_calls
 
     @property
     def has_tool_calls(self) -> bool:
-        return bool(self._tool_calls)
+        return bool(self._tool_calls) or bool(self._sub_agent_tool_calls)
 
     def set_composing(self, composing: bool) -> None:
         self._composing = composing
@@ -167,26 +169,61 @@ class ActivityState:
     def add_tool_call(self, tool_name: str) -> None:
         self._tool_calls[tool_name] = self._tool_calls.get(tool_name, 0) + 1
 
+    def add_sub_agent_tool_call(self, tool_call_id: str, tool_name: str) -> None:
+        if tool_call_id in self._sub_agent_tool_calls_by_id:
+            return
+        self._sub_agent_tool_calls_by_id[tool_call_id] = tool_name
+        self._sub_agent_tool_calls[tool_name] = self._sub_agent_tool_calls.get(tool_name, 0) + 1
+
+    def finish_sub_agent_tool_call(self, tool_call_id: str, tool_name: str | None = None) -> None:
+        existing_tool_name = self._sub_agent_tool_calls_by_id.pop(tool_call_id, None)
+        decremented_name = existing_tool_name or tool_name
+        if decremented_name is None:
+            return
+
+        current = self._sub_agent_tool_calls.get(decremented_name, 0)
+        if current <= 1:
+            self._sub_agent_tool_calls.pop(decremented_name, None)
+        else:
+            self._sub_agent_tool_calls[decremented_name] = current - 1
+
     def clear_tool_calls(self) -> None:
+        self._tool_calls = {}
+
+    def clear_for_new_turn(self) -> None:
+        self._composing = False
+        self._buffer_length = 0
         self._tool_calls = {}
 
     def reset(self) -> None:
         self._composing = False
         self._buffer_length = 0
         self._tool_calls = {}
+        self._sub_agent_tool_calls = {}
+        self._sub_agent_tool_calls_by_id = {}
 
     def get_activity_text(self) -> Text | None:
         """Get activity text for display. Returns None if idle/thinking."""
-        if self._tool_calls:
+        if self._tool_calls or self._sub_agent_tool_calls:
             activity_text = Text()
-            first = True
-            for name, count in self._tool_calls.items():
-                if not first:
-                    activity_text.append(", ")
-                activity_text.append(Text(name, style=ThemeKey.STATUS_TEXT_BOLD))
-                if count > 1:
-                    activity_text.append(f" x {count}")
-                first = False
+
+            def _append_counts(counts: dict[str, int]) -> None:
+                first = True
+                for name, count in counts.items():
+                    if not first:
+                        activity_text.append(", ")
+                    activity_text.append(Text(name, style=ThemeKey.STATUS_TEXT_BOLD))
+                    if count > 1:
+                        activity_text.append(f" x {count}")
+                    first = False
+
+            if self._sub_agent_tool_calls:
+                _append_counts(self._sub_agent_tool_calls)
+                activity_text.append(" | ")
+
+            if self._tool_calls:
+                _append_counts(self._tool_calls)
+
             return activity_text
         if self._composing:
             # Main status text with creative verb
@@ -259,9 +296,17 @@ class SpinnerStatusState:
         """Clear tool calls."""
         self._activity.clear_tool_calls()
 
+    def add_sub_agent_tool_call(self, tool_call_id: str, tool_name: str) -> None:
+        """Add a sub-agent tool call that should persist across turns."""
+        self._activity.add_sub_agent_tool_call(tool_call_id, tool_name)
+
+    def finish_sub_agent_tool_call(self, tool_call_id: str, tool_name: str | None = None) -> None:
+        """Mark a sub-agent tool call finished and decrement its counter."""
+        self._activity.finish_sub_agent_tool_call(tool_call_id, tool_name)
+
     def clear_for_new_turn(self) -> None:
         """Clear activity state for a new turn."""
-        self._activity.reset()
+        self._activity.clear_for_new_turn()
 
     def set_context_percent(self, percent: float) -> None:
         """Set context usage percentage."""
@@ -519,7 +564,11 @@ class DisplayEventHandler:
     async def _on_tool_call_start(self, event: events.TurnToolCallStartEvent) -> None:
         self._flush_assistant_buffer()
         self.spinner_status.set_composing(False)
-        self.spinner_status.add_tool_call(get_tool_active_form(event.tool_name))
+        tool_active_form = get_tool_active_form(event.tool_name)
+        if is_sub_agent_tool(event.tool_name):
+            self.spinner_status.add_sub_agent_tool_call(event.tool_call_id, tool_active_form)
+        else:
+            self.spinner_status.add_tool_call(tool_active_form)
         self._update_spinner()
 
     async def _on_tool_call(self, event: events.ToolCallEvent) -> None:
@@ -528,6 +577,9 @@ class DisplayEventHandler:
             self.renderer.display_tool_call(event)
 
     async def _on_tool_result(self, event: events.ToolResultEvent) -> None:
+        if is_sub_agent_tool(event.tool_name):
+            self.spinner_status.finish_sub_agent_tool_call(event.tool_call_id, get_tool_active_form(event.tool_name))
+            self._update_spinner()
         is_sub_agent = self.renderer.is_sub_agent_session(event.session_id)
         if is_sub_agent and event.status == "success":
             return

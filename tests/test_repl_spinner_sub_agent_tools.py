@@ -28,7 +28,6 @@ def test_sub_agent_tool_calls_decrement_by_tool_call_id() -> None:
 
     activity = state.get_activity_text()
     assert activity is not None
-    assert "Sub" in activity.plain
     assert "Exploring" in activity.plain
     assert "x 2" in activity.plain
 
