@@ -4,10 +4,10 @@ from rich.table import Table
 from rich.text import Text
 
 from klaude_code.protocol import commands, events, message, model
-from klaude_code.ui.renderers.common import create_grid, truncate_middle
-from klaude_code.ui.renderers.tools import render_path
-from klaude_code.ui.rich.markdown import NoInsetMarkdown
-from klaude_code.ui.rich.theme import ThemeKey
+from klaude_code.tui.components.common import create_grid, truncate_middle
+from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
+from klaude_code.tui.components.rich.theme import ThemeKey
+from klaude_code.tui.components.tools import render_path
 
 REMINDER_BULLET = "  ⧉"
 

@@ -3,7 +3,7 @@
 # pyright: reportPrivateUsage=false
 from __future__ import annotations
 
-from klaude_code.ui.renderers.sub_agent import _compact_schema, _compact_schema_value
+from klaude_code.tui.components.sub_agent import _compact_schema, _compact_schema_value
 
 
 class TestCompactSchemaValue:

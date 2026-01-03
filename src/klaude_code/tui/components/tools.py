@@ -17,14 +17,14 @@ from klaude_code.const import (
 )
 from klaude_code.protocol import events, model, tools
 from klaude_code.protocol.sub_agent import is_sub_agent_tool as _is_sub_agent_tool
-from klaude_code.ui.renderers import diffs as r_diffs
-from klaude_code.ui.renderers import mermaid_viewer as r_mermaid_viewer
-from klaude_code.ui.renderers.bash_syntax import highlight_bash_command
-from klaude_code.ui.renderers.common import create_grid, truncate_middle
-from klaude_code.ui.rich.code_panel import CodePanel
-from klaude_code.ui.rich.markdown import NoInsetMarkdown
-from klaude_code.ui.rich.quote import TreeQuote
-from klaude_code.ui.rich.theme import ThemeKey
+from klaude_code.tui.components import diffs as r_diffs
+from klaude_code.tui.components import mermaid_viewer as r_mermaid_viewer
+from klaude_code.tui.components.bash_syntax import highlight_bash_command
+from klaude_code.tui.components.common import create_grid, truncate_middle
+from klaude_code.tui.components.rich.code_panel import CodePanel
+from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
+from klaude_code.tui.components.rich.quote import TreeQuote
+from klaude_code.tui.components.rich.theme import ThemeKey
 
 # Tool markers (Unicode symbols for UI display)
 MARK_GENERIC = "⚒"
@@ -487,7 +487,7 @@ def render_mermaid_tool_result(
     *,
     session_id: str | None = None,
 ) -> RenderableType:
-    from klaude_code.ui.terminal import supports_osc8_hyperlinks
+    from klaude_code.tui.terminal import supports_osc8_hyperlinks
 
     link_info = _extract_mermaid_link(tr.ui_extra)
     if link_info is None:

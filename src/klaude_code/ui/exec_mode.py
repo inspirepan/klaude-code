@@ -3,7 +3,6 @@ from typing import override
 
 from klaude_code.protocol import events
 from klaude_code.ui.core.display import DisplayABC
-from klaude_code.ui.terminal.progress_bar import OSC94States, emit_osc94
 
 
 class ExecDisplay(DisplayABC):
@@ -16,7 +15,6 @@ class ExecDisplay(DisplayABC):
             case events.TaskStartEvent():
                 pass
             case events.ErrorEvent() as e:
-                emit_osc94(OSC94States.ERROR)
                 print(f"Error: {e.error_message}")
             case events.TaskFinishEvent() as e:
                 # Print the task result when task finishes

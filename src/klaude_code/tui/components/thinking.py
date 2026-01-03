@@ -5,9 +5,9 @@ from rich.padding import Padding
 from rich.text import Text
 
 from klaude_code.const import MARKDOWN_RIGHT_MARGIN
-from klaude_code.ui.renderers.common import create_grid
-from klaude_code.ui.rich.markdown import ThinkingMarkdown
-from klaude_code.ui.rich.theme import ThemeKey
+from klaude_code.tui.components.common import create_grid
+from klaude_code.tui.components.rich.markdown import ThinkingMarkdown
+from klaude_code.tui.components.rich.theme import ThemeKey
 
 # UI markers
 THINKING_MESSAGE_MARK = "∴"

@@ -35,13 +35,13 @@ from klaude_code.config.thinking import (
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.commands import CommandInfo
 from klaude_code.protocol.message import UserInputPayload
+from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
+from klaude_code.tui.input.clipboard import capture_clipboard_tag, copy_to_clipboard, extract_images_from_text
+from klaude_code.tui.input.completers import AT_TOKEN_PATTERN, create_repl_completer
+from klaude_code.tui.input.key_bindings import create_key_bindings
+from klaude_code.tui.terminal.color import is_light_terminal_background
+from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 from klaude_code.ui.core.input import InputProviderABC
-from klaude_code.ui.modes.repl.clipboard import capture_clipboard_tag, copy_to_clipboard, extract_images_from_text
-from klaude_code.ui.modes.repl.completers import AT_TOKEN_PATTERN, create_repl_completer
-from klaude_code.ui.modes.repl.key_bindings import create_key_bindings
-from klaude_code.ui.renderers.user_input import USER_MESSAGE_MARK
-from klaude_code.ui.terminal.color import is_light_terminal_background
-from klaude_code.ui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 
 
 class REPLStatusSnapshot(NamedTuple):

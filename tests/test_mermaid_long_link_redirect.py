@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from klaude_code import const
-from klaude_code.ui.renderers import mermaid_viewer
+from klaude_code.tui.components import mermaid_viewer
 
 
 def test_mermaid_long_link_creates_redirect_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

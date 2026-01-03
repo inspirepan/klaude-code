@@ -20,10 +20,11 @@ from klaude_code.protocol import message as protocol_message
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session.session import Session, close_default_store
 from klaude_code.trace import DebugType, log, set_debug_logging
-from klaude_code.ui.modes.repl import build_repl_status_snapshot
-from klaude_code.ui.modes.repl.input_prompt_toolkit import REPLStatusSnapshot
-from klaude_code.ui.terminal.color import is_light_terminal_background
-from klaude_code.ui.terminal.control import install_sigint_double_press_exit, start_esc_interrupt_monitor
+from klaude_code.tui.display import TUIDisplay
+from klaude_code.tui.input import build_repl_status_snapshot
+from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput, REPLStatusSnapshot
+from klaude_code.tui.terminal.color import is_light_terminal_background
+from klaude_code.tui.terminal.control import install_sigint_double_press_exit, start_esc_interrupt_monitor
 
 
 @dataclass
@@ -195,12 +196,14 @@ async def initialize_app_components(init_config: AppInitConfig) -> AppComponents
         elif detected is False:
             theme = "dark"
 
-    # Set up UI components using factory functions
+    # Set up UI components.
     display: ui.DisplayABC
     if init_config.is_exec_mode:
         display = ui.create_exec_display(debug=init_config.debug, stream_json=init_config.stream_json)
     else:
-        display = ui.create_default_display(debug=init_config.debug, theme=theme)
+        display = TUIDisplay(theme=theme)
+        if init_config.debug:
+            display = ui.DebugEventDisplay(display)
 
     # Start UI display task
     display_task = asyncio.create_task(display.consume_event_loop(event_queue))
@@ -345,16 +348,14 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     # Set up input provider for interactive mode
     def _stop_rich_bottom_ui() -> None:
         display = components.display
-        if isinstance(display, ui.REPLDisplay):
-            display.renderer.spinner_stop()
-            display.renderer.stop_bottom_live()
+        if isinstance(display, TUIDisplay):
+            display.hide_progress_ui()
         elif (
             isinstance(display, ui.DebugEventDisplay)
             and display.wrapped_display
-            and isinstance(display.wrapped_display, ui.REPLDisplay)
+            and isinstance(display.wrapped_display, TUIDisplay)
         ):
-            display.wrapped_display.renderer.spinner_stop()
-            display.wrapped_display.renderer.stop_bottom_live()
+            display.wrapped_display.hide_progress_ui()
 
     # Pass the pre-detected theme to avoid redundant TTY queries.
     # Querying the terminal background again after an interactive selection
@@ -407,12 +408,12 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             )
         )
 
-    # Inject command name checker into user_input renderer (for slash command highlighting)
-    from klaude_code.ui.renderers.user_input import set_command_name_checker
+    # Inject command name checker into TUI user_input component (for slash command highlighting)
+    from klaude_code.tui.components.user_input import set_command_name_checker
 
     set_command_name_checker(is_slash_command_name)
 
-    input_provider: ui.InputProviderABC = ui.PromptToolkitInput(
+    input_provider: ui.InputProviderABC = PromptToolkitInput(
         status_provider=_status_provider,
         pre_prompt=_stop_rich_bottom_ui,
         is_light_background=is_light_background,
@@ -429,14 +430,14 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     loop = asyncio.get_running_loop()
 
-    def _get_repl_display() -> ui.REPLDisplay | None:
+    def _get_tui_display() -> TUIDisplay | None:
         display = components.display
-        if isinstance(display, ui.REPLDisplay):
+        if isinstance(display, TUIDisplay):
             return display
         if (
             isinstance(display, ui.DebugEventDisplay)
             and display.wrapped_display
-            and isinstance(display.wrapped_display, ui.REPLDisplay)
+            and isinstance(display.wrapped_display, TUIDisplay)
         ):
             return display.wrapped_display
         return None
@@ -451,10 +452,10 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
         def _show_toast_once() -> None:
             def _emit() -> None:
-                repl_display = _get_repl_display()
-                if repl_display is not None:
+                tui_display = _get_tui_display()
+                if tui_display is not None:
                     with contextlib.suppress(Exception):
-                        repl_display.event_handler.show_sigint_exit_toast(window_seconds=window_seconds)
+                        tui_display.show_sigint_exit_toast(window_seconds=window_seconds)
                     return
                 print(SIGINT_DOUBLE_PRESS_EXIT_TEXT, file=sys.stderr)
 
@@ -465,13 +466,11 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
         def _hide_progress() -> None:
             def _emit() -> None:
-                repl_display = _get_repl_display()
-                if repl_display is None:
+                tui_display = _get_tui_display()
+                if tui_display is None:
                     return
                 with contextlib.suppress(Exception):
-                    repl_display.renderer.spinner_stop()
-                with contextlib.suppress(Exception):
-                    repl_display.renderer.stop_bottom_live()
+                    tui_display.hide_progress_ui()
 
             with contextlib.suppress(Exception):
                 loop.call_soon_threadsafe(_emit)

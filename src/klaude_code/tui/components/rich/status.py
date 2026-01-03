@@ -23,8 +23,8 @@ from klaude_code.const import (
     STATUS_SHIMMER_BAND_HALF_WIDTH,
     STATUS_SHIMMER_PADDING,
 )
-from klaude_code.ui.rich.theme import ThemeKey
-from klaude_code.ui.terminal.color import get_last_terminal_background_rgb
+from klaude_code.tui.components.rich.theme import ThemeKey
+from klaude_code.tui.terminal.color import get_last_terminal_background_rgb
 
 # Use an existing Rich spinner name; BreathingSpinner overrides its rendering
 BREATHING_SPINNER_NAME = "dots"

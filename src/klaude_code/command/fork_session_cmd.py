@@ -7,8 +7,8 @@ from prompt_toolkit.styles import Style
 
 from klaude_code.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.protocol import commands, events, message, model
-from klaude_code.ui.modes.repl.clipboard import copy_to_clipboard
-from klaude_code.ui.terminal.selector import SelectItem, select_one
+from klaude_code.tui.input.clipboard import copy_to_clipboard
+from klaude_code.tui.terminal.selector import SelectItem, select_one
 
 FORK_SELECT_STYLE = Style(
     [

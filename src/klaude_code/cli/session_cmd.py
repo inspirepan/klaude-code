@@ -11,7 +11,7 @@ def _session_confirm(sessions: list[Session.SessionMetaBrief], message: str) -> 
 
     from prompt_toolkit.styles import Style
 
-    from klaude_code.ui.terminal.selector import SelectItem, select_one
+    from klaude_code.tui.terminal.selector import SelectItem, select_one
 
     def _fmt(ts: float) -> str:
         try:

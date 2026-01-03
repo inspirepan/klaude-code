@@ -1,4 +1,4 @@
-from klaude_code.ui.modes.repl.input_prompt_toolkit import REPLStatusSnapshot
+from klaude_code.tui.input.prompt_toolkit import REPLStatusSnapshot
 
 
 def build_repl_status_snapshot(update_message: str | None) -> REPLStatusSnapshot:

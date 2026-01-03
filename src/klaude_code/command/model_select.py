@@ -38,7 +38,7 @@ def select_model_interactive(preferred: str | None = None) -> str | None:
     # Interactive selection
     from prompt_toolkit.styles import Style
 
-    from klaude_code.ui.terminal.selector import build_model_select_items, select_one
+    from klaude_code.tui.terminal.selector import build_model_select_items, select_one
 
     config = load_config()
     names = [m.model_name for m in result.filtered_models]

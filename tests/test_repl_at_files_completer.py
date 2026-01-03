@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from prompt_toolkit.document import Document
 
-from klaude_code.ui.modes.repl.completers import _AtFilesCompleter  # pyright: ignore[reportPrivateUsage]
+from klaude_code.tui.input.completers import _AtFilesCompleter  # pyright: ignore[reportPrivateUsage]
 
 if TYPE_CHECKING:
     import pytest

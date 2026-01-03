@@ -9,8 +9,8 @@ from rich.console import Console
 from rich.text import Text
 from rich.theme import Theme
 
-from klaude_code.ui.rich.live import SingleLine
-from klaude_code.ui.rich.markdown import MarkdownStream, NoInsetMarkdown
+from klaude_code.tui.components.rich.live import SingleLine
+from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown
 
 
 def _make_stream(*, width: int = 80) -> MarkdownStream:

@@ -17,7 +17,7 @@ from hypothesis import strategies as st
 @settings(max_examples=100, deadline=None)
 def test_truncate_display_line_count(text: str, max_lines: int, max_line_length: int) -> None:
     """Property: truncated output has bounded line count."""
-    from klaude_code.ui.renderers.common import truncate_middle
+    from klaude_code.tui.components.common import truncate_middle
 
     result = truncate_middle(text, max_lines=max_lines, max_line_length=max_line_length)
     result_text = result.plain
@@ -39,7 +39,7 @@ def test_truncate_display_line_count(text: str, max_lines: int, max_line_length:
 @settings(max_examples=100, deadline=None)
 def test_truncate_display_short_text_preserved(text: str, max_lines: int) -> None:
     """Property: short text that fits is preserved."""
-    from klaude_code.ui.renderers.common import truncate_middle
+    from klaude_code.tui.components.common import truncate_middle
 
     lines = text.split("\n")
 

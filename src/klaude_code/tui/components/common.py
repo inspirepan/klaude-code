@@ -11,7 +11,7 @@ from klaude_code.const import (
     TRUNCATE_DISPLAY_MAX_LINES,
     TRUNCATE_HEAD_MAX_LINES,
 )
-from klaude_code.ui.rich.theme import ThemeKey
+from klaude_code.tui.components.rich.theme import ThemeKey
 
 
 def create_grid(*, overflow: Literal["fold", "crop", "ellipsis", "ignore"] = "fold") -> Table:

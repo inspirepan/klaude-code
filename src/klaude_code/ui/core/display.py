@@ -11,7 +11,7 @@ class DisplayABC(ABC):
 
     A Display is responsible for rendering events from the executor to the user.
     Implementations can range from simple text output (ExecDisplay) to rich
-    interactive terminals (REPLDisplay) or debugging wrappers (DebugEventDisplay).
+    interactive terminals (TUIDisplay) or debugging wrappers (DebugEventDisplay).
 
     Lifecycle:
         1. start() is called once before any events are consumed.
@@ -19,7 +19,7 @@ class DisplayABC(ABC):
         3. stop() is called once when the display is shutting down (after EndEvent).
 
     Typical Usage:
-        display = create_default_display()
+        # See klaude_code.tui.display.TUIDisplay for the interactive terminal frontend.
         await display.consume_event_loop(event_queue)
 
         # Or manually:

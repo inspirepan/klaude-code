@@ -8,8 +8,8 @@ from pygments.token import Token
 from rich.text import Text
 
 from klaude_code.const import BASH_MULTILINE_STRING_TRUNCATE_MAX_LINES
-from klaude_code.ui.renderers.common import truncate_head
-from klaude_code.ui.rich.theme import ThemeKey
+from klaude_code.tui.components.common import truncate_head
+from klaude_code.tui.components.rich.theme import ThemeKey
 
 # Token types for bash syntax highlighting
 _STRING_TOKENS = frozenset(

@@ -117,6 +117,7 @@ class RenderThinkingHeader(RenderCommand):
     session_id: str
     header: str
 
+
 @dataclass(frozen=True, slots=True)
 class SpinnerStart(RenderCommand):
     pass

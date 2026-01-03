@@ -15,7 +15,7 @@ def list_models(
 ) -> None:
     """List all models and providers configuration"""
     from klaude_code.cli.list_model import display_models_and_providers
-    from klaude_code.ui.terminal.color import is_light_terminal_background
+    from klaude_code.tui.terminal.color import is_light_terminal_background
 
     config = load_config()
 

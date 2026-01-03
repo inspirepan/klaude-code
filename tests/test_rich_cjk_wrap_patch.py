@@ -24,7 +24,7 @@ def test_rich_cjk_wrap_patch_changes_line_breaks() -> None:
 
     width = 40
 
-    from klaude_code.ui.rich import install_rich_cjk_wrap_patch
+    from klaude_code.tui.components.rich import install_rich_cjk_wrap_patch
 
     install_rich_cjk_wrap_patch()
 
@@ -43,7 +43,7 @@ def test_rich_cjk_wrap_patch_avoids_splitting_parenthetical_phrase() -> None:
     # This width reliably reproduced a bad case where Rich wrapped as "(No\n" then "titles".
     width = 49
 
-    from klaude_code.ui.rich import install_rich_cjk_wrap_patch
+    from klaude_code.tui.components.rich import install_rich_cjk_wrap_patch
 
     install_rich_cjk_wrap_patch()
 
@@ -57,7 +57,7 @@ def test_rich_cjk_wrap_patch_avoids_splitting_after_open_paren() -> None:
     # This width previously rendered as "(Deep\nMaker".
     width = 26
 
-    from klaude_code.ui.rich import install_rich_cjk_wrap_patch
+    from klaude_code.tui.components.rich import install_rich_cjk_wrap_patch
 
     install_rich_cjk_wrap_patch()
 
@@ -81,7 +81,7 @@ def test_rich_cjk_wrap_patch_avoids_splitting_after_open_paren() -> None:
 @settings(max_examples=100, deadline=None)
 def test_cjk_wrap_preserves_text(text: str, width: int) -> None:
     """Property: breaking text does not change content."""
-    from klaude_code.ui.rich.cjk_wrap import install_rich_cjk_wrap_patch
+    from klaude_code.tui.components.rich.cjk_wrap import install_rich_cjk_wrap_patch
 
     install_rich_cjk_wrap_patch()
 
@@ -104,7 +104,7 @@ def test_cjk_wrap_preserves_text(text: str, width: int) -> None:
 @settings(max_examples=200, deadline=None)
 def test_cjk_contains_cjk_consistency(ch: str) -> None:
     """Property: _contains_cjk with single char equals _is_cjk_char."""
-    from klaude_code.ui.rich.cjk_wrap import (
+    from klaude_code.tui.components.rich.cjk_wrap import (
         _contains_cjk,  # pyright: ignore[reportPrivateUsage]
         _is_cjk_char,  # pyright: ignore[reportPrivateUsage]
     )

@@ -793,7 +793,7 @@ class TestTerminalSelectorFilter:
     def test_type_to_search_supports_normalized_aliases(self) -> None:
         # The interactive selector's "type to search" should behave like the config matcher:
         # allow gpt52 to match gpt-5.2 (ignore punctuation).
-        from klaude_code.ui.terminal import selector as selector_module
+        from klaude_code.tui.terminal import selector as selector_module
 
         items = [
             selector_module.SelectItem(title=[("", "")], value="gpt-5.2", search_text="gpt-5.2"),
@@ -806,7 +806,7 @@ class TestTerminalSelectorFilter:
         assert matched is True
 
     def test_type_to_search_reports_no_match(self) -> None:
-        from klaude_code.ui.terminal import selector as selector_module
+        from klaude_code.tui.terminal import selector as selector_module
 
         items = [
             selector_module.SelectItem(title=[("", "")], value="gpt-5.2", search_text="gpt-5.2"),

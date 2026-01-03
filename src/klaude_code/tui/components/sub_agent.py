@@ -9,8 +9,8 @@ from rich.text import Text
 from klaude_code.const import SUB_AGENT_RESULT_MAX_LINES
 from klaude_code.protocol import events, model
 from klaude_code.protocol.sub_agent import get_sub_agent_profile_by_tool
-from klaude_code.ui.renderers.common import truncate_head
-from klaude_code.ui.rich.theme import ThemeKey
+from klaude_code.tui.components.common import truncate_head
+from klaude_code.tui.components.rich.theme import ThemeKey
 
 
 def _compact_schema_value(value: dict[str, Any]) -> str | list[Any] | dict[str, Any]:

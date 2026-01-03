@@ -7,9 +7,9 @@ from prompt_toolkit.document import Document
 from klaude_code.core.reminders import at_file_reader_reminder
 from klaude_code.protocol import events, message, model
 from klaude_code.session.session import Session
-from klaude_code.ui.modes.repl.completers import create_repl_completer
-from klaude_code.ui.renderers.developer import render_developer_message
-from klaude_code.ui.renderers.user_input import AT_FILE_RENDER_PATTERN, render_user_input
+from klaude_code.tui.components.developer import render_developer_message
+from klaude_code.tui.components.user_input import AT_FILE_RENDER_PATTERN, render_user_input
+from klaude_code.tui.input.completers import create_repl_completer
 
 
 def _arun(coro):  # type: ignore

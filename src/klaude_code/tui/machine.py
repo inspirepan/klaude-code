@@ -6,12 +6,7 @@ from rich.text import Text
 
 from klaude_code.const import SIGINT_DOUBLE_PRESS_EXIT_TEXT, STATUS_DEFAULT_TEXT
 from klaude_code.protocol import events, model
-from klaude_code.ui.renderers.thinking import extract_last_bold_header, normalize_thinking_content
-from klaude_code.ui.renderers.tools import get_tool_active_form, is_sub_agent_tool
-from klaude_code.ui.rich import status as r_status
-from klaude_code.ui.rich.theme import ThemeKey
-from klaude_code.ui.state.display_state import DisplayState
-from klaude_code.ui.state.render_command import (
+from klaude_code.tui.commands import (
     AppendAssistant,
     AppendThinking,
     EmitOsc94Error,
@@ -42,6 +37,11 @@ from klaude_code.ui.state.render_command import (
     TaskClockClear,
     TaskClockStart,
 )
+from klaude_code.tui.components.rich import status as r_status
+from klaude_code.tui.components.rich.theme import ThemeKey
+from klaude_code.tui.components.thinking import extract_last_bold_header, normalize_thinking_content
+from klaude_code.tui.components.tools import get_tool_active_form, is_sub_agent_tool
+from klaude_code.tui.display_state import DisplayState
 
 
 @dataclass
@@ -559,6 +559,8 @@ class DisplayStateMachine:
             case events.InterruptEvent() as e:
                 self._spinner.reset()
                 cmds.append(SpinnerStop())
+                cmds.append(EndThinkingStream(session_id=e.session_id))
+                cmds.append(EndAssistantStream(session_id=e.session_id))
                 cmds.append(TaskClockClear())
                 cmds.append(RenderInterrupt(session_id=e.session_id))
                 return cmds

@@ -24,7 +24,7 @@ from klaude_code.const import (
     MARKDOWN_STREAM_SYNCHRONIZED_OUTPUT_ENABLED,
     UI_REFRESH_RATE_FPS,
 )
-from klaude_code.ui.rich.code_panel import CodePanel
+from klaude_code.tui.components.rich.code_panel import CodePanel
 
 
 class NoInsetCodeBlock(CodeBlock):

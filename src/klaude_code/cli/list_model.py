@@ -9,9 +9,9 @@ from klaude_code.config import Config
 from klaude_code.config.config import ModelConfig, ProviderConfig, parse_env_var_syntax
 from klaude_code.protocol.llm_param import LLMClientProtocol
 from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
-from klaude_code.ui.rich.quote import Quote
-from klaude_code.ui.rich.theme import ThemeKey, get_theme
-from klaude_code.ui.utils.common import format_model_params
+from klaude_code.tui.components.rich.quote import Quote
+from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
+from klaude_code.ui.common import format_model_params
 
 
 def _get_codex_status_rows() -> list[tuple[Text, Text]]:

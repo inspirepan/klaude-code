@@ -7,10 +7,10 @@ from rich.text import Text
 from klaude_code.const import DEFAULT_MAX_TOKENS
 from klaude_code.protocol import events, model
 from klaude_code.trace import is_debug_enabled
-from klaude_code.ui.renderers.common import create_grid
-from klaude_code.ui.rich.quote import Quote
-from klaude_code.ui.rich.theme import ThemeKey
-from klaude_code.ui.utils.common import format_model_params, format_number
+from klaude_code.tui.components.common import create_grid
+from klaude_code.tui.components.rich.quote import Quote
+from klaude_code.tui.components.rich.theme import ThemeKey
+from klaude_code.ui.common import format_model_params, format_number
 
 
 def _get_version() -> str:

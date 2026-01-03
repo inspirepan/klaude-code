@@ -2,8 +2,8 @@
 
 from rich.text import Text
 
-from klaude_code.ui.renderers.bash_syntax import highlight_bash_command
-from klaude_code.ui.rich.theme import ThemeKey
+from klaude_code.tui.components.bash_syntax import highlight_bash_command
+from klaude_code.tui.components.rich.theme import ThemeKey
 
 
 def get_spans_by_style(text: Text, style: ThemeKey) -> list[str]:

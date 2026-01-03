@@ -20,7 +20,8 @@ class InputProviderABC(ABC):
         3. stop() is called once when input collection is complete.
 
     Typical Usage:
-        input_provider = PromptToolkitInput(status_provider=my_status_fn)
+        # For the interactive terminal input implementation, see
+        # klaude_code.tui.input.prompt_toolkit.PromptToolkitInput.
         await input_provider.start()
         try:
             async for user_input in input_provider.iter_inputs():

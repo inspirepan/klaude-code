@@ -5,8 +5,8 @@ from rich.console import Group, RenderableType
 from rich.text import Text
 
 from klaude_code.skill import get_available_skills
-from klaude_code.ui.renderers.common import create_grid
-from klaude_code.ui.rich.theme import ThemeKey
+from klaude_code.tui.components.common import create_grid
+from klaude_code.tui.components.rich.theme import ThemeKey
 
 # Module-level command name checker. Set by cli/runtime.py on startup.
 _command_name_checker: Callable[[str], bool] | None = None
