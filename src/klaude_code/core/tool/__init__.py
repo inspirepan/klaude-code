@@ -7,7 +7,6 @@ from .file.write_tool import WriteTool
 from .report_back_tool import ReportBackTool
 from .shell.bash_tool import BashTool
 from .shell.command_safety import SafetyCheckResult, is_safe_command
-from .skill.skill_tool import SkillTool
 from .sub_agent_tool import SubAgentTool
 from .todo.todo_write_tool import TodoWriteTool
 from .todo.update_plan_tool import UpdatePlanTool
@@ -31,7 +30,6 @@ __all__ = [
     "RunSubtask",
     "SafetyCheckResult",
     "SimpleTruncationStrategy",
-    "SkillTool",
     "SubAgentResumeClaims",
     "SubAgentTool",
     "TodoContext",

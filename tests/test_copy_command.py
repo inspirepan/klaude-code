@@ -4,6 +4,8 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from klaude_code.protocol import message
 from klaude_code.session.session import Session
 from klaude_code.tui.command import copy_cmd
@@ -22,7 +24,7 @@ def arun(coro: Any) -> Any:
     return asyncio.run(coro)
 
 
-def test_copy_command_copies_last_assistant_message(monkeypatch) -> None:
+def test_copy_command_copies_last_assistant_message(monkeypatch: pytest.MonkeyPatch) -> None:
     session = Session.create(work_dir=Path.cwd())
     session.conversation_history = [
         message.UserMessage(parts=message.text_parts_from_str("hi")),
@@ -31,7 +33,11 @@ def test_copy_command_copies_last_assistant_message(monkeypatch) -> None:
     ]
 
     copied: list[str] = []
-    monkeypatch.setattr(copy_cmd, "copy_to_clipboard", lambda text: copied.append(text))
+
+    def _copy(text: str) -> None:
+        copied.append(text)
+
+    monkeypatch.setattr(copy_cmd, "copy_to_clipboard", _copy)
 
     cmd = copy_cmd.CopyCommand()
     result = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="")))
@@ -41,7 +47,7 @@ def test_copy_command_copies_last_assistant_message(monkeypatch) -> None:
     assert result.persist_events is False
 
 
-def test_copy_command_formats_saved_images(monkeypatch) -> None:
+def test_copy_command_formats_saved_images(monkeypatch: pytest.MonkeyPatch) -> None:
     session = Session.create(work_dir=Path.cwd())
     session.conversation_history = [
         message.AssistantMessage(
@@ -53,7 +59,11 @@ def test_copy_command_formats_saved_images(monkeypatch) -> None:
     ]
 
     copied: list[str] = []
-    monkeypatch.setattr(copy_cmd, "copy_to_clipboard", lambda text: copied.append(text))
+
+    def _copy(text: str) -> None:
+        copied.append(text)
+
+    monkeypatch.setattr(copy_cmd, "copy_to_clipboard", _copy)
 
     cmd = copy_cmd.CopyCommand()
     _ = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="")))
@@ -61,12 +71,16 @@ def test_copy_command_formats_saved_images(monkeypatch) -> None:
     assert copied == ["Saved image at /tmp/foo.png"]
 
 
-def test_copy_command_no_assistant_message(monkeypatch) -> None:
+def test_copy_command_no_assistant_message(monkeypatch: pytest.MonkeyPatch) -> None:
     session = Session.create(work_dir=Path.cwd())
     session.conversation_history = [message.UserMessage(parts=message.text_parts_from_str("hi"))]
 
     copied: list[str] = []
-    monkeypatch.setattr(copy_cmd, "copy_to_clipboard", lambda text: copied.append(text))
+
+    def _copy(text: str) -> None:
+        copied.append(text)
+
+    monkeypatch.setattr(copy_cmd, "copy_to_clipboard", _copy)
 
     cmd = copy_cmd.CopyCommand()
     result = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="")))

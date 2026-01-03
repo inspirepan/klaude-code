@@ -444,16 +444,32 @@ async def skill_reminder(session: Session) -> message.DeveloperMessage | None:
     if not skill:
         return None
 
-    # Get base directory from skill_path
-    base_dir = str(skill.skill_path.parent) if skill.skill_path else "unknown"
+    if not skill.skill_path.exists() or not skill.skill_path.is_file():
+        return None
 
-    content = f"""<system-reminder>The user activated the "{skill.name}" skill. Here is the skill content:
+    tool_context = ToolContext(
+        file_tracker=session.file_tracker,
+        todo_context=build_todo_context(session),
+        session_id=session.id,
+    )
+    args = ReadTool.ReadArguments(file_path=str(skill.skill_path))
+    tool_result = await ReadTool.call_with_args(args, tool_context)
+
+    tool_args = args.model_dump_json(exclude_none=True)
+    skill_file_str = f"""Called the {tools.READ} tool with the following input: {tool_args}
+Result of calling the {tools.READ} tool:
+{tool_result.output_text}
+"""
+
+    base_dir = str(skill.base_dir)
+    content = f"""<system-reminder>The user activated the "{skill.name}" skill.
 
 <skill>
 <name>{skill.name}</name>
 <base_dir>{base_dir}</base_dir>
+<location>{skill.skill_path}</location>
 
-{skill.to_prompt()}
+{skill_file_str}
 </skill>
 </system-reminder>"""
 

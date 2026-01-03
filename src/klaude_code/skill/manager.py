@@ -68,3 +68,41 @@ def list_skill_names() -> list[str]:
         List of skill names
     """
     return _ensure_initialized().list_skills()
+
+
+def format_available_skills_for_system_prompt() -> str:
+    """Format skills metadata for inclusion in the system prompt.
+
+    This follows the progressive-disclosure approach:
+    - Keep only name/description + file location in the always-on system prompt
+    - Load the full SKILL.md content on demand via the Read tool when needed
+    """
+
+    try:
+        loader = _ensure_initialized()
+        skills_xml = loader.get_skills_xml().strip()
+        if not skills_xml:
+            return ""
+
+        return f"""\
+# Skills
+
+Skills are optional task-specific instructions stored as `SKILL.md` files.
+
+How to use skills:
+- Use the metadata in <available_skills> to decide whether a skill applies.
+- When the task matches a skill's description, use the `Read` tool to load the `SKILL.md` at the given <location>.
+- If the user explicitly activates a skill by starting their message with `$skill-name`, prioritize that skill.
+
+Important:
+- Only use skills listed in <available_skills> below.
+- Keep context small: do NOT load skill files unless needed.
+
+The list below is metadata only (name/description/location). The full instructions live in the referenced file.
+
+<available_skills>
+{skills_xml}
+</available_skills>"""
+    except Exception:
+        # Skills are an optional enhancement; do not fail prompt construction if discovery breaks.
+        return ""

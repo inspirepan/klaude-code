@@ -37,7 +37,6 @@ MARK_MERMAID = "⧉"
 MARK_WEB_FETCH = "→"
 MARK_WEB_SEARCH = "✱"
 MARK_DONE = "✔"
-MARK_SKILL = "✪"
 
 # Todo status markers
 MARK_TODO_PENDING = "▢"
@@ -537,7 +536,6 @@ _TOOL_ACTIVE_FORM: dict[str, str] = {
     tools.WRITE: "Writing",
     tools.TODO_WRITE: "Planning",
     tools.UPDATE_PLAN: "Planning",
-    tools.SKILL: "Skilling",
     tools.MERMAID: "Diagramming",
     tools.WEB_FETCH: "Fetching Web",
     tools.WEB_SEARCH: "Searching Web",
@@ -589,8 +587,6 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
             return render_update_plan_tool_call(e.arguments)
         case tools.MERMAID:
             return render_mermaid_tool_call(e.arguments)
-        case tools.SKILL:
-            return render_generic_tool_call(e.tool_name, e.arguments, MARK_SKILL)
         case tools.REPORT_BACK:
             return render_report_back_tool_call()
         case tools.WEB_FETCH:

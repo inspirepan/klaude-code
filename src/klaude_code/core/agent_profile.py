@@ -150,10 +150,17 @@ def load_system_prompt(
         base_prompt = _load_base_prompt(file_key)
 
     if protocol == llm_param.LLMClientProtocol.CODEX_OAUTH:
-        # Do not append environment info for Codex protocol
+        # Do not append environment info or skills info for Codex protocol.
         return base_prompt
 
-    return base_prompt + _build_env_info(model_name)
+    skills_prompt = ""
+    if sub_agent_type is None:
+        # Skills are progressive-disclosure: keep only metadata in the system prompt.
+        from klaude_code.skill.manager import format_available_skills_for_system_prompt
+
+        skills_prompt = format_available_skills_for_system_prompt()
+
+    return base_prompt + _build_env_info(model_name) + skills_prompt
 
 
 def load_agent_tools(
@@ -180,7 +187,7 @@ def load_agent_tools(
         tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.TODO_WRITE]
 
     tool_names.extend(sub_agent_tool_names(enabled_only=True, model_name=model_name))
-    tool_names.extend([tools.SKILL, tools.MERMAID])
+    tool_names.extend([tools.MERMAID])
     # tool_names.extend([tools.MEMORY])
     return get_tool_schemas(tool_names)
 

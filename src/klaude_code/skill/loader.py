@@ -1,4 +1,3 @@
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
@@ -14,12 +13,12 @@ class Skill:
 
     name: str  # Skill identifier (lowercase-hyphen)
     description: str  # What the skill does and when to use it
-    content: str  # Full markdown instructions
-    location: str  # Skill location: 'system', 'user', or 'project'
+    location: str  # Skill source: 'system', 'user', or 'project'
+    skill_path: Path
+    base_dir: Path
     license: str | None = None
     allowed_tools: list[str] | None = None
     metadata: dict[str, str] | None = None
-    skill_path: Path | None = None
 
     @property
     def short_description(self) -> str:
@@ -30,17 +29,6 @@ class Skill:
         if self.metadata and "short-description" in self.metadata:
             return self.metadata["short-description"]
         return self.description
-
-    def to_prompt(self) -> str:
-        """Convert skill to prompt format for agent consumption"""
-        return f"""# Skill: {self.name}
-
-{self.description}
-
----
-
-{self.content}
-"""
 
 
 class SkillLoader:
@@ -79,7 +67,6 @@ class SkillLoader:
 
             # Parse YAML frontmatter
             frontmatter: dict[str, object] = {}
-            markdown_content = content
 
             if content.startswith("---"):
                 parts = content.split("---", 2)
@@ -87,7 +74,6 @@ class SkillLoader:
                     loaded: object = yaml.safe_load(parts[1])
                     if isinstance(loaded, dict):
                         frontmatter = dict(loaded)  # type: ignore[arg-type]
-                    markdown_content = parts[2].strip()
 
             # Extract skill metadata
             name = str(frontmatter.get("name", ""))
@@ -95,10 +81,6 @@ class SkillLoader:
 
             if not name or not description:
                 return None
-
-            # Process relative paths in content
-            skill_dir = skill_path.parent
-            processed_content = self._process_skill_paths(markdown_content, skill_dir)
 
             # Create Skill object
             license_val = frontmatter.get("license")
@@ -118,12 +100,12 @@ class SkillLoader:
             skill = Skill(
                 name=name,
                 description=description,
-                content=processed_content,
                 location=location,
                 license=str(license_val) if license_val is not None else None,
                 allowed_tools=allowed_tools,
                 metadata=metadata,
-                skill_path=skill_path,
+                skill_path=skill_path.resolve(),
+                base_dir=skill_path.parent.resolve(),
             )
 
             return skill
@@ -144,6 +126,15 @@ class SkillLoader:
             List of successfully loaded Skill objects
         """
         skills: list[Skill] = []
+        priority = {"system": 0, "user": 1, "project": 2}
+
+        def register(skill: Skill) -> None:
+            existing = self.loaded_skills.get(skill.name)
+            if existing is None:
+                self.loaded_skills[skill.name] = skill
+                return
+            if priority.get(skill.location, -1) >= priority.get(existing.location, -1):
+                self.loaded_skills[skill.name] = skill
 
         # Load system-level skills first (lowest priority, can be overridden)
         system_dir = self.SYSTEM_SKILLS_DIR.expanduser()
@@ -152,7 +143,7 @@ class SkillLoader:
                 skill = self.load_skill(skill_file, location="system")
                 if skill:
                     skills.append(skill)
-                    self.loaded_skills[skill.name] = skill
+                    register(skill)
 
         # Load user-level skills (override system skills if same name)
         for user_dir in self.USER_SKILLS_DIRS:
@@ -165,7 +156,7 @@ class SkillLoader:
                     skill = self.load_skill(skill_file, location="user")
                     if skill:
                         skills.append(skill)
-                        self.loaded_skills[skill.name] = skill
+                        register(skill)
 
         # Load project-level skills (override user skills if same name)
         project_dir = self.PROJECT_SKILLS_DIR.resolve()
@@ -174,13 +165,14 @@ class SkillLoader:
                 skill = self.load_skill(skill_file, location="project")
                 if skill:
                     skills.append(skill)
-                    self.loaded_skills[skill.name] = skill
+                    register(skill)
 
         # Log discovery summary
-        if skills:
-            system_count = sum(1 for s in skills if s.location == "system")
-            user_count = sum(1 for s in skills if s.location == "user")
-            project_count = sum(1 for s in skills if s.location == "project")
+        if self.loaded_skills:
+            selected = list(self.loaded_skills.values())
+            system_count = sum(1 for s in selected if s.location == "system")
+            user_count = sum(1 for s in selected if s.location == "user")
+            project_count = sum(1 for s in selected if s.location == "project")
             parts: list[str] = []
             if system_count > 0:
                 parts.append(f"{system_count} system")
@@ -188,7 +180,7 @@ class SkillLoader:
                 parts.append(f"{user_count} user")
             if project_count > 0:
                 parts.append(f"{project_count} project")
-            log_debug(f"Discovered {len(skills)} Claude Skills ({', '.join(parts)})")
+            log_debug(f"Loaded {len(self.loaded_skills)} Claude Skills ({', '.join(parts)})")
 
         return skills
 
@@ -224,62 +216,14 @@ class SkillLoader:
             XML string with all skill metadata
         """
         xml_parts: list[str] = []
-        for skill in self.loaded_skills.values():
-            xml_parts.append(f"""<skill>
+        # Prefer showing higher-priority skills first (project > user > system).
+        location_order = {"project": 0, "user": 1, "system": 2}
+        for skill in sorted(self.loaded_skills.values(), key=lambda s: location_order.get(s.location, 3)):
+            xml_parts.append(
+                f"""<skill>
 <name>{skill.name}</name>
 <description>{skill.description}</description>
-<location>{skill.location}</location>
-</skill>""")
+<location>{skill.skill_path}</location>
+</skill>"""
+            )
         return "\n".join(xml_parts)
-
-    def _process_skill_paths(self, content: str, skill_dir: Path) -> str:
-        """Convert relative paths to absolute paths for Level 3+
-
-        Supports:
-        - scripts/, examples/, templates/, reference/ directories
-        - Markdown document references
-        - Markdown links [text](path)
-
-        Args:
-            content: Original skill content
-            skill_dir: Directory containing the SKILL.md file
-
-        Returns:
-            Content with absolute paths
-        """
-        # Pattern 1: Directory-based paths (scripts/, examples/, etc.)
-        # e.g., "python scripts/generate.py" -> "python /abs/path/to/scripts/generate.py"
-        dir_pattern = r"\b(scripts|examples|templates|reference)/([^\s\)]+)"
-
-        def replace_dir_path(match: re.Match[str]) -> str:
-            directory = match.group(1)
-            filename = match.group(2)
-            abs_path = skill_dir / directory / filename
-            return str(abs_path)
-
-        content = re.sub(dir_pattern, replace_dir_path, content)
-
-        # Pattern 2: Markdown links [text](./path or path)
-        # e.g., "[Guide](./docs/guide.md)" -> "[Guide](`/abs/path/to/docs/guide.md`) (use the Read tool to access)"
-        link_pattern = r"\[([^\]]+)\]\((\./)?([^\)]+\.md)\)"
-
-        def replace_link(match: re.Match[str]) -> str:
-            text = match.group(1)
-            filename = match.group(3)
-            abs_path = skill_dir / filename
-            return f"[{text}](`{abs_path}`) (use the Read tool to access)"
-
-        content = re.sub(link_pattern, replace_link, content)
-
-        # Pattern 3: Standalone markdown references
-        # e.g., "see reference.md" -> "see `/abs/path/to/reference.md` (use the Read tool to access)"
-        standalone_pattern = r"(?<!\])\b(\w+\.md)\b(?!\))"
-
-        def replace_standalone(match: re.Match[str]) -> str:
-            filename = match.group(1)
-            abs_path = skill_dir / filename
-            return f"`{abs_path}` (use the Read tool to access)"
-
-        content = re.sub(standalone_pattern, replace_standalone, content)
-
-        return content
