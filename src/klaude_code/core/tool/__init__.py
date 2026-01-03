@@ -12,7 +12,7 @@ from .sub_agent_tool import SubAgentTool
 from .todo.todo_write_tool import TodoWriteTool
 from .todo.update_plan_tool import UpdatePlanTool
 from .tool_abc import ToolABC
-from .tool_registry import get_registry, get_tool_schemas, load_agent_tools
+from .tool_registry import get_registry, get_tool_schemas
 from .tool_runner import run_tool
 from .truncation import SimpleTruncationStrategy, TruncationStrategy, get_truncation_strategy, set_truncation_strategy
 from .web.mermaid_tool import MermaidTool
@@ -48,7 +48,6 @@ __all__ = [
     "get_tool_schemas",
     "get_truncation_strategy",
     "is_safe_command",
-    "load_agent_tools",
     "process_patch",
     "run_tool",
     "set_truncation_strategy",

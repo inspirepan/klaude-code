@@ -4,18 +4,14 @@ import asyncio
 import time
 from collections.abc import AsyncGenerator, Callable, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from klaude_code.const import INITIAL_RETRY_DELAY_S, MAX_FAILED_TURN_RETRIES, MAX_RETRY_DELAY_S
-from klaude_code.core.reminders import Reminder
+from klaude_code.core.agent_profile import AgentProfile, Reminder
 from klaude_code.core.tool import FileTracker, TodoContext, ToolABC
 from klaude_code.core.tool.context import RunSubtask
 from klaude_code.core.turn import TurnError, TurnExecutionContext, TurnExecutor
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, model
-
-if TYPE_CHECKING:
-    from klaude_code.core.agent import AgentProfile
 
 
 class MetadataAccumulator:

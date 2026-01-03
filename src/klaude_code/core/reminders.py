@@ -1,7 +1,6 @@
 import hashlib
 import re
 import shlex
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,9 +13,6 @@ from klaude_code.core.tool.file._utils import hash_text_sha256
 from klaude_code.protocol import message, model, tools
 from klaude_code.session import Session
 from klaude_code.skill import get_skill
-
-type Reminder = Callable[[Session], Awaitable[message.DeveloperMessage | None]]
-
 
 # Match @ preceded by whitespace, start of line, or → (ReadTool line number arrow)
 AT_FILE_PATTERN = re.compile(r'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^\"]+)"|(?P<plain>\S+))')
@@ -432,9 +428,7 @@ async def image_reminder(session: Session) -> message.DeveloperMessage | None:
         return None
 
     return message.DeveloperMessage(
-        parts=message.text_parts_from_str(
-            f"<system-reminder>User attached {image_count} image{'s' if image_count > 1 else ''} in their message. Make sure to analyze and reference these images as needed.</system-reminder>"
-        ),
+        parts=[],
         ui_extra=model.DeveloperUIExtra(items=[model.UserImagesUIItem(count=image_count)]),
     )
 
@@ -608,37 +602,3 @@ ALL_REMINDERS = [
     image_reminder,
     skill_reminder,
 ]
-
-
-def load_agent_reminders(
-    model_name: str, sub_agent_type: str | None = None, *, vanilla: bool = False
-) -> list[Reminder]:
-    """Get reminders for an agent based on model and agent type.
-
-    Args:
-        model_name: The model name.
-        sub_agent_type: If None, returns main agent reminders. Otherwise returns sub-agent reminders.
-        vanilla: If True, returns minimal vanilla reminders (ignores sub_agent_type).
-    """
-    if vanilla:
-        return [at_file_reader_reminder]
-
-    reminders: list[Reminder] = []
-
-    # Only main agent (not sub-agent) gets todo reminders, and not for GPT-5
-    if sub_agent_type is None and "gpt-5" not in model_name:
-        reminders.append(empty_todo_reminder)
-        reminders.append(todo_not_used_recently_reminder)
-
-    reminders.extend(
-        [
-            memory_reminder,
-            at_file_reader_reminder,
-            last_path_memory_reminder,
-            file_changed_externally_reminder,
-            image_reminder,
-            skill_reminder,
-        ]
-    )
-
-    return reminders

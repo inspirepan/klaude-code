@@ -11,9 +11,9 @@ import asyncio
 import json
 from collections.abc import Callable
 
-from klaude_code.core.agent import Agent, AgentProfile, ModelProfileProvider
+from klaude_code.core.agent import Agent
+from klaude_code.core.agent_profile import ModelProfileProvider
 from klaude_code.core.manager.llm_clients import LLMClients
-from klaude_code.core.tool import ReportBackTool
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, model
 from klaude_code.protocol.sub_agent import SubAgentResult
@@ -103,25 +103,8 @@ class SubAgentManager:
         child_profile = self._model_profile_provider.build_profile(
             self._llm_clients.get_client(state.sub_agent_type),
             state.sub_agent_type,
+            output_schema=state.output_schema,
         )
-
-        # Inject report_back tool if output_schema is provided
-        if state.output_schema:
-            report_back_tool_class = ReportBackTool.for_schema(state.output_schema)
-            report_back_prompt = """\
-
-# Structured Output
-You have a `report_back` tool available. When you complete the task,\
-you MUST call `report_back` with the structured result matching the required schema.\
-Only the content passed to `report_back` will be returned to user.\
-"""
-            base_prompt = child_profile.system_prompt or ""
-            child_profile = AgentProfile(
-                llm_client=child_profile.llm_client,
-                system_prompt=base_prompt + report_back_prompt,
-                tools=[*child_profile.tools, report_back_tool_class.schema()],
-                reminders=child_profile.reminders,
-            )
 
         child_agent = Agent(session=child_session, profile=child_profile)
 

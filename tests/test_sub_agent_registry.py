@@ -5,7 +5,8 @@ import asyncio
 import pytest
 
 import klaude_code.core.tool as core_tool
-from klaude_code.core.tool import ToolABC, load_agent_tools
+from klaude_code.core.agent_profile import load_agent_tools
+from klaude_code.core.tool import ToolABC
 from klaude_code.core.tool.context import TodoContext, ToolContext
 from klaude_code.core.tool.tool_abc import ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.core.tool.tool_runner import ToolCallRequest, ToolExecutor

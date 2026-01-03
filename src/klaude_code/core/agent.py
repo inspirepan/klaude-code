@@ -1,73 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Iterable
-from dataclasses import dataclass
-from typing import Protocol
 
-from klaude_code.core.prompt import load_system_prompt
-from klaude_code.core.reminders import Reminder, load_agent_reminders
+from klaude_code.core.agent_profile import AgentProfile, Reminder
 from klaude_code.core.task import SessionContext, TaskExecutionContext, TaskExecutor
-from klaude_code.core.tool import build_todo_context, get_registry, load_agent_tools
+from klaude_code.core.tool import build_todo_context, get_registry
 from klaude_code.core.tool.context import RunSubtask
 from klaude_code.llm import LLMClientABC
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, llm_param, tools
+from klaude_code.protocol import events
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session import Session
-
-
-@dataclass(frozen=True)
-class AgentProfile:
-    """Encapsulates the active LLM client plus prompts/tools/reminders."""
-
-    llm_client: LLMClientABC
-    system_prompt: str | None
-    tools: list[llm_param.ToolSchema]
-    reminders: list[Reminder]
-
-
-class ModelProfileProvider(Protocol):
-    """Strategy interface for constructing agent profiles."""
-
-    def build_profile(
-        self,
-        llm_client: LLMClientABC,
-        sub_agent_type: tools.SubAgentType | None = None,
-    ) -> AgentProfile: ...
-
-
-class DefaultModelProfileProvider(ModelProfileProvider):
-    """Default provider backed by global prompts/tool/reminder registries."""
-
-    def build_profile(
-        self,
-        llm_client: LLMClientABC,
-        sub_agent_type: tools.SubAgentType | None = None,
-    ) -> AgentProfile:
-        model_name = llm_client.model_name
-        return AgentProfile(
-            llm_client=llm_client,
-            system_prompt=load_system_prompt(model_name, llm_client.protocol, sub_agent_type),
-            tools=load_agent_tools(model_name, sub_agent_type),
-            reminders=load_agent_reminders(model_name, sub_agent_type),
-        )
-
-
-class VanillaModelProfileProvider(ModelProfileProvider):
-    """Provider that strips prompts, reminders, and tools for vanilla mode."""
-
-    def build_profile(
-        self,
-        llm_client: LLMClientABC,
-        sub_agent_type: tools.SubAgentType | None = None,
-    ) -> AgentProfile:
-        model_name = llm_client.model_name
-        return AgentProfile(
-            llm_client=llm_client,
-            system_prompt=None,
-            tools=load_agent_tools(model_name, vanilla=True),
-            reminders=load_agent_reminders(model_name, vanilla=True),
-        )
 
 
 class Agent:

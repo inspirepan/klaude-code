@@ -8,7 +8,8 @@ import typer
 
 from klaude_code import ui
 from klaude_code.config import Config, load_config
-from klaude_code.core.agent import Agent, DefaultModelProfileProvider, VanillaModelProfileProvider
+from klaude_code.core.agent import Agent
+from klaude_code.core.agent_profile import DefaultModelProfileProvider, VanillaModelProfileProvider
 from klaude_code.core.executor import Executor
 from klaude_code.core.manager import build_llm_clients
 from klaude_code.log import DebugType, log, set_debug_logging

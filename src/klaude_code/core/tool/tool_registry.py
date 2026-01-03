@@ -3,8 +3,8 @@ from typing import TypeVar
 
 from klaude_code.core.tool.sub_agent_tool import SubAgentTool
 from klaude_code.core.tool.tool_abc import ToolABC
-from klaude_code.protocol import llm_param, tools
-from klaude_code.protocol.sub_agent import get_sub_agent_profile, iter_sub_agent_profiles, sub_agent_tool_names
+from klaude_code.protocol import llm_param
+from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 
 _REGISTRY: dict[str, type[ToolABC]] = {}
 
@@ -45,34 +45,3 @@ def get_tool_schemas(tool_names: list[str]) -> list[llm_param.ToolSchema]:
 def get_registry() -> dict[str, type[ToolABC]]:
     """Get the global tool registry."""
     return _REGISTRY
-
-
-def load_agent_tools(
-    model_name: str, sub_agent_type: tools.SubAgentType | None = None, *, vanilla: bool = False
-) -> list[llm_param.ToolSchema]:
-    """Get tools for an agent based on model and agent type.
-
-    Args:
-        model_name: The model name.
-        sub_agent_type: If None, returns main agent tools. Otherwise returns sub-agent tools.
-        vanilla: If True, returns minimal vanilla tools (ignores sub_agent_type).
-    """
-    if vanilla:
-        return get_tool_schemas([tools.BASH, tools.EDIT, tools.WRITE, tools.READ])
-
-    if sub_agent_type is not None:
-        profile = get_sub_agent_profile(sub_agent_type)
-        return get_tool_schemas(list(profile.tool_set))
-
-    # Main agent tools
-    if "gpt-5" in model_name:
-        tool_names = [tools.BASH, tools.READ, tools.APPLY_PATCH, tools.UPDATE_PLAN]
-    elif "gemini-3" in model_name:
-        tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE]
-    else:
-        tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.TODO_WRITE]
-
-    tool_names.extend(sub_agent_tool_names(enabled_only=True, model_name=model_name))
-    tool_names.extend([tools.SKILL, tools.MERMAID])
-    # tool_names.extend([tools.MEMORY])
-    return get_tool_schemas(tool_names)

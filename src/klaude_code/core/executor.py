@@ -15,7 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from klaude_code.config import load_config
-from klaude_code.core.agent import Agent, DefaultModelProfileProvider, ModelProfileProvider
+from klaude_code.core.agent import Agent
+from klaude_code.core.agent_profile import DefaultModelProfileProvider, ModelProfileProvider
 from klaude_code.core.manager import LLMClients, SubAgentManager
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
