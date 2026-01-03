@@ -146,6 +146,7 @@ class TUICommandRenderer:
         self._stream_last_height: int = 0
         self._stream_last_width: int = 0
         self._spinner_visible: bool = False
+        self._spinner_last_update_key: tuple[object, object] | None = None
 
         self._status_text: ShimmerStatusText = ShimmerStatusText(STATUS_DEFAULT_TEXT)
         self._status_spinner: Spinner = BreathingSpinner(
@@ -238,9 +239,33 @@ class TUICommandRenderer:
         self._refresh_bottom_live()
 
     def spinner_update(self, status_text: str | Text, right_text: RenderableType | None = None) -> None:
+        new_key = (self._spinner_text_key(status_text), self._spinner_right_text_key(right_text))
+        if self._spinner_last_update_key == new_key:
+            return
+        self._spinner_last_update_key = new_key
+
         self._status_text = ShimmerStatusText(status_text, right_text)
         self._status_spinner.update(text=SingleLine(self._status_text), style=ThemeKey.STATUS_SPINNER)
         self._refresh_bottom_live()
+
+    @staticmethod
+    def _spinner_text_key(text: str | Text) -> object:
+        if isinstance(text, Text):
+            style = str(text.style) if text.style else ""
+            return ("Text", text.plain, style)
+        return ("str", text)
+
+    @staticmethod
+    def _spinner_right_text_key(text: RenderableType | None) -> object:
+        if text is None:
+            return ("none",)
+        if isinstance(text, Text):
+            style = str(text.style) if text.style else ""
+            return ("Text", text.plain, style)
+        if isinstance(text, str):
+            return ("str", text)
+        # Fall back to a unique key so we never skip updates for dynamic renderables.
+        return ("other", object())
 
     def set_stream_renderable(self, renderable: RenderableType | None) -> None:
         if renderable is None:
@@ -333,7 +358,7 @@ class TUICommandRenderer:
             },
             theme=self.themes.thinking_markdown_theme,
             console=self.console,
-            live_sink=self.set_stream_renderable if MARKDOWN_STREAM_LIVE_REPAINT_ENABLED else None,
+            live_sink=None,
             mark=c_thinking.THINKING_MESSAGE_MARK,
             mark_style=ThemeKey.THINKING,
             left_margin=MARKDOWN_LEFT_MARGIN,
@@ -345,7 +370,7 @@ class TUICommandRenderer:
             mdargs={"code_theme": self.themes.code_theme},
             theme=self.themes.markdown_theme,
             console=self.console,
-            live_sink=self.set_stream_renderable if MARKDOWN_STREAM_LIVE_REPAINT_ENABLED else None,
+            live_sink=self.set_stream_renderable,
             mark=c_assistant.ASSISTANT_MESSAGE_MARK,
             left_margin=MARKDOWN_LEFT_MARGIN,
         )

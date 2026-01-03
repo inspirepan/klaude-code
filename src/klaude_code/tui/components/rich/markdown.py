@@ -61,7 +61,13 @@ class Divider(MarkdownElement):
 
 class MarkdownTable(TableElement):
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
-        table = Table(box=box.MARKDOWN, border_style=console.get_style("markdown.table.border"))
+        # rich.box.MARKDOWN intentionally includes a blank top/bottom edge row. Rather than
+        # post-processing rendered segments, disable outer edges to avoid emitting those rows.
+        table = Table(
+            box=box.MARKDOWN,
+            show_edge=False,
+            border_style=console.get_style("markdown.table.border"),
+        )
 
         if self.header is not None and self.header.row is not None:
             for column in self.header.row.cells:
@@ -72,27 +78,7 @@ class MarkdownTable(TableElement):
                 row_content = [element.content for element in row.cells]
                 table.add_row(*row_content)
 
-        # Render table and strip top/bottom blank lines that MARKDOWN box adds
-        segments = list(console.render(table, options))
-
-        # Skip leading blank line (before first newline)
-        first_newline_idx = next((i for i, s in enumerate(segments) if s.text == "\n"), None)
-        if first_newline_idx is not None:
-            first_line = "".join(s.text for s in segments[:first_newline_idx])
-            if not first_line.strip():
-                segments = segments[first_newline_idx + 1 :]
-
-        # Skip trailing blank line (after last newline)
-        while len(segments) >= 2 and segments[-1].text == "\n":
-            prev_newline = next((i for i in range(len(segments) - 2, -1, -1) if segments[i].text == "\n"), None)
-            if prev_newline is not None:
-                between = "".join(s.text for s in segments[prev_newline + 1 : -1])
-                if not between.strip():
-                    segments = segments[: prev_newline + 1]
-                    continue
-            break
-
-        yield from segments
+        yield table
 
 
 class LeftHeading(Heading):
