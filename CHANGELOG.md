@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-01-04
+
+### Added
+
+- add /copy command to copy last assistant message (`7ea14649`)
+
+### Changed
+
+- remove Skill tool (`a2542ac9`)
+
+### Fixed
+
+- duplicate interrupted event (`78afa968`)
 ## [2.1.0] - 2026-01-03
 
 ### Added
@@ -1117,7 +1130,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.1.1...HEAD
+[2.1.1]: https://github.com/inspirepan/klaude-code/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/inspirepan/klaude-code/compare/v2.0.2...v2.1.0
 [2.0.2]: https://github.com/inspirepan/klaude-code/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/inspirepan/klaude-code/compare/v2.0.0...v2.0.1
