@@ -34,6 +34,7 @@ class AssistantImageDeltaEvent(ResponseEvent):
 class ToolCallStartEvent(ResponseEvent):
     tool_call_id: str
     tool_name: str
+    model_id: str | None = None
 
 
 class ResponseCompleteEvent(ResponseEvent):

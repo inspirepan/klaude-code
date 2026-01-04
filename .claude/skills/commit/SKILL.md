@@ -7,7 +7,7 @@ metadata:
 
 Please follow the steps below to commit your changes with `jj` (describe current changes).
 
-Run `jj log` to see working copy changes and all current changes.
+Run `jj log -n 5` to see working copy changes and all current changes.
 
 For each non-empty change without a description (shows as "(no description set)"):
 1. Run `jj diff -r <change_id> --git` to view the diff

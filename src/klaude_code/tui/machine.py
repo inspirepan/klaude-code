@@ -10,7 +10,7 @@ from klaude_code.const import (
     STATUS_DEFAULT_TEXT,
     STATUS_THINKING_TEXT,
 )
-from klaude_code.protocol import events, model
+from klaude_code.protocol import events, model, tools
 from klaude_code.tui.commands import (
     AppendAssistant,
     AppendThinking,
@@ -47,6 +47,33 @@ from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.thinking import extract_last_bold_header, normalize_thinking_content
 from klaude_code.tui.components.tools import get_tool_active_form, is_sub_agent_tool
+
+# Tools that complete quickly and don't benefit from streaming activity display.
+# For models without fine-grained tool JSON streaming (e.g., Gemini), showing these
+# in the activity state causes a flash-and-disappear effect.
+FAST_TOOLS: frozenset[str] = frozenset(
+    {
+        tools.READ,
+        tools.EDIT,
+        tools.WRITE,
+        tools.BASH,
+        tools.TODO_WRITE,
+        tools.UPDATE_PLAN,
+        tools.APPLY_PATCH,
+        tools.REPORT_BACK,
+    }
+)
+
+
+def _should_skip_tool_activity(tool_name: str, model_id: str | None) -> bool:
+    """Check if tool activity should be skipped for non-streaming models."""
+    if model_id is None:
+        return False
+    if tool_name not in FAST_TOOLS:
+        return False
+    # Gemini and Grok models don't stream tool JSON at fine granularity
+    model_lower = model_id.lower()
+    return "gemini" in model_lower or "grok" in model_lower
 
 
 @dataclass
@@ -142,7 +169,8 @@ class ActivityState:
 
             if self._sub_agent_tool_calls:
                 _append_counts(self._sub_agent_tool_calls)
-                activity_text.append(" | ")
+                if self._tool_calls:
+                    activity_text.append(" , ")
 
             if self._tool_calls:
                 _append_counts(self._tool_calls)
@@ -497,11 +525,14 @@ class DisplayStateMachine:
 
                 self._spinner.set_composing(False)
 
-                tool_active_form = get_tool_active_form(e.tool_name)
-                if is_sub_agent_tool(e.tool_name):
-                    self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
-                else:
-                    self._spinner.add_tool_call(tool_active_form)
+                # Skip activity state for fast tools on non-streaming models (e.g., Gemini)
+                # to avoid flash-and-disappear effect
+                if not _should_skip_tool_activity(e.tool_name, e.model_id):
+                    tool_active_form = get_tool_active_form(e.tool_name)
+                    if is_sub_agent_tool(e.tool_name):
+                        self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
+                    else:
+                        self._spinner.add_tool_call(tool_active_form)
 
                 cmds.extend(self._spinner_update_commands())
                 return cmds
