@@ -241,6 +241,17 @@ provider_list:
         input: 0.44
         output: 1.74
         cache_read: 0.04
+  - model_name: seedream
+    model_params:
+      model: bytedance-seed/seedream-4.5
+      context_limit: 4000
+      cost:
+        input: 0
+        output: 9.581
+        image: 9.581
+      modalities:
+      - image
+      - text
 
 - provider_name: google
   protocol: google
