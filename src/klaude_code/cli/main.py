@@ -13,44 +13,6 @@ from klaude_code.session import Session
 from klaude_code.tui.command.resume_cmd import select_session_sync
 from klaude_code.ui.terminal.title import update_terminal_title
 
-
-def read_input_content(cli_argument: str) -> str | None:
-    """Read and merge input from stdin and CLI argument.
-
-    Args:
-        cli_argument: The input content passed as CLI argument.
-
-    Returns:
-        The merged input content, or None if no input was provided.
-    """
-    from klaude_code.log import log
-
-    parts: list[str] = []
-
-    # Handle stdin input
-    if not sys.stdin.isatty():
-        try:
-            stdin = sys.stdin.read().rstrip("\n")
-            if stdin:
-                parts.append(stdin)
-        except (OSError, ValueError) as e:
-            # Expected I/O-related errors when reading from stdin (e.g. broken pipe, closed stream).
-            log((f"Error reading from stdin: {e}", "red"))
-        except Exception as e:
-            # Unexpected errors are still reported but kept from crashing the CLI.
-            log((f"Unexpected error reading from stdin: {e}", "red"))
-
-    if cli_argument:
-        parts.append(cli_argument)
-
-    content = "\n".join(parts)
-    if len(content) == 0:
-        log(("Error: No input content provided", "red"))
-        return None
-
-    return content
-
-
 ENV_HELP = """\
 Environment Variables:
 
@@ -74,101 +36,6 @@ register_config_commands(app)
 register_cost_commands(app)
 
 register_self_update_commands(app)
-
-
-@app.command("exec")
-def exec_command(
-    input_content: str = typer.Argument("", help="Input message to execute"),
-    model: str | None = typer.Option(
-        None,
-        "--model",
-        "-m",
-        help="Override model config name (uses main model by default)",
-        rich_help_panel="LLM",
-    ),
-    select_model: bool = typer.Option(
-        False,
-        "--select-model",
-        "-s",
-        help="Interactively choose a model at startup",
-        rich_help_panel="LLM",
-    ),
-    debug: bool = typer.Option(
-        False,
-        "--debug",
-        "-d",
-        help="Enable debug mode",
-        rich_help_panel="Debug",
-    ),
-    debug_filter: str | None = typer.Option(
-        None,
-        "--debug-filter",
-        help=DEBUG_FILTER_HELP,
-        rich_help_panel="Debug",
-    ),
-    vanilla: bool = typer.Option(
-        False,
-        "--vanilla",
-        help="Vanilla mode exposes the model's raw API behavior: it provides only minimal tools (Bash, Read & Edit) and omits system prompts and reminders.",
-    ),
-    stream_json: bool = typer.Option(
-        False,
-        "--stream-json",
-        help="Stream all events as JSON lines to stdout.",
-    ),
-) -> None:
-    """Execute non-interactively with provided input."""
-    update_terminal_title()
-
-    merged_input = read_input_content(input_content)
-    if merged_input is None:
-        raise typer.Exit(1)
-
-    from klaude_code.app.runtime import AppInitConfig, run_exec
-    from klaude_code.config import load_config
-    from klaude_code.tui.command.model_select import select_model_interactive
-
-    chosen_model = model
-    if model or select_model:
-        chosen_model = select_model_interactive(preferred=model)
-        if chosen_model is None:
-            raise typer.Exit(1)
-    else:
-        # Check if main_model is configured; if not, trigger interactive selection
-        config = load_config()
-        if config.main_model is None:
-            chosen_model = select_model_interactive()
-            if chosen_model is None:
-                raise typer.Exit(1)
-            # Save the selection as default
-            config.main_model = chosen_model
-            from klaude_code.config.config import config_path
-            from klaude_code.log import log
-
-            asyncio.run(config.save())
-            log(f"Saved main_model={chosen_model} to {config_path}", style="cyan")
-
-    debug_enabled, debug_filters, log_path = prepare_debug_logging(debug, debug_filter)
-
-    init_config = AppInitConfig(
-        model=chosen_model,
-        debug=debug_enabled,
-        vanilla=vanilla,
-        debug_filters=debug_filters,
-        stream_json=stream_json,
-    )
-
-    if log_path:
-        from klaude_code.log import log
-
-        log(f"Debug log: {log_path}", style="dim")
-
-    asyncio.run(
-        run_exec(
-            init_config=init_config,
-            input_content=merged_input,
-        )
-    )
 
 
 @app.callback(invoke_without_command=True)
@@ -241,24 +108,10 @@ def main_callback(
             log(("Hint: run `klaude --resume` to select an existing session", "yellow"))
             raise typer.Exit(2)
 
-        # In non-interactive environments, default to exec-mode behavior.
-        # This allows: echo "…" | klaude
         if not sys.stdin.isatty() or not sys.stdout.isatty():
-            if continue_ or resume or resume_by_id is not None:
-                log(("Error: --continue/--resume options require a TTY", "red"))
-                log(("Hint: use `klaude exec` for non-interactive usage", "yellow"))
-                raise typer.Exit(2)
-
-            exec_command(
-                input_content="",
-                model=model,
-                select_model=select_model,
-                debug=debug,
-                debug_filter=debug_filter,
-                vanilla=vanilla,
-                stream_json=False,
-            )
-            return
+            log(("Error: interactive mode requires a TTY", "red"))
+            log(("Hint: run klaude from an interactive terminal", "yellow"))
+            raise typer.Exit(2)
 
         from klaude_code.app.runtime import AppInitConfig
         from klaude_code.tui.command.model_select import select_model_interactive

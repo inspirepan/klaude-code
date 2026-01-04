@@ -14,7 +14,6 @@ from klaude_code.core.executor import Executor
 from klaude_code.core.manager import build_llm_clients
 from klaude_code.log import DebugType, log, set_debug_logging
 from klaude_code.protocol import events, op
-from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session.session import Session, close_default_store
 
 
@@ -26,7 +25,6 @@ class AppInitConfig:
     debug: bool
     vanilla: bool
     debug_filters: set[DebugType] | None = None
-    stream_json: bool = False
 
 
 @dataclass
@@ -176,40 +174,3 @@ async def handle_keyboard_interrupt(executor: Executor) -> None:
         log(("Resume with:", "dim"), (f"klaude --resume-by-id {session_id}", "green"))
     with contextlib.suppress(Exception):
         await executor.submit(op.InterruptOperation(target_session_id=None))
-
-
-async def run_exec(init_config: AppInitConfig, input_content: str) -> None:
-    """Run a single task non-interactively (exec mode)."""
-    from klaude_code.ui.terminal.title import update_terminal_title
-
-    display = ui.create_exec_display(debug=init_config.debug, stream_json=init_config.stream_json)
-    components = await initialize_app_components(
-        init_config=init_config,
-        display=display,
-        on_model_change=update_terminal_title,
-    )
-
-    try:
-        session_id = await initialize_session(components.executor, components.event_queue)
-        backfill_session_model_config(
-            components.executor.context.current_agent,
-            init_config.model,
-            components.config.main_model,
-            is_new_session=True,
-        )
-
-        if session_id is None:
-            raise RuntimeError("No active session")
-
-        op_id = await components.executor.submit(
-            op.RunAgentOperation(
-                session_id=session_id,
-                input=UserInputPayload(text=input_content),
-            )
-        )
-        await components.executor.wait_for(op_id)
-        await components.event_queue.join()
-    except KeyboardInterrupt:
-        await handle_keyboard_interrupt(components.executor)
-    finally:
-        await cleanup_app_components(components)

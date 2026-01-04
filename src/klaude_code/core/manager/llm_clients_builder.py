@@ -21,7 +21,7 @@ def build_llm_clients(
     # Resolve main agent LLM config
     model_name = model_override or config.main_model
     if model_name is None:
-        raise ValueError("No model specified. Use --model or --select-model to specify a model.")
+        raise ValueError("No model specified. Set main_model in the config or pass --model.")
     llm_config = config.get_model_config(model_name)
 
     log_debug(

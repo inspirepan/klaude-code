@@ -10,8 +10,8 @@ class DisplayABC(ABC):
     Abstract base class for UI display implementations.
 
     A Display is responsible for rendering events from the executor to the user.
-    Implementations can range from simple text output (ExecDisplay) to rich
-    interactive terminals (TUIDisplay) or debugging wrappers (DebugEventDisplay).
+    Implementations can range from minimal text output to rich interactive
+    terminals (TUIDisplay) or debugging wrappers (DebugEventDisplay).
 
     Lifecycle:
         1. start() is called once before any events are consumed.

@@ -342,29 +342,6 @@ Inside the interactive session (`klaude`), use these commands to streamline your
 | `Backspace`          | Delete character or selected text           |
 | `c` (with selection) | Copy selected text to clipboard             |
 
-### Non-Interactive Headless Mode (exec)
-
-Execute a single command without starting the interactive REPL:
-
-```bash
-# Direct input
-klaude exec "what is 2+2?"
-
-# Pipe input
-echo "hello world" | klaude exec
-
-# With model selection
-
-# Exact model name (non-interactive)
-echo "generate quicksort in python" | klaude exec --model gpt-5.1
-
-# Partial/ambiguous name opens the interactive selector (filtered)
-echo "generate quicksort in python" | klaude exec --model gpt
-
-# Stream all events as JSON lines (for programmatic processing)
-klaude exec "what is 2+2?" --stream-json
-```
-
 ### Sub-Agents
 
 The main agent can spawn specialized sub-agents for specific tasks:

@@ -43,8 +43,7 @@ def test_copy_command_copies_last_assistant_message(monkeypatch: pytest.MonkeyPa
     result = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="")))
 
     assert copied == ["a2"]
-    assert result.persist_user_input is False
-    assert result.persist_events is False
+    assert result.persist is False
 
 
 def test_copy_command_formats_saved_images(monkeypatch: pytest.MonkeyPatch) -> None:
