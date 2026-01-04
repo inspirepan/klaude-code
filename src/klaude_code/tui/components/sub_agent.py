@@ -81,6 +81,7 @@ def render_sub_agent_result(
     *,
     has_structured_output: bool = False,
     description: str | None = None,
+    sub_agent_color: Style | None = None,
 ) -> RenderableType:
     stripped_result = result.strip()
     main_content, agent_id_footer = _extract_agent_id_footer(stripped_result)
@@ -88,7 +89,14 @@ def render_sub_agent_result(
 
     elements: list[RenderableType] = []
     if description:
-        elements.append(Text(f"---\n{description}", style=ThemeKey.TOOL_RESULT))
+        elements.append(
+            Text(
+                f"---\n{description}",
+                style=Style(bold=True, color=sub_agent_color.color, frame=True)
+                if sub_agent_color
+                else ThemeKey.TOOL_RESULT_BOLD,
+            )
+        )
 
     # Try structured JSON output first
     use_text_rendering = True

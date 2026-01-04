@@ -569,6 +569,7 @@ class TUICommandRenderer:
                         event.task_result,
                         has_structured_output=event.has_structured_output,
                         description=description,
+                        sub_agent_color=self._current_sub_agent_color,
                     )
                 )
 
