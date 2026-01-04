@@ -42,9 +42,6 @@ class CommandResult(BaseModel):
     ) = None  # List of UI events to display immediately
     operations: list[op.Operation] | None = None
 
-    # Persistence controls: some slash commands are UI/control actions and should not be written to session history.
-    persist: bool = True
-
 
 class CommandABC(ABC):
     """Abstract base class for slash commands."""

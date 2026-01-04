@@ -50,7 +50,8 @@ class TestImageModelAvailability:
             model_list=[
                 ModelConfig(
                     model_name="image-model",
-                    model_id="test-image-model", modalities=["image", "text"],
+                    model_id="test-image-model",
+                    modalities=["image", "text"],
                 ),
             ],
         )
@@ -84,7 +85,8 @@ class TestImageModelAvailability:
             model_list=[
                 ModelConfig(
                     model_name="image-model",
-                    model_id="test-image-model", modalities=["image", "text"],
+                    model_id="test-image-model",
+                    modalities=["image", "text"],
                 ),
             ],
         )
@@ -105,7 +107,8 @@ class TestImageModelAvailability:
                 ),
                 ModelConfig(
                     model_name="nano-banana-pro",
-                    model_id="image-gen-model", modalities=["image", "text"],
+                    model_id="image-gen-model",
+                    modalities=["image", "text"],
                 ),
             ],
         )
@@ -206,7 +209,8 @@ class TestCheckAvailabilityRequirement:
             model_list=[
                 ModelConfig(
                     model_name="image-model",
-                    model_id="img", modalities=["image", "text"],
+                    model_id="img",
+                    modalities=["image", "text"],
                 ),
             ],
         )
@@ -249,7 +253,8 @@ class TestLoadAgentToolsWithAvailability:
             model_list=[
                 ModelConfig(
                     model_name="image-model",
-                    model_id="img", modalities=["image", "text"],
+                    model_id="img",
+                    modalities=["image", "text"],
                 ),
             ],
         )
@@ -335,7 +340,8 @@ class TestEmptyModelConfigBehavior:
                 ),
                 ModelConfig(
                     model_name="nano-banana-pro",
-                    model_id="image-gen-model", modalities=["image", "text"],
+                    model_id="image-gen-model",
+                    modalities=["image", "text"],
                 ),
             ],
         )
@@ -361,7 +367,8 @@ class TestSubAgentModelInfo:
             model_list=[
                 ModelConfig(
                     model_name="nano-banana-pro",
-                    model_id="image-gen-model", modalities=["image", "text"],
+                    model_id="image-gen-model",
+                    modalities=["image", "text"],
                 ),
             ],
         )

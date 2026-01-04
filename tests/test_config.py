@@ -1003,7 +1003,8 @@ class TestOutOfBoxExperience:
                     "model_list": [
                         {
                             "model_name": "sonnet",
-                            "model_id": "my-custom-sonnet-model", "max_tokens": 99999,
+                            "model_id": "my-custom-sonnet-model",
+                            "max_tokens": 99999,
                         }
                     ],
                 }

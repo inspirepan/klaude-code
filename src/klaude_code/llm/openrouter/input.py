@@ -115,9 +115,7 @@ def convert_history_to_input(
             )
         ]
         if system and use_cache_control
-        else (
-            [cast(chat.ChatCompletionMessageParam, {"role": "system", "content": system})] if system else []
-        )
+        else ([cast(chat.ChatCompletionMessageParam, {"role": "system", "content": system})] if system else [])
     )
 
     for msg, attachment in attach_developer_messages(history):

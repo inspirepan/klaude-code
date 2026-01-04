@@ -96,7 +96,7 @@ class ResumeCommand(CommandABC):
                     ui_extra=model.build_command_output_extra(self.name, is_error=True),
                 ),
             )
-            return CommandResult(events=[event], persist=False)
+            return CommandResult(events=[event])
 
         selected_session_id = await asyncio.to_thread(select_session_sync)
         if selected_session_id is None:
@@ -107,9 +107,8 @@ class ResumeCommand(CommandABC):
                     ui_extra=model.build_command_output_extra(self.name),
                 ),
             )
-            return CommandResult(events=[event], persist=False)
+            return CommandResult(events=[event])
 
         return CommandResult(
             operations=[op.ResumeSessionOperation(target_session_id=selected_session_id)],
-            persist=False,
         )

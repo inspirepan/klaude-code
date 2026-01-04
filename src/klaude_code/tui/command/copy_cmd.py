@@ -48,5 +48,4 @@ def _developer_message(agent: Agent, content: str, command_name: commands.Comman
                 ),
             )
         ],
-        persist=False,
     )

@@ -52,11 +52,6 @@ class RunAgentOperation(Operation):
     type: OperationType = OperationType.RUN_AGENT
     session_id: str
     input: UserInputPayload
-    # Frontends may choose to render the user message themselves (e.g. TUI) to support
-    # event-only commands; in that case the core should skip emitting the UserMessageEvent.
-    emit_user_message_event: bool = True
-    # Frontends may choose to run without persisting input (e.g. some interactive commands).
-    persist_user_input: bool = True
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_run_agent(self)

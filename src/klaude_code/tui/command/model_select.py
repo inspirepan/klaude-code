@@ -54,9 +54,7 @@ def select_model_interactive(
     if keywords:
         keywords_lower = [k.lower() for k in keywords]
         filtered_models = [
-            m
-            for m in result.filtered_models
-            if any(kw in (m.model_id or "").lower() for kw in keywords_lower)
+            m for m in result.filtered_models if any(kw in (m.model_id or "").lower() for kw in keywords_lower)
         ]
         if not filtered_models:
             return ModelSelectResult(status=ModelSelectStatus.NO_MATCH)

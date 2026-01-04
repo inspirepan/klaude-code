@@ -38,5 +38,4 @@ class RefreshTerminalCommand(CommandABC):
                     is_load=False,
                 ),
             ],
-            persist=False,
         )

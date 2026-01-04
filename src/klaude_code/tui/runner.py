@@ -76,14 +76,8 @@ async def submit_user_input_payload(
     if len(run_ops) > 1:
         raise ValueError("Multiple RunAgentOperation results are not supported")
 
-    for run_op in run_ops:
-        run_op.persist_user_input = cmd_result.persist
-        run_op.emit_user_message_event = False
-
     if cmd_result.events:
         for evt in cmd_result.events:
-            if cmd_result.persist and isinstance(evt, events.DeveloperMessageEvent):
-                agent.session.append_history([evt.item])
             await executor.context.emit_event(evt)
 
     submitted_ids: list[str] = []

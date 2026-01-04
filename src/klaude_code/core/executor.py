@@ -162,27 +162,16 @@ class AgentRuntime:
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
-
-        if operation.emit_user_message_event:
-            await self._emit_event(
-                events.UserMessageEvent(
-                    content=operation.input.text,
-                    session_id=agent.session.id,
-                    images=operation.input.images,
-                )
-            )
-
-        if operation.persist_user_input:
-            agent.session.append_history(
-                [
-                    message.UserMessage(
-                        parts=message.parts_from_text_and_images(
-                            operation.input.text,
-                            operation.input.images,
-                        )
+        agent.session.append_history(
+            [
+                message.UserMessage(
+                    parts=message.parts_from_text_and_images(
+                        operation.input.text,
+                        operation.input.images,
                     )
-                ]
-            )
+                )
+            ]
+        )
 
         existing_active = self._task_manager.get(operation.id)
         if existing_active is not None and not existing_active.task.done():

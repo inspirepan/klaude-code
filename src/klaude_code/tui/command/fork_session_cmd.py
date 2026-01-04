@@ -211,7 +211,7 @@ class ForkSessionCommand(CommandABC):
                     ui_extra=model.build_command_output_extra(self.name),
                 ),
             )
-            return CommandResult(events=[event], persist=False)
+            return CommandResult(events=[event])
 
         # Build fork points from conversation history
         fork_points = _build_fork_points(agent.session.conversation_history)
@@ -234,7 +234,7 @@ class ForkSessionCommand(CommandABC):
                     ),
                 ),
             )
-            return CommandResult(events=[event], persist=False)
+            return CommandResult(events=[event])
 
         # Interactive selection
         selected = await asyncio.to_thread(_select_fork_point_sync, fork_points)
@@ -247,7 +247,7 @@ class ForkSessionCommand(CommandABC):
                     ui_extra=model.build_command_output_extra(self.name),
                 ),
             )
-            return CommandResult(events=[event], persist=False)
+            return CommandResult(events=[event])
 
         # Perform the fork
         new_session = agent.session.fork(until_index=selected)
@@ -271,4 +271,4 @@ class ForkSessionCommand(CommandABC):
                 ),
             ),
         )
-        return CommandResult(events=[event], persist=False)
+        return CommandResult(events=[event])
