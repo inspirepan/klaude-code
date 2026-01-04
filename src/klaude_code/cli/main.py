@@ -124,25 +124,28 @@ def main_callback(
             raise typer.Exit(2)
 
         from klaude_code.app.runtime import AppInitConfig
-        from klaude_code.tui.command.model_select import select_model_interactive
+        from klaude_code.tui.command.model_select import ModelSelectStatus, select_model_interactive
         from klaude_code.tui.runner import run_interactive
 
         update_terminal_title()
 
         chosen_model = model
         if banana:
-            # Banana mode uses the first available nano-banana model.
-            from klaude_code.config import load_config
-
-            cfg = load_config()
-            chosen_model = cfg.get_first_available_nano_banana_model()
-            if chosen_model is None:
+            keywords = ["gemini-3-pro-image", "gemini-2.5-flash-image"]
+            model_result = select_model_interactive(keywords=keywords)
+            if model_result.status == ModelSelectStatus.SELECTED and model_result.model is not None:
+                chosen_model = model_result.model
+            elif model_result.status == ModelSelectStatus.CANCELLED:
+                return
+            else:
                 log(("Error: no available nano-banana model", "red"))
                 log(("Hint: set OPENROUTER_API_KEY or GOOGLE_API_KEY to enable nano-banana models", "yellow"))
                 raise typer.Exit(2)
         elif model or select_model:
-            chosen_model = select_model_interactive(preferred=model)
-            if chosen_model is None:
+            model_result = select_model_interactive(preferred=model)
+            if model_result.status == ModelSelectStatus.SELECTED and model_result.model is not None:
+                chosen_model = model_result.model
+            else:
                 return
 
         # Resolve session id before entering asyncio loop
@@ -196,9 +199,10 @@ def main_callback(
 
             cfg = load_config()
             if cfg.main_model is None:
-                chosen_model = select_model_interactive()
-                if chosen_model is None:
+                model_result = select_model_interactive()
+                if model_result.status != ModelSelectStatus.SELECTED or model_result.model is None:
                     raise typer.Exit(1)
+                chosen_model = model_result.model
                 # Save the selection as default
                 cfg.main_model = chosen_model
                 from klaude_code.config.config import config_path

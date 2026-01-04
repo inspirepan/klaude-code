@@ -55,13 +55,6 @@ async def initialize_app_components(
 
     config = load_config()
 
-    # Banana mode requires at least one nano-banana model to be available.
-    # The model selection is already done in cli/main.py, we just verify here.
-    if init_config.banana and config.get_first_available_nano_banana_model() is None:
-        log(("Error: no available nano-banana model", "red"))
-        log(("Hint: set OPENROUTER_API_KEY or GOOGLE_API_KEY to enable nano-banana models", "yellow"))
-        raise typer.Exit(2)
-
     try:
         llm_clients = build_llm_clients(
             config,

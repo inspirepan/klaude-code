@@ -33,7 +33,6 @@ class ModelMatchResult:
     filter_hint: str | None
     error_message: str | None = None
 
-
 def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
     """Match model from config without interactive selection.
 
