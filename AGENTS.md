@@ -32,7 +32,6 @@ Tests are located in the `tests/` directory. Configuration for tools (Ruff/Pyrig
 - Python 3.13+ required
 - Line length: 120 characters (enforced by ruff)
 - Type checking: Strict mode with Pyright
-- Use `ruff check --fix .` and `ruff format`
 - Naming conventions: Follow PEP 8 for Python code
 - Follow existing patterns exactly
 - Public APIs must have docstrings

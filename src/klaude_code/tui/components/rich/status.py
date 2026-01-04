@@ -263,6 +263,53 @@ def _breathing_style(console: Console, base_style: Style, intensity: float) -> S
     return base_style + Style(color=breathing_color)
 
 
+def truncate_left(text: Text, max_cells: int, *, console: Console, ellipsis: str = "…") -> Text:
+    """Left-truncate Text to fit within max_cells.
+
+    Keeps the rightmost part of the text and prepends an ellipsis when truncation occurs.
+    Uses cell width so wide characters are handled reasonably.
+    """
+
+    max_cells = max(0, int(max_cells))
+    if max_cells == 0:
+        return Text("")
+
+    if cell_len(text.plain) <= max_cells:
+        return text
+
+    ellipsis_cells = cell_len(ellipsis)
+    if max_cells <= ellipsis_cells:
+        # Not enough space to show any meaningful suffix.
+        clipped = Text(ellipsis, style=text.style)
+        clipped.truncate(max_cells, overflow="crop", pad=False)
+        return clipped
+
+    suffix_budget = max_cells - ellipsis_cells
+    plain = text.plain
+
+    suffix_cells = 0
+    start_index = len(plain)
+    for i in range(len(plain) - 1, -1, -1):
+        ch_cells = cell_len(plain[i])
+        if suffix_cells + ch_cells > suffix_budget:
+            break
+        suffix_cells += ch_cells
+        start_index = i
+        if suffix_cells == suffix_budget:
+            break
+
+    if start_index >= len(plain):
+        return Text(ellipsis, style=text.style)
+
+    suffix = text[start_index:]
+    try:
+        ellipsis_style = suffix.get_style_at_offset(console, 0)
+    except Exception:
+        ellipsis_style = suffix.style or text.style
+
+    return Text.assemble(Text(ellipsis, style=ellipsis_style), suffix)
+
+
 class ShimmerStatusText:
     """Renderable status line with shimmer effect on the main text and hint.
 
@@ -322,12 +369,11 @@ class _StatusLeftText:
         # If the hint itself can't fit, fall back to truncating the combined text.
         if max_width <= hint_cells:
             combined = Text.assemble(main_text, hint_text)
-            combined.truncate(max(1, max_width), overflow="ellipsis", pad=False)
-            yield combined
+            yield truncate_left(combined, max(1, max_width), console=console)
             return
 
         main_budget = max_width - hint_cells
-        main_text.truncate(max(1, main_budget), overflow="ellipsis", pad=False)
+        main_text = truncate_left(main_text, max(1, main_budget), console=console)
         yield Text.assemble(main_text, hint_text)
 
 
