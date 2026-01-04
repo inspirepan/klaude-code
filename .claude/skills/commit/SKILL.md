@@ -1,24 +1,11 @@
 ---
 name: commit
-description: Use this skill when the user asks to commit, save, or persist their code changes to version control.
+description: Use this skill when the user asks to commit, save, or persist their code changes to version control and describe current changes.
 metadata:
   short-description: Commit current changes
 ---
 
-Please follow the steps below to commit your changes with `jj`.
-
-## Workflow
-
-### Step 1: Run pre-commit checks (if not already done)
-
-Skip this step if lint and tests have already been run in the current session.
-
-1. Run the project's linter to check and fix code style issues
-2. Run the project's test suite to ensure all tests pass
-3. If either check fails, stop the commit process and report the errors to the user
-4. If both checks pass, proceed to the next step
-
-### Step 2: Describe changes
+Please follow the steps below to commit your changes with `jj` (describe current changes).
 
 Run `jj log` to see working copy changes and all current changes.
 
