@@ -6,6 +6,8 @@
 # pyright: reportUnnecessaryIsInstance=false
 # pyright: reportGeneralTypeIssues=false
 
+from typing import cast
+
 from openai.types import chat
 
 from klaude_code.llm.image import assistant_image_to_data_url
@@ -71,7 +73,7 @@ def _assistant_message_to_openrouter(
     if content_parts:
         assistant_message["content"] = "\n".join(content_parts)
 
-    return assistant_message
+    return cast(chat.ChatCompletionMessageParam, assistant_message)
 
 
 def _add_cache_control(messages: list[chat.ChatCompletionMessageParam], use_cache_control: bool) -> None:
@@ -98,19 +100,24 @@ def convert_history_to_input(
 
     messages: list[chat.ChatCompletionMessageParam] = (
         [
-            {
-                "role": "system",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": system,
-                        "cache_control": {"type": "ephemeral"},
-                    }
-                ],
-            }
+            cast(
+                chat.ChatCompletionMessageParam,
+                {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": system,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ],
+                },
+            )
         ]
         if system and use_cache_control
-        else ([{"role": "system", "content": system}] if system else [])
+        else (
+            [cast(chat.ChatCompletionMessageParam, {"role": "system", "content": system})] if system else []
+        )
     )
 
     for msg, attachment in attach_developer_messages(history):
@@ -120,24 +127,29 @@ def convert_history_to_input(
                 if system_text:
                     if use_cache_control:
                         messages.append(
-                            {
-                                "role": "system",
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": system_text,
-                                        "cache_control": {"type": "ephemeral"},
-                                    }
-                                ],
-                            }
+                            cast(
+                                chat.ChatCompletionMessageParam,
+                                {
+                                    "role": "system",
+                                    "content": [
+                                        {
+                                            "type": "text",
+                                            "text": system_text,
+                                            "cache_control": {"type": "ephemeral"},
+                                        }
+                                    ],
+                                },
+                            )
                         )
                     else:
-                        messages.append({"role": "system", "content": system_text})
+                        messages.append(
+                            cast(chat.ChatCompletionMessageParam, {"role": "system", "content": system_text})
+                        )
             case message.UserMessage():
                 parts = build_chat_content_parts(msg, attachment)
-                messages.append({"role": "user", "content": parts})
+                messages.append(cast(chat.ChatCompletionMessageParam, {"role": "user", "content": parts}))
             case message.ToolResultMessage():
-                messages.append(build_tool_message(msg, attachment))
+                messages.append(cast(chat.ChatCompletionMessageParam, build_tool_message(msg, attachment)))
             case message.AssistantMessage():
                 messages.append(_assistant_message_to_openrouter(msg, model_name))
             case _:

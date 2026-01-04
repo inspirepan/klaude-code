@@ -3,6 +3,8 @@
 # pyright: reportUnknownMemberType=false
 # pyright: reportAttributeAccessIssue=false
 
+from typing import cast
+
 from openai.types import chat
 from openai.types.chat import ChatCompletionContentPartParam
 
@@ -25,14 +27,16 @@ def _assistant_message_to_openai(msg: message.AssistantMessage) -> chat.ChatComp
         assistant_message["content"] = text_content
 
     assistant_message.update(build_assistant_common_fields(msg, image_to_data_url=assistant_image_to_data_url))
-    return assistant_message
+    return cast(chat.ChatCompletionMessageParam, assistant_message)
 
 
 def build_user_content_parts(
     images: list[message.ImageURLPart],
 ) -> list[ChatCompletionContentPartParam]:
     """Build content parts for images only. Used by OpenRouter."""
-    return [{"type": "image_url", "image_url": {"url": image.url}} for image in images]
+    return [
+        cast(ChatCompletionContentPartParam, {"type": "image_url", "image_url": {"url": image.url}}) for image in images
+    ]
 
 
 def convert_history_to_input(
@@ -42,19 +46,21 @@ def convert_history_to_input(
 ) -> list[chat.ChatCompletionMessageParam]:
     """Convert a list of messages to chat completion params."""
     del model_name
-    messages: list[chat.ChatCompletionMessageParam] = [{"role": "system", "content": system}] if system else []
+    messages: list[chat.ChatCompletionMessageParam] = (
+        [cast(chat.ChatCompletionMessageParam, {"role": "system", "content": system})] if system else []
+    )
 
     for msg, attachment in attach_developer_messages(history):
         match msg:
             case message.SystemMessage():
                 system_text = "\n".join(part.text for part in msg.parts)
                 if system_text:
-                    messages.append({"role": "system", "content": system_text})
+                    messages.append(cast(chat.ChatCompletionMessageParam, {"role": "system", "content": system_text}))
             case message.UserMessage():
                 parts = build_chat_content_parts(msg, attachment)
-                messages.append({"role": "user", "content": parts})
+                messages.append(cast(chat.ChatCompletionMessageParam, {"role": "user", "content": parts}))
             case message.ToolResultMessage():
-                messages.append(build_tool_message(msg, attachment))
+                messages.append(cast(chat.ChatCompletionMessageParam, build_tool_message(msg, attachment)))
             case message.AssistantMessage():
                 messages.append(_assistant_message_to_openai(msg))
             case _:
@@ -69,13 +75,16 @@ def convert_tool_schema(
     if tools is None:
         return []
     return [
-        {
-            "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": tool.parameters,
+        cast(
+            chat.ChatCompletionToolParam,
+            {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.parameters,
+                },
             },
-        }
+        )
         for tool in tools
     ]

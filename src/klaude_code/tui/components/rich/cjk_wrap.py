@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unicodedata
 from collections.abc import Callable
+from typing import Any, cast
 
 
 def _is_cjk_char(ch: str) -> bool:
@@ -222,7 +223,7 @@ def install_rich_cjk_wrap_patch() -> bool:
 
         return break_positions
 
-    _wrap.divide_line = divide_line_patched  # pyright: ignore[reportPrivateImportUsage]
-    _text.divide_line = divide_line_patched  # pyright: ignore[reportPrivateImportUsage]
+    cast(Any, _wrap).divide_line = divide_line_patched  # pyright: ignore[reportPrivateImportUsage]
+    cast(Any, _text).divide_line = divide_line_patched  # pyright: ignore[reportPrivateImportUsage]
     _rich_cjk_wrap_patch_installed = True
     return True

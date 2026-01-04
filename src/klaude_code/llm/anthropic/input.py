@@ -8,10 +8,13 @@ import json
 from typing import Literal, cast
 
 from anthropic.types.beta.beta_base64_image_source_param import BetaBase64ImageSourceParam
+from anthropic.types.beta.beta_content_block_param import BetaContentBlockParam
 from anthropic.types.beta.beta_image_block_param import BetaImageBlockParam
 from anthropic.types.beta.beta_message_param import BetaMessageParam
 from anthropic.types.beta.beta_text_block_param import BetaTextBlockParam
 from anthropic.types.beta.beta_tool_param import BetaToolParam
+from anthropic.types.beta.beta_tool_result_block_param import BetaToolResultBlockParam
+from anthropic.types.beta.beta_tool_use_block_param import BetaToolUseBlockParam
 from anthropic.types.beta.beta_url_image_source_param import BetaURLImageSourceParam
 
 from klaude_code.const import EMPTY_TOOL_OUTPUT_MESSAGE
@@ -60,29 +63,29 @@ def _user_message_to_message(
     blocks: list[BetaTextBlockParam | BetaImageBlockParam] = []
     for part in msg.parts:
         if isinstance(part, message.TextPart):
-            blocks.append({"type": "text", "text": part.text})
+            blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": part.text}))
         elif isinstance(part, message.ImageURLPart):
             blocks.append(_image_part_to_block(part))
     if attachment.text:
-        blocks.append({"type": "text", "text": attachment.text})
+        blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": attachment.text}))
     for image in attachment.images:
         blocks.append(_image_part_to_block(image))
     if not blocks:
-        blocks.append({"type": "text", "text": ""})
+        blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": ""}))
     return {"role": "user", "content": blocks}
 
 
 def _tool_message_to_block(
     msg: message.ToolResultMessage,
     attachment: DeveloperAttachment,
-) -> dict[str, object]:
+) -> BetaToolResultBlockParam:
     """Convert a single tool result message to a tool_result block."""
     tool_content: list[BetaTextBlockParam | BetaImageBlockParam] = []
     merged_text = merge_reminder_text(
         msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
         attachment.text,
     )
-    tool_content.append({"type": "text", "text": merged_text})
+    tool_content.append(cast(BetaTextBlockParam, {"type": "text", "text": merged_text}))
     for image in [part for part in msg.parts if isinstance(part, message.ImageURLPart)]:
         tool_content.append(_image_part_to_block(image))
     for image in attachment.images:
@@ -95,7 +98,7 @@ def _tool_message_to_block(
     }
 
 
-def _tool_blocks_to_message(blocks: list[dict[str, object]]) -> BetaMessageParam:
+def _tool_blocks_to_message(blocks: list[BetaToolResultBlockParam]) -> BetaMessageParam:
     """Convert one or more tool_result blocks to a single user message."""
     return {
         "role": "user",
@@ -104,7 +107,7 @@ def _tool_blocks_to_message(blocks: list[dict[str, object]]) -> BetaMessageParam
 
 
 def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str | None) -> BetaMessageParam:
-    content: list[dict[str, object]] = []
+    content: list[BetaContentBlockParam] = []
     current_thinking_content: str | None = None
     native_thinking_parts, degraded_thinking_texts = split_thinking_parts(msg, model_name)
     native_thinking_ids = {id(part) for part in native_thinking_parts}
@@ -113,7 +116,7 @@ def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str
         nonlocal current_thinking_content
         if current_thinking_content is None:
             return
-        content.append({"type": "thinking", "thinking": current_thinking_content})
+        degraded_thinking_texts.append(current_thinking_content)
         current_thinking_content = None
 
     for part in msg.parts:
@@ -127,33 +130,47 @@ def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str
                 continue
             if part.signature:
                 content.append(
-                    {
-                        "type": "thinking",
-                        "thinking": current_thinking_content or "",
-                        "signature": part.signature,
-                    }
+                    cast(
+                        BetaContentBlockParam,
+                        {
+                            "type": "thinking",
+                            "thinking": current_thinking_content or "",
+                            "signature": part.signature,
+                        },
+                    )
                 )
                 current_thinking_content = None
             continue
 
         _flush_thinking()
         if isinstance(part, message.TextPart):
-            content.append({"type": "text", "text": part.text})
+            content.append(cast(BetaTextBlockParam, {"type": "text", "text": part.text}))
         elif isinstance(part, message.ToolCallPart):
+            tool_input: dict[str, object] = {}
+            if part.arguments_json:
+                try:
+                    parsed = json.loads(part.arguments_json)
+                except json.JSONDecodeError:
+                    parsed = {"_raw": part.arguments_json}
+                tool_input = cast(dict[str, object], parsed) if isinstance(parsed, dict) else {"_value": parsed}
+
             content.append(
-                {
-                    "type": "tool_use",
-                    "id": part.call_id,
-                    "name": part.tool_name,
-                    "input": json.loads(part.arguments_json) if part.arguments_json else None,
-                }
+                cast(
+                    BetaToolUseBlockParam,
+                    {
+                        "type": "tool_use",
+                        "id": part.call_id,
+                        "name": part.tool_name,
+                        "input": tool_input,
+                    },
+                )
             )
 
     _flush_thinking()
 
     if degraded_thinking_texts:
         degraded_text = "<thinking>\n" + "\n".join(degraded_thinking_texts) + "\n</thinking>"
-        content.insert(0, {"type": "text", "text": degraded_text})
+        content.insert(0, cast(BetaTextBlockParam, {"type": "text", "text": degraded_text}))
 
     return {"role": "assistant", "content": content}
 
@@ -174,7 +191,7 @@ def convert_history_to_input(
 ) -> list[BetaMessageParam]:
     """Convert a list of messages to beta message params."""
     messages: list[BetaMessageParam] = []
-    pending_tool_blocks: list[dict[str, object]] = []
+    pending_tool_blocks: list[BetaToolResultBlockParam] = []
 
     def flush_tool_blocks() -> None:
         nonlocal pending_tool_blocks
@@ -213,7 +230,12 @@ def convert_system_to_input(
             parts.append("\n".join(part.text for part in msg.parts))
     if not parts:
         return []
-    return [{"type": "text", "text": "\n".join(parts), "cache_control": {"type": "ephemeral"}}]
+    block: BetaTextBlockParam = {
+        "type": "text",
+        "text": "\n".join(parts),
+        "cache_control": {"type": "ephemeral"},
+    }
+    return [block]
 
 
 def convert_tool_schema(
@@ -222,11 +244,14 @@ def convert_tool_schema(
     if tools is None:
         return []
     return [
-        {
-            "input_schema": tool.parameters,
-            "type": "custom",
-            "name": tool.name,
-            "description": tool.description,
-        }
+        cast(
+            BetaToolParam,
+            {
+                "input_schema": tool.parameters,
+                "type": "custom",
+                "name": tool.name,
+                "description": tool.description,
+            },
+        )
         for tool in tools
     ]

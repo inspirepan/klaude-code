@@ -54,7 +54,7 @@ def _build_config(param: llm_param.LLMCallParameter) -> GenerateContentConfig:
         system_instruction=param.system,
         temperature=param.temperature,
         max_output_tokens=param.max_tokens,
-        tools=tool_list or None,
+        tools=cast(Any, tool_list) if tool_list else None,
         tool_config=tool_config,
         thinking_config=thinking_config,
     )

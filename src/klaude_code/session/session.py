@@ -379,7 +379,7 @@ class Session(BaseModel):
                 task_result = f"{trimmed}\n\n{footer}" if trimmed.strip() else footer
 
         yield events.TaskFinishEvent(
-            session_id=self.id, task_result=task_result, has_structured_output=has_structured_output
+            session_id=self.id, task_result=task_result or "", has_structured_output=has_structured_output
         )
 
     def _iter_sub_agent_history(

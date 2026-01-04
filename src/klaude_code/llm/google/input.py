@@ -4,6 +4,8 @@
 # pyright: reportAttributeAccessIssue=false
 
 import json
+from base64 import b64decode
+from binascii import Error as BinasciiError
 from typing import Any
 
 from google.genai import types
@@ -30,6 +32,14 @@ def _image_part_to_part(image: message.ImageURLPart) -> types.Part:
         return types.Part(inline_data=_data_url_to_blob(url))
     # Best-effort: Gemini supports file URIs, and may accept public HTTPS URLs.
     return types.Part(file_data=types.FileData(file_uri=url))
+
+
+def _image_part_to_function_response_part(image: message.ImageURLPart) -> types.FunctionResponsePart:
+    url = image.url
+    if url.startswith("data:"):
+        media_type, _, decoded = parse_data_url(url)
+        return types.FunctionResponsePart.from_bytes(data=decoded, mime_type=media_type)
+    return types.FunctionResponsePart.from_uri(file_uri=url)
 
 
 def _user_message_to_content(msg: message.UserMessage, attachment: DeveloperAttachment) -> types.Content:
@@ -65,9 +75,12 @@ def _tool_messages_to_contents(
 
         images = [part for part in msg.parts if isinstance(part, message.ImageURLPart)] + attachment.images
         image_parts: list[types.Part] = []
+        function_response_parts: list[types.FunctionResponsePart] = []
+
         for image in images:
             try:
                 image_parts.append(_image_part_to_part(image))
+                function_response_parts.append(_image_part_to_function_response_part(image))
             except ValueError:
                 continue
 
@@ -79,7 +92,7 @@ def _tool_messages_to_contents(
             id=msg.call_id,
             name=msg.tool_name,
             response=response_payload,
-            parts=image_parts if (has_images and supports_multimodal_function_response) else None,
+            parts=function_response_parts if (has_images and supports_multimodal_function_response) else None,
         )
         response_parts.append(types.Part(function_response=function_response))
 
@@ -106,11 +119,19 @@ def _assistant_message_to_content(msg: message.AssistantMessage, model_name: str
         nonlocal pending_thought_text, pending_thought_signature
         if pending_thought_text is None and pending_thought_signature is None:
             return
+
+        signature_bytes: bytes | None = None
+        if pending_thought_signature:
+            try:
+                signature_bytes = b64decode(pending_thought_signature)
+            except (BinasciiError, ValueError):
+                signature_bytes = None
+
         parts.append(
             types.Part(
                 text=pending_thought_text or "",
                 thought=True,
-                thought_signature=pending_thought_signature,
+                thought_signature=signature_bytes,
             )
         )
         pending_thought_text = None

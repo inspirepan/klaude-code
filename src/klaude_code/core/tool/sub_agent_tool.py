@@ -31,11 +31,12 @@ class SubAgentTool(ToolABC):
     @classmethod
     def for_profile(cls, profile: SubAgentProfile) -> type[SubAgentTool]:
         """Create a tool class for a specific sub-agent profile."""
-        return type(
+        tool_cls = type(
             f"{profile.name}Tool",
             (SubAgentTool,),
             {"_profile": profile},
         )
+        return cast(type[SubAgentTool], tool_cls)
 
     @classmethod
     def metadata(cls) -> ToolMetadata:

@@ -3,7 +3,7 @@
 import re
 from typing import Any
 
-from pygments.lexers import BashLexer  # pyright: ignore[reportUnknownVariableType]
+from pygments.lexers.shell import BashLexer  # pyright: ignore[reportMissingTypeStubs, reportUnknownVariableType]
 from pygments.token import Token
 from rich.text import Text
 

@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 import json
-from typing import Any, TypeGuard, cast, get_args
+from typing import Any, cast, get_args
 
 from pydantic import BaseModel
 
 from klaude_code.protocol import message
-
-
-def _is_basemodel_subclass(tp: object) -> TypeGuard[type[BaseModel]]:
-    return isinstance(tp, type) and issubclass(tp, BaseModel)
 
 
 def _flatten_union(tp: object) -> list[object]:
@@ -25,7 +21,7 @@ def _flatten_union(tp: object) -> list[object]:
 def _build_type_registry() -> dict[str, type[BaseModel]]:
     registry: dict[str, type[BaseModel]] = {}
     for tp in _flatten_union(message.HistoryEvent):
-        if not _is_basemodel_subclass(tp):
+        if not isinstance(tp, type) or not issubclass(tp, BaseModel):
             continue
         registry[tp.__name__] = tp
     return registry

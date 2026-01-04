@@ -16,6 +16,7 @@ from anthropic.types.beta.beta_raw_message_start_event import BetaRawMessageStar
 from anthropic.types.beta.beta_signature_delta import BetaSignatureDelta
 from anthropic.types.beta.beta_text_delta import BetaTextDelta
 from anthropic.types.beta.beta_thinking_delta import BetaThinkingDelta
+from anthropic.types.beta.beta_tool_choice_auto_param import BetaToolChoiceAutoParam
 from anthropic.types.beta.beta_tool_use_block import BetaToolUseBlock
 from anthropic.types.beta.message_create_params import MessageCreateParamsStreaming
 
@@ -82,12 +83,14 @@ def build_payload(
         # Prepend extra betas, avoiding duplicates
         betas = [b for b in extra_betas if b not in betas] + betas
 
+    tool_choice: BetaToolChoiceAutoParam = {
+        "type": "auto",
+        "disable_parallel_tool_use": False,
+    }
+
     payload: MessageCreateParamsStreaming = {
         "model": str(param.model),
-        "tool_choice": {
-            "type": "auto",
-            "disable_parallel_tool_use": False,
-        },
+        "tool_choice": tool_choice,
         "stream": True,
         "max_tokens": param.max_tokens or DEFAULT_MAX_TOKENS,
         "temperature": param.temperature or DEFAULT_TEMPERATURE,

@@ -40,6 +40,7 @@ dev = [
     "pyright>=1.1.407",
     "pytest>=8.4.1",
     "pytest-cov>=7.0.0",
+    "ty>=0.0.8",
 ]
 
 
@@ -73,6 +74,15 @@ exclude = [".venv/"]
 [[tool.pyright.executionEnvironments]]
 root = "."
 extraPaths = ["src"]
+
+[tool.ty.environment]
+python-version = "3.13"
+
+[tool.ty.src]
+include = [
+    "src",
+    "tests",
+]
 
 [tool.importlinter]
 root_packages = ["klaude_code"]
