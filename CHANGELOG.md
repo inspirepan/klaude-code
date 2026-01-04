@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-01-04
+
+### Added
+
+- add /sub-agent-model command for runtime model configuration (`4a992d21`)
+- support model@provider selectors (`719b2ba4`)
+- display sub-agent models in welcome message (`fc678899`)
+- add keyword-based model filtering and interactive selection for banana mode (`3685c5a3`)
+- add availability requirement system for conditional sub-agent loading (`710a131d`)
+- update nano banana config (`0db595e9`)
+
+### Changed
+
+- remove help and release-notes commands, simplify model switching (`9cf0c13e`)
+- remove target_model_filter and enabled_for_model (`4ec31fcc`)
+
+### Fixed
+
+- truncate left for status line (`aaf711c1`)
+
+### Other
+
+- use ty (`81903aa8`)
+- update commit skill (`14b4aa72`)
 ## [2.2.0] - 2026-01-04
 
 ### Added
@@ -1148,7 +1172,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/inspirepan/klaude-code/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/inspirepan/klaude-code/compare/v2.1.1...v2.2.0
 [2.1.1]: https://github.com/inspirepan/klaude-code/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/inspirepan/klaude-code/compare/v2.0.2...v2.1.0
