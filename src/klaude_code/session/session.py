@@ -237,7 +237,7 @@ class Session(BaseModel):
         Args:
             new_id: Optional ID for the forked session.
             until_index: If provided, only copy conversation history up to (but not including) this index.
-                         If None, copy all history.
+                         If -1, copy all history.
         """
 
         forked = Session.create(id=new_id, work_dir=self.work_dir)
@@ -250,7 +250,9 @@ class Session(BaseModel):
         forked.todos = [todo.model_copy(deep=True) for todo in self.todos]
 
         history_to_copy = (
-            self.conversation_history[:until_index] if until_index is not None else self.conversation_history
+            self.conversation_history[:until_index]
+            if (until_index is not None and until_index >= 0)
+            else self.conversation_history
         )
         items = [it.model_copy(deep=True) for it in history_to_copy]
         if items:

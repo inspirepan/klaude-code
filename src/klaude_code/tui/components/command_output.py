@@ -43,7 +43,7 @@ def _format_cost(cost: float | None, currency: str = "USD") -> str:
 def _render_fork_session_output(e: events.CommandOutputEvent) -> RenderableType:
     """Render fork session output with usage instructions."""
     if not isinstance(e.ui_extra, model.SessionIdUIExtra):
-        return Padding.indent(Text("(no session id)", style=ThemeKey.TOOL_RESULT), level=2)
+        return Padding.indent(Text(e.content, style=ThemeKey.TOOL_RESULT), level=2)
 
     grid = Table.grid(padding=(0, 1))
     session_id = e.ui_extra.session_id

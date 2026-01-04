@@ -31,7 +31,7 @@ FORK_SELECT_STYLE = Style(
 class ForkPoint:
     """A fork point in conversation history."""
 
-    history_index: int | None  # None means fork entire conversation
+    history_index: int  # -1 means fork entire conversation
     user_message: str
     tool_call_stats: dict[str, int]  # tool_name -> count
     last_assistant_summary: str
@@ -94,7 +94,7 @@ def _build_fork_points(conversation_history: list[message.HistoryEvent]) -> list
     if user_indices:
         fork_points.append(
             ForkPoint(
-                history_index=None,  # None means fork entire conversation
+                history_index=-1,  # None means fork entire conversation
                 user_message="",  # No specific message, this represents the end
                 tool_call_stats={},
                 last_assistant_summary="",
@@ -104,9 +104,9 @@ def _build_fork_points(conversation_history: list[message.HistoryEvent]) -> list
     return fork_points
 
 
-def _build_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[int | None]]:
+def _build_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[int]]:
     """Build SelectItem list from fork points."""
-    items: list[SelectItem[int | None]] = []
+    items: list[SelectItem[int]] = []
 
     for i, fp in enumerate(fork_points):
         is_first = i == 0
@@ -116,8 +116,8 @@ def _build_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[int | N
         title_parts: list[tuple[str, str]] = []
 
         # First line: separator (with special markers for first/last fork points)
-        if is_first and not is_last:
-            title_parts.append(("class:separator", "----- fork from here (empty session) -----\n\n"))
+        if is_first:
+            pass
         elif is_last:
             title_parts.append(("class:separator", "----- fork from here (entire session) -----\n\n"))
         else:
@@ -150,17 +150,16 @@ def _build_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[int | N
     return items
 
 
-def _select_fork_point_sync(fork_points: list[ForkPoint]) -> int | None | Literal["cancelled"]:
+def _select_fork_point_sync(fork_points: list[ForkPoint]) -> int | Literal["cancelled"]:
     """Interactive fork point selection (sync version for asyncio.to_thread).
 
     Returns:
-        - int: history index to fork at (exclusive)
-        - None: fork entire conversation
+        - int: history index to fork at (exclusive), -1 means fork entire conversation
         - "cancelled": user cancelled selection
     """
     items = _build_select_items(fork_points)
     if not items:
-        return None
+        return -1
 
     # Default to the last option (fork entire conversation)
     last_value = items[-1].value
@@ -242,12 +241,22 @@ class ForkSessionCommand(CommandABC):
             )
             return CommandResult(events=[event])
 
+        # First option (empty session) is just for UI display, not a valid fork point
+        if selected == fork_points[0].history_index:
+            event = events.CommandOutputEvent(
+                session_id=agent.session.id,
+                command_name=self.name,
+                content="(cannot fork to empty session)",
+                is_error=True,
+            )
+            return CommandResult(events=[event])
+
         # Perform the fork
         new_session = agent.session.fork(until_index=selected)
         await new_session.wait_for_flush()
 
         # Build result message
-        fork_description = "entire conversation" if selected is None else f"up to message index {selected}"
+        fork_description = "entire conversation" if selected == -1 else f"up to message index {selected}"
 
         resume_cmd = f"klaude --resume-by-id {new_session.id}"
         copy_to_clipboard(resume_cmd)
