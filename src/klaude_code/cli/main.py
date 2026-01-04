@@ -131,8 +131,15 @@ def main_callback(
 
         chosen_model = model
         if banana:
-            # Banana mode always uses the built-in Nano Banana Pro image model.
-            chosen_model = "nano-banana-pro@or"
+            # Banana mode uses the first available nano-banana model.
+            from klaude_code.config import load_config
+
+            cfg = load_config()
+            chosen_model = cfg.get_first_available_nano_banana_model()
+            if chosen_model is None:
+                log(("Error: no available nano-banana model", "red"))
+                log(("Hint: set OPENROUTER_API_KEY or GOOGLE_API_KEY to enable nano-banana models", "yellow"))
+                raise typer.Exit(2)
         elif model or select_model:
             chosen_model = select_model_interactive(preferred=model)
             if chosen_model is None:

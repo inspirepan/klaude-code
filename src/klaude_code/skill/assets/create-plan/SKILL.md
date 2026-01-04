@@ -13,6 +13,8 @@ Turn a user prompt into a **single, actionable plan** delivered in the final ass
 
 ## Minimal workflow
 
+Throughout the entire workflow, operate in read-only mode. Do not write or update files.
+
 1. **Scan context quickly**
    - Read `README.md` and any obvious docs (`docs/`, `CONTRIBUTING.md`, `ARCHITECTURE.md`).
    - Skim relevant files (the ones most likely touched).
@@ -33,11 +35,7 @@ Turn a user prompt into a **single, actionable plan** delivered in the final ass
    - Include at least one item for **tests/validation** and one for **edge cases/risk** when applicable.
    - If there are unknowns, include a tiny **Open questions** section (max 3).
 
-4. **Write the plan to `plan.md` in the current working directory**
-   - Use the Write tool to save the plan to `./plan.md`
-   - If `plan.md` already exists, overwrite it with the new plan
-
-5. **Do not preface the plan with meta explanations; output only the plan as per template**
+4. **Do not preface the plan with meta explanations; output only the plan as per template**
 
 ## Plan template (follow exactly)
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from klaude_code.protocol.sub_agent import SubAgentProfile, register_sub_agent
+from klaude_code.protocol.sub_agent import AVAILABILITY_IMAGE_MODEL, SubAgentProfile, register_sub_agent
 
 IMAGE_GEN_DESCRIPTION = """\
 Generate one or more images from a text prompt.
@@ -115,5 +115,6 @@ register_sub_agent(
         tool_set=(),
         prompt_builder=_build_image_gen_prompt,
         active_form="Generating Image",
+        availability_requirement=AVAILABILITY_IMAGE_MODEL,
     )
 )

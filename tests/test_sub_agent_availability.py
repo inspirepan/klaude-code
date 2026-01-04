@@ -1,0 +1,324 @@
+"""Tests for sub-agent availability based on model requirements."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+import klaude_code.config.config as config_module
+from klaude_code.config.config import Config, ModelConfig, ProviderConfig
+from klaude_code.core.agent_profile import (
+    _check_availability_requirement,  # pyright: ignore[reportPrivateUsage]
+    load_agent_tools,
+)
+from klaude_code.protocol import llm_param
+from klaude_code.protocol.sub_agent import AVAILABILITY_IMAGE_MODEL
+
+
+def _clear_api_key_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Clear all API key environment variables to ensure test isolation."""
+    for env_var in [
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "OPENROUTER_API_KEY",
+        "GOOGLE_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "MOONSHOT_API_KEY",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_REGION",
+    ]:
+        monkeypatch.delenv(env_var, raising=False)
+
+
+class TestImageModelAvailability:
+    """Tests for image model availability detection."""
+
+    def test_has_available_image_model_returns_true_when_image_model_exists(self) -> None:
+        """Config with an image model should return True."""
+        provider = ProviderConfig(
+            provider_name="test-provider",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-key",
+            model_list=[
+                ModelConfig(
+                    model_name="image-model",
+                    model_params=llm_param.LLMConfigModelParameter(
+                        model="test-image-model",
+                        modalities=["image", "text"],
+                    ),
+                ),
+            ],
+        )
+        config = Config(provider_list=[provider])
+
+        assert config.has_available_image_model() is True
+
+    def test_has_available_image_model_returns_false_when_no_image_model(self) -> None:
+        """Config without image model should return False."""
+        provider = ProviderConfig(
+            provider_name="test-provider",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-key",
+            model_list=[
+                ModelConfig(
+                    model_name="text-model",
+                    model_params=llm_param.LLMConfigModelParameter(
+                        model="gpt-4",
+                        # No modalities or text-only
+                    ),
+                ),
+            ],
+        )
+        config = Config(provider_list=[provider])
+
+        assert config.has_available_image_model() is False
+
+    def test_has_available_image_model_returns_false_when_provider_unavailable(self) -> None:
+        """Image model with missing API key should not be considered available."""
+        provider = ProviderConfig(
+            provider_name="test-provider",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key=None,  # No API key
+            model_list=[
+                ModelConfig(
+                    model_name="image-model",
+                    model_params=llm_param.LLMConfigModelParameter(
+                        model="test-image-model",
+                        modalities=["image", "text"],
+                    ),
+                ),
+            ],
+        )
+        config = Config(provider_list=[provider])
+
+        assert config.has_available_image_model() is False
+
+    def test_get_first_available_image_model_returns_model_name(self) -> None:
+        """Should return the first available image model name."""
+        provider = ProviderConfig(
+            provider_name="test-provider",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-key",
+            model_list=[
+                ModelConfig(
+                    model_name="text-model",
+                    model_params=llm_param.LLMConfigModelParameter(model="gpt-4"),
+                ),
+                ModelConfig(
+                    model_name="nano-banana-pro",
+                    model_params=llm_param.LLMConfigModelParameter(
+                        model="image-gen-model",
+                        modalities=["image", "text"],
+                    ),
+                ),
+            ],
+        )
+        config = Config(provider_list=[provider])
+
+        assert config.get_first_available_image_model() == "nano-banana-pro"
+
+    def test_get_first_available_image_model_returns_none_when_unavailable(self) -> None:
+        """Should return None when no image model is available."""
+        provider = ProviderConfig(
+            provider_name="test-provider",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-key",
+            model_list=[
+                ModelConfig(
+                    model_name="text-model",
+                    model_params=llm_param.LLMConfigModelParameter(model="gpt-4"),
+                ),
+            ],
+        )
+        config = Config(provider_list=[provider])
+
+        assert config.get_first_available_image_model() is None
+
+
+class TestNanoBananaModelSelection:
+    """Tests for nano-banana model selection."""
+
+    def test_get_first_available_nano_banana_model_from_openrouter(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Should find nano-banana model from openrouter when OPENROUTER_API_KEY is set."""
+        _clear_api_key_env_vars(monkeypatch)
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+
+        # Use a temporary config path to avoid loading user config
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        monkeypatch.setattr(config_module, "config_path", test_config_path)
+        config_module.load_config.cache_clear()  # type: ignore[attr-defined]
+
+        config = config_module.load_config()
+        result = config.get_first_available_nano_banana_model()
+
+        assert result is not None
+        assert "nano-banana" in result
+
+    def test_get_first_available_nano_banana_model_from_google(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Should find nano-banana model from google when GOOGLE_API_KEY is set."""
+        _clear_api_key_env_vars(monkeypatch)
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        monkeypatch.setattr(config_module, "config_path", test_config_path)
+        config_module.load_config.cache_clear()  # type: ignore[attr-defined]
+
+        config = config_module.load_config()
+        result = config.get_first_available_nano_banana_model()
+
+        assert result is not None
+        assert "nano-banana" in result
+
+    def test_get_first_available_nano_banana_model_returns_none_without_keys(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Should return None when no relevant API keys are set."""
+        _clear_api_key_env_vars(monkeypatch)
+
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        monkeypatch.setattr(config_module, "config_path", test_config_path)
+        config_module.load_config.cache_clear()  # type: ignore[attr-defined]
+
+        config = config_module.load_config()
+        result = config.get_first_available_nano_banana_model()
+
+        assert result is None
+
+
+class TestCheckAvailabilityRequirement:
+    """Tests for _check_availability_requirement function."""
+
+    def test_returns_true_when_no_requirement(self) -> None:
+        """Should return True when requirement is None."""
+        config = Config(provider_list=[])
+        assert _check_availability_requirement(None, config) is True
+
+    def test_returns_true_when_no_config(self) -> None:
+        """Should return True when config is None."""
+        assert _check_availability_requirement(AVAILABILITY_IMAGE_MODEL, None) is True
+
+    def test_returns_true_when_image_model_available(self) -> None:
+        """Should return True when image model is available."""
+        provider = ProviderConfig(
+            provider_name="test",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-key",
+            model_list=[
+                ModelConfig(
+                    model_name="image-model",
+                    model_params=llm_param.LLMConfigModelParameter(
+                        model="img",
+                        modalities=["image", "text"],
+                    ),
+                ),
+            ],
+        )
+        config = Config(provider_list=[provider])
+
+        assert _check_availability_requirement(AVAILABILITY_IMAGE_MODEL, config) is True
+
+    def test_returns_false_when_image_model_unavailable(self) -> None:
+        """Should return False when no image model is available."""
+        provider = ProviderConfig(
+            provider_name="test",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-key",
+            model_list=[
+                ModelConfig(
+                    model_name="text-model",
+                    model_params=llm_param.LLMConfigModelParameter(model="gpt-4"),
+                ),
+            ],
+        )
+        config = Config(provider_list=[provider])
+
+        assert _check_availability_requirement(AVAILABILITY_IMAGE_MODEL, config) is False
+
+    def test_returns_true_for_unknown_requirement(self) -> None:
+        """Should return True for unknown requirements (assume available)."""
+        config = Config(provider_list=[])
+        assert _check_availability_requirement("unknown_requirement", config) is True
+
+
+class TestLoadAgentToolsWithAvailability:
+    """Tests for load_agent_tools with availability filtering."""
+
+    def test_imagegen_included_when_image_model_available(self) -> None:
+        """ImageGen tool should be included when image model is available."""
+        provider = ProviderConfig(
+            provider_name="test",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-key",
+            model_list=[
+                ModelConfig(
+                    model_name="image-model",
+                    model_params=llm_param.LLMConfigModelParameter(
+                        model="img",
+                        modalities=["image", "text"],
+                    ),
+                ),
+            ],
+        )
+        config = Config(provider_list=[provider])
+
+        tools = load_agent_tools("claude-sonnet", config=config)
+        tool_names = [t.name for t in tools]
+
+        assert "ImageGen" in tool_names
+
+    def test_imagegen_excluded_when_image_model_unavailable(self) -> None:
+        """ImageGen tool should be excluded when no image model is available."""
+        provider = ProviderConfig(
+            provider_name="test",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-key",
+            model_list=[
+                ModelConfig(
+                    model_name="text-model",
+                    model_params=llm_param.LLMConfigModelParameter(model="gpt-4"),
+                ),
+            ],
+        )
+        config = Config(provider_list=[provider])
+
+        tools = load_agent_tools("claude-sonnet", config=config)
+        tool_names = [t.name for t in tools]
+
+        assert "ImageGen" not in tool_names
+
+    def test_other_subagents_not_affected_by_image_availability(self) -> None:
+        """Task, Explore, WebAgent should be included regardless of image model availability."""
+        provider = ProviderConfig(
+            provider_name="test",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-key",
+            model_list=[
+                ModelConfig(
+                    model_name="text-model",
+                    model_params=llm_param.LLMConfigModelParameter(model="gpt-4"),
+                ),
+            ],
+        )
+        config = Config(provider_list=[provider])
+
+        tools = load_agent_tools("claude-sonnet", config=config)
+        tool_names = [t.name for t in tools]
+
+        assert "Task" in tool_names
+        assert "Explore" in tool_names
+        assert "WebAgent" in tool_names
+
+    def test_imagegen_excluded_when_no_config_provided(self) -> None:
+        """When config is None, ImageGen should still be included (backward compatibility)."""
+        # This tests the case where config is not provided at all
+        tools = load_agent_tools("claude-sonnet", config=None)
+        tool_names = [t.name for t in tools]
+
+        # Without config, we cannot check availability, so ImageGen is included
+        assert "ImageGen" in tool_names

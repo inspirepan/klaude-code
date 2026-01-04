@@ -55,19 +55,12 @@ async def initialize_app_components(
 
     config = load_config()
 
-    if init_config.banana:
-        # Banana mode is strict: it requires the built-in Nano Banana image model to be available.
-        required_model = "nano-banana-pro@or"
-        available = {m.model_name for m in config.iter_model_entries(only_available=True)}
-        if required_model not in available:
-            log(
-                (
-                    f"Error: --banana requires model '{required_model}', but it is not available in the current environment",
-                    "red",
-                )
-            )
-            log(("Hint: set OPENROUTER_API_KEY (Nano Banana Pro is configured via OpenRouter by default)", "yellow"))
-            raise typer.Exit(2)
+    # Banana mode requires at least one nano-banana model to be available.
+    # The model selection is already done in cli/main.py, we just verify here.
+    if init_config.banana and config.get_first_available_nano_banana_model() is None:
+        log(("Error: no available nano-banana model", "red"))
+        log(("Hint: set OPENROUTER_API_KEY or GOOGLE_API_KEY to enable nano-banana models", "yellow"))
+        raise typer.Exit(2)
 
     try:
         llm_clients = build_llm_clients(
@@ -92,7 +85,7 @@ async def initialize_app_components(
     elif init_config.vanilla:
         model_profile_provider = VanillaModelProfileProvider()
     else:
-        model_profile_provider = DefaultModelProfileProvider()
+        model_profile_provider = DefaultModelProfileProvider(config=config)
 
     event_queue: asyncio.Queue[events.Event] = asyncio.Queue()
 

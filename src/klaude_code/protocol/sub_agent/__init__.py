@@ -12,6 +12,9 @@ if TYPE_CHECKING:
 AvailabilityPredicate = Callable[[str], bool]
 PromptBuilder = Callable[[dict[str, Any]], str]
 
+# Availability requirement constants
+AVAILABILITY_IMAGE_MODEL = "image_model"
+
 
 @dataclass
 class SubAgentResult:
@@ -63,6 +66,10 @@ class SubAgentProfile:
     # Structured output support: specifies which parameter in the tool schema contains the output schema
     output_schema_arg: str | None = None
 
+    # Config-based availability requirement (e.g., "image_model" means requires an image model)
+    # The actual check is performed in the core layer to avoid circular imports.
+    availability_requirement: str | None = None
+
     def enabled_for_model(self, model_name: str | None) -> bool:
         if not self.enabled_by_default:
             return False
@@ -87,7 +94,10 @@ def get_sub_agent_profile(sub_agent_type: tools.SubAgentType) -> SubAgentProfile
         raise KeyError(f"Unknown sub agent type: {sub_agent_type}") from exc
 
 
-def iter_sub_agent_profiles(enabled_only: bool = False, model_name: str | None = None) -> list[SubAgentProfile]:
+def iter_sub_agent_profiles(
+    enabled_only: bool = False,
+    model_name: str | None = None,
+) -> list[SubAgentProfile]:
     profiles = list(_PROFILES.values())
     if not enabled_only:
         return profiles
@@ -102,7 +112,10 @@ def is_sub_agent_tool(tool_name: str) -> bool:
     return tool_name in _PROFILES
 
 
-def sub_agent_tool_names(enabled_only: bool = False, model_name: str | None = None) -> list[str]:
+def sub_agent_tool_names(
+    enabled_only: bool = False,
+    model_name: str | None = None,
+) -> list[str]:
     return [
         profile.name
         for profile in iter_sub_agent_profiles(enabled_only=enabled_only, model_name=model_name)

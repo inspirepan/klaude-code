@@ -7,7 +7,10 @@ from dataclasses import dataclass
 from functools import cache
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:
+    from klaude_code.config.config import Config
 
 from klaude_code.core.reminders import (
     at_file_reader_reminder,
@@ -23,7 +26,12 @@ from klaude_code.core.tool.report_back_tool import ReportBackTool
 from klaude_code.core.tool.tool_registry import get_tool_schemas
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import llm_param, message, tools
-from klaude_code.protocol.sub_agent import get_sub_agent_profile, sub_agent_tool_names
+from klaude_code.protocol.sub_agent import (
+    AVAILABILITY_IMAGE_MODEL,
+    get_sub_agent_profile,
+    get_sub_agent_profile_by_tool,
+    sub_agent_tool_names,
+)
 from klaude_code.session import Session
 
 type Reminder = Callable[[Session], Awaitable[message.DeveloperMessage | None]]
@@ -166,15 +174,37 @@ def load_system_prompt(
     return base_prompt + _build_env_info(model_name) + skills_prompt
 
 
+def _check_availability_requirement(requirement: str | None, config: Config | None) -> bool:
+    """Check if a sub-agent's availability requirement is met.
+
+    Args:
+        requirement: The availability requirement constant (e.g., AVAILABILITY_IMAGE_MODEL).
+        config: The config to check against.
+
+    Returns:
+        True if the requirement is met or if there's no requirement.
+    """
+    if requirement is None or config is None:
+        return True
+
+    if requirement == AVAILABILITY_IMAGE_MODEL:
+        return config.has_available_image_model()
+
+    # Unknown requirement, assume available
+    return True
+
+
 def load_agent_tools(
     model_name: str,
     sub_agent_type: tools.SubAgentType | None = None,
+    config: Config | None = None,
 ) -> list[llm_param.ToolSchema]:
     """Get tools for an agent based on model and agent type.
 
     Args:
         model_name: The model name.
         sub_agent_type: If None, returns main agent tools. Otherwise returns sub-agent tools.
+        config: Config for checking sub-agent availability (e.g., image model availability).
     """
 
     if sub_agent_type is not None:
@@ -189,7 +219,13 @@ def load_agent_tools(
     else:
         tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.TODO_WRITE]
 
-    tool_names.extend(sub_agent_tool_names(enabled_only=True, model_name=model_name))
+    # Add sub-agent tools, filtering by availability requirements
+    sub_agent_names = sub_agent_tool_names(enabled_only=True, model_name=model_name)
+    for name in sub_agent_names:
+        profile = get_sub_agent_profile_by_tool(name)
+        if profile is not None and _check_availability_requirement(profile.availability_requirement, config):
+            tool_names.append(name)
+
     tool_names.extend([tools.MERMAID])
     # tool_names.extend([tools.MEMORY])
     return get_tool_schemas(tool_names)
@@ -253,6 +289,9 @@ class ModelProfileProvider(Protocol):
 class DefaultModelProfileProvider(ModelProfileProvider):
     """Default provider backed by global prompts/tool/reminder registries."""
 
+    def __init__(self, config: Config | None = None) -> None:
+        self._config = config
+
     def build_profile(
         self,
         llm_client: LLMClientABC,
@@ -264,7 +303,7 @@ class DefaultModelProfileProvider(ModelProfileProvider):
         profile = AgentProfile(
             llm_client=llm_client,
             system_prompt=load_system_prompt(model_name, llm_client.protocol, sub_agent_type),
-            tools=load_agent_tools(model_name, sub_agent_type),
+            tools=load_agent_tools(model_name, sub_agent_type, config=self._config),
             reminders=load_agent_reminders(model_name, sub_agent_type),
         )
         if output_schema:

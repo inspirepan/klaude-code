@@ -235,6 +235,27 @@ class Config(BaseModel):
             for model in provider.model_list
         ]
 
+    def has_available_image_model(self) -> bool:
+        """Check if any image generation model is available."""
+        for entry in self.iter_model_entries(only_available=True):
+            if entry.model_params.modalities and "image" in entry.model_params.modalities:
+                return True
+        return False
+
+    def get_first_available_nano_banana_model(self) -> str | None:
+        """Get the first available nano-banana model, or None."""
+        for entry in self.iter_model_entries(only_available=True):
+            if "nano-banana" in entry.model_name:
+                return entry.model_name
+        return None
+
+    def get_first_available_image_model(self) -> str | None:
+        """Get the first available image generation model, or None."""
+        for entry in self.iter_model_entries(only_available=True):
+            if entry.model_params.modalities and "image" in entry.model_params.modalities:
+                return entry.model_name
+        return None
+
     async def save(self) -> None:
         """Save user config to file (excludes builtin providers).
 
