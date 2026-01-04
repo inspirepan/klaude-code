@@ -220,7 +220,7 @@ def load_agent_tools(
         tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.TODO_WRITE]
 
     # Add sub-agent tools, filtering by availability requirements
-    sub_agent_names = sub_agent_tool_names(enabled_only=True, model_name=model_name)
+    sub_agent_names = sub_agent_tool_names(enabled_only=True)
     for name in sub_agent_names:
         profile = get_sub_agent_profile_by_tool(name)
         if profile is not None and _check_availability_requirement(profile.availability_requirement, config):
@@ -316,7 +316,7 @@ class DefaultModelProfileProvider(ModelProfileProvider):
 
     def enabled_sub_agent_types(self, model_name: str) -> set[tools.SubAgentType]:
         enabled: set[tools.SubAgentType] = set()
-        for name in sub_agent_tool_names(enabled_only=True, model_name=model_name):
+        for name in sub_agent_tool_names(enabled_only=True):
             profile = get_sub_agent_profile_by_tool(name)
             if profile is not None and _check_availability_requirement(profile.availability_requirement, self._config):
                 enabled.add(profile.name)

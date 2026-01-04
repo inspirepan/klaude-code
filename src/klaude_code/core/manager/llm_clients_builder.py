@@ -61,9 +61,6 @@ def build_llm_clients(
     sub_clients: dict[SubAgentType, LLMClientABC] = {}
 
     for profile in iter_sub_agent_profiles():
-        if not profile.enabled_for_model(main_client.model_name):
-            continue
-
         # Try configured model first, then fall back to requirement-based resolution
         sub_model_name = config.sub_agent_models.get(profile.name)
         if not sub_model_name and profile.availability_requirement:

@@ -19,12 +19,9 @@ def _tool_context() -> ToolContext:
     return ToolContext(file_tracker={}, todo_context=todo_context, session_id="test")
 
 
-def test_sub_agent_tool_visibility_respects_filters() -> None:
-    gpt5_tools = set(sub_agent_tool_names(enabled_only=True, model_name="gpt-5"))
-    claude_tools = set(sub_agent_tool_names(enabled_only=True, model_name="claude-3"))
-
-    assert gpt5_tools == claude_tools
-    assert {"Task", "Explore", "WebAgent"}.issubset(gpt5_tools)
+def test_sub_agent_tool_visibility() -> None:
+    tools = set(sub_agent_tool_names(enabled_only=True))
+    assert {"Task", "Explore", "WebAgent"}.issubset(tools)
 
 
 def test_main_agent_tools_include_registered_sub_agents() -> None:

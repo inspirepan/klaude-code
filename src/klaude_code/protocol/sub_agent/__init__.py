@@ -9,7 +9,6 @@ from klaude_code.protocol import tools
 if TYPE_CHECKING:
     from klaude_code.protocol import model
 
-AvailabilityPredicate = Callable[[str], bool]
 PromptBuilder = Callable[[dict[str, Any]], str]
 
 # Availability requirement constants
@@ -61,7 +60,6 @@ class SubAgentProfile:
     # Availability
     enabled_by_default: bool = True
     show_in_main_agent: bool = True
-    target_model_filter: AvailabilityPredicate | None = None
 
     # Structured output support: specifies which parameter in the tool schema contains the output schema
     output_schema_arg: str | None = None
@@ -69,13 +67,6 @@ class SubAgentProfile:
     # Config-based availability requirement (e.g., "image_model" means requires an image model)
     # The actual check is performed in the core layer to avoid circular imports.
     availability_requirement: str | None = None
-
-    def enabled_for_model(self, model_name: str | None) -> bool:
-        if not self.enabled_by_default:
-            return False
-        if model_name is None or self.target_model_filter is None:
-            return True
-        return self.target_model_filter(model_name)
 
 
 _PROFILES: dict[str, SubAgentProfile] = {}
@@ -94,14 +85,11 @@ def get_sub_agent_profile(sub_agent_type: tools.SubAgentType) -> SubAgentProfile
         raise KeyError(f"Unknown sub agent type: {sub_agent_type}") from exc
 
 
-def iter_sub_agent_profiles(
-    enabled_only: bool = False,
-    model_name: str | None = None,
-) -> list[SubAgentProfile]:
+def iter_sub_agent_profiles(enabled_only: bool = False) -> list[SubAgentProfile]:
     profiles = list(_PROFILES.values())
     if not enabled_only:
         return profiles
-    return [p for p in profiles if p.enabled_for_model(model_name)]
+    return [p for p in profiles if p.enabled_by_default]
 
 
 def get_sub_agent_profile_by_tool(tool_name: str) -> SubAgentProfile | None:
@@ -112,13 +100,10 @@ def is_sub_agent_tool(tool_name: str) -> bool:
     return tool_name in _PROFILES
 
 
-def sub_agent_tool_names(
-    enabled_only: bool = False,
-    model_name: str | None = None,
-) -> list[str]:
+def sub_agent_tool_names(enabled_only: bool = False) -> list[str]:
     return [
         profile.name
-        for profile in iter_sub_agent_profiles(enabled_only=enabled_only, model_name=model_name)
+        for profile in iter_sub_agent_profiles(enabled_only=enabled_only)
         if profile.show_in_main_agent
     ]
 

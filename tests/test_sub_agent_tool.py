@@ -171,35 +171,6 @@ class TestSubAgentProfile:
         assert profile.active_form == ""
         assert profile.enabled_by_default is True
         assert profile.show_in_main_agent is True
-        assert profile.target_model_filter is None
-
-    def test_enabled_for_model_default_true(self):
-        """Test enabled_for_model returns True by default."""
-        profile = SubAgentProfile(name="Test", description="Test")
-        assert profile.enabled_for_model("gpt-4") is True
-        assert profile.enabled_for_model(None) is True
-
-    def test_enabled_for_model_disabled_by_default(self):
-        """Test enabled_for_model returns False when disabled."""
-        profile = SubAgentProfile(
-            name="Test",
-            description="Test",
-            enabled_by_default=False,
-        )
-        assert profile.enabled_for_model("gpt-4") is False
-
-    def test_enabled_for_model_with_filter(self):
-        """Test enabled_for_model with model filter."""
-        # Filter that excludes gpt-5
-        profile = SubAgentProfile(
-            name="Test",
-            description="Test",
-            target_model_filter=lambda model: "gpt-5" not in model,
-        )
-
-        assert profile.enabled_for_model("gpt-4") is True
-        assert profile.enabled_for_model("gpt-5-turbo") is False
-        assert profile.enabled_for_model(None) is True  # None model bypasses filter
 
     def test_full_profile_creation(self):
         """Test creating profile with all fields."""
@@ -214,7 +185,6 @@ class TestSubAgentProfile:
             active_form="Working",
             enabled_by_default=True,
             show_in_main_agent=True,
-            target_model_filter=lambda m: True,
         )
 
         assert profile.name == "FullAgent"
