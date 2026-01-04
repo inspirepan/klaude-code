@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-01-05
+
+### Changed
+
+- update model picker style (`ae3c3976`)
+- derive sub-agent types from profile tools instead of separate methods (`c19d4821`)
 ## [2.4.0] - 2026-01-04
 
 ### Added
@@ -1189,7 +1195,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.4.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.4.1...HEAD
+[2.4.1]: https://github.com/inspirepan/klaude-code/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/inspirepan/klaude-code/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/inspirepan/klaude-code/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/inspirepan/klaude-code/compare/v2.1.1...v2.2.0
