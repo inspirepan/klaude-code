@@ -3,21 +3,19 @@
 Minimal code agent CLI.
 
 ## Features
-- **Multi-provider**: Anthropic, OpenAI Responses API, OpenRouter
+- **Multi-provider**: Anthropic Message API, OpenAI Responses API, OpenRouter, Claude Max OAuth and ChatGPT Codex OAuth etc.
 - **Keep reasoning item in context**: Interleaved thinking support
-- **Model-aware tools**: Claude Code tools for Sonnet, `apply_patch` for GPT-5/Codex
-- **Structured sub-agent output**: Define JSON schema, get schema-compliant responses via constrained decoding
+- **Model-aware tools**: Claude Code tool set for Opus, `apply_patch` for GPT-5/Codex
+- **Reminders**: Cooldown-based todo tracking, instruction reinforcement and external file change reminder
+- **Sub-agents**: Task, Explore, Web, ImageGen
+- **Structured sub-agent output**: Main agent defines JSON schema and get schema-compliant responses via constrained decoding
 - **Recursive `@file` mentions**: Circular dependency protection, relative path resolution
-- **Reminders**: Cooldown-based todo tracking and instruction reinforcement
 - **External file sync**: Monitoring for external edits (linter, manual)
 - **Interrupt handling**: Ctrl+C preserves partial responses and synthesizes tool cancellation results
 - **Output truncation**: Large outputs saved to file system with snapshot links
-- **Skills**: Built-in + user + project Agent Skills (with implicit invocation by Skill tool or explicit invocation by typing `$`)
+- **Agent Skills**: Built-in + user + project Agent Skills (with implicit invocation by Skill tool or explicit invocation by typing `$`)
 - **Sessions**: Resumable with `--continue`
-- **Cost tracking**: Automatic API cost calculation and display (USD/CNY)
-- **Version update check**: Background PyPI version check with upgrade prompts
-- **Terminal title**: Shows current directory and model name
-- **Mermaid diagrams**: Interactive local HTML viewer with zoom, pan, and SVG export
+- **Mermaid diagrams**: Terminal image preview and Interactive local HTML viewer with zoom, pan, and SVG export
 - **Extras**: Slash commands, sub-agents, image paste, terminal notifications, auto-theming
 
 ## Installation
@@ -37,32 +35,23 @@ Or use the built-in alias command:
 ```bash
 klaude update
 klaude upgrade
-```
-
-To show version:
-
-```bash
 klaude --version
-klaude -v
-klaude version
+
 ```
 
 ## Usage
-
-### Interactive Mode
 
 ```bash
 klaude [--model <name>] [--select-model]
 ```
 
 **Options:**
-- `--version`/`-V`/`-v`: Show version and exit.
 - `--model`/`-m`: Preferred model name (exact match picks immediately; otherwise opens the interactive selector filtered by this value).
 - `--select-model`/`-s`: Open the interactive model selector at startup (shows all models unless `--model` is also provided).
 - `--continue`/`-c`: Resume the most recent session.
 - `--resume`/`-r`: Select a session to resume for this project.
 - `--resume-by-id <id>`: Resume a session by its ID directly.
-- `--vanilla`: Minimal mode with only basic tools (Bash, Read, Edit) and no system prompts.
+- `--vanilla`: Minimal mode with only basic tools (Bash, Read, Edit, Write) and no system prompts.
 
 **Model selection behavior:**
 - Default: uses `main_model` from config.
@@ -233,48 +222,16 @@ provider_list:
           context_limit: 128000
 ```
 
-##### Full Example
-
-```yaml
-# User configuration - merged with built-in config
-main_model: opus
-
-sub_agent_models:
-  explore: sonnet
-  task: opus
-  webagent: sonnet
-
-provider_list:
-  # Add models to built-in openrouter
-  - provider_name: openrouter
-    model_list:
-      - model_name: qwen-coder
-        model_params:
-          model: qwen/qwen-2.5-coder-32b-instruct
-          context_limit: 131072
-
-  # Add a completely new provider
-  - provider_name: local-ollama
-    protocol: openai
-    base_url: http://localhost:11434/v1
-    api_key: ollama
-    model_list:
-      - model_name: local-llama
-        model_params:
-          model: llama3.2
-          context_limit: 8192
-```
-
 ##### Supported Protocols
 
-- `anthropic` - Anthropic Claude API
+- `anthropic` - Anthropic Messages API
 - `claude_oauth` - Claude OAuth (for Claude Pro/Max subscribers)
-- `openai` - OpenAI-compatible API
+- `openai` - OpenAI Chat Completion API
 - `responses` - OpenAI Responses API (for o-series, GPT-5, Codex)
-- `openrouter` - OpenRouter API
-- `google` - Google Gemini API
-- `bedrock` - AWS Bedrock (uses AWS credentials instead of api_key)
 - `codex_oauth` - OpenAI Codex CLI (OAuth-based, for ChatGPT Pro subscribers)
+- `openrouter` - OpenRouter API (handling `reasoning_details` for interleaved thinking)
+- `google` - Google Gemini API
+- `bedrock` - AWS Bedrock for Claude(uses AWS credentials instead of api_key)
 
 List configured providers and models:
 
@@ -316,6 +273,7 @@ Inside the interactive session (`klaude`), use these commands to streamline your
 - `/model` - Switch the active LLM during the session.
 - `/thinking` - Configure model thinking/reasoning level.
 - `/clear` - Clear the current conversation context.
+- `/copy` - Copy last assistant message.
 - `/status` - Show session usage statistics (cost, tokens, model breakdown).
 - `/resume` - Select and resume a previous session.
 - `/fork-session` - Fork current session to a new session ID (supports interactive fork point selection).
