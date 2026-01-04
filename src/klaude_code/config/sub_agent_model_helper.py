@@ -196,15 +196,6 @@ class SubAgentModelHelper:
                 result.append(name)
         return result
 
-    def get_enabled_sub_agent_types(self) -> set[SubAgentType]:
-        """Return set of sub-agent types that are enabled and available."""
-        enabled: set[SubAgentType] = set()
-        for name in sub_agent_tool_names(enabled_only=True):
-            profile = get_sub_agent_profile_by_tool(name)
-            if profile is not None and self.check_availability_requirement(profile.availability_requirement):
-                enabled.add(profile.name)
-        return enabled
-
     def build_sub_agent_client_configs(self) -> dict[SubAgentType, str]:
         """Return model names for each sub-agent that needs a dedicated client."""
         result: dict[SubAgentType, str] = {}

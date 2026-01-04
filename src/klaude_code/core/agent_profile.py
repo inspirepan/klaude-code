@@ -262,10 +262,6 @@ class ModelProfileProvider(Protocol):
         output_schema: dict[str, Any] | None = None,
     ) -> AgentProfile: ...
 
-    def enabled_sub_agent_types(self) -> set[tools.SubAgentType]:
-        """Return set of sub-agent types enabled for this provider."""
-        ...
-
 
 class DefaultModelProfileProvider(ModelProfileProvider):
     """Default provider backed by global prompts/tool/reminder registries."""
@@ -281,27 +277,23 @@ class DefaultModelProfileProvider(ModelProfileProvider):
         output_schema: dict[str, Any] | None = None,
     ) -> AgentProfile:
         model_name = llm_client.model_name
+        llm_config = llm_client.get_llm_config()
+
+        # Image generation models should not have tools
+        if llm_config.modalities and "image" in llm_config.modalities:
+            agent_tools: list[llm_param.ToolSchema] = []
+        else:
+            agent_tools = load_agent_tools(model_name, sub_agent_type, config=self._config)
+
         profile = AgentProfile(
             llm_client=llm_client,
             system_prompt=load_system_prompt(model_name, llm_client.protocol, sub_agent_type),
-            tools=load_agent_tools(model_name, sub_agent_type, config=self._config),
+            tools=agent_tools,
             reminders=load_agent_reminders(model_name, sub_agent_type),
         )
         if output_schema:
             return with_structured_output(profile, output_schema)
         return profile
-
-    def enabled_sub_agent_types(self) -> set[tools.SubAgentType]:
-        if self._config is None:
-            from klaude_code.protocol.sub_agent import get_sub_agent_profile_by_tool, sub_agent_tool_names
-
-            return {
-                profile.name
-                for name in sub_agent_tool_names(enabled_only=True)
-                if (profile := get_sub_agent_profile_by_tool(name)) is not None
-            }
-        helper = SubAgentModelHelper(self._config)
-        return helper.get_enabled_sub_agent_types()
 
 
 class VanillaModelProfileProvider(ModelProfileProvider):
@@ -324,9 +316,6 @@ class VanillaModelProfileProvider(ModelProfileProvider):
         if output_schema:
             return with_structured_output(profile, output_schema)
         return profile
-
-    def enabled_sub_agent_types(self) -> set[tools.SubAgentType]:
-        return set()
 
 
 class NanoBananaModelProfileProvider(ModelProfileProvider):
@@ -352,6 +341,3 @@ class NanoBananaModelProfileProvider(ModelProfileProvider):
         if output_schema:
             return with_structured_output(profile, output_schema)
         return profile
-
-    def enabled_sub_agent_types(self) -> set[tools.SubAgentType]:
-        return set()

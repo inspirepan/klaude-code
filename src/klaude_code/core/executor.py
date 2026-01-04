@@ -17,14 +17,14 @@ from pathlib import Path
 from klaude_code.config import load_config
 from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
 from klaude_code.core.agent import Agent
-from klaude_code.core.agent_profile import DefaultModelProfileProvider, ModelProfileProvider
+from klaude_code.core.agent_profile import AgentProfile, DefaultModelProfileProvider, ModelProfileProvider
 from klaude_code.core.manager import LLMClients, SubAgentManager
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import commands, events, message, model, op
 from klaude_code.protocol.llm_param import LLMConfigParameter, Thinking
 from klaude_code.protocol.op_handler import OperationHandler
-from klaude_code.protocol.sub_agent import SubAgentResult
+from klaude_code.protocol.sub_agent import SubAgentResult, get_sub_agent_profile_by_tool
 from klaude_code.session.export import build_export_html, get_default_export_path
 from klaude_code.session.session import Session
 
@@ -110,13 +110,17 @@ class AgentRuntime:
     def current_agent(self) -> Agent | None:
         return self._agent
 
-    def _get_sub_agent_models(self) -> dict[str, LLMConfigParameter]:
-        """Build a dict of sub-agent type to LLMConfigParameter."""
-        enabled = self._model_profile_provider.enabled_sub_agent_types()
+    def _get_sub_agent_models(self, profile: AgentProfile) -> dict[str, LLMConfigParameter]:
+        """Build a dict of sub-agent type to LLMConfigParameter based on profile tools."""
+        enabled_types: set[str] = set()
+        for tool in profile.tools:
+            sub_profile = get_sub_agent_profile_by_tool(tool.name)
+            if sub_profile is not None:
+                enabled_types.add(sub_profile.name)
         return {
             sub_agent_type: client.get_llm_config()
             for sub_agent_type, client in self._llm_clients.sub_clients.items()
-            if sub_agent_type in enabled
+            if sub_agent_type in enabled_types
         }
 
     async def ensure_agent(self, session_id: str | None = None) -> Agent:
@@ -145,7 +149,7 @@ class AgentRuntime:
                 session_id=session.id,
                 work_dir=str(session.work_dir),
                 llm_config=self._llm_clients.main.get_llm_config(),
-                sub_agent_models=self._get_sub_agent_models(),
+                sub_agent_models=self._get_sub_agent_models(profile),
             )
         )
 
@@ -202,7 +206,7 @@ class AgentRuntime:
                 session_id=agent.session.id,
                 work_dir=str(agent.session.work_dir),
                 llm_config=self._llm_clients.main.get_llm_config(),
-                sub_agent_models=self._get_sub_agent_models(),
+                sub_agent_models=self._get_sub_agent_models(agent.profile),
             )
         )
 
@@ -226,7 +230,7 @@ class AgentRuntime:
                 session_id=target_session.id,
                 work_dir=str(target_session.work_dir),
                 llm_config=self._llm_clients.main.get_llm_config(),
-                sub_agent_models=self._get_sub_agent_models(),
+                sub_agent_models=self._get_sub_agent_models(profile),
             )
         )
 
@@ -409,15 +413,6 @@ class ExecutorContext:
     async def emit_event(self, event: events.Event) -> None:
         """Emit an event to the UI display system."""
         await self.event_queue.put(event)
-
-    def _get_sub_agent_models(self) -> dict[str, LLMConfigParameter]:
-        """Build a dict of sub-agent type to LLMConfigParameter."""
-        enabled = self.model_profile_provider.enabled_sub_agent_types()
-        return {
-            sub_agent_type: client.get_llm_config()
-            for sub_agent_type, client in self.llm_clients.sub_clients.items()
-            if sub_agent_type in enabled
-        }
 
     def current_session_id(self) -> str | None:
         """Return the primary active session id, if any.
