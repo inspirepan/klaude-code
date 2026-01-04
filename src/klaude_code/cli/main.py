@@ -87,12 +87,22 @@ def main_callback(
     vanilla: bool = typer.Option(
         False,
         "--vanilla",
-        help="Vanilla mode exposes the model's raw API behavior: it provides only minimal tools (Bash, Read & Edit) and omits system prompts and reminders.",
+        help="Vanilla mode exposes the model's raw API behavior: it provides only minimal tools (Bash, Read, Write & Edit) and omits system prompts and reminders.",
+    ),
+    banana: bool = typer.Option(
+        False,
+        "--banana",
+        help="Image generation mode with Nano Banana",
+        rich_help_panel="LLM",
     ),
 ) -> None:
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
         from klaude_code.log import log
+
+        if vanilla and banana:
+            log(("Error: --banana cannot be combined with --vanilla", "red"))
+            raise typer.Exit(2)
 
         resume_by_id_value = resume_by_id.strip() if resume_by_id is not None else None
         if resume_by_id_value == "":
@@ -120,7 +130,10 @@ def main_callback(
         update_terminal_title()
 
         chosen_model = model
-        if model or select_model:
+        if banana:
+            # Banana mode always uses the built-in Nano Banana Pro image model.
+            chosen_model = "nano-banana-pro@or"
+        elif model or select_model:
             chosen_model = select_model_interactive(preferred=model)
             if chosen_model is None:
                 return
@@ -193,6 +206,7 @@ def main_callback(
             model=chosen_model,
             debug=debug_enabled,
             vanilla=vanilla,
+            banana=banana,
             debug_filters=debug_filters,
         )
 

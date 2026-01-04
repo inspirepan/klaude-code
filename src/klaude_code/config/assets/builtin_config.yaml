@@ -250,6 +250,18 @@ provider_list:
         input: 0.5
         output: 3.0
         cache_read: 0.05
+  - model_name: nano-banana-pro@google
+    model_params:
+      model: gemini-3-pro-image-preview
+      context_limit: 1048576
+      modalities:
+      - image
+      - text
+      cost:
+        input: 2
+        output: 12
+        cache_read: 0.2
+        image: 120
 
 - provider_name: bedrock
   protocol: bedrock
@@ -266,6 +278,7 @@ provider_list:
         output: 15.0
         cache_read: 0.3
         cache_write: 3.75
+
 - provider_name: deepseek
   protocol: anthropic
   api_key: ${DEEPSEEK_API_KEY}

@@ -9,7 +9,11 @@ import typer
 from klaude_code import ui
 from klaude_code.config import Config, load_config
 from klaude_code.core.agent import Agent
-from klaude_code.core.agent_profile import DefaultModelProfileProvider, VanillaModelProfileProvider
+from klaude_code.core.agent_profile import (
+    DefaultModelProfileProvider,
+    NanoBananaModelProfileProvider,
+    VanillaModelProfileProvider,
+)
 from klaude_code.core.executor import Executor
 from klaude_code.core.manager import build_llm_clients
 from klaude_code.log import DebugType, log, set_debug_logging
@@ -24,6 +28,7 @@ class AppInitConfig:
     model: str | None
     debug: bool
     vanilla: bool
+    banana: bool
     debug_filters: set[DebugType] | None = None
 
 
@@ -50,6 +55,20 @@ async def initialize_app_components(
 
     config = load_config()
 
+    if init_config.banana:
+        # Banana mode is strict: it requires the built-in Nano Banana image model to be available.
+        required_model = "nano-banana-pro@or"
+        available = {m.model_name for m in config.iter_model_entries(only_available=True)}
+        if required_model not in available:
+            log(
+                (
+                    f"Error: --banana requires model '{required_model}', but it is not available in the current environment",
+                    "red",
+                )
+            )
+            log(("Hint: set OPENROUTER_API_KEY (Nano Banana Pro is configured via OpenRouter by default)", "yellow"))
+            raise typer.Exit(2)
+
     try:
         llm_clients = build_llm_clients(
             config,
@@ -68,7 +87,12 @@ async def initialize_app_components(
             log((f"Error: failed to load the default model configuration: {exc}", "red"))
         raise typer.Exit(2) from None
 
-    model_profile_provider = VanillaModelProfileProvider() if init_config.vanilla else DefaultModelProfileProvider()
+    if init_config.banana:
+        model_profile_provider = NanoBananaModelProfileProvider()
+    elif init_config.vanilla:
+        model_profile_provider = VanillaModelProfileProvider()
+    else:
+        model_profile_provider = DefaultModelProfileProvider()
 
     event_queue: asyncio.Queue[events.Event] = asyncio.Queue()
 
