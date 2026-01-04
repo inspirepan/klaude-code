@@ -43,8 +43,7 @@ class CommandResult(BaseModel):
     operations: list[op.Operation] | None = None
 
     # Persistence controls: some slash commands are UI/control actions and should not be written to session history.
-    persist_user_input: bool = True
-    persist_events: bool = True
+    persist: bool = True
 
 
 class CommandABC(ABC):

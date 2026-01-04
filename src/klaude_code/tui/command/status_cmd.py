@@ -153,4 +153,4 @@ class StatusCommand(CommandABC):
             ),
         )
 
-        return CommandResult(events=[event], persist_user_input=False, persist_events=False)
+        return CommandResult(events=[event], persist=False)

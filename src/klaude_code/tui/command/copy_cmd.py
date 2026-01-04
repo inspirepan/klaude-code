@@ -48,6 +48,5 @@ def _developer_message(agent: Agent, content: str, command_name: commands.Comman
                 ),
             )
         ],
-        persist_user_input=False,
-        persist_events=False,
+        persist=False,
     )

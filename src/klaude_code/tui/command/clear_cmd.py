@@ -22,5 +22,5 @@ class ClearCommand(CommandABC):
 
         return CommandResult(
             operations=[op.ClearSessionOperation(session_id=agent.session.id)],
-            persist_user_input=False,
+            persist=False,
         )
