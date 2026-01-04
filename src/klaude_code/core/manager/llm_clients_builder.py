@@ -3,27 +3,12 @@
 from __future__ import annotations
 
 from klaude_code.config import Config
+from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
 from klaude_code.core.manager.llm_clients import LLMClients
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol.sub_agent import AVAILABILITY_IMAGE_MODEL, iter_sub_agent_profiles
 from klaude_code.protocol.tools import SubAgentType
-
-
-def _resolve_model_for_requirement(requirement: str | None, config: Config) -> str | None:
-    """Resolve the model name for a given availability requirement.
-
-    Args:
-        requirement: The availability requirement constant.
-        config: The config to use for model lookup.
-
-    Returns:
-        The model name if found, None otherwise.
-    """
-    if requirement == AVAILABILITY_IMAGE_MODEL:
-        return config.get_first_available_image_model()
-    return None
 
 
 def build_llm_clients(
@@ -58,18 +43,12 @@ def build_llm_clients(
     if skip_sub_agents:
         return LLMClients(main=main_client)
 
+    helper = SubAgentModelHelper(config)
+    sub_agent_configs = helper.build_sub_agent_client_configs()
+
     sub_clients: dict[SubAgentType, LLMClientABC] = {}
-
-    for profile in iter_sub_agent_profiles():
-        # Try configured model first, then fall back to requirement-based resolution
-        sub_model_name = config.sub_agent_models.get(profile.name)
-        if not sub_model_name and profile.availability_requirement:
-            sub_model_name = _resolve_model_for_requirement(profile.availability_requirement, config)
-
-        if not sub_model_name:
-            continue
-
+    for sub_agent_type, sub_model_name in sub_agent_configs.items():
         sub_llm_config = config.get_model_config(sub_model_name)
-        sub_clients[profile.name] = create_llm_client(sub_llm_config)
+        sub_clients[sub_agent_type] = create_llm_client(sub_llm_config)
 
     return LLMClients(main=main_client, sub_clients=sub_clients)

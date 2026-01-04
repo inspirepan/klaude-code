@@ -16,9 +16,9 @@ The `protocol` layer cannot import from `config` or `core` (enforced by import-l
 Some sub-agents require specific model capabilities (e.g., ImageGen needs an image model). The flow:
 
 1. `SubAgentProfile.availability_requirement` stores a constant (e.g., `AVAILABILITY_IMAGE_MODEL`)
-2. `core/agent_profile.py#_check_availability_requirement()` checks if requirement is met
-3. `core/manager/llm_clients_builder.py#_resolve_model_for_requirement()` finds a suitable model when none is configured
-4. `config/config.py` provides query methods (`has_available_image_model()`, `get_first_available_image_model()`)
+2. `config/sub_agent_model_helper.py` checks if the requirement is met based on `config/config.py`
+3. `config/sub_agent_model_helper.py` resolves the default model when unset (e.g., first available image model)
+4. Core builders/UI call into the helper to avoid dealing with requirement constants directly
 
 ## Model Selection
 

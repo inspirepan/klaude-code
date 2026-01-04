@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 if TYPE_CHECKING:
     from klaude_code.config.config import Config
 
+from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
 from klaude_code.core.reminders import (
     at_file_reader_reminder,
     empty_todo_reminder,
@@ -26,12 +27,7 @@ from klaude_code.core.tool.report_back_tool import ReportBackTool
 from klaude_code.core.tool.tool_registry import get_tool_schemas
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import llm_param, message, tools
-from klaude_code.protocol.sub_agent import (
-    AVAILABILITY_IMAGE_MODEL,
-    get_sub_agent_profile,
-    get_sub_agent_profile_by_tool,
-    sub_agent_tool_names,
-)
+from klaude_code.protocol.sub_agent import get_sub_agent_profile
 from klaude_code.session import Session
 
 type Reminder = Callable[[Session], Awaitable[message.DeveloperMessage | None]]
@@ -174,26 +170,6 @@ def load_system_prompt(
     return base_prompt + _build_env_info(model_name) + skills_prompt
 
 
-def _check_availability_requirement(requirement: str | None, config: Config | None) -> bool:
-    """Check if a sub-agent's availability requirement is met.
-
-    Args:
-        requirement: The availability requirement constant (e.g., AVAILABILITY_IMAGE_MODEL).
-        config: The config to check against.
-
-    Returns:
-        True if the requirement is met or if there's no requirement.
-    """
-    if requirement is None or config is None:
-        return True
-
-    if requirement == AVAILABILITY_IMAGE_MODEL:
-        return config.has_available_image_model()
-
-    # Unknown requirement, assume available
-    return True
-
-
 def load_agent_tools(
     model_name: str,
     sub_agent_type: tools.SubAgentType | None = None,
@@ -213,18 +189,19 @@ def load_agent_tools(
 
     # Main agent tools
     if "gpt-5" in model_name:
-        tool_names = [tools.BASH, tools.READ, tools.APPLY_PATCH, tools.UPDATE_PLAN]
+        tool_names: list[str] = [tools.BASH, tools.READ, tools.APPLY_PATCH, tools.UPDATE_PLAN]
     elif "gemini-3" in model_name:
         tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE]
     else:
         tool_names = [tools.BASH, tools.READ, tools.EDIT, tools.WRITE, tools.TODO_WRITE]
 
-    # Add sub-agent tools, filtering by availability requirements
-    sub_agent_names = sub_agent_tool_names(enabled_only=True)
-    for name in sub_agent_names:
-        profile = get_sub_agent_profile_by_tool(name)
-        if profile is not None and _check_availability_requirement(profile.availability_requirement, config):
-            tool_names.append(name)
+    if config is not None:
+        helper = SubAgentModelHelper(config)
+        tool_names.extend(helper.get_enabled_sub_agent_tool_names())
+    else:
+        from klaude_code.protocol.sub_agent import sub_agent_tool_names
+
+        tool_names.extend(sub_agent_tool_names(enabled_only=True))
 
     tool_names.extend([tools.MERMAID])
     # tool_names.extend([tools.MEMORY])
@@ -285,8 +262,8 @@ class ModelProfileProvider(Protocol):
         output_schema: dict[str, Any] | None = None,
     ) -> AgentProfile: ...
 
-    def enabled_sub_agent_types(self, model_name: str) -> set[tools.SubAgentType]:
-        """Return set of sub-agent types enabled for this provider and model."""
+    def enabled_sub_agent_types(self) -> set[tools.SubAgentType]:
+        """Return set of sub-agent types enabled for this provider."""
         ...
 
 
@@ -314,13 +291,17 @@ class DefaultModelProfileProvider(ModelProfileProvider):
             return with_structured_output(profile, output_schema)
         return profile
 
-    def enabled_sub_agent_types(self, model_name: str) -> set[tools.SubAgentType]:
-        enabled: set[tools.SubAgentType] = set()
-        for name in sub_agent_tool_names(enabled_only=True):
-            profile = get_sub_agent_profile_by_tool(name)
-            if profile is not None and _check_availability_requirement(profile.availability_requirement, self._config):
-                enabled.add(profile.name)
-        return enabled
+    def enabled_sub_agent_types(self) -> set[tools.SubAgentType]:
+        if self._config is None:
+            from klaude_code.protocol.sub_agent import get_sub_agent_profile_by_tool, sub_agent_tool_names
+
+            return {
+                profile.name
+                for name in sub_agent_tool_names(enabled_only=True)
+                if (profile := get_sub_agent_profile_by_tool(name)) is not None
+            }
+        helper = SubAgentModelHelper(self._config)
+        return helper.get_enabled_sub_agent_types()
 
 
 class VanillaModelProfileProvider(ModelProfileProvider):
@@ -344,8 +325,7 @@ class VanillaModelProfileProvider(ModelProfileProvider):
             return with_structured_output(profile, output_schema)
         return profile
 
-    def enabled_sub_agent_types(self, model_name: str) -> set[tools.SubAgentType]:
-        del model_name
+    def enabled_sub_agent_types(self) -> set[tools.SubAgentType]:
         return set()
 
 
@@ -373,6 +353,5 @@ class NanoBananaModelProfileProvider(ModelProfileProvider):
             return with_structured_output(profile, output_schema)
         return profile
 
-    def enabled_sub_agent_types(self, model_name: str) -> set[tools.SubAgentType]:
-        del model_name
+    def enabled_sub_agent_types(self) -> set[tools.SubAgentType]:
         return set()

@@ -41,6 +41,7 @@ def ensure_commands_loaded() -> None:
     from .release_notes_cmd import ReleaseNotesCommand
     from .resume_cmd import ResumeCommand
     from .status_cmd import StatusCommand
+    from .sub_agent_model_cmd import SubAgentModelCommand
     from .terminal_setup_cmd import TerminalSetupCommand
     from .thinking_cmd import ThinkingCommand
 
@@ -49,6 +50,7 @@ def ensure_commands_loaded() -> None:
     register(ExportCommand())
     register(RefreshTerminalCommand())
     register(ModelCommand())
+    register(SubAgentModelCommand())
     register(ThinkingCommand())
     register(ForkSessionCommand())
     load_prompt_commands()
@@ -79,6 +81,7 @@ def __getattr__(name: str) -> object:
         "ReleaseNotesCommand": "release_notes_cmd",
         "ResumeCommand": "resume_cmd",
         "StatusCommand": "status_cmd",
+        "SubAgentModelCommand": "sub_agent_model_cmd",
         "TerminalSetupCommand": "terminal_setup_cmd",
         "ThinkingCommand": "thinking_cmd",
     }

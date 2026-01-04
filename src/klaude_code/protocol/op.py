@@ -25,6 +25,7 @@ class OperationType(Enum):
 
     RUN_AGENT = "run_agent"
     CHANGE_MODEL = "change_model"
+    CHANGE_SUB_AGENT_MODEL = "change_sub_agent_model"
     CHANGE_THINKING = "change_thinking"
     CLEAR_SESSION = "clear_session"
     RESUME_SESSION = "resume_session"
@@ -95,6 +96,22 @@ class ChangeThinkingOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_change_thinking(self)
+
+
+class ChangeSubAgentModelOperation(Operation):
+    """Operation for changing the model used by a specific sub-agent."""
+
+    type: OperationType = OperationType.CHANGE_SUB_AGENT_MODEL
+    session_id: str
+    sub_agent_type: str
+    # When None, clear explicit override and fall back to the sub-agent's default
+    # behavior (usually inherit from main agent; some sub-agents auto-resolve a
+    # suitable model, e.g. ImageGen).
+    model_name: str | None
+    save_as_default: bool = False
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_change_sub_agent_model(self)
 
 
 class ClearSessionOperation(Operation):

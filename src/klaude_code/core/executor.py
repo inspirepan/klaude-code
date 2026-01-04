@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from klaude_code.config import load_config
+from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
 from klaude_code.core.agent import Agent
 from klaude_code.core.agent_profile import DefaultModelProfileProvider, ModelProfileProvider
 from klaude_code.core.manager import LLMClients, SubAgentManager
@@ -111,7 +112,7 @@ class AgentRuntime:
 
     def _get_sub_agent_models(self) -> dict[str, LLMConfigParameter]:
         """Build a dict of sub-agent type to LLMConfigParameter."""
-        enabled = self._model_profile_provider.enabled_sub_agent_types(self._llm_clients.main.model_name)
+        enabled = self._model_profile_provider.enabled_sub_agent_types()
         return {
             sub_agent_type: client.get_llm_config()
             for sub_agent_type, client in self._llm_clients.sub_clients.items()
@@ -420,7 +421,7 @@ class ExecutorContext:
 
     def _get_sub_agent_models(self) -> dict[str, LLMConfigParameter]:
         """Build a dict of sub-agent type to LLMConfigParameter."""
-        enabled = self.model_profile_provider.enabled_sub_agent_types(self.llm_clients.main.model_name)
+        enabled = self.model_profile_provider.enabled_sub_agent_types()
         return {
             sub_agent_type: client.get_llm_config()
             for sub_agent_type, client in self.llm_clients.sub_clients.items()
@@ -526,6 +527,57 @@ class ExecutorContext:
                     show_sub_agent_models=False,
                 )
             )
+
+    async def handle_change_sub_agent_model(self, operation: op.ChangeSubAgentModelOperation) -> None:
+        """Handle a change sub-agent model operation."""
+        agent = await self._agent_runtime.ensure_agent(operation.session_id)
+        config = load_config()
+
+        helper = SubAgentModelHelper(config)
+
+        sub_agent_type = operation.sub_agent_type
+        model_name = operation.model_name
+
+        if model_name is None:
+            # Clear explicit override and revert to sub-agent default behavior.
+            behavior = helper.describe_empty_model_config_behavior(
+                sub_agent_type,
+                main_model_name=self.llm_clients.main.model_name,
+            )
+
+            resolved = helper.resolve_default_model_override(sub_agent_type)
+            if resolved is None:
+                # Default: inherit from main client.
+                self.llm_clients.sub_clients.pop(sub_agent_type, None)
+            else:
+                # Default: use a dedicated model (e.g. first available image model).
+                llm_config = config.get_model_config(resolved)
+                new_client = create_llm_client(llm_config)
+                self.llm_clients.sub_clients[sub_agent_type] = new_client
+
+            display_model = f"({behavior.description})"
+        else:
+            # Create new client for the sub-agent
+            llm_config = config.get_model_config(model_name)
+            new_client = create_llm_client(llm_config)
+            self.llm_clients.sub_clients[sub_agent_type] = new_client
+            display_model = new_client.model_name
+
+        if operation.save_as_default:
+            if model_name is None:
+                # Remove from config to inherit
+                config.sub_agent_models.pop(sub_agent_type, None)
+            else:
+                config.sub_agent_models[sub_agent_type] = model_name
+            await config.save()
+
+        saved_note = " (saved in ~/.klaude/klaude-config.yaml)" if operation.save_as_default else ""
+        developer_item = message.DeveloperMessage(
+            parts=message.text_parts_from_str(f"{sub_agent_type} model: {display_model}{saved_note}"),
+            ui_extra=model.build_command_output_extra(commands.CommandName.SUB_AGENT_MODEL),
+        )
+        agent.session.append_history([developer_item])
+        await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
 
     async def handle_clear_session(self, operation: op.ClearSessionOperation) -> None:
         await self._agent_runtime.clear_session(operation.session_id)

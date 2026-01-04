@@ -17,6 +17,7 @@ class CommandName(str, Enum):
     DEBUG = "debug"
     HELP = "help"
     MODEL = "model"
+    SUB_AGENT_MODEL = "sub-agent-model"
     COMPACT = "compact"
     REFRESH_TERMINAL = "refresh-terminal"
     CLEAR = "clear"

@@ -8,12 +8,18 @@ import pytest
 
 import klaude_code.config.config as config_module
 from klaude_code.config.config import Config, ModelConfig, ProviderConfig
-from klaude_code.core.agent_profile import (
-    _check_availability_requirement,  # pyright: ignore[reportPrivateUsage]
-    load_agent_tools,
-)
+from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
+from klaude_code.core.agent_profile import load_agent_tools
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.sub_agent import AVAILABILITY_IMAGE_MODEL
+
+
+def _check_availability_requirement(requirement: str | None, config: Config | None) -> bool:
+    """Test helper that wraps SubAgentModelHelper.check_availability_requirement."""
+    if requirement is None or config is None:
+        return True
+    helper = SubAgentModelHelper(config)
+    return helper.check_availability_requirement(requirement)
 
 
 def _clear_api_key_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -322,3 +328,75 @@ class TestLoadAgentToolsWithAvailability:
 
         # Without config, we cannot check availability, so ImageGen is included
         assert "ImageGen" in tool_names
+
+
+class TestEmptyModelConfigBehavior:
+    """Tests for user-facing behavior of an unset sub-agent model config."""
+
+    def test_task_defaults_to_inheriting_main_model(self) -> None:
+        config = Config(provider_list=[])
+        helper = SubAgentModelHelper(config)
+
+        result = helper.describe_empty_model_config_behavior("Task", main_model_name="anthropic/test")
+        assert result.description == "inherit from main agent: anthropic/test"
+        assert result.resolved_model_name == "anthropic/test"
+
+    def test_imagegen_defaults_to_first_available_image_model(self) -> None:
+        provider = ProviderConfig(
+            provider_name="test-provider",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-key",
+            model_list=[
+                ModelConfig(
+                    model_name="text-model",
+                    model_params=llm_param.LLMConfigModelParameter(model="gpt-4"),
+                ),
+                ModelConfig(
+                    model_name="nano-banana-pro",
+                    model_params=llm_param.LLMConfigModelParameter(
+                        model="image-gen-model",
+                        modalities=["image", "text"],
+                    ),
+                ),
+            ],
+        )
+        config = Config(provider_list=[provider])
+        helper = SubAgentModelHelper(config)
+
+        result = helper.describe_empty_model_config_behavior("ImageGen", main_model_name="anthropic/test")
+        assert result.description == "auto-select first available image model: nano-banana-pro"
+        assert result.resolved_model_name == "nano-banana-pro"
+
+        assert helper.resolve_default_model_override("Task") is None
+        assert helper.resolve_default_model_override("ImageGen") == "nano-banana-pro"
+
+
+class TestSubAgentModelInfo:
+    """Tests for SubAgentModelHelper.get_available_sub_agents output."""
+
+    def test_get_available_sub_agents_marks_configured_vs_effective_models(self) -> None:
+        provider = ProviderConfig(
+            provider_name="test-provider",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-key",
+            model_list=[
+                ModelConfig(
+                    model_name="nano-banana-pro",
+                    model_params=llm_param.LLMConfigModelParameter(
+                        model="image-gen-model",
+                        modalities=["image", "text"],
+                    ),
+                ),
+            ],
+        )
+        config = Config(provider_list=[provider])
+        helper = SubAgentModelHelper(config)
+
+        sub_agents = helper.get_available_sub_agents()
+        by_name = {sa.profile.name: sa for sa in sub_agents}
+
+        assert by_name["Task"].configured_model is None
+        assert by_name["Task"].effective_model is None
+
+        assert by_name["ImageGen"].configured_model is None
+        assert by_name["ImageGen"].effective_model == "nano-banana-pro"

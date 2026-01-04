@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
     from klaude_code.protocol.op import (
         ChangeModelOperation,
+        ChangeSubAgentModelOperation,
         ChangeThinkingOperation,
         ClearSessionOperation,
         ExportSessionOperation,
@@ -34,6 +35,10 @@ class OperationHandler(Protocol):
 
     async def handle_change_thinking(self, operation: ChangeThinkingOperation) -> None:
         """Handle a change thinking operation."""
+        ...
+
+    async def handle_change_sub_agent_model(self, operation: ChangeSubAgentModelOperation) -> None:
+        """Handle a change sub-agent model operation."""
         ...
 
     async def handle_clear_session(self, operation: ClearSessionOperation) -> None:
