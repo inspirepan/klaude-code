@@ -651,8 +651,8 @@ class TestLLMConfigParameterIntegration:
 
 class TestMatchModelFromConfig:
     def test_match_model_supports_case_insensitive_exact_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import klaude_code.config.select_model as select_model_module
-        from klaude_code.config.select_model import match_model_from_config
+        import klaude_code.config.model_matcher as model_matcher_module
+        from klaude_code.config.model_matcher import match_model_from_config
 
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
@@ -666,14 +666,14 @@ class TestMatchModelFromConfig:
         provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
         config = Config(provider_list=[provider_config], main_model="gpt-5.2")
 
-        monkeypatch.setattr(select_model_module, "load_config", lambda: config)
+        monkeypatch.setattr(model_matcher_module, "load_config", lambda: config)
 
         result = match_model_from_config(preferred="GPT-5.2")
         assert result.matched_model == "gpt-5.2@p"
 
     def test_match_model_supports_normalized_alias_against_model_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import klaude_code.config.select_model as select_model_module
-        from klaude_code.config.select_model import match_model_from_config
+        import klaude_code.config.model_matcher as model_matcher_module
+        from klaude_code.config.model_matcher import match_model_from_config
 
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
@@ -687,14 +687,14 @@ class TestMatchModelFromConfig:
         provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
         config = Config(provider_list=[provider_config], main_model="gpt-5.2")
 
-        monkeypatch.setattr(select_model_module, "load_config", lambda: config)
+        monkeypatch.setattr(model_matcher_module, "load_config", lambda: config)
 
         result = match_model_from_config(preferred="gpt52")
         assert result.matched_model == "gpt-5.2@p"
 
     def test_match_model_supports_normalized_punctuation_variants(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import klaude_code.config.select_model as select_model_module
-        from klaude_code.config.select_model import match_model_from_config
+        import klaude_code.config.model_matcher as model_matcher_module
+        from klaude_code.config.model_matcher import match_model_from_config
 
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
@@ -708,14 +708,14 @@ class TestMatchModelFromConfig:
         provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
         config = Config(provider_list=[provider_config], main_model="gpt-5.2")
 
-        monkeypatch.setattr(select_model_module, "load_config", lambda: config)
+        monkeypatch.setattr(model_matcher_module, "load_config", lambda: config)
 
         result = match_model_from_config(preferred="gpt_5_2")
         assert result.matched_model == "gpt-5.2@p"
 
     def test_match_model_supports_normalized_alias_against_model_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import klaude_code.config.select_model as select_model_module
-        from klaude_code.config.select_model import match_model_from_config
+        import klaude_code.config.model_matcher as model_matcher_module
+        from klaude_code.config.model_matcher import match_model_from_config
 
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
@@ -729,14 +729,14 @@ class TestMatchModelFromConfig:
         provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
         config = Config(provider_list=[provider_config], main_model="primary")
 
-        monkeypatch.setattr(select_model_module, "load_config", lambda: config)
+        monkeypatch.setattr(model_matcher_module, "load_config", lambda: config)
 
         result = match_model_from_config(preferred="gpt52")
         assert result.matched_model == "primary@p"
 
     def test_match_model_supports_normalized_alias_with_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import klaude_code.config.select_model as select_model_module
-        from klaude_code.config.select_model import match_model_from_config
+        import klaude_code.config.model_matcher as model_matcher_module
+        from klaude_code.config.model_matcher import match_model_from_config
 
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
@@ -750,14 +750,14 @@ class TestMatchModelFromConfig:
         provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
         config = Config(provider_list=[provider_config], main_model="primary")
 
-        monkeypatch.setattr(select_model_module, "load_config", lambda: config)
+        monkeypatch.setattr(model_matcher_module, "load_config", lambda: config)
 
         result = match_model_from_config(preferred="openai/gpt52")
         assert result.matched_model == "primary@p"
 
     def test_match_model_returns_filtered_models_on_ambiguity(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import klaude_code.config.select_model as select_model_module
-        from klaude_code.config.select_model import match_model_from_config
+        import klaude_code.config.model_matcher as model_matcher_module
+        from klaude_code.config.model_matcher import match_model_from_config
 
         provider = llm_param.LLMConfigProviderParameter(
             provider_name="p",
@@ -775,7 +775,7 @@ class TestMatchModelFromConfig:
         provider_config = ProviderConfig(**provider.model_dump(), model_list=[model_a, model_b])
         config = Config(provider_list=[provider_config], main_model=model_a.model_name)
 
-        monkeypatch.setattr(select_model_module, "load_config", lambda: config)
+        monkeypatch.setattr(model_matcher_module, "load_config", lambda: config)
 
         result = match_model_from_config(preferred="gpt52")
         assert result.matched_model is None

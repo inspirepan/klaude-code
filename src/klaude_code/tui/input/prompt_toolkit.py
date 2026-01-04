@@ -26,7 +26,7 @@ from prompt_toolkit.styles import Style
 from prompt_toolkit.utils import get_cwidth
 
 from klaude_code.config import load_config
-from klaude_code.config.config import ModelEntry
+from klaude_code.config.model_matcher import match_model_from_config
 from klaude_code.config.thinking import (
     format_current_thinking,
     get_thinking_picker_data,
@@ -452,23 +452,21 @@ class PromptToolkitInput(InputProviderABC):
     # -------------------------------------------------------------------------
 
     def _build_model_picker_items(self) -> tuple[list[SelectItem[str]], str | None]:
-        config = load_config()
-        models: list[ModelEntry] = sorted(
-            config.iter_model_entries(only_available=True),
-            key=lambda m: (m.model_name.lower(), m.provider.lower()),
-        )
-        if not models:
+        result = match_model_from_config()
+        if result.error_message or not result.filtered_models:
             return [], None
 
-        items = build_model_select_items(models)
+        items = build_model_select_items(result.filtered_models)
 
         initial = None
         if self._get_current_model_config_name is not None:
             with contextlib.suppress(Exception):
                 initial = self._get_current_model_config_name()
         if initial is None:
+            config = load_config()
             initial = config.main_model
         if isinstance(initial, str) and initial and "@" not in initial:
+            config = load_config()
             try:
                 resolved = config.resolve_model_location_prefer_available(initial) or config.resolve_model_location(
                     initial

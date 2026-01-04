@@ -124,7 +124,7 @@ def main_callback(
             raise typer.Exit(2)
 
         from klaude_code.app.runtime import AppInitConfig
-        from klaude_code.tui.command.model_select import ModelSelectStatus, select_model_interactive
+        from klaude_code.tui.command.model_picker import ModelSelectStatus, select_model_interactive
         from klaude_code.tui.runner import run_interactive
 
         update_terminal_title()
