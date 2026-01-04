@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-01-04
+
+### Added
+
+- sort model selection and rename model_matcher and model_picker (`0d6d3a5c`)
+- emit replacement blocks in unified-diff style (`11dc856f`)
+- add seedream image gen model (`7d9ec9d2`)
+
+### Changed
+
+- add commandOutputEvent (`1d0160aa`)
+- reduce nested model levels in config by flattening model_params. (`eaae7dda`)
+
+### Fixed
+
+- fixing fork command ui and behavior (`0f856c8b`)
+- unify command event emit logic, do not persist command output (`bdf6b456`)
 ## [2.3.0] - 2026-01-04
 
 ### Added
@@ -1172,7 +1189,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.3.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/inspirepan/klaude-code/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/inspirepan/klaude-code/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/inspirepan/klaude-code/compare/v2.1.1...v2.2.0
 [2.1.1]: https://github.com/inspirepan/klaude-code/compare/v2.1.0...v2.1.1
