@@ -7,7 +7,7 @@ provider_list:
   protocol: anthropic
   api_key: ${ANTHROPIC_API_KEY}
   model_list:
-  - model_name: sonnet@ant
+  - model_name: sonnet
     model_params:
       model: claude-sonnet-4-5-20250929
       context_limit: 200000
@@ -18,7 +18,7 @@ provider_list:
         output: 15.0
         cache_read: 0.3
         cache_write: 3.75
-  - model_name: opus@ant
+  - model_name: opus
     model_params:
       model: claude-opus-4-5-20251101
       context_limit: 200000
@@ -187,7 +187,7 @@ provider_list:
         input: 0.5
         output: 3.0
         cache_read: 0.05
-  - model_name: nano-banana-pro@openrouter
+  - model_name: nano-banana-pro
     model_params:
       model: google/gemini-3-pro-image-preview
       context_limit: 66000
@@ -199,7 +199,7 @@ provider_list:
         output: 12
         cache_read: 0.2
         image: 120
-  - model_name: nano-banana@openrouter
+  - model_name: nano-banana
     model_params:
       model: google/gemini-2.5-flash-image
       context_limit: 33000
@@ -246,7 +246,7 @@ provider_list:
   protocol: google
   api_key: ${GOOGLE_API_KEY}
   model_list:
-  - model_name: gemini-pro@google
+  - model_name: gemini-pro
     model_params:
       model: gemini-3-pro-preview
       context_limit: 1048576
@@ -254,7 +254,7 @@ provider_list:
         input: 2.0
         output: 12.0
         cache_read: 0.2
-  - model_name: gemini-flash@google
+  - model_name: gemini-flash
     model_params:
       model: gemini-3-flash-preview
       context_limit: 1048576
@@ -262,7 +262,7 @@ provider_list:
         input: 0.5
         output: 3.0
         cache_read: 0.05
-  - model_name: nano-banana-pro@google
+  - model_name: nano-banana-pro
     model_params:
       model: gemini-3-pro-image-preview
       context_limit: 66000
@@ -281,7 +281,7 @@ provider_list:
   aws_secret_key: ${AWS_SECRET_ACCESS_KEY}
   aws_region: ${AWS_REGION}
   model_list:
-  - model_name: sonnet@bedrock
+  - model_name: sonnet
     model_params:
       model: us.anthropic.claude-sonnet-4-5-20250929-v1:0
       context_limit: 200000
@@ -314,7 +314,7 @@ provider_list:
   api_key: ${MOONSHOT_API_KEY}
   base_url: https://api.moonshot.cn/anthropic
   model_list:
-  - model_name: kimi@moonshot
+  - model_name: kimi
     model_params:
       model: kimi-k2-thinking
       context_limit: 262144
@@ -330,7 +330,7 @@ provider_list:
 - provider_name: claude-max
   protocol: claude_oauth
   model_list:
-  - model_name: sonnet@claude-max
+  - model_name: sonnet
     model_params:
       model: claude-sonnet-4-5-20250929
       context_limit: 200000
@@ -339,7 +339,7 @@ provider_list:
         output: 15.0
         cache_read: 0.3
         cache_write: 3.75
-  - model_name: opus@claude-max
+  - model_name: opus
     model_params:
       model: claude-opus-4-5-20251101
       context_limit: 200000
@@ -352,7 +352,7 @@ provider_list:
         output: 25.0
         cache_read: 0.5
         cache_write: 6.25
-  - model_name: haiku@claude-max
+  - model_name: haiku
     model_params:
       model: claude-haiku-4-5-20251001
       context_limit: 200000

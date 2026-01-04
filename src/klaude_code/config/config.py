@@ -140,6 +140,16 @@ class ModelEntry(BaseModel):
     provider: str
     model_params: llm_param.LLMConfigModelParameter
 
+    @property
+    def selector(self) -> str:
+        """Return a provider-qualified model selector.
+
+        This selector can be persisted in user config (e.g. ``sonnet@openrouter``)
+        and later resolved via :meth:`Config.get_model_config`.
+        """
+
+        return f"{self.model_name}@{self.provider}"
+
 
 class UserConfig(BaseModel):
     """User configuration (what gets saved to disk)."""
@@ -191,8 +201,103 @@ class Config(BaseModel):
         """Set the user config reference for saving."""
         object.__setattr__(self, "_user_config", user_config)
 
-    def get_model_config(self, model_name: str) -> llm_param.LLMConfigParameter:
+    @classmethod
+    def _split_model_selector(cls, model_selector: str) -> tuple[str, str | None]:
+        """Split a model selector into (model_name, provider_name).
+
+        Supported forms:
+        - ``sonnet``: unqualified; caller should pick the first matching provider.
+        - ``sonnet@openrouter``: provider-qualified.
+
+        Note: the provider segment is normalized for backwards compatibility.
+        """
+
+        trimmed = model_selector.strip()
+        if "@" not in trimmed:
+            return trimmed, None
+
+        base, provider = trimmed.rsplit("@", 1)
+        base = base.strip()
+        provider = provider.strip()
+        if not base or not provider:
+            raise ValueError(f"Invalid model selector: {model_selector!r}")
+        return base, provider
+
+    def has_model_config_name(self, model_selector: str) -> bool:
+        """Return True if the selector points to a configured model.
+
+        This check is configuration-only: it does not require a valid API key or
+        OAuth login.
+        """
+
+        model_name, provider_name = self._split_model_selector(model_selector)
+        if provider_name is not None:
+            for provider in self.provider_list:
+                if provider.provider_name.casefold() != provider_name.casefold():
+                    continue
+                return any(m.model_name == model_name for m in provider.model_list)
+            return False
+
+        return any(any(m.model_name == model_name for m in provider.model_list) for provider in self.provider_list)
+
+    def resolve_model_location(self, model_selector: str) -> tuple[str, str] | None:
+        """Resolve a selector to (model_name, provider_name), without auth checks.
+
+        - If the selector is provider-qualified, returns that provider.
+        - If unqualified, returns the first provider that defines the model.
+        """
+
+        model_name, provider_name = self._split_model_selector(model_selector)
+        if provider_name is not None:
+            for provider in self.provider_list:
+                if provider.provider_name.casefold() != provider_name.casefold():
+                    continue
+                if any(m.model_name == model_name for m in provider.model_list):
+                    return model_name, provider.provider_name
+            return None
+
         for provider in self.provider_list:
+            if any(m.model_name == model_name for m in provider.model_list):
+                return model_name, provider.provider_name
+        return None
+
+    def resolve_model_location_prefer_available(self, model_selector: str) -> tuple[str, str] | None:
+        """Resolve a selector to (model_name, provider_name), preferring usable providers.
+
+        This uses the same availability logic as :meth:`get_model_config` (API-key
+        presence for non-OAuth protocols).
+        """
+
+        requested_model, requested_provider = self._split_model_selector(model_selector)
+
+        for provider in self.provider_list:
+            if requested_provider is not None and provider.provider_name.casefold() != requested_provider.casefold():
+                continue
+
+            api_key = provider.get_resolved_api_key()
+            if (
+                provider.protocol
+                not in {
+                    llm_param.LLMClientProtocol.CODEX_OAUTH,
+                    llm_param.LLMClientProtocol.CLAUDE_OAUTH,
+                    llm_param.LLMClientProtocol.BEDROCK,
+                }
+                and not api_key
+            ):
+                continue
+
+            if any(m.model_name == requested_model for m in provider.model_list):
+                return requested_model, provider.provider_name
+
+        return None
+
+    def get_model_config(self, model_name: str) -> llm_param.LLMConfigParameter:
+        requested_model, requested_provider = self._split_model_selector(model_name)
+
+        for provider in self.provider_list:
+            if requested_provider is not None and provider.provider_name.casefold() != requested_provider.casefold():
+                continue
+
             # Resolve ${ENV_VAR} syntax for api_key
             api_key = provider.get_resolved_api_key()
 
@@ -206,15 +311,22 @@ class Config(BaseModel):
                 }
                 and not api_key
             ):
-                continue
-            for model in provider.model_list:
-                if model.model_name == model_name:
-                    provider_dump = provider.model_dump(exclude={"model_list"})
-                    provider_dump["api_key"] = api_key
-                    return llm_param.LLMConfigParameter(
-                        **provider_dump,
-                        **model.model_params.model_dump(),
+                # When provider is explicitly requested, fail fast with a clearer error.
+                if requested_provider is not None:
+                    raise ValueError(
+                        f"Provider '{provider.provider_name}' is not available (missing API key) for: {model_name}"
                     )
+                continue
+
+            for model in provider.model_list:
+                if model.model_name != requested_model:
+                    continue
+                provider_dump = provider.model_dump(exclude={"model_list"})
+                provider_dump["api_key"] = api_key
+                return llm_param.LLMConfigParameter(
+                    **provider_dump,
+                    **model.model_params.model_dump(),
+                )
 
         raise ValueError(f"Unknown model: {model_name}")
 
@@ -439,6 +551,8 @@ def create_example_config() -> bool:
     header = "# Example configuration for klaude-code\n"
     header += "# Copy this file to klaude-config.yaml and modify as needed.\n"
     header += "# Run `klaude list` to see available models.\n"
+    header += "# Tip: you can pick a provider explicitly with `model@provider` (e.g. `sonnet@openrouter`).\n"
+    header += "# If you omit `@provider` (e.g. `sonnet`), klaude picks the first configured provider with credentials.\n"
     header += "#\n"
     header += "# Built-in providers (anthropic, openai, openrouter, deepseek) are available automatically.\n"
     header += "# Just set the corresponding API key environment variable to use them.\n\n"

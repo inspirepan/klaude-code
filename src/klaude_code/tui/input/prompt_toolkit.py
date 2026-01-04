@@ -455,7 +455,7 @@ class PromptToolkitInput(InputProviderABC):
         config = load_config()
         models: list[ModelEntry] = sorted(
             config.iter_model_entries(only_available=True),
-            key=lambda m: m.model_name.lower(),
+            key=lambda m: (m.model_name.lower(), m.provider.lower()),
         )
         if not models:
             return [], None
@@ -468,6 +468,13 @@ class PromptToolkitInput(InputProviderABC):
                 initial = self._get_current_model_config_name()
         if initial is None:
             initial = config.main_model
+        if isinstance(initial, str) and initial and "@" not in initial:
+            try:
+                resolved = config.resolve_model_location_prefer_available(initial) or config.resolve_model_location(initial)
+            except ValueError:
+                resolved = None
+            if resolved is not None:
+                initial = f"{resolved[0]}@{resolved[1]}"
         return items, initial
 
     def _open_model_picker(self) -> None:

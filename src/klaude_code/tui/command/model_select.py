@@ -78,18 +78,30 @@ def select_model_interactive(
 
     from klaude_code.tui.terminal.selector import build_model_select_items, select_one
 
-    names = [m.model_name for m in result.filtered_models]
+    names = [m.selector for m in result.filtered_models]
 
     try:
         items = build_model_select_items(result.filtered_models)
 
         message = f"Select a model (filtered by '{result.filter_hint}'):" if result.filter_hint else "Select a model:"
+
+        initial_value = config.main_model
+        if isinstance(initial_value, str) and initial_value and "@" not in initial_value:
+            try:
+                resolved = config.resolve_model_location_prefer_available(initial_value) or config.resolve_model_location(
+                    initial_value
+                )
+            except ValueError:
+                resolved = None
+            if resolved is not None:
+                initial_value = f"{resolved[0]}@{resolved[1]}"
+
         selected = select_one(
             message=message,
             items=items,
             pointer="→",
             use_search_filter=True,
-            initial_value=config.main_model,
+            initial_value=initial_value,
             style=Style(
                 [
                     ("pointer", "ansigreen"),
@@ -113,9 +125,20 @@ def select_model_interactive(
         log((f"Failed to use prompt_toolkit for model selection: {e}", "yellow"))
         # Never return an unvalidated model name here.
         # If we can't interactively select, fall back to a known configured model.
-        if isinstance(preferred, str) and preferred in names:
-            return ModelSelectResult(status=ModelSelectStatus.SELECTED, model=preferred)
+        if result.matched_model and result.matched_model in names:
+            return ModelSelectResult(status=ModelSelectStatus.SELECTED, model=result.matched_model)
         if config.main_model and config.main_model in names:
             return ModelSelectResult(status=ModelSelectStatus.SELECTED, model=config.main_model)
+        if config.main_model and "@" not in config.main_model:
+            try:
+                resolved = config.resolve_model_location_prefer_available(config.main_model) or config.resolve_model_location(
+                    config.main_model
+                )
+            except ValueError:
+                resolved = None
+            if resolved is not None:
+                selector = f"{resolved[0]}@{resolved[1]}"
+                if selector in names:
+                    return ModelSelectResult(status=ModelSelectStatus.SELECTED, model=selector)
 
     return ModelSelectResult(status=ModelSelectStatus.ERROR)

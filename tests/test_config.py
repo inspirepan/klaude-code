@@ -188,7 +188,7 @@ class TestConfig:
             api_key=None,
             model_list=[
                 ModelConfig(
-                    model_name="sonnet@claude",
+                    model_name="sonnet",
                     model_params=llm_param.LLMConfigModelParameter(model="claude-sonnet-4-5-20250929"),
                 )
             ],
@@ -675,7 +675,7 @@ class TestMatchModelFromConfig:
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 
         result = match_model_from_config(preferred="GPT-5.2")
-        assert result.matched_model == "gpt-5.2"
+        assert result.matched_model == "gpt-5.2@p"
 
     def test_match_model_supports_normalized_alias_against_model_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import klaude_code.config.select_model as select_model_module
@@ -696,7 +696,7 @@ class TestMatchModelFromConfig:
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 
         result = match_model_from_config(preferred="gpt52")
-        assert result.matched_model == "gpt-5.2"
+        assert result.matched_model == "gpt-5.2@p"
 
     def test_match_model_supports_normalized_punctuation_variants(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import klaude_code.config.select_model as select_model_module
@@ -717,7 +717,7 @@ class TestMatchModelFromConfig:
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 
         result = match_model_from_config(preferred="gpt_5_2")
-        assert result.matched_model == "gpt-5.2"
+        assert result.matched_model == "gpt-5.2@p"
 
     def test_match_model_supports_normalized_alias_against_model_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import klaude_code.config.select_model as select_model_module
@@ -738,7 +738,7 @@ class TestMatchModelFromConfig:
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 
         result = match_model_from_config(preferred="gpt52")
-        assert result.matched_model == "primary"
+        assert result.matched_model == "primary@p"
 
     def test_match_model_supports_normalized_alias_with_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import klaude_code.config.select_model as select_model_module
@@ -759,7 +759,7 @@ class TestMatchModelFromConfig:
         monkeypatch.setattr(select_model_module, "load_config", lambda: config)
 
         result = match_model_from_config(preferred="openai/gpt52")
-        assert result.matched_model == "primary"
+        assert result.matched_model == "primary@p"
 
     def test_match_model_returns_filtered_models_on_ambiguity(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import klaude_code.config.select_model as select_model_module
@@ -993,8 +993,8 @@ class TestOutOfBoxExperience:
         # Should have BOTH user's custom model AND builtin models
         model_names = [m.model_name for m in anthropic_provider.model_list]
         assert "my-custom-claude" in model_names
-        assert "sonnet@ant" in model_names
-        assert "opus@ant" in model_names
+        assert "sonnet" in model_names
+        assert "opus" in model_names
 
     def test_user_config_overrides_builtin_model(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """User config with same model name should override builtin model."""
@@ -1062,8 +1062,8 @@ class TestOutOfBoxExperience:
 
         # But should still have builtin models
         model_names = [m.model_name for m in anthropic_provider.model_list]
-        assert "sonnet@ant" in model_names
-        assert "opus@ant" in model_names
+        assert "sonnet" in model_names
+        assert "opus" in model_names
 
     def test_user_config_adds_new_provider(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """User config with new provider should be added to builtin providers."""

@@ -243,18 +243,34 @@ def _build_provider_info_panel(provider: ProviderConfig, available: bool) -> Quo
 
 
 def _build_models_table(
-    provider: ProviderConfig, main_model: str | None, sub_agent_models: dict[str, str] | None = None
+    provider: ProviderConfig,
+    config: Config,
 ) -> Table:
     """Build a table for models under a provider."""
     provider_available = not provider.is_api_key_missing()
 
+    def _resolve_selector(value: str | None) -> str | None:
+        if not value:
+            return None
+        try:
+            resolved = config.resolve_model_location_prefer_available(value) or config.resolve_model_location(value)
+        except ValueError:
+            return None
+        if resolved is None:
+            return None
+        return f"{resolved[0]}@{resolved[1]}"
+
+    default_selector = _resolve_selector(config.main_model)
+
     # Build reverse mapping: model_name -> list of agent roles using it
     model_to_agents: dict[str, list[str]] = {}
-    if sub_agent_models:
-        for agent_role, model_name in sub_agent_models.items():
-            if model_name not in model_to_agents:
-                model_to_agents[model_name] = []
-            model_to_agents[model_name].append(agent_role)
+    for agent_role, model_name in (config.sub_agent_models or {}).items():
+        selector = _resolve_selector(model_name)
+        if selector is None:
+            continue
+        if selector not in model_to_agents:
+            model_to_agents[selector] = []
+        model_to_agents[selector].append(agent_role)
 
     models_table = Table.grid(
         padding=(0, 2),
@@ -275,10 +291,11 @@ def _build_models_table(
         else:
             # Build role tags for this model
             roles: list[str] = []
-            if model.model_name == main_model:
+            selector = f"{model.model_name}@{provider.provider_name}"
+            if selector == default_selector:
                 roles.append("default")
-            if model.model_name in model_to_agents:
-                roles.extend(role.lower() for role in model_to_agents[model.model_name])
+            if selector in model_to_agents:
+                roles.extend(role.lower() for role in model_to_agents[selector])
 
             if roles:
                 name = Text.assemble(
@@ -350,6 +367,6 @@ def display_models_and_providers(config: Config, *, show_all: bool = False):
         console.print()
 
         # Models table for this provider
-        models_table = _build_models_table(provider, config.main_model, config.sub_agent_models)
+        models_table = _build_models_table(provider, config)
         console.print(models_table)
         console.print("\n")

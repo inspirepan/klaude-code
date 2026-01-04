@@ -172,7 +172,12 @@ def main_callback(
             cfg = load_config()
 
             if session_meta.model_config_name:
-                if any(m.model_name == session_meta.model_config_name for m in cfg.iter_model_entries()):
+                try:
+                    model_is_known = cfg.has_model_config_name(session_meta.model_config_name)
+                except ValueError:
+                    model_is_known = False
+
+                if model_is_known:
                     chosen_model = session_meta.model_config_name
                 else:
                     log(
@@ -186,7 +191,7 @@ def main_callback(
                 raw_model = session_meta.model_name.strip()
                 if raw_model:
                     matches = [
-                        m.model_name
+                        m.selector
                         for m in cfg.iter_model_entries()
                         if (m.model_params.model or "").strip().lower() == raw_model.lower()
                     ]

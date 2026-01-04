@@ -69,7 +69,7 @@ class ModelCommand(CommandABC):
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         model_result = await asyncio.to_thread(select_model_interactive, preferred=user_input.text)
 
-        current_model = agent.profile.llm_client.model_name if agent.profile else None
+        current_model = agent.session.model_config_name
         selected_model = model_result.model if model_result.status == ModelSelectStatus.SELECTED else None
         if selected_model is None or selected_model == current_model:
             return CommandResult(

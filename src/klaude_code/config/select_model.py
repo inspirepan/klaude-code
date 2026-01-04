@@ -49,7 +49,8 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
 
     # Only show models from providers with valid API keys
     models: list[ModelEntry] = sorted(
-        config.iter_model_entries(only_available=True), key=lambda m: m.model_name.lower()
+        config.iter_model_entries(only_available=True),
+        key=lambda m: (m.model_name.lower(), m.provider.lower()),
     )
 
     if not models:
@@ -61,26 +62,42 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
             error_message="No models available",
         )
 
-    names: list[str] = [m.model_name for m in models]
+    selectors: list[str] = [m.selector for m in models]
 
     # Try to match preferred model name
     filter_hint = preferred
     if preferred and preferred.strip():
         preferred = preferred.strip()
-        # Exact match
-        if preferred in names:
+
+        # Exact match on selector (e.g. sonnet@openrouter)
+        if preferred in selectors:
             return ModelMatchResult(matched_model=preferred, filtered_models=models, filter_hint=None)
 
+        # Exact match on base model name (e.g. sonnet)
+        exact_base_matches = [m for m in models if m.model_name == preferred]
+        if len(exact_base_matches) == 1:
+            return ModelMatchResult(
+                matched_model=exact_base_matches[0].selector,
+                filtered_models=models,
+                filter_hint=None,
+            )
+        if len(exact_base_matches) > 1:
+            return ModelMatchResult(matched_model=None, filtered_models=exact_base_matches, filter_hint=filter_hint)
+
         preferred_lower = preferred.lower()
-        # Case-insensitive exact match (model_name or model_params.model)
+        # Case-insensitive exact match (selector/model_name/model_params.model)
         exact_ci_matches = [
             m
             for m in models
-            if preferred_lower == m.model_name.lower() or preferred_lower == (m.model_params.model or "").lower()
+            if preferred_lower == m.selector.lower()
+            or preferred_lower == m.model_name.lower()
+            or preferred_lower == (m.model_params.model or "").lower()
         ]
         if len(exact_ci_matches) == 1:
             return ModelMatchResult(
-                matched_model=exact_ci_matches[0].model_name, filtered_models=models, filter_hint=None
+                matched_model=exact_ci_matches[0].selector,
+                filtered_models=models,
+                filter_hint=None,
             )
 
         # Normalized matching (e.g. gpt52 == gpt-5.2, gpt52 in gpt-5.2-2025-...)
@@ -90,24 +107,30 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
             normalized_matches = [
                 m
                 for m in models
-                if preferred_norm == _normalize_model_key(m.model_name)
+                if preferred_norm == _normalize_model_key(m.selector)
+                or preferred_norm == _normalize_model_key(m.model_name)
                 or preferred_norm == _normalize_model_key(m.model_params.model or "")
             ]
             if len(normalized_matches) == 1:
                 return ModelMatchResult(
-                    matched_model=normalized_matches[0].model_name, filtered_models=models, filter_hint=None
+                    matched_model=normalized_matches[0].selector,
+                    filtered_models=models,
+                    filter_hint=None,
                 )
 
             if not normalized_matches and len(preferred_norm) >= 4:
                 normalized_matches = [
                     m
                     for m in models
-                    if preferred_norm in _normalize_model_key(m.model_name)
+                    if preferred_norm in _normalize_model_key(m.selector)
+                    or preferred_norm in _normalize_model_key(m.model_name)
                     or preferred_norm in _normalize_model_key(m.model_params.model or "")
                 ]
                 if len(normalized_matches) == 1:
                     return ModelMatchResult(
-                        matched_model=normalized_matches[0].model_name, filtered_models=models, filter_hint=None
+                        matched_model=normalized_matches[0].selector,
+                        filtered_models=models,
+                        filter_hint=None,
                     )
 
         # Partial match (case-insensitive) on model_name or model_params.model.
@@ -115,10 +138,12 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
         matches = normalized_matches or [
             m
             for m in models
-            if preferred_lower in m.model_name.lower() or preferred_lower in (m.model_params.model or "").lower()
+            if preferred_lower in m.selector.lower()
+            or preferred_lower in m.model_name.lower()
+            or preferred_lower in (m.model_params.model or "").lower()
         ]
         if len(matches) == 1:
-            return ModelMatchResult(matched_model=matches[0].model_name, filtered_models=models, filter_hint=None)
+            return ModelMatchResult(matched_model=matches[0].selector, filtered_models=models, filter_hint=None)
         if matches:
             # Multiple matches: filter the list for interactive selection
             return ModelMatchResult(matched_model=None, filtered_models=matches, filter_hint=filter_hint)
