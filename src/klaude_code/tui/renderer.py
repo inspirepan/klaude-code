@@ -31,6 +31,7 @@ from klaude_code.tui.commands import (
     PrintRuleLine,
     RenderAssistantImage,
     RenderCommand,
+    RenderCommandOutput,
     RenderDeveloperMessage,
     RenderError,
     RenderInterrupt,
@@ -53,6 +54,7 @@ from klaude_code.tui.commands import (
     TaskClockStart,
 )
 from klaude_code.tui.components import assistant as c_assistant
+from klaude_code.tui.components import command_output as c_command_output
 from klaude_code.tui.components import developer as c_developer
 from klaude_code.tui.components import errors as c_errors
 from klaude_code.tui.components import mermaid_viewer as c_mermaid_viewer
@@ -471,7 +473,6 @@ class TUICommandRenderer:
                             self.print()
                     case events.DeveloperMessageEvent() as e:
                         self.display_developer_message(e)
-                        self.display_command_output(e)
                     case events.UserMessageEvent() as e:
                         if is_sub_agent:
                             continue
@@ -504,11 +505,9 @@ class TUICommandRenderer:
         with self.session_print_context(e.session_id):
             self.print(c_developer.render_developer_message(e))
 
-    def display_command_output(self, e: events.DeveloperMessageEvent) -> None:
-        if not c_developer.get_command_output(e.item):
-            return
+    def display_command_output(self, e: events.CommandOutputEvent) -> None:
         with self.session_print_context(e.session_id):
-            self.print(c_developer.render_command_output(e))
+            self.print(c_command_output.render_command_output(e))
             self.print()
 
     def display_welcome(self, event: events.WelcomeEvent) -> None:
@@ -627,6 +626,7 @@ class TUICommandRenderer:
                     self.display_task_start(event)
                 case RenderDeveloperMessage(event=event):
                     self.display_developer_message(event)
+                case RenderCommandOutput(event=event):
                     self.display_command_output(event)
                 case RenderTurnStart(event=event):
                     self.display_turn_start(event)

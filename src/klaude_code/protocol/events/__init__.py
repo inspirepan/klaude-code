@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 from klaude_code.protocol.events.base import Event, ResponseEvent
-from klaude_code.protocol.events.chat import DeveloperMessageEvent, TodoChangeEvent, UserMessageEvent
+from klaude_code.protocol.events.chat import (
+    CommandOutputEvent,
+    DeveloperMessageEvent,
+    TodoChangeEvent,
+    UserMessageEvent,
+)
 from klaude_code.protocol.events.lifecycle import TaskFinishEvent, TaskStartEvent, TurnEndEvent, TurnStartEvent
 from klaude_code.protocol.events.metadata import TaskMetadataEvent, UsageEvent
 from klaude_code.protocol.events.streaming import (
@@ -30,6 +35,7 @@ __all__ = [
     "AssistantTextDeltaEvent",
     "AssistantTextEndEvent",
     "AssistantTextStartEvent",
+    "CommandOutputEvent",
     "DeveloperMessageEvent",
     "EndEvent",
     "ErrorEvent",

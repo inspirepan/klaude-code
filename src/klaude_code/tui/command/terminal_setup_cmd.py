@@ -2,7 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from klaude_code.protocol import commands, events, message, model
+from klaude_code.protocol import commands, events, message
 
 from .command_abc import Agent, CommandABC, CommandResult
 
@@ -226,12 +226,10 @@ class TerminalSetupCommand(CommandABC):
         """Create success result"""
         return CommandResult(
             events=[
-                events.DeveloperMessageEvent(
+                events.CommandOutputEvent(
                     session_id=agent.session.id,
-                    item=message.DeveloperMessage(
-                        parts=message.text_parts_from_str(msg),
-                        ui_extra=model.build_command_output_extra(self.name),
-                    ),
+                    command_name=self.name,
+                    content=msg,
                 )
             ]
         )
@@ -240,12 +238,11 @@ class TerminalSetupCommand(CommandABC):
         """Create error result"""
         return CommandResult(
             events=[
-                events.DeveloperMessageEvent(
+                events.CommandOutputEvent(
                     session_id=agent.session.id,
-                    item=message.DeveloperMessage(
-                        parts=message.text_parts_from_str(msg),
-                        ui_extra=model.build_command_output_extra(self.name, is_error=True),
-                    ),
+                    command_name=self.name,
+                    content=msg,
+                    is_error=True,
                 )
             ]
         )

@@ -1,6 +1,6 @@
 import asyncio
 
-from klaude_code.protocol import commands, events, message, model, op
+from klaude_code.protocol import commands, events, message, op
 
 from .command_abc import Agent, CommandABC, CommandResult
 from .model_picker import ModelSelectStatus, select_model_interactive
@@ -37,12 +37,10 @@ class ModelCommand(CommandABC):
         if selected_model is None or selected_model == current_model:
             return CommandResult(
                 events=[
-                    events.DeveloperMessageEvent(
+                    events.CommandOutputEvent(
                         session_id=agent.session.id,
-                        item=message.DeveloperMessage(
-                            parts=message.text_parts_from_str("(no change)"),
-                            ui_extra=model.build_command_output_extra(self.name),
-                        ),
+                        command_name=self.name,
+                        content="(no change)",
                     )
                 ]
             )

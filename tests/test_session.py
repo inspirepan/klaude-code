@@ -854,8 +854,8 @@ class TestForkSessionCommand:
 
             assert result.events is not None
             assert len(result.events) == 1
-            assert isinstance(result.events[0], events.DeveloperMessageEvent)
-            assert message.join_text_parts(result.events[0].item.parts) == "(no messages to fork)"
+            assert isinstance(result.events[0], events.CommandOutputEvent)
+            assert result.events[0].content == "(no messages to fork)"
             assert Session.list_sessions() == []
             await close_default_store()
 
@@ -889,17 +889,11 @@ class TestForkSessionCommand:
 
             assert result.events is not None
             assert len(result.events) == 1
-            assert isinstance(result.events[0], events.DeveloperMessageEvent)
-            content = message.join_text_parts(result.events[0].item.parts)
-            assert "Session forked" in content
+            assert isinstance(result.events[0], events.CommandOutputEvent)
+            assert "Session forked" in result.events[0].content
 
-            ui_extra = result.events[0].item.ui_extra
-            assert ui_extra is not None
-            command_output_items = [item for item in ui_extra.items if isinstance(item, model.CommandOutputUIItem)]
-            assert len(command_output_items) == 1
-            command_output = command_output_items[0].output
-            assert isinstance(command_output.ui_extra, model.SessionIdUIExtra)
-            new_id = command_output.ui_extra.session_id
+            assert isinstance(result.events[0].ui_extra, model.SessionIdUIExtra)
+            new_id = result.events[0].ui_extra.session_id
             assert new_id
             assert new_id != session.id
 

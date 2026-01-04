@@ -1,5 +1,5 @@
 from klaude_code.log import DebugType, get_current_log_file, is_debug_enabled, set_debug_logging
-from klaude_code.protocol import commands, events, message, model
+from klaude_code.protocol import commands, events, message
 
 from .command_abc import Agent, CommandABC, CommandResult
 
@@ -52,7 +52,7 @@ class DebugCommand(CommandABC):
         # /debug (no args) - enable debug
         if not raw:
             set_debug_logging(True, write_to_file=True)
-            return self._message_result(agent, _format_status())
+            return self._command_output(agent, _format_status())
 
         # /debug <filters> - enable with filters
         try:
@@ -60,21 +60,22 @@ class DebugCommand(CommandABC):
             if filters:
                 set_debug_logging(True, write_to_file=True, filters=filters)
                 filter_names = ", ".join(sorted(dt.value for dt in filters))
-                return self._message_result(agent, f"Filters: {filter_names}\n{_format_status()}")
+                return self._command_output(agent, f"Filters: {filter_names}\n{_format_status()}")
         except ValueError:
             pass
 
-        return self._message_result(agent, f"Invalid filter: {raw}\nValid: {', '.join(dt.value for dt in DebugType)}")
+        return self._command_output(
+            agent, f"Invalid filter: {raw}\nValid: {', '.join(dt.value for dt in DebugType)}", is_error=True
+        )
 
-    def _message_result(self, agent: "Agent", content: str) -> CommandResult:
+    def _command_output(self, agent: "Agent", content: str, *, is_error: bool = False) -> CommandResult:
         return CommandResult(
             events=[
-                events.DeveloperMessageEvent(
+                events.CommandOutputEvent(
                     session_id=agent.session.id,
-                    item=message.DeveloperMessage(
-                        parts=message.text_parts_from_str(content),
-                        ui_extra=model.build_command_output_extra(self.name),
-                    ),
+                    command_name=self.name,
+                    content=content,
+                    is_error=is_error,
                 )
             ]
         )

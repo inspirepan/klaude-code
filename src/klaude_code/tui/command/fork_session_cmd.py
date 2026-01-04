@@ -204,12 +204,11 @@ class ForkSessionCommand(CommandABC):
         del user_input  # unused
 
         if agent.session.messages_count == 0:
-            event = events.DeveloperMessageEvent(
+            event = events.CommandOutputEvent(
                 session_id=agent.session.id,
-                item=message.DeveloperMessage(
-                    parts=message.text_parts_from_str("(no messages to fork)"),
-                    ui_extra=model.build_command_output_extra(self.name),
-                ),
+                command_name=self.name,
+                content="(no messages to fork)",
+                is_error=True,
             )
             return CommandResult(events=[event])
 
@@ -224,15 +223,11 @@ class ForkSessionCommand(CommandABC):
             resume_cmd = f"klaude --resume-by-id {new_session.id}"
             copy_to_clipboard(resume_cmd)
 
-            event = events.DeveloperMessageEvent(
+            event = events.CommandOutputEvent(
                 session_id=agent.session.id,
-                item=message.DeveloperMessage(
-                    parts=message.text_parts_from_str(f"Session forked successfully. New session id: {new_session.id}"),
-                    ui_extra=model.build_command_output_extra(
-                        self.name,
-                        ui_extra=model.SessionIdUIExtra(session_id=new_session.id),
-                    ),
-                ),
+                command_name=self.name,
+                content=f"Session forked successfully. New session id: {new_session.id}",
+                ui_extra=model.SessionIdUIExtra(session_id=new_session.id),
             )
             return CommandResult(events=[event])
 
@@ -240,12 +235,10 @@ class ForkSessionCommand(CommandABC):
         selected = await asyncio.to_thread(_select_fork_point_sync, fork_points)
 
         if selected == "cancelled":
-            event = events.DeveloperMessageEvent(
+            event = events.CommandOutputEvent(
                 session_id=agent.session.id,
-                item=message.DeveloperMessage(
-                    parts=message.text_parts_from_str("(fork cancelled)"),
-                    ui_extra=model.build_command_output_extra(self.name),
-                ),
+                command_name=self.name,
+                content="(fork cancelled)",
             )
             return CommandResult(events=[event])
 
@@ -259,16 +252,10 @@ class ForkSessionCommand(CommandABC):
         resume_cmd = f"klaude --resume-by-id {new_session.id}"
         copy_to_clipboard(resume_cmd)
 
-        event = events.DeveloperMessageEvent(
+        event = events.CommandOutputEvent(
             session_id=agent.session.id,
-            item=message.DeveloperMessage(
-                parts=message.text_parts_from_str(
-                    f"Session forked ({fork_description}). New session id: {new_session.id}"
-                ),
-                ui_extra=model.build_command_output_extra(
-                    self.name,
-                    ui_extra=model.SessionIdUIExtra(session_id=new_session.id),
-                ),
-            ),
+            command_name=self.name,
+            content=f"Session forked ({fork_description}). New session id: {new_session.id}",
+            ui_extra=model.SessionIdUIExtra(session_id=new_session.id),
         )
         return CommandResult(events=[event])

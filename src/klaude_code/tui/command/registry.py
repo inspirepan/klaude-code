@@ -2,7 +2,7 @@ from importlib.resources import files
 from typing import TYPE_CHECKING
 
 from klaude_code.log import log_debug
-from klaude_code.protocol import commands, events, message, model, op
+from klaude_code.protocol import commands, events, message, op
 
 from .command_abc import Agent, CommandResult
 from .prompt_command import PromptCommand
@@ -179,30 +179,24 @@ async def dispatch_command(user_input: message.UserInputPayload, agent: Agent, *
             result.operations = ops
         return result
     except Exception as e:
-        command_output = (
-            model.CommandOutput(command_name=command_identifier, is_error=True)
-            if isinstance(command_identifier, commands.CommandName)
-            else None
-        )
-        ui_extra = (
-            model.build_command_output_extra(
-                command_output.command_name,
-                ui_extra=command_output.ui_extra,
-                is_error=command_output.is_error,
+        error_content = f"Command {command_identifier} error: [{e.__class__.__name__}] {e!s}"
+        if isinstance(command_identifier, commands.CommandName):
+            return CommandResult(
+                events=[
+                    events.CommandOutputEvent(
+                        session_id=agent.session.id,
+                        command_name=command_identifier,
+                        content=error_content,
+                        is_error=True,
+                    )
+                ]
             )
-            if command_output is not None
-            else None
-        )
         return CommandResult(
             events=[
-                events.DeveloperMessageEvent(
+                events.ErrorEvent(
                     session_id=agent.session.id,
-                    item=message.DeveloperMessage(
-                        parts=message.text_parts_from_str(
-                            f"Command {command_identifier} error: [{e.__class__.__name__}] {e!s}"
-                        ),
-                        ui_extra=ui_extra,
-                    ),
+                    error_message=error_content,
+                    can_retry=False,
                 )
             ]
         )

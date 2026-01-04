@@ -3,7 +3,7 @@ import asyncio
 from prompt_toolkit.styles import Style
 
 from klaude_code.config.thinking import get_thinking_picker_data, parse_thinking_value
-from klaude_code.protocol import commands, events, llm_param, message, model, op
+from klaude_code.protocol import commands, events, llm_param, message, op
 from klaude_code.tui.terminal.selector import SelectItem, select_one
 
 from .command_abc import Agent, CommandABC, CommandResult
@@ -79,12 +79,10 @@ class ThinkingCommand(CommandABC):
         if new_thinking is None:
             return CommandResult(
                 events=[
-                    events.DeveloperMessageEvent(
+                    events.CommandOutputEvent(
                         session_id=agent.session.id,
-                        item=message.DeveloperMessage(
-                            parts=message.text_parts_from_str("(no change)"),
-                            ui_extra=model.build_command_output_extra(self.name),
-                        ),
+                        command_name=self.name,
+                        content="(no change)",
                     )
                 ]
             )

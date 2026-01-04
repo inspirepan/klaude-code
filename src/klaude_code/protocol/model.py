@@ -5,7 +5,6 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field, computed_field
 
 from klaude_code.const import DEFAULT_MAX_TOKENS
-from klaude_code.protocol.commands import CommandName
 from klaude_code.protocol.tools import SubAgentType
 
 RoleType = Literal["system", "developer", "user", "assistant", "tool"]
@@ -272,12 +271,6 @@ ToolResultUIExtra = Annotated[
 ]
 
 
-class CommandOutput(BaseModel):
-    command_name: CommandName
-    ui_extra: ToolResultUIExtra | None = None
-    is_error: bool = False
-
-
 class MemoryFileLoaded(BaseModel):
     path: str
     mentioned_patterns: list[str] = Field(default_factory=list)
@@ -319,11 +312,6 @@ class SkillActivatedUIItem(BaseModel):
     name: str
 
 
-class CommandOutputUIItem(BaseModel):
-    type: Literal["command_output"] = "command_output"
-    output: CommandOutput
-
-
 type DeveloperUIItem = (
     MemoryLoadedUIItem
     | ExternalFileChangesUIItem
@@ -331,7 +319,6 @@ type DeveloperUIItem = (
     | AtFileOpsUIItem
     | UserImagesUIItem
     | SkillActivatedUIItem
-    | CommandOutputUIItem
 )
 
 
@@ -341,19 +328,6 @@ def _empty_developer_ui_items() -> list[DeveloperUIItem]:
 
 class DeveloperUIExtra(BaseModel):
     items: list[DeveloperUIItem] = Field(default_factory=_empty_developer_ui_items)
-
-
-def build_command_output_extra(
-    command_name: CommandName,
-    *,
-    ui_extra: ToolResultUIExtra | None = None,
-    is_error: bool = False,
-) -> DeveloperUIExtra:
-    return DeveloperUIExtra(
-        items=[
-            CommandOutputUIItem(output=CommandOutput(command_name=command_name, ui_extra=ui_extra, is_error=is_error))
-        ]
-    )
 
 
 class SubAgentState(BaseModel):

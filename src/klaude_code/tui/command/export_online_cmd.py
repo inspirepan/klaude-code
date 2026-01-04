@@ -9,7 +9,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.text import Text
 
-from klaude_code.protocol import commands, events, message, model
+from klaude_code.protocol import commands, events, message
 from klaude_code.session.export import build_export_html
 
 from .command_abc import Agent, CommandABC, CommandResult
@@ -39,54 +39,49 @@ class ExportOnlineCommand(CommandABC):
         # Check if npx or surge is available
         surge_cmd = self._get_surge_command()
         if not surge_cmd:
-            event = events.DeveloperMessageEvent(
+            event = events.CommandOutputEvent(
                 session_id=agent.session.id,
-                item=message.DeveloperMessage(
-                    parts=message.text_parts_from_str("surge.sh CLI not found. Install with: npm install -g surge"),
-                    ui_extra=model.build_command_output_extra(self.name, is_error=True),
-                ),
+                command_name=self.name,
+                content="surge.sh CLI not found. Install with: npm install -g surge",
+                is_error=True,
             )
             return CommandResult(events=[event])
 
         try:
             console = Console()
             # Check login status inside status context since npx surge whoami can be slow
-            with console.status(Text("Checking surge.sh login status…", style="dim"), spinner_style="dim"):
+            with console.status(Text("Checking surge.sh login status...", style="dim"), spinner_style="dim"):
                 logged_in = self._is_surge_logged_in(surge_cmd)
 
             if not logged_in:
                 login_cmd = " ".join([*surge_cmd, "login"])
-                event = events.DeveloperMessageEvent(
+                event = events.CommandOutputEvent(
                     session_id=agent.session.id,
-                    item=message.DeveloperMessage(
-                        parts=message.text_parts_from_str(f"Not logged in to surge.sh. Please run: {login_cmd}"),
-                        ui_extra=model.build_command_output_extra(self.name, is_error=True),
-                    ),
+                    command_name=self.name,
+                    content=f"Not logged in to surge.sh. Please run: {login_cmd}",
+                    is_error=True,
                 )
                 return CommandResult(events=[event])
 
-            with console.status(Text("Deploying to surge.sh…", style="dim"), spinner_style="dim"):
+            with console.status(Text("Deploying to surge.sh...", style="dim"), spinner_style="dim"):
                 html_doc = self._build_html(agent)
                 domain = self._generate_domain()
                 url = self._deploy_to_surge(surge_cmd, html_doc, domain)
 
-            event = events.DeveloperMessageEvent(
+            event = events.CommandOutputEvent(
                 session_id=agent.session.id,
-                item=message.DeveloperMessage(
-                    parts=message.text_parts_from_str(f"Session deployed to: {url}"),
-                    ui_extra=model.build_command_output_extra(self.name),
-                ),
+                command_name=self.name,
+                content=f"Session deployed to: {url}",
             )
             return CommandResult(events=[event])
         except Exception as exc:
             import traceback
 
-            event = events.DeveloperMessageEvent(
+            event = events.CommandOutputEvent(
                 session_id=agent.session.id,
-                item=message.DeveloperMessage(
-                    parts=message.text_parts_from_str(f"Failed to deploy session: {exc}\n{traceback.format_exc()}"),
-                    ui_extra=model.build_command_output_extra(self.name, is_error=True),
-                ),
+                command_name=self.name,
+                content=f"Failed to deploy session: {exc}\n{traceback.format_exc()}",
+                is_error=True,
             )
             return CommandResult(events=[event])
 

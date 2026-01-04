@@ -138,18 +138,14 @@ class StatusCommand(CommandABC):
         session = agent.session
         aggregated = accumulate_session_usage(session)
 
-        event = events.DeveloperMessageEvent(
+        event = events.CommandOutputEvent(
             session_id=session.id,
-            item=message.DeveloperMessage(
-                parts=message.text_parts_from_str(format_status_content(aggregated)),
-                ui_extra=model.build_command_output_extra(
-                    self.name,
-                    ui_extra=model.SessionStatusUIExtra(
-                        usage=aggregated.total,
-                        task_count=aggregated.task_count,
-                        by_model=aggregated.by_model,
-                    ),
-                ),
+            command_name=self.name,
+            content=format_status_content(aggregated),
+            ui_extra=model.SessionStatusUIExtra(
+                usage=aggregated.total,
+                task_count=aggregated.task_count,
+                by_model=aggregated.by_model,
             ),
         )
 

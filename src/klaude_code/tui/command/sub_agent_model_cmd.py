@@ -8,7 +8,7 @@ from prompt_toolkit.styles import Style
 
 from klaude_code.config.config import load_config
 from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper, SubAgentModelInfo
-from klaude_code.protocol import commands, events, message, model, op
+from klaude_code.protocol import commands, events, message, op
 from klaude_code.tui.terminal.selector import SelectItem, build_model_select_items, select_one
 
 from .command_abc import Agent, CommandABC, CommandResult
@@ -136,12 +136,11 @@ class SubAgentModelCommand(CommandABC):
         if not sub_agents:
             return CommandResult(
                 events=[
-                    events.DeveloperMessageEvent(
+                    events.CommandOutputEvent(
                         session_id=agent.session.id,
-                        item=message.DeveloperMessage(
-                            parts=message.text_parts_from_str("No sub-agents available"),
-                            ui_extra=model.build_command_output_extra(self.name),
-                        ),
+                        command_name=self.name,
+                        content="No sub-agents available",
+                        is_error=True,
                     )
                 ]
             )
@@ -150,12 +149,10 @@ class SubAgentModelCommand(CommandABC):
         if selected_sub_agent is None:
             return CommandResult(
                 events=[
-                    events.DeveloperMessageEvent(
+                    events.CommandOutputEvent(
                         session_id=agent.session.id,
-                        item=message.DeveloperMessage(
-                            parts=message.text_parts_from_str("(cancelled)"),
-                            ui_extra=model.build_command_output_extra(self.name),
-                        ),
+                        command_name=self.name,
+                        content="(cancelled)",
                     )
                 ]
             )
@@ -166,12 +163,10 @@ class SubAgentModelCommand(CommandABC):
         if selected_model is None:
             return CommandResult(
                 events=[
-                    events.DeveloperMessageEvent(
+                    events.CommandOutputEvent(
                         session_id=agent.session.id,
-                        item=message.DeveloperMessage(
-                            parts=message.text_parts_from_str("(cancelled)"),
-                            ui_extra=model.build_command_output_extra(self.name),
-                        ),
+                        command_name=self.name,
+                        content="(cancelled)",
                     )
                 ]
             )

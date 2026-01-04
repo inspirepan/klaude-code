@@ -3,7 +3,7 @@ import asyncio
 from prompt_toolkit.styles import Style
 
 from klaude_code.log import log
-from klaude_code.protocol import commands, events, message, model, op
+from klaude_code.protocol import commands, events, message, op
 from klaude_code.session.selector import build_session_select_options, format_user_messages_display
 from klaude_code.tui.terminal.selector import SelectItem, select_one
 
@@ -87,25 +87,20 @@ class ResumeCommand(CommandABC):
         del user_input  # unused
 
         if agent.session.messages_count > 0:
-            event = events.DeveloperMessageEvent(
+            event = events.CommandOutputEvent(
                 session_id=agent.session.id,
-                item=message.DeveloperMessage(
-                    parts=message.text_parts_from_str(
-                        "Cannot resume: current session already has messages. Use `klaude -r` to start a new instance with session selection."
-                    ),
-                    ui_extra=model.build_command_output_extra(self.name, is_error=True),
-                ),
+                command_name=self.name,
+                content="Cannot resume: current session already has messages. Use `klaude -r` to start a new instance with session selection.",
+                is_error=True,
             )
             return CommandResult(events=[event])
 
         selected_session_id = await asyncio.to_thread(select_session_sync)
         if selected_session_id is None:
-            event = events.DeveloperMessageEvent(
+            event = events.CommandOutputEvent(
                 session_id=agent.session.id,
-                item=message.DeveloperMessage(
-                    parts=message.text_parts_from_str("(no session selected)"),
-                    ui_extra=model.build_command_output_extra(self.name),
-                ),
+                command_name=self.name,
+                content="(no session selected)",
             )
             return CommandResult(events=[event])
 

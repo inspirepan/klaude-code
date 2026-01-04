@@ -37,7 +37,12 @@ class CommandResult(BaseModel):
     """Result of a command execution."""
 
     events: (
-        list[protocol_events.DeveloperMessageEvent | protocol_events.WelcomeEvent | protocol_events.ReplayHistoryEvent]
+        list[
+            protocol_events.CommandOutputEvent
+            | protocol_events.ErrorEvent
+            | protocol_events.WelcomeEvent
+            | protocol_events.ReplayHistoryEvent
+        ]
         | None
     ) = None  # List of UI events to display immediately
     operations: list[op.Operation] | None = None

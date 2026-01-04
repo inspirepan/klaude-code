@@ -190,11 +190,13 @@ class AgentRuntime:
         new_session.model_thinking = agent.session.model_thinking
         agent.session = new_session
 
-        developer_item = message.DeveloperMessage(
-            parts=message.text_parts_from_str("started new conversation"),
-            ui_extra=model.build_command_output_extra(commands.CommandName.CLEAR),
+        await self._emit_event(
+            events.CommandOutputEvent(
+                session_id=agent.session.id,
+                command_name=commands.CommandName.CLEAR,
+                content="started new conversation",
+            )
         )
-        await self._emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
         await self._emit_event(
             events.WelcomeEvent(
                 session_id=agent.session.id,
@@ -449,12 +451,13 @@ class ExecutorContext:
 
         if operation.emit_switch_message:
             default_note = " (saved as default)" if operation.save_as_default else ""
-            developer_item = message.DeveloperMessage(
-                parts=message.text_parts_from_str(f"Switched to: {llm_config.model_id}{default_note}"),
-                ui_extra=model.build_command_output_extra(commands.CommandName.MODEL),
+            await self.emit_event(
+                events.CommandOutputEvent(
+                    session_id=agent.session.id,
+                    command_name=commands.CommandName.MODEL,
+                    content=f"Switched to: {llm_config.model_id}{default_note}",
+                )
             )
-            agent.session.append_history([developer_item])
-            await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
 
         if self._on_model_change is not None:
             self._on_model_change(llm_client_name)
@@ -499,12 +502,13 @@ class ExecutorContext:
         new_status = _format_thinking_for_display(operation.thinking)
 
         if operation.emit_switch_message:
-            developer_item = message.DeveloperMessage(
-                parts=message.text_parts_from_str(f"Thinking changed: {current} -> {new_status}"),
-                ui_extra=model.build_command_output_extra(commands.CommandName.THINKING),
+            await self.emit_event(
+                events.CommandOutputEvent(
+                    session_id=agent.session.id,
+                    command_name=commands.CommandName.THINKING,
+                    content=f"Thinking changed: {current} -> {new_status}",
+                )
             )
-            agent.session.append_history([developer_item])
-            await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
 
         if operation.emit_welcome_event:
             await self.emit_event(
@@ -561,12 +565,13 @@ class ExecutorContext:
             await config.save()
 
         saved_note = " (saved in ~/.klaude/klaude-config.yaml)" if operation.save_as_default else ""
-        developer_item = message.DeveloperMessage(
-            parts=message.text_parts_from_str(f"{sub_agent_type} model: {display_model}{saved_note}"),
-            ui_extra=model.build_command_output_extra(commands.CommandName.SUB_AGENT_MODEL),
+        await self.emit_event(
+            events.CommandOutputEvent(
+                session_id=agent.session.id,
+                command_name=commands.CommandName.SUB_AGENT_MODEL,
+                content=f"{sub_agent_type} model: {display_model}{saved_note}",
+            )
         )
-        agent.session.append_history([developer_item])
-        await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
 
     async def handle_clear_session(self, operation: op.ClearSessionOperation) -> None:
         await self._agent_runtime.clear_session(operation.session_id)
@@ -582,21 +587,24 @@ class ExecutorContext:
             await asyncio.to_thread(output_path.parent.mkdir, parents=True, exist_ok=True)
             await asyncio.to_thread(output_path.write_text, html_doc, "utf-8")
             await asyncio.to_thread(self._open_file, output_path)
-            developer_item = message.DeveloperMessage(
-                parts=message.text_parts_from_str(f"Session exported and opened: {output_path}"),
-                ui_extra=model.build_command_output_extra(commands.CommandName.EXPORT),
+            await self.emit_event(
+                events.CommandOutputEvent(
+                    session_id=agent.session.id,
+                    command_name=commands.CommandName.EXPORT,
+                    content=f"Session exported and opened: {output_path}",
+                )
             )
-            agent.session.append_history([developer_item])
-            await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
         except Exception as exc:  # pragma: no cover
             import traceback
 
-            developer_item = message.DeveloperMessage(
-                parts=message.text_parts_from_str(f"Failed to export session: {exc}\n{traceback.format_exc()}"),
-                ui_extra=model.build_command_output_extra(commands.CommandName.EXPORT, is_error=True),
+            await self.emit_event(
+                events.CommandOutputEvent(
+                    session_id=agent.session.id,
+                    command_name=commands.CommandName.EXPORT,
+                    content=f"Failed to export session: {exc}\n{traceback.format_exc()}",
+                    is_error=True,
+                )
             )
-            agent.session.append_history([developer_item])
-            await self.emit_event(events.DeveloperMessageEvent(session_id=agent.session.id, item=developer_item))
 
     def _resolve_export_output_path(self, raw: str | None, session: Session) -> Path:
         trimmed = (raw or "").strip()
@@ -690,11 +698,14 @@ class Executor:
             Unique submission ID for tracking
         """
 
+        if operation.id in self._completion_events:
+            raise RuntimeError(f"Submission already registered: {operation.id}")
+
+        # Create completion event before queueing to avoid races.
+        self._completion_events[operation.id] = asyncio.Event()
+
         submission = op.Submission(id=operation.id, operation=operation)
         await self.submission_queue.put(submission)
-
-        # Create completion event for tracking
-        self._completion_events[operation.id] = asyncio.Event()
 
         log_debug(
             f"Submitted operation {operation.type} with ID {operation.id}",
@@ -775,8 +786,15 @@ class Executor:
         if tasks_to_await:
             await asyncio.gather(*tasks_to_await, return_exceptions=True)
 
+        if self._background_tasks:
+            await asyncio.gather(*self._background_tasks, return_exceptions=True)
+            self._background_tasks.clear()
+
         # Clear the active task manager
         self.context.task_manager.clear()
+
+        for event in self._completion_events.values():
+            event.set()
 
         # Send EndOperation to wake up the start() loop
         try:

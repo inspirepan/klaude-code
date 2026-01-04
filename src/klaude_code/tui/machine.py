@@ -21,6 +21,7 @@ from klaude_code.tui.commands import (
     PrintRuleLine,
     RenderAssistantImage,
     RenderCommand,
+    RenderCommandOutput,
     RenderDeveloperMessage,
     RenderError,
     RenderInterrupt,
@@ -363,6 +364,10 @@ class DisplayStateMachine:
 
             case events.DeveloperMessageEvent() as e:
                 cmds.append(RenderDeveloperMessage(e))
+                return cmds
+
+            case events.CommandOutputEvent() as e:
+                cmds.append(RenderCommandOutput(e))
                 return cmds
 
             case events.TurnStartEvent() as e:

@@ -1,4 +1,4 @@
-from klaude_code.protocol import commands, events, message, model
+from klaude_code.protocol import commands, events, message
 from klaude_code.tui.input.clipboard import copy_to_clipboard
 
 from .command_abc import Agent, CommandABC, CommandResult
@@ -20,10 +20,10 @@ class CopyCommand(CommandABC):
 
         last = _get_last_assistant_text(agent.session.conversation_history)
         if not last:
-            return _developer_message(agent, "(no assistant message to copy)", self.name)
+            return _command_output(agent, "(no assistant message to copy)", self.name, is_error=True)
 
         copy_to_clipboard(last)
-        return _developer_message(agent, "Copied last assistant message to clipboard.", self.name)
+        return _command_output(agent, "Copied last assistant message to clipboard.", self.name)
 
 
 def _get_last_assistant_text(history: list[message.HistoryEvent]) -> str:
@@ -37,15 +37,16 @@ def _get_last_assistant_text(history: list[message.HistoryEvent]) -> str:
     return ""
 
 
-def _developer_message(agent: Agent, content: str, command_name: commands.CommandName) -> CommandResult:
+def _command_output(
+    agent: Agent, content: str, command_name: commands.CommandName, *, is_error: bool = False
+) -> CommandResult:
     return CommandResult(
         events=[
-            events.DeveloperMessageEvent(
+            events.CommandOutputEvent(
                 session_id=agent.session.id,
-                item=message.DeveloperMessage(
-                    parts=message.text_parts_from_str(content),
-                    ui_extra=model.build_command_output_extra(command_name),
-                ),
+                command_name=command_name,
+                content=content,
+                is_error=is_error,
             )
         ],
     )

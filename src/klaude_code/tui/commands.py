@@ -39,6 +39,11 @@ class RenderDeveloperMessage(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class RenderCommandOutput(RenderCommand):
+    event: events.CommandOutputEvent
+
+
+@dataclass(frozen=True, slots=True)
 class RenderTurnStart(RenderCommand):
     event: events.TurnStartEvent
 
