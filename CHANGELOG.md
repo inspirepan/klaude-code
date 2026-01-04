@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-01-04
+
+### Added
+
+- add --banana (`fe1d0641`)
+- remove exec mode (`52c43636`)
+
+### Changed
+
+- unify command persistence flag (`5bd04d60`)
+- update command style (`9f2b84bc`)
+- extract and reuse format_model_params function (`8647a39d`)
+- simplify command safety checks to only rm and trash (`55a9113b`)
+
+### Other
+
+- update README.md (`9c516995`)
+- add commit skill (`7b760989`)
 ## [2.1.1] - 2026-01-04
 
 ### Added
@@ -1130,7 +1148,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.1.1...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/inspirepan/klaude-code/compare/v2.1.1...v2.2.0
 [2.1.1]: https://github.com/inspirepan/klaude-code/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/inspirepan/klaude-code/compare/v2.0.2...v2.1.0
 [2.0.2]: https://github.com/inspirepan/klaude-code/compare/v2.0.1...v2.0.2
