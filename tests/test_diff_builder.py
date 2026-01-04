@@ -29,6 +29,17 @@ def test_char_level_spans_for_replacement():
     assert "there" in inserted
 
 
+def test_replace_blocks_are_grouped_remove_then_add() -> None:
+    before = "a\nb\nc\n"
+    after = "x\ny\nz\n"
+
+    diff = build_structured_diff(before, after, file_path="test.txt")
+    kinds = [line.kind for line in diff.files[0].lines]
+
+    assert kinds == ["remove", "remove", "remove", "add", "add", "add"]
+    assert [line.new_line_no for line in diff.files[0].lines if line.kind == "add"] == [1, 2, 3]
+
+
 # ============================================================================
 # Property-based tests for diff_builder
 # ============================================================================

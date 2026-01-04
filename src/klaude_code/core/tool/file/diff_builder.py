@@ -54,24 +54,31 @@ def _build_file_diff(before: str, after: str, *, file_path: str) -> model.DiffFi
             elif tag == "replace":
                 old_block = before_lines[i1:i2]
                 new_block = after_lines[j1:j2]
-                max_len = max(len(old_block), len(new_block))
-                for idx in range(max_len):
-                    old_line = old_block[idx] if idx < len(old_block) else None
-                    new_line = new_block[idx] if idx < len(new_block) else None
-                    if old_line is not None and new_line is not None:
-                        remove_spans, add_spans = _diff_line_spans(old_line, new_line)
-                        lines.append(_remove_line(remove_spans))
-                        lines.append(_add_line(add_spans, new_line_no))
-                        stats_remove += 1
-                        stats_add += 1
-                        new_line_no += 1
-                    elif old_line is not None:
-                        lines.append(_remove_line([model.DiffSpan(op="equal", text=old_line)]))
-                        stats_remove += 1
-                    elif new_line is not None:
-                        lines.append(_add_line([model.DiffSpan(op="equal", text=new_line)], new_line_no))
-                        stats_add += 1
-                        new_line_no += 1
+
+                # Emit replacement blocks in unified-diff style: all removals first, then all additions.
+                # This matches VSCode's readability (--- then +++), while keeping per-line char spans.
+                remove_block: list[list[model.DiffSpan]] = []
+                add_block: list[list[model.DiffSpan]] = []
+
+                paired_len = min(len(old_block), len(new_block))
+                for idx in range(paired_len):
+                    remove_spans, add_spans = _diff_line_spans(old_block[idx], new_block[idx])
+                    remove_block.append(remove_spans)
+                    add_block.append(add_spans)
+
+                for old_line in old_block[paired_len:]:
+                    remove_block.append([model.DiffSpan(op="equal", text=old_line)])
+                for new_line in new_block[paired_len:]:
+                    add_block.append([model.DiffSpan(op="equal", text=new_line)])
+
+                for spans in remove_block:
+                    lines.append(_remove_line(spans))
+                    stats_remove += 1
+
+                for spans in add_block:
+                    lines.append(_add_line(spans, new_line_no))
+                    stats_add += 1
+                    new_line_no += 1
 
     return model.DiffFileDiff(
         file_path=file_path,
