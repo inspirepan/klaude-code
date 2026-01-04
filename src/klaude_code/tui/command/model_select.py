@@ -88,9 +88,9 @@ def select_model_interactive(
         initial_value = config.main_model
         if isinstance(initial_value, str) and initial_value and "@" not in initial_value:
             try:
-                resolved = config.resolve_model_location_prefer_available(initial_value) or config.resolve_model_location(
+                resolved = config.resolve_model_location_prefer_available(
                     initial_value
-                )
+                ) or config.resolve_model_location(initial_value)
             except ValueError:
                 resolved = None
             if resolved is not None:
@@ -131,9 +131,9 @@ def select_model_interactive(
             return ModelSelectResult(status=ModelSelectStatus.SELECTED, model=config.main_model)
         if config.main_model and "@" not in config.main_model:
             try:
-                resolved = config.resolve_model_location_prefer_available(config.main_model) or config.resolve_model_location(
+                resolved = config.resolve_model_location_prefer_available(
                     config.main_model
-                )
+                ) or config.resolve_model_location(config.main_model)
             except ValueError:
                 resolved = None
             if resolved is not None:

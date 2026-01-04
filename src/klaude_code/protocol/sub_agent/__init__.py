@@ -102,9 +102,7 @@ def is_sub_agent_tool(tool_name: str) -> bool:
 
 def sub_agent_tool_names(enabled_only: bool = False) -> list[str]:
     return [
-        profile.name
-        for profile in iter_sub_agent_profiles(enabled_only=enabled_only)
-        if profile.show_in_main_agent
+        profile.name for profile in iter_sub_agent_profiles(enabled_only=enabled_only) if profile.show_in_main_agent
     ]
 
 

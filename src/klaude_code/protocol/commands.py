@@ -15,7 +15,6 @@ class CommandInfo:
 class CommandName(str, Enum):
     INIT = "init"
     DEBUG = "debug"
-    HELP = "help"
     MODEL = "model"
     SUB_AGENT_MODEL = "sub-agent-model"
     COMPACT = "compact"
@@ -25,7 +24,6 @@ class CommandName(str, Enum):
     EXPORT = "export"
     EXPORT_ONLINE = "export-online"
     STATUS = "status"
-    RELEASE_NOTES = "release-notes"
     THINKING = "thinking"
     FORK_SESSION = "fork-session"
     RESUME = "resume"

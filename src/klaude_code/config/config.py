@@ -552,7 +552,9 @@ def create_example_config() -> bool:
     header += "# Copy this file to klaude-config.yaml and modify as needed.\n"
     header += "# Run `klaude list` to see available models.\n"
     header += "# Tip: you can pick a provider explicitly with `model@provider` (e.g. `sonnet@openrouter`).\n"
-    header += "# If you omit `@provider` (e.g. `sonnet`), klaude picks the first configured provider with credentials.\n"
+    header += (
+        "# If you omit `@provider` (e.g. `sonnet`), klaude picks the first configured provider with credentials.\n"
+    )
     header += "#\n"
     header += "# Built-in providers (anthropic, openai, openrouter, deepseek) are available automatically.\n"
     header += "# Just set the corresponding API key environment variable to use them.\n\n"

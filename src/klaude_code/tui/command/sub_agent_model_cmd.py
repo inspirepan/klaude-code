@@ -121,7 +121,7 @@ class SubAgentModelCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "Configure sub-agent models"
+        return "Change sub-agent models"
 
     @property
     def is_interactive(self) -> bool:
@@ -146,9 +146,7 @@ class SubAgentModelCommand(CommandABC):
                 ]
             )
 
-        selected_sub_agent = await asyncio.to_thread(
-            _select_sub_agent_sync, sub_agents, helper, main_model_name
-        )
+        selected_sub_agent = await asyncio.to_thread(_select_sub_agent_sync, sub_agents, helper, main_model_name)
         if selected_sub_agent is None:
             return CommandResult(
                 events=[

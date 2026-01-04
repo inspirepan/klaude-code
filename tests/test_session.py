@@ -728,7 +728,9 @@ class TestSessionPersistence:
 
         arun(_test())
 
-    def test_replay_sub_agent_task_finish_includes_agent_id_footer(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    def test_replay_sub_agent_task_finish_includes_agent_id_footer(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
         monkeypatch.chdir(project_dir)

@@ -470,7 +470,9 @@ class PromptToolkitInput(InputProviderABC):
             initial = config.main_model
         if isinstance(initial, str) and initial and "@" not in initial:
             try:
-                resolved = config.resolve_model_location_prefer_available(initial) or config.resolve_model_location(initial)
+                resolved = config.resolve_model_location_prefer_available(initial) or config.resolve_model_location(
+                    initial
+                )
             except ValueError:
                 resolved = None
             if resolved is not None:
@@ -615,6 +617,10 @@ class PromptToolkitInput(InputProviderABC):
                 (symbol_style, " ctrl-t "),
                 (text_style, " "),
                 (text_style, "think"),
+                (text_style, "  "),
+                (symbol_style, " ctrl-v "),
+                (text_style, " "),
+                (text_style, "paste image"),
             ]
         )
 

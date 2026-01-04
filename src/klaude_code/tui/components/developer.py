@@ -5,7 +5,6 @@ from rich.text import Text
 
 from klaude_code.protocol import commands, events, message, model
 from klaude_code.tui.components.common import create_grid, truncate_middle
-from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools import render_path
 
@@ -142,12 +141,8 @@ def render_command_output(e: events.DeveloperMessageEvent) -> RenderableType:
 
     content = message.join_text_parts(e.item.parts)
     match command_output.command_name:
-        case commands.CommandName.HELP:
-            return Padding.indent(Text.from_markup(content or "", style=ThemeKey.TOOL_RESULT), level=2)
         case commands.CommandName.STATUS:
             return _render_status_output(command_output)
-        case commands.CommandName.RELEASE_NOTES:
-            return Padding.indent(NoInsetMarkdown(content or ""), level=2)
         case commands.CommandName.FORK_SESSION:
             return _render_fork_session_output(command_output)
         case _:

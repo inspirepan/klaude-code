@@ -35,10 +35,8 @@ def ensure_commands_loaded() -> None:
     from .export_cmd import ExportCommand
     from .export_online_cmd import ExportOnlineCommand
     from .fork_session_cmd import ForkSessionCommand
-    from .help_cmd import HelpCommand
     from .model_cmd import ModelCommand
     from .refresh_cmd import RefreshTerminalCommand
-    from .release_notes_cmd import ReleaseNotesCommand
     from .resume_cmd import ResumeCommand
     from .status_cmd import StatusCommand
     from .sub_agent_model_cmd import SubAgentModelCommand
@@ -56,8 +54,6 @@ def ensure_commands_loaded() -> None:
     load_prompt_commands()
     register(StatusCommand())
     register(ResumeCommand())
-    register(HelpCommand())
-    register(ReleaseNotesCommand())
     register(ExportOnlineCommand())
     register(TerminalSetupCommand())
     register(DebugCommand())
@@ -75,10 +71,8 @@ def __getattr__(name: str) -> object:
         "ExportCommand": "export_cmd",
         "ExportOnlineCommand": "export_online_cmd",
         "ForkSessionCommand": "fork_session_cmd",
-        "HelpCommand": "help_cmd",
         "ModelCommand": "model_cmd",
         "RefreshTerminalCommand": "refresh_cmd",
-        "ReleaseNotesCommand": "release_notes_cmd",
         "ResumeCommand": "resume_cmd",
         "StatusCommand": "status_cmd",
         "SubAgentModelCommand": "sub_agent_model_cmd",
