@@ -59,6 +59,7 @@ async def initialize_app_components(
         llm_clients = build_llm_clients(
             config,
             model_override=init_config.model,
+            skip_sub_agents=init_config.vanilla or init_config.banana,
         )
     except ValueError as exc:
         if init_config.model:

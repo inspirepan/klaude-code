@@ -61,6 +61,7 @@ from klaude_code.tui.components import sub_agent as c_sub_agent
 from klaude_code.tui.components import thinking as c_thinking
 from klaude_code.tui.components import tools as c_tools
 from klaude_code.tui.components import user_input as c_user_input
+from klaude_code.tui.components import welcome as c_welcome
 from klaude_code.tui.components.common import truncate_head, truncate_middle
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.live import CropAboveLive, SingleLine
@@ -511,7 +512,7 @@ class TUICommandRenderer:
             self.print()
 
     def display_welcome(self, event: events.WelcomeEvent) -> None:
-        self.print(c_metadata.render_welcome(event))
+        self.print(c_welcome.render_welcome(event))
 
     def display_user_message(self, event: events.UserMessageEvent) -> None:
         self.print(c_user_input.render_user_input(event.content))

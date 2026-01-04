@@ -109,6 +109,15 @@ class AgentRuntime:
     def current_agent(self) -> Agent | None:
         return self._agent
 
+    def _get_sub_agent_models(self) -> dict[str, LLMConfigParameter]:
+        """Build a dict of sub-agent type to LLMConfigParameter."""
+        enabled = self._model_profile_provider.enabled_sub_agent_types(self._llm_clients.main.model_name)
+        return {
+            sub_agent_type: client.get_llm_config()
+            for sub_agent_type, client in self._llm_clients.sub_clients.items()
+            if sub_agent_type in enabled
+        }
+
     async def ensure_agent(self, session_id: str | None = None) -> Agent:
         """Return the active agent, creating or loading a session as needed."""
 
@@ -135,6 +144,7 @@ class AgentRuntime:
                 session_id=session.id,
                 work_dir=str(session.work_dir),
                 llm_config=self._llm_clients.main.get_llm_config(),
+                sub_agent_models=self._get_sub_agent_models(),
             )
         )
 
@@ -200,6 +210,7 @@ class AgentRuntime:
                 session_id=agent.session.id,
                 work_dir=str(agent.session.work_dir),
                 llm_config=self._llm_clients.main.get_llm_config(),
+                sub_agent_models=self._get_sub_agent_models(),
             )
         )
 
@@ -223,6 +234,7 @@ class AgentRuntime:
                 session_id=target_session.id,
                 work_dir=str(target_session.work_dir),
                 llm_config=self._llm_clients.main.get_llm_config(),
+                sub_agent_models=self._get_sub_agent_models(),
             )
         )
 
@@ -406,6 +418,15 @@ class ExecutorContext:
         """Emit an event to the UI display system."""
         await self.event_queue.put(event)
 
+    def _get_sub_agent_models(self) -> dict[str, LLMConfigParameter]:
+        """Build a dict of sub-agent type to LLMConfigParameter."""
+        enabled = self.model_profile_provider.enabled_sub_agent_types(self.llm_clients.main.model_name)
+        return {
+            sub_agent_type: client.get_llm_config()
+            for sub_agent_type, client in self.llm_clients.sub_clients.items()
+            if sub_agent_type in enabled
+        }
+
     def current_session_id(self) -> str | None:
         """Return the primary active session id, if any.
 
@@ -455,6 +476,7 @@ class ExecutorContext:
                     llm_config=llm_config,
                     work_dir=str(agent.session.work_dir),
                     show_klaude_code_info=False,
+                    show_sub_agent_models=False,
                 )
             )
 
@@ -501,6 +523,7 @@ class ExecutorContext:
                     work_dir=str(agent.session.work_dir),
                     llm_config=agent.profile.llm_client.get_llm_config(),
                     show_klaude_code_info=False,
+                    show_sub_agent_models=False,
                 )
             )
 

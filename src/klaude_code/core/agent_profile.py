@@ -285,6 +285,10 @@ class ModelProfileProvider(Protocol):
         output_schema: dict[str, Any] | None = None,
     ) -> AgentProfile: ...
 
+    def enabled_sub_agent_types(self, model_name: str) -> set[tools.SubAgentType]:
+        """Return set of sub-agent types enabled for this provider and model."""
+        ...
+
 
 class DefaultModelProfileProvider(ModelProfileProvider):
     """Default provider backed by global prompts/tool/reminder registries."""
@@ -310,6 +314,14 @@ class DefaultModelProfileProvider(ModelProfileProvider):
             return with_structured_output(profile, output_schema)
         return profile
 
+    def enabled_sub_agent_types(self, model_name: str) -> set[tools.SubAgentType]:
+        enabled: set[tools.SubAgentType] = set()
+        for name in sub_agent_tool_names(enabled_only=True, model_name=model_name):
+            profile = get_sub_agent_profile_by_tool(name)
+            if profile is not None and _check_availability_requirement(profile.availability_requirement, self._config):
+                enabled.add(profile.name)
+        return enabled
+
 
 class VanillaModelProfileProvider(ModelProfileProvider):
     """Provider that strips prompts, reminders, and tools for vanilla mode."""
@@ -331,6 +343,10 @@ class VanillaModelProfileProvider(ModelProfileProvider):
         if output_schema:
             return with_structured_output(profile, output_schema)
         return profile
+
+    def enabled_sub_agent_types(self, model_name: str) -> set[tools.SubAgentType]:
+        del model_name
+        return set()
 
 
 class NanoBananaModelProfileProvider(ModelProfileProvider):
@@ -356,3 +372,7 @@ class NanoBananaModelProfileProvider(ModelProfileProvider):
         if output_schema:
             return with_structured_output(profile, output_schema)
         return profile
+
+    def enabled_sub_agent_types(self, model_name: str) -> set[tools.SubAgentType]:
+        del model_name
+        return set()

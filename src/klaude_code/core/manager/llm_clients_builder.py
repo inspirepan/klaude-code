@@ -30,8 +30,15 @@ def build_llm_clients(
     config: Config,
     *,
     model_override: str | None = None,
+    skip_sub_agents: bool = False,
 ) -> LLMClients:
-    """Create an ``LLMClients`` bundle driven by application config."""
+    """Create an ``LLMClients`` bundle driven by application config.
+
+    Args:
+        config: Application configuration.
+        model_override: Override for the main model name.
+        skip_sub_agents: If True, skip initializing sub-agent clients (e.g., for vanilla/banana modes).
+    """
 
     # Resolve main agent LLM config
     model_name = model_override or config.main_model
@@ -47,6 +54,10 @@ def build_llm_clients(
     )
 
     main_client = create_llm_client(llm_config)
+
+    if skip_sub_agents:
+        return LLMClients(main=main_client)
+
     sub_clients: dict[SubAgentType, LLMClientABC] = {}
 
     for profile in iter_sub_agent_profiles():

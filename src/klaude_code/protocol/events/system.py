@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pydantic import Field
+
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.events.chat import DeveloperMessageEvent, UserMessageEvent
 from klaude_code.protocol.events.lifecycle import TaskFinishEvent, TaskStartEvent, TurnStartEvent
@@ -14,6 +16,8 @@ class WelcomeEvent(Event):
     work_dir: str
     llm_config: llm_param.LLMConfigParameter
     show_klaude_code_info: bool = True
+    show_sub_agent_models: bool = True
+    sub_agent_models: dict[str, llm_param.LLMConfigParameter] = Field(default_factory=dict)
 
 
 class ErrorEvent(Event):
