@@ -728,6 +728,30 @@ class TestSessionPersistence:
 
         arun(_test())
 
+    def test_replay_sub_agent_task_finish_includes_agent_id_footer(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            sub_session = Session.create(id="sub-session", work_dir=project_dir)
+            sub_session.sub_agent_state = model.SubAgentState(
+                sub_agent_type="Task",
+                sub_agent_desc="sub",
+                sub_agent_prompt="do something",
+            )
+            sub_session.append_history([message.AssistantMessage(parts=message.text_parts_from_str("done"))])
+            await sub_session.wait_for_flush()
+
+            reloaded = Session.load(sub_session.id)
+            events_list = list(reloaded.get_history_item())
+            finish_events = [e for e in events_list if isinstance(e, events.TaskFinishEvent)]
+            assert len(finish_events) == 1
+            assert f"agentId: {sub_session.id}" in finish_events[0].task_result
+            await close_default_store()
+
+        arun(_test())
+
 
 class TestSessionListAndClean:
     """Tests for Session.list_sessions and clean methods."""

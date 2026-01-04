@@ -370,6 +370,14 @@ class Session(BaseModel):
 
         has_structured_output = report_back_result is not None
         task_result = report_back_result if has_structured_output else last_assistant_content
+
+        if self.sub_agent_state is not None:
+            trimmed = (task_result or "").rstrip()
+            lines = trimmed.splitlines()
+            if not (lines and lines[-1].startswith("agentId:")):
+                footer = f"agentId: {self.id} (for resuming to continue this agent's work if needed)"
+                task_result = f"{trimmed}\n\n{footer}" if trimmed.strip() else footer
+
         yield events.TaskFinishEvent(
             session_id=self.id, task_result=task_result, has_structured_output=has_structured_output
         )

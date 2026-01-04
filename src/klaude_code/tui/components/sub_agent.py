@@ -3,7 +3,7 @@ from typing import Any, cast
 
 from rich.console import Group, RenderableType
 from rich.json import JSON
-from rich.style import Style, StyleType
+from rich.style import Style
 from rich.text import Text
 
 from klaude_code.const import SUB_AGENT_RESULT_MAX_LINES
@@ -79,65 +79,44 @@ def _extract_agent_id_footer(text: str) -> tuple[str, str | None]:
 def render_sub_agent_result(
     result: str,
     *,
-    code_theme: str,
-    style: StyleType | None = None,
     has_structured_output: bool = False,
     description: str | None = None,
 ) -> RenderableType:
     stripped_result = result.strip()
-
-    # Extract agentId footer for separate styling
     main_content, agent_id_footer = _extract_agent_id_footer(stripped_result)
     stripped_result = main_content.strip()
 
-    # Use rich JSON for structured output
+    elements: list[RenderableType] = []
+    if description:
+        elements.append(Text(f"---\n{description}", style=ThemeKey.TOOL_RESULT))
+
+    # Try structured JSON output first
+    use_text_rendering = True
     if has_structured_output:
         try:
-            group_elements: list[RenderableType] = [
-                Text(
-                    "use /export to view full output",
-                    style=ThemeKey.TOOL_RESULT,
-                ),
-                JSON(stripped_result),
-            ]
-            if description:
-                group_elements.insert(0, Text(f"\n{description}", style=style or ""))
-            if agent_id_footer:
-                group_elements.append(Text(agent_id_footer, style=ThemeKey.SUB_AGENT_FOOTER))
-            return Group(*group_elements)
+            elements.append(Text("use /export to view full output", style=ThemeKey.TOOL_RESULT_TRUNCATED))
+            elements.append(JSON(stripped_result))
+            use_text_rendering = False
         except json.JSONDecodeError:
-            # Fall back to markdown if not valid JSON
             pass
 
-    if not stripped_result:
-        return Text()
+    # Text rendering (either fallback or non-structured)
+    if use_text_rendering:
+        if not stripped_result:
+            return Text()
 
-    lines = stripped_result.splitlines()
-    if len(lines) > SUB_AGENT_RESULT_MAX_LINES:
-        hidden_count = len(lines) - SUB_AGENT_RESULT_MAX_LINES
-        tail_text = "\n".join(lines[-SUB_AGENT_RESULT_MAX_LINES:])
-        truncated_elements: list[RenderableType] = []
-        # Add description heading separately so it won't be truncated
-        if description:
-            truncated_elements.append(Text(f"---\n{description}", style=style or ""))
-        truncated_elements.append(
-            Text(
-                f"( … more {hidden_count} lines)",
-                style=ThemeKey.TOOL_RESULT_TRUNCATED,
-            )
-        )
-        truncated_elements.append(Text(tail_text, style=style or ""))
-        if agent_id_footer:
-            truncated_elements.append(Text(agent_id_footer, style=ThemeKey.SUB_AGENT_FOOTER))
-        return Group(*truncated_elements)
+        lines = stripped_result.splitlines()
+        if len(lines) > SUB_AGENT_RESULT_MAX_LINES:
+            hidden_count = len(lines) - SUB_AGENT_RESULT_MAX_LINES
+            elements.append(Text(f"( ... more {hidden_count} lines)", style=ThemeKey.TOOL_RESULT_TRUNCATED))
+            elements.append(Text("\n".join(lines[-SUB_AGENT_RESULT_MAX_LINES:]), style=ThemeKey.TOOL_RESULT))
+        else:
+            elements.append(Text(stripped_result, style=ThemeKey.TOOL_RESULT))
 
-    # No truncation needed - add description heading if provided
-    if description:
-        stripped_result = f"\n# {description}\n\n{stripped_result}"
-    normal_elements: list[RenderableType] = [Text(stripped_result)]
     if agent_id_footer:
-        normal_elements.append(Text(agent_id_footer, style=ThemeKey.SUB_AGENT_FOOTER))
-    return Group(*normal_elements)
+        elements.append(Text(agent_id_footer, style=ThemeKey.SUB_AGENT_FOOTER))
+
+    return Group(*elements)
 
 
 def build_sub_agent_state_from_tool_call(e: events.ToolCallEvent) -> model.SubAgentState | None:

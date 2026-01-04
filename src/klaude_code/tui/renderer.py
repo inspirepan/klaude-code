@@ -567,10 +567,8 @@ class TUICommandRenderer:
                 self.print(
                     c_sub_agent.render_sub_agent_result(
                         event.task_result,
-                        code_theme=self.themes.code_theme,
                         has_structured_output=event.has_structured_output,
                         description=description,
-                        style=ThemeKey.TOOL_RESULT,
                     )
                 )
 

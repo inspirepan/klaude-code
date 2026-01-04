@@ -106,7 +106,7 @@ def truncate_head(
     text = text.expandtabs(TAB_EXPAND_WIDTH)
     lines = [line for line in text.split("\n") if line.strip()]
 
-    out = Text()
+    out = Text(overflow="fold")
     if base_style is not None:
         out.style = base_style
 

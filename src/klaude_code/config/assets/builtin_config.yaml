@@ -187,10 +187,10 @@ provider_list:
         input: 0.5
         output: 3.0
         cache_read: 0.05
-  - model_name: nano-banana-pro@or
+  - model_name: nano-banana-pro@openrouter
     model_params:
       model: google/gemini-3-pro-image-preview
-      context_limit: 1048576
+      context_limit: 66000
       modalities:
       - image
       - text
@@ -199,6 +199,18 @@ provider_list:
         output: 12
         cache_read: 0.2
         image: 120
+  - model_name: nano-banana@openrouter
+    model_params:
+      model: google/gemini-2.5-flash-image
+      context_limit: 33000
+      modalities:
+      - image
+      - text
+      cost:
+        input: 0.3
+        output: 2.5
+        cache_read: 0.03
+        image: 30
   - model_name: grok
     model_params:
       model: x-ai/grok-4.1-fast
@@ -253,7 +265,7 @@ provider_list:
   - model_name: nano-banana-pro@google
     model_params:
       model: gemini-3-pro-image-preview
-      context_limit: 1048576
+      context_limit: 66000
       modalities:
       - image
       - text
@@ -364,6 +376,3 @@ provider_list:
         input: 1.75
         output: 14.0
         cache_read: 0.17
-
-sub_agent_models:
-  ImageGen: nano-banana-pro@or
