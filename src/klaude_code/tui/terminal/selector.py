@@ -53,20 +53,20 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
 
     items: list[SelectItem[str]] = []
     for idx, m in enumerate(models, 1):
-        model_id = m.model_params.model or "N/A"
+        model_id_str = m.model_id or "N/A"
         # Display the base model name only; provider stays in the meta section.
         display_name = m.model_name
         first_line_prefix = f"{display_name:<{max_model_name_length}} → "
         meta_parts: list[str] = [m.provider]
-        meta_parts.extend(format_model_params(m.model_params))
+        meta_parts.extend(format_model_params(m))
         meta_str = " · ".join(meta_parts)
         title = [
             ("class:meta", f"{idx:>{num_width}}. "),
             ("class:msg", first_line_prefix),
-            ("class:msg bold", model_id),
+            ("class:msg bold", model_id_str),
             ("class:meta", f"  {meta_str}\n"),
         ]
-        search_text = f"{m.selector} {m.model_name} {model_id} {m.provider}"
+        search_text = f"{m.selector} {m.model_name} {model_id_str} {m.provider}"
         items.append(SelectItem(title=title, value=m.selector, search_text=search_text))
 
     return items

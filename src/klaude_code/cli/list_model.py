@@ -181,7 +181,7 @@ def format_env_var_display(value: str | None) -> Text:
 
 def _get_model_params_display(model: ModelConfig) -> list[Text]:
     """Get display elements for model parameters."""
-    param_strings = format_model_params(model.model_params)
+    param_strings = format_model_params(model)
     if param_strings:
         return [Text(s) for s in param_strings]
     return [Text("")]
@@ -286,7 +286,7 @@ def _build_models_table(
 
         if not provider_available:
             name = Text.assemble((prefix, ThemeKey.LINES), (model.model_name, "dim"))
-            model_id = Text(model.model_params.model or "", style="dim")
+            model_id = Text(model.model_id or "", style="dim")
             params = Text("(unavailable)", style="dim")
         else:
             # Build role tags for this model
@@ -305,7 +305,7 @@ def _build_models_table(
                 )
             else:
                 name = Text.assemble((prefix, ThemeKey.LINES), (model.model_name, ThemeKey.CONFIG_ITEM_NAME))
-            model_id = Text(model.model_params.model or "")
+            model_id = Text(model.model_id or "")
             params = Text(" · ").join(_get_model_params_display(model))
 
         models_table.add_row(name, model_id, params)

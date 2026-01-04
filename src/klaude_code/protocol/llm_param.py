@@ -119,7 +119,7 @@ class LLMConfigProviderParameter(BaseModel):
 
 
 class LLMConfigModelParameter(BaseModel):
-    model: str | None = None
+    model_id: str | None = None
     temperature: float | None = None
     max_tokens: int | None = None
     context_limit: int | None = None

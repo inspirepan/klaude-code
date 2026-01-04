@@ -179,7 +179,7 @@ async def parse_chat_completions_stream(
     """
 
     state = StreamStateManager(
-        param_model=str(param.model),
+        param_model=str(param.model_id),
         reasoning_flusher=reasoning_handler.flush,
     )
 

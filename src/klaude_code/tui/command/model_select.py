@@ -35,7 +35,7 @@ def select_model_interactive(
     This function combines matching logic with interactive UI selection.
     For CLI usage.
 
-    If keywords is provided, preferred is ignored and the model list is pre-filtered by model_params.model.
+    If keywords is provided, preferred is ignored and the model list is pre-filtered by model_id.
 
     If preferred is provided:
     - Exact match: return immediately
@@ -56,7 +56,7 @@ def select_model_interactive(
         filtered_models = [
             m
             for m in result.filtered_models
-            if any(kw in (m.model_params.model or "").lower() for kw in keywords_lower)
+            if any(kw in (m.model_id or "").lower() for kw in keywords_lower)
         ]
         if not filtered_models:
             return ModelSelectResult(status=ModelSelectStatus.NO_MATCH)

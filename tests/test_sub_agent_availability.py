@@ -50,10 +50,7 @@ class TestImageModelAvailability:
             model_list=[
                 ModelConfig(
                     model_name="image-model",
-                    model_params=llm_param.LLMConfigModelParameter(
-                        model="test-image-model",
-                        modalities=["image", "text"],
-                    ),
+                    model_id="test-image-model", modalities=["image", "text"],
                 ),
             ],
         )
@@ -70,10 +67,7 @@ class TestImageModelAvailability:
             model_list=[
                 ModelConfig(
                     model_name="text-model",
-                    model_params=llm_param.LLMConfigModelParameter(
-                        model="gpt-4",
-                        # No modalities or text-only
-                    ),
+                    model_id="gpt-4",
                 ),
             ],
         )
@@ -90,10 +84,7 @@ class TestImageModelAvailability:
             model_list=[
                 ModelConfig(
                     model_name="image-model",
-                    model_params=llm_param.LLMConfigModelParameter(
-                        model="test-image-model",
-                        modalities=["image", "text"],
-                    ),
+                    model_id="test-image-model", modalities=["image", "text"],
                 ),
             ],
         )
@@ -110,14 +101,11 @@ class TestImageModelAvailability:
             model_list=[
                 ModelConfig(
                     model_name="text-model",
-                    model_params=llm_param.LLMConfigModelParameter(model="gpt-4"),
+                    model_id="gpt-4",
                 ),
                 ModelConfig(
                     model_name="nano-banana-pro",
-                    model_params=llm_param.LLMConfigModelParameter(
-                        model="image-gen-model",
-                        modalities=["image", "text"],
-                    ),
+                    model_id="image-gen-model", modalities=["image", "text"],
                 ),
             ],
         )
@@ -134,7 +122,7 @@ class TestImageModelAvailability:
             model_list=[
                 ModelConfig(
                     model_name="text-model",
-                    model_params=llm_param.LLMConfigModelParameter(model="gpt-4"),
+                    model_id="gpt-4",
                 ),
             ],
         )
@@ -218,10 +206,7 @@ class TestCheckAvailabilityRequirement:
             model_list=[
                 ModelConfig(
                     model_name="image-model",
-                    model_params=llm_param.LLMConfigModelParameter(
-                        model="img",
-                        modalities=["image", "text"],
-                    ),
+                    model_id="img", modalities=["image", "text"],
                 ),
             ],
         )
@@ -238,7 +223,7 @@ class TestCheckAvailabilityRequirement:
             model_list=[
                 ModelConfig(
                     model_name="text-model",
-                    model_params=llm_param.LLMConfigModelParameter(model="gpt-4"),
+                    model_id="gpt-4",
                 ),
             ],
         )
@@ -264,10 +249,7 @@ class TestLoadAgentToolsWithAvailability:
             model_list=[
                 ModelConfig(
                     model_name="image-model",
-                    model_params=llm_param.LLMConfigModelParameter(
-                        model="img",
-                        modalities=["image", "text"],
-                    ),
+                    model_id="img", modalities=["image", "text"],
                 ),
             ],
         )
@@ -287,7 +269,7 @@ class TestLoadAgentToolsWithAvailability:
             model_list=[
                 ModelConfig(
                     model_name="text-model",
-                    model_params=llm_param.LLMConfigModelParameter(model="gpt-4"),
+                    model_id="gpt-4",
                 ),
             ],
         )
@@ -307,7 +289,7 @@ class TestLoadAgentToolsWithAvailability:
             model_list=[
                 ModelConfig(
                     model_name="text-model",
-                    model_params=llm_param.LLMConfigModelParameter(model="gpt-4"),
+                    model_id="gpt-4",
                 ),
             ],
         )
@@ -349,14 +331,11 @@ class TestEmptyModelConfigBehavior:
             model_list=[
                 ModelConfig(
                     model_name="text-model",
-                    model_params=llm_param.LLMConfigModelParameter(model="gpt-4"),
+                    model_id="gpt-4",
                 ),
                 ModelConfig(
                     model_name="nano-banana-pro",
-                    model_params=llm_param.LLMConfigModelParameter(
-                        model="image-gen-model",
-                        modalities=["image", "text"],
-                    ),
+                    model_id="image-gen-model", modalities=["image", "text"],
                 ),
             ],
         )
@@ -382,10 +361,7 @@ class TestSubAgentModelInfo:
             model_list=[
                 ModelConfig(
                     model_name="nano-banana-pro",
-                    model_params=llm_param.LLMConfigModelParameter(
-                        model="image-gen-model",
-                        modalities=["image", "text"],
-                    ),
+                    model_id="image-gen-model", modalities=["image", "text"],
                 ),
             ],
         )

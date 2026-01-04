@@ -19,7 +19,7 @@ from klaude_code.protocol import llm_param, message
 
 def build_payload(param: llm_param.LLMCallParameter) -> tuple[CompletionCreateParamsStreaming, dict[str, object]]:
     """Build OpenAI API request parameters."""
-    messages = convert_history_to_input(param.input, param.system, param.model)
+    messages = convert_history_to_input(param.input, param.system, param.model_id)
     tools = convert_tool_schema(param.tools)
 
     extra_body: dict[str, object] = {}
@@ -31,7 +31,7 @@ def build_payload(param: llm_param.LLMCallParameter) -> tuple[CompletionCreatePa
         }
 
     payload: CompletionCreateParamsStreaming = {
-        "model": str(param.model),
+        "model": str(param.model_id),
         "tool_choice": "auto",
         "parallel_tool_calls": True,
         "stream": True,
@@ -108,7 +108,7 @@ class OpenAICompatibleClient(LLMClientABC):
             return
 
         reasoning_handler = DefaultReasoningHandler(
-            param_model=str(param.model),
+            param_model=str(param.model_id),
             response_id=None,
         )
 

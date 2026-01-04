@@ -58,9 +58,10 @@ config_path = Path.home() / ".klaude" / "klaude-config.yaml"
 example_config_path = Path.home() / ".klaude" / "klaude-config.example.yaml"
 
 
-class ModelConfig(BaseModel):
+class ModelConfig(llm_param.LLMConfigModelParameter):
+    """Model configuration that flattens LLMConfigModelParameter fields."""
+
     model_name: str
-    model_params: llm_param.LLMConfigModelParameter
 
 
 class ProviderConfig(llm_param.LLMConfigProviderParameter):
@@ -135,10 +136,11 @@ class UserProviderConfig(BaseModel):
     model_list: list[ModelConfig] = Field(default_factory=lambda: [])
 
 
-class ModelEntry(BaseModel):
+class ModelEntry(llm_param.LLMConfigModelParameter):
+    """Model entry with provider info, flattens LLMConfigModelParameter fields."""
+
     model_name: str
     provider: str
-    model_params: llm_param.LLMConfigModelParameter
 
     @property
     def selector(self) -> str:
@@ -325,7 +327,7 @@ class Config(BaseModel):
                 provider_dump["api_key"] = api_key
                 return llm_param.LLMConfigParameter(
                     **provider_dump,
-                    **model.model_params.model_dump(),
+                    **model.model_dump(exclude={"model_name"}),
                 )
 
         raise ValueError(f"Unknown model: {model_name}")
@@ -340,7 +342,7 @@ class Config(BaseModel):
             ModelEntry(
                 model_name=model.model_name,
                 provider=provider.provider_name,
-                model_params=model.model_params,
+                **model.model_dump(exclude={"model_name"}),
             )
             for provider in self.provider_list
             if not only_available or not provider.is_api_key_missing()
@@ -350,7 +352,7 @@ class Config(BaseModel):
     def has_available_image_model(self) -> bool:
         """Check if any image generation model is available."""
         for entry in self.iter_model_entries(only_available=True):
-            if entry.model_params.modalities and "image" in entry.model_params.modalities:
+            if entry.modalities and "image" in entry.modalities:
                 return True
         return False
 
@@ -364,7 +366,7 @@ class Config(BaseModel):
     def get_first_available_image_model(self) -> str | None:
         """Get the first available image generation model, or None."""
         for entry in self.iter_model_entries(only_available=True):
-            if entry.model_params.modalities and "image" in entry.model_params.modalities:
+            if entry.modalities and "image" in entry.modalities:
                 return entry.model_name
         return None
 
@@ -409,15 +411,13 @@ def get_example_config() -> UserConfig:
                 model_list=[
                     ModelConfig(
                         model_name="my-model",
-                        model_params=llm_param.LLMConfigModelParameter(
-                            model="model-id-from-provider",
-                            max_tokens=16000,
-                            context_limit=200000,
-                            cost=llm_param.Cost(
-                                input=1,
-                                output=10,
-                                cache_read=0.1,
-                            ),
+                        model_id="model-id-from-provider",
+                        max_tokens=16000,
+                        context_limit=200000,
+                        cost=llm_param.Cost(
+                            input=1,
+                            output=10,
+                            cache_read=0.1,
                         ),
                     ),
                 ],

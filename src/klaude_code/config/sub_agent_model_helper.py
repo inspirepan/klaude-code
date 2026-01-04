@@ -183,7 +183,7 @@ class SubAgentModelHelper:
         all_models = self._config.iter_model_entries(only_available=True)
 
         if profile.availability_requirement == AVAILABILITY_IMAGE_MODEL:
-            return [m for m in all_models if m.model_params.modalities and "image" in m.model_params.modalities]
+            return [m for m in all_models if m.modalities and "image" in m.modalities]
 
         return all_models
 

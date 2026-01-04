@@ -104,7 +104,7 @@ def format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
         return "not set"
 
     if protocol == llm_param.LLMClientProtocol.OPENROUTER:
-        if is_openrouter_model_with_reasoning_effort(config.model):
+        if is_openrouter_model_with_reasoning_effort(config.model_id):
             if thinking.reasoning_effort:
                 return f"reasoning_effort={thinking.reasoning_effort}"
         else:
@@ -198,7 +198,7 @@ def get_thinking_picker_data(config: llm_param.LLMConfigParameter) -> ThinkingPi
         ThinkingPickerData with options and current value, or None if protocol doesn't support thinking.
     """
     protocol = config.protocol
-    model_name = config.model
+    model_name = config.model_id
     thinking = config.thinking
 
     if protocol in (llm_param.LLMClientProtocol.RESPONSES, llm_param.LLMClientProtocol.CODEX_OAUTH):

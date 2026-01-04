@@ -193,7 +193,7 @@ def main_callback(
                     matches = [
                         m.selector
                         for m in cfg.iter_model_entries()
-                        if (m.model_params.model or "").strip().lower() == raw_model.lower()
+                        if (m.model_id or "").strip().lower() == raw_model.lower()
                     ]
                     if len(matches) == 1:
                         chosen_model = matches[0]

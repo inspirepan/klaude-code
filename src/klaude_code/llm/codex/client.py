@@ -31,13 +31,13 @@ from klaude_code.protocol import llm_param, message
 
 def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsStreaming:
     """Build Codex API request parameters."""
-    inputs = convert_history_to_input(param.input, param.model)
+    inputs = convert_history_to_input(param.input, param.model_id)
     tools = convert_tool_schema(param.tools)
 
     session_id = param.session_id or ""
 
     payload: ResponseCreateParamsStreaming = {
-        "model": str(param.model),
+        "model": str(param.model_id),
         "tool_choice": "auto",
         "parallel_tool_calls": True,
         "include": [

@@ -61,17 +61,17 @@ class TestModelConfig:
     def test_model_config_creation(self) -> None:
         """Test basic ModelConfig creation."""
         model_params = llm_param.LLMConfigModelParameter(
-            model="gpt-4",
+            model_id="gpt-4",
             max_tokens=8192,
         )
         config = ModelConfig(
             model_name="test-model",
-            model_params=model_params,
+            **model_params.model_dump(),
         )
 
         assert config.model_name == "test-model"
-        assert config.model_params.model == "gpt-4"
-        assert config.model_params.max_tokens == 8192
+        assert config.model_id == "gpt-4"
+        assert config.max_tokens == 8192
 
     def test_model_config_with_thinking(self) -> None:
         """Test ModelConfig with thinking parameters."""
@@ -81,19 +81,19 @@ class TestModelConfig:
             type="enabled",
         )
         model_params = llm_param.LLMConfigModelParameter(
-            model="gpt-5",
+            model_id="gpt-5",
             max_tokens=32000,
             thinking=thinking,
         )
         config = ModelConfig(
             model_name="gpt-5-high",
-            model_params=model_params,
+            **model_params.model_dump(),
         )
 
-        assert config.model_params.thinking is not None
-        assert config.model_params.thinking.reasoning_effort == "high"
-        assert config.model_params.thinking.reasoning_summary == "auto"
-        assert config.model_params.thinking.type == "enabled"
+        assert config.thinking is not None
+        assert config.thinking.reasoning_effort == "high"
+        assert config.thinking.reasoning_summary == "auto"
+        assert config.thinking.type == "enabled"
 
 
 # =============================================================================
@@ -120,10 +120,8 @@ class TestConfig:
         """Create a sample model config for testing."""
         return ModelConfig(
             model_name="test-model",
-            model_params=llm_param.LLMConfigModelParameter(
-                model="test-model-v1",
-                max_tokens=4096,
-            ),
+            model_id="test-model-v1",
+            max_tokens=4096,
         )
 
     @pytest.fixture
@@ -155,7 +153,7 @@ class TestConfig:
         """Test getting model config by name."""
         llm_config = sample_config.get_model_config("test-model")
 
-        assert llm_config.model == "test-model-v1"
+        assert llm_config.model_id == "test-model-v1"
         assert llm_config.max_tokens == 4096
         assert llm_config.provider_name == "test-provider"
         assert llm_config.protocol == llm_param.LLMClientProtocol.OPENAI
@@ -170,7 +168,7 @@ class TestConfig:
             model_list=[
                 ModelConfig(
                     model_name="gpt-5.2-codex",
-                    model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-codex"),
+                    model_id="gpt-5.2-codex",
                 )
             ],
         )
@@ -189,7 +187,7 @@ class TestConfig:
             model_list=[
                 ModelConfig(
                     model_name="sonnet",
-                    model_params=llm_param.LLMConfigModelParameter(model="claude-sonnet-4-5-20250929"),
+                    model_id="claude-sonnet-4-5-20250929",
                 )
             ],
         )
@@ -273,7 +271,7 @@ class TestConfigSave:
         )
         model = ModelConfig(
             model_name="builtin-model",
-            model_params=llm_param.LLMConfigModelParameter(model="gpt-4"),
+            model_id="gpt-4",
         )
         provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
 
@@ -304,7 +302,7 @@ class TestConfigSave:
             model_list=[
                 ModelConfig(
                     model_name="my-model",
-                    model_params=llm_param.LLMConfigModelParameter(model="custom-model"),
+                    model_id="custom-model",
                 )
             ],
         )
@@ -321,7 +319,7 @@ class TestConfigSave:
             model_list=[
                 ModelConfig(
                     model_name="my-model",
-                    model_params=llm_param.LLMConfigModelParameter(model="custom-model"),
+                    model_id="custom-model",
                 )
             ],
         )
@@ -421,7 +419,7 @@ class TestLoadConfig:
                     "model_list": [
                         {
                             "model_name": "my-model",
-                            "model_params": {"model": "gpt-4"},
+                            "model_id": "gpt-4",
                         }
                     ],
                 }
@@ -488,7 +486,7 @@ class TestLoadConfig:
                     "model_list": [
                         {
                             "model_name": "after-create",
-                            "model_params": {"model": "gpt-4"},
+                            "model_id": "gpt-4",
                         }
                     ],
                 }
@@ -586,14 +584,12 @@ class TestLLMConfigParameterIntegration:
         )
         model = ModelConfig(
             model_name="advanced-model",
-            model_params=llm_param.LLMConfigModelParameter(
-                model="gpt-5.1-2025",
-                temperature=0.7,
-                max_tokens=32000,
-                context_limit=368000,
-                verbosity="medium",
-                thinking=thinking,
-            ),
+            model_id="gpt-5.1-2025",
+            temperature=0.7,
+            max_tokens=32000,
+            context_limit=368000,
+            verbosity="medium",
+            thinking=thinking,
         )
         provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
         config = Config(
@@ -611,7 +607,7 @@ class TestLLMConfigParameterIntegration:
         assert llm_config.is_azure is False
 
         # Model fields
-        assert llm_config.model == "gpt-5.1-2025"
+        assert llm_config.model_id == "gpt-5.1-2025"
         assert llm_config.temperature == 0.7
         assert llm_config.max_tokens == 32000
         assert llm_config.context_limit == 368000
@@ -637,10 +633,8 @@ class TestLLMConfigParameterIntegration:
         )
         model = ModelConfig(
             model_name="haiku",
-            model_params=llm_param.LLMConfigModelParameter(
-                model="anthropic/claude-haiku-4.5",
-                provider_routing=routing,
-            ),
+            model_id="anthropic/claude-haiku-4.5",
+            provider_routing=routing,
         )
         provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
         config = Config(
@@ -667,7 +661,7 @@ class TestMatchModelFromConfig:
         )
         model = ModelConfig(
             model_name="gpt-5.2",
-            model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-01"),
+            model_id="gpt-5.2-2025-12-01",
         )
         provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
         config = Config(provider_list=[provider_config], main_model="gpt-5.2")
@@ -688,7 +682,7 @@ class TestMatchModelFromConfig:
         )
         model = ModelConfig(
             model_name="gpt-5.2",
-            model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-01"),
+            model_id="gpt-5.2-2025-12-01",
         )
         provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
         config = Config(provider_list=[provider_config], main_model="gpt-5.2")
@@ -709,7 +703,7 @@ class TestMatchModelFromConfig:
         )
         model = ModelConfig(
             model_name="gpt-5.2",
-            model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-01"),
+            model_id="gpt-5.2-2025-12-01",
         )
         provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
         config = Config(provider_list=[provider_config], main_model="gpt-5.2")
@@ -730,7 +724,7 @@ class TestMatchModelFromConfig:
         )
         model = ModelConfig(
             model_name="primary",
-            model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-01"),
+            model_id="gpt-5.2-2025-12-01",
         )
         provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
         config = Config(provider_list=[provider_config], main_model="primary")
@@ -751,7 +745,7 @@ class TestMatchModelFromConfig:
         )
         model = ModelConfig(
             model_name="primary",
-            model_params=llm_param.LLMConfigModelParameter(model="openai/gpt-5.2-2025-12-01"),
+            model_id="openai/gpt-5.2-2025-12-01",
         )
         provider_config = ProviderConfig(**provider.model_dump(), model_list=[model])
         config = Config(provider_list=[provider_config], main_model="primary")
@@ -772,11 +766,11 @@ class TestMatchModelFromConfig:
         )
         model_a = ModelConfig(
             model_name="gpt-5.2-2025-12-01",
-            model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-01"),
+            model_id="gpt-5.2-2025-12-01",
         )
         model_b = ModelConfig(
             model_name="gpt-5.2-2025-12-02",
-            model_params=llm_param.LLMConfigModelParameter(model="gpt-5.2-2025-12-02"),
+            model_id="gpt-5.2-2025-12-02",
         )
         provider_config = ProviderConfig(**provider.model_dump(), model_list=[model_a, model_b])
         config = Config(provider_list=[provider_config], main_model=model_a.model_name)
@@ -974,7 +968,7 @@ class TestOutOfBoxExperience:
                     "model_list": [
                         {
                             "model_name": "my-custom-claude",
-                            "model_params": {"model": "claude-custom-model"},
+                            "model_id": "claude-custom-model",
                         }
                     ],
                 }
@@ -1009,7 +1003,7 @@ class TestOutOfBoxExperience:
                     "model_list": [
                         {
                             "model_name": "sonnet",
-                            "model_params": {"model": "my-custom-sonnet-model", "max_tokens": 99999},
+                            "model_id": "my-custom-sonnet-model", "max_tokens": 99999,
                         }
                     ],
                 }
@@ -1030,8 +1024,8 @@ class TestOutOfBoxExperience:
         assert sonnet_model is not None
 
         # Should use user's custom model params
-        assert sonnet_model.model_params.model == "my-custom-sonnet-model"
-        assert sonnet_model.model_params.max_tokens == 99999
+        assert sonnet_model.model_id == "my-custom-sonnet-model"
+        assert sonnet_model.max_tokens == 99999
 
     def test_user_provider_settings_override_builtin(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """User's provider-level settings should override builtin."""
@@ -1081,7 +1075,7 @@ class TestOutOfBoxExperience:
                     "model_list": [
                         {
                             "model_name": "custom-model",
-                            "model_params": {"model": "custom-model-id"},
+                            "model_id": "custom-model-id",
                         }
                     ],
                 }

@@ -65,7 +65,7 @@ def build_payload(
         param: LLM call parameters.
         extra_betas: Additional beta flags to prepend to the betas list.
     """
-    messages = convert_history_to_input(param.input, param.model)
+    messages = convert_history_to_input(param.input, param.model_id)
     tools = convert_tool_schema(param.tools)
     system_messages = [msg for msg in param.input if isinstance(msg, message.SystemMessage)]
     system = convert_system_to_input(param.system, system_messages)
@@ -89,7 +89,7 @@ def build_payload(
     }
 
     payload: MessageCreateParamsStreaming = {
-        "model": str(param.model),
+        "model": str(param.model_id),
         "tool_choice": tool_choice,
         "stream": True,
         "max_tokens": param.max_tokens or DEFAULT_MAX_TOKENS,
@@ -186,12 +186,12 @@ async def parse_anthropic_stream(
                 if accumulated_thinking:
                     metadata_tracker.record_token()
                     full_thinking = "".join(accumulated_thinking)
-                    parts.append(message.ThinkingTextPart(text=full_thinking, model_id=str(param.model)))
+                    parts.append(message.ThinkingTextPart(text=full_thinking, model_id=str(param.model_id)))
                     if pending_signature:
                         parts.append(
                             message.ThinkingSignaturePart(
                                 signature=pending_signature,
-                                model_id=str(param.model),
+                                model_id=str(param.model_id),
                                 format="anthropic",
                             )
                         )
@@ -224,7 +224,7 @@ async def parse_anthropic_stream(
                         max_tokens=param.max_tokens,
                     )
                 )
-                metadata_tracker.set_model_name(str(param.model))
+                metadata_tracker.set_model_name(str(param.model_id))
                 metadata_tracker.set_response_id(response_id)
                 raw_stop_reason = getattr(event, "stop_reason", None)
                 if isinstance(raw_stop_reason, str):

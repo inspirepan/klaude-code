@@ -23,7 +23,7 @@ class DummyLLMClient(LLMClientABC):
 def test_default_profile_provider_injects_report_back_on_output_schema() -> None:
     provider = DefaultModelProfileProvider()
     client = DummyLLMClient(
-        llm_param.LLMConfigParameter(protocol=llm_param.LLMClientProtocol.OPENAI, model="gpt-5.2-codex")
+        llm_param.LLMConfigParameter(protocol=llm_param.LLMClientProtocol.OPENAI, model_id="gpt-5.2-codex")
     )
 
     schema = {

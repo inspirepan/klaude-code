@@ -163,7 +163,7 @@ async def parse_google_stream(
             assistant_parts.append(
                 message.ThinkingTextPart(
                     text="".join(accumulated_thoughts),
-                    model_id=str(param.model),
+                    model_id=str(param.model_id),
                 )
             )
             accumulated_thoughts.clear()
@@ -171,7 +171,7 @@ async def parse_google_stream(
             assistant_parts.append(
                 message.ThinkingSignaturePart(
                     signature=thought_signature,
-                    model_id=str(param.model),
+                    model_id=str(param.model_id),
                     format="google_thought_signature",
                 )
             )
@@ -301,7 +301,7 @@ async def parse_google_stream(
     usage = _usage_from_metadata(last_usage_metadata, context_limit=param.context_limit, max_tokens=param.max_tokens)
     if usage is not None:
         metadata_tracker.set_usage(usage)
-    metadata_tracker.set_model_name(str(param.model))
+    metadata_tracker.set_model_name(str(param.model_id))
     metadata_tracker.set_response_id(response_id)
     metadata = metadata_tracker.finalize()
     yield message.AssistantMessage(
@@ -336,13 +336,13 @@ class GoogleClient(LLMClientABC):
         param = apply_config_defaults(param, self.get_llm_config())
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
-        contents = convert_history_to_contents(param.input, model_name=str(param.model))
+        contents = convert_history_to_contents(param.input, model_name=str(param.model_id))
         config = _build_config(param)
 
         log_debug(
             json.dumps(
                 {
-                    "model": str(param.model),
+                    "model": str(param.model_id),
                     "contents": [c.model_dump(exclude_none=True) for c in contents],
                     "config": config.model_dump(exclude_none=True),
                 },
@@ -354,7 +354,7 @@ class GoogleClient(LLMClientABC):
 
         try:
             stream = await self.client.aio.models.generate_content_stream(
-                model=str(param.model),
+                model=str(param.model_id),
                 contents=cast(Any, contents),
                 config=config,
             )

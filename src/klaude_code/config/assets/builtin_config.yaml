@@ -1,291 +1,176 @@
+---
 # Built-in provider and model configurations
 # Users can start using klaude by simply setting environment variables
 # (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.) without manual configuration.
-
 provider_list:
 - provider_name: anthropic
   protocol: anthropic
   api_key: ${ANTHROPIC_API_KEY}
   model_list:
   - model_name: sonnet
-    model_params:
-      model: claude-sonnet-4-5-20250929
-      context_limit: 200000
-      provider_routing:
-        sort: throughput
-      cost:
-        input: 3.0
-        output: 15.0
-        cache_read: 0.3
-        cache_write: 3.75
+    model_id: claude-sonnet-4-5-20250929
+    context_limit: 200000
+    provider_routing:
+      sort: throughput
+    cost: {input: 3, output: 15, cache_read: 0.3, cache_write: 3.75}
   - model_name: opus
-    model_params:
-      model: claude-opus-4-5-20251101
-      context_limit: 200000
-      verbosity: high
-      thinking:
-        type: enabled
-        budget_tokens: 2048
-      cost:
-        input: 5.0
-        output: 25.0
-        cache_read: 0.5
-        cache_write: 6.25
-
+    model_id: claude-opus-4-5-20251101
+    context_limit: 200000
+    verbosity: high
+    thinking:
+      type: enabled
+      budget_tokens: 2048
+    cost: {input: 5, output: 25, cache_read: 0.5, cache_write: 6.25}
 - provider_name: openai
   protocol: responses
   api_key: ${OPENAI_API_KEY}
   model_list:
   - model_name: gpt-5.2
-    model_params:
-      model: gpt-5.2
-      max_tokens: 128000
-      context_limit: 400000
-      verbosity: high
-      thinking:
-        reasoning_effort: high
-      cost:
-        input: 1.75
-        output: 14.0
-        cache_read: 0.17
-
+    model_id: gpt-5.2
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: high
+    thinking:
+      reasoning_effort: high
+    cost: {input: 1.75, output: 14, cache_read: 0.17}
 - provider_name: openrouter
   protocol: openrouter
   api_key: ${OPENROUTER_API_KEY}
   model_list:
-  - model_name: gpt-5-mini
-    model_params:
-      model: openai/gpt-5-mini
-      max_tokens: 128000
-      context_limit: 400000
-      thinking:
-        reasoning_effort: high
-      cost:
-        input: 0.25
-        output: 2.0
-        cache_read: 0.03
   - model_name: gpt-5.1-codex-max
-    model_params:
-      model: openai/gpt-5.1-codex-max
-      max_tokens: 128000
-      context_limit: 400000
-      thinking:
-        reasoning_effort: medium
-      cost:
-        input: 1.25
-        output: 10.0
-        cache_read: 0.13
+    model_id: openai/gpt-5.1-codex-max
+    max_tokens: 128000
+    context_limit: 400000
+    thinking:
+      reasoning_effort: medium
+    cost: {input: 1.25, output: 10, cache_read: 0.13}
   - model_name: gpt-5.2
-    model_params:
-      model: openai/gpt-5.2
-      max_tokens: 128000
-      context_limit: 400000
-      verbosity: high
-      thinking:
-        reasoning_effort: high
-      cost:
-        input: 1.75
-        output: 14.0
-        cache_read: 0.17
+    model_id: openai/gpt-5.2
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: high
+    thinking:
+      reasoning_effort: high
+    cost: {input: 1.75, output: 14, cache_read: 0.17}
   - model_name: gpt-5.2-medium
-    model_params:
-      model: openai/gpt-5.2
-      max_tokens: 128000
-      context_limit: 400000
-      verbosity: high
-      thinking:
-        reasoning_effort: medium
-      cost:
-        input: 1.75
-        output: 14.0
-        cache_read: 0.17
+    model_id: openai/gpt-5.2
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: high
+    thinking:
+      reasoning_effort: medium
+    cost: {input: 1.75, output: 14, cache_read: 0.17}
   - model_name: gpt-5.2-low
-    model_params:
-      model: openai/gpt-5.2
-      max_tokens: 128000
-      context_limit: 400000
-      verbosity: low
-      thinking:
-        reasoning_effort: low
-      cost:
-        input: 1.75
-        output: 14.0
-        cache_read: 0.17
+    model_id: openai/gpt-5.2
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: low
+    cost: {input: 1.75, output: 14, cache_read: 0.17}
   - model_name: gpt-5.2-fast
-    model_params:
-      model: openai/gpt-5.2
-      max_tokens: 128000
-      context_limit: 400000
-      verbosity: low
-      thinking:
-        reasoning_effort: none
-      cost:
-        input: 1.75
-        output: 14.0
-        cache_read: 0.17
+    model_id: openai/gpt-5.2
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: none
+    cost: {input: 1.75, output: 14, cache_read: 0.17}
   - model_name: kimi
-    model_params:
-      model: moonshotai/kimi-k2-thinking
-      context_limit: 262144
-      provider_routing:
-        only:
-        - moonshotai/turbo
-      cost:
-        input: 0.6
-        output: 2.5
-        cache_read: 0.15
+    model_id: moonshotai/kimi-k2-thinking
+    context_limit: 262144
+    provider_routing:
+      only:
+      - moonshotai/turbo
+    cost: {input: 0.6, output: 2.5, cache_read: 0.15}
   - model_name: haiku
-    model_params:
-      model: anthropic/claude-haiku-4.5
-      context_limit: 200000
-      cost:
-        input: 1.0
-        output: 5.0
-        cache_read: 0.1
-        cache_write: 1.25
+    model_id: anthropic/claude-haiku-4.5
+    context_limit: 200000
+    cost: {input: 1, output: 5, cache_read: 0.1, cache_write: 1.25}
   - model_name: sonnet
-    model_params:
-      model: anthropic/claude-4.5-sonnet
-      context_limit: 200000
-      provider_routing:
-        sort: throughput
-      cost:
-        input: 3.0
-        output: 15.0
-        cache_read: 0.3
-        cache_write: 3.75
+    model_id: anthropic/claude-4.5-sonnet
+    context_limit: 200000
+    provider_routing:
+      sort: throughput
+    cost: {input: 3, output: 15, cache_read: 0.3, cache_write: 3.75}
   - model_name: opus
-    model_params:
-      model: anthropic/claude-4.5-opus
-      context_limit: 200000
-      verbosity: high
-      thinking:
-        type: enabled
-        budget_tokens: 2048
-      cost:
-        input: 5.0
-        output: 25.0
-        cache_read: 0.5
-        cache_write: 6.25
+    model_id: anthropic/claude-4.5-opus
+    context_limit: 200000
+    verbosity: high
+    thinking:
+      type: enabled
+      budget_tokens: 2048
+    cost: {input: 5, output: 25, cache_read: 0.5, cache_write: 6.25}
   - model_name: gemini-pro
-    model_params:
-      model: google/gemini-3-pro-preview
-      context_limit: 1048576
-      thinking:
-        reasoning_effort: high
-      cost:
-        input: 2.0
-        output: 12.0
-        cache_read: 0.2
+    model_id: google/gemini-3-pro-preview
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: high
+    cost: {input: 2, output: 12, cache_read: 0.2}
   - model_name: gemini-flash
-    model_params:
-      model: google/gemini-3-flash-preview
-      context_limit: 1048576
-      thinking:
-        reasoning_effort: medium
-      cost:
-        input: 0.5
-        output: 3.0
-        cache_read: 0.05
+    model_id: google/gemini-3-flash-preview
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: medium
+    cost: {input: 0.5, output: 3, cache_read: 0.05}
   - model_name: nano-banana-pro
-    model_params:
-      model: google/gemini-3-pro-image-preview
-      context_limit: 66000
-      modalities:
-      - image
-      - text
-      cost:
-        input: 2
-        output: 12
-        cache_read: 0.2
-        image: 120
+    model_id: google/gemini-3-pro-image-preview
+    context_limit: 66000
+    modalities:
+    - image
+    - text
+    cost: {input: 2, output: 12, cache_read: 0.2, image: 120}
   - model_name: nano-banana
-    model_params:
-      model: google/gemini-2.5-flash-image
-      context_limit: 33000
-      modalities:
-      - image
-      - text
-      cost:
-        input: 0.3
-        output: 2.5
-        cache_read: 0.03
-        image: 30
+    model_id: google/gemini-2.5-flash-image
+    context_limit: 33000
+    modalities:
+    - image
+    - text
+    cost: {input: 0.3, output: 2.5, cache_read: 0.03, image: 30}
   - model_name: grok
-    model_params:
-      model: x-ai/grok-4.1-fast
-      context_limit: 2000000
-      thinking:
-        type: enabled
-        budget_tokens: 2048
-      cost:
-        input: 0.2
-        output: 0.5
-        cache_read: 0.05
+    model_id: x-ai/grok-4.1-fast
+    context_limit: 2000000
+    thinking:
+      type: enabled
+      budget_tokens: 2048
+    cost: {input: 0.2, output: 0.5, cache_read: 0.05}
   - model_name: minimax
-    model_params:
-      model: minimax/minimax-m2.1
-      context_limit: 204800
-      cost:
-        input: 0.3
-        output: 1.2
-        cache_read: 0.03
+    model_id: minimax/minimax-m2.1
+    context_limit: 204800
+    cost: {input: 0.3, output: 1.2, cache_read: 0.03}
   - model_name: glm
-    model_params:
-      model: z-ai/glm-4.7
-      context_limit: 200000
-      provider_routing:
-        only:
-        - z-ai
-      cost:
-        input: 0.44
-        output: 1.74
-        cache_read: 0.04
+    model_id: z-ai/glm-4.7
+    context_limit: 200000
+    provider_routing:
+      only:
+      - z-ai
+    cost: {input: 0.44, output: 1.74, cache_read: 0.04}
   - model_name: seedream
-    model_params:
-      model: bytedance-seed/seedream-4.5
-      context_limit: 4000
-      cost:
-        input: 0
-        output: 9.581
-        image: 9.581
-      modalities:
-      - image
-      - text
-
+    model_id: bytedance-seed/seedream-4.5
+    context_limit: 4000
+    cost: {input: 0, output: 9.581, image: 9.581}
+    modalities:
+    - image
+    - text
 - provider_name: google
   protocol: google
   api_key: ${GOOGLE_API_KEY}
   model_list:
   - model_name: gemini-pro
-    model_params:
-      model: gemini-3-pro-preview
-      context_limit: 1048576
-      cost:
-        input: 2.0
-        output: 12.0
-        cache_read: 0.2
+    model_id: gemini-3-pro-preview
+    context_limit: 1048576
+    cost: {input: 2, output: 12, cache_read: 0.2}
   - model_name: gemini-flash
-    model_params:
-      model: gemini-3-flash-preview
-      context_limit: 1048576
-      cost:
-        input: 0.5
-        output: 3.0
-        cache_read: 0.05
+    model_id: gemini-3-flash-preview
+    context_limit: 1048576
+    cost: {input: 0.5, output: 3, cache_read: 0.05}
   - model_name: nano-banana-pro
-    model_params:
-      model: gemini-3-pro-image-preview
-      context_limit: 66000
-      modalities:
-      - image
-      - text
-      cost:
-        input: 2
-        output: 12
-        cache_read: 0.2
-        image: 120
-
+    model_id: gemini-3-pro-image-preview
+    context_limit: 66000
+    modalities:
+    - image
+    - text
+    cost: {input: 2, output: 12, cache_read: 0.2, image: 120}
 - provider_name: bedrock
   protocol: bedrock
   aws_access_key: ${AWS_ACCESS_KEY_ID}
@@ -293,97 +178,59 @@ provider_list:
   aws_region: ${AWS_REGION}
   model_list:
   - model_name: sonnet
-    model_params:
-      model: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-      context_limit: 200000
-      cost:
-        input: 3.0
-        output: 15.0
-        cache_read: 0.3
-        cache_write: 3.75
-
+    model_id: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+    context_limit: 200000
+    cost: {input: 3, output: 15, cache_read: 0.3, cache_write: 3.75}
 - provider_name: deepseek
   protocol: anthropic
   api_key: ${DEEPSEEK_API_KEY}
   base_url: https://api.deepseek.com/anthropic
   model_list:
   - model_name: deepseek
-    model_params:
-      model: deepseek-reasoner
-      context_limit: 128000
-      thinking:
-        type: enabled
-        budget_tokens: 2048
-      cost:
-        input: 2
-        output: 3
-        cache_read: 0.2
-        currency: CNY
-
+    model_id: deepseek-reasoner
+    context_limit: 128000
+    thinking:
+      type: enabled
+      budget_tokens: 2048
+    cost: {input: 2, output: 3, cache_read: 0.2, currency: CNY}
 - provider_name: moonshot
   protocol: anthropic
   api_key: ${MOONSHOT_API_KEY}
   base_url: https://api.moonshot.cn/anthropic
   model_list:
   - model_name: kimi
-    model_params:
-      model: kimi-k2-thinking
-      context_limit: 262144
-      thinking:
-        type: enabled
-        budget_tokens: 8192
-      cost:
-        input: 4.0
-        output: 16.0
-        cache_read: 1.0
-        currency: CNY
-
+    model_id: kimi-k2-thinking
+    context_limit: 262144
+    thinking:
+      type: enabled
+      budget_tokens: 8192
+    cost: {input: 4, output: 16, cache_read: 1, currency: CNY}
 - provider_name: claude-max
   protocol: claude_oauth
   model_list:
   - model_name: sonnet
-    model_params:
-      model: claude-sonnet-4-5-20250929
-      context_limit: 200000
-      cost:
-        input: 3.0
-        output: 15.0
-        cache_read: 0.3
-        cache_write: 3.75
+    model_id: claude-sonnet-4-5-20250929
+    context_limit: 200000
+    cost: {input: 3, output: 15, cache_read: 0.3, cache_write: 3.75}
   - model_name: opus
-    model_params:
-      model: claude-opus-4-5-20251101
-      context_limit: 200000
-      verbosity: high
-      thinking:
-        type: enabled
-        budget_tokens: 2048
-      cost:
-        input: 5.0
-        output: 25.0
-        cache_read: 0.5
-        cache_write: 6.25
+    model_id: claude-opus-4-5-20251101
+    context_limit: 200000
+    verbosity: high
+    thinking:
+      type: enabled
+      budget_tokens: 2048
+    cost: {input: 5, output: 25, cache_read: 0.5, cache_write: 6.25}
   - model_name: haiku
-    model_params:
-      model: claude-haiku-4-5-20251001
-      context_limit: 200000
-      cost:
-        input: 1.0
-        output: 5.0
-        cache_read: 0.1
-        cache_write: 1.25
-
+    model_id: claude-haiku-4-5-20251001
+    context_limit: 200000
+    cost: {input: 1, output: 5, cache_read: 0.1, cache_write: 1.25}
 - provider_name: codex
   protocol: codex_oauth
   model_list:
   - model_name: gpt-5.2-codex
-    model_params:
-      model: gpt-5.2-codex
-      thinking:
-        reasoning_effort: medium
-      context_limit: 400000
-      max_tokens: 128000
-      cost:
-        input: 1.75
-        output: 14.0
-        cache_read: 0.17
+    model_id: gpt-5.2-codex
+    thinking:
+      reasoning_effort: medium
+    context_limit: 400000
+    max_tokens: 128000
+    cost: {input: 1.75, output: 14, cache_read: 0.17}

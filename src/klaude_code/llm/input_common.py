@@ -165,8 +165,8 @@ def split_thinking_parts(
 
 def apply_config_defaults(param: "LLMCallParameter", config: "LLMConfigParameter") -> "LLMCallParameter":
     """Apply config defaults to LLM call parameters."""
-    if param.model is None:
-        param.model = config.model
+    if param.model_id is None:
+        param.model_id = config.model_id
     if param.temperature is None:
         param.temperature = config.temperature
     if param.max_tokens is None:

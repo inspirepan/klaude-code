@@ -24,11 +24,11 @@ if TYPE_CHECKING:
 
 def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsStreaming:
     """Build OpenAI Responses API request parameters."""
-    inputs = convert_history_to_input(param.input, param.model)
+    inputs = convert_history_to_input(param.input, param.model_id)
     tools = convert_tool_schema(param.tools)
 
     payload: ResponseCreateParamsStreaming = {
-        "model": str(param.model),
+        "model": str(param.model_id),
         "tool_choice": "auto",
         "parallel_tool_calls": True,
         "include": [
@@ -77,7 +77,7 @@ async def parse_responses_stream(
             assistant_parts.append(
                 message.ThinkingTextPart(
                     text="".join(accumulated_thinking),
-                    model_id=str(param.model),
+                    model_id=str(param.model_id),
                 )
             )
             accumulated_thinking.clear()
@@ -85,7 +85,7 @@ async def parse_responses_stream(
             assistant_parts.append(
                 message.ThinkingSignaturePart(
                     signature=pending_signature,
-                    model_id=str(param.model),
+                    model_id=str(param.model_id),
                     format="openai_reasoning",
                 )
             )
@@ -197,7 +197,7 @@ async def parse_responses_stream(
                                 max_tokens=param.max_tokens,
                             )
                         )
-                    metadata_tracker.set_model_name(str(param.model))
+                    metadata_tracker.set_model_name(str(param.model_id))
                     metadata_tracker.set_response_id(response_id)
                     stop_reason = map_stop_reason(event.response.status, error_reason)
                     if event.response.status != "completed":

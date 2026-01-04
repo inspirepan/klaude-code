@@ -461,7 +461,7 @@ class ExecutorContext:
         if operation.emit_switch_message:
             default_note = " (saved as default)" if operation.save_as_default else ""
             developer_item = message.DeveloperMessage(
-                parts=message.text_parts_from_str(f"Switched to: {llm_config.model}{default_note}"),
+                parts=message.text_parts_from_str(f"Switched to: {llm_config.model_id}{default_note}"),
                 ui_extra=model.build_command_output_extra(commands.CommandName.MODEL),
             )
             agent.session.append_history([developer_item])

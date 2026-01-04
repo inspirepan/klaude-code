@@ -30,7 +30,7 @@ def build_payload(
     param: llm_param.LLMCallParameter,
 ) -> tuple[CompletionCreateParamsStreaming, dict[str, object], dict[str, str]]:
     """Build OpenRouter API request parameters."""
-    messages = convert_history_to_input(param.input, param.system, param.model)
+    messages = convert_history_to_input(param.input, param.system, param.model_id)
     tools = convert_tool_schema(param.tools)
 
     extra_body: dict[str, object] = {
@@ -66,13 +66,13 @@ def build_payload(
     if param.provider_routing:
         extra_body["provider"] = param.provider_routing.model_dump(exclude_none=True)
 
-    if is_claude_model(param.model):
+    if is_claude_model(param.model_id):
         extra_headers["x-anthropic-beta"] = (
             f"{ANTHROPIC_BETA_FINE_GRAINED_TOOL_STREAMING},{ANTHROPIC_BETA_INTERLEAVED_THINKING}"
         )
 
     payload: CompletionCreateParamsStreaming = {
-        "model": str(param.model),
+        "model": str(param.model_id),
         "tool_choice": "auto",
         "parallel_tool_calls": True,
         "stream": True,
@@ -133,7 +133,7 @@ class OpenRouterClient(LLMClientABC):
             return
 
         reasoning_handler = ReasoningStreamHandler(
-            param_model=str(param.model),
+            param_model=str(param.model_id),
             response_id=None,
         )
 

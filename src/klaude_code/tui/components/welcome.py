@@ -38,7 +38,7 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
     # Model line: model @ provider · params...
     panel_content.append_text(
         Text.assemble(
-            (str(e.llm_config.model), ThemeKey.WELCOME_HIGHLIGHT),
+            (str(e.llm_config.model_id), ThemeKey.WELCOME_HIGHLIGHT),
             (" @ ", ThemeKey.WELCOME_INFO),
             (e.llm_config.provider_name, ThemeKey.WELCOME_INFO),
         )
@@ -84,7 +84,7 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
                     (prefix, ThemeKey.LINES),
                     (sub_agent_type.lower().ljust(max_type_len), ThemeKey.WELCOME_INFO),
                     (": ", ThemeKey.LINES),
-                    (str(sub_llm_config.model), ThemeKey.WELCOME_HIGHLIGHT),
+                    (str(sub_llm_config.model_id), ThemeKey.WELCOME_HIGHLIGHT),
                     (" @ ", ThemeKey.WELCOME_INFO),
                     (sub_llm_config.provider_name, ThemeKey.WELCOME_INFO),
                 )

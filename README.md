@@ -133,94 +133,41 @@ Open in editor:
 klaude config
 ```
 
-##### Adding Models to Built-in Providers
+##### Model Configuration
 
-You can add custom models to existing built-in providers without redefining the entire provider. Just reference the `provider_name` and add your `model_list`:
+You can add custom models to built-in providers or define new ones. Configuration is inherited from built-in providers by matching `provider_name`.
 
 ```yaml
 # ~/.klaude/klaude-config.yaml
 provider_list:
-  - provider_name: openrouter  # Reference existing built-in provider
-    model_list:
-      - model_name: seed
-        model_params:
-          model: bytedance-seed/seed-1.6  # Model ID from OpenRouter
-          context_limit: 262000
-          cost:
-            input: 0.25
-            output: 2
-```
-
-**How merging works:**
-- Your models are merged with the built-in models for that provider
-- You only need `provider_name` and `model_list` - protocol, api_key, etc. are inherited from the built-in config
-- To override a built-in model, use the same `model_name` (e.g., `sonnet` to customize the built-in sonnet)
-
-**More examples:**
-
-```yaml
-provider_list:
-  # Add multiple models to OpenRouter
+  # Add/Override models for built-in OpenRouter provider
   - provider_name: openrouter
     model_list:
       - model_name: qwen-coder
-        model_params:
-          model: qwen/qwen-2.5-coder-32b-instruct
-          context_limit: 131072
-          cost:
-            input: 0.3
-            output: 0.9
-      - model_name: llama-405b
-        model_params:
-          model: meta-llama/llama-3.1-405b-instruct
-          context_limit: 131072
-          cost:
-            input: 0.8
-            output: 0.8
+        model_id: qwen/qwen-2.5-coder-32b-instruct
+        context_limit: 131072
+        cost: { input: 0.3, output: 0.9 }
+      - model_name: sonnet # Override built-in sonnet params
+        model_id: anthropic/claude-3.5-sonnet
+        context_limit: 200000
 
-  # Add models to Anthropic provider
-  - provider_name: anthropic
-    model_list:
-      - model_name: haiku@ant
-        model_params:
-          model: claude-3-5-haiku-20241022
-          context_limit: 200000
-          cost:
-            input: 1.0
-            output: 5.0
-```
-
-After adding models, run `klaude list` to verify they appear in the model list.
-
-##### Overriding Provider Settings
-
-Override provider-level settings (like api_key) while keeping built-in models:
-
-```yaml
-provider_list:
-  - provider_name: anthropic
-    api_key: sk-my-custom-key  # Override the default ${ANTHROPIC_API_KEY}
-    # Built-in models (sonnet, opus) are still available
-```
-
-##### Adding New Providers
-
-For providers not in the built-in list, you must specify `protocol`:
-
-```yaml
-provider_list:
-  - provider_name: my-azure-openai
+  # Add a completely new provider
+  - provider_name: my-azure
     protocol: openai
     api_key: ${AZURE_OPENAI_KEY}
     base_url: https://my-instance.openai.azure.com/
     is_azure: true
     azure_api_version: "2024-02-15-preview"
     model_list:
-      - model_name: gpt-4-azure
-        model_params:
-          model: gpt-4
-          context_limit: 128000
+      - model_name: gpt-4
+        model_id: gpt-4-deploy-name
+        context_limit: 128000
 ```
+
+**Key Tips:**
+- **Merging**: If `provider_name` matches a built-in provider, settings like `protocol` and `api_key` are inherited.
+- **Overriding**: Use the same `model_name` as a built-in model to override its parameters.
+- **Environment Variables**: Use `${VAR_NAME}` syntax for secrets.
 
 ##### Supported Protocols
 
