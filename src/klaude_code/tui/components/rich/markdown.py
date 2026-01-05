@@ -61,10 +61,8 @@ class Divider(MarkdownElement):
 
 class MarkdownTable(TableElement):
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
-        # rich.box.MARKDOWN intentionally includes a blank top/bottom edge row. Rather than
-        # post-processing rendered segments, disable outer edges to avoid emitting those rows.
         table = Table(
-            box=box.MARKDOWN,
+            box=box.MINIMAL,
             show_edge=False,
             border_style=console.get_style("markdown.table.border"),
         )

@@ -84,7 +84,8 @@ def format_available_skills_for_system_prompt() -> str:
         if not skills_xml:
             return ""
 
-        return f"""\
+        return f"""
+
 # Skills
 
 Skills are optional task-specific instructions stored as `SKILL.md` files.
