@@ -47,12 +47,9 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
     # Use format_model_params for consistent formatting
     param_strings = format_model_params(e.llm_config)
 
-    # Check if we have sub-agent models to show
-    has_sub_agents = e.show_sub_agent_models and e.sub_agent_models
-
     # Render config items with tree-style prefixes
     for i, param_str in enumerate(param_strings):
-        is_last = i == len(param_strings) - 1 and not has_sub_agents
+        is_last = i == len(param_strings) - 1
         prefix = "└─ " if is_last else "├─ "
         panel_content.append_text(
             Text.assemble(
@@ -61,34 +58,6 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
                 (param_str, ThemeKey.WELCOME_INFO),
             )
         )
-
-    # Render sub-agent models
-    if has_sub_agents:
-        # Add sub-agents header with tree prefix
-        panel_content.append_text(
-            Text.assemble(
-                ("\n", ThemeKey.WELCOME_INFO),
-                ("└─ ", ThemeKey.LINES),
-                ("sub-agents:", ThemeKey.WELCOME_INFO),
-            )
-        )
-        sub_agent_items = list(e.sub_agent_models.items())
-        max_type_len = max(len(t) for t in e.sub_agent_models)
-        for i, (sub_agent_type, sub_llm_config) in enumerate(sub_agent_items):
-            is_last = i == len(sub_agent_items) - 1
-            prefix = "└─ " if is_last else "├─ "
-            panel_content.append_text(
-                Text.assemble(
-                    ("\n", ThemeKey.WELCOME_INFO),
-                    ("   ", ThemeKey.WELCOME_INFO),  # Indentation for sub-items
-                    (prefix, ThemeKey.LINES),
-                    (sub_agent_type.lower().ljust(max_type_len), ThemeKey.WELCOME_INFO),
-                    (": ", ThemeKey.LINES),
-                    (str(sub_llm_config.model_id), ThemeKey.WELCOME_HIGHLIGHT),
-                    (" @ ", ThemeKey.WELCOME_INFO),
-                    (sub_llm_config.provider_name, ThemeKey.WELCOME_INFO),
-                )
-            )
 
     border_style = ThemeKey.WELCOME_DEBUG_BORDER if debug_mode else ThemeKey.LINES
 
