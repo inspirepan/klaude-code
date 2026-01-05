@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.2] - 2026-01-05
+
+### Added
+
+- apply sub-agent color to task result description (`9de47cd4`)
+
+### Fixed
+
+- skip activity state for fast tools on non-streaming models (`a6a5a8b6`)
 ## [2.4.1] - 2026-01-05
 
 ### Changed
@@ -1195,7 +1204,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.4.1...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.4.2...HEAD
+[2.4.2]: https://github.com/inspirepan/klaude-code/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/inspirepan/klaude-code/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/inspirepan/klaude-code/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/inspirepan/klaude-code/compare/v2.2.0...v2.3.0
