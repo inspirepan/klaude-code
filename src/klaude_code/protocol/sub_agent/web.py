@@ -11,9 +11,9 @@ Launch a sub-agent to search the web, fetch pages, and analyze content. Use this
 - Gathering comprehensive information from multiple web sources
 
 Capabilities:
-- Search the web to find relevant pages (no URL required)
-- Fetch and parse web pages (HTML-to-Markdown conversion)
-- Follow links across multiple pages autonomously
+- Search the web to find relevant pages
+- Fetch and parse web pages
+- Follow links across multiple pages
 - Aggregate findings from multiple sources
 
 How to use:
