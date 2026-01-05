@@ -112,7 +112,10 @@ DIFF_DEFAULT_CONTEXT_LINES = 3  # Default number of context lines in diff output
 TOOL_OUTPUT_MAX_LENGTH = 40000  # Maximum length for tool output before truncation
 TOOL_OUTPUT_DISPLAY_HEAD = 10000  # Characters to show from the beginning of truncated output
 TOOL_OUTPUT_DISPLAY_TAIL = 10000  # Characters to show from the end of truncated output
-TOOL_OUTPUT_TRUNCATION_DIR = "/tmp/klaude"  # Directory for saving full truncated output
+TOOL_OUTPUT_MAX_LINES = 2000  # Maximum lines for tool output before truncation
+TOOL_OUTPUT_DISPLAY_HEAD_LINES = 1000  # Lines to show from the beginning of truncated output
+TOOL_OUTPUT_DISPLAY_TAIL_LINES = 1000  # Lines to show from the end of truncated output
+TOOL_OUTPUT_TRUNCATION_DIR = "/tmp"  # Directory for saving full truncated output
 
 
 # =============================================================================

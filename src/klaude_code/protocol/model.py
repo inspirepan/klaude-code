@@ -216,13 +216,6 @@ class MermaidLinkUIExtra(BaseModel):
     line_count: int
 
 
-class TruncationUIExtra(BaseModel):
-    type: Literal["truncation"] = "truncation"
-    saved_file_path: str
-    original_length: int
-    truncated_length: int
-
-
 class MarkdownDocUIExtra(BaseModel):
     type: Literal["markdown_doc"] = "markdown_doc"
     file_path: str
@@ -241,7 +234,6 @@ MultiUIExtraItem = (
     | TodoListUIExtra
     | SessionIdUIExtra
     | MermaidLinkUIExtra
-    | TruncationUIExtra
     | MarkdownDocUIExtra
     | SessionStatusUIExtra
 )
@@ -263,7 +255,6 @@ ToolResultUIExtra = Annotated[
     | TodoListUIExtra
     | SessionIdUIExtra
     | MermaidLinkUIExtra
-    | TruncationUIExtra
     | MarkdownDocUIExtra
     | SessionStatusUIExtra
     | MultiUIExtra,

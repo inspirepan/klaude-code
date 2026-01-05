@@ -4,9 +4,9 @@ from dataclasses import dataclass
 
 from klaude_code.const import CANCEL_OUTPUT
 from klaude_code.core.tool.context import ToolContext
+from klaude_code.core.tool.offload import offload_tool_output
 from klaude_code.core.tool.report_back_tool import ReportBackTool
 from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy
-from klaude_code.core.tool.truncation import truncate_tool_output
 from klaude_code.protocol import message, model, tools
 
 
@@ -52,14 +52,8 @@ async def run_tool(
         tool_result.call_id = tool_call.call_id
         tool_result.tool_name = tool_call.tool_name
         if tool_result.output_text:
-            truncation_result = truncate_tool_output(tool_result.output_text, tool_call)
-            tool_result.output_text = truncation_result.output
-            if truncation_result.was_truncated and truncation_result.saved_file_path:
-                tool_result.ui_extra = model.TruncationUIExtra(
-                    saved_file_path=truncation_result.saved_file_path,
-                    original_length=truncation_result.original_length,
-                    truncated_length=truncation_result.truncated_length,
-                )
+            offload_result = offload_tool_output(tool_result.output_text, tool_call)
+            tool_result.output_text = offload_result.output
         return tool_result
     except asyncio.CancelledError:
         # Propagate cooperative cancellation so outer layers can handle interrupts correctly.

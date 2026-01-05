@@ -73,5 +73,5 @@ Stop only when all are true:
 You MUST end every response with a "Sources:" section listing all URLs with their saved file paths:
 
 Sources:
-- [Source Title](https://example.com) -> /tmp/klaude/web/example_com-123456.md
-- [Another Source](https://example.com/page) -> /tmp/klaude/web/example_com_page-123456.md
+- [Source Title](https://example.com) -> /tmp/klaude-webfetch-a1b2c3d4.log
+- [Another Source](https://example.com/page) -> /tmp/klaude-webfetch-e5f6g7h8.log

@@ -498,31 +498,6 @@ def render_mermaid_tool_result(
     return viewer
 
 
-def _extract_truncation(
-    ui_extra: model.ToolResultUIExtra | None,
-) -> model.TruncationUIExtra | None:
-    return ui_extra if isinstance(ui_extra, model.TruncationUIExtra) else None
-
-
-def render_truncation_info(ui_extra: model.TruncationUIExtra) -> RenderableType:
-    """Render truncation info for the user."""
-    truncated_kb = ui_extra.truncated_length / 1024
-
-    text = Text.assemble(
-        ("Offload context to ", ThemeKey.TOOL_RESULT_TRUNCATED),
-        (ui_extra.saved_file_path, ThemeKey.TOOL_RESULT_TRUNCATED),
-        (f", {truncated_kb:.1f}KB truncated", ThemeKey.TOOL_RESULT_TRUNCATED),
-    )
-    text.no_wrap = True
-    text.overflow = "ellipsis"
-    return text
-
-
-def get_truncation_info(tr: events.ToolResultEvent) -> model.TruncationUIExtra | None:
-    """Extract truncation info from a tool result event."""
-    return _extract_truncation(tr.ui_extra)
-
-
 def render_report_back_tool_call() -> RenderableType:
     return _render_tool_call_tree(mark=MARK_DONE, tool_name="Report Back", details=None)
 
@@ -658,12 +633,6 @@ def render_tool_result(
                 show_file_name = e.tool_name == tools.APPLY_PATCH
                 rendered.append(r_diffs.render_structured_diff(item, show_file_name=show_file_name))
         return wrap(Group(*rendered)) if rendered else None
-
-    # Show truncation info if output was truncated and saved to file
-    truncation_info = get_truncation_info(e)
-    if truncation_info:
-        result = render_generic_tool_result(e.result, is_error=e.is_error)
-        return wrap(Group(render_truncation_info(truncation_info), result))
 
     diff_ui = _extract_diff(e.ui_extra)
     md_ui = _extract_markdown_doc(e.ui_extra)

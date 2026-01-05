@@ -29,7 +29,6 @@ def _encode_url(url: str) -> str:
     parsed = urlparse(url)
     encoded_path = quote(parsed.path, safe="/-_.~")
     encoded_query = quote(parsed.query, safe="=&-_.~")
-    # Handle IDN (Internationalized Domain Names) by encoding to punycode
     try:
         netloc = parsed.netloc.encode("idna").decode("ascii")
     except UnicodeError:
@@ -55,38 +54,30 @@ def _extract_content_type_and_charset(response: HTTPResponse) -> tuple[str, str 
 
 def _detect_encoding(data: bytes, declared_charset: str | None) -> str:
     """Detect the encoding of the data."""
-    # 1. Use declared charset from HTTP header if available
     if declared_charset:
         return declared_charset
 
-    # 2. Try to detect from HTML meta tags (check first 2KB)
     head = data[:2048].lower()
-    # <meta charset="xxx">
     if match := re.search(rb'<meta[^>]+charset=["\']?([^"\'\s>]+)', head):
         return match.group(1).decode("ascii", errors="ignore")
-    # <meta http-equiv="Content-Type" content="text/html; charset=xxx">
     if match := re.search(rb'content=["\'][^"\']*charset=([^"\'\s;]+)', head):
         return match.group(1).decode("ascii", errors="ignore")
 
-    # 3. Use chardet for automatic detection
     import chardet
 
     result = chardet.detect(data)
     if result["encoding"] and result["confidence"] and result["confidence"] > 0.7:
         return result["encoding"]
 
-    # 4. Default to UTF-8
     return "utf-8"
 
 
 def _decode_content(data: bytes, declared_charset: str | None) -> str:
     """Decode bytes to string with automatic encoding detection."""
     encoding = _detect_encoding(data, declared_charset)
-
     try:
         return data.decode(encoding)
     except (UnicodeDecodeError, LookupError):
-        # Fallback: try UTF-8 with replacement for invalid chars
         return data.decode("utf-8", errors="replace")
 
 
@@ -115,20 +106,6 @@ def _extract_url_filename(url: str) -> str:
     name = f"{host}_{path}" if path else host
     name = re.sub(r"[^a-zA-Z0-9_\-]", "_", name)
     return name[:URL_FILENAME_MAX_LENGTH] if len(name) > URL_FILENAME_MAX_LENGTH else name
-
-
-def _save_web_content(url: str, content: str, extension: str = ".md") -> str | None:
-    """Save web content to file. Returns file path or None on failure."""
-    try:
-        WEB_FETCH_SAVE_DIR.mkdir(parents=True, exist_ok=True)
-        timestamp = int(time.time())
-        identifier = _extract_url_filename(url)
-        filename = f"{identifier}-{timestamp}{extension}"
-        file_path = WEB_FETCH_SAVE_DIR / filename
-        file_path.write_text(content, encoding="utf-8")
-        return str(file_path)
-    except OSError:
-        return None
 
 
 def _save_binary_content(url: str, data: bytes, extension: str = ".bin") -> str | None:
@@ -164,15 +141,7 @@ def _process_content(content_type: str, text: str) -> str:
 
 
 def _fetch_url(url: str, timeout: int = WEB_FETCH_DEFAULT_TIMEOUT_SEC) -> tuple[str, bytes, str | None]:
-    """
-    Fetch URL content synchronously.
-
-    Returns:
-        Tuple of (content_type, raw_data, charset)
-
-    Raises:
-        Various exceptions on failure
-    """
+    """Fetch URL content synchronously."""
     headers = {
         "Accept": "text/markdown, */*",
         "User-Agent": WEB_FETCH_USER_AGENT,
@@ -229,7 +198,6 @@ class WebFetchTool(ToolABC):
         del context
         url = args.url
 
-        # Basic URL validation
         if not url.startswith(("http://", "https://")):
             return message.ToolResultMessage(
                 status="error",
@@ -239,7 +207,7 @@ class WebFetchTool(ToolABC):
         try:
             content_type, data, charset = await asyncio.to_thread(_fetch_url, url)
 
-            # Handle PDF files
+            # Handle PDF files - must save binary content
             if content_type == "application/pdf" or _is_pdf_url(url):
                 saved_path = _save_binary_content(url, data, ".pdf")
                 if saved_path:
@@ -252,19 +220,14 @@ class WebFetchTool(ToolABC):
                     output_text=f"Failed to save PDF file (url={url})",
                 )
 
-            # Handle text content
+            # Handle text content - just return the processed content
+            # Offload to file is handled by offload.py if needed
             text = _decode_content(data, charset)
             processed = _process_content(content_type, text)
 
-            # Always save content to file
-            saved_path = _save_web_content(url, processed)
-
-            # Build output with file path info
-            output = f"<file_saved>{saved_path}</file_saved>\n\n{processed}" if saved_path else processed
-
             return message.ToolResultMessage(
                 status="success",
-                output_text=output,
+                output_text=processed,
             )
 
         except urllib.error.HTTPError as e:

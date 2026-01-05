@@ -448,7 +448,6 @@ class ExecutorContext:
                     llm_config=llm_config,
                     work_dir=str(agent.session.work_dir),
                     show_klaude_code_info=False,
-
                 )
             )
 
@@ -496,7 +495,6 @@ class ExecutorContext:
                     work_dir=str(agent.session.work_dir),
                     llm_config=agent.profile.llm_client.get_llm_config(),
                     show_klaude_code_info=False,
-
                 )
             )
 
