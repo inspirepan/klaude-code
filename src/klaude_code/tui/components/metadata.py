@@ -32,7 +32,7 @@ def _render_task_metadata_block(
     currency_symbol = "¥" if currency == "CNY" else "$"
 
     # First column: mark only
-    mark = Text("└", style=ThemeKey.METADATA_DIM) if is_sub_agent else Text("⇅", style=ThemeKey.METADATA)
+    mark = Text("└", style=ThemeKey.METADATA_DIM) if is_sub_agent else Text("◆", style=ThemeKey.METADATA)
 
     # Second column: model@provider / tokens / cost / …
     content = Text()
@@ -46,37 +46,22 @@ def _render_task_metadata_block(
     parts: list[Text] = []
 
     if metadata.usage is not None:
-        # Tokens: ↑ 37k cache 5k ↓ 907 think 45k
-        token_parts: list[Text] = [
-            Text.assemble(("↑", ThemeKey.METADATA_DIM), (format_number(metadata.usage.input_tokens), ThemeKey.METADATA))
-        ]
+        # Tokens: ↑37k ◎5k ↓907 ∿45k ⌗ 100
+        token_text = Text()
+        token_text.append("↑", style=ThemeKey.METADATA_DIM)
+        token_text.append(format_number(metadata.usage.input_tokens), style=ThemeKey.METADATA)
         if metadata.usage.cached_tokens > 0:
-            token_parts.append(
-                Text.assemble(
-                    Text("cache ", style=ThemeKey.METADATA_DIM),
-                    Text(format_number(metadata.usage.cached_tokens), style=ThemeKey.METADATA),
-                )
-            )
-        token_parts.append(
-            Text.assemble(
-                ("↓", ThemeKey.METADATA_DIM), (format_number(metadata.usage.output_tokens), ThemeKey.METADATA)
-            )
-        )
+            token_text.append("  ◎", style=ThemeKey.METADATA_DIM)
+            token_text.append(format_number(metadata.usage.cached_tokens), style=ThemeKey.METADATA)
+        token_text.append("  ↓", style=ThemeKey.METADATA_DIM)
+        token_text.append(format_number(metadata.usage.output_tokens), style=ThemeKey.METADATA)
         if metadata.usage.reasoning_tokens > 0:
-            token_parts.append(
-                Text.assemble(
-                    ("think ", ThemeKey.METADATA_DIM),
-                    (format_number(metadata.usage.reasoning_tokens), ThemeKey.METADATA),
-                )
-            )
+            token_text.append("  ∿", style=ThemeKey.METADATA_DIM)
+            token_text.append(format_number(metadata.usage.reasoning_tokens), style=ThemeKey.METADATA)
         if metadata.usage.image_tokens > 0:
-            token_parts.append(
-                Text.assemble(
-                    ("image ", ThemeKey.METADATA_DIM),
-                    (format_number(metadata.usage.image_tokens), ThemeKey.METADATA),
-                )
-            )
-        parts.append(Text(" · ").join(token_parts))
+            token_text.append("  ⌗ ", style=ThemeKey.METADATA_DIM)
+            token_text.append(format_number(metadata.usage.image_tokens), style=ThemeKey.METADATA)
+        parts.append(token_text)
 
     # Cost
     if metadata.usage is not None and metadata.usage.total_cost is not None:
@@ -87,41 +72,41 @@ def _render_task_metadata_block(
             )
         )
     if metadata.usage is not None:
-        # Context usage
+        # Context usage: 31k/168k(18.4%)
         if show_context_and_time and metadata.usage.context_usage_percent is not None:
             context_size = format_number(metadata.usage.context_size or 0)
-            # Calculate effective limit (same as Usage.context_usage_percent)
             effective_limit = (metadata.usage.context_limit or 0) - (metadata.usage.max_tokens or DEFAULT_MAX_TOKENS)
             effective_limit_str = format_number(effective_limit) if effective_limit > 0 else "?"
             parts.append(
                 Text.assemble(
-                    ("context ", ThemeKey.METADATA_DIM),
                     (context_size, ThemeKey.METADATA),
                     ("/", ThemeKey.METADATA_DIM),
                     (effective_limit_str, ThemeKey.METADATA),
-                    (f" ({metadata.usage.context_usage_percent:.1f}%)", ThemeKey.METADATA_DIM),
+                    (f"({metadata.usage.context_usage_percent:.1f}%)", ThemeKey.METADATA_DIM),
                 )
             )
 
-        # TPS
+        # TPS: 45.2tps
         if metadata.usage.throughput_tps is not None:
             parts.append(
                 Text.assemble(
-                    (f"{metadata.usage.throughput_tps:.1f} ", ThemeKey.METADATA),
-                    ("avg-tps", ThemeKey.METADATA_DIM),
+                    (f"{metadata.usage.throughput_tps:.1f}", ThemeKey.METADATA),
+                    ("tps", ThemeKey.METADATA_DIM),
                 )
             )
 
-        # First token latency
+        # First token latency: 100ms-ftl / 2.1s-ftl
         if metadata.usage.first_token_latency_ms is not None:
+            ftl_ms = metadata.usage.first_token_latency_ms
+            ftl_str = f"{ftl_ms / 1000:.1f}s" if ftl_ms >= 1000 else f"{ftl_ms:.0f}ms"
             parts.append(
                 Text.assemble(
-                    (f"{metadata.usage.first_token_latency_ms:.0f}", ThemeKey.METADATA),
-                    ("ms avg-ftl", ThemeKey.METADATA_DIM),
+                    (ftl_str, ThemeKey.METADATA),
+                    ("-ftl", ThemeKey.METADATA_DIM),
                 )
             )
 
-    # Duration
+    # Duration: 12.5s
     if show_context_and_time and metadata.task_duration_s is not None:
         parts.append(
             Text.assemble(
@@ -130,18 +115,19 @@ def _render_task_metadata_block(
             )
         )
 
-    # Turn count
+    # Turn count: 1step / 3steps
     if show_context_and_time and metadata.turn_count > 0:
+        suffix = "step" if metadata.turn_count == 1 else "steps"
         parts.append(
             Text.assemble(
                 (str(metadata.turn_count), ThemeKey.METADATA),
-                (" turns", ThemeKey.METADATA_DIM),
+                (suffix, ThemeKey.METADATA_DIM),
             )
         )
 
     if parts:
-        content.append_text(Text(" · ", style=ThemeKey.METADATA_DIM))
-        content.append_text(Text(" · ", style=ThemeKey.METADATA_DIM).join(parts))
+        content.append_text(Text("  ", style=ThemeKey.METADATA_DIM))
+        content.append_text(Text("  ", style=ThemeKey.METADATA_DIM).join(parts))
 
     grid.add_row(mark, content)
     return grid if not is_sub_agent else Padding(grid, (0, 0, 0, 2))
@@ -176,7 +162,7 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
             ("Σ ", ThemeKey.METADATA_DIM),
             ("total ", ThemeKey.METADATA_DIM),
             (currency_symbol, ThemeKey.METADATA_DIM),
-            (f"{total_cost:.4f}", ThemeKey.METADATA),
+            (f"{total_cost:.4f}", ThemeKey.METADATA_DIM),
         )
         grid = create_grid()
         grid.add_row(Text(" ", style=ThemeKey.METADATA_DIM), total_line)

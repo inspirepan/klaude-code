@@ -159,8 +159,8 @@ STATUS_HINT_TEXT = " (esc to interrupt)"  # Status hint text shown after spinner
 
 # Spinner status texts
 STATUS_WAITING_TEXT = "Connecting …"
-STATUS_THINKING_TEXT = "Reasoning …"
-STATUS_COMPOSING_TEXT = "Generating"
+STATUS_THINKING_TEXT = "Thinking …"
+STATUS_COMPOSING_TEXT = "Composing …"
 
 # Backwards-compatible alias for the default spinner status text.
 STATUS_DEFAULT_TEXT = STATUS_WAITING_TEXT
@@ -169,6 +169,7 @@ SPINNER_BREATH_PERIOD_SECONDS: float = 2.0  # Spinner breathing animation period
 STATUS_SHIMMER_PADDING = 10  # Horizontal padding for shimmer band position
 STATUS_SHIMMER_BAND_HALF_WIDTH = 5.0  # Half-width of shimmer band in characters
 STATUS_SHIMMER_ALPHA_SCALE = 0.7  # Scale factor for shimmer intensity
+STATUS_SHOW_BUFFER_LENGTH = False  # Show character count (e.g., "(213)") during text generation
 
 
 # =============================================================================

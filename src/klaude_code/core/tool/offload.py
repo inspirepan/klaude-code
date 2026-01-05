@@ -216,8 +216,7 @@ class HeadTailOffloadStrategy(OffloadStrategy):
             header = (
                 f"<system-reminder>Output truncated due to length. "
                 f"Showing first {self.head_lines} and last {self.tail_lines} lines of {total_lines} lines. "
-                f"Full output saved to: {offloaded_path}. "
-                f"Use Read(offset, limit) or rg to inspect.</system-reminder>\n\n"
+                f"Full output saved to: {offloaded_path}. </system-reminder>\n\n"
             )
         else:
             header = (
@@ -242,8 +241,7 @@ class HeadTailOffloadStrategy(OffloadStrategy):
             header = (
                 f"<system-reminder>Output truncated due to length. "
                 f"Showing first {self.head_chars} and last {self.tail_chars} chars of {original_length} chars. "
-                f"Full output saved to: {offloaded_path}. "
-                f"Use Read(offset, limit) or rg to inspect.</system-reminder>\n\n"
+                f"Full output saved to: {offloaded_path}. </system-reminder>\n\n"
             )
         else:
             header = (

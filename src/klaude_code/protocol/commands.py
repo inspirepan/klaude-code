@@ -28,10 +28,6 @@ class CommandName(str, Enum):
     FORK_SESSION = "fork-session"
     RESUME = "resume"
     COPY = "copy"
-    # PLAN and DOC are dynamically registered now, but kept here if needed for reference
-    # or we can remove them if no code explicitly imports them.
-    # PLAN = "plan"
-    # DOC = "doc"
 
     def __str__(self) -> str:
         return self.value

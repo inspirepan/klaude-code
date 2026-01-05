@@ -8,6 +8,7 @@ from klaude_code.const import (
     SIGINT_DOUBLE_PRESS_EXIT_TEXT,
     STATUS_COMPOSING_TEXT,
     STATUS_DEFAULT_TEXT,
+    STATUS_SHOW_BUFFER_LENGTH,
     STATUS_THINKING_TEXT,
 )
 from klaude_code.protocol import events, model, tools
@@ -180,7 +181,7 @@ class ActivityState:
         if self._composing:
             text = Text()
             text.append(STATUS_COMPOSING_TEXT, style=ThemeKey.STATUS_TEXT)
-            if self._buffer_length > 0:
+            if STATUS_SHOW_BUFFER_LENGTH and self._buffer_length > 0:
                 text.append(f" ({self._buffer_length:,})", style=ThemeKey.STATUS_TEXT)
             return text
 
