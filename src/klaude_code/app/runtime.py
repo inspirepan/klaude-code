@@ -11,7 +11,6 @@ from klaude_code.config import Config, load_config
 from klaude_code.core.agent import Agent
 from klaude_code.core.agent_profile import (
     DefaultModelProfileProvider,
-    NanoBananaModelProfileProvider,
     VanillaModelProfileProvider,
 )
 from klaude_code.core.executor import Executor
@@ -28,7 +27,6 @@ class AppInitConfig:
     model: str | None
     debug: bool
     vanilla: bool
-    banana: bool
     debug_filters: set[DebugType] | None = None
 
 
@@ -59,7 +57,7 @@ async def initialize_app_components(
         llm_clients = build_llm_clients(
             config,
             model_override=init_config.model,
-            skip_sub_agents=init_config.vanilla or init_config.banana,
+            skip_sub_agents=init_config.vanilla,
         )
     except ValueError as exc:
         if init_config.model:
@@ -74,9 +72,7 @@ async def initialize_app_components(
             log((f"Error: failed to load the default model configuration: {exc}", "red"))
         raise typer.Exit(2) from None
 
-    if init_config.banana:
-        model_profile_provider = NanoBananaModelProfileProvider()
-    elif init_config.vanilla:
+    if init_config.vanilla:
         model_profile_provider = VanillaModelProfileProvider()
     else:
         model_profile_provider = DefaultModelProfileProvider(config=config)

@@ -222,7 +222,6 @@ def main_callback(
             model=chosen_model,
             debug=debug_enabled,
             vanilla=vanilla,
-            banana=banana,
             debug_filters=debug_filters,
         )
 

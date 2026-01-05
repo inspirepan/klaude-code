@@ -62,9 +62,6 @@ PROMPT_FILES: dict[str, str] = {
 }
 
 
-NANO_BANANA_SYSTEM_PROMPT_PATH = "prompts/prompt-nano-banana.md"
-
-
 STRUCTURED_OUTPUT_PROMPT = """\
 
 # Structured Output
@@ -279,17 +276,22 @@ class DefaultModelProfileProvider(ModelProfileProvider):
         model_name = llm_client.model_name
         llm_config = llm_client.get_llm_config()
 
-        # Image generation models should not have tools
-        if llm_config.modalities and "image" in llm_config.modalities:
+        # Image generation models should not have system prompt, tools, or reminders
+        is_image_model = llm_config.modalities and "image" in llm_config.modalities
+        if is_image_model:
+            agent_system_prompt: str | None = None
             agent_tools: list[llm_param.ToolSchema] = []
+            agent_reminders: list[Reminder] = []
         else:
+            agent_system_prompt = load_system_prompt(model_name, llm_client.protocol, sub_agent_type)
             agent_tools = load_agent_tools(model_name, sub_agent_type, config=self._config)
+            agent_reminders = load_agent_reminders(model_name, sub_agent_type)
 
         profile = AgentProfile(
             llm_client=llm_client,
-            system_prompt=load_system_prompt(model_name, llm_client.protocol, sub_agent_type),
+            system_prompt=agent_system_prompt,
             tools=agent_tools,
-            reminders=load_agent_reminders(model_name, sub_agent_type),
+            reminders=agent_reminders,
         )
         if output_schema:
             return with_structured_output(profile, output_schema)
@@ -311,31 +313,6 @@ class VanillaModelProfileProvider(ModelProfileProvider):
             llm_client=llm_client,
             system_prompt=None,
             tools=get_tool_schemas([tools.BASH, tools.EDIT, tools.WRITE, tools.READ]),
-            reminders=[],
-        )
-        if output_schema:
-            return with_structured_output(profile, output_schema)
-        return profile
-
-
-class NanoBananaModelProfileProvider(ModelProfileProvider):
-    """Provider for the Nano Banana image generation model.
-
-    This mode uses a dedicated system prompt and strips all tools/reminders.
-    """
-
-    def build_profile(
-        self,
-        llm_client: LLMClientABC,
-        sub_agent_type: tools.SubAgentType | None = None,
-        *,
-        output_schema: dict[str, Any] | None = None,
-    ) -> AgentProfile:
-        del sub_agent_type
-        profile = AgentProfile(
-            llm_client=llm_client,
-            system_prompt=_load_prompt_by_path(NANO_BANANA_SYSTEM_PROMPT_PATH),
-            tools=[],
             reminders=[],
         )
         if output_schema:
