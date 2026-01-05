@@ -8,16 +8,6 @@ Spin up a fast agent specialized for exploring codebases. Use this when you need
 search code for keywords (eg. "API endpoints"), or answer questions about the codebase (eg. "how do API endpoints work?")\
 When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "very thorough" for comprehensive analysis across multiple locations and naming conventions.
 Always spawn multiple search agents in parallel to maximise speed.
-
-Structured output:
-- Provide an `output_format` (JSON Schema) parameter for structured data back from the sub-agent
-- Example: `output_format={"type": "object", "properties": {"files": {"type": "array", "items": {"type": "string"}, "description": "List of file paths that match the search criteria, e.g. ['src/main.py', 'src/utils/helper.py']"}}, "required": ["files"]}`\
-
-- Agents can be resumed using the `resume` parameter by passing the agent ID from a previous invocation. When resumed, the agent
-continues with its full previous context preserved. When NOT resuming, each invocation starts fresh and you should provide a detailed
-task description with all necessary context.
-- When the agent is done, it will return a single message back to you along with its agent ID. You can use this ID to resume the agent
-later if needed for follow-up work.
 """
 
 EXPLORE_PARAMETERS = {

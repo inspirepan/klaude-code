@@ -62,12 +62,26 @@ PROMPT_FILES: dict[str, str] = {
 }
 
 
-STRUCTURED_OUTPUT_PROMPT = """\
+STRUCTURED_OUTPUT_PROMPT_FOR_SUB_AGENT = """\
 
 # Structured Output
 You have a `report_back` tool available. When you complete the task,\
 you MUST call `report_back` with the structured result matching the required schema.\
 Only the content passed to `report_back` will be returned to user.\
+"""
+
+
+SUB_AGENT_COMMON_PROMPT_FOR_MAIN_AGENT = """\
+
+# Sub-agent capabilities
+You have sub-agents (e.g. Task, Explore, WebAgent, ImageGen) with structured output and resume capabilites:
+- Agents can be provided with an `output_format` (JSON Schema) parameter for structured output
+-   Example: `output_format={"type": "object", "properties": {"files": {"type": "array", "items": {"type": "string"}, "description": "List of file paths that match the search criteria, e.g. ['src/main.py', 'src/utils/helper.py']"}}, "required": ["files"]}`
+- Agents can be resumed using the `resume` parameter by passing the agent ID from a previous invocation. \
+When resumed, the agent continues with its full previous context preserved. \
+When NOT resuming, each invocation starts fresh and you should provide a detailed task description with all necessary context.
+- When the agent is done, it will return a single message back to you along with its agent ID. \
+You can use this ID to resume the agent later if needed for follow-up work.
 """
 
 
@@ -139,10 +153,24 @@ def _build_env_info(model_name: str) -> str:
     return "\n".join(env_lines)
 
 
+def _has_sub_agents(config: Config | None) -> bool:
+    """Check if there are any sub-agent tools available for the main agent."""
+    if config is not None:
+        from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
+
+        helper = SubAgentModelHelper(config)
+        return bool(helper.get_enabled_sub_agent_tool_names())
+
+    from klaude_code.protocol.sub_agent import sub_agent_tool_names
+
+    return bool(sub_agent_tool_names(enabled_only=True))
+
+
 def load_system_prompt(
     model_name: str,
     protocol: llm_param.LLMClientProtocol,
     sub_agent_type: str | None = None,
+    config: Config | None = None,
 ) -> str:
     """Get system prompt content for the given model and sub-agent type."""
 
@@ -158,13 +186,18 @@ def load_system_prompt(
         return base_prompt
 
     skills_prompt = ""
+    sub_agent_prompt = ""
     if sub_agent_type is None:
         # Skills are progressive-disclosure: keep only metadata in the system prompt.
         from klaude_code.skill.manager import format_available_skills_for_system_prompt
 
         skills_prompt = format_available_skills_for_system_prompt()
 
-    return base_prompt + _build_env_info(model_name) + skills_prompt
+        # Add sub-agent resume instructions if there are sub-agent tools available.
+        if _has_sub_agents(config):
+            sub_agent_prompt = "\n" + SUB_AGENT_COMMON_PROMPT_FOR_MAIN_AGENT
+
+    return base_prompt + _build_env_info(model_name) + skills_prompt + sub_agent_prompt
 
 
 def load_agent_tools(
@@ -242,7 +275,7 @@ def with_structured_output(profile: AgentProfile, output_schema: dict[str, Any])
     base_prompt = profile.system_prompt or ""
     return AgentProfile(
         llm_client=profile.llm_client,
-        system_prompt=base_prompt + STRUCTURED_OUTPUT_PROMPT,
+        system_prompt=base_prompt + STRUCTURED_OUTPUT_PROMPT_FOR_SUB_AGENT,
         tools=[*profile.tools, report_back_tool_class.schema()],
         reminders=profile.reminders,
     )
@@ -283,7 +316,9 @@ class DefaultModelProfileProvider(ModelProfileProvider):
             agent_tools: list[llm_param.ToolSchema] = []
             agent_reminders: list[Reminder] = []
         else:
-            agent_system_prompt = load_system_prompt(model_name, llm_client.protocol, sub_agent_type)
+            agent_system_prompt = load_system_prompt(
+                model_name, llm_client.protocol, sub_agent_type, config=self._config
+            )
             agent_tools = load_agent_tools(model_name, sub_agent_type, config=self._config)
             agent_reminders = load_agent_reminders(model_name, sub_agent_type)
 

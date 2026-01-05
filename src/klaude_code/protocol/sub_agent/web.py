@@ -20,19 +20,11 @@ How to use:
 - Write a clear prompt describing what information you need - the agent will search and fetch as needed
 - Account for "Today's date" in <env>. For example, if <env> says "Today's date: 2025-07-01", and the user wants the latest docs, do not use 2024 in the search query. Use 2025.
 - Provide the url if you already know the target page
-- Use `output_format` (JSON Schema) to get structured data back from the agent
 
 What you receive:
 - The agent returns a text response summarizing its findings
-- With `output_format`, you receive structured JSON matching your schema
 - The response is the agent's analysis, not raw web content
-- Web content is saved to local files (paths included in Sources) - read them directly if you need full content\
-
-- Agents can be resumed using the `resume` parameter by passing the agent ID from a previous invocation. When resumed, the agent
-continues with its full previous context preserved. When NOT resuming, each invocation starts fresh and you should provide a detailed
-task description with all necessary context.
-- When the agent is done, it will return a single message back to you along with its agent ID. You can use this ID to resume the agent
-later if needed for follow-up work.
+- Web content is saved to local files (paths included in Sources) - read them directly if you need full content
 """
 
 WEB_AGENT_PARAMETERS = {

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 
-from klaude_code.core.agent_profile import STRUCTURED_OUTPUT_PROMPT, DefaultModelProfileProvider
+from klaude_code.core.agent_profile import STRUCTURED_OUTPUT_PROMPT_FOR_SUB_AGENT, DefaultModelProfileProvider
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import llm_param, tools
 from klaude_code.protocol.message import LLMStreamItem
@@ -34,7 +34,7 @@ def test_default_profile_provider_injects_report_back_on_output_schema() -> None
 
     profile = provider.build_profile(client, output_schema=schema)
     assert profile.system_prompt is not None
-    assert profile.system_prompt.endswith(STRUCTURED_OUTPUT_PROMPT)
+    assert profile.system_prompt.endswith(STRUCTURED_OUTPUT_PROMPT_FOR_SUB_AGENT)
 
     assert profile.tools
     report_back = profile.tools[-1]

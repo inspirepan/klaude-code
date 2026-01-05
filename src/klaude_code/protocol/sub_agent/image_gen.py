@@ -30,13 +30,6 @@ including the generated image, so you don't need to pass `image_paths` again.
   1. Call ImageGen with prompt="Generate a watercolor painting of a mountain lake" -> returns agent_id
   2. Call ImageGen with resume=agent_id, prompt="Add a wooden cabin on the shore" -> edits the previous image
   3. Call ImageGen with resume=agent_id, prompt="Change to sunset lighting" -> continues editing
-
-- Agents can be resumed using the `resume` parameter by passing the agent ID from a previous invocation. When resumed, the agent
-continues with its full previous context preserved. When NOT resuming, each invocation starts fresh and you should provide a detailed
-task description with all necessary context.
-- When the agent is done, it will return a single message back to you along with its agent ID. You can use this ID to resume the agent
-later if needed for follow-up work.
-
 """
 
 
