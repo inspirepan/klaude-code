@@ -48,6 +48,7 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
     "fd": "simple and fast alternative to find",
     "tree": "directory listing as a tree",
     "sg": "ast-grep - AST-aware code search",
+    "jq": "command-line JSON processor",
     "jj": "jujutsu - Git-compatible version control system",
 }
 
