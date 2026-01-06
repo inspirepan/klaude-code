@@ -80,8 +80,6 @@ def convert_history_to_input(
     """Convert a list of messages to response input params."""
     items: list[responses.ResponseInputItemParam] = []
 
-    degraded_thinking_texts: list[str] = []
-
     for msg, attachment in attach_developer_messages(history):
         match msg:
             case message.SystemMessage():
@@ -121,7 +119,14 @@ def convert_history_to_input(
                 pending_signature: str | None = None
                 native_thinking_parts, degraded_for_message = split_thinking_parts(msg, model_name)
                 native_thinking_ids = {id(part) for part in native_thinking_parts}
-                degraded_thinking_texts.extend(degraded_for_message)
+                if degraded_for_message:
+                    degraded_text = "<thinking>\n" + "\n".join(degraded_for_message) + "\n</thinking>"
+                    assistant_text_parts.append(
+                        cast(
+                            responses.ResponseOutputTextParam,
+                            {"type": "output_text", "text": degraded_text},
+                        )
+                    )
 
                 def flush_text() -> None:
                     nonlocal assistant_text_parts
@@ -187,25 +192,6 @@ def convert_history_to_input(
                 flush_text()
             case _:
                 continue
-
-    if degraded_thinking_texts:
-        degraded_item = cast(
-            responses.ResponseInputItemParam,
-            {
-                "type": "message",
-                "role": "assistant",
-                "content": [
-                    cast(
-                        responses.ResponseInputContentParam,
-                        {
-                            "type": "input_text",
-                            "text": "<thinking>\n" + "\n".join(degraded_thinking_texts) + "\n</thinking>",
-                        },
-                    )
-                ],
-            },
-        )
-        items.insert(0, degraded_item)
 
     return items
 

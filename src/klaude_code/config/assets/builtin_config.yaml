@@ -31,6 +31,7 @@ provider_list:
     verbosity: high
     thinking:
       reasoning_effort: high
+      reasoning_summary: detailed
     cost: {input: 1.75, output: 14, cache_read: 0.17}
   - model_name: gpt-5.2-medium
     model_id: gpt-5.2
@@ -38,6 +39,7 @@ provider_list:
     verbosity: high
     thinking:
       reasoning_effort: medium
+      reasoning_summary: concise
     cost: {input: 1.75, output: 14, cache_read: 0.17}
   - model_name: gpt-5.2-low
     model_id: gpt-5.2
@@ -45,6 +47,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: low
+      reasoning_summary: concise
     cost: {input: 1.75, output: 14, cache_read: 0.17}
   - model_name: gpt-5.2-fast
     model_id: gpt-5.2
@@ -59,6 +62,7 @@ provider_list:
     context_limit: 400000
     thinking:
       reasoning_effort: medium
+      reasoning_summary: detailed
     cost: {input: 1.25, output: 10, cache_read: 0.13}
 - provider_name: openrouter
   protocol: openrouter
@@ -71,6 +75,7 @@ provider_list:
     verbosity: high
     thinking:
       reasoning_effort: high
+      reasoning_summary: detailed
     cost: {input: 1.75, output: 14, cache_read: 0.17}
   - model_name: gpt-5.2-medium
     model_id: openai/gpt-5.2
@@ -79,6 +84,7 @@ provider_list:
     verbosity: high
     thinking:
       reasoning_effort: medium
+      reasoning_summary: concise
     cost: {input: 1.75, output: 14, cache_read: 0.17}
   - model_name: kimi
     model_id: moonshotai/kimi-k2-thinking
