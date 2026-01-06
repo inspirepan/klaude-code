@@ -394,17 +394,14 @@ class PromptToolkitInput(InputProviderABC):
         with contextlib.suppress(Exception):
             _patch_completion_menu_controls(self._session.app.layout.container)
 
-        # Reserve more vertical space while the model picker overlay is open.
+        # Reserve more vertical space while overlays (selector, completion menu) are open.
         # prompt_toolkit's default multiline prompt caps out at ~9 lines.
-        self._patch_prompt_height_for_model_picker()
+        self._patch_prompt_height_for_overlays()
 
         # Ensure completion menu has default selection
         self._session.default_buffer.on_completions_changed += self._select_first_completion_on_open  # pyright: ignore[reportUnknownMemberType]
 
-    def _patch_prompt_height_for_model_picker(self) -> None:
-        if self._model_picker is None and self._thinking_picker is None:
-            return
-
+    def _patch_prompt_height_for_overlays(self) -> None:
         with contextlib.suppress(Exception):
             root = self._session.app.layout.container
             input_window = _find_window_for_buffer(root, self._session.default_buffer)
@@ -417,14 +414,33 @@ class PromptToolkitInput(InputProviderABC):
                 picker_open = (self._model_picker is not None and self._model_picker.is_open) or (
                     self._thinking_picker is not None and self._thinking_picker.is_open
                 )
-                if picker_open:
-                    # Target 20 rows, but cap to the current terminal size.
+
+                try:
+                    complete_state = self._session.default_buffer.complete_state
+                    completion_open = complete_state is not None and bool(complete_state.completions)
+                except Exception:
+                    completion_open = False
+
+                try:
+                    original_height_value = original_height() if callable(original_height) else original_height
+                except Exception:
+                    original_height_value = None
+                original_height_int = original_height_value if isinstance(original_height_value, int) else None
+
+                if picker_open or completion_open:
+                    target_rows = 20 if picker_open else 14
+
+                    # Cap to the current terminal size.
                     # Leave a small buffer to avoid triggering "Window too small".
                     try:
                         rows = get_app().output.get_size().rows
                     except Exception:
                         rows = 0
-                    return max(3, min(20, rows - 2))
+
+                    expanded = max(3, min(target_rows, rows - 2))
+                    if original_height_int is not None:
+                        expanded = max(original_height_int, expanded)
+                    return expanded
 
                 if callable(original_height):
                     return original_height()
