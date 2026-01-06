@@ -13,3 +13,4 @@ class UsageEvent(ResponseEvent):
 
 class TaskMetadataEvent(Event):
     metadata: model.TaskMetadataItem
+    cancelled: bool = False

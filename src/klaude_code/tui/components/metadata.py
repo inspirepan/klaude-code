@@ -141,6 +141,9 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     """Render task metadata including main agent and sub-agents."""
     renderables: list[RenderableType] = []
 
+    if e.cancelled:
+        renderables.append(Text())
+
     renderables.append(
         _render_task_metadata_block(e.metadata.main_agent, is_sub_agent=False, show_context_and_time=True)
     )
@@ -168,8 +171,7 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
             (currency_symbol, ThemeKey.METADATA_DIM),
             (f"{total_cost:.4f}", ThemeKey.METADATA_DIM),
         )
-        grid = create_grid()
-        grid.add_row(Text(" ", style=ThemeKey.METADATA_DIM), total_line)
-        renderables.append(Padding(grid, (0, 0, 0, 2)))
+
+        renderables.append(Padding(total_line, (0, 0, 0, 2)))
 
     return Group(*renderables)
