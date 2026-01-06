@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+from typing import Any, cast
 
 import httpx
 
@@ -57,7 +58,8 @@ def _basic_call_param(*, model_id: str) -> llm_param.LLMCallParameter:
 def _collect_stream(stream: object) -> list[message.LLMStreamItem]:
     async def _collect() -> list[message.LLMStreamItem]:
         items: list[message.LLMStreamItem] = []
-        async for item in stream:  # type: ignore[reportGeneralTypeIssues]
+        iterator = cast(AsyncIterator[message.LLMStreamItem], stream)
+        async for item in iterator:
             items.append(item)
         return items
 
@@ -95,7 +97,7 @@ def test_openai_compatible_stream_remote_protocol_error_becomes_stream_error_ite
     param = _basic_call_param(model_id="gpt-4.1-mini")
     reasoning_handler = DefaultReasoningHandler(param_model=str(param.model_id), response_id=None)
     stream = OpenAILLMStream(
-        _RemoteProtocolErrorAsyncIterator(),
+        cast(Any, _RemoteProtocolErrorAsyncIterator()),
         param=param,
         metadata_tracker=MetadataTracker(),
         reasoning_handler=reasoning_handler,
@@ -110,7 +112,7 @@ def test_openai_compatible_stream_remote_protocol_error_becomes_stream_error_ite
 def test_responses_stream_remote_protocol_error_becomes_stream_error_item() -> None:
     param = _basic_call_param(model_id="gpt-4.1-mini")
     stream = ResponsesLLMStream(
-        _RemoteProtocolErrorAsyncIterator(),
+        cast(Any, _RemoteProtocolErrorAsyncIterator()),
         param=param,
         metadata_tracker=MetadataTracker(),
     )

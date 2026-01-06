@@ -164,6 +164,9 @@ def _select_fork_point_sync(fork_points: list[ForkPoint]) -> int | Literal["canc
 
     # Default to the last option (fork entire conversation)
     last_value = items[-1].value
+    if last_value is None:
+        # Should not happen as we populate all items with int values
+        return -1
 
     # Non-interactive environments default to forking entire conversation
     if not sys.stdin.isatty() or not sys.stdout.isatty():
