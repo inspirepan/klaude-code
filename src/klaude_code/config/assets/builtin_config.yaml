@@ -152,6 +152,13 @@ provider_list:
     modalities:
     - image
     - text
+  - model_name: flux
+    model_id: black-forest-labs/flux.2-max
+    context_limit: 47000
+    cost: {input: 7.32, output: 7.32, image: 7.32}
+    modalities:
+    - image
+    - text
 - provider_name: google
   protocol: google
   api_key: ${GOOGLE_API_KEY}
