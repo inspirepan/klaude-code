@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-01-06
+
+### Added
+
+- add flux builtin model (`6e814e10`)
+- pop up input window height when triggering completion (`1b7fc2f6`)
+- display sub-agent description in metadata (`308a1551`)
+- update metadata style (`2a3b7669`)
+- reduce bash tool prompt (`b43065fb`)
+- reduce to-do tool instructions (`bba1f757`)
+- extrace common prompt (`4c34a4a3`)
+
+### Changed
+
+- move file saving logic from offload to tool itself (`be6074d5`)
+- introduce LLMStreamABC for partial message access on cancel (`17a3c0a8`)
+- rename truncation module to offload (`e3a46044`)
+- update markdown / export fonts (`849891d6`)
+- remove sub-agent model in welcome (`a53d4a98`)
+- update --banana implement (`76245715`)
+
+### Fixed
+
+- add blank line before metadata when interrupting (`6b5332e6`)
+- collect sub-agent partial metadata on cancellation (`11720d7d`)
 ## [2.4.2] - 2026-01-05
 
 ### Added
@@ -1204,7 +1229,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.4.2...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/inspirepan/klaude-code/compare/v2.4.2...v2.5.0
 [2.4.2]: https://github.com/inspirepan/klaude-code/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/inspirepan/klaude-code/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/inspirepan/klaude-code/compare/v2.3.0...v2.4.0
