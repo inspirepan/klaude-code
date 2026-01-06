@@ -12,7 +12,6 @@ from klaude_code.core.tool.offload import (
     OffloadPolicy,
     OffloadResult,
     ReadToolStrategy,
-    WebFetchStrategy,
     get_strategy,
     offload_tool_output,
 )
@@ -108,46 +107,6 @@ class TestHeadTailOffloadStrategy:
             assert result.truncated_chars == 100 - 10 - 10
 
 
-class TestWebFetchStrategy:
-    """Test WebFetchStrategy - always offload."""
-
-    def test_policy_is_always(self):
-        strategy = WebFetchStrategy()
-        assert strategy.offload_policy == OffloadPolicy.ALWAYS
-
-    def test_offloads_even_without_truncation(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            strategy = WebFetchStrategy(max_length=1000, offload_dir=tmpdir)
-            text = "short content"
-            tool_call = message.ToolCallPart(
-                call_id="fetch_123",
-                tool_name=tools.WEB_FETCH,
-                arguments_json='{"url": "https://example.com"}',
-            )
-            result = strategy.process(text, tool_call)
-
-            assert result.was_truncated is False
-            assert result.offloaded_path is not None
-            assert Path(result.offloaded_path).exists()
-
-    def test_filename_format(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            strategy = WebFetchStrategy(max_length=100, offload_dir=tmpdir)
-            tool_call = message.ToolCallPart(
-                call_id="fetch_123",
-                tool_name=tools.WEB_FETCH,
-                arguments_json='{"url": "https://example.com/page"}',
-            )
-            text = "a" * 200
-            result = strategy.process(text, tool_call)
-
-            assert result.offloaded_path is not None
-            filename = Path(result.offloaded_path).name
-            # Format: klaude-{tool_name}-{random_hex}.log
-            assert filename.startswith("klaude-webfetch-")
-            assert filename.endswith(".log")
-
-
 class TestStrategyRegistry:
     """Test strategy selection via get_strategy."""
 
@@ -155,9 +114,9 @@ class TestStrategyRegistry:
         strategy = get_strategy(tools.READ)
         assert isinstance(strategy, ReadToolStrategy)
 
-    def test_web_fetch_gets_web_fetch_strategy(self):
+    def test_web_fetch_gets_default_strategy(self):
         strategy = get_strategy(tools.WEB_FETCH)
-        assert isinstance(strategy, WebFetchStrategy)
+        assert isinstance(strategy, HeadTailOffloadStrategy)
 
     def test_bash_gets_head_tail_strategy(self):
         strategy = get_strategy(tools.BASH)
@@ -189,7 +148,7 @@ class TestOffloadToolOutput:
         assert result.was_truncated is True
         assert result.offloaded_path is not None
 
-    def test_web_fetch_always_offloaded(self):
+    def test_web_fetch_uses_default_strategy(self):
         tool_call = message.ToolCallPart(
             call_id="test_id",
             tool_name=tools.WEB_FETCH,
@@ -197,8 +156,9 @@ class TestOffloadToolOutput:
         )
         short_text = "small content"
         result = offload_tool_output(short_text, tool_call)
+        # WebFetch now uses default strategy (ON_THRESHOLD), so short text is not offloaded
         assert result.was_truncated is False
-        assert result.offloaded_path is not None
+        assert result.offloaded_path is None
 
 
 class TestOffloadResult:

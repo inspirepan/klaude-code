@@ -16,13 +16,6 @@ tool-specific strategies:
 │             │ (line/char limits)      │                 │ on filesystem; use offset/ │
 │             │                         │                 │ limit to paginate          │
 ├─────────────┼─────────────────────────┼─────────────────┼────────────────────────────┤
-│ Bash        │ Head + Tail             │ On threshold    │ Errors often appear at end │
-│             │ (lines first, then      │                 │ of output                  │
-│             │ chars as fallback)      │                 │                            │
-├─────────────┼─────────────────────────┼─────────────────┼────────────────────────────┤
-│ WebFetch    │ Head + Tail             │ Always          │ Main agent needs access to │
-│             │                         │                 │ sub-agent fetched content  │
-├─────────────┼─────────────────────────┼─────────────────┼────────────────────────────┤
 │ Others      │ Head + Tail             │ On threshold    │ Generic fallback strategy  │
 │             │ (lines first, then      │                 │ (2000 lines or 40k chars)  │
 │             │ chars as fallback)      │                 │                            │
@@ -31,7 +24,7 @@ tool-specific strategies:
 Implementation Notes
 --------------------
 - Read tool handles its own truncation internally (see read_tool.py)
-- WebFetch only returns content; offload is handled here
+- WebFetch handles its own file saving internally (see web_fetch_tool.py)
 - All offload decisions are centralized in this module
 """
 
@@ -73,7 +66,6 @@ class OffloadPolicy(Enum):
 
     NEVER = auto()  # Never offload (e.g., Read - source file exists)
     ON_THRESHOLD = auto()  # Offload only when exceeding size threshold
-    ALWAYS = auto()  # Always offload (e.g., WebFetch - architecture need)
 
 
 class TruncationStyle(Enum):
@@ -198,8 +190,6 @@ class HeadTailOffloadStrategy(OffloadStrategy):
         """Determine if content should be offloaded based on policy."""
         if self._policy == OffloadPolicy.NEVER:
             return False
-        if self._policy == OffloadPolicy.ALWAYS:
-            return True
         # ON_THRESHOLD: offload only when truncating
         return needs_truncation
 
@@ -261,13 +251,9 @@ class HeadTailOffloadStrategy(OffloadStrategy):
 
         # No truncation needed
         if not needs_truncation:
-            offloaded_path = None
-            if self._policy == OffloadPolicy.ALWAYS:
-                offloaded_path = self._save_to_file(output, tool_call)
             return OffloadResult(
                 output=output,
                 was_truncated=False,
-                offloaded_path=offloaded_path,
                 original_length=original_length,
             )
 
@@ -291,36 +277,12 @@ class HeadTailOffloadStrategy(OffloadStrategy):
         )
 
 
-class WebFetchStrategy(HeadTailOffloadStrategy):
-    """Strategy for WebFetch tool output.
-
-    - Truncation: Head + Tail
-    - Offload: Always (main agent needs access to sub-agent fetched content)
-    """
-
-    def __init__(
-        self,
-        max_length: int = TOOL_OUTPUT_MAX_LENGTH,
-        head_chars: int = TOOL_OUTPUT_DISPLAY_HEAD,
-        tail_chars: int = TOOL_OUTPUT_DISPLAY_TAIL,
-        offload_dir: str | None = None,
-    ):
-        super().__init__(
-            max_length=max_length,
-            head_chars=head_chars,
-            tail_chars=tail_chars,
-            offload_dir=offload_dir,
-            policy=OffloadPolicy.ALWAYS,
-        )
-
-
 # =============================================================================
 # Strategy Registry
 # =============================================================================
 
 _STRATEGY_REGISTRY: dict[str, OffloadStrategy] = {
     tools.READ: ReadToolStrategy(),
-    tools.WEB_FETCH: WebFetchStrategy(),
 }
 
 _DEFAULT_STRATEGY = HeadTailOffloadStrategy()

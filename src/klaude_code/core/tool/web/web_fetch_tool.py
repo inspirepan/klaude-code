@@ -1,7 +1,6 @@
 import asyncio
 import json
 import re
-import time
 import urllib.error
 import urllib.request
 from http.client import HTTPResponse
@@ -21,7 +20,7 @@ from klaude_code.core.tool.tool_abc import ToolABC, ToolConcurrencyPolicy, ToolM
 from klaude_code.core.tool.tool_registry import register
 from klaude_code.protocol import llm_param, message, tools
 
-WEB_FETCH_SAVE_DIR = Path(TOOL_OUTPUT_TRUNCATION_DIR) / "web"
+WEB_FETCH_SAVE_DIR = Path(TOOL_OUTPUT_TRUNCATION_DIR)
 
 
 def _encode_url(url: str) -> str:
@@ -112,11 +111,23 @@ def _save_binary_content(url: str, data: bytes, extension: str = ".bin") -> str 
     """Save binary content to file. Returns file path or None on failure."""
     try:
         WEB_FETCH_SAVE_DIR.mkdir(parents=True, exist_ok=True)
-        timestamp = int(time.time())
         identifier = _extract_url_filename(url)
-        filename = f"{identifier}-{timestamp}{extension}"
+        filename = f"klaude-webfetch-{identifier}{extension}"
         file_path = WEB_FETCH_SAVE_DIR / filename
         file_path.write_bytes(data)
+        return str(file_path)
+    except OSError:
+        return None
+
+
+def _save_text_content(url: str, content: str) -> str | None:
+    """Save text content to file. Returns file path or None on failure."""
+    try:
+        WEB_FETCH_SAVE_DIR.mkdir(parents=True, exist_ok=True)
+        identifier = _extract_url_filename(url)
+        filename = f"klaude-webfetch-{identifier}.txt"
+        file_path = WEB_FETCH_SAVE_DIR / filename
+        file_path.write_text(content, encoding="utf-8")
         return str(file_path)
     except OSError:
         return None
@@ -220,14 +231,15 @@ class WebFetchTool(ToolABC):
                     output_text=f"Failed to save PDF file (url={url})",
                 )
 
-            # Handle text content - just return the processed content
-            # Offload to file is handled by offload.py if needed
+            # Handle text content - save to file and return with path hint
             text = _decode_content(data, charset)
             processed = _process_content(content_type, text)
+            saved_path = _save_text_content(url, processed)
+            output = f"[Web content saved to {saved_path}]\n\n{processed}" if saved_path else processed
 
             return message.ToolResultMessage(
                 status="success",
-                output_text=processed,
+                output_text=output,
             )
 
         except urllib.error.HTTPError as e:
