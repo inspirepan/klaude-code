@@ -18,6 +18,7 @@ from klaude_code.config import load_config
 from klaude_code.config.sub_agent_model_helper import SubAgentModelHelper
 from klaude_code.core.agent import Agent
 from klaude_code.core.agent_profile import DefaultModelProfileProvider, ModelProfileProvider
+from klaude_code.core.loaded_skills import get_loaded_skill_names_by_location
 from klaude_code.core.manager import LLMClients, SubAgentManager
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
@@ -136,6 +137,7 @@ class AgentRuntime:
                 session_id=session.id,
                 work_dir=str(session.work_dir),
                 llm_config=self._llm_clients.main.get_llm_config(),
+                loaded_skills=get_loaded_skill_names_by_location(),
             )
         )
 
@@ -192,6 +194,7 @@ class AgentRuntime:
                 session_id=agent.session.id,
                 work_dir=str(agent.session.work_dir),
                 llm_config=self._llm_clients.main.get_llm_config(),
+                loaded_skills=get_loaded_skill_names_by_location(),
             )
         )
 
@@ -215,6 +218,7 @@ class AgentRuntime:
                 session_id=target_session.id,
                 work_dir=str(target_session.work_dir),
                 llm_config=self._llm_clients.main.get_llm_config(),
+                loaded_skills=get_loaded_skill_names_by_location(),
             )
         )
 

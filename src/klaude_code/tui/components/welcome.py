@@ -59,6 +59,38 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
             )
         )
 
+    # Loaded skills summary is provided by core via WelcomeEvent to keep TUI decoupled.
+    loaded_skills = e.loaded_skills or {}
+    user_skills = loaded_skills.get("user") or []
+    project_skills = loaded_skills.get("project") or []
+    system_skills = loaded_skills.get("system") or []
+
+    skill_groups: list[tuple[str, list[str]]] = []
+    if user_skills:
+        skill_groups.append(("user", user_skills))
+    if project_skills:
+        skill_groups.append(("project", project_skills))
+    if system_skills:
+        skill_groups.append(("system", system_skills))
+
+    if skill_groups:
+        panel_content.append_text(Text("\n\n", style=ThemeKey.WELCOME_INFO))
+        panel_content.append_text(Text("skills", style=ThemeKey.WELCOME_INFO))
+
+        label_width = len("[project]")
+
+        for i, (group_name, skills) in enumerate(skill_groups):
+            is_last = i == len(skill_groups) - 1
+            prefix = "└─ " if is_last else "├─ "
+            label = f"[{group_name}]"
+            panel_content.append_text(
+                Text.assemble(
+                    ("\n", ThemeKey.WELCOME_INFO),
+                    (prefix, ThemeKey.LINES),
+                    (f"{label.ljust(label_width)} {', '.join(skills)}", ThemeKey.WELCOME_INFO),
+                )
+            )
+
     border_style = ThemeKey.WELCOME_DEBUG_BORDER if debug_mode else ThemeKey.LINES
 
     if e.show_klaude_code_info:

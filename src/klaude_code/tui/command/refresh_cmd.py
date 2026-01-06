@@ -1,3 +1,4 @@
+from klaude_code.core.loaded_skills import get_loaded_skill_names_by_location
 from klaude_code.protocol import commands, events, message
 
 from .command_abc import Agent, CommandABC, CommandResult
@@ -30,6 +31,7 @@ class RefreshTerminalCommand(CommandABC):
                     session_id=agent.session.id,
                     work_dir=str(agent.session.work_dir),
                     llm_config=agent.get_llm_client().get_llm_config(),
+                    loaded_skills=get_loaded_skill_names_by_location(),
                 ),
                 events.ReplayHistoryEvent(
                     session_id=agent.session.id,
