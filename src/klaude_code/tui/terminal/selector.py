@@ -27,8 +27,9 @@ class SelectItem[T]:
     """One selectable item for terminal selection UI."""
 
     title: list[tuple[str, str]]
-    value: T
+    value: T | None
     search_text: str
+    selectable: bool = True
 
 
 # ---------------------------------------------------------------------------
@@ -43,7 +44,7 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
         models: List of ModelEntry objects (from config.iter_model_entries).
 
     Returns:
-        List of SelectItem[str] with model_name as the value.
+        List of SelectItem[str] with model selector as the value.
     """
     if not models:
         return []
@@ -51,22 +52,49 @@ def build_model_select_items(models: list[Any]) -> list[SelectItem[str]]:
     max_model_name_length = max(len(m.model_name) for m in models)
     num_width = len(str(len(models)))
 
+    # Group models by provider in stable insertion order.
+    # This keeps per-provider model order intact while making the list easier to scan.
+    grouped: dict[str, list[Any]] = {}
+    for m in models:
+        provider = str(getattr(m, "provider", ""))
+        grouped.setdefault(provider, []).append(m)
+
     items: list[SelectItem[str]] = []
-    for idx, m in enumerate(models, 1):
-        model_id_str = m.model_id or "N/A"
-        display_name = m.model_name
-        first_line_prefix = f"{display_name:<{max_model_name_length}} → "
-        provider_model = f"{m.provider}/{model_id_str}"
-        meta_parts = format_model_params(m)
-        meta_str = " · ".join(meta_parts) if meta_parts else ""
-        title = [
-            ("class:meta", f"{idx:>{num_width}}. "),
-            ("class:msg", first_line_prefix),
-            ("class:msg bold", provider_model),
-            ("class:meta", f"  {meta_str}\n" if meta_str else "\n"),
-        ]
-        search_text = f"{m.selector} {m.model_name} {model_id_str} {m.provider}"
-        items.append(SelectItem(title=title, value=m.selector, search_text=search_text))
+    model_idx = 0
+    for provider, provider_models in grouped.items():
+        count_str = f"({len(provider_models)})"
+        items.append(
+            SelectItem(
+                title=[
+                    ("class:meta bold ansiblue", provider.upper() + " "),
+                    ("class:meta ansibrightblack", count_str),
+                    ("class:meta", "\n"),
+                ],
+                value=None,
+                search_text=provider,
+                selectable=False,
+            )
+        )
+
+        for m in provider_models:
+            model_idx += 1
+            model_id_str = m.model_id or "N/A"
+            display_name = m.model_name
+            first_line_prefix = f"{display_name:<{max_model_name_length}} → "
+            meta_parts = format_model_params(m)
+            meta_str = " · ".join(meta_parts) if meta_parts else ""
+            title = [
+                ("class:meta", f"{model_idx:>{num_width}}. "),
+                ("class:msg", first_line_prefix),
+                # Keep provider/model_id styling attribute-based (dim/bold) so that
+                # the selector's highlight color can still override uniformly.
+                ("class:msg", provider),
+                ("class:msg dim", "/"),
+                ("class:msg bold", model_id_str),
+                ("class:meta", f"  {meta_str}\n" if meta_str else "\n"),
+            ]
+            search_text = f"{m.selector} {m.model_name} {model_id_str} {provider}"
+            items.append(SelectItem(title=title, value=m.selector, search_text=search_text))
 
     return items
 
@@ -186,10 +214,58 @@ def _filter_items[T](
             return needle_norm in _normalize_search_key(it.search_text)
         return False
 
-    matched = [i for i, it in enumerate(items) if _is_match(it)]
-    if matched:
-        return matched, True
-    return list(range(len(items))), False
+    matched_selectable = [i for i, it in enumerate(items) if it.selectable and _is_match(it)]
+    if not matched_selectable:
+        # Keep the full list visible so the user can still browse when the filter
+        # doesn't match anything.
+        return list(range(len(items))), False
+
+    matched_set = set(matched_selectable)
+    visible: list[int] = []
+
+    # If we have non-selectable header rows, keep a header visible only when its
+    # group has at least one matched selectable item.
+    i = 0
+    while i < len(items):
+        it = items[i]
+        if not it.selectable:
+            header_idx = i
+            group_start = i + 1
+            group_end = next((j for j in range(group_start, len(items)) if not items[j].selectable), len(items))
+            group_matches = [j for j in range(group_start, group_end) if j in matched_set]
+            if group_matches:
+                visible.append(header_idx)
+                visible.extend(group_matches)
+            i = group_end
+            continue
+
+        if i in matched_set:
+            visible.append(i)
+        i += 1
+
+    return visible, True
+
+
+def _coerce_pointed_at_to_selectable[T](
+    items: list[SelectItem[T]],
+    visible_indices: list[int],
+    pointed_at: int,
+) -> int:
+    """Return a valid pointed_at position for selectable items.
+
+    pointed_at is an index into visible_indices (not into items).
+    """
+
+    if not visible_indices:
+        return 0
+
+    start = pointed_at % len(visible_indices)
+    for offset in range(len(visible_indices)):
+        pos = (start + offset) % len(visible_indices)
+        idx = visible_indices[pos]
+        if items[idx].selectable:
+            return pos
+    return start
 
 
 def _build_choices_tokens[T](
@@ -353,7 +429,7 @@ def select_one[T](
         nonlocal pointed_at
         indices, _ = _filter_items(items, get_filter_text())
         if indices:
-            pointed_at %= len(indices)
+            pointed_at = _coerce_pointed_at_to_selectable(items, indices, pointed_at)
         return _build_choices_tokens(
             items,
             indices,
@@ -361,6 +437,19 @@ def select_one[T](
             pointer,
             highlight_pointed_item=highlight_pointed_item,
         )
+
+    def move_pointed_at(delta: int) -> None:
+        nonlocal pointed_at
+        indices, _ = _filter_items(items, get_filter_text())
+        if not indices:
+            return
+
+        pointed_at = _coerce_pointed_at_to_selectable(items, indices, pointed_at)
+        for _ in range(len(indices)):
+            pointed_at = (pointed_at + delta) % len(indices)
+            idx = indices[pointed_at]
+            if items[idx].selectable:
+                return
 
     def on_search_changed(_buf: Buffer) -> None:
         nonlocal pointed_at
@@ -377,14 +466,12 @@ def select_one[T](
 
     @kb.add(Keys.Down, eager=True)
     def _(event: KeyPressEvent) -> None:
-        nonlocal pointed_at
-        pointed_at += 1
+        move_pointed_at(+1)
         event.app.invalidate()
 
     @kb.add(Keys.Up, eager=True)
     def _(event: KeyPressEvent) -> None:
-        nonlocal pointed_at
-        pointed_at -= 1
+        move_pointed_at(-1)
         event.app.invalidate()
 
     @kb.add(Keys.Enter, eager=True)
@@ -393,8 +480,15 @@ def select_one[T](
         if not indices:
             event.app.exit(result=None)
             return
+
+        nonlocal pointed_at
+        pointed_at = _coerce_pointed_at_to_selectable(items, indices, pointed_at)
         idx = indices[pointed_at % len(indices)]
-        event.app.exit(result=items[idx].value)
+        value = items[idx].value
+        if value is None:
+            event.app.exit(result=None)
+            return
+        event.app.exit(result=value)
 
     @kb.add(Keys.Escape, eager=True)
     def _(event: KeyPressEvent) -> None:
@@ -532,14 +626,26 @@ class SelectOverlay[T]:
         kb = KeyBindings()
         is_open_filter = Condition(lambda: self._is_open)
 
+        def move_pointed_at(delta: int) -> None:
+            indices, _ = self._get_visible_indices()
+            if not indices:
+                return
+
+            self._pointed_at = _coerce_pointed_at_to_selectable(self._items, indices, self._pointed_at)
+            for _ in range(len(indices)):
+                self._pointed_at = (self._pointed_at + delta) % len(indices)
+                idx = indices[self._pointed_at]
+                if self._items[idx].selectable:
+                    return
+
         @kb.add(Keys.Down, filter=is_open_filter, eager=True)
         def _(event: KeyPressEvent) -> None:
-            self._pointed_at += 1
+            move_pointed_at(+1)
             event.app.invalidate()
 
         @kb.add(Keys.Up, filter=is_open_filter, eager=True)
         def _(event: KeyPressEvent) -> None:
-            self._pointed_at -= 1
+            move_pointed_at(-1)
             event.app.invalidate()
 
         @kb.add(Keys.Enter, filter=is_open_filter, eager=True)
@@ -548,8 +654,13 @@ class SelectOverlay[T]:
             if not indices:
                 self.close()
                 return
+
+            self._pointed_at = _coerce_pointed_at_to_selectable(self._items, indices, self._pointed_at)
             idx = indices[self._pointed_at % len(indices)]
             value = self._items[idx].value
+            if value is None:
+                self.close()
+                return
             self.close()
 
             if self._on_select is None:
@@ -593,7 +704,7 @@ class SelectOverlay[T]:
         def get_choices_tokens() -> list[tuple[str, str]]:
             indices, _ = self._get_visible_indices()
             if indices:
-                self._pointed_at %= len(indices)
+                self._pointed_at = _coerce_pointed_at_to_selectable(self._items, indices, self._pointed_at)
             return _build_choices_tokens(
                 self._items,
                 indices,

@@ -144,6 +144,7 @@ def _build_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[int]]:
                 title=title_parts,
                 value=fp.history_index,
                 search_text=fp.user_message if not is_last else "fork entire conversation",
+                selectable=not is_first,
             )
         )
 
@@ -238,16 +239,6 @@ class ForkSessionCommand(CommandABC):
                 session_id=agent.session.id,
                 command_name=self.name,
                 content="(fork cancelled)",
-            )
-            return CommandResult(events=[event])
-
-        # First option (empty session) is just for UI display, not a valid fork point
-        if selected == fork_points[0].history_index:
-            event = events.CommandOutputEvent(
-                session_id=agent.session.id,
-                command_name=self.name,
-                content="(cannot fork to empty session)",
-                is_error=True,
             )
             return CommandResult(events=[event])
 
