@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.2] - 2026-01-06
+
+### Added
+
+- add model disabled support and stream error handling (`50d5feb3`)
+- add collapse step UI in export html (`2c697b15`)
+- show skill in welcome event (`bc30d041`)
+- add jq to available CLI tools in agent profile (`f2e490c3`)
+
+### Fixed
+
+- update config for opus (`54dd0844`)
+
+### Other
+
+- polish export and TUI rendering (`0c142cea`)
 ## [2.5.1] - 2026-01-06
 
 ### Changed
@@ -1239,7 +1255,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.5.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.5.2...HEAD
+[2.5.2]: https://github.com/inspirepan/klaude-code/compare/v2.5.1...v2.5.2
 [2.5.0]: https://github.com/inspirepan/klaude-code/compare/v2.4.2...v2.5.0
 [2.4.2]: https://github.com/inspirepan/klaude-code/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/inspirepan/klaude-code/compare/v2.4.0...v2.4.1
