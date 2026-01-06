@@ -303,6 +303,31 @@ class TestToolExecutor:
         assert isinstance(events[1].tool_result.ui_extra, model.SessionIdUIExtra)
         assert events[1].tool_result.ui_extra.session_id == "session_abc"
 
+    def test_cancel_includes_task_metadata_when_available(self, executor: ToolExecutor):
+        """Test cancelling includes sub-agent task metadata when getter is registered."""
+        tool_call = ToolCallRequest(
+            response_id=None,
+            call_id="test_123",
+            tool_name="MockSuccess",
+            arguments_json="{}",
+        )
+        executor._unfinished_calls["test_123"] = tool_call
+        executor._sub_agent_metadata_getters["test_123"] = lambda: model.TaskMetadata(
+            model_name="test-model",
+            usage=model.Usage(input_tokens=100, output_tokens=50),
+            description="Test sub-agent",
+        )
+
+        events = list(executor.cancel())
+
+        assert len(events) == 2
+        assert isinstance(events[1], ToolExecutionResult)
+        assert events[1].tool_result.task_metadata is not None
+        assert events[1].tool_result.task_metadata.model_name == "test-model"
+        assert events[1].tool_result.task_metadata.description == "Test sub-agent"
+        assert events[1].tool_result.task_metadata.usage is not None
+        assert events[1].tool_result.task_metadata.usage.input_tokens == 100
+
     def test_cancel_already_emitted_call(self, executor: ToolExecutor):
         """Test cancelling call that was already emitted."""
         tool_call = ToolCallRequest(

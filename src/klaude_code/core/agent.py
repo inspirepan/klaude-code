@@ -8,7 +8,7 @@ from klaude_code.core.tool import build_todo_context, get_registry
 from klaude_code.core.tool.context import RunSubtask
 from klaude_code.llm import LLMClientABC
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events
+from klaude_code.protocol import events, model
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session import Session
 
@@ -93,3 +93,12 @@ class Agent:
 
     def get_llm_client(self) -> LLMClientABC:
         return self.profile.llm_client
+
+    def get_partial_metadata(self) -> model.TaskMetadata | None:
+        """Get partial metadata from the currently running task.
+
+        Returns None if no task is running or no usage data has been accumulated.
+        """
+        if self._current_task is None:
+            return None
+        return self._current_task.get_partial_metadata()

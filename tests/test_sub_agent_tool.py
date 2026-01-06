@@ -130,7 +130,7 @@ class TestSubAgentToolCall:
     def test_call_returns_session_id_in_ui_extra(self):
         """Tool result should include session_id in ui_extra when session_id is present."""
 
-        async def _runner(state: Any, record_session_id: Any) -> Any:
+        async def _runner(state: Any, record_session_id: Any, register_metadata_getter: Any) -> Any:
             if callable(record_session_id):
                 record_session_id("abc123def456")
 

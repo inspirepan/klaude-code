@@ -120,6 +120,7 @@ class ToolExecutor:
         self._call_event_emitted: set[str] = set()
         self._concurrent_tasks: set[asyncio.Task[list[ToolExecutorEvent]]] = set()
         self._sub_agent_session_ids: dict[str, str] = {}
+        self._sub_agent_metadata_getters: dict[str, Callable[[], model.TaskMetadata | None]] = {}
 
     async def run_tools(self, tool_calls: list[ToolCallRequest]) -> AsyncGenerator[ToolExecutorEvent]:
         """Run the given tool calls and yield execution events.
@@ -213,12 +214,16 @@ class ToolExecutor:
         unfinished = list(self._unfinished_calls.items())
         for idx, (call_id, tool_call) in enumerate(unfinished):
             session_id = self._sub_agent_session_ids.get(call_id)
+            # Get partial metadata from sub-agent if available
+            metadata_getter = self._sub_agent_metadata_getters.get(call_id)
+            task_metadata = metadata_getter() if metadata_getter is not None else None
             cancel_result = message.ToolResultMessage(
                 call_id=tool_call.call_id,
                 output_text=CANCEL_OUTPUT,
                 status="aborted",
                 tool_name=tool_call.tool_name,
                 ui_extra=model.SessionIdUIExtra(session_id=session_id) if session_id else None,
+                task_metadata=task_metadata,
             )
 
             if call_id not in self._call_event_emitted:
@@ -236,6 +241,7 @@ class ToolExecutor:
             self._append_history([cancel_result])
             self._unfinished_calls.pop(call_id, None)
             self._sub_agent_session_ids.pop(call_id, None)
+            self._sub_agent_metadata_getters.pop(call_id, None)
 
         return events_to_yield
 
@@ -272,7 +278,11 @@ class ToolExecutor:
             if tool_call.call_id not in self._sub_agent_session_ids:
                 self._sub_agent_session_ids[tool_call.call_id] = session_id
 
+        def _register_metadata_getter(getter: Callable[[], model.TaskMetadata | None]) -> None:
+            self._sub_agent_metadata_getters[tool_call.call_id] = getter
+
         call_context = self._context.with_record_sub_agent_session_id(_record_sub_agent_session_id)
+        call_context = call_context.with_register_sub_agent_metadata_getter(_register_metadata_getter)
         tool_result: message.ToolResultMessage = await run_tool(tool_call, self._registry, call_context)
 
         self._append_history([tool_result])
@@ -281,6 +291,7 @@ class ToolExecutor:
 
         self._unfinished_calls.pop(tool_call.call_id, None)
         self._sub_agent_session_ids.pop(tool_call.call_id, None)
+        self._sub_agent_metadata_getters.pop(tool_call.call_id, None)
 
         extra_events = self._build_tool_side_effect_events(tool_result)
         return [result_event, *extra_events]

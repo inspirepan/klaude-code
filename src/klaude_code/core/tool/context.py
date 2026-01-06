@@ -10,7 +10,12 @@ from klaude_code.session.session import Session
 
 type FileTracker = MutableMapping[str, model.FileStatus]
 
-RunSubtask = Callable[[model.SubAgentState, Callable[[str], None] | None], Awaitable[SubAgentResult]]
+GetMetadataFn = Callable[[], model.TaskMetadata | None]
+
+RunSubtask = Callable[
+    [model.SubAgentState, Callable[[str], None] | None, Callable[[GetMetadataFn], None] | None],
+    Awaitable[SubAgentResult],
+]
 
 
 @dataclass
@@ -79,6 +84,12 @@ class ToolContext:
     run_subtask: RunSubtask | None = None
     sub_agent_resume_claims: SubAgentResumeClaims | None = None
     record_sub_agent_session_id: Callable[[str], None] | None = None
+    register_sub_agent_metadata_getter: Callable[[GetMetadataFn], None] | None = None
 
     def with_record_sub_agent_session_id(self, callback: Callable[[str], None] | None) -> ToolContext:
         return replace(self, record_sub_agent_session_id=callback)
+
+    def with_register_sub_agent_metadata_getter(
+        self, callback: Callable[[GetMetadataFn], None] | None
+    ) -> ToolContext:
+        return replace(self, register_sub_agent_metadata_getter=callback)

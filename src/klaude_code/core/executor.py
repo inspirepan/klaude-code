@@ -275,8 +275,11 @@ class AgentRuntime:
             async def _runner(
                 state: model.SubAgentState,
                 record_session_id: Callable[[str], None] | None,
+                register_metadata_getter: Callable[[Callable[[], model.TaskMetadata | None]], None] | None,
             ) -> SubAgentResult:
-                return await self._sub_agent_manager.run_sub_agent(agent, state, record_session_id=record_session_id)
+                return await self._sub_agent_manager.run_sub_agent(
+                    agent, state, record_session_id=record_session_id, register_metadata_getter=register_metadata_getter
+                )
 
             async for event in agent.run_task(user_input, run_subtask=_runner):
                 await self._emit_event(event)

@@ -44,6 +44,7 @@ class SubAgentManager:
         state: model.SubAgentState,
         *,
         record_session_id: Callable[[str], None] | None = None,
+        register_metadata_getter: Callable[[Callable[[], model.TaskMetadata | None]], None] | None = None,
     ) -> SubAgentResult:
         """Run a nested sub-agent task and return its result."""
 
@@ -114,6 +115,16 @@ class SubAgentManager:
             debug_type=DebugType.EXECUTION,
         )
 
+        # Register metadata getter so parent can retrieve partial metadata on cancel
+        def _get_partial_metadata() -> model.TaskMetadata | None:
+            metadata = child_agent.get_partial_metadata()
+            if metadata is not None:
+                metadata.description = state.sub_agent_desc or None
+            return metadata
+
+        if register_metadata_getter is not None:
+            register_metadata_getter(_get_partial_metadata)
+
         try:
             # Not emit the subtask's user input since task tool call is already rendered
             result: str = ""
@@ -149,7 +160,11 @@ class SubAgentManager:
                 task_metadata=task_metadata,
             )
         except asyncio.CancelledError:
-            # Propagate cancellation so tooling can treat it as user interrupt
+            # Call cancel() on child agent to emit cleanup events
+            # Note: Parent retrieves partial metadata via registered getter before this runs
+            for evt in child_agent.cancel():
+                await self.emit_event(evt)
+
             log_debug(
                 f"Sub-agent task for {state.sub_agent_type} was cancelled",
                 style="yellow",

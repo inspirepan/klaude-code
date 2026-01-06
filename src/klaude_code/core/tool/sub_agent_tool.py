@@ -111,6 +111,7 @@ class SubAgentTool(ToolABC):
                     generation=generation_dict,
                 ),
                 context.record_sub_agent_session_id,
+                context.register_sub_agent_metadata_getter,
             )
         except asyncio.CancelledError:
             raise

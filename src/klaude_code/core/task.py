@@ -66,6 +66,49 @@ class MetadataAccumulator:
         """Add sub-agent task metadata to the accumulated state."""
         self._sub_agent_metadata.append(sub_agent_metadata)
 
+    def get_partial(self, task_duration_s: float) -> model.TaskMetadata | None:
+        """Return a snapshot of main agent metadata without modifying accumulator state.
+
+        Returns None if no usage data has been accumulated yet.
+        """
+        if self._main_agent.usage is None:
+            return None
+
+        # Create a copy to avoid modifying the original
+        usage_copy = self._main_agent.usage.model_copy(deep=True)
+
+        if self._throughput_tracked_tokens > 0:
+            usage_copy.throughput_tps = self._throughput_weighted_sum / self._throughput_tracked_tokens
+        else:
+            usage_copy.throughput_tps = None
+
+        if self._first_token_latency_count > 0:
+            usage_copy.first_token_latency_ms = self._first_token_latency_sum / self._first_token_latency_count
+        else:
+            usage_copy.first_token_latency_ms = None
+
+        return model.TaskMetadata(
+            model_name=self._main_agent.model_name,
+            provider=self._main_agent.provider,
+            usage=usage_copy,
+            task_duration_s=task_duration_s,
+            turn_count=self._turn_count,
+        )
+
+    def get_partial_item(self, task_duration_s: float) -> model.TaskMetadataItem | None:
+        """Return a snapshot of full metadata (main + sub-agents) without modifying state.
+
+        Returns None if no usage data has been accumulated yet.
+        """
+        main_agent = self.get_partial(task_duration_s)
+        if main_agent is None:
+            return None
+
+        return model.TaskMetadataItem(
+            main_agent=main_agent,
+            sub_agent_task_metadata=list(self._sub_agent_metadata),
+        )
+
     def finalize(self, task_duration_s: float) -> model.TaskMetadataItem:
         """Return the final accumulated metadata with computed throughput and duration."""
         if self._main_agent.usage is not None:
@@ -129,18 +172,36 @@ class TaskExecutor:
     def current_turn(self) -> TurnExecutor | None:
         return self._current_turn
 
+    def get_partial_metadata(self) -> model.TaskMetadata | None:
+        """Get the currently accumulated metadata without finalizing.
+
+        Returns partial metadata that can be used if the task is interrupted.
+        """
+        if self._metadata_accumulator is None or self._started_at <= 0:
+            return None
+        task_duration_s = time.perf_counter() - self._started_at
+        return self._metadata_accumulator.get_partial(task_duration_s)
+
     def cancel(self) -> list[events.Event]:
         """Cancel the current turn and return any resulting events including metadata."""
         ui_events: list[events.Event] = []
         if self._current_turn is not None:
-            ui_events.extend(self._current_turn.cancel())
+            for evt in self._current_turn.cancel():
+                # Collect sub-agent task metadata from cancelled tool results
+                if (
+                    isinstance(evt, events.ToolResultEvent)
+                    and evt.task_metadata is not None
+                    and self._metadata_accumulator is not None
+                ):
+                    self._metadata_accumulator.add_sub_agent_metadata(evt.task_metadata)
+                ui_events.append(evt)
             self._current_turn = None
 
         # Emit partial metadata on cancellation
         if self._metadata_accumulator is not None and self._started_at > 0:
             task_duration_s = time.perf_counter() - self._started_at
-            accumulated = self._metadata_accumulator.finalize(task_duration_s)
-            if accumulated.main_agent.usage is not None:
+            accumulated = self._metadata_accumulator.get_partial_item(task_duration_s)
+            if accumulated is not None:
                 session_id = self._context.session_ctx.session_id
                 ui_events.append(events.TaskMetadataEvent(metadata=accumulated, session_id=session_id))
                 self._context.session_ctx.append_history([accumulated])
